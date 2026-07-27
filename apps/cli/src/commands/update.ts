@@ -5,11 +5,9 @@ import {
 	isAutoUpdateEnabledGlobally,
 	probeHubServer,
 	readHubDiscovery,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
@@ -277,9 +275,7 @@ export function getPreferredKanbanInstaller(
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
+	return resolveDefaultHubOwnerContext();
 }
 
 async function waitForHubToStop(
@@ -319,7 +315,9 @@ async function restartHubServerIfRunning(): Promise<void> {
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
 
-	let stopped = await stopLocalHubServerGracefully(owner).catch(() => false);
+	let stopped = await stopLocalHubServerGracefully({ owner }).catch(
+		() => false,
+	);
 	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGTERM");

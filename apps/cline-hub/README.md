@@ -23,6 +23,12 @@ bun run start
 
 Open <http://127.0.0.1:8787> and click **Connect**. The server will discover or spawn a local detached hub on startup; the hub endpoint is printed in the console and shown in the sidebar.
 
+From the CLI, `cline dashboard` opens the running dashboard in the default
+browser and exits. The local hub daemon owns the background dashboard process
+when the hub is launched by the CLI; starting a new hub replaces the discovered
+dashboard process. Use `cline dashboard restart` or `cline dashboard stop` for
+manual lifecycle control.
+
 For webview development with Vite hot reload:
 
 ```bash

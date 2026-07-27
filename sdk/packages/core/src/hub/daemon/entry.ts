@@ -1,11 +1,17 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
-import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
-import { resolveHubEndpointOptions } from "../discovery/defaults";
+import { initVcr } from "@cline/shared";
 import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+	CLINE_HUB_PRESERVE_DASHBOARD_ENV,
+	restartManagedHubDashboardProcess,
+	stopManagedHubDashboardProcess,
+} from "../daemon/dashboard-process";
+import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
+import {
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
+	resolveHubDashboardDiscoveryPath,
+} from "../dashboard-discovery";
+import { resolveHubEndpointOptions } from "../discovery/defaults";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
 import { createHubDaemonTelemetry } from "./telemetry";
 
@@ -62,7 +68,46 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
+	const owner = resolveDefaultHubOwnerContext();
+	const dashboardDiscoveryPath =
+		process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
+		resolveHubDashboardDiscoveryPath(owner);
+
 	const daemonTelemetry = createHubDaemonTelemetry();
+
+	const preserveDashboardDuringStartup =
+		process.env[CLINE_HUB_PRESERVE_DASHBOARD_ENV]?.trim() === "1";
+	let dashboardStartupSettled = false;
+	let preserveDashboardOnShutdown = false;
+	let dashboardRestartPromise: Promise<void> | undefined;
+	let resolveDashboardRestartScheduled: (() => void) | undefined;
+	const dashboardRestartScheduled = new Promise<void>((resolve) => {
+		resolveDashboardRestartScheduled = resolve;
+	});
+	const rememberPreserveDashboard = (preserve: boolean): void => {
+		if (
+			preserve ||
+			(!dashboardStartupSettled && preserveDashboardDuringStartup)
+		) {
+			preserveDashboardOnShutdown = true;
+		}
+	};
+	let dashboardShutdownPromise: Promise<void> | undefined;
+	const prepareDashboardShutdown = (
+		shutdownOptions: { preserveDashboard?: boolean } = {},
+	): Promise<void> => {
+		rememberPreserveDashboard(shutdownOptions.preserveDashboard === true);
+		dashboardShutdownPromise ??= (async () => {
+			await dashboardRestartScheduled;
+			await dashboardRestartPromise;
+			if (!preserveDashboardOnShutdown) {
+				await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+					() => undefined,
+				);
+			}
+		})();
+		return dashboardShutdownPromise;
+	};
 
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
@@ -70,15 +115,13 @@ async function main(): Promise<void> {
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
-			owner:
-				resolveClineBuildEnv() === "production"
-					? resolveProductionHubOwnerContext()
-					: resolveSharedHubOwnerContext(),
+			owner,
 			telemetry: daemonTelemetry.telemetry,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
 				telemetry: daemonTelemetry.telemetry,
 			}),
 			cronOptions: { workspaceRoot: options.cwd },
+			prepareShutdown: prepareDashboardShutdown,
 		});
 	} catch (error) {
 		// Flush before the top-level catch exits so failed daemon starts are
@@ -87,7 +130,18 @@ async function main(): Promise<void> {
 		throw error;
 	}
 
-	const shutdown = async (): Promise<void> => {
+	const shutdownRequestPromise = server.shutdownRequested;
+
+	let shutdownStarted = false;
+	const shutdown = async (
+		shutdownOptions: { preserveDashboard?: boolean } = {},
+	): Promise<void> => {
+		rememberPreserveDashboard(shutdownOptions.preserveDashboard === true);
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
+		await prepareDashboardShutdown(shutdownOptions);
 		await server.close();
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
@@ -99,11 +153,12 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
+		rememberPreserveDashboard(false);
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void server
-			.close()
+		void prepareDashboardShutdown()
+			.then(() => server.close())
 			.catch((closeError) => {
 				const closeMessage =
 					closeError instanceof Error
@@ -142,9 +197,25 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
-	await new Promise<void>(() => {
-		// keep daemon process alive
-	});
+	dashboardRestartPromise = restartManagedHubDashboardProcess({
+		discoveryPath: dashboardDiscoveryPath,
+		cwd: options.cwd,
+	})
+		.catch((error) => {
+			const message =
+				error instanceof Error ? error.stack || error.message : String(error);
+			process.stderr.write(
+				`[hub-daemon] dashboard restart failed: ${message}\n`,
+			);
+		})
+		.finally(() => {
+			dashboardStartupSettled = true;
+		});
+	resolveDashboardRestartScheduled?.();
+	await dashboardRestartPromise;
+
+	const shutdownRequest = await shutdownRequestPromise;
+	await shutdown(shutdownRequest);
 }
 
 void main().catch((error) => {

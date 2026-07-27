@@ -3,6 +3,7 @@ import {
 	HubTransportError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
+	requestHubShutdown,
 } from "../client";
 
 type SocketListener = (...args: unknown[]) => void;
@@ -143,6 +144,34 @@ class FakeWebSocket {
 		}
 	}
 }
+
+describe("requestHubShutdown", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("marks dashboard-initiated shutdowns for preservation", async () => {
+		const fetchMock = vi.fn(async () => ({ ok: true }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			requestHubShutdown("ws://127.0.0.1:25463/hub", "hub-token", {
+				preserveDashboard: true,
+			}),
+		).resolves.toBe(true);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			new URL("http://127.0.0.1:25463/shutdown"),
+			{
+				method: "POST",
+				headers: {
+					authorization: "Bearer hub-token",
+					"x-cline-preserve-dashboard": "1",
+				},
+			},
+		);
+	});
+});
 
 describe("NodeHubClient", () => {
 	describe("subscription re-registration", () => {
@@ -564,6 +593,10 @@ describe("NodeHubClient", () => {
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery-recovery.json",
 			}),
+			resolveDefaultHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -719,6 +752,10 @@ describe("NodeHubClient", () => {
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery-explicit.json",
 			}),
+			resolveDefaultHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -790,6 +827,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
+			resolveDefaultHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -828,6 +869,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
 			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveDefaultHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
@@ -883,6 +928,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
+			resolveDefaultHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -930,6 +979,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
 			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveDefaultHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
@@ -1003,6 +1056,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
+			resolveDefaultHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -1066,6 +1123,16 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				ownerId: "shared",
 				discoveryPath: "/tmp/shared-hub-discovery.json",
 			}),
+			resolveDefaultHubOwnerContext: () =>
+				process.env.CLINE_BUILD_ENV === "development"
+					? {
+							ownerId: "shared",
+							discoveryPath: "/tmp/shared-hub-discovery.json",
+						}
+					: {
+							ownerId: "production",
+							discoveryPath: "/tmp/production-hub-discovery.json",
+						},
 		}));
 		vi.doMock("../discovery", async () => {
 			const actual =
@@ -1120,6 +1187,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),
 			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveDefaultHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
 			}),

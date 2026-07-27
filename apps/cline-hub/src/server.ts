@@ -1,5 +1,5 @@
 import { CORE_BUILD_VERSION } from "@cline/core";
-import { isNonLocalBindHost } from "./options";
+import { buildDashboardLaunchUrl } from "./options";
 import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
@@ -7,8 +7,8 @@ import {
 import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
+	dashboardWebUrl,
 	host,
-	inviteUrl,
 	port,
 	publicUrl,
 	roomSecret,
@@ -23,10 +23,13 @@ import {
 import {
 	attachHub,
 	detachHub,
-	restartHub,
 	syncHubClientsAndSessions,
 	syncHubHealth,
 } from "./server/hub";
+import {
+	connectHubFromWebview,
+	restartHubFromWebview,
+} from "./server/hub-actions";
 import { fetchMarketplaceCatalog } from "./server/marketplace";
 import {
 	loadModels,
@@ -52,8 +55,6 @@ export interface ClineHubDashboardServer {
 	listenUrl: string;
 	publicUrl: string;
 	inviteUrl: string;
-	bindHost: string;
-	inviteRequired: boolean;
 	hubUrl: string | undefined;
 	stop: () => Promise<void>;
 }
@@ -85,7 +86,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
 
-	await attachHub(ctx);
+	await attachHub(ctx, { preserveDashboard: true });
 	const healthInterval = setInterval(() => {
 		void (async () => {
 			await syncHubHealth(ctx);
@@ -104,6 +105,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 					url,
 					{
 						bindHost: host,
+						dashboardWebUrl,
 						port,
 						publicUrl,
 						roomSecret,
@@ -183,6 +185,13 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						}
 					} else if (frame.type === "ready") {
 						await initializePeer(ctx, peer, syncClientsAndSessions);
+					} else if (frame.type === "connect_hub") {
+						await connectHubFromWebview(
+							ctx,
+							peer,
+							frame,
+							syncClientsAndSessions,
+						);
 					} else if (frame.type === "loadModels") {
 						await loadModels(ctx, peer, frame.providerId);
 					} else if (frame.type === "loadProviderCatalog") {
@@ -243,7 +252,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							syncClientsAndSessions,
 						);
 					} else if (frame.type === "restart_hub") {
-						await restartHub(ctx);
+						await restartHubFromWebview(ctx, peer);
 					}
 				} catch (error) {
 					ctx.send(peer, {
@@ -264,9 +273,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	return {
 		listenUrl: server.url.toString(),
 		publicUrl,
-		inviteUrl,
-		bindHost: host,
-		inviteRequired: Boolean(roomSecret),
+		inviteUrl: buildDashboardLaunchUrl(dashboardWebUrl, publicUrl, roomSecret),
 		hubUrl: ctx.hubUrl,
 		stop: async () => {
 			if (stopped) return;
@@ -287,15 +294,7 @@ export function printClineHubDashboardServerInfo(
 	console.log(`Cline Hub dashboard listening: ${server.listenUrl}`);
 	console.log(`Cline Hub public URL: ${server.publicUrl}`);
 	console.log(`hub endpoint: ${server.hubUrl}`);
-	if (server.inviteRequired) {
-		console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
-	} else if (isNonLocalBindHost(server.bindHost)) {
-		console.warn("WARNING: non-local bind without ROOM_SECRET is not allowed.");
-	} else {
-		console.log(
-			"ROOM_SECRET is not set; this local-only instance accepts browser connections without an invite token.",
-		);
-	}
+	console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
 }
 
 if (import.meta.main) {

@@ -1,10 +1,18 @@
 import {
+	CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV,
 	ClineCore,
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
+	probeHubServer,
+	readHubDashboardDiscovery,
+	readHubDiscovery,
+	rememberRecoverableLocalHubUrl,
+	resolveDefaultHubOwnerContext,
+	resolveHubDashboardDiscoveryPath,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
+	writeHubDashboardDiscovery,
 } from "@cline/core";
 import type { HubUINotifyPayload } from "@cline/shared";
 import { handleSessionEvent } from "./agent-events";
@@ -23,6 +31,30 @@ import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
 import { asString, basename, isActiveSession, isVisibleClient } from "./utils";
+
+function resolveDashboardDiscoveryPath(): string {
+	return (
+		process.env[CLINE_HUB_DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
+		resolveHubDashboardDiscoveryPath(resolveDefaultHubOwnerContext())
+	);
+}
+
+async function refreshDashboardDiscoveryHubUrl(hubUrl: string): Promise<void> {
+	const discoveryPath = resolveDashboardDiscoveryPath();
+	const discovered = await readHubDashboardDiscovery(discoveryPath);
+	if (
+		!discovered ||
+		discovered.pid !== process.pid ||
+		discovered.hubUrl === hubUrl
+	) {
+		return;
+	}
+	await writeHubDashboardDiscovery(discoveryPath, {
+		...discovered,
+		hubUrl,
+		updatedAt: new Date().toISOString(),
+	});
+}
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
@@ -89,12 +121,74 @@ export async function syncHubClientsAndSessions(
 	if (mostRecent) ctx.lastSessionContext = mostRecent;
 }
 
-export async function attachHub(ctx: HubContext): Promise<void> {
-	const hub = await ensureDetachedHubServer(workspaceRoot);
-	ctx.hubUrl = hub.url;
-	ctx.hubAuthToken = hub.authToken;
+export interface HubAttachmentOverride {
+	hubUrl?: string;
+	authToken?: string;
+	preserveDashboard?: boolean;
+}
 
-	ctx.cline = await ClineCore.create({
+function sameHubEndpoint(left: string, right: string): boolean {
+	const leftUrl = new URL(left);
+	const rightUrl = new URL(right);
+	leftUrl.search = "";
+	leftUrl.hash = "";
+	rightUrl.search = "";
+	rightUrl.hash = "";
+	return leftUrl.toString() === rightUrl.toString();
+}
+
+async function resolveHubAttachmentOverride(
+	override?: HubAttachmentOverride,
+): Promise<
+	{ hubUrl: string; authToken: string; managedLocally: boolean } | undefined
+> {
+	const rawHubUrl = override?.hubUrl?.trim();
+	if (!rawHubUrl) {
+		return undefined;
+	}
+	const parsed = new URL(rawHubUrl);
+	const queryToken = parsed.searchParams.get("authToken")?.trim();
+	parsed.searchParams.delete("authToken");
+	parsed.hash = "";
+	const owner = resolveDefaultHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const managedLocally = Boolean(
+		discovery?.url && sameHubEndpoint(parsed.toString(), discovery.url),
+	);
+	const authToken =
+		override?.authToken?.trim() ||
+		queryToken ||
+		(managedLocally ? discovery?.authToken.trim() : undefined);
+	if (!authToken) {
+		throw new Error(
+			"Hub auth token is required when connecting the dashboard to a custom hub URL.",
+		);
+	}
+	return {
+		hubUrl: parsed.toString(),
+		authToken,
+		managedLocally,
+	};
+}
+
+export async function attachHub(
+	ctx: HubContext,
+	override?: HubAttachmentOverride,
+): Promise<void> {
+	const resolvedOverride = await resolveHubAttachmentOverride(override);
+	const hub = resolvedOverride
+		? {
+				url: rememberRecoverableLocalHubUrl(
+					resolvedOverride.hubUrl,
+					resolvedOverride.authToken,
+				),
+				authToken: resolvedOverride.authToken,
+			}
+		: await ensureDetachedHubServer(workspaceRoot, {
+				preserveDashboard: override?.preserveDashboard ?? true,
+			});
+
+	const nextCline = await ClineCore.create({
 		clientName: "cline-hub",
 		backendMode: "hub",
 		capabilities: {
@@ -102,21 +196,39 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				requestToolApprovalFromWebview(ctx, request),
 		},
 		hub: {
-			endpoint: ctx.hubUrl,
-			authToken: ctx.hubAuthToken,
+			endpoint: hub.url,
+			authToken: hub.authToken,
 			clientType: "cline-hub-chat",
 			displayName: "Cline Hub Chat",
 			workspaceRoot,
 		},
 	});
 
-	ctx.uiClient = new HubUIClient({
-		address: ctx.hubUrl,
-		authToken: ctx.hubAuthToken,
+	const nextUiClient = new HubUIClient({
+		address: hub.url,
+		authToken: hub.authToken,
 		clientType: "cline-hub-server",
 		displayName: "Cline Hub Server",
 	});
-	await ctx.uiClient.connect();
+	try {
+		await nextUiClient.connect();
+	} catch (error) {
+		try {
+			nextUiClient.close();
+		} catch {
+			// Preserve the connection error while cleanup remains best-effort.
+		}
+		await nextCline.dispose().catch(() => undefined);
+		throw error;
+	}
+
+	await detachHub(ctx);
+	ctx.hubUrl = hub.url;
+	ctx.hubAuthToken = hub.authToken;
+	ctx.hubManagedLocally =
+		resolvedOverride === undefined || resolvedOverride.managedLocally;
+	ctx.cline = nextCline;
+	ctx.uiClient = nextUiClient;
 
 	ctx.uiClient.subscribeUI({
 		onNotify(payload: HubUINotifyPayload) {
@@ -219,6 +331,9 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 
 	await syncHubClientsAndSessions(ctx);
 	await syncHubHealth(ctx);
+	await refreshDashboardDiscoveryHubUrl(hub.url).catch((error) => {
+		console.warn("Unable to refresh dashboard discovery:", error);
+	});
 }
 
 export async function detachHub(ctx: HubContext): Promise<void> {
@@ -242,6 +357,7 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 		// ignore
 	}
 	ctx.cline = undefined;
+	ctx.hubManagedLocally = false;
 	ctx.clients.clear();
 	ctx.sessions.clear();
 	ctx.hubStartedAt = undefined;
@@ -249,20 +365,40 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 	ctx.initialHubEventEmitted = false;
 }
 
+async function isAttachedHubReachable(ctx: HubContext): Promise<boolean> {
+	if (!ctx.hubUrl) {
+		return false;
+	}
+	const record = await probeHubServer(ctx.hubUrl, {
+		authToken: ctx.hubAuthToken,
+	}).catch(() => undefined);
+	return Boolean(record);
+}
+
 export async function restartHub(ctx: HubContext): Promise<void> {
+	if (!ctx.hubManagedLocally) {
+		throw new Error(
+			"Custom hubs must be restarted externally before reconnecting the dashboard.",
+		);
+	}
 	ctx.broadcast({
 		type: "notification",
 		title: "Hub restarting",
 		body: "Shutting down and respawning hub...",
 		severity: "warn",
 	});
-	await detachHub(ctx);
-	try {
-		await stopLocalHubServerGracefully();
-	} catch (error) {
+	const stopped = await stopLocalHubServerGracefully({
+		preserveDashboard: true,
+	}).catch((error) => {
 		console.warn("stopLocalHubServerGracefully failed:", error);
+		return false;
+	});
+	if (!stopped && (await isAttachedHubReachable(ctx))) {
+		throw new Error("Unable to stop the current Cline Hub.");
 	}
-	await attachHub(ctx);
+	await detachHub(ctx);
+	broadcastHubState(ctx);
+	await attachHub(ctx, { preserveDashboard: true });
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

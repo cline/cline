@@ -15,6 +15,7 @@ import { getCliBuildInfo } from "../utils/common";
 const {
 	mockSpawnSync,
 	mockResolveClineDataDir,
+	mockResolveDefaultHubOwnerContext,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockReadHubDiscovery,
@@ -26,6 +27,16 @@ const {
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
+	mockResolveDefaultHubOwnerContext: vi.fn(() => ({
+		ownerId: "hub-owner",
+		discoveryPath: path.join(
+			"/tmp/cline-data",
+			"locks",
+			"hub",
+			"owners",
+			"hub-owner.json",
+		),
+	})),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "hub-production",
 		discoveryPath: path.join(
@@ -63,6 +74,7 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("@cline/core", () => ({
 	resolveClineDataDir: mockResolveClineDataDir,
+	resolveDefaultHubOwnerContext: mockResolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	clearHubDiscovery: mockClearHubDiscovery,
@@ -95,6 +107,16 @@ describe("runDoctorCommand", () => {
 				"locks",
 				"hub",
 				"production.json",
+			),
+		});
+		mockResolveDefaultHubOwnerContext.mockReturnValue({
+			ownerId: "hub-owner",
+			discoveryPath: path.join(
+				"/tmp/cline-data",
+				"locks",
+				"hub",
+				"owners",
+				"hub-owner.json",
 			),
 		});
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
@@ -214,6 +236,10 @@ describe("runDoctorCommand", () => {
 		tempDirs.push(cwd);
 		const discoveryPath = path.join(cwd, ".hub-discovery.json");
 		mockResolveSharedHubOwnerContext.mockReturnValue({
+			ownerId: "hub-owner",
+			discoveryPath,
+		});
+		mockResolveDefaultHubOwnerContext.mockReturnValue({
 			ownerId: "hub-owner",
 			discoveryPath,
 		});

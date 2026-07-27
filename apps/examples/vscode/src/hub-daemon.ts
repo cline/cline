@@ -3,8 +3,7 @@ import {
 	type ConfiguredTelemetryHandle,
 	createConfiguredTelemetryHandle,
 	createLocalHubScheduleRuntimeHandlers,
-	ensureHubWebSocketServer,
-	resolveSharedHubOwnerContext,
+	ensureHubServer,
 } from "@cline/core/hub";
 import {
 	createClineTelemetryServiceConfig,
@@ -71,8 +70,7 @@ async function main(): Promise<void> {
 	const config = parseConfig(process.argv);
 	const telemetryHandle = createDaemonTelemetry(config.telemetryMetadata);
 
-	const ensured = await ensureHubWebSocketServer({
-		owner: resolveSharedHubOwnerContext(),
+	const ensured = await ensureHubServer({
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
 			telemetry: telemetryHandle?.telemetry,
 		}),

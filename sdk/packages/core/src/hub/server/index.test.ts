@@ -207,12 +207,18 @@ describe("hub server startup", () => {
 
 	it("shuts down active server through the shutdown endpoint", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
+		let releaseShutdownPreparation: (() => void) | undefined;
+		const shutdownPreparation = new Promise<void>((resolve) => {
+			releaseShutdownPreparation = resolve;
+		});
+		const prepareShutdown = vi.fn(() => shutdownPreparation);
 		const result = await ensureHubWebSocketServer({
 			owner,
 			host: "127.0.0.1",
 			port: 0,
 			pathname: "/hub",
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			prepareShutdown,
 		});
 		const server = requireServer(result.server);
 		servers.add(server);
@@ -225,11 +231,34 @@ describe("hub server startup", () => {
 		}
 		expect(discovery.authToken).toMatch(/^[a-f0-9]{64}$/);
 		const authToken = discovery.authToken;
+		const shutdownRequested = expect(server.shutdownRequested).resolves.toEqual(
+			{
+				preserveDashboard: true,
+			},
+		);
 		const response = await fetch(shutdownUrl, {
 			method: "POST",
-			headers: { authorization: `Bearer ${authToken}` },
+			headers: {
+				authorization: `Bearer ${authToken}`,
+				"x-cline-preserve-dashboard": "1",
+			},
 		});
 		expect(response.status).toBe(202);
+		await shutdownRequested;
+		try {
+			await vi.waitFor(() => {
+				expect(prepareShutdown).toHaveBeenCalledWith({
+					preserveDashboard: true,
+				});
+			});
+			expect(await readHubDiscovery(owner.discoveryPath)).toBeDefined();
+			const health = await fetch(
+				new URL("/health", toHubHealthUrl(result.url)),
+			);
+			expect(health.status).toBe(200);
+		} finally {
+			releaseShutdownPreparation?.();
+		}
 
 		for (let index = 0; index < 50; index += 1) {
 			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {

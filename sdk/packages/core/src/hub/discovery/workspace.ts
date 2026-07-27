@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { resolveClineBuildEnv } from "@cline/shared";
 import { normalizeWorkspacePath } from "../../services/workspace/workspace-manifest";
 import {
 	type HubOwnerContext,
@@ -32,4 +33,10 @@ export function resolveProductionHubOwnerContext(): HubOwnerContext {
 			process.env[HUB_DISCOVERY_ENV]?.trim() ||
 			join(resolveClineDataDir(), "locks", "hub", "production.json"),
 	};
+}
+
+export function resolveDefaultHubOwnerContext(): HubOwnerContext {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
 }

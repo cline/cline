@@ -214,6 +214,7 @@ export type WebviewHubEvent = {
 export type WebviewHubState = {
 	type: "hub_state";
 	connected: boolean;
+	restartable: boolean;
 	hubUrl?: string;
 	hubStartedAt?: string;
 	coreVersion?: string;
@@ -230,6 +231,7 @@ export type WebviewHubState = {
 export type WebviewInboundMessage =
 	| { type: "ready" }
 	| { type: "restart_hub" }
+	| { type: "connect_hub"; hubUrl: string; authToken?: string }
 	| {
 			type: "desktopCommand";
 			id: string;
@@ -273,6 +275,22 @@ export type WebviewInboundMessage =
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
 	| { type: "error"; text: string }
+	| {
+			type: "hub_connection_result";
+			ok: true;
+			hubUrl: string;
+	  }
+	| {
+			type: "hub_connection_result";
+			ok: false;
+			error: string;
+	  }
+	| { type: "hub_restart_result"; ok: true }
+	| {
+			type: "hub_restart_result";
+			ok: false;
+			error: string;
+	  }
 	| {
 			type: "desktopCommandResult";
 			id: string;

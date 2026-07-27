@@ -1,9 +1,6 @@
 import { resolveClineBuildEnv } from "@cline/shared";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 import {
 	type EnsuredHubWebSocketServerResult,
 	type EnsureHubWebSocketServerOptions,
@@ -21,12 +18,6 @@ export interface StartHubServerOptions
 
 export interface EnsureHubServerOptions
 	extends Omit<EnsureHubWebSocketServerOptions, "owner"> {}
-
-function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
-}
 
 function shouldAllowDefaultPortFallback(hasExplicitPort: boolean): boolean {
 	return resolveClineBuildEnv() !== "production" && !hasExplicitPort;

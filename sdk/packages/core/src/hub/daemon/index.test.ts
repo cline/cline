@@ -7,6 +7,7 @@ const {
 	openSync,
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
+	resolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
@@ -25,6 +26,9 @@ const {
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
+	resolveDefaultHubOwnerContext: vi.fn(() => ({
+		discoveryPath: "/tmp/hub-discovery.json",
+	})),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -77,6 +81,7 @@ vi.mock("../client", () => ({
 }));
 
 vi.mock("../discovery/workspace", () => ({
+	resolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 }));
@@ -207,6 +212,41 @@ describe("ensureDetachedHubServer", () => {
 
 		expect(spawn).not.toHaveBeenCalled();
 		expect(openSync).not.toHaveBeenCalled();
+	});
+
+	it("marks a replacement daemon to preserve the active dashboard", async () => {
+		const { CLINE_HUB_PRESERVE_DASHBOARD_ENV, spawnDetachedHubServer } =
+			await import(".");
+
+		spawnDetachedHubServer("/workspace", { preserveDashboard: true });
+
+		const spawnOptions = (spawn as unknown as { mock: { calls: unknown[][] } })
+			.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+		expect(spawnOptions?.env?.[CLINE_HUB_PRESERVE_DASHBOARD_ENV]).toBe("1");
+	});
+
+	it("clears an inherited preserve marker for ordinary hub starts", async () => {
+		const previous = process.env.CLINE_HUB_PRESERVE_DASHBOARD;
+		process.env.CLINE_HUB_PRESERVE_DASHBOARD = "1";
+		try {
+			const { CLINE_HUB_PRESERVE_DASHBOARD_ENV, spawnDetachedHubServer } =
+				await import(".");
+
+			spawnDetachedHubServer("/workspace");
+
+			const spawnOptions = (
+				spawn as unknown as { mock: { calls: unknown[][] } }
+			).mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+			expect(
+				spawnOptions?.env?.[CLINE_HUB_PRESERVE_DASHBOARD_ENV],
+			).toBeUndefined();
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_HUB_PRESERVE_DASHBOARD;
+			} else {
+				process.env.CLINE_HUB_PRESERVE_DASHBOARD = previous;
+			}
+		}
 	});
 
 	it("does not prewarm another detached daemon from inside the hub daemon process", async () => {

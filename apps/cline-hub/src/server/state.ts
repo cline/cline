@@ -27,6 +27,7 @@ export class HubContext {
 	hubUrl = "";
 	hubAuthToken = "";
 	hubHealthy = false;
+	hubManagedLocally = false;
 	cline: ClineCore | undefined;
 	uiClient: HubUIClient | undefined;
 	hubStartedAt: string | undefined;

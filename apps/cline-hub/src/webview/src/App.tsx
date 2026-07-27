@@ -63,6 +63,8 @@ import type {
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
+import { sameHubUrl } from "./lib/hub-url";
+import { locationPath, pathWithLocationHash } from "./lib/navigation-url";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -136,6 +138,7 @@ const CUSTOMIZATION_VIEW_SECTIONS = {
 const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
 	connected: false,
+	restartable: false,
 	clients: [],
 	connectors: [],
 	sessions: [],
@@ -240,14 +243,15 @@ function replaceLegacyCustomizationRoute(): void {
 		return;
 	}
 	const nextPath = routePath(VIEW_PATHS.rules);
-	if (currentPathWithSearch() !== nextPath) {
-		window.history.replaceState(null, "", nextPath);
+	const nextLocation = pathWithLocationHash(nextPath, window.location);
+	if (currentLocationPath() !== nextLocation) {
+		window.history.replaceState(null, "", nextLocation);
 	}
 }
 
-function currentPathWithSearch(): string {
+function currentLocationPath(): string {
 	if (typeof window === "undefined") return "/";
-	return `${window.location.pathname}${window.location.search}`;
+	return locationPath(window.location);
 }
 
 function ViewLoading() {
@@ -469,14 +473,20 @@ function Shell({
 }
 
 function HomeView({
+	actionError,
+	connectPending,
 	hubState,
+	onConnectHub,
 	onOpenSession,
 	onRestartHub,
 	onViewSessions,
 	restartPending,
 	recentSessions,
 }: {
+	actionError?: string;
+	connectPending: boolean;
 	hubState: WebviewHubState;
+	onConnectHub: (hubUrl: string) => void;
 	onOpenSession: (sessionId: string) => void;
 	onRestartHub: () => void;
 	onViewSessions: () => void;
@@ -491,6 +501,11 @@ function HomeView({
 		recentSessions.length > 0 ? recentSessions : activeSessions
 	).slice(0, 2);
 	const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+	const [hubUrlInput, setHubUrlInput] = useState(() => hubState.hubUrl ?? "");
+
+	useEffect(() => {
+		setHubUrlInput(hubState.hubUrl ?? "");
+	}, [hubState.hubUrl]);
 
 	const copyText = useCallback((value?: string) => {
 		if (!value || typeof navigator === "undefined") return;
@@ -500,6 +515,18 @@ function HomeView({
 	const confirmRestartHub = () => {
 		setRestartDialogOpen(false);
 		onRestartHub();
+	};
+
+	const submitHubUrl = () => {
+		const nextHubUrl = hubUrlInput.trim();
+		if (!nextHubUrl) return;
+		if (
+			hubState.connected &&
+			hubState.hubUrl &&
+			sameHubUrl(nextHubUrl, hubState.hubUrl)
+		)
+			return;
+		onConnectHub(nextHubUrl);
 	};
 
 	return (
@@ -534,10 +561,16 @@ function HomeView({
 							</span>
 						</button>
 						<Button
-							disabled={!hubState.connected || restartPending}
+							disabled={
+								!hubState.connected || !hubState.restartable || restartPending
+							}
 							onClick={() => setRestartDialogOpen(true)}
 							size="sm"
-							title="Restart Cline Hub"
+							title={
+								hubState.restartable
+									? "Restart Cline Hub"
+									: "Custom hubs must be restarted externally"
+							}
 							type="button"
 							variant="outline"
 							className="h-7 rounded px-2 text-xs"
@@ -550,6 +583,37 @@ function HomeView({
 					</>
 				}
 			/>
+			<div className="mb-5 max-w-[52rem]">
+				<form
+					className="flex items-center gap-2"
+					onSubmit={(event) => {
+						event.preventDefault();
+						submitHubUrl();
+					}}
+				>
+					<Input
+						aria-label="Hub URL"
+						className="h-8"
+						onChange={(event) => setHubUrlInput(event.target.value)}
+						placeholder="ws://127.0.0.1:25463/hub?authToken=..."
+						value={hubUrlInput}
+					/>
+					<Button
+						className="h-8 rounded px-2"
+						disabled={connectPending}
+						size="sm"
+						type="submit"
+					>
+						<LinkIcon className="size-3.5" />
+						<span>{connectPending ? "Connecting" : "Connect"}</span>
+					</Button>
+				</form>
+				{actionError ? (
+					<p className="mt-2 text-sm text-destructive" role="alert">
+						{actionError}
+					</p>
+				) : null}
+			</div>
 			<AlertDialog
 				open={restartDialogOpen}
 				onOpenChange={(open) => {
@@ -572,7 +636,9 @@ function HomeView({
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
-							disabled={!hubState.connected || restartPending}
+							disabled={
+								!hubState.connected || !hubState.restartable || restartPending
+							}
 							onClick={confirmRestartHub}
 							variant="destructive"
 						>
@@ -1118,6 +1184,8 @@ function App() {
 		readCurrentSettingsSection(),
 	);
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
+	const [connectPending, setConnectPending] = useState(false);
+	const [hubActionError, setHubActionError] = useState<string | undefined>();
 	const [restartPending, setRestartPending] = useState(false);
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
@@ -1160,6 +1228,16 @@ function App() {
 			}
 			if (message.type === "sessions") {
 				setRecentSessions(message.sessions);
+				return;
+			}
+			if (message.type === "hub_connection_result") {
+				setConnectPending(false);
+				setHubActionError(message.ok ? undefined : message.error);
+				return;
+			}
+			if (message.type === "hub_restart_result") {
+				setRestartPending(false);
+				setHubActionError(message.ok ? undefined : message.error);
 			}
 		};
 		window.addEventListener("message", handleMessage);
@@ -1169,7 +1247,14 @@ function App() {
 
 	const restartHub = useCallback(() => {
 		setRestartPending(true);
+		setHubActionError(undefined);
 		postToHost({ type: "restart_hub" });
+	}, []);
+
+	const connectHub = useCallback((hubUrl: string) => {
+		setConnectPending(true);
+		setHubActionError(undefined);
+		postToHost({ type: "connect_hub", hubUrl });
 	}, []);
 
 	const navigate = useCallback((nextView: View) => {
@@ -1183,8 +1268,9 @@ function App() {
 			setSelectedSessionId(undefined);
 		}
 		const nextPath = routePath(VIEW_PATHS[nextView]);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.pushState(null, "", nextLocation);
 		}
 		setView(nextView);
 	}, []);
@@ -1192,8 +1278,9 @@ function App() {
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.pushState(null, "", nextLocation);
 		}
 		setView("chat");
 	}, []);
@@ -1201,8 +1288,9 @@ function App() {
 	const updateChatSessionRoute = useCallback((sessionId?: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.replaceState(null, "", nextPath);
+		const nextLocation = pathWithLocationHash(nextPath, window.location);
+		if (currentLocationPath() !== nextLocation) {
+			window.history.replaceState(null, "", nextLocation);
 		}
 	}, []);
 
@@ -1328,7 +1416,10 @@ function App() {
 		}
 		return (
 			<HomeView
+				actionError={hubActionError}
+				connectPending={connectPending}
 				hubState={hubState}
+				onConnectHub={connectHub}
 				onOpenSession={openSession}
 				onRestartHub={restartHub}
 				onViewSessions={() => navigate("sessions")}
@@ -1337,7 +1428,10 @@ function App() {
 			/>
 		);
 	}, [
+		connectPending,
+		hubActionError,
 		hubState,
+		connectHub,
 		deleteSession,
 		navigate,
 		openSession,

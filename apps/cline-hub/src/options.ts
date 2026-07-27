@@ -1,16 +1,19 @@
+import { randomBytes } from "node:crypto";
 import { isIP } from "node:net";
 
 export interface ClineHubServerOptions {
 	host: string;
 	port: number;
 	publicUrl: string;
-	roomSecret?: string;
+	dashboardWebUrl: string;
+	roomSecret: string;
 	workspaceRoot: string;
 }
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
+const DASHBOARD_WEB_URL_ENV = "CLINE_HUB_DASHBOARD_WEB_URL";
 
 function parsePort(value: string | undefined): number {
 	if (!value?.trim()) return DEFAULT_PORT;
@@ -56,9 +59,33 @@ function normalizePublicUrl(
 	return parsed.toString().replace(/\/$/, "");
 }
 
-function normalizeRoomSecret(value: string | undefined): string | undefined {
+function normalizeDashboardWebUrl(
+	value: string | undefined,
+	publicUrl: string,
+): string {
+	const raw = value?.trim() || publicUrl;
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch (error) {
+		throw new Error(
+			`${DASHBOARD_WEB_URL_ENV} must be a valid http(s) URL, got ${raw}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
+	}
+	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		throw new Error(
+			`${DASHBOARD_WEB_URL_ENV} must use http: or https:, got ${parsed.protocol}`,
+		);
+	}
+	parsed.hash = "";
+	return parsed.toString().replace(/\/$/, "");
+}
+
+function normalizeRoomSecret(value: string | undefined): string {
 	const secret = value?.trim();
-	return secret ? secret : undefined;
+	return secret ? secret : randomBytes(32).toString("hex");
 }
 
 function isLocalBindHost(host: string): boolean {
@@ -75,16 +102,16 @@ export function resolveClineHubServerOptions(
 	const host = normalizeHost(env.HOST);
 	const port = parsePort(env[DASHBOARD_PORT_ENV]);
 	const publicUrl = normalizePublicUrl(env.PUBLIC_URL, host, port);
+	const dashboardWebUrl = normalizeDashboardWebUrl(
+		env[DASHBOARD_WEB_URL_ENV],
+		publicUrl,
+	);
 	const roomSecret = normalizeRoomSecret(env.ROOM_SECRET);
-	if (isNonLocalBindHost(host) && !roomSecret) {
-		throw new Error(
-			`ROOM_SECRET is required when HOST=${host}. Use HOST=127.0.0.1 for local-only development or set ROOM_SECRET before exposing this example on a LAN/tunnel.`,
-		);
-	}
 	return {
 		host,
 		port,
 		publicUrl,
+		dashboardWebUrl,
 		roomSecret,
 		workspaceRoot: env.WORKSPACE_ROOT?.trim() || process.cwd(),
 	};
@@ -103,13 +130,15 @@ function shouldAddDashboardPortToPublicUrl(url: URL, port: number): boolean {
 	return hostname === "localhost" || isIP(hostname) !== 0;
 }
 
-export function buildInviteUrl(
-	publicUrl: string,
-	roomSecret: string | undefined,
+export function buildDashboardLaunchUrl(
+	dashboardWebUrl: string,
+	bridgeUrl: string,
+	roomSecret: string,
 ): string {
-	const url = new URL(publicUrl);
-	if (roomSecret) {
-		url.searchParams.set("roomSecret", roomSecret);
-	}
+	const url = new URL(dashboardWebUrl);
+	const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
+	fragment.set("bridgeUrl", bridgeUrl);
+	fragment.set("roomSecret", roomSecret);
+	url.hash = fragment.toString();
 	return url.toString();
 }

@@ -6,7 +6,6 @@ import {
 	type HubReplyEnvelope,
 	type HubTransportFrame,
 	isHubProtocolCompatible,
-	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import {
@@ -20,10 +19,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 } from "../discovery";
-import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -34,12 +30,6 @@ type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
 };
-
-function resolveDefaultHubOwnerContext(): HubOwnerContext {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
-}
 
 type WebSocketLike = {
 	readyState: number;
@@ -1032,6 +1022,7 @@ export async function ensureCompatibleLocalHubUrl(
 export async function requestHubShutdown(
 	url: string,
 	authToken?: string,
+	options: { preserveDashboard?: boolean } = {},
 ): Promise<boolean> {
 	const parsed = new URL(url);
 	const resolvedAuthToken =
@@ -1045,16 +1036,22 @@ export async function requestHubShutdown(
 	parsed.hash = "";
 	const response = await fetch(parsed, {
 		method: "POST",
-		headers: resolvedAuthToken
-			? { authorization: `Bearer ${resolvedAuthToken}` }
-			: undefined,
+		headers: {
+			...(resolvedAuthToken
+				? { authorization: `Bearer ${resolvedAuthToken}` }
+				: {}),
+			...(options.preserveDashboard
+				? { "x-cline-preserve-dashboard": "1" }
+				: {}),
+		},
 	});
 	return response.ok;
 }
 
 export async function stopLocalHubServerGracefully(
-	owner: HubOwnerContext = resolveDefaultHubOwnerContext(),
+	options: { owner?: HubOwnerContext; preserveDashboard?: boolean } = {},
 ): Promise<boolean> {
+	const owner = options.owner ?? resolveDefaultHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url) {
 		return false;
@@ -1063,9 +1060,10 @@ export async function stopLocalHubServerGracefully(
 		const stopped = await requestHubShutdown(
 			discovery.url,
 			discovery.authToken,
+			{ preserveDashboard: options.preserveDashboard },
 		);
 		if (stopped) {
-			return true;
+			return await waitForHubToRetire(discovery.url);
 		}
 	} catch {
 		// Fall through so callers can apply a stronger fallback.

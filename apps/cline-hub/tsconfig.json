@@ -9,6 +9,11 @@
 				"../../sdk/packages/core/src/*",
 				"../../sdk/packages/core/src/*/index.ts"
 			],
+			"@cline/llms": ["../../sdk/packages/llms/src/index.ts"],
+			"@cline/llms/*": [
+				"../../sdk/packages/llms/src/*",
+				"../../sdk/packages/llms/src/*/index.ts"
+			],
 			"@cline/shared": ["../../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/*": [
 				"../../sdk/packages/shared/src/*",

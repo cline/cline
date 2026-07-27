@@ -28,9 +28,16 @@ import {
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
 import {
-	resolveProductionHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { CLINE_HUB_PRESERVE_DASHBOARD_ENV } from "./dashboard-process";
+
+export {
+	CLINE_HUB_PRESERVE_DASHBOARD_ENV,
+	restartManagedHubDashboardProcess,
+	stopManagedHubDashboardProcess,
+} from "./dashboard-process";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
@@ -57,12 +64,6 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
 }
 
 function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
@@ -168,7 +169,7 @@ function resolveDaemonEntryPath(): string {
 
 function resolveLaunchCommand(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides,
+	options: DetachedHubServerOptions,
 ): {
 	launcher: string;
 	args: string[];
@@ -176,6 +177,7 @@ function resolveLaunchCommand(
 	env: NodeJS.ProcessEnv;
 } {
 	const daemonEntryPath = resolveDaemonEntryPath();
+	const { preserveDashboard, ...endpoint } = options;
 	const execPath = process.execPath?.trim();
 	if (!execPath) {
 		throw new Error("unable to resolve runtime executable for hub daemon");
@@ -190,15 +192,21 @@ function resolveLaunchCommand(
 				...(useDevelopmentConditions ? ["--conditions=development"] : []),
 				daemonEntryPath,
 			];
+	const env: NodeJS.ProcessEnv = {
+		...withResolvedClineBuildEnv(process.env),
+		CLINE_NO_INTERACTIVE: "1",
+		[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
+	};
+	if (preserveDashboard) {
+		env[CLINE_HUB_PRESERVE_DASHBOARD_ENV] = "1";
+	} else {
+		delete env[CLINE_HUB_PRESERVE_DASHBOARD_ENV];
+	}
 	return {
 		launcher: execPath,
 		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
 		cwd: workspaceRoot,
-		env: {
-			...withResolvedClineBuildEnv(process.env),
-			CLINE_NO_INTERACTIVE: "1",
-			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
-		},
+		env,
 	};
 }
 
@@ -216,12 +224,12 @@ function isTextFileBusyError(error: unknown): boolean {
 
 export function spawnDetachedHubServer(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	options: DetachedHubServerOptions = {},
 ): void {
 	if (isHubDaemonProcess()) {
 		return;
 	}
-	const command = resolveLaunchCommand(workspaceRoot, endpoint);
+	const command = resolveLaunchCommand(workspaceRoot, options);
 	const logFile = openDetachedHubLogFile();
 	try {
 		const child = spawn(command.launcher, command.args, {
@@ -243,11 +251,11 @@ export function spawnDetachedHubServer(
 
 export async function spawnDetachedHubServerWithRetry(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	options: DetachedHubServerOptions = {},
 ): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
-			spawnDetachedHubServer(workspaceRoot, endpoint);
+			spawnDetachedHubServer(workspaceRoot, options);
 			return;
 		} catch (error) {
 			const delay = HUB_SPAWN_RETRY_DELAYS_MS[attempt];
@@ -345,11 +353,14 @@ export interface DetachedHubResolution {
 	authToken: string;
 }
 
+export interface DetachedHubServerOptions extends HubEndpointOverrides {
+	allowPortFallback?: boolean;
+	preserveDashboard?: boolean;
+}
+
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
-	endpointOverrides: HubEndpointOverrides & {
-		allowPortFallback?: boolean;
-	} = {},
+	endpointOverrides: DetachedHubServerOptions = {},
 ): Promise<DetachedHubResolution> {
 	const owner = resolveDefaultHubOwnerContext();
 	const hasExplicitEndpoint =
@@ -440,7 +451,10 @@ export async function ensureDetachedHubServer(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
-	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+	await spawnDetachedHubServerWithRetry(workspaceRoot, {
+		...spawnEndpoint,
+		preserveDashboard: endpointOverrides.preserveDashboard,
+	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);

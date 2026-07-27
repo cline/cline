@@ -89,6 +89,22 @@ describe("allowedBrowserOrigins", () => {
 			].sort(),
 		).toEqual(["https://0.0.0.0:8787", "https://example.ngrok-free.app"]);
 	});
+
+	it("allows a separately hosted dashboard web origin", () => {
+		expect(
+			[
+				...allowedBrowserOrigins({
+					...defaultOptions,
+					dashboardWebUrl: "https://cline.bot/dashboard",
+				}),
+			].sort(),
+		).toEqual([
+			"http://127.0.0.1:8787",
+			"http://[::1]:8787",
+			"http://localhost:8787",
+			"https://cline.bot",
+		]);
+	});
 });
 
 describe("allowedBrowserHosts", () => {
@@ -291,6 +307,20 @@ describe("isAuthorizedBrowserRequest", () => {
 				options,
 			),
 		).toBe(false);
+	});
+
+	it("allows hosted dashboard browsers to connect to the local bridge with the room secret", () => {
+		expect(
+			isAuthorizedBrowserRequest(
+				browserRequest("https://cline.bot"),
+				new URL("http://127.0.0.1:8787/browser?roomSecret=invite-123"),
+				{
+					...defaultOptions,
+					dashboardWebUrl: "https://cline.bot/dashboard",
+					roomSecret: "invite-123",
+				},
+			),
+		).toBe(true);
 	});
 });
 

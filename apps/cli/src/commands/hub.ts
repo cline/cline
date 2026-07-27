@@ -3,11 +3,10 @@ import {
 	ensureDetachedHubServer,
 	probeHubServer,
 	readHubDiscovery,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import { version as cliVersion } from "../../package.json";
 
@@ -19,7 +18,7 @@ interface HubCommandIo {
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
-	if (await stopLocalHubServerGracefully(owner)) {
+	if (await stopLocalHubServerGracefully({ owner })) {
 		await clearHubDiscovery(owner.discoveryPath);
 		return true;
 	}
@@ -49,9 +48,7 @@ function formatHubUptimeFromStartedAt(
 }
 
 function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
+	return resolveDefaultHubOwnerContext();
 }
 
 export function createHubCommand(
