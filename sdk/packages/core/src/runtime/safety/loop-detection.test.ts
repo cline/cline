@@ -1,402 +1,265 @@
 import { describe, expect, it } from "vitest";
 import { type LoopDetectionCall, LoopDetectionTracker } from "./loop-detection";
 
+const baseCall = { name: "poll", input: { command: "status" } };
+const createTracker = () =>
+	new LoopDetectionTracker({ softThreshold: 2, hardThreshold: 3 });
+const identified = (
+	id: string,
+	name = baseCall.name,
+	input: unknown = baseCall.input,
+): LoopDetectionCall => ({ id, name, input });
+const inspect = (
+	tracker: LoopDetectionTracker,
+	call: LoopDetectionCall = baseCall,
+) => tracker.inspect(call).kind;
+const succeed = (
+	tracker: LoopDetectionTracker,
+	call: LoopDetectionCall,
+	output: unknown,
+) => tracker.observeOutcome(call, { successful: true, output });
+const cycle = (
+	tracker: LoopDetectionTracker,
+	output: unknown,
+	call: LoopDetectionCall = baseCall,
+) => {
+	const verdict = inspect(tracker, call);
+	succeed(tracker, call, output);
+	return verdict;
+};
+const runBatch = (
+	tracker: LoopDetectionTracker,
+	prefix: string,
+	outputs: unknown[],
+) => {
+	const calls = outputs.map((_, index) => identified(`${prefix}-${index + 1}`));
+	const verdicts = calls.map((call) => inspect(tracker, call));
+	calls.forEach((call, index) => {
+		succeed(tracker, call, outputs[index]);
+	});
+	return verdicts;
+};
+
 describe("LoopDetectionTracker", () => {
-	const call = { name: "poll", input: { command: "status" } };
-	const observeSuccess = (
-		tracker: LoopDetectionTracker,
-		inspectedCall: LoopDetectionCall,
-		output: unknown,
-	) => {
-		tracker.observeOutcome(inspectedCall, { successful: true, output });
-	};
-
 	it("resets repeated-call counting when successful output changes meaningfully", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
+		const tracker = createTracker();
 
-		expect(tracker.inspect(call).kind).toBe("ok");
-		observeSuccess(tracker, call, "10% complete");
-		expect(tracker.inspect(call).kind).toBe("soft");
-		observeSuccess(tracker, call, "20% complete");
-
-		expect(tracker.inspect(call).kind).toBe("ok");
+		expect(cycle(tracker, "10% complete")).toBe("ok");
+		expect(cycle(tracker, "20% complete")).toBe("soft");
+		expect(inspect(tracker)).toBe("ok");
 	});
 
-	it("ignores volatile timestamps and request IDs when detecting progress", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-
-		expect(tracker.inspect(call).kind).toBe("ok");
-		observeSuccess(tracker, call, {
-			status: "pending",
-			timestamp: "2026-07-25T01:00:00Z",
-			startedAt: "2026-07-25T00:59:00Z",
-			elapsedMs: 60_000,
-			requestId: "9be5a8dd-7214-4d51-8b04-261e54e62ac2",
-			message:
-				"status=pending request-id=9be5a8dd-7214-4d51-8b04-261e54e62ac2 elapsed=60s at 2026-07-25T01:00:00Z",
-		});
-		expect(tracker.inspect(call).kind).toBe("soft");
-		observeSuccess(tracker, call, {
-			status: "pending",
-			timestamp: "2026-07-25T01:00:01Z",
-			startedAt: "2026-07-25T00:59:00Z",
-			elapsedMs: 61_000,
-			requestId: "6b265eb9-cc65-4577-87e1-03d4328a06d4",
-			message:
-				"status=pending request-id=6b265eb9-cc65-4577-87e1-03d4328a06d4 elapsed=61s at 2026-07-25T01:00:01Z",
-		});
-
-		expect(tracker.inspect(call).kind).toBe("hard");
-	});
-
-	it("ignores append-only heartbeat log tails without semantic progress", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-
-		expect(tracker.inspect(call).kind).toBe("ok");
-		observeSuccess(
-			tracker,
-			call,
-			[
+	it.each([
+		{
+			name: "timestamps and request IDs",
+			first: {
+				status: "pending",
+				timestamp: "2026-07-25T01:00:00Z",
+				elapsedMs: 60_000,
+				requestId: "9be5a8dd-7214-4d51-8b04-261e54e62ac2",
+				message:
+					"status=pending request-id=9be5a8dd-7214-4d51-8b04-261e54e62ac2 elapsed=60s at 2026-07-25T01:00:00Z",
+			},
+			second: {
+				status: "pending",
+				timestamp: "2026-07-25T01:00:01Z",
+				elapsedMs: 61_000,
+				requestId: "6b265eb9-cc65-4577-87e1-03d4328a06d4",
+				message:
+					"status=pending request-id=6b265eb9-cc65-4577-87e1-03d4328a06d4 elapsed=61s at 2026-07-25T01:00:01Z",
+			},
+		},
+		{
+			name: "append-only heartbeat text",
+			first: [
+				"2026-07-25T01:00:00Z heartbeat",
+				"2026-07-25T01:00:01Z heartbeat",
+			].join("\n"),
+			second: [
 				"2026-07-25T01:00:00Z heartbeat",
 				"2026-07-25T01:00:01Z heartbeat",
 				"2026-07-25T01:00:02Z heartbeat",
 			].join("\n"),
-		);
-		expect(tracker.inspect(call).kind).toBe("soft");
-		observeSuccess(
-			tracker,
-			call,
-			[
-				"2026-07-25T01:00:00Z heartbeat",
-				"2026-07-25T01:00:01Z heartbeat",
-				"2026-07-25T01:00:02Z heartbeat",
-				"2026-07-25T01:00:03Z heartbeat",
-			].join("\n"),
-		);
+		},
+		{
+			name: "structured log tails",
+			first: {
+				status: "pending",
+				logs: [{ timestamp: "2026-07-25T01:00:00Z", message: "heartbeat" }],
+			},
+			second: {
+				status: "pending",
+				logs: [
+					{ timestamp: "2026-07-25T01:00:00Z", message: "heartbeat" },
+					{ timestamp: "2026-07-25T01:00:01Z", message: "heartbeat 2" },
+				],
+			},
+		},
+	])("does not treat volatile $name as progress", ({ first, second }) => {
+		const tracker = createTracker();
 
-		expect(tracker.inspect(call).kind).toBe("hard");
+		expect(cycle(tracker, first)).toBe("ok");
+		expect(cycle(tracker, second)).toBe("soft");
+		expect(inspect(tracker)).toBe("hard");
 	});
 
-	it("ignores growth in structured log-tail fields", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
+	it("still escalates identical successful output", () => {
+		const tracker = createTracker();
 
-		expect(tracker.inspect(call).kind).toBe("ok");
-		observeSuccess(tracker, call, {
-			status: "pending",
-			logs: [{ timestamp: "2026-07-25T01:00:00Z", message: "heartbeat" }],
-		});
-		expect(tracker.inspect(call).kind).toBe("soft");
-		observeSuccess(tracker, call, {
-			status: "pending",
-			logs: [
-				{ timestamp: "2026-07-25T01:00:00Z", message: "heartbeat" },
-				{ timestamp: "2026-07-25T01:00:01Z", message: "heartbeat" },
-			],
-		});
-
-		expect(tracker.inspect(call).kind).toBe("hard");
+		expect(cycle(tracker, "still running")).toBe("ok");
+		expect(cycle(tracker, "still running")).toBe("soft");
+		expect(inspect(tracker)).toBe("hard");
 	});
 
-	it("still escalates identical calls with identical successful output", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-
-		expect(tracker.inspect(call).kind).toBe("ok");
-		observeSuccess(tracker, call, "still running");
-		expect(tracker.inspect(call).kind).toBe("soft");
-		observeSuccess(tracker, call, "still running");
-
-		expect(tracker.inspect(call).kind).toBe("hard");
-	});
-
-	it("enforces an absolute limit across repeatedly changing outcomes", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
+	it.each([
+		["unclassified output", (index: number) => `changing output ${index}`],
+		[
+			"progress-classified output",
+			(index: number) => ({ status: `waiting-${index}` }),
+		],
+	] as const)("enforces an absolute limit across %s", (_name, outputFor) => {
+		const tracker = createTracker();
 
 		for (let index = 1; index < 12; index++) {
-			expect(tracker.inspect(call).kind).not.toBe("hard");
-			observeSuccess(tracker, call, `changing output ${index}`);
+			expect(cycle(tracker, outputFor(index))).not.toBe("hard");
 		}
-		expect(tracker.inspect(call).kind).toBe("hard");
-	});
-
-	it("bounds long-running calls even when progress-classified values change", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-
-		for (let index = 1; index < 12; index++) {
-			expect(tracker.inspect(call).kind).not.toBe("hard");
-			observeSuccess(tracker, call, { status: `waiting-${index}` });
-		}
-		expect(tracker.inspect(call).kind).toBe("hard");
+		expect(inspect(tracker)).toBe("hard");
 	});
 
 	it("keeps the absolute limit across interleaved tool signatures", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
+		const tracker = createTracker();
 
 		for (let index = 1; index < 12; index++) {
-			const poll = { ...call, id: `poll-${index}` };
-			expect(tracker.inspect(poll).kind).not.toBe("hard");
-			observeSuccess(tracker, poll, { status: `waiting-${index}` });
+			const poll = identified(`poll-${index}`);
+			expect(cycle(tracker, { status: `waiting-${index}` }, poll)).not.toBe(
+				"hard",
+			);
 			expect(
-				tracker.inspect({
-					id: `other-${index}`,
-					name: "other",
-					input: { step: index },
-				}).kind,
+				inspect(
+					tracker,
+					identified(`other-${index}`, "other", { step: index }),
+				),
 			).toBe("ok");
 		}
-
-		expect(tracker.inspect({ ...call, id: "poll-12" }).kind).toBe("hard");
+		expect(inspect(tracker, identified("poll-12"))).toBe("hard");
 	});
 
-	it("counts identical parallel calls as one batch and accepts every outcome", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const firstBatch = ["a1", "a2", "a3"].map((id) => ({ ...call, id }));
-		const secondBatch = ["b1", "b2", "b3"].map((id) => ({ ...call, id }));
+	it("counts parallel calls as one order-independent batch", () => {
+		const tracker = createTracker();
 
-		expect(firstBatch.map((entry) => tracker.inspect(entry).kind)).toEqual([
-			"ok",
+		expect(runBatch(tracker, "a", ["10% complete", "20% complete"])).toEqual([
 			"ok",
 			"ok",
 		]);
-		for (const entry of firstBatch) {
-			observeSuccess(tracker, entry, "10% complete");
-		}
-
-		expect(secondBatch.map((entry) => tracker.inspect(entry).kind)).toEqual([
-			"soft",
-			"ok",
-			"ok",
-		]);
-		observeSuccess(tracker, secondBatch[0], "20% complete");
-		observeSuccess(tracker, secondBatch[1], "20% complete");
-		observeSuccess(tracker, secondBatch[2], "20% complete");
-
-		expect(tracker.inspect({ ...call, id: "c1" }).kind).toBe("ok");
-	});
-
-	it("compares parallel outcomes as an order-independent batch", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const firstBatch = ["a1", "a2"].map((id) => ({ ...call, id }));
-		const secondBatch = ["b1", "b2"].map((id) => ({ ...call, id }));
-
-		expect(firstBatch.map((entry) => tracker.inspect(entry).kind)).toEqual([
-			"ok",
-			"ok",
-		]);
-		observeSuccess(tracker, firstBatch[0], "10% complete");
-		observeSuccess(tracker, firstBatch[1], "20% complete");
-
-		expect(secondBatch.map((entry) => tracker.inspect(entry).kind)).toEqual([
+		expect(runBatch(tracker, "b", ["20% complete", "10% complete"])).toEqual([
 			"soft",
 			"ok",
 		]);
-		observeSuccess(tracker, secondBatch[0], "20% complete");
-		observeSuccess(tracker, secondBatch[1], "10% complete");
+		expect(inspect(tracker, identified("c-1"))).toBe("hard");
+	});
 
-		expect(tracker.inspect({ ...call, id: "c1" }).kind).toBe("hard");
+	it("accepts progress from every parallel outcome", () => {
+		const tracker = createTracker();
+
+		expect(runBatch(tracker, "a", ["10% complete", "10% complete"])).toEqual([
+			"ok",
+			"ok",
+		]);
+		expect(runBatch(tracker, "b", ["20% complete", "20% complete"])).toEqual([
+			"soft",
+			"ok",
+		]);
+		expect(inspect(tracker, identified("c-1"))).toBe("ok");
 	});
 
 	it("still escalates repeated parallel batches without progress", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const inspectBatch = (prefix: string) => {
-			const batch = [1, 2, 3].map((index) => ({
-				...call,
-				id: `${prefix}${index}`,
-			}));
-			const verdicts = batch.map((entry) => tracker.inspect(entry).kind);
-			for (const entry of batch) {
-				observeSuccess(tracker, entry, "still running");
-			}
-			return verdicts;
-		};
+		const tracker = createTracker();
 
-		expect(inspectBatch("a")).toEqual(["ok", "ok", "ok"]);
-		expect(inspectBatch("b")).toEqual(["soft", "ok", "ok"]);
-		expect(inspectBatch("c")[0]).toBe("hard");
+		expect(runBatch(tracker, "a", ["same", "same"])).toEqual(["ok", "ok"]);
+		expect(runBatch(tracker, "b", ["same", "same"])).toEqual(["soft", "ok"]);
+		expect(runBatch(tracker, "c", ["same", "same"])[0]).toBe("hard");
 	});
 
-	it("bounds an identical parallel batch when earlier calls never finish", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
+	it("bounds a parallel batch whose calls never finish", () => {
+		const tracker = createTracker();
 
 		for (let index = 1; index < 12; index++) {
-			expect(
-				tracker.inspect({ ...call, id: `pending-${index}` }).kind,
-			).not.toBe("hard");
+			expect(inspect(tracker, identified(`pending-${index}`))).not.toBe("hard");
 		}
-		expect(tracker.inspect({ ...call, id: "pending-12" }).kind).toBe("hard");
+		expect(inspect(tracker, identified("pending-12"))).toBe("hard");
 	});
 
-	it("does not let a late parallel outcome reset another call's counter", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const firstPoll = { ...call, id: "poll-1" };
-		const secondPoll = { ...call, id: "poll-2" };
-		const otherCall = {
-			id: "other-1",
-			name: "other",
-			input: { command: "status" },
-		};
+	it("does not let a late outcome reset another tool's counter", () => {
+		const tracker = createTracker();
+		const firstPoll = identified("poll-1");
+		const secondPoll = identified("poll-2");
+		const other = identified("other-1", "other");
 
-		expect(tracker.inspect(firstPoll).kind).toBe("ok");
-		observeSuccess(tracker, firstPoll, "10% complete");
-		expect(tracker.inspect(secondPoll).kind).toBe("soft");
-		expect(tracker.inspect(otherCall).kind).toBe("ok");
-		observeSuccess(tracker, otherCall, "still running");
+		expect(cycle(tracker, "10% complete", firstPoll)).toBe("ok");
+		expect(inspect(tracker, secondPoll)).toBe("soft");
+		expect(cycle(tracker, "unchanged", other)).toBe("ok");
+		succeed(tracker, secondPoll, "20% complete");
 
-		observeSuccess(tracker, secondPoll, "20% complete");
-
-		expect(tracker.inspect({ ...otherCall, id: "other-2" }).kind).toBe("soft");
+		expect(inspect(tracker, identified("other-2", "other"))).toBe("soft");
 	});
 
-	it("applies a completed poll outcome after an interleaved call finishes", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const baseline = { ...call, id: "baseline" };
-		const firstPoll = { ...call, id: "poll-1" };
-		const otherCall = {
-			id: "other-1",
-			name: "other",
-			input: { command: "status" },
-		};
+	it("applies a completed outcome after an interleaved call", () => {
+		const tracker = createTracker();
+		const delayedPoll = identified("poll-1");
 
-		expect(tracker.inspect(baseline).kind).toBe("ok");
-		observeSuccess(tracker, baseline, "10% complete");
-		expect(tracker.inspect(firstPoll).kind).toBe("soft");
-		expect(tracker.inspect(otherCall).kind).toBe("ok");
-		observeSuccess(tracker, otherCall, "unchanged");
-		observeSuccess(tracker, firstPoll, "20% complete");
+		expect(cycle(tracker, "10% complete", identified("baseline"))).toBe("ok");
+		expect(inspect(tracker, delayedPoll)).toBe("soft");
+		expect(cycle(tracker, "unchanged", identified("other-1", "other"))).toBe(
+			"ok",
+		);
+		succeed(tracker, delayedPoll, "20% complete");
 
-		const secondPoll = { ...call, id: "poll-2" };
-		expect(tracker.inspect(secondPoll).kind).toBe("ok");
-		observeSuccess(tracker, secondPoll, "10% complete");
-		expect(tracker.inspect({ ...call, id: "poll-3" }).kind).toBe("ok");
+		expect(cycle(tracker, "10% complete", identified("poll-2"))).toBe("ok");
+		expect(inspect(tracker, identified("poll-3"))).toBe("ok");
 	});
 
-	it("starts a fresh batch when an older interleaved poll remains pending", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const baseline = { ...call, id: "baseline" };
-		const stalePoll = { ...call, id: "stale-poll" };
-		const otherCall = {
-			id: "other-1",
-			name: "other",
-			input: { command: "status" },
-		};
+	it("starts a new batch when an older interleaved poll remains pending", () => {
+		const tracker = createTracker();
 
-		expect(tracker.inspect(baseline).kind).toBe("ok");
-		observeSuccess(tracker, baseline, "10% complete");
-		expect(tracker.inspect(stalePoll).kind).toBe("soft");
-		expect(tracker.inspect(otherCall).kind).toBe("ok");
-		observeSuccess(tracker, otherCall, "unchanged");
-
-		const resumedPoll = { ...call, id: "resumed-poll" };
-		expect(tracker.inspect(resumedPoll).kind).toBe("ok");
-		observeSuccess(tracker, resumedPoll, "20% complete");
-
-		const nextPoll = { ...call, id: "next-poll" };
-		expect(tracker.inspect(nextPoll).kind).toBe("ok");
-		observeSuccess(tracker, nextPoll, "30% complete");
-		expect(tracker.inspect({ ...call, id: "after-progress" }).kind).toBe("ok");
+		expect(cycle(tracker, "10% complete", identified("baseline"))).toBe("ok");
+		expect(inspect(tracker, identified("stale"))).toBe("soft");
+		expect(cycle(tracker, "unchanged", identified("other", "other"))).toBe(
+			"ok",
+		);
+		expect(cycle(tracker, "20% complete", identified("resumed"))).toBe("ok");
+		expect(cycle(tracker, "30% complete", identified("next"))).toBe("ok");
+		expect(inspect(tracker, identified("after-progress"))).toBe("ok");
 	});
 
-	it("ignores an older batch that finishes after a newer poll outcome", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const baseline = { ...call, id: "baseline" };
-		const oldPoll = { ...call, id: "old-poll" };
-		const otherCall = {
-			id: "other-1",
-			name: "other",
-			input: { command: "status" },
-		};
+	it("ignores an older batch that finishes after a newer outcome", () => {
+		const tracker = createTracker();
+		const oldPoll = identified("old");
 
-		expect(tracker.inspect(baseline).kind).toBe("ok");
-		observeSuccess(tracker, baseline, "10% complete");
-		expect(tracker.inspect(oldPoll).kind).toBe("soft");
-		expect(tracker.inspect(otherCall).kind).toBe("ok");
-		observeSuccess(tracker, otherCall, "unchanged");
+		expect(cycle(tracker, "10% complete", identified("baseline"))).toBe("ok");
+		expect(inspect(tracker, oldPoll)).toBe("soft");
+		expect(cycle(tracker, "unchanged", identified("other", "other"))).toBe(
+			"ok",
+		);
+		expect(cycle(tracker, "20% complete", identified("new"))).toBe("ok");
+		expect(cycle(tracker, "20% complete", identified("repeated"))).toBe("ok");
+		succeed(tracker, oldPoll, "30% complete");
 
-		const newPoll = { ...call, id: "new-poll" };
-		expect(tracker.inspect(newPoll).kind).toBe("ok");
-		observeSuccess(tracker, newPoll, "20% complete");
-		const repeatedPoll = { ...call, id: "repeated-poll" };
-		expect(tracker.inspect(repeatedPoll).kind).toBe("ok");
-		observeSuccess(tracker, repeatedPoll, "20% complete");
-
-		observeSuccess(tracker, oldPoll, "30% complete");
-
-		expect(tracker.inspect({ ...call, id: "after-stale" }).kind).toBe("soft");
+		expect(inspect(tracker, identified("after-stale"))).toBe("soft");
 	});
 
-	it("keeps earlier identical parallel outcomes across an interleaved call", () => {
-		const tracker = new LoopDetectionTracker({
-			softThreshold: 2,
-			hardThreshold: 3,
-		});
-		const baseline = { ...call, id: "baseline" };
-		const firstPoll = { ...call, id: "poll-1" };
-		const secondPoll = { ...call, id: "poll-2" };
-		const otherCall = {
-			id: "other-1",
-			name: "other",
-			input: { command: "status" },
-		};
+	it("retains earlier parallel outcomes across an interleaved call", () => {
+		const tracker = createTracker();
+		const first = identified("poll-1");
+		const second = identified("poll-2");
 
-		expect(tracker.inspect(baseline).kind).toBe("ok");
-		observeSuccess(tracker, baseline, "10% complete");
-		expect(tracker.inspect(firstPoll).kind).toBe("soft");
-		expect(tracker.inspect(otherCall).kind).toBe("ok");
-		expect(tracker.inspect(secondPoll).kind).toBe("ok");
+		expect(cycle(tracker, "10% complete", identified("baseline"))).toBe("ok");
+		expect(inspect(tracker, first)).toBe("soft");
+		expect(inspect(tracker, identified("other", "other"))).toBe("ok");
+		expect(inspect(tracker, second)).toBe("ok");
+		succeed(tracker, first, "20% complete");
+		succeed(tracker, second, "10% complete");
 
-		observeSuccess(tracker, firstPoll, "20% complete");
-		observeSuccess(tracker, secondPoll, "10% complete");
-
-		const thirdPoll = { ...call, id: "poll-3" };
-		expect(tracker.inspect(thirdPoll).kind).toBe("ok");
-		observeSuccess(tracker, thirdPoll, "10% complete");
-		expect(tracker.inspect({ ...call, id: "poll-4" }).kind).toBe("soft");
+		expect(cycle(tracker, "10% complete", identified("poll-3"))).toBe("ok");
+		expect(inspect(tracker, identified("poll-4"))).toBe("soft");
 	});
 });

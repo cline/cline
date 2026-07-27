@@ -2036,6 +2036,95 @@ function makeScriptedRuntime(script: {
 	};
 }
 
+const turnStarted = (): AgentRuntimeEvent => ({
+	type: "turn-started",
+	iteration: 1,
+	snapshot: makeSnapshot(),
+});
+
+function scriptedToolCall(
+	id: string,
+	name = "poll",
+	input: unknown = { command: "status" },
+) {
+	return {
+		type: "tool-call" as const,
+		toolCallId: id,
+		toolName: name,
+		input,
+	};
+}
+
+function toolStarted(
+	id: string,
+	name?: string,
+	input?: unknown,
+): AgentRuntimeEvent {
+	return {
+		type: "tool-started",
+		iteration: 1,
+		toolCall: scriptedToolCall(id, name, input),
+		snapshot: makeSnapshot(),
+	};
+}
+
+function toolFinished(
+	id: string,
+	output: unknown,
+	name?: string,
+	input?: unknown,
+): AgentRuntimeEvent {
+	const toolCall = scriptedToolCall(id, name, input);
+	return {
+		type: "tool-finished",
+		iteration: 1,
+		toolCall,
+		message: {
+			id: `message-${id}`,
+			role: "tool",
+			content: [
+				{
+					type: "tool-result",
+					toolCallId: id,
+					toolName: toolCall.toolName,
+					output,
+				},
+			],
+			createdAt: 1,
+		},
+		snapshot: makeSnapshot(),
+	};
+}
+
+function completedTool(
+	id: string,
+	output: unknown,
+	name?: string,
+	input?: unknown,
+): AgentRuntimeEvent[] {
+	return [toolStarted(id, name, input), toolFinished(id, output, name, input)];
+}
+
+function loopSession(script: {
+	events?: readonly AgentRuntimeEvent[];
+	eventRuns?: readonly (readonly AgentRuntimeEvent[])[];
+}) {
+	const { deps, abortCalls } = makeScriptedRuntime({
+		events: script.events ?? [],
+		eventRuns: script.eventRuns,
+	});
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			execution: {
+				maxConsecutiveMistakes: 6,
+				loopDetection: { softThreshold: 2, hardThreshold: 3 },
+			},
+		}),
+		deps,
+	);
+	return { session, abortCalls };
+}
+
 function failedToolTurnEvents(): AgentRuntimeEvent[] {
 	return [
 		{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
@@ -2252,118 +2341,29 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
-		const identical = (i: number): AgentRuntimeEvent[] => {
-			const toolCall = {
-				type: "tool-call",
-				toolCallId: `tc${i}`,
-				toolName: "same",
-				input: { a: 1 },
-			} as const;
-			return [
-				{
-					type: "tool-started",
-					iteration: i,
-					toolCall,
-					snapshot: makeSnapshot(),
-				},
-				{
-					type: "tool-finished",
-					iteration: i,
-					toolCall,
-					message: {
-						id: `message-${i}`,
-						role: "tool",
-						content: [
-							{
-								type: "tool-result",
-								toolCallId: toolCall.toolCallId,
-								toolName: toolCall.toolName,
-								output: "unchanged",
-							},
-						],
-						createdAt: i,
-					},
-					snapshot: makeSnapshot(),
-				},
-			];
-		};
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				...identical(1),
-				...identical(2),
-				...identical(3),
+				turnStarted(),
+				...completedTool("same-1", "unchanged", "same", { a: 1 }),
+				...completedTool("same-2", "unchanged", "same", { a: 1 }),
+				...completedTool("same-3", "unchanged", "same", { a: 1 }),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
+
 		await session.run("loop-me");
+
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("does not abort repeated successful calls whose output shows progress", async () => {
-		const successfulCall = (i: number, output: string): AgentRuntimeEvent[] => {
-			const toolCall = {
-				type: "tool-call" as const,
-				toolCallId: `tc${i}`,
-				toolName: "poll",
-				input: { command: "status" },
-			};
-			return [
-				{
-					type: "tool-started",
-					iteration: i,
-					toolCall,
-					snapshot: makeSnapshot(),
-				},
-				{
-					type: "tool-finished",
-					iteration: i,
-					toolCall,
-					message: {
-						id: `m${i}`,
-						role: "tool",
-						content: [
-							{
-								type: "tool-result",
-								toolCallId: toolCall.toolCallId,
-								toolName: toolCall.toolName,
-								output,
-							},
-						],
-						createdAt: i,
-					},
-					snapshot: makeSnapshot(),
-				},
-			];
-		};
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				...successfulCall(1, "10% complete"),
-				...successfulCall(2, "30% complete"),
-				...successfulCall(3, "50% complete"),
-				...successfulCall(4, "70% complete"),
-				...successfulCall(5, "90% complete"),
-				...successfulCall(6, "done"),
+				turnStarted(),
+				...["10%", "30%", "50%", "70%", "90%", "done"].flatMap(
+					(output, index) => completedTool(`progress-${index}`, output),
+				),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
 
 		await session.run("monitor progress");
 
@@ -2371,61 +2371,19 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("does not abort identical parallel calls before their progress is observed", async () => {
-		const toolCall = (id: string) => ({
-			type: "tool-call" as const,
-			toolCallId: id,
-			toolName: "poll",
-			input: { command: "status" },
-		});
-		const started = (id: string): AgentRuntimeEvent => ({
-			type: "tool-started",
-			iteration: 1,
-			toolCall: toolCall(id),
-			snapshot: makeSnapshot(),
-		});
-		const finished = (id: string, output: string): AgentRuntimeEvent => ({
-			type: "tool-finished",
-			iteration: 1,
-			toolCall: toolCall(id),
-			message: {
-				id: `message-${id}`,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: id,
-						toolName: "poll",
-						output,
-					},
-				],
-				createdAt: 1,
-			},
-			snapshot: makeSnapshot(),
-		});
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				started("baseline"),
-				finished("baseline", "10% complete"),
-				started("parallel-1"),
-				started("parallel-2"),
-				started("parallel-3"),
-				finished("parallel-1", "20% complete"),
-				finished("parallel-2", "10% complete"),
-				finished("parallel-3", "10% complete"),
-				started("next"),
-				finished("next", "30% complete"),
+				turnStarted(),
+				...completedTool("baseline", "10%"),
+				toolStarted("parallel-1"),
+				toolStarted("parallel-2"),
+				toolStarted("parallel-3"),
+				toolFinished("parallel-1", "20%"),
+				toolFinished("parallel-2", "10%"),
+				toolFinished("parallel-3", "10%"),
+				...completedTool("next", "30%"),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
 
 		await session.run("monitor parallel progress");
 
@@ -2433,67 +2391,18 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("preserves completed poll progress across an interleaved tool call", async () => {
-		const toolCall = (id: string, name = "poll") => ({
-			type: "tool-call" as const,
-			toolCallId: id,
-			toolName: name,
-			input: { command: "status" },
-		});
-		const started = (id: string, name?: string): AgentRuntimeEvent => ({
-			type: "tool-started",
-			iteration: 1,
-			toolCall: toolCall(id, name),
-			snapshot: makeSnapshot(),
-		});
-		const finished = (
-			id: string,
-			output: string,
-			name?: string,
-		): AgentRuntimeEvent => ({
-			type: "tool-finished",
-			iteration: 1,
-			toolCall: toolCall(id, name),
-			message: {
-				id: `message-${id}`,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: id,
-						toolName: name ?? "poll",
-						output,
-					},
-				],
-				createdAt: 1,
-			},
-			snapshot: makeSnapshot(),
-		});
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				started("baseline"),
-				finished("baseline", "10% complete"),
-				started("parallel-1"),
-				started("other-1", "other"),
-				finished("other-1", "unchanged", "other"),
-				finished("parallel-1", "20% complete"),
-				started("parallel-2"),
-				finished("parallel-2", "10% complete"),
-				started("poll-3"),
-				finished("poll-3", "10% complete"),
-				started("poll-4"),
-				finished("poll-4", "10% complete"),
+				turnStarted(),
+				...completedTool("baseline", "10%"),
+				toolStarted("parallel-1"),
+				...completedTool("other-1", "unchanged", "other"),
+				toolFinished("parallel-1", "20%"),
+				...completedTool("parallel-2", "10%"),
+				...completedTool("poll-3", "10%"),
+				...completedTool("poll-4", "10%"),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
 
 		await session.run("monitor interleaved parallel progress");
 
@@ -2501,41 +2410,17 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("drops unfinished loop batches before a continuation", async () => {
-		const started = (id: string): AgentRuntimeEvent => ({
-			type: "tool-started",
-			iteration: 1,
-			toolCall: {
-				type: "tool-call",
-				toolCallId: id,
-				toolName: "poll",
-				input: { command: "status" },
-			},
-			snapshot: makeSnapshot(),
-		});
-		const { deps, abortCalls } = makeScriptedRuntime({
-			events: [],
+		const { session, abortCalls } = loopSession({
 			eventRuns: [
+				[turnStarted(), toolStarted("orphaned")],
 				[
-					{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-					started("orphaned"),
-				],
-				[
-					{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+					turnStarted(),
 					...Array.from({ length: 11 }, (_, index) =>
-						started(`continued-${index}`),
+						toolStarted(`continued-${index}`),
 					),
 				],
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
 
 		await session.run("start poll");
 		await session.continue("resume poll");
@@ -2544,65 +2429,19 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("still aborts repeated built-in failures whose error output changes", async () => {
-		const failedCall = (i: number): AgentRuntimeEvent[] => {
-			const toolCall = {
-				type: "tool-call" as const,
-				toolCallId: `failed-${i}`,
-				toolName: "run_commands",
-				input: { commands: ["false"] },
-			};
-			return [
-				{
-					type: "tool-started",
-					iteration: i,
-					toolCall,
-					snapshot: makeSnapshot(),
-				},
-				{
-					type: "tool-finished",
-					iteration: i,
-					toolCall,
-					message: {
-						id: `failed-message-${i}`,
-						role: "tool",
-						content: [
-							{
-								type: "tool-result",
-								toolCallId: toolCall.toolCallId,
-								toolName: toolCall.toolName,
-								output: [
-									{
-										query: "false",
-										result: "",
-										error: `command failed on attempt ${i}`,
-										success: false,
-									},
-								],
-							},
-						],
-						createdAt: i,
-					},
-					snapshot: makeSnapshot(),
-				},
-			];
-		};
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				...failedCall(1),
-				...failedCall(2),
-				...failedCall(3),
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`failed-${index}`,
+						[{ error: `attempt ${index}`, success: false }],
+						"run_commands",
+						{ commands: ["false"] },
+					),
+				),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
 
 		await session.run("repeat a failing command");
 

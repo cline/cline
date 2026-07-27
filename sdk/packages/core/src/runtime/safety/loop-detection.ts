@@ -121,36 +121,9 @@ const DEFAULT_CONFIG: LoopDetectionConfig = {
 // forever, while allowing several normal polling windows to complete.
 const MAX_PROGRESS_WINDOWS = 4;
 
-const VOLATILE_OUTPUT_KEYS = new Set([
-	"correlationid",
-	"checkedat",
-	"createdat",
-	"duration",
-	"durationms",
-	"elapsed",
-	"elapsedms",
-	"endedat",
-	"eventid",
-	"finishedat",
-	"lastseenat",
-	"polledat",
-	"requestid",
-	"spanid",
-	"startedat",
-	"time",
-	"timestamp",
-	"traceid",
-	"updatedat",
-]);
-
-const LOG_OUTPUT_KEYS = new Set([
-	"log",
-	"logs",
-	"logtail",
-	"stderr",
-	"stdout",
-	"tail",
-]);
+const VOLATILE_OUTPUT_KEY =
+	/^(?:correlationid|checkedat|createdat|duration(?:ms)?|elapsed(?:ms)?|endedat|eventid|finishedat|lastseenat|polledat|requestid|spanid|startedat|time|timestamp|traceid|updatedat)$/;
+const LOG_OUTPUT_KEY = /^(?:log|logs|logtail|stderr|stdout|tail)$/;
 
 const PROGRESS_TEXT_PATTERN =
 	/\b(?:complete(?:d)?|done|failed|phase|progress|queued|running|stage|state|status|succeeded|success)\b|\b\d+(?:\.\d+)?%|\b\d+\s*\/\s*\d+\b/i;
@@ -160,7 +133,7 @@ function compactOutputKey(key: string): string {
 }
 
 function normalizeOutputText(value: string, logLike: boolean): string {
-	const lines = value
+	const normalized = value
 		.replaceAll(
 			/\b(?:correlation|event|request|span|trace)[-_ ]?id\s*[:=]\s*["']?[a-z0-9._:/-]+/gi,
 			"<volatile-id>",
@@ -180,62 +153,50 @@ function normalizeOutputText(value: string, logLike: boolean): string {
 		.replaceAll(
 			/\b(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?\b/g,
 			"<volatile-time>",
-		)
+		);
+	const lines = normalized
 		.split(/\r?\n/)
 		.map((line) => line.trim().replaceAll(/\s+/g, " "))
 		.filter(Boolean);
 
 	const uniqueLines = [...new Set(lines)];
-	if (!logLike) {
-		return uniqueLines.join("\n");
-	}
-
-	const progressLines = uniqueLines.filter((line) =>
-		PROGRESS_TEXT_PATTERN.test(line),
+	if (!logLike) return uniqueLines.join("\n");
+	return (
+		uniqueLines.filter((line) => PROGRESS_TEXT_PATTERN.test(line)).join("\n") ||
+		"<log-output>"
 	);
-	if (progressLines.length === 0) {
-		return "<log-output>";
-	}
-	return [...new Set(progressLines)].join("\n");
 }
 
 function normalizeToolOutcome(value: unknown, parentKey?: string): unknown {
 	if (typeof value === "string") {
-		const compactParentKey =
-			parentKey === undefined ? undefined : compactOutputKey(parentKey);
 		return normalizeOutputText(
 			value,
-			compactParentKey !== undefined && LOG_OUTPUT_KEYS.has(compactParentKey),
+			parentKey !== undefined &&
+				LOG_OUTPUT_KEY.test(compactOutputKey(parentKey)),
 		);
 	}
-	if (value == null || typeof value !== "object") {
-		return value;
-	}
+	if (value == null || typeof value !== "object") return value;
 	if (Array.isArray(value)) {
 		const normalizedEntries = value.map((entry) =>
 			normalizeToolOutcome(entry, parentKey),
 		);
-		const compactParentKey =
-			parentKey === undefined ? undefined : compactOutputKey(parentKey);
 		if (
-			compactParentKey !== undefined &&
-			LOG_OUTPUT_KEYS.has(compactParentKey)
+			parentKey !== undefined &&
+			LOG_OUTPUT_KEY.test(compactOutputKey(parentKey))
 		) {
-			return [
-				...new Set(
-					normalizedEntries.map((entry) => JSON.stringify(entry) ?? "null"),
-				),
-			].sort();
+			const progressEntries = normalizedEntries
+				.map((entry) => JSON.stringify(entry) ?? "null")
+				.filter((entry) => PROGRESS_TEXT_PATTERN.test(entry));
+			return progressEntries.length === 0
+				? ["<log-output>"]
+				: [...new Set(progressEntries)].sort();
 		}
 		return normalizedEntries;
 	}
 
 	const normalized: Record<string, unknown> = {};
 	for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-		const compactKey = compactOutputKey(key);
-		if (VOLATILE_OUTPUT_KEYS.has(compactKey)) {
-			continue;
-		}
+		if (VOLATILE_OUTPUT_KEY.test(compactOutputKey(key))) continue;
 		normalized[key] = normalizeToolOutcome(
 			(value as Record<string, unknown>)[key],
 			key,
@@ -244,21 +205,11 @@ function normalizeToolOutcome(value: unknown, parentKey?: string): unknown {
 	return normalized;
 }
 
-interface ToolOutcomeFingerprint {
-	signature: string;
-}
-
-function toolOutcomeFingerprint(output: unknown): ToolOutcomeFingerprint {
+function toolOutcomeFingerprint(output: unknown): string {
 	try {
-		const normalized = normalizeToolOutcome(output);
-		return {
-			signature: JSON.stringify(normalized) ?? "undefined",
-		};
+		return JSON.stringify(normalizeToolOutcome(output)) ?? "undefined";
 	} catch {
-		const normalized = normalizeOutputText(String(output), false);
-		return {
-			signature: normalized,
-		};
+		return normalizeOutputText(String(output), false);
 	}
 }
 
@@ -266,11 +217,10 @@ function sequenceKey(toolName: string, toolSignature: string): string {
 	return JSON.stringify([toolName, toolSignature]);
 }
 
-interface InspectedCall {
-	batchId: number;
-	generation: number;
-	toolName: string;
-	toolSignature: string;
+interface PendingBatch {
+	key: string;
+	pendingCount: number;
+	outcomes: Set<string>;
 }
 
 interface SignatureProgressState {
@@ -278,6 +228,12 @@ interface SignatureProgressState {
 	latestOutcomeBatchId: number;
 	lastOutputSignature?: string;
 	progressVersion: number;
+}
+
+interface ActiveSequence {
+	key: string;
+	observedProgressVersion: number;
+	activeBatchId?: number;
 }
 
 /**
@@ -290,19 +246,11 @@ interface SignatureProgressState {
 export class LoopDetectionTracker {
 	private readonly config: LoopDetectionConfig;
 	private readonly state: LoopDetectionState = createLoopDetectionState();
-	private currentSequence:
-		| {
-				generation: number;
-				toolName: string;
-				toolSignature: string;
-				observedProgressVersion: number;
-		  }
-		| undefined;
-	private nextGeneration = 1;
+	private currentSequence: ActiveSequence | undefined;
 	private nextBatchId = 1;
-	private readonly pendingCalls = new Map<string, InspectedCall>();
-	private anonymousPendingCall: InspectedCall | undefined;
-	private readonly batchOutcomes = new Map<number, ToolOutcomeFingerprint[]>();
+	private readonly pendingCalls = new Map<string, number>();
+	private anonymousPendingBatchId: number | undefined;
+	private readonly pendingBatches = new Map<number, PendingBatch>();
 	private readonly signatureProgress = new Map<
 		string,
 		SignatureProgressState
@@ -317,72 +265,51 @@ export class LoopDetectionTracker {
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
-		const progressKey = sequenceKey(call.name, signature);
-		let progress = this.signatureProgress.get(progressKey);
-		if (progress === undefined) {
-			progress = {
-				totalBatchCount: 0,
-				latestOutcomeBatchId: 0,
-				progressVersion: 0,
-			};
-			this.signatureProgress.set(progressKey, progress);
-		}
+		const key = sequenceKey(call.name, signature);
+		const progress = this.getProgress(key);
 		let sequence = this.currentSequence;
-		if (
-			sequence === undefined ||
-			sequence.toolName !== call.name ||
-			sequence.toolSignature !== signature
-		) {
+		if (sequence?.key !== key) {
 			sequence = {
-				generation: this.nextGeneration++,
-				toolName: call.name,
-				toolSignature: signature,
+				key,
 				observedProgressVersion: progress.progressVersion,
 			};
 			this.currentSequence = sequence;
-			this.anonymousPendingCall = undefined;
 		} else if (sequence.observedProgressVersion !== progress.progressVersion) {
 			resetLoopDetectionState(this.state);
 			sequence.observedProgressVersion = progress.progressVersion;
 		}
 
-		const parallelCall =
-			call.id === undefined
-				? undefined
-				: [...this.pendingCalls.values()].find(
-						(pending) =>
-							pending.generation === sequence.generation &&
-							pending.toolName === call.name &&
-							pending.toolSignature === signature,
-					);
-		const inspected: InspectedCall = {
-			batchId: parallelCall?.batchId ?? this.nextBatchId++,
-			generation: sequence.generation,
-			toolName: call.name,
-			toolSignature: signature,
-		};
-		if (call.id !== undefined) {
-			this.pendingCalls.set(call.id, inspected);
-		} else {
-			this.anonymousPendingCall = inspected;
+		// Calls without ids cannot be correlated safely, so only identified calls
+		// join an unfinished batch from the current uninterrupted sequence.
+		let batchId = call.id === undefined ? undefined : sequence.activeBatchId;
+		let batch =
+			batchId === undefined ? undefined : this.pendingBatches.get(batchId);
+		const isNewBatch = batch === undefined;
+		if (batch === undefined) {
+			batchId = this.nextBatchId++;
+			batch = { key, pendingCount: 0, outcomes: new Set() };
+			this.pendingBatches.set(batchId, batch);
+			sequence.activeBatchId = batchId;
+			progress.totalBatchCount++;
 		}
-		const absoluteHardLimit = this.config.hardThreshold * MAX_PROGRESS_WINDOWS;
-		const pendingBatchCallCount =
-			[...this.pendingCalls.values()].filter(
-				(pending) => pending.batchId === inspected.batchId,
-			).length +
-			(this.anonymousPendingCall?.batchId === inspected.batchId ? 1 : 0);
-		if (parallelCall !== undefined) {
-			if (pendingBatchCallCount >= absoluteHardLimit) {
-				return {
-					kind: "hard",
-					message: `Detected ${pendingBatchCallCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`,
-				};
-			}
-			return { kind: "ok" };
+		if (batchId === undefined) {
+			throw new Error("Loop detection batch was not initialized");
+		}
+		batch.pendingCount++;
+		if (call.id !== undefined) {
+			this.pendingCalls.set(call.id, batchId);
+		} else {
+			this.anonymousPendingBatchId = batchId;
 		}
 
-		progress.totalBatchCount++;
+		const absoluteHardLimit = this.config.hardThreshold * MAX_PROGRESS_WINDOWS;
+		if (batch.pendingCount >= absoluteHardLimit) {
+			return this.hard(
+				`Detected ${batch.pendingCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`,
+			);
+		}
+
+		if (!isNewBatch) return { kind: "ok" };
 		const result = checkRepeatedToolCall(
 			this.state,
 			call.name,
@@ -391,18 +318,13 @@ export class LoopDetectionTracker {
 		);
 		if (
 			result.hardEscalation ||
-			progress.totalBatchCount >= absoluteHardLimit ||
-			pendingBatchCallCount >= absoluteHardLimit
+			progress.totalBatchCount >= absoluteHardLimit
 		) {
-			return {
-				kind: "hard",
-				message:
-					pendingBatchCallCount >= absoluteHardLimit
-						? `Detected ${pendingBatchCallCount} identical calls to \`${call.name}\` still pending in one batch; stopping because earlier calls did not complete.`
-						: progress.totalBatchCount >= absoluteHardLimit
-							? `Detected ${progress.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
-							: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
-			};
+			return this.hard(
+				progress.totalBatchCount >= absoluteHardLimit
+					? `Detected ${progress.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
+					: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
+			);
 		}
 		if (result.softWarning) {
 			return {
@@ -414,80 +336,53 @@ export class LoopDetectionTracker {
 	}
 
 	/**
-	 * Complete an inspected call. Parallel calls in the same generation share a
-	 * batch, so every outcome contributes regardless of finish order. Completed
-	 * batches are applied by start order; a late older batch cannot masquerade as
-	 * fresh progress. Failed outcomes only close their pending call.
+	 * Complete an inspected call. Parallel calls in one uninterrupted sequence
+	 * share a batch, so every outcome contributes regardless of finish order.
+	 * Completed batches are applied by start order; failed outcomes only close
+	 * their pending call.
 	 */
 	observeOutcome(
 		call: LoopDetectionCall,
 		outcome: { successful: boolean; output?: unknown },
 	): void {
-		const toolSignature = toolCallSignature(call.input);
-		const inspected =
+		const batchId =
 			call.id === undefined
-				? this.anonymousPendingCall
+				? this.anonymousPendingBatchId
 				: this.pendingCalls.get(call.id);
 		if (call.id !== undefined) {
 			this.pendingCalls.delete(call.id);
 		} else {
-			this.anonymousPendingCall = undefined;
+			this.anonymousPendingBatchId = undefined;
 		}
-		const isInspectedCall =
-			inspected !== undefined &&
-			inspected.toolName === call.name &&
-			inspected.toolSignature === toolSignature;
-		if (!isInspectedCall) {
-			if (
-				inspected !== undefined &&
-				![...this.pendingCalls.values()].some(
-					(pending) => pending.batchId === inspected.batchId,
-				) &&
-				this.anonymousPendingCall?.batchId !== inspected.batchId
-			) {
-				this.batchOutcomes.delete(inspected.batchId);
-			}
-			return;
-		}
+		if (batchId === undefined) return;
+		const batch = this.pendingBatches.get(batchId);
+		if (batch === undefined) return;
 
-		if (outcome.successful) {
-			const outcomes = this.batchOutcomes.get(inspected.batchId) ?? [];
-			outcomes.push(toolOutcomeFingerprint(outcome.output));
-			this.batchOutcomes.set(inspected.batchId, outcomes);
+		const key = sequenceKey(call.name, toolCallSignature(call.input));
+		if (batch.key === key && outcome.successful) {
+			batch.outcomes.add(toolOutcomeFingerprint(outcome.output));
 		}
-		const hasPendingBatchCall =
-			[...this.pendingCalls.values()].some(
-				(pending) => pending.batchId === inspected.batchId,
-			) || this.anonymousPendingCall?.batchId === inspected.batchId;
-		if (hasPendingBatchCall) {
-			return;
-		}
+		batch.pendingCount--;
+		if (batch.pendingCount > 0) return;
 
-		const outcomes = this.batchOutcomes.get(inspected.batchId) ?? [];
-		this.batchOutcomes.delete(inspected.batchId);
-		if (outcomes.length === 0) {
-			return;
+		this.pendingBatches.delete(batchId);
+		if (this.currentSequence?.activeBatchId === batchId) {
+			this.currentSequence.activeBatchId = undefined;
 		}
-		const outputSignature = JSON.stringify(
-			[...new Set(outcomes.map((entry) => entry.signature))].sort(),
-		);
-		const progress = this.signatureProgress.get(
-			sequenceKey(call.name, toolSignature),
-		);
-		if (
-			progress === undefined ||
-			inspected.batchId <= progress.latestOutcomeBatchId
-		) {
-			return;
-		}
+		if (batch.outcomes.size === 0) return;
 
+		const progress = this.signatureProgress.get(batch.key);
+		if (progress === undefined || batchId <= progress.latestOutcomeBatchId) {
+			return;
+		}
+		const outputSignature = JSON.stringify([...batch.outcomes].sort());
 		if (
 			progress.lastOutputSignature !== undefined &&
 			progress.lastOutputSignature !== outputSignature
 		) {
 			progress.progressVersion++;
 		}
-		progress.latestOutcomeBatchId = inspected.batchId;
+		progress.latestOutcomeBatchId = batchId;
 		progress.lastOutputSignature = outputSignature;
 	}
 
@@ -498,8 +393,11 @@ export class LoopDetectionTracker {
 	 */
 	clearPendingCalls(): void {
 		this.pendingCalls.clear();
-		this.anonymousPendingCall = undefined;
-		this.batchOutcomes.clear();
+		this.anonymousPendingBatchId = undefined;
+		this.pendingBatches.clear();
+		if (this.currentSequence !== undefined) {
+			this.currentSequence.activeBatchId = undefined;
+		}
 	}
 
 	reset(): void {
@@ -507,8 +405,25 @@ export class LoopDetectionTracker {
 		this.currentSequence = undefined;
 		this.nextBatchId = 1;
 		this.pendingCalls.clear();
-		this.anonymousPendingCall = undefined;
-		this.batchOutcomes.clear();
+		this.anonymousPendingBatchId = undefined;
+		this.pendingBatches.clear();
 		this.signatureProgress.clear();
+	}
+
+	private getProgress(key: string): SignatureProgressState {
+		let progress = this.signatureProgress.get(key);
+		if (progress === undefined) {
+			progress = {
+				totalBatchCount: 0,
+				latestOutcomeBatchId: 0,
+				progressVersion: 0,
+			};
+			this.signatureProgress.set(key, progress);
+		}
+		return progress;
+	}
+
+	private hard(message: string): LoopDetectionVerdict {
+		return { kind: "hard", message };
 	}
 }
