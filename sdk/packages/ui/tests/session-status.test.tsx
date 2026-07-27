@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { SessionStatus } from "../components/index.js";
 
 describe("SessionStatus", () => {
-	it("renders an accessible dot-only status", () => {
+	it("uses hidden content as dot-only status text without duplicating it", () => {
 		const markup = renderToStaticMarkup(
 			<SessionStatus label="Running" showLabel={false} tone="running" />,
 		);
 
 		expect(markup).toContain("<output");
-		expect(markup).toContain('aria-label="Running"');
+		expect(markup).not.toContain("aria-label");
 		expect(markup).toContain("cline-ui-session-status--running");
 		expect(markup).toContain("cline-ui-sr-only");
 		expect(markup).toContain(">Running</span>");

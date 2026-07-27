@@ -18,7 +18,6 @@ export function SessionStatus({
 }: SessionStatusProps) {
 	return (
 		<output
-			aria-label={label}
 			className={[
 				"cline-ui-session-status",
 				`cline-ui-session-status--${tone}`,

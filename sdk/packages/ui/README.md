@@ -38,6 +38,10 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
 
+`SessionStatus` uses semantic tone colors by default. Set
+`--cline-ui-session-status-color` on the component to override its dot color
+for a host-specific status palette.
+
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
 lets each bundler control font loading and asset emission.
