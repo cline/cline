@@ -227,10 +227,13 @@ describe("@cline/ui theme contract", () => {
 		for (const token of mappedColorTokens) {
 			expect(theme).toContain(`--color-${token}: var(--${token});`);
 		}
-		expect(base).toContain('@import "../components/markdown.css";');
+		expect(base).toContain(
+			'@import "../components/markdown.css" layer(components);',
+		);
 		expect(markdown).toContain(".cline-markdown");
 		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
 		expect(markdown).not.toContain("@apply");
+		expect(markdown).not.toContain("@layer");
 		for (const token of [
 			"--text-sm",
 			"--text-sm--letter-spacing",

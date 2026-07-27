@@ -63,12 +63,12 @@ if (theme.includes("tokens.css") || !theme.includes("@theme inline")) {
 if (base.includes("#__next") || base.includes("@source")) {
 	throw new Error("base.css must not contain consumer-specific shell policy");
 }
-if (!base.includes('@import "../components/markdown.css";')) {
+if (!base.includes('@import "../components/markdown.css" layer(components);')) {
 	throw new Error(
-		"base.css must compose the optional Markdown component styles",
+		"base.css must compose the optional Markdown component styles into the components layer",
 	);
 }
-if (markdown.includes("@apply")) {
+if (/@(?:apply|layer)\b/.test(markdown)) {
 	throw new Error("components/markdown.css must remain framework-neutral");
 }
 if (!markdown.includes(":is(.markdown, .cline-markdown)")) {
