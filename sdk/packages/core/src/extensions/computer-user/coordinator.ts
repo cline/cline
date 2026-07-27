@@ -7,10 +7,10 @@ import type { ComputerTaskArtifactRecorder } from "../computer-observability/rec
  *
  * The helper is a persistent, interactive session on a separately configured
  * provider (e.g. Anthropic/Sonnet while the driver runs GPT). Driver-facing
- * commands (start/status/message/interrupt) return immediately; the helper's
- * turn runs in the background and reports back through terminal collaboration
- * tools (`ask_driver`, `finish_computer_task`) plus non-terminal notes
- * (`post_driver_update`).
+ * commands start, steer, and interrupt the helper without waiting for its turn;
+ * status can either return a snapshot or wait for a bounded status change. The
+ * helper reports back through terminal collaboration tools (`ask_driver`,
+ * `finish_computer_task`) plus non-terminal notes (`post_driver_update`).
  *
  * Consistency boundary: the helper's provider profile, tool inventory, and
  * system prompt become effective together when the helper session is created
@@ -81,6 +81,8 @@ export type ComputerUserState =
 	| { kind: "disposed" };
 
 export interface ComputerUserStatus {
+	/** Opaque monotonic cursor for a later waitForStatus call. */
+	revision: number;
 	state: ComputerUserState["kind"];
 	sessionId?: string;
 	runId?: string;
@@ -102,6 +104,8 @@ export interface ComputerUserCoordinatorOptions {
 
 export class ComputerUserCoordinator {
 	private state: ComputerUserState = { kind: "uninitialized" };
+	private statusRevision = 0;
+	private readonly statusWaiters = new Set<() => void>();
 	private latestNote: HelperNote | undefined;
 	private lastMeaningfulProgressAt: number | undefined;
 	private pendingQuestion: DriverQuestion | undefined;
@@ -218,6 +222,7 @@ export class ComputerUserCoordinator {
 				)
 			: undefined;
 		return {
+			revision: this.statusRevision,
 			state: this.state.kind,
 			sessionId: "sessionId" in this.state ? this.state.sessionId : undefined,
 			runId: "run" in this.state ? this.state.run.runId : undefined,
@@ -232,6 +237,56 @@ export class ComputerUserCoordinator {
 			lastMeaningfulProgressAt: this.lastMeaningfulProgressAt,
 			summary: this.buildSummary(noteAge),
 		};
+	}
+
+	/**
+	 * Returns once status has advanced beyond `since`, or when `timeoutMs`
+	 * elapses. The revision check and waiter registration share one synchronous
+	 * section, so a status transition cannot land between them and be missed.
+	 */
+	waitForStatus(
+		since: number,
+		timeoutMs: number,
+		signal?: AbortSignal,
+	): Promise<ComputerUserStatus> {
+		if (since > this.statusRevision) {
+			return Promise.reject(
+				new Error(
+					`Status revision ${since} is newer than the current revision ${this.statusRevision}`,
+				),
+			);
+		}
+		if (since < this.statusRevision || timeoutMs === 0) {
+			return Promise.resolve(this.status());
+		}
+		if (signal?.aborted) {
+			return Promise.reject(statusWaitAbortReason(signal));
+		}
+
+		return new Promise<ComputerUserStatus>((resolve, reject) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const cleanup = () => {
+				this.statusWaiters.delete(onStatusChange);
+				if (timer !== undefined) {
+					clearTimeout(timer);
+				}
+				signal?.removeEventListener("abort", onAbort);
+			};
+			const finish = () => {
+				cleanup();
+				resolve(this.status());
+			};
+			const onStatusChange = () => finish();
+			const onAbort = () => {
+				cleanup();
+				reject(statusWaitAbortReason(signal));
+			};
+
+			this.statusWaiters.add(onStatusChange);
+			timer = setTimeout(finish, timeoutMs);
+			timer.unref?.();
+			signal?.addEventListener("abort", onAbort, { once: true });
+		});
 	}
 
 	/** Aborts active work, stops the helper session, and releases resources. */
@@ -263,6 +318,7 @@ export class ComputerUserCoordinator {
 	onHelperNote(note: Omit<HelperNote, "reportedAt">): void {
 		this.latestNote = { ...note, reportedAt: this.now() };
 		this.markProgress();
+		this.advanceStatusRevision();
 		this.record("helper.note", { kind: note.kind, message: note.text });
 		if (note.kind === "warning") {
 			this.options.notifyDriver({
@@ -289,6 +345,7 @@ export class ComputerUserCoordinator {
 		};
 		this.pendingQuestion = question;
 		this.markProgress();
+		this.advanceStatusRevision();
 		this.record("helper.question", {
 			question: input.question,
 			context: input.context,
@@ -301,6 +358,7 @@ export class ComputerUserCoordinator {
 	onHelperFinish(report: { result: string; observations: string[] }): void {
 		this.finalReport = report;
 		this.markProgress();
+		this.advanceStatusRevision();
 	}
 
 	// -----------------------------------------------------------------------
@@ -451,8 +509,27 @@ export class ComputerUserCoordinator {
 	}
 
 	private recordStatusChange(to: ComputerUserState["kind"]): void {
+		this.advanceStatusRevision();
 		this.record("helper.status_changed", { to });
 	}
+
+	private advanceStatusRevision(): void {
+		this.statusRevision += 1;
+		const waiters = [...this.statusWaiters];
+		this.statusWaiters.clear();
+		for (const wake of waiters) {
+			wake();
+		}
+	}
+}
+
+function statusWaitAbortReason(signal: AbortSignal | undefined): Error {
+	if (signal?.reason instanceof Error) {
+		return signal.reason;
+	}
+	return new Error(
+		typeof signal?.reason === "string" ? signal.reason : "Status wait aborted",
+	);
 }
 
 function formatQuestionForDriver(question: DriverQuestion): string {
