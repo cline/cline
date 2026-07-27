@@ -81,55 +81,25 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
     - Before submitting PR, run `bun run format:fix` to format your code
 
-    To test the experimental auto-router entries locally, add both build-time
-    overrides to `apps/vscode/.env`, then restart the webview build and select
-    the **Cline** provider:
-
-    ```dotenv
-    CLINE_ENVIRONMENT=local
-    CLINE_AUTO_MODEL_PICKER_ENABLED=true
-    CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true
-    ```
-
-    The second override exposes `cline-pass/auto` inside the Cline picker
-    without exposing the standalone Cline Pass provider. Sending requests still
-    requires a backend that resolves the virtual `cline/auto` and
-    `cline-pass/auto` IDs before normal model lookup.
-
-    With the isolated Core Platform API running on port 17777, launch the extension
-    host from `apps/vscode`:
+    To demo the experimental routers against local Core on port `17777`, run
+    this from `apps/vscode`:
 
     ```bash
     CLINE_ENVIRONMENT=local \
-      CLINE_LOCAL_API_BASE_URL=http://localhost:17777 \
+      CLINE_LOCAL_API_BASE_URL=http://127.0.0.1:17777 \
       CLINE_AUTO_MODEL_PICKER_ENABLED=true \
       CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true \
       bash scripts/run-extension-host.sh
     ```
 
-    The launcher builds the extension, opens an isolated VS Code profile, and
-    starts all three watchers. It uses a four-pane `tmux` session when `tmux` is
-    installed and automatically falls back to the current terminal with private
-    watcher logs when it is not. Close the Extension Development Host window or
-    press Ctrl+C in the launcher to stop only the processes and temporary
-    profile created by that run.
+    Add `--check` to validate those settings without building, launching VS
+    Code, or contacting Core. Select the **Cline** provider in the Extension
+    Development Host; the flags add `cline/auto` and `cline-pass/auto` to that
+    existing picker and do not expose the standalone Cline Pass provider.
 
-    Before the demo, validate the local settings without building, launching VS
-    Code, or contacting the API:
-
-    ```bash
-    CLINE_ENVIRONMENT=local \
-      CLINE_LOCAL_API_BASE_URL=http://localhost:17777 \
-      CLINE_AUTO_MODEL_PICKER_ENABLED=true \
-      CLINE_PASS_AUTO_MODEL_PICKER_ENABLED=true \
-      bash scripts/run-extension-host.sh --check
-    ```
-
-    Select the **Cline** provider in the launched Extension Development Host.
-    The loopback-only override targets the isolated Core launcher on port
-    `17777`; omit it to use the standard local Core port `7777`. The auto-router
-    options only become usable after that Core API is healthy and the Cline
-    account is signed in; merely opening the picker does not make a model call.
+    The virtual IDs require a signed-in Cline account and a Core backend that
+    resolves them. The local API override accepts only loopback HTTP on ports
+    `7777` and `17777`.
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:

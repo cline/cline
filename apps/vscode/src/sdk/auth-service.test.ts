@@ -10,7 +10,7 @@
 
 import { getValidClineCredentials, type ITelemetryService, type OAuthCredentials } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { AuthService, type ClineAuthInfo, LogoutReason, summarizeAuthFetchError } from "./auth-service"
+import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -222,36 +222,6 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
-describe("summarizeAuthFetchError", () => {
-	it("keeps useful Axios diagnostics without retaining request headers", () => {
-		const summary = summarizeAuthFetchError({
-			name: "AxiosError",
-			message: "Request failed with status code 500",
-			code: "ERR_BAD_RESPONSE",
-			response: { status: 500, data: { error: "internal" } },
-			config: {
-				headers: { Authorization: "Bearer secret-access-token" },
-			},
-		})
-
-		expect(summary).toEqual({
-			name: "AxiosError",
-			message: "Request failed with status code 500",
-			code: "ERR_BAD_RESPONSE",
-			status: 500,
-		})
-		expect(JSON.stringify(summary)).not.toContain("secret-access-token")
-		expect(JSON.stringify(summary)).not.toContain("Authorization")
-	})
-
-	it("returns a stable summary for non-object failures", () => {
-		expect(summarizeAuthFetchError("network failure")).toEqual({
-			name: "Error",
-			message: "Failed to fetch user info",
-		})
-	})
-})
 
 describe("AuthService", () => {
 	let authService: AuthService

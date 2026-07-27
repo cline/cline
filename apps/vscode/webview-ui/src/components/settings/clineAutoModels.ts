@@ -10,8 +10,7 @@ const CLINE_AUTO_MODEL_INFO: ModelInfo = {
 	// not yet constrain image requests to a vision-capable candidate.
 	supportsImages: false,
 	supportsPromptCache: true,
-	description:
-		"Automatically routes each turn to an eligible Cline model while accounting for prompt-cache reuse and switching cost.",
+	description: "Selects an eligible Cline model at task start and keeps it sticky for the task to preserve prompt-cache reuse.",
 }
 
 const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
@@ -24,7 +23,7 @@ const CLINE_PASS_AUTO_MODEL_INFO: ModelInfo = {
 	cacheReadsPrice: 0,
 	cacheWritesPrice: 0,
 	description:
-		"Automatically routes each turn using only Cline Pass models while accounting for prompt-cache reuse and switching cost.",
+		"Selects an eligible Cline Pass model at task start and keeps it sticky for the task to preserve prompt-cache reuse.",
 }
 
 interface ClineAutoModelOptions {
