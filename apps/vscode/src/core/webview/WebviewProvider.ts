@@ -111,7 +111,7 @@ export abstract class WebviewProvider {
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
 					script-src 'nonce-${nonce}' 'unsafe-eval';">
-				<title>BedrockCoder</title>
+				<title>Bedrock Coder</title>
 			</head>
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
@@ -207,7 +207,7 @@ export abstract class WebviewProvider {
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
-					<title>BedrockCoder</title>
+					<title>Bedrock Coder</title>
 				</head>
 				<body>
 					<div id="root"></div>

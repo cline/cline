@@ -219,7 +219,7 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 
-		const sdkDepDir = join(dir, "node_modules", "@bedrockCoder", "shared");
+		const sdkDepDir = join(dir, "node_modules", "@bedrock-coder", "shared");
 		await mkdir(sdkDepDir, { recursive: true });
 		await writeFile(
 			join(sdkDepDir, "package.json"),
@@ -253,7 +253,7 @@ describe("plugin-sandbox", () => {
 				"import { resolveBedrockCoderDataDir } from '@bedrock-coder/shared/storage';",
 				"import YAML from 'yaml';",
 				"export default {",
-				"  name: YAML.stringify({ host: !!resolveBedrock CoderDataDir() }).trim(),",
+				"  name: YAML.stringify({ host: !!resolveBedrockCoderDataDir() }).trim(),",
 				"  manifest: { capabilities: ['tools'] },",
 				"};",
 			].join("\n"),
@@ -469,7 +469,7 @@ describe("plugin-sandbox", () => {
 		const packageRoot = join(
 			wrapperRoot,
 			"node_modules",
-			"@bedrockCoder",
+			"@bedrock-coder",
 			`cli-${platform}-${process.arch}`,
 		);
 		const wrapperBinDir = join(wrapperRoot, "bin");

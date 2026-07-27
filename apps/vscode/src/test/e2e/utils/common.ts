@@ -16,7 +16,7 @@ export const addSelectedCodeToBedrockCoderWebview = async (_page: Page) => {
 
 	// Target the explicit action instead of pressing Enter on the first item.
 	// The first item can vary by platform or diagnostics.
-	const addToBedrockCoder = _page.getByText(/Add to BedrockCoder/i)
+	const addToBedrockCoder = _page.getByText(/Add to Bedrock Coder/i)
 	await addToBedrockCoder.waitFor({ state: "visible" })
 	// For whatever reason, we need to move the mouse to make the context menu item clickable
 	await _page.mouse.move(10, 10)

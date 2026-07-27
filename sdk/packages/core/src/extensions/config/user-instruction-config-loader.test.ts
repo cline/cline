@@ -49,11 +49,10 @@ describe("user instruction config loader", () => {
 		tempRoots.length = 0;
 	});
 
-	it("resolves legacy-compatible default search paths", () => {
+	it("resolves workspace and global default search paths", () => {
 		const workspacePath = "/repo/demo";
 		expect(resolveSkillsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
-				join(workspacePath, ".bedrock-coder", "skills"),
 				join(workspacePath, ".bedrock-coder", "skills"),
 				join(workspacePath, ".agents", "skills"),
 			]),
@@ -61,7 +60,6 @@ describe("user instruction config loader", () => {
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
 				join(workspacePath, "AGENTS.md"),
-				join(workspacePath, ".bedrock-coder"),
 				join(workspacePath, ".bedrock-coder", "rules"),
 			]),
 		);
@@ -72,15 +70,6 @@ describe("user instruction config loader", () => {
 		).toBe(true);
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 		expect(paths).toContain(join(workspacePath, ".bedrock-coder", "workflows"));
-		expect(paths).toContain(join(workspacePath, ".bedrock-coder", "workflows"));
-		expect(
-			paths.some(
-				(p) =>
-					p.includes("Documents") &&
-					p.includes("Bedrock Coder") &&
-					p.includes("Workflows"),
-			),
-		).toBe(true);
 		expect(paths).not.toContain(
 			join(process.env.HOME ?? "~", ".bedrock-coder", "data", "workflows"),
 		);
@@ -409,7 +398,9 @@ Use the security review checklist.`,
 		await mkdir(join(tempRoot, ".bedrock-coder", "workflows"), {
 			recursive: true,
 		});
-		await mkdir(join(tempRoot, ".bedrock-coder", "workflows"), { recursive: true });
+		await mkdir(join(tempRoot, ".bedrock-coder", "workflows"), {
+			recursive: true,
+		});
 		await writeFile(
 			join(tempRoot, ".bedrock-coder", "workflows", "release.md"),
 			`---

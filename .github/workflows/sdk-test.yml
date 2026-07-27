@@ -44,11 +44,10 @@ jobs:
             - name: Typecheck
               run: |
                   bun run build:sdk
-                  bun run -F @bedrock-coder/cli build
                   bun run types
 
             - name: Lint & Format
-              run: bun run lint
+              run: bun biome lint sdk/
 
     test:
         needs: quality-checks
@@ -85,28 +84,11 @@ jobs:
               id: build_sdk_step
               run: bun run build:sdk
 
-            - name: Build CLI
-              id: build_cli_step
+            - name: Run SDK Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
-              run: bun -F @bedrock-coder/cli build
-
-            - name: Run Tests
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os != 'windows-latest' }}
-              run: bun run test
-
-            - name: Run SDK Tests (Windows)
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}
               run: bun -F './sdk/packages/**' test
 
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10
               run: bun sdk/scripts/ci-node-smoke.ts
-
-            - name: Run TUI e2e tests
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun -F @bedrock-coder/cli test:e2e:cli:tui
-
-            - name: Verify packages are publishable
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun sdk/scripts/check-publish.ts

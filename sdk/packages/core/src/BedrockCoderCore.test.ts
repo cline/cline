@@ -124,6 +124,8 @@ describe("BedrockCoderCore", () => {
 					filePath: join(dir, "tracked.txt"),
 					leftContent: "before\n",
 					rightContent: "after\n",
+					restorable: true,
+					status: "modified",
 				},
 			]);
 		} finally {

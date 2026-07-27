@@ -8,11 +8,11 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
-				find: /^@bedrockCoder\/shared\/(.+)$/,
+				find: /^@bedrock-coder\/shared\/(.+)$/,
 				replacement: resolve(rootDir, "../shared/src/$1"),
 			},
 			{
-				find: /^@bedrockCoder\/shared$/,
+				find: /^@bedrock-coder\/shared$/,
 				replacement: resolve(rootDir, "../shared/src/index.ts"),
 			},
 		],

@@ -1,9 +1,8 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	resolveBedrockCoderDir,
-	resolveDocumentsBedrockCoderDirectoryPath,
 	setBedrockCoderDir,
 	setHomeDir,
 } from "@bedrock-coder/shared/storage";
@@ -118,9 +117,8 @@ function afterToolContext(input: unknown = { path: "README.md" }) {
 }
 
 describe("createHookConfigFileHooks", () => {
-	const originalHomeDir = dirname(
-		dirname(resolveDocumentsBedrockCoderDirectoryPath()),
-	);
+	const originalHomeDir =
+		process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || homedir();
 	const originalBedrockCoderDir = resolveBedrockCoderDir();
 	let isolatedRoot = "";
 

@@ -15,7 +15,8 @@ import {
 describe("plugin-config-loader", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
-		BEDROCK_CODER_GLOBAL_SETTINGS_PATH: process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
+		BEDROCK_CODER_GLOBAL_SETTINGS_PATH:
+			process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
 	};
 
 	afterEach(() => {
@@ -333,27 +334,21 @@ describe("plugin-config-loader", () => {
 			setHomeDir(home);
 			const workspacePlugins = join(workspace, ".bedrock-coder", "plugins");
 			const userPlugins = join(home, ".bedrock-coder", "plugins");
-			const documentsPlugins = join(home, "Documents", "Bedrock Coder", "Plugins");
 			await mkdir(workspacePlugins, { recursive: true });
 			await mkdir(userPlugins, { recursive: true });
-			await mkdir(documentsPlugins, { recursive: true });
 			const workspacePlugin = join(workspacePlugins, "workspace.js");
 			const userPlugin = join(userPlugins, "user.js");
-			const documentsPlugin = join(documentsPlugins, "documents.js");
 			await writeFile(workspacePlugin, "export default {}", "utf8");
 			await writeFile(userPlugin, "export default {}", "utf8");
-			await writeFile(documentsPlugin, "export default {}", "utf8");
 
 			const searchPaths = resolvePluginConfigSearchPaths(workspace);
-			expect(searchPaths).toHaveLength(3);
+			expect(searchPaths).toHaveLength(2);
 			expect(searchPaths).toContain(workspacePlugins);
 			expect(searchPaths).toContain(userPlugins);
-			expect(searchPaths).toContain(documentsPlugins);
 
 			const resolved = resolveAgentPluginPaths({ workspacePath: workspace });
 			expect(resolved).toContain(workspacePlugin);
 			expect(resolved).toContain(userPlugin);
-			expect(resolved).toContain(documentsPlugin);
 		} finally {
 			await rm(home, { recursive: true, force: true });
 			await rm(workspace, { recursive: true, force: true });

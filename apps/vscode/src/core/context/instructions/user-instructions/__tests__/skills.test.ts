@@ -98,7 +98,6 @@ describe("Skills Utility Functions", () => {
 
 		getSkillsDirectoriesForScanStub.returns([
 			{ path: path.join(TEST_CWD, ".bedrock-coder", "skills"), source: "project" },
-			{ path: path.join(TEST_CWD, ".bedrock-coder", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".agents", "skills"), source: "project" },
 			{ path: GLOBAL_SKILLS_DIR, source: "global" },
@@ -166,7 +165,7 @@ This is a test skill.`)
 			expect(skills[0].source).to.equal("global")
 		})
 
-		it("should discover skills from project .bedrock-coder/skills directory", async () => {
+		it("should discover an explaining-code skill from the project .bedrock-coder/skills directory", async () => {
 			const projectSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
 			const skillDir = path.join(projectSkillsDir, "explaining-code")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
@@ -189,7 +188,7 @@ Use analogies and ASCII diagrams when explaining code.`)
 			expect(skills[0].source).to.equal("project")
 		})
 
-		it("should discover skills from project .bedrock-coder/skills directory", async () => {
+		it("should discover a debugging skill from the project .bedrock-coder/skills directory", async () => {
 			const bedrockCoderSkillsDir = path.join(TEST_CWD, ".bedrock-coder", "skills")
 			const skillDir = path.join(bedrockCoderSkillsDir, "debugging")
 			const skillMdPath = path.join(skillDir, "SKILL.md")

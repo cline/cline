@@ -9,8 +9,8 @@ import {
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
-	resolveChatWorkspacePath,
 	resolveBedrockCoderDataDir,
+	resolveChatWorkspacePath,
 	resolveDbDataDir,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
@@ -39,9 +39,12 @@ function captureEnv(): EnvSnapshot {
 		BEDROCK_CODER_DIR: process.env.BEDROCK_CODER_DIR,
 		BEDROCK_CODER_DATA_DIR: process.env.BEDROCK_CODER_DATA_DIR,
 		BEDROCK_CODER_DB_DATA_DIR: process.env.BEDROCK_CODER_DB_DATA_DIR,
-		BEDROCK_CODER_GLOBAL_SETTINGS_PATH: process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
-		BEDROCK_CODER_MCP_SETTINGS_PATH: process.env.BEDROCK_CODER_MCP_SETTINGS_PATH,
-		BEDROCK_CODER_PROVIDER_SETTINGS_PATH: process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH,
+		BEDROCK_CODER_GLOBAL_SETTINGS_PATH:
+			process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH,
+		BEDROCK_CODER_MCP_SETTINGS_PATH:
+			process.env.BEDROCK_CODER_MCP_SETTINGS_PATH,
+		BEDROCK_CODER_PROVIDER_SETTINGS_PATH:
+			process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH,
 		BEDROCK_CODER_SESSION_DATA_DIR: process.env.BEDROCK_CODER_SESSION_DATA_DIR,
 		BEDROCK_CODER_TEAM_DATA_DIR: process.env.BEDROCK_CODER_TEAM_DATA_DIR,
 	};
@@ -51,12 +54,16 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.BEDROCK_CODER_DATA_DIR = snapshot.BEDROCK_CODER_DATA_DIR;
 	process.env.BEDROCK_CODER_DIR = snapshot.BEDROCK_CODER_DIR;
 	process.env.BEDROCK_CODER_DB_DATA_DIR = snapshot.BEDROCK_CODER_DB_DATA_DIR;
-	process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH = snapshot.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
-	process.env.BEDROCK_CODER_MCP_SETTINGS_PATH = snapshot.BEDROCK_CODER_MCP_SETTINGS_PATH;
+	process.env.BEDROCK_CODER_GLOBAL_SETTINGS_PATH =
+		snapshot.BEDROCK_CODER_GLOBAL_SETTINGS_PATH;
+	process.env.BEDROCK_CODER_MCP_SETTINGS_PATH =
+		snapshot.BEDROCK_CODER_MCP_SETTINGS_PATH;
 	process.env.BEDROCK_CODER_PROVIDER_SETTINGS_PATH =
 		snapshot.BEDROCK_CODER_PROVIDER_SETTINGS_PATH;
-	process.env.BEDROCK_CODER_SESSION_DATA_DIR = snapshot.BEDROCK_CODER_SESSION_DATA_DIR;
-	process.env.BEDROCK_CODER_TEAM_DATA_DIR = snapshot.BEDROCK_CODER_TEAM_DATA_DIR;
+	process.env.BEDROCK_CODER_SESSION_DATA_DIR =
+		snapshot.BEDROCK_CODER_SESSION_DATA_DIR;
+	process.env.BEDROCK_CODER_TEAM_DATA_DIR =
+		snapshot.BEDROCK_CODER_TEAM_DATA_DIR;
 }
 
 describe("storage path resolution", () => {
@@ -78,7 +85,9 @@ describe("storage path resolution", () => {
 		delete process.env.BEDROCK_CODER_SESSION_DATA_DIR;
 		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
-		expect(resolveSessionDataDir()).toBe(join("/tmp/bedrock-coder-data", "sessions"));
+		expect(resolveSessionDataDir()).toBe(
+			join("/tmp/bedrock-coder-data", "sessions"),
+		);
 	});
 
 	it("falls back to BEDROCK_CODER_DATA_DIR/teams for team storage", () => {
@@ -123,7 +132,11 @@ describe("storage path resolution", () => {
 		process.env.BEDROCK_CODER_DATA_DIR = "/tmp/bedrock-coder-data";
 
 		expect(resolveMcpSettingsPath()).toBe(
-			join("/tmp/bedrock-coder-data", "settings", BEDROCK_CODER_MCP_SETTINGS_FILE_NAME),
+			join(
+				"/tmp/bedrock-coder-data",
+				"settings",
+				BEDROCK_CODER_MCP_SETTINGS_FILE_NAME,
+			),
 		);
 	});
 
@@ -167,7 +180,7 @@ describe("storage path resolution", () => {
 		);
 	});
 
-	it("resolves legacy and new workflow paths, with .bedrock-coder paths later for duplicate-name precedence", () => {
+	it("resolves workspace and global workflow paths", () => {
 		snapshot = captureEnv();
 		process.env.BEDROCK_CODER_DIR = "/tmp/home/.bedrock-coder";
 		const workspacePath = "/repo/demo";
@@ -176,9 +189,7 @@ describe("storage path resolution", () => {
 
 		expect(paths).toEqual([
 			join(workspacePath, ".bedrock-coder", "workflows"),
-			expect.stringContaining(join("Documents", "Bedrock Coder", "Workflows")),
 			join("/tmp/home", ".bedrock-coder", "workflows"),
-			join(workspacePath, ".bedrock-coder", "workflows"),
 		]);
 	});
 });

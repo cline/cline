@@ -8,6 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname } from "node:path";
+import { BEDROCK_DEFAULT_MODEL_ID } from "@bedrock-coder/llms";
 import { resolveProviderSettingsPath } from "@bedrock-coder/shared/storage";
 import {
 	emptyStoredProviderSettings,
@@ -23,6 +24,59 @@ import {
 
 function nowIso(): string {
 	return new Date().toISOString();
+}
+
+function record(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+
+function optionalString(...values: unknown[]): string | undefined {
+	for (const value of values) {
+		if (typeof value === "string" && value.trim()) return value.trim();
+	}
+	return undefined;
+}
+
+function migrateLegacyState(input: unknown): StoredProviderSettings {
+	const root = record(input);
+	const providers = record(root.providers);
+	const bedrockEntry = record(providers.bedrock);
+	const legacy = record(bedrockEntry.settings ?? bedrockEntry);
+	const connection = record(legacy.connection);
+	const aws = record(legacy.aws);
+	const settings: ProviderSettings = ProviderSettingsSchema.parse({
+		provider: "bedrock",
+		model:
+			optionalString(legacy.model, legacy.modelId) ?? BEDROCK_DEFAULT_MODEL_ID,
+		connection: {
+			region:
+				optionalString(connection.region, legacy.region, aws.region) ??
+				"us-east-1",
+			profile: optionalString(connection.profile, aws.profile),
+			endpoint: optionalString(connection.endpoint, aws.endpoint),
+			caBundlePath: optionalString(
+				connection.caBundlePath,
+				aws.caBundlePath,
+				legacy.caBundlePath,
+			),
+		},
+		reasoning: legacy.reasoning,
+		maxTokens: legacy.maxTokens,
+		contextWindow: legacy.contextWindow,
+	});
+	return {
+		version: 2,
+		lastUsedProvider: "bedrock",
+		providers: {
+			bedrock: {
+				settings,
+				updatedAt: nowIso(),
+				tokenSource: "migration",
+			},
+		},
+	};
 }
 
 export interface BedrockSettingsStoreOptions {
@@ -41,9 +95,13 @@ export class BedrockSettingsStore {
 		this.filePath = options.filePath ?? resolveProviderSettingsPath();
 		if (existsSync(this.filePath)) {
 			try {
+				const parsed = JSON.parse(readFileSync(this.filePath, "utf8"));
+				if (!StoredProviderSettingsSchema.safeParse(parsed).success) {
+					this.write(migrateLegacyState(parsed));
+				}
 				chmodSync(this.filePath, 0o600);
 			} catch {
-				// Invalid content is ignored; read() returns a clean Bedrock state.
+				// Invalid legacy content is ignored; read() returns a clean Bedrock state.
 			}
 		}
 	}
@@ -74,14 +132,14 @@ export class BedrockSettingsStore {
 				: {},
 		});
 		const directory = dirname(this.filePath);
-		if (!existsSync(directory)) mkdirSync(directory, { recursive: true, mode: 0o700 });
+		if (!existsSync(directory))
+			mkdirSync(directory, { recursive: true, mode: 0o700 });
 		const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
 		try {
-			writeFileSync(
-				temporaryPath,
-				`${JSON.stringify(normalized, null, 2)}\n`,
-				{ encoding: "utf8", mode: 0o600 },
-			);
+			writeFileSync(temporaryPath, `${JSON.stringify(normalized, null, 2)}\n`, {
+				encoding: "utf8",
+				mode: 0o600,
+			});
 			renameSync(temporaryPath, this.filePath);
 			try {
 				chmodSync(this.filePath, 0o600);
@@ -120,9 +178,7 @@ export class BedrockSettingsStore {
 		return this.read().providers.bedrock?.settings;
 	}
 
-	getConfig(
-		options?: ToProviderConfigOptions,
-	): ProviderConfig | undefined {
+	getConfig(options?: ToProviderConfigOptions): ProviderConfig | undefined {
 		const settings = this.getSettings();
 		return settings ? toProviderConfig(settings, options) : undefined;
 	}

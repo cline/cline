@@ -98,7 +98,7 @@ describe("plugin-loader", () => {
 			"utf8",
 		);
 
-		const sdkDir = join(dir, "node_modules", "@bedrockCoder", "shared");
+		const sdkDir = join(dir, "node_modules", "@bedrock-coder", "shared");
 		await mkdir(sdkDir, { recursive: true });
 		await writeFile(
 			join(sdkDir, "package.json"),
@@ -133,7 +133,7 @@ describe("plugin-loader", () => {
 				"import { resolveBedrockCoderDataDir } from '@bedrock-coder/shared/storage';",
 				"import YAML from 'yaml';",
 				"export default {",
-				"  name: typeof safeJsonStringify === 'function' ? YAML.stringify({ ok: !!resolveBedrock CoderDataDir() }) : 'invalid',",
+				"  name: typeof safeJsonStringify === 'function' ? YAML.stringify({ ok: !!resolveBedrockCoderDataDir() }) : 'invalid',",
 				"  manifest: { capabilities: ['tools'] },",
 				"};",
 			].join("\n"),
@@ -313,7 +313,10 @@ describe("plugin-loader", () => {
 		const pluginPath = join(dir, "plugin-with-wrapper-dep.ts");
 		await mkdir(wrapperBinDir, { recursive: true });
 		await mkdir(depDir, { recursive: true });
-		await writeFile(join(wrapperBinDir, "bedrockCoder"), "#!/usr/bin/env node\n");
+		await writeFile(
+			join(wrapperBinDir, "bedrockCoder"),
+			"#!/usr/bin/env node\n",
+		);
 		await writeFile(
 			join(depDir, "package.json"),
 			JSON.stringify({
@@ -341,7 +344,10 @@ describe("plugin-loader", () => {
 		);
 
 		try {
-			process.env.BEDROCK_CODER_WRAPPER_PATH = join(wrapperBinDir, "bedrockCoder");
+			process.env.BEDROCK_CODER_WRAPPER_PATH = join(
+				wrapperBinDir,
+				"bedrockCoder",
+			);
 			const plugin = await loadAgentPluginFromPath(pluginPath);
 			expect(plugin.name).toBe("wrapper-host-dep");
 		} finally {

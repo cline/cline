@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 async function runCommand(
 	cmd: string[],
@@ -73,11 +72,17 @@ async function packWorkspace(
 }
 
 async function main(): Promise<void> {
-	const packDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-smoke-packs-"));
+	const packDir = await mkdtemp(
+		join(tmpdir(), "bedrock-coder-node-smoke-packs-"),
+	);
 	const smokeDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-smoke-"));
-	const sessionsDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-sessions-"));
-	const npmCacheDir = await mkdtemp(join(tmpdir(), "bedrock-coder-node-npm-cache-"));
-	const npmEnv = { npm_config_cache: npmCacheDir };
+	const sessionsDir = await mkdtemp(
+		join(tmpdir(), "bedrock-coder-node-sessions-"),
+	);
+	const bunCacheDir = await mkdtemp(
+		join(tmpdir(), "bedrock-coder-node-bun-cache-"),
+	);
+	const bunEnv = { BUN_INSTALL_CACHE_DIR: bunCacheDir };
 
 	try {
 		console.log("Packing smoke-test tarballs with Bun...");
@@ -87,6 +92,12 @@ async function main(): Promise<void> {
 			llms: await packWorkspace("llms", packDir),
 			shared: await packWorkspace("shared", packDir),
 		};
+		const localPackages = {
+			"@bedrock-coder/core": `file:${tarballs.core}`,
+			"@bedrock-coder/agents": `file:${tarballs.agents}`,
+			"@bedrock-coder/llms": `file:${tarballs.llms}`,
+			"@bedrock-coder/shared": `file:${tarballs.shared}`,
+		};
 
 		await writeFile(
 			join(smokeDir, "package.json"),
@@ -95,12 +106,8 @@ async function main(): Promise<void> {
 					name: "bedrock-coder-node-smoke",
 					private: true,
 					type: "module",
-					dependencies: {
-						"@bedrock-coder/core": `file:${tarballs.core}`,
-						"@bedrock-coder/agents": `file:${tarballs.agents}`,
-						"@bedrock-coder/llms": `file:${tarballs.llms}`,
-						"@bedrock-coder/shared": `file:${tarballs.shared}`,
-					},
+					dependencies: localPackages,
+					overrides: localPackages,
 				},
 				null,
 				2,
@@ -108,9 +115,9 @@ async function main(): Promise<void> {
 		);
 
 		console.log("Installing smoke-test dependencies...");
-		await runCommand([npmCommand, "install"], {
+		await runCommand(["bun", "install"], {
 			cwd: smokeDir,
-			env: npmEnv,
+			env: bunEnv,
 			timeoutMs: 10 * 60_000,
 		});
 
@@ -139,7 +146,7 @@ async function main(): Promise<void> {
 		await runCommand(["node", smokeFile], {
 			cwd: smokeDir,
 			env: {
-				...npmEnv,
+				...bunEnv,
 				BEDROCK_CODER_DATA_DIR: sessionsDir,
 			},
 			timeoutMs: 2 * 60_000,
@@ -148,7 +155,7 @@ async function main(): Promise<void> {
 		await rm(packDir, { recursive: true, force: true });
 		await rm(smokeDir, { recursive: true, force: true });
 		await rm(sessionsDir, { recursive: true, force: true });
-		await rm(npmCacheDir, { recursive: true, force: true });
+		await rm(bunCacheDir, { recursive: true, force: true });
 	}
 }
 

@@ -150,6 +150,7 @@ export function assertEgressDataClassAllowed(
 }
 
 function sensitivePublicInputReason(value: string): string | undefined {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: Rejecting C0 control characters is the purpose of this validation.
 	if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) {
 		return "control characters are not allowed";
 	}
@@ -422,7 +423,9 @@ async function assertPublicDestination(
 			"PRIVATE_DESTINATION",
 		);
 	}
-	const denied = addresses.find(({ address }) => !isPublicNetworkAddress(address));
+	const denied = addresses.find(
+		({ address }) => !isPublicNetworkAddress(address),
+	);
 	if (denied) {
 		throw new CorporateEgressPolicyError(
 			`Research destination resolved to a prohibited network address (${denied.address}).`,

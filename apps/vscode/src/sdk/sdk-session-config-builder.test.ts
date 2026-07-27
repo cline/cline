@@ -3,15 +3,10 @@ import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 
 const mocks = vi.hoisted(() => ({
 	buildSessionConfig: vi.fn(),
-	buildAgentHooks: vi.fn(() => ({})),
 }))
 
 vi.mock("./bedrock-coder-session-factory", () => ({
 	buildSessionConfig: mocks.buildSessionConfig,
-}))
-
-vi.mock("./hooks-adapter", () => ({
-	buildAgentHooks: mocks.buildAgentHooks,
 }))
 
 describe("SdkSessionConfigBuilder", () => {
@@ -52,8 +47,9 @@ describe("SdkSessionConfigBuilder", () => {
 
 	it("stops before the next model call after switch_to_act_mode queues a mode change", async () => {
 		const baseBeforeModel = vi.fn(async () => ({ metadata: "base" }))
-		mocks.buildAgentHooks.mockReturnValueOnce({ beforeModel: baseBeforeModel })
-		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {} })
+		mocks.buildSessionConfig.mockResolvedValueOnce({
+			hooks: { beforeModel: baseBeforeModel },
+		})
 
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: {} as never,

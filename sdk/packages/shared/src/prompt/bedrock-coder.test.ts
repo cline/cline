@@ -3,7 +3,7 @@ import {
 	buildBedrockCoderSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
-} from "./bedrockCoder";
+} from "./bedrock-coder";
 
 const BASE_OPTIONS = {
 	ide: "VS Code",
@@ -14,7 +14,10 @@ const BASE_OPTIONS = {
 
 describe("buildBedrock CoderSystemPrompt mode instructions", () => {
 	it("explains the user_input mode attribute in act mode", () => {
-		const prompt = buildBedrockCoderSystemPrompt({ ...BASE_OPTIONS, mode: "act" });
+		const prompt = buildBedrockCoderSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "act",
+		});
 		expect(prompt).toContain(MODE_TAG_INSTRUCTIONS);
 		expect(prompt).toContain('<user_input mode="...">');
 		expect(prompt).toContain("<mode_notice>");
@@ -22,7 +25,10 @@ describe("buildBedrock CoderSystemPrompt mode instructions", () => {
 	});
 
 	it("appends the plan-mode contract only in plan mode", () => {
-		const prompt = buildBedrockCoderSystemPrompt({ ...BASE_OPTIONS, mode: "plan" });
+		const prompt = buildBedrockCoderSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "plan",
+		});
 		expect(prompt).toContain(MODE_TAG_INSTRUCTIONS);
 		expect(prompt).toContain(PLAN_MODE_INSTRUCTIONS);
 		// The mode-tag explanation precedes the plan contract, matching the

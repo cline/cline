@@ -1414,8 +1414,7 @@ export class Controller {
 
 		await fs.access(taskDirPath)
 		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
-		const open = (await import("open")).default
-		await open(taskDirPath)
+		await HostProvider.workspace.openInFileExplorerPanel({ path: taskDirPath })
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {

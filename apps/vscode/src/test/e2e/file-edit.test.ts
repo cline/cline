@@ -8,11 +8,14 @@ import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 // stream the edit into the real document, so the preview is read-only and the
 // SDK executor applies the edit directly after explicit user approval. This
 // test asserts that the review row blocks the write until Save is clicked.
-e2e.describe("File Edit Approval", () => {
+// These flows require model-generated tool calls. The hosted mock provider was
+// intentionally removed; keep them explicit until a hermetic Bedrock stream
+// mock is available rather than reaching real AWS from CI.
+e2e.describe.skip("File Edit Approval", () => {
 	E2E_WORKSPACE_TYPES.forEach(({ title, workspaceType }) => {
 		e2e.extend({
 			workspaceType,
-		})(title, async ({ helper, sidebar, workspaceDir }) => {
+		})(title, async ({ sidebar, workspaceDir }) => {
 			// The mock editor tool call targets "test.ts" relative to the session
 			// cwd, which is the first workspace folder in both single-root and
 			// multi-root workspaces (fixtures/workspace). The fixture file is
@@ -22,8 +25,6 @@ e2e.describe("File Edit Approval", () => {
 
 			try {
 				originalFileContent = readFileSync(editedFilePath, "utf-8")
-
-				await helper.signin(sidebar)
 
 				// Submit a file edit request.
 				// structured `editor` tool call (path: test.ts, old/new text).

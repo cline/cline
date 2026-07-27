@@ -105,7 +105,9 @@ async function writeMessagesFile(
 	messages: unknown[] = [{ role: "user", content: "hi" }],
 ): Promise<string> {
 	if (!tempSessionDataDir) {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
+		tempSessionDataDir = await mkdtemp(
+			join(tmpdir(), "bedrock-coder-core-history-"),
+		);
 	}
 	const path = join(tempSessionDataDir, filename);
 	await writeFile(
@@ -452,15 +454,17 @@ describe("session history", () => {
 	it("isolates one corrupt message record without hiding healthy history", async () => {
 		const rows = await listSessionHistory(
 			{
-				listSessions: vi.fn().mockResolvedValue([
-					createRow({ sessionId: "healthy" }),
-					createRow({ sessionId: "corrupt", status: "running" }),
-				]),
+				listSessions: vi
+					.fn()
+					.mockResolvedValue([
+						createRow({ sessionId: "healthy" }),
+						createRow({ sessionId: "corrupt", status: "running" }),
+					]),
 				readSessionMessages: vi.fn(async (sessionId: string) => {
 					if (sessionId === "corrupt") {
-						throw new Error("invalid json")
+						throw new Error("invalid json");
 					}
-					return [{ role: "user", content: "healthy task" }]
+					return [{ role: "user" as const, content: "healthy task" }];
 				}),
 			},
 			{ limit: 10, hydrate: true },
@@ -478,7 +482,9 @@ describe("session history", () => {
 	});
 
 	it("lists directly from a session backend without a runtime host", async () => {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
+		tempSessionDataDir = await mkdtemp(
+			join(tmpdir(), "bedrock-coder-core-history-"),
+		);
 		const messagesPath = join(tempSessionDataDir, "messages.json");
 		await writeFile(
 			messagesPath,
@@ -510,7 +516,9 @@ describe("session history", () => {
 	});
 
 	it("merges manifest fallback rows when the backend list is short", async () => {
-		tempSessionDataDir = await mkdtemp(join(tmpdir(), "bedrock-coder-core-history-"));
+		tempSessionDataDir = await mkdtemp(
+			join(tmpdir(), "bedrock-coder-core-history-"),
+		);
 		process.env.BEDROCK_CODER_SESSION_DATA_DIR = tempSessionDataDir;
 		const manifestMessagesPath = join(
 			tempSessionDataDir,

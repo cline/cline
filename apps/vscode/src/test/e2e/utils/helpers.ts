@@ -2,7 +2,7 @@ import type { ChildProcess } from "node:child_process"
 import { mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
+import { type ElectronApplication, type Frame, type Page, test } from "@playwright/test"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { _electron } from "playwright"
 
@@ -253,28 +253,9 @@ export class E2ETestHelper {
 		}
 	}
 
-	public async signin(webview: Frame): Promise<void> {
-		await webview.getByRole("button", { name: "Login to Bedrock Coder" }).click({ delay: 100 })
-
-		// Verify start up page is no longer visible
-		await expect(webview.getByRole("button", { name: "Login to Bedrock Coder" })).not.toBeVisible()
-
-		const closeButton = webview.getByRole("button", { name: "Close" })
-		let shouldCloseModal = false
-		try {
-			await closeButton.waitFor({ state: "visible", timeout: 5_000 })
-			shouldCloseModal = true
-		} catch {
-			// No blocking modal appeared after sign-in.
-		}
-		if (shouldCloseModal) {
-			await closeButton.click({ delay: 50 })
-		}
-	}
-
 	public static async openBedrockCoderSidebar(page: Page): Promise<void> {
 		await page
-			.getByRole("tab", { name: /BedrockCoder/ })
+			.getByRole("tab", { name: /Bedrock Coder/ })
 			.locator("a")
 			.click()
 	}
@@ -465,6 +446,14 @@ export const e2e = test
 		sidebar: async ({ page, helper }, use) => {
 			await E2ETestHelper.openBedrockCoderSidebar(page)
 			const sidebar = await helper.getSidebar(page)
+			const settingsDoneButton = sidebar.getByRole("button", { name: "Done", exact: true })
+			try {
+				await settingsDoneButton.waitFor({ state: "visible", timeout: 10_000 })
+				await settingsDoneButton.click()
+			} catch {
+				// A ready Bedrock connection opens directly to chat.
+			}
+			await sidebar.getByTestId("chat-input").waitFor({ state: "visible", timeout: 10_000 })
 			await use(sidebar)
 		},
 	})

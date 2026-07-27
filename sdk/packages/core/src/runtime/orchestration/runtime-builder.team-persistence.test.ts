@@ -168,10 +168,10 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			throw new Error("Expected mocked runtime and team store instances");
 		}
 
-		expect(runtimeInstance.markStaleRunsInterrupted).not.toHaveBeenCalled();
-		expect(runtimeInstance.recoverActiveRuns).toHaveBeenCalledWith(
-			"runtime_recovered",
+		expect(runtimeInstance.markStaleRunsInterrupted).toHaveBeenCalledWith(
+			"Extension restarted; resume this run explicitly after inspecting its worktree",
 		);
+		expect(runtimeInstance.recoverActiveRuns).not.toHaveBeenCalled();
 
 		runtimeInstance.emit({
 			type: "teammate_spawned",
