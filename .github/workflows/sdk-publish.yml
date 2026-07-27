@@ -34,8 +34,13 @@ jobs:
       contents: read
     uses: ./.github/workflows/sdk-test.yml
 
+  links:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docs-link-check.yml
+
   publish-sdk:
-    needs: test
+    needs: [test, links]
     name: Publish SDK Packages
     permissions:
       contents: write

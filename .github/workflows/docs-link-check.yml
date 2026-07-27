@@ -1,0 +1,75 @@
+name: docs-link-check
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "**/*.md"
+            - "**/*.mdx"
+            - "docs/docs.json"
+            - "sdk/scripts/check-links.ts"
+            - ".github/workflows/docs-link-check.yml"
+    pull_request:
+        branches:
+            - main
+        paths:
+            - "**/*.md"
+            - "**/*.mdx"
+            - "docs/docs.json"
+            - "sdk/scripts/check-links.ts"
+            - ".github/workflows/docs-link-check.yml"
+    schedule:
+        # External links rot on their own schedule, so sweep them weekly.
+        - cron: "17 6 * * 1"
+    workflow_dispatch:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    # Blocking: repo-relative and GitHub-absolute paths are resolved against the
+    # checkout, so this is hermetic and cannot flake on someone else's outage.
+    internal:
+        runs-on: ubuntu-latest
+        name: Internal links
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Check internal links
+              run: bun sdk/scripts/check-links.ts
+
+    # Non-blocking: depends on third-party availability. Runs weekly and on demand.
+    external:
+        # `github.workflow` is the caller's name, so this stays off when another
+        # workflow (a publish, say) calls this one for the blocking internal check.
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.workflow == 'docs-link-check')
+        runs-on: ubuntu-latest
+        name: External links
+        continue-on-error: true
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Check external links
+              run: bun sdk/scripts/check-links.ts --external --json link-report.json
+
+            - name: Upload report
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: link-report
+                  path: link-report.json
+                  if-no-files-found: ignore
