@@ -188,8 +188,8 @@ export class SqliteConnectorStore {
 	/**
 	 * Create or update dashboard configuration. If exactly one persisted
 	 * instance exists, its desired reconnect arguments may be updated
-	 * atomically. Channel-wide configuration is ambiguous for multiple
-	 * instances and is rejected instead of rewriting every identity.
+	 * atomically. With multiple instances, only the channel-wide dashboard
+	 * configuration is updated because choosing reconnect args is ambiguous.
 	 */
 	upsertConfig(entry: {
 		channel: string;
@@ -217,13 +217,8 @@ export class SqliteConnectorStore {
 				.prepare(`SELECT * FROM connector_connections WHERE channel = ?`)
 				.all(entry.channel);
 			const connections = connectionRows.map(rowToConnectionRecord);
-			if (entry.updateConnectArgs && connections.length > 1) {
-				throw new Error(
-					`cannot apply channel-wide ${entry.channel} configuration to ${connections.length} persisted instances`,
-				);
-			}
 			const updatedConnectionArgs =
-				entry.updateConnectArgs && connections[0]
+				entry.updateConnectArgs && connections.length === 1 && connections[0]
 					? entry.updateConnectArgs({
 							config: existingConfig,
 							connection: connections[0],

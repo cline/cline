@@ -186,22 +186,21 @@ describe("SqliteConnectorStore", () => {
 		});
 	});
 
-	it("rejects channel-wide config updates when multiple instances are persisted", () => {
+	it("saves channel-wide config without rewriting ambiguous instance args", () => {
 		useTempDataDir();
 		withStore((store) => {
 			store.recordConnected("telegram", "first_bot", ["-k", "first:token"]);
 			store.recordConnected("telegram", "second_bot", ["-k", "second:token"]);
 
-			expect(() =>
-				store.upsertConfig({
-					channel: "telegram",
-					values: { "-k": "replacement:token" },
-					updateConnectArgs: () => ["-k", "replacement:token"],
-				}),
-			).toThrow(
-				"cannot apply channel-wide telegram configuration to 2 persisted instances",
-			);
-			expect(store.getConfig("telegram")).toBeUndefined();
+			store.upsertConfig({
+				channel: "telegram",
+				values: { "-k": "replacement:token" },
+				updateConnectArgs: () => ["-k", "replacement:token"],
+			});
+
+			expect(store.getConfig("telegram")?.values).toEqual({
+				"-k": "replacement:token",
+			});
 			expect(
 				store.listConnections("telegram").map((entry) => entry.connectArgs),
 			).toEqual([

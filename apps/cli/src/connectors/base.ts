@@ -236,13 +236,15 @@ export abstract class ConnectorBase<Options, State>
 		) => Promise<ConnectStopResult>,
 	): Promise<ConnectStopResult> {
 		let stoppedProcesses = 0;
+		let failedProcesses = 0;
 		let stoppedSessions = 0;
 		for (const statePath of statePaths) {
 			const result = await stopInstance(statePath, io);
 			stoppedProcesses += result.stoppedProcesses;
+			failedProcesses += result.failedProcesses;
 			stoppedSessions += result.stoppedSessions;
 		}
-		return { stoppedProcesses, stoppedSessions };
+		return { stoppedProcesses, failedProcesses, stoppedSessions };
 	}
 
 	protected async stopManagedProcess(input: {
@@ -257,17 +259,31 @@ export abstract class ConnectorBase<Options, State>
 		const state = input.readState(input.statePath);
 		if (!state) {
 			this.removeStateFile(input.statePath);
-			return { stoppedProcesses: 0, stoppedSessions: 0 };
+			return {
+				stoppedProcesses: 0,
+				failedProcesses: 0,
+				stoppedSessions: 0,
+			};
 		}
+		const pid = input.getPid(state);
 		let stoppedProcesses = 0;
-		if (await terminateProcess(input.getPid(state))) {
+		if (await terminateProcess(pid)) {
 			stoppedProcesses = 1;
 			input.io.writeln(input.describeStoppedProcess(state));
+		} else if (isProcessRunning(pid)) {
+			input.io.writeErr(
+				`[connect] failed to stop connector process pid=${pid}`,
+			);
+			return {
+				stoppedProcesses: 0,
+				failedProcesses: 1,
+				stoppedSessions: 0,
+			};
 		}
 		const stoppedSessions = await input.stopSessions(state);
 		input.clearBindings?.(state);
 		this.removeStateFile(input.statePath);
-		return { stoppedProcesses, stoppedSessions };
+		return { stoppedProcesses, failedProcesses: 0, stoppedSessions };
 	}
 
 	protected parseOptionalInteger(

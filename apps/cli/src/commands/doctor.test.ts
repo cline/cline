@@ -54,6 +54,7 @@ const {
 	mockListActiveConnectors: vi.fn(() => []),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
+		failedProcesses: 0,
 		stoppedSessions: 0,
 		executed: 0,
 	})),
@@ -103,6 +104,7 @@ describe("runDoctorCommand", () => {
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 			executed: 0,
 		});
@@ -286,6 +288,7 @@ describe("runDoctorCommand", () => {
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 2,
+			failedProcesses: 0,
 			stoppedSessions: 5,
 			executed: 3,
 		});

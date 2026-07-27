@@ -191,6 +191,7 @@ describe("runConnectAdapter", () => {
 	it("leaves autostart unchanged during shared process cleanup", async () => {
 		const stopAll = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 2,
 		});
 		mocks.listConnectors.mockReturnValue([
@@ -206,6 +207,7 @@ describe("runConnectAdapter", () => {
 
 		await expect(stopAllConnectors(io)).resolves.toEqual({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 2,
 			executed: 1,
 		});
@@ -217,6 +219,7 @@ describe("runConnectAdapter", () => {
 	it("disables autostart for an explicit stop-all command", async () => {
 		const stopAll = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 2,
 		});
 		mocks.listConnectors.mockReturnValue([
@@ -239,6 +242,7 @@ describe("runConnectAdapter", () => {
 	it("validates a replacement before stopping the active instance", async () => {
 		const stopInstance = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 		});
 		mocks.validate.mockResolvedValue(1);
@@ -273,6 +277,7 @@ describe("runConnectAdapter", () => {
 	it("shows restart help without stopping an active instance", async () => {
 		const stopInstance = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 		});
 		mocks.listActiveConnectors.mockReturnValue([
@@ -306,6 +311,7 @@ describe("runConnectAdapter", () => {
 	it("restores the last successful launch when a replacement fails", async () => {
 		const stopInstance = vi.fn().mockResolvedValue({
 			stoppedProcesses: 1,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 		});
 		mocks.listActiveConnectors.mockReturnValue([
@@ -367,5 +373,122 @@ describe("runConnectAdapter", () => {
 			"cline_bot",
 			["-k", "old-token"],
 		);
+	});
+
+	it("restarts an active instance without persisted rollback arguments", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			failedProcesses: 0,
+			stoppedSessions: 0,
+		});
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.getPersistedConnectorConnection.mockReturnValue(undefined);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(
+			runRestartConnector("telegram", ["-k", "new-token"], io),
+		).resolves.toBe(0);
+
+		expect(stopInstance).toHaveBeenCalledWith("cline_bot", io);
+		expect(mocks.run).toHaveBeenCalledWith(
+			["-k", "new-token"],
+			io,
+			expect.any(Object),
+		);
+	});
+
+	it("does not start a replacement when the active process cannot be stopped", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 0,
+			failedProcesses: 1,
+			stoppedSessions: 0,
+		});
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(
+			runRestartConnector("telegram", ["-k", "new-token"], io),
+		).resolves.toBe(1);
+
+		expect(stopInstance).toHaveBeenCalledWith("cline_bot", io);
+		expect(mocks.run).not.toHaveBeenCalled();
+	});
+
+	it("does not count an already-running instance as a successful replacement", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 1,
+			failedProcesses: 0,
+			stoppedSessions: 0,
+		});
+		mocks.listActiveConnectors.mockReturnValue([
+			{
+				id: "telegram:cline_bot",
+				type: "telegram",
+				instanceId: "cline_bot",
+				pid: 123,
+				hubUrl: "ws://127.0.0.1:4317",
+				botUsername: "cline_bot",
+			},
+		]);
+		mocks.getPersistedConnectorConnection.mockReturnValue({
+			channel: "telegram",
+			instanceId: "cline_bot",
+			connectArgs: ["-k", "new-token"],
+			lastSuccessfulArgs: ["-k", "old-token"],
+			enabled: true,
+			updatedAt: "2026-07-25T00:00:00.000Z",
+			lastConnectedAt: "2026-07-25T00:00:00.000Z",
+		});
+		mocks.run.mockResolvedValue(CONNECT_ALREADY_RUNNING_EXIT_CODE);
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(
+			runRestartConnector("telegram", ["-k", "new-token"], io),
+		).resolves.toBe(1);
+
+		expect(mocks.run).toHaveBeenCalledTimes(1);
+		expect(io.writeErr).toHaveBeenCalledWith(
+			"[connect] replacement was not started because telegram instance cline_bot is still running",
+		);
+		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
 	});
 });

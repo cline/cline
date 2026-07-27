@@ -55,6 +55,26 @@ class TestConnector extends ConnectorBase<
 			startupTimeoutMs: options?.startupTimeoutMs,
 		});
 	}
+
+	stopProcess(
+		io: ConnectIo,
+		options: {
+			statePath: string;
+			readState: (path: string) => { pid: number } | undefined;
+			stopSessions?: (state: { pid: number }) => Promise<number>;
+			clearBindings?: (state: { pid: number }) => void;
+		},
+	) {
+		return this.stopManagedProcess({
+			io,
+			statePath: options.statePath,
+			readState: options.readState,
+			describeStoppedProcess: (state) => `stopped pid=${state.pid}`,
+			getPid: (state) => state.pid,
+			stopSessions: options.stopSessions ?? (async () => 0),
+			clearBindings: options.clearBindings,
+		});
+	}
 }
 
 describe("ConnectorBase background launch", () => {
@@ -123,5 +143,66 @@ describe("ConnectorBase background launch", () => {
 
 		expect(io.writeln).toHaveBeenCalledWith("already running");
 		expect(mocks.spawnDetachedConnector).not.toHaveBeenCalled();
+	});
+
+	it("keeps state and reports failure when the process survives termination", async () => {
+		const connector = new TestConnector();
+		const removeStateFile = vi.spyOn(
+			connector as unknown as { removeStateFile: (path: string) => void },
+			"removeStateFile",
+		);
+		const stopSessions = vi.fn(async () => 1);
+		const clearBindings = vi.fn();
+		mocks.terminateProcess.mockResolvedValue(false);
+		mocks.isProcessRunning.mockReturnValue(true);
+
+		await expect(
+			connector.stopProcess(io, {
+				statePath: "/tmp/test-connector.json",
+				readState: () => ({ pid: 42 }),
+				stopSessions,
+				clearBindings,
+			}),
+		).resolves.toEqual({
+			stoppedProcesses: 0,
+			failedProcesses: 1,
+			stoppedSessions: 0,
+		});
+
+		expect(removeStateFile).not.toHaveBeenCalled();
+		expect(stopSessions).not.toHaveBeenCalled();
+		expect(clearBindings).not.toHaveBeenCalled();
+		expect(io.writeErr).toHaveBeenCalledWith(
+			"[connect] failed to stop connector process pid=42",
+		);
+	});
+
+	it("cleans stale state after confirming the process is already gone", async () => {
+		const connector = new TestConnector();
+		const removeStateFile = vi.spyOn(
+			connector as unknown as { removeStateFile: (path: string) => void },
+			"removeStateFile",
+		);
+		const stopSessions = vi.fn(async () => 1);
+		const clearBindings = vi.fn();
+		mocks.terminateProcess.mockResolvedValue(false);
+		mocks.isProcessRunning.mockReturnValue(false);
+
+		await expect(
+			connector.stopProcess(io, {
+				statePath: "/tmp/test-connector.json",
+				readState: () => ({ pid: 42 }),
+				stopSessions,
+				clearBindings,
+			}),
+		).resolves.toEqual({
+			stoppedProcesses: 0,
+			failedProcesses: 0,
+			stoppedSessions: 1,
+		});
+
+		expect(removeStateFile).toHaveBeenCalledWith("/tmp/test-connector.json");
+		expect(stopSessions).toHaveBeenCalledWith({ pid: 42 });
+		expect(clearBindings).toHaveBeenCalledWith({ pid: 42 });
 	});
 });

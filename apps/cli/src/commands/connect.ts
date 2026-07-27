@@ -23,6 +23,7 @@ export async function stopAllConnectors(
 	io: ConnectIo,
 ): Promise<ConnectStopResult & { executed: number }> {
 	let stoppedProcesses = 0;
+	let failedProcesses = 0;
 	let stoppedSessions = 0;
 	let executed = 0;
 	for (const entry of listConnectors()) {
@@ -36,13 +37,14 @@ export async function stopAllConnectors(
 		executed += 1;
 		const result = await connector.stopAll(io);
 		stoppedProcesses += result.stoppedProcesses;
+		failedProcesses += result.failedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
-	return { stoppedProcesses, stoppedSessions, executed };
+	return { stoppedProcesses, failedProcesses, stoppedSessions, executed };
 }
 
 export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
-	const { stoppedProcesses, stoppedSessions, executed } =
+	const { stoppedProcesses, failedProcesses, stoppedSessions, executed } =
 		await stopAllConnectors(io);
 	if (executed === 0) {
 		io.writeln("[connect] no adapters support stop yet");
@@ -50,9 +52,9 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 	}
 	disableConnectorAutostart();
 	io.writeln(
-		`[connect] stopped processes=${stoppedProcesses} sessions=${stoppedSessions}`,
+		`[connect] stopped processes=${stoppedProcesses} failed=${failedProcesses} sessions=${stoppedSessions}`,
 	);
-	return 0;
+	return failedProcesses === 0 ? 0 : 1;
 }
 
 export async function runStopConnector(
@@ -90,9 +92,9 @@ export async function runStopConnector(
 		disableConnectorAutostart(connector.name, options.instanceId);
 	}
 	io.writeln(
-		`[connect] ${connector.name}${options.instanceId ? ` instance=${options.instanceId}` : ""} stopped processes=${result.stoppedProcesses} sessions=${result.stoppedSessions}`,
+		`[connect] ${connector.name}${options.instanceId ? ` instance=${options.instanceId}` : ""} stopped processes=${result.stoppedProcesses} failed=${result.failedProcesses} sessions=${result.stoppedSessions}`,
 	);
-	return 0;
+	return result.failedProcesses === 0 ? 0 : 1;
 }
 
 export async function runRestartConnector(
@@ -134,12 +136,6 @@ export async function runRestartConnector(
 		adapterName,
 		instanceId,
 	);
-	if (!previousConnection) {
-		io.writeErr(
-			`cannot safely restart ${adapterName} instance ${instanceId}: no successful launch arguments are available for rollback`,
-		);
-		return 1;
-	}
 	const stopExitCode = await runStopConnector(adapterName, io, {
 		autostart: "preserve",
 		instanceId,
@@ -157,6 +153,18 @@ export async function runRestartConnector(
 			removePersistedConnectorConnection(adapterName, instanceId);
 		}
 		return 0;
+	}
+	if (replacement.exitCode === CONNECT_ALREADY_RUNNING_EXIT_CODE) {
+		io.writeErr(
+			`[connect] replacement was not started because ${adapterName} instance ${instanceId} is still running`,
+		);
+		return 1;
+	}
+	if (!previousConnection) {
+		io.writeErr(
+			`[connect] replacement failed and ${adapterName} instance ${instanceId} has no successful launch arguments for rollback`,
+		);
+		return replacement.exitCode;
 	}
 
 	io.writeErr(
@@ -204,7 +212,7 @@ async function runConnectAdapterWithResult(
 	};
 	const exitCode = await connector.run(passthroughArgs, io, context);
 	if (exitCode === CONNECT_ALREADY_RUNNING_EXIT_CODE) {
-		return { exitCode: 0, instanceId: persistenceInstanceId };
+		return { exitCode, instanceId: persistenceInstanceId };
 	}
 	const isHelpInvocation = passthroughArgs.some((arg) => HELP_FLAGS.has(arg));
 	const isInteractiveInvocation = passthroughArgs.some((arg) =>
@@ -239,8 +247,14 @@ export async function runConnectAdapter(
 	passthroughArgs: string[],
 	io: ConnectIo,
 ): Promise<number> {
-	return (await runConnectAdapterWithResult(adapterName, passthroughArgs, io))
-		.exitCode;
+	const result = await runConnectAdapterWithResult(
+		adapterName,
+		passthroughArgs,
+		io,
+	);
+	return result.exitCode === CONNECT_ALREADY_RUNNING_EXIT_CODE
+		? 0
+		: result.exitCode;
 }
 
 export function formatAdapterList(): string {

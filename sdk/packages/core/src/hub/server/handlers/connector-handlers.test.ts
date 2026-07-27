@@ -156,6 +156,42 @@ describe("connector hub handlers", () => {
 		expect(persisted?.enabled).toBe(false);
 	});
 
+	it("saves dashboard config without rewriting multiple persisted instances", () => {
+		useTempDataDir();
+		withConnectorStore((store) => {
+			store.recordConnected("telegram", "first_bot", [
+				"-k",
+				"123456:first-token",
+			]);
+			store.recordConnected("telegram", "second_bot", [
+				"-k",
+				"123456:second-token",
+			]);
+		});
+
+		const response = __test__.configureConnector({
+			channel: "telegram",
+			values: { "-k": "123456:dashboard-token" },
+		});
+
+		expect(response.configured).toEqual([
+			expect.objectContaining({ id: "telegram", type: "telegram" }),
+		]);
+		expect(readPersistedConnectorValues("telegram")).toEqual({
+			"-k": "123456:dashboard-token",
+		});
+		expect(
+			withConnectorStore((store) =>
+				store
+					.listConnections("telegram")
+					.map((connection) => connection.connectArgs),
+			),
+		).toEqual([
+			["-k", "123456:first-token"],
+			["-k", "123456:second-token"],
+		]);
+	});
+
 	it("validates security fields before persisting connector settings", () => {
 		useTempDataDir();
 

@@ -5,6 +5,7 @@ export type ConnectIo = {
 
 export type ConnectStopResult = {
 	stoppedProcesses: number;
+	failedProcesses: number;
 	stoppedSessions: number;
 };
 
