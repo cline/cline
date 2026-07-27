@@ -363,16 +363,19 @@ export function buildAnthropicProviderOptions(
 		(typeof request.reasoning?.budgetTokens === "number" &&
 			request.reasoning.budgetTokens > 0);
 
-	const thinking: Record<string, unknown> | undefined = wantsAnthropicThinking
-		? policy.kind === "anthropic-adaptive"
-			? { type: "adaptive" }
-			: policy.kind === "anthropic-manual"
-				? {
-						type: "enabled",
-						budgetTokens: resolveAnthropicManualBudget(request, context),
-					}
-				: undefined
-		: undefined;
+	let thinking: Record<string, unknown> | undefined;
+	if (request.reasoning?.enabled === false && policy.kind !== "none") {
+		thinking = { type: "disabled" };
+	} else if (wantsAnthropicThinking) {
+		if (policy.kind === "anthropic-adaptive") {
+			thinking = { type: "adaptive" };
+		} else if (policy.kind === "anthropic-manual") {
+			thinking = {
+				type: "enabled",
+				budgetTokens: resolveAnthropicManualBudget(request, context),
+			};
+		}
+	}
 
 	return {
 		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort

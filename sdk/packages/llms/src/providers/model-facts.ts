@@ -169,6 +169,10 @@ export function isClaudeModelId(modelId: string | undefined): boolean {
 	return isClaudeLineageValue(modelId);
 }
 
+export function isClaudeFableModelId(modelId: string | undefined): boolean {
+	return normalizeRoutingValue(modelId)?.includes("claude-fable") ?? false;
+}
+
 export function isQwenModel(options: {
 	modelId?: string;
 	family?: string;

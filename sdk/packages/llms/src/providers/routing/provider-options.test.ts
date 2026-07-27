@@ -368,6 +368,28 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
+			name: "Sonnet 5 emits the explicit disabled thinking control",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-5",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "xhigh", "max"]),
+				],
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
 			name: "Sonnet 4.6 explicit budget selects manual thinking despite adaptive effort support",
 			request: {
 				providerId: "anthropic",
@@ -1277,7 +1299,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "cline Claude Fable honors an advertised toggle",
+			name: "cline Claude Fable ignores an advertised toggle because reasoning is mandatory",
 			request: {
 				providerId: "cline",
 				modelId: "anthropic/claude-fable-5",
@@ -1292,7 +1314,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "cline",
-					has: { reasoning: { enabled: false } },
+					lacks: ["reasoning", "thinking"],
 				},
 			],
 		},

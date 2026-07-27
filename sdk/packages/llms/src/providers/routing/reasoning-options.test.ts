@@ -156,6 +156,41 @@ describe("normalizeReasoningRequest", () => {
 		).toBeUndefined();
 	});
 
+	it("ignores Cline Fable's advertised off control because backend reasoning is mandatory", () => {
+		const controls: ModelReasoningOption[] = [
+			{ type: "toggle" },
+			{ type: "effort", values: ["low", "medium", "high", "xhigh"] },
+		];
+		const context = makeContext(controls, {
+			modelId: "anthropic/claude-fable-5",
+		});
+
+		expect(
+			normalizeReasoningRequest(
+				makeRequest(
+					{ enabled: false },
+					{
+						providerId: "cline",
+						modelId: "anthropic/claude-fable-5",
+					},
+				),
+				context,
+			).reasoning,
+		).toBeUndefined();
+		expect(
+			normalizeReasoningRequest(
+				makeRequest(
+					{ enabled: false },
+					{
+						providerId: "vercel-ai-gateway",
+						modelId: "anthropic/claude-fable-5",
+					},
+				),
+				context,
+			).reasoning,
+		).toEqual({ enabled: false });
+	});
+
 	it("uses conservative effort values for custom models without metadata", () => {
 		expect(
 			normalizeReasoningRequest(
