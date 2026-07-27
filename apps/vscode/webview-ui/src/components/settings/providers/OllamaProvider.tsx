@@ -3,7 +3,6 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -68,7 +67,10 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 		[write],
 	)
 
-	// Poll ollama models
+	// Fetch ollama models on mount and whenever the base URL changes. The
+	// picker also refetches on focus — do NOT poll on an interval: the base
+	// URL is user-configurable, so an unbounded poll can hammer a remote or
+	// metered endpoint for as long as the settings pane is open (ENG-2344).
 	const requestOllamaModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.getOllamaModels(
@@ -88,8 +90,6 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	useEffect(() => {
 		requestOllamaModels()
 	}, [requestOllamaModels])
-
-	useInterval(requestOllamaModels, 2000)
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -116,6 +116,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
+				onFocus={requestOllamaModels}
 				onModelChange={(modelId) => {
 					const trimmedModelId = modelId.trim()
 					if (!trimmedModelId) {

@@ -2,7 +2,6 @@ import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -103,7 +102,8 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[commitModelSelection, lmStudioModels, toLmStudioModelInfo],
 	)
 
-	// Poll LM Studio models
+	// Fetch LM Studio models on mount and whenever the endpoint changes (no
+	// interval polling — the endpoint is user-configurable, see ENG-2344)
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
 			value: endpoint,
@@ -145,8 +145,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		apiConfiguration?.lmStudioMaxTokens,
 		handleFieldChange,
 	])
-
-	useInterval(requestLmStudioModels, 6000)
 
 	return (
 		<div className="flex flex-col gap-2">

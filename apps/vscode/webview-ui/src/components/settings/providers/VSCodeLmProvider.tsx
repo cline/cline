@@ -3,7 +3,6 @@ import type { Mode } from "@shared/storage/types"
 import { parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
-import { useInterval } from "react-use"
 import type * as vscodemodels from "vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
@@ -28,7 +27,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 		? stringifyVsCodeLmModelSelector(vsCodeLmModelSelector)
 		: (committedSelection?.modelId ?? "")
 
-	// Poll VS Code LM models
+	// Fetch VS Code LM models once on mount (no interval polling — ENG-2344)
 	const requestVsCodeLmModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
@@ -44,8 +43,6 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	useEffect(() => {
 		requestVsCodeLmModels()
 	}, [requestVsCodeLmModels])
-
-	useInterval(requestVsCodeLmModels, 2000)
 
 	const handleModelSelect = (modelId: string) => {
 		if (!modelId) {

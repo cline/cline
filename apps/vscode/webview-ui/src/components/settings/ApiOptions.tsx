@@ -1,9 +1,7 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInterval } from "react-use"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -12,7 +10,6 @@ import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderListings } from "@/hooks/useProviderListings"
-import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
@@ -119,33 +116,6 @@ const ApiOptions = ({
 			getFallbackGenericProviderSettings(selectedProvider))
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-
-	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
-
-	// Poll ollama/vscode-lm models
-	const requestLocalModels = useCallback(async () => {
-		if (selectedProvider === "ollama") {
-			try {
-				const response = await ModelsServiceClient.getOllamaModels(
-					StringRequest.create({
-						value: apiConfiguration?.ollamaBaseUrl || "",
-					}),
-				)
-				if (response && response.values) {
-					setOllamaModels(response.values)
-				}
-			} catch (error) {
-				console.error("Failed to fetch Ollama models:", error)
-				setOllamaModels([])
-			}
-		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
-	useEffect(() => {
-		if (selectedProvider === "ollama") {
-			requestLocalModels()
-		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
 
 	// Provider search state
 	const [searchTerm, setSearchTerm] = useState("")
