@@ -905,6 +905,7 @@ export class SessionRuntime {
 					{ agentId: this.agentId, error },
 				);
 			}
+			this.loopTracker.clearPendingCalls();
 			this.activeRuntime = null;
 			this.running = false;
 			this.abortRequested = false;

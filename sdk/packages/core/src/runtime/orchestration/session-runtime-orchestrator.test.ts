@@ -1982,6 +1982,7 @@ describe("SessionRuntime.run — initialMessages seeding (P1 #1)", () => {
  */
 function makeScriptedRuntime(script: {
 	events: readonly AgentRuntimeEvent[];
+	eventRuns?: readonly (readonly AgentRuntimeEvent[])[];
 }): {
 	deps: SessionRuntimeOrchestratorDeps;
 	abortCalls: string[];
@@ -2003,13 +2004,19 @@ function makeScriptedRuntime(script: {
 		},
 	};
 	let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+	let runIndex = 0;
+	const emitEvents = () => {
+		const events = script.eventRuns?.[runIndex] ?? script.events;
+		runIndex++;
+		for (const event of events) listener?.(event);
+	};
 	const runtime = {
 		async run() {
-			for (const e of script.events) listener?.(e);
+			emitEvents();
 			return baseResult;
 		},
 		async continue() {
-			for (const e of script.events) listener?.(e);
+			emitEvents();
 			return baseResult;
 		},
 		abort(reason?: string) {
@@ -2489,6 +2496,49 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		);
 
 		await session.run("monitor interleaved parallel progress");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("drops unfinished loop batches before a continuation", async () => {
+		const started = (id: string): AgentRuntimeEvent => ({
+			type: "tool-started",
+			iteration: 1,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: id,
+				toolName: "poll",
+				input: { command: "status" },
+			},
+			snapshot: makeSnapshot(),
+		});
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [],
+			eventRuns: [
+				[
+					{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+					started("orphaned"),
+				],
+				[
+					{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+					...Array.from({ length: 11 }, (_, index) =>
+						started(`continued-${index}`),
+					),
+				],
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: {
+					maxConsecutiveMistakes: 6,
+					loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				},
+			}),
+			deps,
+		);
+
+		await session.run("start poll");
+		await session.continue("resume poll");
 
 		expect(abortCalls).toHaveLength(0);
 	});

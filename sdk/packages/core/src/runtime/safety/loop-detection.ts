@@ -494,6 +494,17 @@ export class LoopDetectionTracker {
 		};
 	}
 
+	/**
+	 * Drop correlation state for calls that did not finish before their runtime
+	 * stopped. Completed outcome history and repeated-call counters remain
+	 * available to a subsequent continuation.
+	 */
+	clearPendingCalls(): void {
+		this.pendingCalls.clear();
+		this.anonymousPendingCall = undefined;
+		this.batchOutcomes.clear();
+	}
+
 	reset(): void {
 		resetLoopDetectionState(this.state);
 		this.currentSequence = undefined;
