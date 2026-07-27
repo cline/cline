@@ -104,6 +104,14 @@ export abstract class WebviewProvider {
 				<meta charset="utf-8">
 				<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no">
 				<meta name="theme-color" content="#000000">
+				<style>
+					/* Prevent layout shifts / rescaling when the webview is re-hydrated:
+					   - contain: layout isolates root from global layout recalculations
+					   - overflow: hidden prevents scrollbar flickering during re-render
+					   - will-change: transform hints GPU compositing for smoother restoration */
+					html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+					#root { contain: layout style; will-change: transform; min-height: 100%; }
+				</style>
 				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
 					connect-src https://*.posthog.com https://*.cline.bot; 

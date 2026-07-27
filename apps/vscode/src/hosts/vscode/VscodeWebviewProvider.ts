@@ -21,6 +21,23 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 	private webview?: vscode.WebviewView
 	private disposables: vscode.Disposable[] = []
+	/**
+	 * Tracks whether the webview has been fully initialized (HTML set + listeners registered).
+	 * This survives across view visibility toggles because VscodeWebviewProvider is a singleton
+	 * that lives as long as the extension host.
+	 *
+	 * On the very first resolveWebviewView call (_initialized === false):
+	 *   - Set HTML content
+	 *   - Register message listeners
+	 *   - Clear any stale task state (extension just loaded, no active session to preserve)
+	 *
+	 * On subsequent calls (_initialized === true), e.g. after VS Code recycles the webview:
+	 *   - Re-set HTML content (the webview JavaScript context was destroyed)
+	 *   - Re-register message listeners
+	 *   - Do NOT clearTask() — preserve the active session
+	 *   - Push current controller state to the rehydrated webview
+	 */
+	private _initialized = false
 
 	override getWebviewUrl(path: string) {
 		if (!this.webview) {
@@ -60,15 +77,53 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		}
 
-		webviewView.webview.html =
-			this.context.extensionMode === vscode.ExtensionMode.Development
-				? await this.getHMRHtmlContent()
-				: this.getHtmlContent()
+		const isFirstInit = !this._initialized
 
-		// Sets up an event listener to listen for messages passed from the webview view context
-		// and executes code based on the message that is received
-		this.setWebviewMessageListener(webviewView.webview)
-		telemetryService.capturePanelOpened("sidebar_resolved")
+		if (isFirstInit) {
+			// ── First-time initialization ──────────────────────────────────
+			webviewView.webview.html =
+				this.context.extensionMode === vscode.ExtensionMode.Development
+					? await this.getHMRHtmlContent()
+					: this.getHtmlContent()
+
+			// Sets up an event listener to listen for messages passed from the webview view context
+			// and executes code based on the message that is received
+			this.setWebviewMessageListener(webviewView.webview)
+			telemetryService.capturePanelOpened("sidebar_resolved")
+
+			// Extension just activated — no active session to preserve, clear stale state
+			this.controller.clearTask()
+
+			this._initialized = true
+		} else {
+			// ── Webview re-creation (e.g. after VS Code recycling) ─────────
+			// The webview JavaScript context was destroyed, so we MUST re-set HTML
+			// and re-register listeners. However we must NOT clearTask() — the
+			// active session is still running in the extension host.
+			webviewView.webview.html =
+				this.context.extensionMode === vscode.ExtensionMode.Development
+					? await this.getHMRHtmlContent()
+					: this.getHtmlContent()
+
+			this.setWebviewMessageListener(webviewView.webview)
+			telemetryService.capturePanelOpened("sidebar_recreated")
+
+			Logger.log("[VscodeWebviewProvider] Webview re-created, pushing current state")
+
+			// Push the current controller state (including active task) to the rehydrated webview.
+			// FIRE-AND-FORGET with deferred microtask: we do NOT await this because:
+			//   1. The webview's React app needs to mount and set up its message listener first.
+			//   2. `postStateToWebview()` serializes the full ExtensionState (may be large with
+			//      many messages), and blocking VSCode's resolveWebviewView on that I/O causes
+			//      visible UI jank/rescaling when switching back to the Cline tab.
+			//   3. The webview will request full state via gRPC subscribeToState on mount anyway,
+			//      so this push is an optimistic optimization, not a requirement.
+			queueMicrotask(() => {
+				this.controller.postStateToWebview().catch((err) => {
+					Logger.error("[VscodeWebviewProvider] Failed to push state on webview re-creation:", err)
+				})
+			})
+		}
 
 		// Logs show up in bottom panel > Debug Console
 		//Logger.log("registering listener")
@@ -84,7 +139,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				if (this.webview?.visible) {
 					telemetryService.capturePanelOpened("sidebar_visible")
 					// View becoming visible should not steal editor focus.
-					await sendShowWebviewEvent(true)
+					// FIRE-AND-FORGET: do NOT block the visibility handler on
+					// sendShowWebviewEvent's subscriber iteration. The webview React app
+					// will request state on its own via gRPC subscribeToState.
+					sendShowWebviewEvent(true).catch((err) => {
+						Logger.error("[VscodeWebviewProvider] Failed to send show-webview event:", err)
+					})
 				}
 			},
 			null,
@@ -101,10 +161,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.disposables,
 		)
 
-		// if the extension is starting a new session, clear previous task state
-		this.controller.clearTask()
-
-		Logger.log("[VscodeWebviewProvider] Webview view resolved")
+		Logger.log("[VscodeWebviewProvider] Webview view resolved (firstInit=" + isFirstInit + ")")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}

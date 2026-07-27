@@ -39,20 +39,23 @@ export async function subscribeToShowWebview(
  * @param preserveEditorFocus When true, the webview should not steal focus from the editor
  */
 export async function sendShowWebviewEvent(preserveEditorFocus: boolean = false): Promise<void> {
-	// Send the event to all active subscribers
-	const promises = Array.from(showWebviewSubscriptions).map(async (responseStream) => {
+	// Fire-and-forget: iterate subscribers and send the event. Each subscriber
+	// response is handled independently — errors from one subscriber never
+	// block others, and we never await all promises. The webview handles events
+	// convergently; a dropped event is harmless since the next subscription
+	// stream message or full state push carries ground truth.
+	for (const responseStream of showWebviewSubscriptions) {
 		try {
 			const event = ShowWebviewEvent.create({ preserveEditorFocus })
-			await responseStream(
+			responseStream(
 				event,
 				false, // Not the last message
-			)
+			).catch((error) => {
+				Logger.error("Error sending show webview event:", error)
+				showWebviewSubscriptions.delete(responseStream)
+			})
 		} catch (error) {
-			Logger.error("Error sending show webview event:", error)
-			// Remove the subscription if there was an error
-			showWebviewSubscriptions.delete(responseStream)
+			Logger.error("Error creating show webview event:", error)
 		}
-	})
-
-	await Promise.all(promises)
+	}
 }
