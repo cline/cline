@@ -92,6 +92,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
@@ -822,9 +823,13 @@ export class Controller {
 	}
 
 	/**
-	 * Expand a leading `/workflow` or `/skill` slash command into its instruction
-	 * body. Mirrors the CLI's `buildUserInputMessage`. Returns the input unchanged
-	 * if it is not a known command or expansion fails.
+	 * Expand a `/workflow` or `/skill` slash command into its instruction body.
+	 * Serves the same purpose as the CLI's `buildUserInputMessage`, but is more
+	 * permissive than the SDK's leading-only resolver: it accepts the legacy
+	 * `/my-workflow.md` spelling the webview autocomplete inserts, matches
+	 * commands mid-message (anything the chat input highlights as a command),
+	 * and honors the user's workflow enable/disable toggles. Returns the input
+	 * unchanged if no known command matches or expansion fails.
 	 */
 	private async resolveSlashCommands(text: string): Promise<string> {
 		if (this.isDisposed) {
@@ -833,7 +838,11 @@ export class Controller {
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
-			return service.resolveRuntimeSlashCommand(text)
+			const disabledWorkflowNames = buildDisabledWorkflowNames(
+				this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
+				this.stateManager.getWorkspaceStateKey("workflowToggles"),
+			)
+			return expandSlashCommands(text, service.listRuntimeCommands(), disabledWorkflowNames)
 		} catch (error) {
 			Logger.warn("[SdkController] Slash command resolution failed, using raw text:", error)
 			return text
