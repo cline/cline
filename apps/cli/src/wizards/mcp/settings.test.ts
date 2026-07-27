@@ -144,6 +144,28 @@ describe("MCP wizard settings", () => {
 		},
 	);
 
+	it.skipIf(process.platform === "win32")(
+		"preserves extension-tolerated settings when SDK validation falls back",
+		async () => {
+			const settingsPath = await useTempSettingsPath();
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						local: {
+							transport: { type: "stdio", command: "node" },
+							metadata: "accepted by the extension",
+						},
+					},
+				}),
+			);
+			await chmod(settingsPath, 0o644);
+
+			expect(loadServers()).toHaveLength(1);
+			expect((await stat(settingsPath)).mode & 0o777).toBe(0o600);
+		},
+	);
+
 	it("does not create an empty server when clearing OAuth for a missing name", async () => {
 		const settingsPath = await useTempSettingsPath();
 		await writeFile(

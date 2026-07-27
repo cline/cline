@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
 	type McpServerOAuthState,
 	McpSettingsUpdateSkippedError,
@@ -6,6 +6,7 @@ import {
 	resolveMcpServerRegistrations,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 
 export interface McpServerEntry {
 	name: string;
@@ -28,6 +29,39 @@ export function getSettingsPath(): string {
 	return resolveDefaultMcpSettingsPath();
 }
 
+function loadServersWithoutSchemaValidation(path: string): McpServerEntry[] {
+	const raw = readFileSync(path, "utf-8");
+	const parsed = JSON.parse(raw) as {
+		mcpServers?: Record<string, unknown>;
+	};
+	return Object.entries(parsed.mcpServers ?? {}).map(([name, value]) => {
+		const entry = value as Record<string, unknown>;
+		const transport = (entry.transport ?? entry) as McpTransport;
+		const oauthState =
+			entry.oauth &&
+			typeof entry.oauth === "object" &&
+			!Array.isArray(entry.oauth)
+				? (entry.oauth as McpServerOAuthState)
+				: undefined;
+		const oauth = oauthState
+			? {
+					...oauthState,
+					...(oauthState.lastError
+						? {
+								lastError: sanitizeMcpDiagnosticText(oauthState.lastError),
+							}
+						: {}),
+				}
+			: undefined;
+		return {
+			name,
+			transport,
+			disabled: entry.disabled === true,
+			oauth,
+		};
+	});
+}
+
 export function loadServers(): McpServerEntry[] {
 	const path = getSettingsPath();
 	if (!existsSync(path)) return [];
@@ -41,7 +75,14 @@ export function loadServers(): McpServerEntry[] {
 			}),
 		);
 	} catch {
-		return [];
+		try {
+			// The extension historically accepts a few looser legacy shapes than
+			// the SDK schema. Core has already attempted permission repair before
+			// validation, so preserve the CLI's previous tolerant read behavior.
+			return loadServersWithoutSchemaValidation(path);
+		} catch {
+			return [];
+		}
 	}
 }
 
