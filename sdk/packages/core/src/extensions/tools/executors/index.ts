@@ -30,7 +30,7 @@ export {
 	createApplyPatchExecutor,
 	type PatchFileChange,
 } from "./apply-patch";
-export { PatchActionType } from "./apply-patch-parser";
+export { PATCH_MARKERS, PatchActionType } from "./apply-patch-parser";
 export {
 	CommandExitError,
 	createShellExecutor,

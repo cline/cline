@@ -37,6 +37,7 @@ export {
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,
+	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
 	type SearchExecutorOptions,

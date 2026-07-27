@@ -3188,6 +3188,42 @@ describe("apply_patch multi-file split (cline#9904)", () => {
 		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
 	})
 
+	const bareStartEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: patch,
+			} as AgentEvent,
+		},
+	})
+
+	it("reconciles start→end by ts for a bare-string multi-file patch (no { input } wrapper)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(bareStartEvent(TWO_FILE, "call-1"), state)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0].partial).toBe(true)
+		expect(JSON.parse(startResult.messages[0].text!).content).toBe(TWO_FILE)
+
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
 	it("each per-file sub-patch keeps the Begin/End Patch wrapper", () => {
 		const state = new MessageTranslatorState()
 		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)

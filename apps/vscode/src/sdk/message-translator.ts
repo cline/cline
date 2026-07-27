@@ -26,6 +26,7 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
+import { PATCH_MARKERS } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
@@ -535,17 +536,10 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "apply_patch": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			// The SDK sends apply_patch input as { input: 'apply_patch <<"EOF"\n*** Begin Patch\n...' }
-			// Also check the "patch" and "diff" fields for compatibility.
-			const patch =
-				getStringField(parsedInput, "patch") ??
-				getStringField(parsedInput, "diff") ??
-				getStringField(parsedInput, "input")
+			const patch = getApplyPatchString(input)
 			return {
 				tool: "editedExistingFile",
 				path: filePath,
-				// ChatRow passes `content` to DiffEditRow's `patch` prop,
-				// so we must populate `content` for the diff to render.
 				content: patch,
 				diff: patch,
 			}
@@ -753,25 +747,13 @@ function getNumberField(input: Record<string, unknown> | undefined, field: strin
 	return undefined
 }
 
-// apply_patch grammar markers. Duplicated as local literals rather than imported
-// from the SDK's apply-patch-parser (World A / bun) to avoid a bun→npm cross-world
-// import; they are stable literals shared with the webview's DiffEditRow parser.
-const AP_MARKERS = {
-	BEGIN: "*** Begin Patch",
-	END: "*** End Patch",
-	ADD: "*** Add File: ",
-	UPDATE: "*** Update File: ",
-	DELETE: "*** Delete File: ",
-} as const
-
-/**
- * Extract the raw patch string from an apply_patch tool input. The SDK sends it as
- * `{ input: '...' }`; classic callers use `{ patch }` / `{ diff }`. Kept in sync with
- * the `case "apply_patch"` field precedence in sdkToolToClineSayTool.
- */
 function getApplyPatchString(input: unknown): string | undefined {
 	const parsed = parseToolInput(input)
-	return getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
+	const fromFields = getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
+	if (fromFields !== undefined) {
+		return fromFields
+	}
+	return typeof input === "string" ? input : undefined
 }
 
 /**
@@ -787,16 +769,20 @@ function splitApplyPatchByFile(patch: string): ClineSayTool[] {
 	let current: { tool: ClineSayTool["tool"]; path: string; lines: string[] } | undefined
 
 	for (const line of lines) {
-		if (line === AP_MARKERS.END) {
+		if (line === PATCH_MARKERS.END) {
 			break
 		}
-		const marker = [AP_MARKERS.ADD, AP_MARKERS.UPDATE, AP_MARKERS.DELETE].find((m) => line.startsWith(m))
+		const marker = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE].find((m) => line.startsWith(m))
 		if (marker) {
 			if (current) {
 				blocks.push(current)
 			}
 			const tool: ClineSayTool["tool"] =
-				marker === AP_MARKERS.ADD ? "newFileCreated" : marker === AP_MARKERS.DELETE ? "fileDeleted" : "editedExistingFile"
+				marker === PATCH_MARKERS.ADD
+					? "newFileCreated"
+					: marker === PATCH_MARKERS.DELETE
+						? "fileDeleted"
+						: "editedExistingFile"
 			current = { tool, path: line.substring(marker.length).trim(), lines: [line] }
 		} else if (current) {
 			current.lines.push(line)
@@ -817,7 +803,7 @@ function splitApplyPatchByFile(patch: string): ClineSayTool[] {
 		if (block.tool === "fileDeleted") {
 			return { tool: block.tool, path: block.path }
 		}
-		const subPatch = [AP_MARKERS.BEGIN, ...block.lines, AP_MARKERS.END].join("\n")
+		const subPatch = [PATCH_MARKERS.BEGIN, ...block.lines, PATCH_MARKERS.END].join("\n")
 		return { tool: block.tool, path: block.path, content: subPatch, diff: subPatch }
 	})
 }
