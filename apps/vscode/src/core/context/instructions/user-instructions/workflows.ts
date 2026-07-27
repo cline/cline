@@ -40,9 +40,32 @@ function mergeToggleStateAfterScan(
 }
 
 /**
+ * Serializes refresh runs. Overlapping refreshes (webview launch, the rules
+ * modal opening, workflow file creation) would otherwise interleave their
+ * scans and writes and could publish stale state; queueing them makes each
+ * scan atomic relative to other refreshes, and any file create/delete that
+ * happens mid-scan triggers its own refresh that queues behind the running
+ * one and corrects the outcome. The merge in `mergeToggleStateAfterScan`
+ * covers the remaining non-refresh writer: direct toggle flips.
+ */
+let refreshQueue: Promise<unknown> = Promise.resolve()
+
+/**
  * Refresh the workflow toggles
  */
-export async function refreshWorkflowToggles(
+export function refreshWorkflowToggles(
+	controller: Controller,
+	workingDirectory: string,
+): Promise<{
+	globalWorkflowToggles: ClineRulesToggles
+	localWorkflowToggles: ClineRulesToggles
+}> {
+	const run = refreshQueue.then(() => doRefreshWorkflowToggles(controller, workingDirectory))
+	refreshQueue = run.catch(() => undefined)
+	return run
+}
+
+async function doRefreshWorkflowToggles(
 	controller: Controller,
 	workingDirectory: string,
 ): Promise<{
