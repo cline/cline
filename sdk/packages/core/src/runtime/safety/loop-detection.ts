@@ -314,7 +314,6 @@ export class LoopDetectionTracker {
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		const signature = toolCallSignature(call.input);
 		let sequence = this.currentSequence;
-		let startedNewSequence = false;
 		if (
 			sequence === undefined ||
 			sequence.toolName !== call.name ||
@@ -327,7 +326,6 @@ export class LoopDetectionTracker {
 				totalBatchCount: 0,
 			};
 			this.currentSequence = sequence;
-			startedNewSequence = true;
 			const deferredOutcome = this.deferredSuccessfulOutcomes.get(
 				sequenceKey(call.name, signature),
 			);
@@ -348,6 +346,7 @@ export class LoopDetectionTracker {
 				? undefined
 				: [...this.pendingCalls.values()].find(
 						(pending) =>
+							pending.generation === sequence.generation &&
 							pending.toolName === call.name &&
 							pending.toolSignature === signature,
 					);
@@ -368,7 +367,7 @@ export class LoopDetectionTracker {
 				(pending) => pending.batchId === inspected.batchId,
 			).length +
 			(this.anonymousPendingCall?.batchId === inspected.batchId ? 1 : 0);
-		if (parallelCall !== undefined && !startedNewSequence) {
+		if (parallelCall !== undefined) {
 			if (pendingBatchCallCount >= absoluteHardLimit) {
 				return {
 					kind: "hard",
