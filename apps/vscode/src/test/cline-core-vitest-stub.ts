@@ -307,6 +307,11 @@ export class ProviderSettingsManager {
 		return { providers: { ...this.state.providers }, lastUsedProvider: this.state.lastUsedProvider }
 	}
 
+	write(next: ProviderSettingsState): void {
+		this.state.providers = { ...next.providers }
+		this.state.lastUsedProvider = next.lastUsedProvider
+	}
+
 	getProviderSettings(providerId: string): Record<string, unknown> | undefined {
 		return this.state.providers[providerId]
 	}

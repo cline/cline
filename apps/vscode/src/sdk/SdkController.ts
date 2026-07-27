@@ -61,6 +61,7 @@ import {
 	type ProviderFailureTelemetry,
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
+import { syncLastUsedProvider } from "./provider-state-reconciliation"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -646,6 +647,10 @@ export class Controller {
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
+		// Keep providers.json's `lastUsedProvider` on the provider the UI shows,
+		// so the SDK and CLI never select a provider the user has moved off.
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		syncLastUsedProvider(mode === "plan" ? next.planModeApiProvider : next.actModeApiProvider)
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
 

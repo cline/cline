@@ -11,6 +11,7 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
+import { adoptSdkProviderSelection } from "./sdk/provider-state-reconciliation"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
@@ -55,6 +56,11 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 
 	try {
 		await StateManager.initialize(storageContext)
+		// Provider state lives in globalState.json and in the SDK's
+		// providers.json. Reconcile them before anything reads a provider, so
+		// the webview and the session factory cannot disagree about which
+		// provider is selected.
+		adoptSdkProviderSelection(storageContext, StateManager.get())
 	} catch (error) {
 		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
