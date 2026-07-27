@@ -40,7 +40,6 @@ import {
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -802,27 +801,11 @@ function ChatThreadPane({
 		[setConfig],
 	);
 
-	const handleUndoQueuedPrompt = useCallback(
-		async (item: PromptInQueue) => {
-			const removed = await removePromptInQueue(item.id);
-			const prompt = removed?.prompt.trim();
-			if (!prompt) {
-				return;
-			}
-			const attachmentCount =
-				removed?.attachmentCount ?? item.attachmentCount ?? 0;
-			if (attachmentCount > 0) {
-				toast({
-					title: "Queued attachments removed",
-					description: "Reattach files before sending the restored message.",
-				});
-			}
-			const current = promptInputRef.current;
-			setPromptInput(
-				current.trim().length > 0 ? `${current}\n\n${prompt}` : prompt,
-			);
+	const handleRemoveQueuedPrompt = useCallback(
+		async (promptId: string) => {
+			await removePromptInQueue(promptId);
 		},
-		[removePromptInQueue, setPromptInput],
+		[removePromptInQueue],
 	);
 	const handleApproveToolApproval = useCallback(
 		(requestId: string) => {
@@ -1180,9 +1163,7 @@ function ChatThreadPane({
 			onEditPromptInQueue={(promptId, prompt) => {
 				void updatePromptInQueue(promptId, prompt);
 			}}
-			onUndoPromptInQueue={(item) => {
-				void handleUndoQueuedPrompt(item);
-			}}
+			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={(nextProvider) =>
 				setConfig((prev) => {
 					const selected = providerCredentials[nextProvider];
