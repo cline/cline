@@ -223,14 +223,26 @@ export async function runAgent(
 	const abortAll = () => {
 		if (abortRequested) return false;
 		abortRequested = true;
-		if (activeSessionId) {
-			sessionManager
-				.abort(activeSessionId, new Error("Run-agent runtime abort requested"))
-				.catch(() => {});
-		}
+		sessionManager
+			.abort(
+				activeSessionId ?? plannedSessionId,
+				new Error("Run-agent runtime abort requested"),
+			)
+			.catch(() => {});
 		return true;
 	};
 	setActiveRuntimeAbort(abortAll);
+
+	const timeoutMs =
+		typeof config.timeoutSeconds === "number" &&
+		Number.isFinite(config.timeoutSeconds) &&
+		config.timeoutSeconds > 0
+			? config.timeoutSeconds * 1000
+			: undefined;
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	const clearRunTimeout = () => {
+		if (timeoutId) clearTimeout(timeoutId);
+	};
 
 	let cleanupDone: Promise<void> | undefined;
 	const cleanupRuntime = () => {
@@ -276,6 +288,12 @@ export async function runAgent(
 			userImages,
 			userFiles,
 		} = await buildUserInputMessage(prompt, userInstructionService);
+		timeoutId = timeoutMs
+			? setTimeout(() => {
+					timedOut = true;
+					abortAll();
+				}, timeoutMs)
+			: undefined;
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -306,23 +324,6 @@ export async function runAgent(
 		setActiveCliSession({
 			manifest: started.manifest,
 		});
-
-		// Schedule timeout abort if configured.
-		const timeoutMs =
-			typeof config.timeoutSeconds === "number" &&
-			Number.isFinite(config.timeoutSeconds) &&
-			config.timeoutSeconds > 0
-				? config.timeoutSeconds * 1000
-				: undefined;
-		const timeoutId = timeoutMs
-			? setTimeout(() => {
-					timedOut = true;
-					abortAll();
-				}, timeoutMs)
-			: undefined;
-		const clearRunTimeout = () => {
-			if (timeoutId) clearTimeout(timeoutId);
-		};
 
 		// When start() already ran the first turn (non-interactive with prompt),
 		// the session is finalized before start() returns. Use that result
@@ -416,6 +417,7 @@ export async function runAgent(
 		writeErr(message);
 		process.exitCode = 1;
 	} finally {
+		clearRunTimeout();
 		await cleanupRuntime();
 	}
 }

@@ -177,6 +177,7 @@ describe("runAgent", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		process.exitCode = originalExitCode;
 		vi.clearAllMocks();
 	});
@@ -582,6 +583,86 @@ describe("runAgent", () => {
 			error: expect.any(Error),
 		});
 		expect(outputMocks.writeErr).toHaveBeenCalledWith("Missing API key");
+	});
+
+	it("aborts the planned session when timeout expires before start resolves", async () => {
+		vi.useFakeTimers();
+		const abortedStartResult = (sessionId: string) => ({
+			sessionId,
+			manifest: { session_id: sessionId },
+			result: {
+				text: "aborted",
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 0,
+				finishReason: "aborted" as const,
+				model: {
+					id: "google/gemini-3-flash-preview",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt: new Date(),
+				endedAt: new Date(),
+				durationMs: 1000,
+			},
+		});
+		let resolveStart:
+			| ((value: ReturnType<typeof abortedStartResult>) => void)
+			| undefined;
+		sessionManagerMocks.start.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveStart = resolve;
+				}),
+		);
+
+		const { runAgent } = await import("./run-agent");
+		const runPromise = runAgent("test prompt", {
+			cwd: process.cwd(),
+			enableAgentTeams: false,
+			enableSpawnAgent: false,
+			enableTools: [],
+			execution: { maxConsecutiveMistakes: 3 },
+			logger: undefined,
+			mode: "yolo",
+			modelId: "google/gemini-3-flash-preview",
+			outputMode: "text",
+			providerId: "openrouter",
+			systemPrompt: "system",
+			thinking: false,
+			timeoutSeconds: 1,
+			toolPolicies: { "*": { autoApprove: true } },
+			verbose: false,
+			workspaceRoot: process.cwd(),
+		} as never);
+
+		await vi.waitFor(() => {
+			expect(sessionManagerMocks.start).toHaveBeenCalledOnce();
+		});
+		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as {
+			config: { sessionId: string };
+		};
+		const plannedSessionId = startInput.config.sessionId;
+
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(sessionManagerMocks.abort).toHaveBeenCalledWith(
+			plannedSessionId,
+			expect.any(Error),
+		);
+
+		resolveStart?.(abortedStartResult(plannedSessionId));
+		await runPromise;
+
+		expect(outputMocks.writeErr).toHaveBeenCalledWith("run timed out after 1s");
+		expect(process.exitCode).toBe(1);
 	});
 
 	it("renders ClinePass subscription errors with friendly copy when startup throws", async () => {
