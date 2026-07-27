@@ -15,7 +15,10 @@ export {
 	type ComputerUseClientOptions,
 	type ComputerUseSendOptions,
 } from "./client";
-export { createComputerUseToolFromEnv } from "./env";
+export {
+	createComputerUseToolFromEnv,
+	resolveComputerUseTargetFromEnv,
+} from "./env";
 export type {
 	ComputerUseAction,
 	ComputerUseCoordinate,
@@ -24,5 +27,9 @@ export type {
 	ComputerUseRequest,
 	ComputerUseResponse,
 } from "./protocol";
-export { GET_DISPLAY_INFO_ACTION, isComputerUseResponse } from "./protocol";
+export {
+	GET_DISPLAY_INFO_ACTION,
+	isComputerUseResponse,
+	PUBLISH_EVENT_ACTION,
+} from "./protocol";
 export { type ComputerUseToolOptions, createComputerUseTool } from "./tool";
