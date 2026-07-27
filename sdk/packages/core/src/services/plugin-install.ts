@@ -186,10 +186,23 @@ function resolveOfficialPluginsRepo(override: string | undefined): string {
 	return override?.trim() || OFFICIAL_PLUGINS_REPO;
 }
 
+/**
+ * A conservative npm package spec: `[@scope/]name[@version-or-tag]`, limited to
+ * characters that are legal in package names and semver ranges.
+ *
+ * The spec reaches `npm install` as an argument, and on Windows `runCommand`
+ * spawns through a shell (see the comment there), so anything outside this set
+ * — spaces, `& | < > % " ' $ ( ) ; !` — must be rejected here rather than
+ * handed to `cmd.exe`. Comparison operators (`>=`, `<`) are excluded for that
+ * reason; `^` and `~` ranges and dist-tags still work.
+ */
+const NPM_SPEC_PATTERN =
+	/^@?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?(?:@[A-Za-z0-9._+^~-]*)?$/;
+
 function parseNpmSpec(spec: string): { name: string } {
 	const trimmed = spec.trim();
 	const match = trimmed.match(/^(@?[^@/]+(?:\/[^@/]+)?)(?:@.+)?$/);
-	if (!match?.[1]) {
+	if (!match?.[1] || !NPM_SPEC_PATTERN.test(trimmed)) {
 		throw new Error(`Invalid npm plugin source: npm:${spec}`);
 	}
 	return { name: match[1] };

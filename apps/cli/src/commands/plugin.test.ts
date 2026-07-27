@@ -32,6 +32,13 @@ type FetchCall = (
 const IS_WINDOWS = process.platform === "win32";
 
 /**
+ * For the one test whose fake `npm` parses `--prefix` out of its own argv and
+ * materialises a package tree. That logic does not port to a `.cmd` batch stub
+ * cleanly, so it stays a POSIX shell script and the test is skipped on Windows.
+ */
+const itPosixShell = IS_WINDOWS ? it.skip : it;
+
+/**
  * Write an executable fake `npm` for use as `installPlugin({ npmCommand })`.
  *
  * `runCommand` in plugin-install.ts spawns `npmCommand` directly, and Windows'
@@ -151,6 +158,38 @@ describe("plugin install command", () => {
 			spec: "@scope/plugin@1.2.3",
 			name: "@scope/plugin",
 		});
+	});
+
+	it("rejects npm specs containing shell metacharacters", () => {
+		// The spec is passed to `npm install`, and on Windows runCommand spawns
+		// through a shell — so these must not reach cmd.exe.
+		for (const bad of [
+			"plugin@1.0.0 & calc",
+			"plugin@1.0.0|whoami",
+			"plugin@1.0.0>out.txt",
+			"plugin@$(id)",
+			"plugin@`id`",
+			'plugin@1.0.0"',
+			"plugin@%USERPROFILE%",
+		]) {
+			expect(() => parsePluginSource(bad, "npm")).toThrow(
+				/Invalid npm plugin source/,
+			);
+		}
+	});
+
+	it("still accepts ordinary npm specs, ranges and dist-tags", () => {
+		for (const good of [
+			"plugin",
+			"plugin@1.2.3",
+			"plugin@^1.2.3",
+			"plugin@~1.2",
+			"plugin@latest",
+			"plugin@1.0.0-beta.1",
+			"@scope/plugin@1.2.3",
+		]) {
+			expect(() => parsePluginSource(good, "npm")).not.toThrow();
+		}
 	});
 
 	it("parses explicit git source type without the git prefix", () => {
@@ -541,48 +580,51 @@ describe("plugin install command", () => {
 		expect(discovered.some((path) => path.includes("noise.ts"))).toBe(false);
 	});
 
-	it("omits and removes host SDK packages from npm-sourced installs", async () => {
-		const npmLogPath = join(root, "npm-source-install.log");
-		const npmCommandPath = join(root, "fake-npm-source.sh");
-		writeFileSync(
-			npmCommandPath,
-			[
-				"#!/bin/sh",
-				`printf '%s\\n' "$*" >> "${npmLogPath}"`,
-				"prefix=''",
-				"while [ $# -gt 0 ]; do",
-				"  if [ \"$1\" = '--prefix' ]; then",
-				"    shift",
-				'    prefix="$1"',
-				"  fi",
-				"  shift",
-				"done",
-				'mkdir -p "$prefix/node_modules/published-plugin"',
-				'mkdir -p "$prefix/node_modules/@cline/core"',
-				'printf \'%s\\n\' \'{"name":"published-plugin","type":"module","cline":{"plugins":["index.ts"]}}\' > "$prefix/node_modules/published-plugin/package.json"',
-				"printf '%s\\n' \"export default { name: 'published-plugin', manifest: { capabilities: ['tools'] } };\" > \"$prefix/node_modules/published-plugin/index.ts\"",
-				'printf \'%s\\n\' \'{"name":"@cline/core"}\' > "$prefix/node_modules/@cline/core/package.json"',
-				"exit 0",
-			].join("\n"),
-			{ encoding: "utf8", mode: 0o755 },
-		);
+	itPosixShell(
+		"omits and removes host SDK packages from npm-sourced installs",
+		async () => {
+			const npmLogPath = join(root, "npm-source-install.log");
+			const npmCommandPath = join(root, "fake-npm-source.sh");
+			writeFileSync(
+				npmCommandPath,
+				[
+					"#!/bin/sh",
+					`printf '%s\\n' "$*" >> "${npmLogPath}"`,
+					"prefix=''",
+					"while [ $# -gt 0 ]; do",
+					"  if [ \"$1\" = '--prefix' ]; then",
+					"    shift",
+					'    prefix="$1"',
+					"  fi",
+					"  shift",
+					"done",
+					'mkdir -p "$prefix/node_modules/published-plugin"',
+					'mkdir -p "$prefix/node_modules/@cline/core"',
+					'printf \'%s\\n\' \'{"name":"published-plugin","type":"module","cline":{"plugins":["index.ts"]}}\' > "$prefix/node_modules/published-plugin/package.json"',
+					"printf '%s\\n' \"export default { name: 'published-plugin', manifest: { capabilities: ['tools'] } };\" > \"$prefix/node_modules/published-plugin/index.ts\"",
+					'printf \'%s\\n\' \'{"name":"@cline/core"}\' > "$prefix/node_modules/@cline/core/package.json"',
+					"exit 0",
+				].join("\n"),
+				{ encoding: "utf8", mode: 0o755 },
+			);
 
-		const result = await installPlugin({
-			source: "npm:published-plugin@1.0.0",
-			npmCommand: npmCommandPath,
-		});
+			const result = await installPlugin({
+				source: "npm:published-plugin@1.0.0",
+				npmCommand: npmCommandPath,
+			});
 
-		const npmLog = readFileSync(npmLogPath, "utf8");
-		expect(npmLog).toContain("install published-plugin@1.0.0");
-		expect(npmLog).toContain("--omit=peer");
-		expect(npmLog).toContain("--legacy-peer-deps");
-		expect(
-			existsSync(
-				join(result.installPath, "package", "node_modules", "@cline", "core"),
-			),
-		).toBe(false);
-		expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
-	});
+			const npmLog = readFileSync(npmLogPath, "utf8");
+			expect(npmLog).toContain("install published-plugin@1.0.0");
+			expect(npmLog).toContain("--omit=peer");
+			expect(npmLog).toContain("--legacy-peer-deps");
+			expect(
+				existsSync(
+					join(result.installPath, "package", "node_modules", "@cline", "core"),
+				),
+			).toBe(false);
+			expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
+		},
+	);
 
 	it("requires --force before replacing an existing install", async () => {
 		const source = join(root, "replace.ts");
