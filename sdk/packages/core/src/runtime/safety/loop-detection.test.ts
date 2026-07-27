@@ -175,4 +175,16 @@ describe("LoopDetectionTracker", () => {
 		]);
 		expect(inspect(tracker, 3)).toBe("hard");
 	});
+
+	it.each([
+		["number and string", 1, "1"],
+		["null and string", null, "null"],
+		["boolean and string", true, "true"],
+	] as const)("preserves output types for %s", (_name, first, second) => {
+		const tracker = createTracker();
+
+		expect(completeBatch(tracker, 1, [first])).toEqual(["ok"]);
+		expect(completeBatch(tracker, 2, [second])).toEqual(["soft"]);
+		expect(inspect(tracker, 3)).toBe("ok");
+	});
 });

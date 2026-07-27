@@ -57,6 +57,16 @@ export function toolCallSignature(input: unknown): string {
 	}
 }
 
+function toolOutputSignature(output: unknown): string {
+	const type =
+		output === null ? "null" : Array.isArray(output) ? "array" : typeof output;
+	try {
+		return `${type}:${JSON.stringify(sortKeys(output))}`;
+	} catch {
+		return `${type}:${String(output)}`;
+	}
+}
+
 export interface LoopCheckResult {
 	softWarning: boolean;
 	hardEscalation: boolean;
@@ -253,7 +263,7 @@ export class LoopDetectionTracker {
 		if (batch === undefined) return;
 
 		if (outcome.successful) {
-			const outputSignature = toolCallSignature(outcome.output);
+			const outputSignature = toolOutputSignature(outcome.output);
 			batch.outcomes.add(outputSignature);
 			const step = progressStep(outputSignature);
 			if (

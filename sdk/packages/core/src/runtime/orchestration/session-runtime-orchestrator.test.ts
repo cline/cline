@@ -2417,6 +2417,32 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
 	});
 
+	it("still aborts repeated MCP failures whose error output changes", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`mcp-failed-${index}`,
+						{
+							content: [{ type: "text", text: `attempt ${index}` }],
+							isError: true,
+						},
+						{
+							iteration: index,
+							name: "server__poll",
+							input: { jobId: "job-1" },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("repeat a failing MCP poll");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("resets loop detection when run() starts a fresh conversation", async () => {
 		const identical = (i: number): AgentRuntimeEvent => ({
 			type: "tool-started",
