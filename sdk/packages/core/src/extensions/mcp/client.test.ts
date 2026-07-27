@@ -73,6 +73,7 @@ process.stdin.on("end", () => {
 
 const FRAMED_SERVER_SCRIPT = `
 let buffer = "";
+const initializeDelayMs = Number(process.env.FAKE_MCP_INIT_DELAY_MS ?? "0");
 function write(payload) {
 	const body = JSON.stringify(payload);
 	process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
@@ -97,7 +98,7 @@ process.stdin.on("data", (chunk) => {
 			: message.method === "tools/list"
 				? { tools: [] }
 				: { content: [] };
-		write({ jsonrpc: "2.0", id: message.id, result });
+		setTimeout(() => write({ jsonrpc: "2.0", id: message.id, result }), message.method === "initialize" ? initializeDelayMs : 0);
 	}
 });
 `;
@@ -306,7 +307,7 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
-	it("preserves the bounded Content-Length compatibility fallback", async () => {
+	it("applies the configured timeout to the Content-Length compatibility request", async () => {
 		const command =
 			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
 		const client = await createDefaultMcpServerClientFactory()({
@@ -315,14 +316,16 @@ describe("mcp client request timeout", () => {
 				type: "stdio",
 				command,
 				args: [join(tempRoot, "framed-server.js")],
+				env: { FAKE_MCP_INIT_DELAY_MS: "2000" },
 			},
-			timeoutSeconds: 1,
+			timeoutSeconds: 3,
 		});
 		const startedAt = Date.now();
 		try {
 			await client.connect();
 			expect(await client.listTools()).toEqual([]);
-			expect(Date.now() - startedAt).toBeLessThan(3_500);
+			expect(Date.now() - startedAt).toBeGreaterThanOrEqual(4_500);
+			expect(Date.now() - startedAt).toBeLessThan(7_000);
 		} finally {
 			await client.disconnect();
 		}

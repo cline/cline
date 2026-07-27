@@ -191,7 +191,7 @@ class StdioMcpClient implements McpServerClient {
 				await this.request(
 					"initialize",
 					initializeParams,
-					MCP_CONNECT_PROBE_TIMEOUT_MS,
+					this.connectAttemptTimeoutMs,
 				);
 			} catch {
 				await this.disconnect().catch(() => {});
