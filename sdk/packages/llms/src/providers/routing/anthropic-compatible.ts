@@ -370,10 +370,10 @@ export function buildAnthropicProviderOptions(
 		if (policy.kind === "anthropic-adaptive") {
 			thinking = { type: "adaptive" };
 		} else if (policy.kind === "anthropic-manual") {
-			thinking = {
-				type: "enabled",
-				budgetTokens: resolveAnthropicManualBudget(request, context),
-			};
+			const budgetTokens = resolveAnthropicManualBudget(request, context);
+			if (budgetTokens !== undefined) {
+				thinking = { type: "enabled", budgetTokens };
+			}
 		}
 	}
 

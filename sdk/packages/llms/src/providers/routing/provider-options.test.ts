@@ -557,6 +557,25 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 		);
 	});
 
+	it("omits manual Anthropic thinking when the output cap cannot fit a budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				maxTokens: 1,
+				reasoning: { enabled: true },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024, 32_000),
+			}),
+		);
+
+		expect(result.anthropic).not.toHaveProperty("thinking");
+	});
+
 	it.each([
 		["provider cap", undefined, 200_000, 128_000],
 		["output cap", 2048, 200_000, 2047],
