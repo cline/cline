@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { resolveClineDataDir } from "@cline/shared/storage"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
@@ -150,10 +151,7 @@ async function repairPrivatePermissions(targetPath: string, mode: number): Promi
 }
 
 function isClineSettingsDirectory(directoryPath: string): boolean {
-	const explicitDataDir = process.env.CLINE_DATA_DIR?.trim()
-	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
-	const dataDir = explicitDataDir || path.join(clineDir, "data")
-	return path.resolve(directoryPath) === path.resolve(dataDir, "settings")
+	return path.resolve(directoryPath) === path.resolve(resolveClineDataDir(), "settings")
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {

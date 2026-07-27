@@ -212,6 +212,7 @@ Module.prototype.require = function (id) {
 
 	if (id === "@cline/shared/storage") {
 		return {
+			resolveClineDataDir: () => process.env.CLINE_DATA_DIR?.trim() || path.join(baseUrl, ".vscode-test", "cline-data"),
 			resolveGlobalSettingsPath: () => path.join(baseUrl, ".vscode-test", "shared-global-settings.json"),
 		}
 	}
