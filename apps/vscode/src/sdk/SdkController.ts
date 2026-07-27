@@ -839,14 +839,17 @@ export class Controller {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
 			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
+			const workflowRecords = service
+				.listRecords("workflow")
+				.map((record) => ({ name: record.item.name, filePath: record.filePath }))
 			const disabledWorkflowNames = buildDisabledWorkflowNames({
-				records: service.listRecords("workflow").map((record) => ({ name: record.item.name, filePath: record.filePath })),
+				records: workflowRecords,
 				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
 				workspaceToggles: this.stateManager.getWorkspaceStateKey("workflowToggles"),
 				remoteToggles: this.stateManager.getGlobalStateKey("remoteWorkflowToggles"),
 				remoteAlwaysEnabledNames: remoteWorkflows.filter((workflow) => workflow.alwaysEnabled).map((w) => w.name),
 			})
-			return expandSlashCommands(text, service.listRuntimeCommands(), disabledWorkflowNames)
+			return expandSlashCommands(text, service.listRuntimeCommands(), { disabledWorkflowNames, workflowRecords })
 		} catch (error) {
 			Logger.warn("[SdkController] Slash command resolution failed, using raw text:", error)
 			return text

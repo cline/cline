@@ -27,16 +27,62 @@ function canonicalWorkflowName(value: string): string {
 }
 
 /**
+ * Comparison key for remote workflow names. Remote workflows materialize to
+ * files named via @cline/shared's `sanitizeSegment` (lower-cased, disallowed
+ * character runs collapsed to `-`), and the discovered record is named after
+ * that sanitized basename. Remote toggles, however, are keyed by the original
+ * config name (e.g. "Org Standards"), so mirror the sanitization closely
+ * enough that both sides compare equal.
+ */
+function remoteWorkflowNameKey(value: string): string {
+	const stripped = value.trim().toLowerCase().replace(WORKFLOW_FILE_EXTENSION_REGEX, "")
+	const sanitized = stripped.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
+	return sanitized || stripped
+}
+
+function fileBasename(filePath: string): string {
+	return filePath.replace(/^.*[/\\]/, "")
+}
+
+/** Matches files materialized from remote config (`.cline/remote-config/…`). */
+const REMOTE_CONFIG_PATH_REGEX = /[/\\]\.cline[/\\]remote-config[/\\]/
+
+/** The discovered workflow files toggle filtering and matching operate on. */
+export interface WorkflowRecordRef {
+	/** Command name (frontmatter `name`, or file basename without extension). */
+	name: string
+	/** Absolute path of the workflow file. */
+	filePath: string
+}
+
+export interface ExpandSlashCommandsOptions {
+	/**
+	 * Canonical (extension-less, lower-cased) workflow names the user disabled
+	 * via the Workflows toggles, from {@link buildDisabledWorkflowNames}.
+	 * Disabled workflows are left unexpanded, matching legacy semantics.
+	 */
+	disabledWorkflowNames?: ReadonlySet<string>
+	/**
+	 * Discovered workflow records, used to also match a typed file name (e.g.
+	 * `/my-workflow.md`, what the autocomplete inserts) against a workflow
+	 * whose frontmatter `name` differs from its filename.
+	 */
+	workflowRecords?: ReadonlyArray<WorkflowRecordRef>
+}
+
+/**
  * Find the runtime command matching a typed slash-command name.
  *
  * The SDK names workflows by frontmatter `name` or file basename *without* the
  * extension, but the webview autocomplete (and legacy Cline versions) surface
- * workflow files as `/my-workflow.md`. Accept both spellings so workflows
- * created under the legacy extension keep working after an upgrade.
+ * workflow files as `/my-workflow.md`. Accept both spellings — and resolve a
+ * typed file name to its frontmatter-renamed command — so workflows created
+ * under the legacy extension keep working after an upgrade.
  */
 function findRuntimeCommand(
 	commands: readonly AvailableRuntimeCommand[],
 	typedName: string,
+	workflowRecords: ReadonlyArray<WorkflowRecordRef>,
 ): AvailableRuntimeCommand | undefined {
 	const withoutExtension = typedName.replace(WORKFLOW_FILE_EXTENSION_REGEX, "")
 	const candidates = withoutExtension && withoutExtension !== typedName ? [typedName, withoutExtension] : [typedName]
@@ -55,6 +101,14 @@ function findRuntimeCommand(
 			return insensitive
 		}
 	}
+	// Typed file name (autocomplete inserts `/my-workflow.md`) whose workflow
+	// was renamed via frontmatter: resolve through the record's file basename.
+	const typedCanonical = canonicalWorkflowName(typedName)
+	const record = workflowRecords.find((r) => canonicalWorkflowName(fileBasename(r.filePath)) === typedCanonical)
+	if (record) {
+		const recordCanonical = canonicalWorkflowName(record.name)
+		return commands.find((command) => canonicalWorkflowName(command.name) === recordCanonical)
+	}
 	return undefined
 }
 
@@ -68,24 +122,21 @@ function findRuntimeCommand(
  * those too. Only the first matching command is expanded, mirroring legacy
  * behavior and the webview menu (which only offers suggestions for the first
  * command in a message).
- *
- * @param disabledWorkflowNames canonical (extension-less, lower-cased) workflow
- *   names the user disabled via the Workflows toggles, from
- *   {@link buildDisabledWorkflowNames}. Disabled workflows are left unexpanded,
- *   matching legacy semantics.
  */
 export function expandSlashCommands(
 	text: string,
 	commands: readonly AvailableRuntimeCommand[],
-	disabledWorkflowNames: ReadonlySet<string> = new Set(),
+	options: ExpandSlashCommandsOptions = {},
 ): string {
 	if (!text.includes("/") || commands.length === 0) {
 		return text
 	}
+	const disabledWorkflowNames = options.disabledWorkflowNames ?? new Set()
+	const workflowRecords = options.workflowRecords ?? []
 	for (const match of text.matchAll(SLASH_COMMAND_TOKEN_REGEX)) {
 		const token = match[2]
 		const typedName = token.slice(1)
-		const command = findRuntimeCommand(commands, typedName)
+		const command = findRuntimeCommand(commands, typedName, workflowRecords)
 		if (!command) {
 			continue
 		}
@@ -97,14 +148,6 @@ export function expandSlashCommands(
 		return text.slice(0, start) + command.instructions + text.slice(end)
 	}
 	return text
-}
-
-/** The discovered workflow files the disabled set is computed for. */
-export interface WorkflowRecordRef {
-	/** Command name (frontmatter `name`, or file basename without extension). */
-	name: string
-	/** Absolute path of the workflow file. */
-	filePath: string
 }
 
 export interface BuildDisabledWorkflowNamesOptions {
@@ -120,25 +163,19 @@ export interface BuildDisabledWorkflowNamesOptions {
 	remoteAlwaysEnabledNames?: Iterable<string>
 }
 
-function fileBasename(filePath: string): string {
-	return filePath.replace(/^.*[/\\]/, "")
-}
-
-/** Matches files materialized from remote config (`.cline/remote-config/…`). */
-const REMOTE_CONFIG_PATH_REGEX = /[/\\]\.cline[/\\]remote-config[/\\]/
-
 /**
  * Build the set of canonical command names whose workflows the user disabled
  * via the Workflows toggles (local, global, and enterprise/remote scopes).
  *
  * Toggle state is matched to each discovered record by its file basename, so a
  * frontmatter `name` that differs from the filename is still governed by the
- * file's toggle. A basename that appears in several scopes counts as enabled
- * when *any* scope has it enabled: legacy expansion only searched enabled
- * workflows across scopes, so a disabled workspace file must not shadow a
- * same-named enabled global one (or vice versa). Files materialized from
- * remote config are governed by the name-keyed remote toggles instead, and
- * locked (`alwaysEnabled`) remote workflows always count as enabled.
+ * file's toggle. A command name shared by several records (across scopes) or
+ * a basename toggled in several scopes counts as enabled when *any* of them is
+ * enabled: legacy expansion only searched enabled workflows across scopes, so
+ * a disabled workspace file must not shadow a same-named enabled global or
+ * enterprise one (or vice versa). Files materialized from remote config are
+ * governed by the name-keyed remote toggles instead, and locked
+ * (`alwaysEnabled`) remote workflows always count as enabled.
  */
 export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOptions): Set<string> {
 	const enabledByBasename = new Map<string, boolean>()
@@ -152,11 +189,11 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 		}
 	}
 	const remoteToggles = new Map(
-		Object.entries(options.remoteToggles ?? {}).map(([name, enabled]) => [canonicalWorkflowName(name), enabled]),
+		Object.entries(options.remoteToggles ?? {}).map(([name, enabled]) => [remoteWorkflowNameKey(name), enabled]),
 	)
-	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(canonicalWorkflowName))
+	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(remoteWorkflowNameKey))
 
-	const disabled = new Set<string>()
+	const enabledByName = new Map<string, boolean>()
 	for (const record of options.records) {
 		const name = canonicalWorkflowName(record.name)
 		if (!name) {
@@ -164,10 +201,16 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 		}
 		let enabled: boolean
 		if (REMOTE_CONFIG_PATH_REGEX.test(record.filePath)) {
-			enabled = remoteAlwaysEnabled.has(name) || remoteToggles.get(name) !== false
+			const remoteKey = remoteWorkflowNameKey(record.name)
+			enabled = remoteAlwaysEnabled.has(remoteKey) || remoteToggles.get(remoteKey) !== false
 		} else {
 			enabled = enabledByBasename.get(canonicalWorkflowName(fileBasename(record.filePath))) ?? true
 		}
+		enabledByName.set(name, (enabledByName.get(name) ?? false) || enabled)
+	}
+
+	const disabled = new Set<string>()
+	for (const [name, enabled] of enabledByName) {
 		if (!enabled) {
 			disabled.add(name)
 		}

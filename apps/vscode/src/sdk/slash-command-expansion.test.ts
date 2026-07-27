@@ -31,6 +31,19 @@ describe("expandSlashCommands", () => {
 		expect(expandSlashCommands("/Release.MD", commands)).toBe("Run the release workflow.")
 	})
 
+	it("resolves a typed filename to a frontmatter-renamed workflow via records", () => {
+		const renamed = [workflow("ship-it", "Ship it carefully.")]
+		const records = [{ name: "ship-it", filePath: "/repo/.clinerules/workflows/release.md" }]
+		expect(expandSlashCommands("/release.md", renamed, { workflowRecords: records })).toBe("Ship it carefully.")
+		// The renamed command stays governed by its file's toggle.
+		expect(
+			expandSlashCommands("/release.md", renamed, {
+				workflowRecords: records,
+				disabledWorkflowNames: new Set(["ship-it"]),
+			}),
+		).toBe("/release.md")
+	})
+
 	it("expands a command that appears mid-message after whitespace", () => {
 		expect(expandSlashCommands("please run /release.md for v2", commands)).toBe("please run Run the release workflow. for v2")
 	})
@@ -58,10 +71,12 @@ describe("expandSlashCommands", () => {
 
 	it("skips workflows the user disabled via toggles", () => {
 		const disabled = new Set(["release"])
-		expect(expandSlashCommands("/release", commands, disabled)).toBe("/release")
-		expect(expandSlashCommands("/release.md", commands, disabled)).toBe("/release.md")
+		expect(expandSlashCommands("/release", commands, { disabledWorkflowNames: disabled })).toBe("/release")
+		expect(expandSlashCommands("/release.md", commands, { disabledWorkflowNames: disabled })).toBe("/release.md")
 		// Skills are governed by frontmatter, not workflow toggles.
-		expect(expandSlashCommands("/debug", commands, new Set(["debug"]))).toBe("Use the debugging skill.")
+		expect(expandSlashCommands("/debug", commands, { disabledWorkflowNames: new Set(["debug"]) })).toBe(
+			"Use the debugging skill.",
+		)
 	})
 })
 
@@ -110,6 +125,18 @@ describe("buildDisabledWorkflowNames", () => {
 		).toEqual(new Set())
 	})
 
+	it("keeps a name enabled when a disabled local record shares it with an enabled remote record", () => {
+		const disabled = buildDisabledWorkflowNames({
+			records: [
+				{ name: "release", filePath: "/repo/.clinerules/workflows/release.md" },
+				{ name: "release", filePath: "/repo/.cline/remote-config/workflows/release.md" },
+			],
+			workspaceToggles: { "/repo/.clinerules/workflows/release.md": false },
+			remoteToggles: { release: true },
+		})
+		expect(disabled).toEqual(new Set())
+	})
+
 	it("treats records without any toggle entry as enabled", () => {
 		const disabled = buildDisabledWorkflowNames({
 			records: [{ name: "fresh", filePath: "/home/user/.cline/workflows/fresh.md" }],
@@ -130,11 +157,21 @@ describe("buildDisabledWorkflowNames", () => {
 		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
+	it("matches remote toggles whose config names get sanitized during materialization", () => {
+		// "Org Standards" materializes as org-standards.md, and the record is
+		// named after the sanitized basename.
+		const disabled = buildDisabledWorkflowNames({
+			records: [{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }],
+			remoteToggles: { "Org Standards": false },
+		})
+		expect(disabled).toEqual(new Set(["org-standards"]))
+	})
+
 	it("treats locked (alwaysEnabled) remote workflows as enabled despite stale toggles", () => {
 		const disabled = buildDisabledWorkflowNames({
 			records: [{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }],
-			remoteToggles: { "org-standards": false },
-			remoteAlwaysEnabledNames: ["org-standards"],
+			remoteToggles: { "Org Standards": false },
+			remoteAlwaysEnabledNames: ["Org Standards"],
 		})
 		expect(disabled).toEqual(new Set())
 	})
