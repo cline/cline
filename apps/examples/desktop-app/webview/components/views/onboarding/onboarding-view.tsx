@@ -27,7 +27,11 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import type { Provider, ProviderCatalogResponse } from "@/lib/provider-schema";
+import {
+	fetchProviderCatalog,
+	invalidateProviderCatalogCache,
+} from "@/lib/provider-model-catalog";
+import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -198,9 +202,7 @@ function ConnectStep({
 		let cancelled = false;
 		async function loadProviders() {
 			try {
-				const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-					"list_provider_catalog",
-				);
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}
@@ -256,6 +258,9 @@ function ConnectStep({
 			}
 			setSignInError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// The login may have persisted credentials; drop the short-lived
+			// catalog cache so the app reloads them instead of a pre-save copy.
+			invalidateProviderCatalogCache();
 			if (signInAttemptRef.current === attempt) {
 				setSigningIn(false);
 			}
@@ -327,6 +332,9 @@ function ConnectStep({
 		} catch (error) {
 			setClineKeyError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// Credentials may have been saved (or rolled back); drop the
+			// short-lived catalog cache so consumers reload the persisted state.
+			invalidateProviderCatalogCache();
 			setClineKeySaving(false);
 		}
 	}, [clineApiKey, onConnected, refreshAccount]);
@@ -354,6 +362,10 @@ function ConnectStep({
 		} catch (error) {
 			setSaveError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// Onboarding completion remounts the chat pane to reload provider
+			// credentials; drop the short-lived catalog cache so that reload
+			// sees the just-saved key rather than a pre-save copy.
+			invalidateProviderCatalogCache();
 			setSaving(false);
 		}
 	}, [apiKey, onConnected, selectedProvider]);
