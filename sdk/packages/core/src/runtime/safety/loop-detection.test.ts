@@ -114,6 +114,19 @@ describe("LoopDetectionTracker", () => {
 		expect(inspect(tracker, 3)).toBe("hard");
 	});
 
+	it("treats sequential outcomes in one iteration as one batch", () => {
+		const tracker = createTracker();
+		const batchCall = call(1);
+		const verdicts = ["same", "same", "same"].map((output) => {
+			const verdict = tracker.inspect(batchCall).kind;
+			tracker.observeOutcome(batchCall, { successful: true, output });
+			return verdict;
+		});
+
+		expect(verdicts).toEqual(["ok", "ok", "ok"]);
+		expect(inspect(tracker, 2)).toBe("soft");
+	});
+
 	it("retains progress from every parallel outcome", () => {
 		const tracker = createTracker();
 
@@ -139,6 +152,18 @@ describe("LoopDetectionTracker", () => {
 		tracker.clearPendingCalls();
 
 		expect(inspect(tracker, 1)).toBe("soft");
+	});
+
+	it("does not charge unfinished batches to the absolute limit", () => {
+		const tracker = createTracker();
+
+		for (let iteration = 1; iteration <= 12; iteration++) {
+			expect(inspect(tracker, iteration)).not.toBe("hard");
+			const separator = call(iteration, "other", { iteration });
+			expect(tracker.inspect(separator).kind).not.toBe("hard");
+			tracker.observeOutcome(separator, { successful: true, output: "done" });
+			tracker.clearPendingCalls();
+		}
 	});
 
 	it("uses stable object fingerprints", () => {

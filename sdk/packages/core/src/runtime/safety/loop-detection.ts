@@ -149,6 +149,8 @@ function progressStep(signature: string): number | undefined {
 }
 
 interface ToolBatch {
+	iteration: number;
+	key: string;
 	pendingCount: number;
 	outcomes: Set<string>;
 	highestProgressStep?: number;
@@ -181,6 +183,7 @@ export class LoopDetectionTracker {
 	}
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
+		this.finalizeCompletedBatchesBefore(call.iteration);
 		const signature = toolCallSignature(call.input);
 		const key = callKey(call.name, signature);
 		const signatureState = this.getSignature(key);
@@ -193,9 +196,13 @@ export class LoopDetectionTracker {
 		let batch = this.pendingBatches.get(batchId);
 		const isNewBatch = batch === undefined;
 		if (batch === undefined) {
-			batch = { pendingCount: 0, outcomes: new Set() };
+			batch = {
+				iteration: call.iteration,
+				key,
+				pendingCount: 0,
+				outcomes: new Set(),
+			};
 			this.pendingBatches.set(batchId, batch);
-			signatureState.totalBatchCount++;
 		}
 		batch.pendingCount++;
 
@@ -208,19 +215,17 @@ export class LoopDetectionTracker {
 		}
 
 		if (!isNewBatch) return { kind: "ok" };
+		const totalBatchCount = signatureState.totalBatchCount + 1;
 		const result = checkRepeatedToolCall(
 			this.state,
 			call.name,
 			signature,
 			this.config,
 		);
-		if (
-			result.hardEscalation ||
-			signatureState.totalBatchCount >= absoluteHardLimit
-		) {
+		if (result.hardEscalation || totalBatchCount >= absoluteHardLimit) {
 			return this.hard(
-				signatureState.totalBatchCount >= absoluteHardLimit
-					? `Detected ${signatureState.totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
+				totalBatchCount >= absoluteHardLimit
+					? `Detected ${totalBatchCount} repeated batches of identical calls to \`${call.name}\` despite changing results; stopping to avoid a loop.`
 					: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
 			);
 		}
@@ -259,38 +264,20 @@ export class LoopDetectionTracker {
 				batch.highestProgressStep = step;
 			}
 		}
-		batch.pendingCount--;
-		if (batch.pendingCount > 0) return;
-
-		this.pendingBatches.delete(batchId);
-		if (batch.outcomes.size === 0) return;
-
-		const signatureState = this.signatures.get(key);
-		if (signatureState === undefined) return;
-		const outputSignature = JSON.stringify([...batch.outcomes].sort());
-		if (
-			signatureState.lastOutputSignature !== undefined &&
-			signatureState.lastOutputSignature !== outputSignature
-		) {
-			signatureState.hasProgress = true;
-		}
-		if (
-			batch.highestProgressStep !== undefined &&
-			(signatureState.highestProgressStep === undefined ||
-				batch.highestProgressStep > signatureState.highestProgressStep)
-		) {
-			signatureState.highestProgressStep = batch.highestProgressStep;
-			signatureState.totalBatchCount = 0;
-		}
-		signatureState.lastOutputSignature = outputSignature;
+		batch.pendingCount = Math.max(0, batch.pendingCount - 1);
 	}
 
 	/**
-	 * Drop correlation state for calls that did not finish before their runtime
-	 * stopped. Completed outcome history and repeated-call counters remain
-	 * available to a subsequent continuation.
+	 * Finalize completed batches and drop calls that did not finish before their
+	 * runtime stopped. Unfinished batches never consume the completed-batch
+	 * fallback budget.
 	 */
 	clearPendingCalls(): void {
+		for (const batch of this.pendingBatches.values()) {
+			if (batch.pendingCount === 0) {
+				this.finalizeBatch(batch);
+			}
+		}
 		this.pendingBatches.clear();
 	}
 
@@ -310,6 +297,38 @@ export class LoopDetectionTracker {
 			this.signatures.set(key, state);
 		}
 		return state;
+	}
+
+	private finalizeCompletedBatchesBefore(iteration: number): void {
+		for (const [batchId, batch] of this.pendingBatches) {
+			if (batch.iteration === iteration || batch.pendingCount > 0) continue;
+			this.pendingBatches.delete(batchId);
+			this.finalizeBatch(batch);
+		}
+	}
+
+	private finalizeBatch(batch: ToolBatch): void {
+		const signatureState = this.signatures.get(batch.key);
+		if (signatureState === undefined) return;
+		signatureState.totalBatchCount++;
+		if (batch.outcomes.size === 0) return;
+
+		const outputSignature = JSON.stringify([...batch.outcomes].sort());
+		if (
+			signatureState.lastOutputSignature !== undefined &&
+			signatureState.lastOutputSignature !== outputSignature
+		) {
+			signatureState.hasProgress = true;
+		}
+		if (
+			batch.highestProgressStep !== undefined &&
+			(signatureState.highestProgressStep === undefined ||
+				batch.highestProgressStep > signatureState.highestProgressStep)
+		) {
+			signatureState.highestProgressStep = batch.highestProgressStep;
+			signatureState.totalBatchCount = 0;
+		}
+		signatureState.lastOutputSignature = outputSignature;
 	}
 
 	private hard(message: string): LoopDetectionVerdict {
