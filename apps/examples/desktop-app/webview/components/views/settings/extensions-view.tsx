@@ -22,7 +22,9 @@ import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import {
+	MarketplaceEntrySetupDetails,
 	type MarketplaceLocalInstalledItem,
+	type MarketplaceLocalInstalledItemRenderContext,
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
@@ -856,7 +858,10 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderSkillCard = (item: CommandItem) => {
+	const renderSkillCard = (
+		item: CommandItem,
+		context?: MarketplaceLocalInstalledItemRenderContext,
+	) => {
 		const key = `${item.type}:${item.path}`;
 		return (
 			<div key={key} className="rounded-lg border border-border px-5 py-4">
@@ -873,6 +878,11 @@ export function CustomizationSectionView({
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{item.type}
 					</Badge>
+					{context?.matchedEntries?.length ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Marketplace
+						</Badge>
+					) : null}
 				</div>
 				<p className="mt-2 ml-7 text-xs text-muted-foreground">
 					{item.description?.trim() || previewText(item.instructions)}
@@ -880,6 +890,11 @@ export function CustomizationSectionView({
 				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 					{item.path}
 				</p>
+				{context?.matchedEntries?.length ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
+				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({
 						key,
@@ -893,22 +908,16 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderSkillMatchedDetails = (item: CommandItem) => (
-		<div className="grid gap-1">
-			<p className="text-xs text-muted-foreground">
-				{item.description?.trim() || previewText(item.instructions)}
-			</p>
-			<p className="text-xs font-mono text-muted-foreground">{item.path}</p>
-		</div>
-	);
-
-	const renderPluginCard = ({
-		plugin,
-		scope,
-	}: {
-		plugin: PluginItem;
-		scope: ItemScope;
-	}) => {
+	const renderPluginCard = (
+		{
+			plugin,
+			scope,
+		}: {
+			plugin: PluginItem;
+			scope: ItemScope;
+		},
+		context?: MarketplaceLocalInstalledItemRenderContext,
+	) => {
 		const key = plugin.path;
 		return (
 			<div
@@ -921,6 +930,11 @@ export function CustomizationSectionView({
 						{plugin.name}
 					</h3>
 					<ScopeBadge scope={scope} />
+					{context?.matchedEntries?.length ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Marketplace
+						</Badge>
+					) : null}
 					<span className="text-xs text-muted-foreground">
 						{plugin.enabled ? "Enabled" : "Disabled"}
 					</span>
@@ -977,6 +991,11 @@ export function CustomizationSectionView({
 						</p>
 					)}
 				</div>
+				{context?.matchedEntries?.length ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
+				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({
 						key,
@@ -990,72 +1009,10 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderPluginMatchedControls = (plugin: PluginItem) => (
-		<>
-			<span className="text-xs text-muted-foreground">
-				{plugin.enabled ? "Enabled" : "Disabled"}
-			</span>
-			<Switch
-				checked={plugin.enabled}
-				onCheckedChange={() => {
-					void setPluginEnabled(plugin);
-				}}
-				disabled={togglingPluginPaths.has(plugin.path)}
-				aria-label={`Toggle ${plugin.name}`}
-			/>
-		</>
-	);
-
-	const renderPluginMatchedMeta = (plugin: PluginItem) => (
-		<p className="min-w-0 truncate text-xs font-mono text-muted-foreground">
-			{plugin.path}
-		</p>
-	);
-
-	const renderPluginMatchedDetails = (plugin: PluginItem) => {
-		const pluginTools =
-			pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? [];
-		if (pluginTools.length === 0) {
-			return null;
-		}
-		return (
-			<div className="grid gap-2">
-				{pluginTools.map((tool) => {
-					const isToggling = togglingToolIds.has(tool.id);
-					return (
-						<div
-							key={tool.id}
-							className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-						>
-							<div className="min-w-0">
-								<p className="text-xs font-medium text-foreground">
-									{tool.name}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{tool.description?.trim() || "No description available."}
-								</p>
-							</div>
-							<div className="flex items-center gap-2">
-								<span className="text-xs text-muted-foreground">
-									{tool.enabled ? "Enabled" : "Disabled"}
-								</span>
-								<Switch
-									checked={tool.enabled}
-									onCheckedChange={() => {
-										void setToolEnabled(tool);
-									}}
-									disabled={isToggling || !plugin.enabled}
-									aria-label={`Toggle ${tool.name}`}
-								/>
-							</div>
-						</div>
-					);
-				})}
-			</div>
-		);
-	};
-
-	const renderMcpServerCard = (server: McpServer) => {
+	const renderMcpServerCard = (
+		server: McpServer,
+		context?: MarketplaceLocalInstalledItemRenderContext,
+	) => {
 		const key = server.name;
 		return (
 			<div
@@ -1071,6 +1028,11 @@ export function CustomizationSectionView({
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{server.transportType}
 					</Badge>
+					{context?.matchedEntries?.length ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Marketplace
+						</Badge>
+					) : null}
 					<span className="text-xs text-muted-foreground">
 						{server.disabled ? "Disabled" : "Enabled"}
 					</span>
@@ -1087,6 +1049,11 @@ export function CustomizationSectionView({
 						{mcp.settingsPath}
 					</p>
 				) : null}
+				{context?.matchedEntries?.length ? (
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
+				) : null}
 				<div className="mt-3">
 					{renderLocalActionRow({
 						key,
@@ -1099,20 +1066,6 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderMcpMatchedDetails = (server: McpServer) => (
-		<div className="grid gap-1">
-			<p className="text-xs text-muted-foreground">
-				{server.disabled ? "Disabled" : "Enabled"} locally
-				{server.transportType ? ` via ${server.transportType}` : ""}
-			</p>
-			{mcp.settingsPath ? (
-				<p className="text-xs font-mono text-muted-foreground">
-					{mcp.settingsPath}
-				</p>
-			) : null}
-		</div>
-	);
-
 	const installedCatalogLocalItems =
 		catalogPrimitive === "skill"
 			? commandItems.map(
@@ -1123,19 +1076,7 @@ export function CustomizationSectionView({
 							item.name,
 							item.path,
 						),
-						render: () => renderSkillCard(item),
-						renderMatchedBadges: () => (
-							<>
-								<ScopeBadge scope={item.scope} />
-								<Badge
-									variant="outline"
-									className="shrink-0 text-muted-foreground"
-								>
-									{item.type}
-								</Badge>
-							</>
-						),
-						renderMatchedDetails: () => renderSkillMatchedDetails(item),
+						render: (context) => renderSkillCard(item, context),
 					}),
 				)
 			: catalogPrimitive === "plugin"
@@ -1146,19 +1087,7 @@ export function CustomizationSectionView({
 								item.plugin.name,
 								item.plugin.path,
 							),
-							render: () => renderPluginCard(item),
-							renderMatchedBadges: () => <ScopeBadge scope={item.scope} />,
-							renderMatchedControls: () =>
-								renderPluginMatchedControls(item.plugin),
-							renderMatchedDetails:
-								(
-									pluginToolsByPluginKey.get(
-										`${item.plugin.name}:${item.plugin.path}`,
-									) ?? []
-								).length > 0
-									? () => renderPluginMatchedDetails(item.plugin)
-									: undefined,
-							renderMatchedMeta: () => renderPluginMatchedMeta(item.plugin),
+							render: (context) => renderPluginCard(item, context),
 						}),
 					)
 				: catalogPrimitive === "mcp"
@@ -1166,19 +1095,7 @@ export function CustomizationSectionView({
 							(server): MarketplaceLocalInstalledItem => ({
 								key: server.name,
 								matchValues: getLocalMarketplaceMatchValues(server.name),
-								render: () => renderMcpServerCard(server),
-								renderMatchedBadges: () => (
-									<>
-										<ScopeBadge scope="Global" />
-										<Badge
-											variant="outline"
-											className="shrink-0 text-muted-foreground"
-										>
-											{server.transportType}
-										</Badge>
-									</>
-								),
-								renderMatchedDetails: () => renderMcpMatchedDetails(server),
+								render: (context) => renderMcpServerCard(server, context),
 							}),
 						)
 					: null;

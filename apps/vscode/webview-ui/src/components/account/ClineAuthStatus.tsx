@@ -40,10 +40,10 @@ export const ClineAuthStatus = ({ message }: ClineAuthStatusProps) => {
 	}
 
 	return (
-		<div className="rounded border border-neutral-500/30 bg-vscode-editor-background p-3 text-vscode-foreground">
+		<div className="rounded border border-neutral-500/30 bg-vscode-editor-background p-3 text-vscode-foreground text-center">
 			<div className="text-sm">{displayMessage}</div>
 			{authCode ? (
-				<div className="mt-2 flex items-center gap-2">
+				<div className="mt-2 flex items-center justify-center gap-2">
 					<div className="font-mono text-2xl font-semibold tracking-wider">{authCode}</div>
 					<Button aria-label="Copy Cline sign-in code" onClick={handleCopy} size="sm" variant="secondary">
 						{didCopy ? "Copied" : "Copy"}
