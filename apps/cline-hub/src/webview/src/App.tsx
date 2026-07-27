@@ -13,6 +13,7 @@ import {
 	MoreHorizontal,
 	PencilIcon,
 	PlugIcon,
+	RadioIcon,
 	RotateCcwIcon,
 	RssIcon,
 	ServerIcon,
@@ -60,10 +61,11 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
+import { DriveView } from "./components/views/drive-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
-import { StatusView } from "./components/views/status-view";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
+import { StatusView } from "./components/views/status-view";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -82,6 +84,7 @@ const CustomizationSectionView = lazy(() =>
 type View =
 	| "home"
 	| "sessions"
+	| "drive"
 	| "status"
 	| "chat"
 	| "models"
@@ -99,6 +102,7 @@ type View =
 const VIEW_PATHS: Record<View, string> = {
 	home: "/",
 	sessions: "/sessions",
+	drive: "/drive",
 	status: "/status",
 	chat: "/chat",
 	models: "/models",
@@ -149,6 +153,7 @@ const EMPTY_HUB_STATE: WebviewHubState = {
 
 function viewFromPath(pathname: string): View {
 	if (pathname === VIEW_PATHS.sessions) return "sessions";
+	if (pathname === VIEW_PATHS.drive) return "drive";
 	if (pathname === VIEW_PATHS.status) return "status";
 	if (pathname === VIEW_PATHS.chat) return "chat";
 	if (pathname === VIEW_PATHS.models) return "models";
@@ -365,7 +370,6 @@ function Shell({
 	const navItems = [
 		{ view: "home", label: "Home", icon: HomeIcon },
 		{ view: "sessions", label: "Sessions", icon: MessageSquareIcon },
-		{ view: "status", label: "Status", icon: ActivityIcon },
 		{ view: "models", label: "Models", icon: BotIcon },
 		{ view: "channels", label: "Channels", icon: LinkIcon },
 		{ view: "schedules", label: "Schedules", icon: ClockIcon },
@@ -375,6 +379,8 @@ function Shell({
 		view: Exclude<
 			View,
 			| "chat"
+			| "drive"
+			| "status"
 			| "rules"
 			| "hooks"
 			| "mcp"
@@ -383,6 +389,14 @@ function Shell({
 			| "agents"
 			| "tools"
 		>;
+		label: string;
+		icon: typeof HomeIcon;
+	}>;
+	const driveNavItems = [
+		{ view: "drive", label: "Drive", icon: RadioIcon },
+		{ view: "status", label: "Status Hub", icon: ActivityIcon },
+	] satisfies Array<{
+		view: Extract<View, "drive" | "status">;
 		label: string;
 		icon: typeof HomeIcon;
 	}>;
@@ -404,7 +418,11 @@ function Shell({
 	}>;
 
 	const renderNavButton = (
-		item: (typeof navItems | typeof customizationNavItems)[number],
+		item: (
+			| typeof navItems
+			| typeof driveNavItems
+			| typeof customizationNavItems
+		)[number],
 	) => {
 		const Icon = item.icon;
 		const active =
@@ -446,6 +464,10 @@ function Shell({
 					aria-label="Hub views"
 				>
 					{navItems.map(renderNavButton)}
+					<div className="mt-4 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground max-[720px]:mt-0 max-[720px]:self-center">
+						Drive
+					</div>
+					{driveNavItems.map(renderNavButton)}
 					<div className="mt-4 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground max-[720px]:mt-0 max-[720px]:self-center">
 						Customizations
 					</div>
@@ -1237,6 +1259,14 @@ function App() {
 				<Chat
 					initialSessionId={selectedSessionId}
 					onSessionSelected={updateChatSessionRoute}
+				/>
+			);
+		}
+		if (view === "drive") {
+			return (
+				<DriveView
+					onOpenCall={() => navigate("chat")}
+					onOpenStatus={() => navigate("status")}
 				/>
 			);
 		}

@@ -1,197 +1,243 @@
-# cline-drivecode
+<h1 align="center">Drive</h1>
 
-A fork of [Cline](https://github.com/cline/cline). Everything upstream Cline does
-still works and is documented [below](#cline-upstream). This section covers only
-what the fork adds.
+<p align="center">
+Stay on a call with your agents. See what they are doing. Steer.
+</p>
 
-The fork exists to answer two questions upstream leaves open once more than one
-agent is running: **what is every agent doing right now**, and **what does it look
-like to sit on a call with one while it works**. The first is the Status Hub. The
-second is Drive Mode.
+<p align="center">
+<em>Drive coding</em> — built on <a href="#cline-upstream">Cline</a>.
+</p>
 
-`cline-drivecode` is the repo name. **Drive** is the product; **drive coding** is
-the practice it names, the way "vibe coding" names one.
+---
 
-## What's different from upstream Cline
+Prompting an agent is a turn-based conversation: you ask, you wait, you read a
+wall of output, you ask again. That works for one agent doing one thing. It
+stops working the moment an agent is doing something long, or several agents are
+doing several things, because the two questions you actually care about —
+**what is it doing right now** and **is anything stuck** — have no answer.
 
-| Feature | Upstream Cline | cline-drivecode adds |
-|---|---|---|
-| **Drive Mode** | No call surface. One human, one agent, a chat transcript. | A hub-owned call room. Human and one or more agents are `participants[]` with a shared roster, a Spotlight, and an address set. Entered from Chat → **Join call**. |
-| **Spotlight** | None. Tool output is inline transcript text. | A shared surface every participant sees: agent work cards (edit / command / test / plan / decision) or a human pin. Bidirectional — `sharer: human \| agent`. |
-| **Agent status** | Transient hub events (`run.heartbeat`, `team.progress`) broadcast over WebSocket and never persisted. Nothing to query; a client that was offline cannot recover them. | **Status Hub** — a durable, SQLite-backed, append-only changelog for every agent, queryable by subject, state, agent, and free text, with a monotonic `seq` cursor so a reconnecting client fetches exactly what it missed. |
-| **Reporting status** | No tool. Status is whatever the agent happens to say in the transcript. | `report_status`, a default-on tool. Priority decides who gets interrupted: `high` / `critical` raise `ui.notify`; everything else is found on demand. |
-| **Hub dashboard theme** | Default shadcn tokens. | Cline brand palette applied across the webview in light and dark. |
+Drive answers both. You join a call with an agent and watch its work land on a
+shared surface as it happens. Agents publish where they are to a durable log you
+can read at any time, from any surface, including after the fact.
 
-Deeper reference, including the full status schema and the hub op list:
-[docs/drivecode/README.md](docs/drivecode/README.md).
+Everything Drive adds lives under one **Drive** tab in the hub, so it is never
+scattered across the app.
 
-## Status Hub
+![The Drive tab](docs/assets/drivecode/drive-tab.png)
 
-A changelog for every agent. Humans want status often; agents should volunteer it
-rather than being asked. Most updates land quietly in the Hub where they are found
-on demand and where *other agents* read them to understand project state. Only
-genuinely urgent updates interrupt the human.
+> Screenshots here are light theme. The hub ships light and dark, and follows
+> your theme choice throughout.
 
-![Status Hub, dark theme](docs/assets/drivecode/status-hub-dark.png)
+## Contents
 
-Two genuinely different lenses over one log:
+- [Drive Mode](#drive-mode) — pair with an agent on a call
+- [Spotlight](#spotlight) — the shared surface inside a call
+- [Status Hub](#status-hub) — a changelog for every agent
+- [`report_status`](#the-report_status-tool) — how agents publish
+- [Quickstart](#quickstart)
+- [How it fits together](#how-it-fits-together)
+- [Cline (upstream)](#cline-upstream) — everything the base product does
 
-- **Board** (above) — "where is everything, and what needs me?" One row per
-  subject, grouped under state headings in **attention order** (blocked, then
-  failed, then running, then the rest) rather than by recency. Stat tiles and
-  per-agent chips come from a server-side aggregate over every live row, not
-  from the rows on screen — a board that says "3 blocked" when 40 are blocked is
-  worse than no board.
-- **Changelog** (below) — "what happened?" Flat and chronological, including
-  superseded rows, and showing state transitions (`running → blocked`) rather
-  than a bare current state.
-
-![Status Hub changelog, dark theme](docs/assets/drivecode/status-changelog-dark.png)
-
-Both page server-side with a keyset cursor, so opening the view never
-materializes the whole log.
-
-![Status Hub, light theme](docs/assets/drivecode/status-hub-light.png)
-
-Every row carries a provenance line — subject, how many updates that subject
-has, the agent, the publisher it came through, workspace, a link to the
-originating session, and relative time with the absolute instant on hover. A
-`running` item with no update in 30 minutes is flagged **stale**.
-
-**How it works**
-
-- **Storage.** `~/.cline/db/status.db` — its own SQLite file, separate from
-  `sessions.db` and `cron.db`, so a hot append path does not contend on session
-  storage. Override with `CLINE_STATUS_DB_PATH`.
-- **Append-only, one current row per subject.** History is never mutated except
-  to stamp `superseded_at`. A partial unique index makes "two current rows for one
-  subject" unrepresentable rather than something the service has to police.
-- **`subject` is free-form**, `/`-delimited by convention (`drive-room/abc`,
-  `migration/auth/step-3`), so prefix queries work. Session, agent, and workspace
-  are attribution columns, not the key — work that spans sessions, or that is not
-  a Cline session at all, still gets a subject.
-- **Keyset pagination.** `cursor` is the `seq` of the last row you have;
-  `direction` is `older` or `newer`. Not `OFFSET` — offset paging rescans skipped
-  rows, so deep pages of a long changelog get slower the further you scroll.
-  Default page 50, hard cap 200.
-- **`seq` is a monotonic cursor, not a timestamp.** A consumer that disconnects
-  resumes with `since: seq` and gets exactly what it missed, with no clock skew
-  and no duplicate delivery.
-- **Priority routes attention.** Every update carries `low | normal | high |
-  critical`, defaulting to `normal`. `high` and `critical` additionally raise
-  `ui.notify` from the hub, which is how a status reaches the human directly.
-  Everything else is found rather than pushed. The tool description tells the
-  model explicitly that over-using the loud levels makes the signal worthless.
-- **Search** is indexed `LIKE` over `headline` and `detail` everywhere, upgraded
-  to FTS5 `MATCH` where the runtime has it. `bun:sqlite` has FTS5; `node:sqlite`
-  on Node 22 does not, so the published SDK consumer on Node gets `LIKE`-grade
-  search. No API returns an FTS5-only construct.
-- **Retention is explicit.** `prune({ before, keepPerSubject })` exists from day
-  one and the default is keep-everything. No silent deletion.
-
-**The `report_status` tool.** Agents publish through a normal tool, not a side
-channel, so status flows through the usual model → tool → hub path and appears in
-the transcript. Input is `subject`, `state`
-(`queued | running | blocked | done | failed | cancelled`), `headline`, and
-optional `detail`, `priority`, `progress`. Attribution is filled from the tool
-context, never from model output — an agent cannot file a status as some other
-agent. A failed publish returns a tool-level message rather than throwing:
-reporting on work must never break the work.
-
-Design: [ARD-0005](docs/plans/cline-drivemode/ard/ARD-0005-status-hub.md).
-Implementation: [`sdk/packages/shared/src/status/`](sdk/packages/shared/src/status/),
-[`sdk/packages/core/src/status/`](sdk/packages/core/src/status/),
-[`status-view.tsx`](apps/cline-hub/src/webview/src/components/views/status-view.tsx).
+---
 
 ## Drive Mode
 
-A call room where a human and one or more agents pair-program. You **drive-code**
-when you steer an agent that is doing the work in front of you, in real time —
-narrating, sharing, and interrupting rather than prompting and waiting.
+**Pair with an agent instead of prompting it.**
 
-![Drive Mode Spotlight, dark theme](docs/assets/drivecode/drive-spotlight-dark.png)
+A Drive call is a room. You are in it, and so is at least one agent. The agent
+narrates decisions rather than keystrokes — what it is about to try and why —
+and you steer without waiting for a turn to end. Raise a hand to interrupt, mute
+the narration, or take over the shared surface yourself.
 
-The hub daemon on `ws://127.0.0.1:25463` is the single writer of room state —
-roster, Spotlight sharer, pin, cards, mute flags, sub-mode, address set. Clients
-hold read-only projections and mutate only through hub ops (`call_join`,
-`call_leave`, `call_mute`, `call_set_stage`, `call_set_mode`, `call_record_work`,
-`call_get_room`), receiving `room.snapshot` and `room.event` back. One writer
-means no lock and no CRDT anywhere in the room.
+![A Drive call, with the Spotlight open](docs/assets/drivecode/drive-call.png)
 
-![Drive Mode Spotlight, light theme](docs/assets/drivecode/drive-spotlight-light.png)
+Four sub-modes shape how the agent behaves. They map onto Cline's native
+plan/act, so nothing about the underlying agent changes:
 
-### Spotlight
+| Sub-mode | The agent… | Native mode |
+|---|---|---|
+| **Plan** | thinks out loud before touching anything | `plan` |
+| **Agent** | does the work, narrating as it goes | `act` |
+| **Ask** | answers questions without editing | `plan` |
+| **Debug** | investigates a specific failure | `act` |
 
-The shared surface showing who is currently sharing. It is a projection over
-typed events, not a video feed:
+Rooms are owned by the hub, which is the single writer for room state — roster,
+who holds the Spotlight, mute flags, sub-mode. Every client renders a projection
+of that state rather than keeping its own copy, so two people looking at the same
+room always see the same thing.
 
-- **Agent share** — work cards derived last-event-wins from session events, each
-  categorized `edit | command | test | plan | decision | other`. Completed agent
-  tools bridge to `call_record_work`, and the new snapshot fans out to every
-  participant.
-- **Human share** — a structured pin: a **selection**, a **file**, or **terminal**
-  output. That is the whole of human share.
+**Today:** rooms are in-memory, so restarting the hub ends the room. There is no
+WebRTC or pixel capture — human sharing is a structured pin (see below), which is
+what makes the Spotlight work as a plain event stream.
 
-> **Naming.** The UI says **Spotlight**. The hub wire protocol still says
-> `stage` — `StageState`, `call_set_stage`, `roomSnapshot.stage`. The split is
-> deliberate: renaming the wire is a breaking change across `@cline/shared`, the
-> hub handlers, and every client. Surfaces render "Spotlight"; the protocol says
-> `stage`.
+## Spotlight
 
-### Honest limits
+**See who is sharing, and what.**
 
-- **Rooms are in-memory only.** A hub restart ends the room; there is no room
-  persistence. A client reconnecting to a dead room gets `room_not_found` and the
-  Drive UI clears with "Room ended. Join again."
-- **WebRTC and pixel screen share are not implemented.** Structured events are
-  the deliberate design, not a stopgap: cheaper, searchable, privacy-clean, and
-  honest about what an agent actually does. Human share stays a structured pin.
-- **The Drive tab is not a hub route yet.** The planned sidebar IA of channels and
-  call rooms exists as a wireframe prototype. The shipped entry point is Chat →
-  **Join call**.
+The Spotlight is the shared surface inside a call. It always names who holds it.
 
-Plans: [docs/plans/cline-drivemode/](docs/plans/cline-drivemode/) —
-[vision](docs/plans/cline-drivemode/00-vision.md),
-[architecture](docs/plans/cline-drivemode/01-architecture.md).
-Runbook: [DEMO.md](docs/design/drive-wireframes/DEMO.md).
+When the **agent** holds it, its work streams onto the surface as cards — file
+edits, commands and their output, test results, plan steps, decisions. You are
+watching the work, not reading a transcript of it afterwards.
 
-## Cline brand theme
+When **you** hold it, you pin something concrete for the agent to look at:
 
-The hub webview ships the Cline brand palette — purple `#9f58fa`, the 9px corner
-radius, Schibsted Grotesk — as CSS custom properties in light and dark, wired
-through the shadcn token layer rather than sprinkled at call sites.
+| Pin | What you share |
+|---|---|
+| **Selection** | a block of code, pasted as text |
+| **File** | a path in the workspace |
+| **Terminal** | command output |
 
-![Hub dashboard, dark theme](docs/assets/drivecode/hub-home-dark.png)
+Handing the Spotlight back and forth is one control: **Spotlight agent** /
+**Spotlight me**. While you hold it, the agent's card deck dims rather than
+disappearing, so nothing is lost.
 
-Tokens live in [`apps/cline-hub/src/webview/src/index.css`](apps/cline-hub/src/webview/src/index.css).
+The Spotlight is derived entirely from a versioned event stream — last event
+wins. There is no screen capture to configure and no second connection to
+babysit; a client that joins late replays the room snapshot and catches up.
+
+> The hub wire protocol still calls this surface `stage` (`StageState`,
+> `call_set_stage`). Renaming it is a breaking change across every client, so
+> the UI name and the protocol name differ for now.
+
+## Status Hub
+
+**A changelog for every agent.**
+
+Humans want status often. Agents should volunteer it rather than be asked. Most
+updates land quietly in the Hub, where they are found on demand — and where
+*other agents* read them to understand the state of the project. Only genuinely
+urgent updates interrupt you.
+
+Two lenses over one log.
+
+### Board — "where is everything, and what needs me?"
+
+One row per piece of work, grouped by state in **attention order**: blocked
+first, then failed, then running. The counts at the top are computed across every
+live row, not across the rows on screen — a board that says "3 blocked" when 40
+are blocked is worse than no board.
+
+![Status Hub board](docs/assets/drivecode/status-board.png)
+
+### Changelog — "what happened?"
+
+Flat and chronological, including superseded updates, showing transitions
+(`running → blocked`) rather than a bare current state.
+
+![Status Hub changelog](docs/assets/drivecode/status-changelog.png)
+
+Every row answers what the work is, who did it, how it got there, and when:
+subject, how many updates that subject has, the agent, the publisher it came
+through, the workspace, a link to the originating session, and relative time with
+the exact instant on hover. A `running` item that has not moved in 30 minutes is
+flagged **stale**, which is usually the thing worth noticing.
+
+### How it works
+
+- **Storage.** `~/.cline/db/status.db` — its own SQLite file, separate from
+  `sessions.db` and `cron.db`, so a hot append path never contends with session
+  storage. Override with `CLINE_STATUS_DB_PATH`.
+- **Append-only, one current row per subject.** History is never rewritten,
+  only stamped as superseded. A partial unique index makes "two current rows for
+  one subject" impossible to represent, rather than something the code has to
+  police.
+- **Subjects are free-form**, `/`-delimited by convention — `drive-room/abc`,
+  `migration/auth`, `review/pr-42` — so prefix queries work. Session, agent, and
+  workspace are attribution, not identity: work that spans sessions, or that is
+  not a Cline session at all, still gets a subject.
+- **Keyset pagination.** A cursor is the sequence number of the last row you
+  hold, never an offset. Offset paging rescans everything it skips, so deep
+  scrolls of a long changelog get slower the further you go; this stays flat.
+- **`seq` is a monotonic cursor, not a clock.** A client that disconnects
+  resumes with `since: seq` and gets exactly what it missed — no skew, no
+  duplicates, no gaps it cannot detect.
+- **Search** is indexed `LIKE` everywhere, upgraded to SQLite FTS5 where the
+  runtime provides it. Bun ships FTS5; Node 22's built-in SQLite does not, so
+  search degrades rather than failing.
+- **Retention is explicit.** Pruning takes a cutoff or a per-subject keep count,
+  the default is keep-everything, and a current row is never pruned.
+
+## The `report_status` tool
+
+Agents publish through an ordinary tool, so status flows through the normal
+model → tool → hub path and shows up in the transcript like any other action.
+It is on by default.
+
+```jsonc
+{
+  "subject": "migration/auth",     // stable key; reuse it for the whole timeline
+  "state": "blocked",              // queued | running | blocked | done | failed | cancelled
+  "headline": "Cannot run the integration suite: DATABASE_URL is unset",
+  "detail": "Tried .env.test and the CI defaults. I need a test database URL.",
+  "priority": "high",              // low | normal | high | critical
+  "progress": 0.4                  // optional, 0..1
+}
+```
+
+**Priority decides who gets interrupted.** `high` and `critical` raise a
+notification; everything else waits in the Hub to be found. That split is what
+lets agents report often without becoming noise, and the tool description tells
+the model plainly that over-using the loud levels makes the signal worthless.
+
+**Attribution is not up to the model.** Session, agent, and workspace are filled
+from the tool context, so an agent cannot file a status as another agent. A
+failed publish returns a message rather than throwing — reporting on work must
+never break the work.
+
+Agents also get guidance on *when* to report unprompted: on starting a distinct
+piece of work, on finishing it, the moment they are blocked, and at real
+milestones — not after every tool call.
 
 ## Quickstart
 
-Bun only. No npm, yarn, or pnpm in this repo.
+Requires [Bun](https://bun.sh) 1.3+ and Node 22+.
 
 ```bash
 bun install
-bun run build:sdk                    # required first — Vite cannot resolve @cline/shared without it
+bun run build:sdk          # required first — the webview cannot resolve @cline/shared without it
 bun run --cwd apps/cline-hub dev
 ```
 
-The dashboard listens on <http://127.0.0.1:8787> and the Vite webview dev server
-on <http://127.0.0.1:5173>. Open the dashboard URL, not the Vite one. Ports are
-overridable with `CLINE_HUB_DASHBOARD_PORT` and `CLINE_HUB_WEBVIEW_DEV_PORT`.
+Open **http://127.0.0.1:8787** and click **Connect**.
 
-Then, in the dashboard:
+- **Drive** in the sidebar is the home for everything above.
+- **Start a Drive call** opens a room with an agent.
+- **Status Hub** is the Board and Changelog.
 
-- **Drive Mode** — Connect → **Chat** → **Join call**. This seats you and a
-  partner, opens the Spotlight, and passes the session id to `call_join`. Use
-  **Spotlight me** to pin a selection, file, or terminal output; **Spotlight
-  agent** clears the pin and returns the agent cards.
-- **Status Hub** — the **Status** item in the left nav. Toggle Board vs
-  Changelog, filter by state, search the text, and Load more to page.
+Ports are configurable when 8787 or 5173 are taken:
 
-To start a brand-new session the dashboard needs a provider and model. It copies
-them from the most recent session on the hub; if there are none, set
-`CLINE_PROVIDER` and `CLINE_MODEL` before running. More hub options are in
-[`apps/cline-hub/README.md`](apps/cline-hub/README.md).
+```bash
+CLINE_HUB_DASHBOARD_PORT=8791 CLINE_HUB_WEBVIEW_DEV_PORT=5175 bun run --cwd apps/cline-hub dev
+```
+
+## How it fits together
+
+```
+ Browser (Drive tab · Spotlight · Status Hub)
+        │  WebSocket
+ Cline Hub dashboard
+        │  hub ops: call_* · status.*
+ Hub daemon  ── single writer for room state ── ws://127.0.0.1:25463
+        │
+ ├── @cline/drive     Drive kernel: sub-modes, narration, interrupts
+ ├── @cline/core      sessions, tools, status.db, cron.db
+ └── @cline/shared    schemas: room + status events
+```
+
+The hub is the only writer for shared state. Clients publish facts and render
+projections; they never hold an authoritative copy. Everything above is built on
+the [Cline SDK](https://docs.cline.bot/sdk/overview) — the same packages this
+repo publishes — rather than beside it.
+
+**Reference**
+
+- [docs/drivecode/README.md](docs/drivecode/README.md) — status schema, hub op
+  list, query options, room model
+- [ARD-0005](docs/plans/cline-drivemode/ard/ARD-0005-status-hub.md) — Status Hub
+  design and the alternatives rejected
+- [docs/plans/cline-drivemode/](docs/plans/cline-drivemode/) — the full Drive
+  plan set, vision through architecture
 
 ---
 

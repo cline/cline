@@ -61,6 +61,7 @@ export function isWebviewRoute(pathname: string): boolean {
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
 		pathname === "/sessions" ||
+		pathname === "/drive" ||
 		pathname === "/status" ||
 		pathname === "/models" ||
 		pathname === "/customizations" ||
