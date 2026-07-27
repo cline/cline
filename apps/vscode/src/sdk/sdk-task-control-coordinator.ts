@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -16,6 +16,13 @@ export interface SdkTaskControlCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
+	/**
+	 * Sets the authoritative turn phase. showTaskWithId must derive the phase
+	 * from the reopened conversation (resumable/completed) — leaving the
+	 * previous task's phase in place hides the Resume button for interrupted
+	 * sessions opened from History (and can leak stale buttons in general).
+	 */
+	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	/**
 	 * Raise the cancel fence SYNCHRONOUSLY before aborting the SDK session: bump the epoch so any
 	 * straggler events the SDK emits after the abort request carry the old epoch (and are dropped
@@ -127,6 +134,19 @@ export class SdkTaskControlCoordinator {
 				task.messageStateHandler.addMessages(cleanedMessages)
 			}
 			this.options.setTask(task)
+
+			// Derive the turn phase from the reopened conversation. The webview
+			// renders footer buttons from the authoritative TurnState, so without
+			// this the phase left over from the previous context (often "idle")
+			// hides the Resume button for interrupted/failed sessions.
+			const lastMessage = cleanedMessages.at(-1)
+			if (lastMessage?.type === "ask" && lastMessage.ask === "resume_completed_task") {
+				this.options.setTurnPhase("completed", lastMessage.ts)
+			} else if (lastMessage?.type === "ask" && lastMessage.ask === "resume_task") {
+				this.options.setTurnPhase("resumable", lastMessage.ts)
+			} else {
+				this.options.setTurnPhase("idle")
+			}
 
 			if (cleanedMessages.length > 0) {
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)

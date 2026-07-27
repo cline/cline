@@ -123,6 +123,48 @@ describe("SdkTaskControlCoordinator", () => {
 
 		expect(options.setTask).not.toHaveBeenCalled()
 		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+	})
+
+	it("sets the turn phase to resumable when showing an interrupted task", async () => {
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "say", say: "text", text: "partial answer" },
+		]
+		const { coordinator, options } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", expect.any(Number))
+	})
+
+	it("sets the turn phase to completed when showing a completed task", async () => {
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+		]
+		const { coordinator, options } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("completed", expect.any(Number))
+	})
+
+	it("sets the turn phase to idle when showing a task with no messages", async () => {
+		const { coordinator, options } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("idle")
 	})
 
 	it("does not install the new task proxy until its messages are loaded", async () => {
@@ -218,6 +260,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		onAskResponse: vi.fn().mockResolvedValue(undefined),
 		resetMessageTranslator: vi.fn(),
 		raiseCancelFence: vi.fn(),
+		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
@@ -240,6 +283,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: ReturnType<typeof vi.fn>
 		setTask: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
+		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
