@@ -245,17 +245,13 @@ describe("models-dev-catalog", () => {
 			name: "KAT Coder Pro (free)",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
-			// free models are billed at $0 regardless of catalog pricing
-			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
 		});
 		expect(result.cline?.["cline-free/kat-coder-pro"]).toMatchObject({
 			id: "cline-free/kat-coder-pro",
 			name: "KAT Coder Pro (free)",
-			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
 		});
-		expect(models["cline-free/kat-coder-pro"]).not.toBe(
-			result.cline?.["cline-free/kat-coder-pro"],
-		);
 	});
 
 	it("labels a Cline free model when its name matches a ClinePass model", () => {
@@ -302,7 +298,7 @@ describe("models-dev-catalog", () => {
 					maxInputTokens: 400_000,
 					maxTokens: 64_000,
 					capabilities: ["tools"],
-					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 				},
 			},
 		);
@@ -351,7 +347,7 @@ describe("models-dev-catalog", () => {
 					id: "cline-free/k2-think",
 					name: "K2 Think (free)",
 					contextWindow: 1_000_000,
-					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 				}),
 			},
 		});

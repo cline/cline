@@ -103,19 +103,13 @@ export function normalizeClineRecommendedProviderModels(
 			description: entry.description,
 		};
 
-		clineFreeModels[entry.id] = {
-			...modelInfo,
-			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		};
+		clineFreeModels[entry.id] = modelInfo;
 
 		if (models[entry.id]) {
 			return;
 		}
 
-		models[entry.id] = {
-			...modelInfo,
-			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		};
+		models[entry.id] = modelInfo;
 	});
 
 	const result: Record<string, Record<string, ModelInfo>> = {};
