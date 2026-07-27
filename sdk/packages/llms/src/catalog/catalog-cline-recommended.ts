@@ -101,6 +101,7 @@ export function normalizeClineRecommendedProviderModels(
 			name,
 			id: entry.id,
 			description: entry.description,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		};
 
 		clineFreeModels[entry.id] = modelInfo;
