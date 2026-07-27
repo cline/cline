@@ -80,6 +80,19 @@ describe("LoopDetectionTracker", () => {
 		expect(inspect(tracker, 12)).toBe("hard");
 	});
 
+	it("does not interpret dates as ratio progress", () => {
+		const tracker = createTracker();
+
+		for (let iteration = 1; iteration < 12; iteration++) {
+			expect(
+				completeBatch(tracker, iteration, [
+					{ timestamp: `${iteration}/${iteration + 1}/2026`, nonce: iteration },
+				])[0],
+			).not.toBe("hard");
+		}
+		expect(inspect(tracker, 12)).toBe("hard");
+	});
+
 	it.each([
 		["percentages", (step: number) => `${step}%`],
 		["numeric progress fields", (step: number) => ({ progress: step / 100 })],

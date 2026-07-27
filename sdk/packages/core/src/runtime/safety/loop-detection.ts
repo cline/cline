@@ -135,29 +135,68 @@ function callKey(toolName: string, toolSignature: string): string {
 	return JSON.stringify([toolName, toolSignature]);
 }
 
-function progressStep(signature: string): number | undefined {
-	const percent = signature.match(/\b(\d+(?:\.\d+)?)\s*%/);
-	if (percent) {
-		const value = Number(percent[1]);
-		return value <= 100 ? Math.floor(value) : undefined;
-	}
-
-	const named = signature.match(
-		/"(?:progress|percent|percentage|percentComplete)"\s*:\s*(\d+(?:\.\d+)?)/i,
-	);
-	if (named) {
-		const value = Number(named[1]);
+function explicitProgressStep(
+	value: unknown,
+	allowNumber = false,
+): number | undefined {
+	if (typeof value === "number") {
+		if (!allowNumber) return undefined;
 		const percentage = value <= 1 ? value * 100 : value;
+		return percentage >= 0 && percentage <= 100
+			? Math.floor(percentage)
+			: undefined;
+	}
+	if (typeof value !== "string") return undefined;
+
+	const percent = value.trim().match(/^(\d+(?:\.\d+)?)\s*%$/);
+	if (percent) {
+		const percentage = Number(percent[1]);
 		return percentage <= 100 ? Math.floor(percentage) : undefined;
 	}
 
-	const ratio = signature.match(/\b(\d+)\s*\/\s*(\d+)\b/);
+	const ratio = value.trim().match(/^(\d+)\s*\/\s*(\d+)$/);
 	if (!ratio) return undefined;
 	const current = Number(ratio[1]);
 	const total = Number(ratio[2]);
 	return total > 0 && current <= total
 		? Math.floor((current / total) * 100)
 		: undefined;
+}
+
+const PROGRESS_FIELDS = new Set([
+	"progress",
+	"percent",
+	"percentage",
+	"percentcomplete",
+]);
+
+function progressStep(output: unknown): number | undefined {
+	const direct = explicitProgressStep(output);
+	if (direct !== undefined) return direct;
+	if (output === null || typeof output !== "object") return undefined;
+
+	const seen = new WeakSet<object>();
+	const visit = (value: object): number | undefined => {
+		if (seen.has(value)) return undefined;
+		seen.add(value);
+		let highest: number | undefined;
+		for (const [key, candidate] of Object.entries(value)) {
+			const step = PROGRESS_FIELDS.has(key.toLowerCase())
+				? explicitProgressStep(candidate, true)
+				: candidate !== null && typeof candidate === "object"
+					? visit(candidate)
+					: undefined;
+			if (step !== undefined && (highest === undefined || step > highest)) {
+				highest = step;
+			}
+		}
+		return highest;
+	};
+	try {
+		return visit(output);
+	} catch {
+		return undefined;
+	}
 }
 
 interface ToolBatch {
@@ -267,7 +306,7 @@ export class LoopDetectionTracker {
 		if (outcome.successful) {
 			const outputSignature = toolOutputSignature(outcome.output);
 			batch.outcomes.add(outputSignature);
-			const step = progressStep(outputSignature);
+			const step = progressStep(outcome.output);
 			if (
 				step !== undefined &&
 				(batch.highestProgressStep === undefined ||
