@@ -26,6 +26,9 @@ const reviewedHistoricalFixtures = new Set([
 	"aws-access-key:HISTORY:a2714d96d7ed:apps/vscode/src/hosts/vscode/__tests__/commit-message-generator.test.ts",
 	"aws-access-key:HISTORY:a2714d96d7ed:apps/vscode/src/services/diagnostics/local-diagnostic-logger.test.ts",
 	"aws-access-key:HISTORY:af8678d9ffac:apps/vscode/src/services/bedrock/bedrock-errors.test.ts",
+	"aws-access-key:HISTORY:879998fddbbb:apps/vscode/src/hosts/vscode/__tests__/commit-message-generator.test.ts",
+	"aws-access-key:HISTORY:879998fddbbb:apps/vscode/src/services/bedrock/bedrock-errors.test.ts",
+	"aws-access-key:HISTORY:879998fddbbb:apps/vscode/src/services/diagnostics/local-diagnostic-logger.test.ts",
 	"private-key:HISTORY:8452084842a0:apps/cli/src/bin/ca-certs.test.ts",
 	"private-key:HISTORY:e2cc08ac8ca4:apps/cli/src/bin/ca-certs.test.ts",
 ])
