@@ -9,8 +9,6 @@ The open source coding agent in your IDE and terminal.
 </p>
 
 <div align="center">
-
-<div align="center">
 <table>
 <tbody>
 <td align="center">
@@ -30,8 +28,6 @@ The open source coding agent in your IDE and terminal.
 </td>
 </tbody>
 </table>
-</div>
-
 </div>
 
 <br>
