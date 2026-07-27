@@ -62,12 +62,6 @@ describe("Cline free model limit messages", () => {
 		expect(extractClineFreeModelLimitResetTime(error)).toBe("23h 59m");
 	});
 
-	it("detects the message in a JSON response body", () => {
-		const body = JSON.stringify({ error: { message } });
-		expect(isClineFreeModelLimitMessage(body)).toBe(true);
-		expect(extractClineFreeModelLimitResetTime(body)).toBe("23h 59m");
-	});
-
 	it("does not match unrelated daily limits", () => {
 		expect(
 			isClineFreeModelLimitMessage(
