@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1784658236145,
+  version: 1785188061699,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -10584,6 +10584,29 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "baseten": {
+    "moonshotai/Kimi-K3": {
+      "id": "moonshotai/Kimi-K3",
+      "name": "Kimi K3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-16",
+      "family": "kimi-k3"
+    },
     "thinkingmachines/inkling": {
       "id": "thinkingmachines/inkling",
       "name": "Inkling",
@@ -10595,12 +10618,13 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "pricing": {
         "input": 1,
         "output": 4.05,
-        "cacheRead": 0,
+        "cacheRead": 0.17,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
@@ -10609,9 +10633,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "zai-org/GLM-5.2": {
       "id": "zai-org/GLM-5.2",
       "name": "GLM 5.2",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 256000,
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -10622,7 +10646,29 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 1.4,
         "output": 4.4,
-        "cacheRead": 0.3,
+        "cacheRead": 0.14,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-13",
+      "family": "glm"
+    },
+    "zai-org/GLM-5.2-Fast": {
+      "id": "zai-org/GLM-5.2-Fast",
+      "name": "GLM 5.2 Fast",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 2.1,
+        "output": 6.6,
+        "cacheRead": 0.21,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -10716,95 +10762,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
-      "family": "kimi-k2"
-    },
-    "zai-org/GLM-5.1": {
-      "id": "zai-org/GLM-5.1",
-      "name": "GLM 5.1",
-      "contextWindow": 202800,
-      "maxInputTokens": 202800,
-      "maxTokens": 202800,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 1.3,
-        "output": 4.3,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-07",
-      "family": "glm"
-    },
-    "nvidia/Nemotron-120B-A12B": {
-      "id": "nvidia/Nemotron-120B-A12B",
-      "name": "Nemotron Super",
-      "contextWindow": 202800,
-      "maxInputTokens": 202800,
-      "maxTokens": 202800,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 0.75,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-11",
-      "family": "nemotron"
-    },
-    "zai-org/GLM-5": {
-      "id": "zai-org/GLM-5",
-      "name": "GLM 5",
-      "contextWindow": 202800,
-      "maxInputTokens": 202800,
-      "maxTokens": 202800,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.95,
-        "output": 3.15,
-        "cacheRead": 0.2,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "glm"
-    },
-    "moonshotai/Kimi-K2.5": {
-      "id": "moonshotai/Kimi-K2.5",
-      "name": "Kimi K2.5",
-      "contextWindow": 262000,
-      "maxInputTokens": 262000,
-      "maxTokens": 262000,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 3,
-        "cacheRead": 0.12,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01-30",
       "family": "kimi-k2"
     },
     "zai-org/GLM-4.7": {
