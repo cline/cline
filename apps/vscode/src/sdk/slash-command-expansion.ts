@@ -27,17 +27,49 @@ function canonicalWorkflowName(value: string): string {
 }
 
 /**
- * Comparison key for remote workflow names. Remote workflows materialize to
- * files named via @cline/shared's `sanitizeSegment` (lower-cased, disallowed
- * character runs collapsed to `-`), and the discovered record is named after
- * that sanitized basename. Remote toggles, however, are keyed by the original
- * config name (e.g. "Org Standards"), so mirror the sanitization closely
- * enough that both sides compare equal.
+ * Verbatim port of @cline/shared's private `sanitizeSegment`
+ * (src/remote-config/materializer.ts), which names the files that remote
+ * workflows materialize to — lower-cased, disallowed character runs collapsed
+ * to `-`, capped at 80 characters. Keep in sync with the original.
+ */
+function sanitizeRemoteSegment(value: string): string {
+	let result = ""
+	let pendingSeparator = false
+	for (const char of value.trim().toLowerCase()) {
+		const code = char.charCodeAt(0)
+		const isAllowed =
+			(code >= 97 && code <= 122) || (code >= 48 && code <= 57) || char === "." || char === "_" || char === "-"
+		if (isAllowed) {
+			if (pendingSeparator && result && result[result.length - 1] !== "-") {
+				result += "-"
+			}
+			pendingSeparator = false
+			result += char
+		} else {
+			pendingSeparator = true
+		}
+		if (result.length >= 80) {
+			break
+		}
+	}
+	while (result.endsWith("-")) {
+		result = result.slice(0, -1)
+	}
+	while (result.startsWith("-")) {
+		result = result.slice(1)
+	}
+	return result || "item"
+}
+
+/**
+ * Comparison key for remote workflow names. The discovered record is named
+ * after the sanitized file basename, while remote toggles are keyed by the
+ * original config name (e.g. "Org Standards"), so apply the materializer's
+ * exact transformation to both sides before comparing (it is idempotent on
+ * already-sanitized names).
  */
 function remoteWorkflowNameKey(value: string): string {
-	const stripped = value.trim().toLowerCase().replace(WORKFLOW_FILE_EXTENSION_REGEX, "")
-	const sanitized = stripped.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
-	return sanitized || stripped
+	return sanitizeRemoteSegment(value.replace(WORKFLOW_FILE_EXTENSION_REGEX, ""))
 }
 
 function fileBasename(filePath: string): string {

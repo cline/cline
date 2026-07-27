@@ -179,6 +179,16 @@ describe("buildDisabledWorkflowNames", () => {
 		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
+	it("matches remote toggles for names longer than the materializer's 80-char cap", () => {
+		const longConfigName = "a".repeat(100)
+		const materializedName = "a".repeat(80)
+		const disabled = buildDisabledWorkflowNames({
+			records: [{ name: materializedName, filePath: `/repo/.cline/remote-config/workflows/${materializedName}.md` }],
+			remoteToggles: { [longConfigName]: false },
+		})
+		expect(disabled).toEqual(new Set([materializedName]))
+	})
+
 	it("treats locked (alwaysEnabled) remote workflows as enabled despite stale toggles", () => {
 		const disabled = buildDisabledWorkflowNames({
 			records: [{ name: "org-standards", filePath: "/repo/.cline/remote-config/workflows/org-standards.md" }],
