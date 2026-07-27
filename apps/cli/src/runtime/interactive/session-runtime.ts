@@ -5,6 +5,7 @@ import {
 	type CheckpointEntry,
 	createSessionCompactionState,
 	isSessionNotFoundError,
+	mergeAgentHooks,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
 	projectSessionCompactionState,
@@ -111,6 +112,11 @@ export function createInteractiveSessionRuntime(input: {
 	 * mode change alongside the mode-dependent switch tool.
 	 */
 	persistentExtraTools?: NonNullable<Config["extraTools"]>;
+	/**
+	 * Host-supplied hooks layer (e.g. computer-use transcript recording)
+	 * merged after the runtime's own hooks on every session build.
+	 */
+	extraAgentHooks?: AgentHooks;
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
@@ -212,7 +218,7 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("interactive runtime hooks are unavailable");
 		}
 		const hooks = withInteractiveApprovalPolicyHook(
-			runtimeHooks.hooks,
+			mergeAgentHooks([runtimeHooks.hooks, input.extraAgentHooks]),
 			input.resolveToolPolicy,
 		);
 		return buildInteractiveSessionConfig({
