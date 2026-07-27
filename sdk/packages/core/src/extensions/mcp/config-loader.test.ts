@@ -209,6 +209,26 @@ describe("mcp config loader", () => {
 		]);
 	});
 
+	it("converts per-server timeout seconds to milliseconds", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					docs: { command: "node", timeout: 300 },
+				},
+			}),
+			"utf8",
+		);
+
+		expect(resolveMcpServerRegistrations({ filePath })[0]).toMatchObject({
+			name: "docs",
+			timeoutMs: 300_000,
+		});
+	});
+
 	it("accepts legacy flat url format and preserves explicit transportType", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);

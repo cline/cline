@@ -24,6 +24,7 @@ import type {
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
+const timeoutSecondsSchema = z.number().positive().optional();
 const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
@@ -62,12 +63,18 @@ const mcpTransportSchema = z.discriminatedUnion("type", [
 	streamableHttpTransportSchema,
 ]);
 
-const nestedRegistrationBodySchema = z.object({
-	transport: mcpTransportSchema,
-	disabled: z.boolean().optional(),
-	metadata: metadataSchema.optional(),
-	oauth: oauthStateSchema.optional(),
-});
+const nestedRegistrationBodySchema = z
+	.object({
+		transport: mcpTransportSchema,
+		timeout: timeoutSecondsSchema,
+		disabled: z.boolean().optional(),
+		metadata: metadataSchema.optional(),
+		oauth: oauthStateSchema.optional(),
+	})
+	.transform(({ timeout, ...value }) => ({
+		...value,
+		...(timeout !== undefined ? { timeoutMs: timeout * 1_000 } : {}),
+	}));
 
 const legacyTransportTypeSchema = z
 	.enum(["stdio", "sse", "http", "streamableHttp"])
@@ -77,6 +84,7 @@ const legacyRegistrationBaseSchema = z.object({
 	type: z.enum(["stdio", "sse", "streamableHttp"]).optional(),
 	transportType: legacyTransportTypeSchema,
 	disabled: z.boolean().optional(),
+	timeout: timeoutSecondsSchema,
 	metadata: metadataSchema.optional(),
 	oauth: oauthStateSchema.optional(),
 });
@@ -119,6 +127,7 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 			cwd: value.cwd,
 			env: value.env,
 		},
+		...(value.timeout !== undefined ? { timeoutMs: value.timeout * 1_000 } : {}),
 		disabled: value.disabled,
 		metadata: value.metadata,
 		oauth: value.oauth,
@@ -151,6 +160,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 					url: value.url,
 					headers: value.headers,
 				},
+				...(value.timeout !== undefined ? { timeoutMs: value.timeout * 1_000 } : {}),
 				disabled: value.disabled,
 				metadata: value.metadata,
 				oauth: value.oauth,
@@ -162,6 +172,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				url: value.url,
 				headers: value.headers,
 			},
+			...(value.timeout !== undefined ? { timeoutMs: value.timeout * 1_000 } : {}),
 			disabled: value.disabled,
 			metadata: value.metadata,
 			oauth: value.oauth,
@@ -683,6 +694,7 @@ export function resolveMcpServerRegistrations(
 	return Object.entries(config.mcpServers).map(([name, value]) => ({
 		name,
 		transport: value.transport,
+		...(value.timeoutMs !== undefined ? { timeoutMs: value.timeoutMs } : {}),
 		disabled: value.disabled,
 		metadata: value.metadata,
 		oauth: value.oauth,

@@ -217,7 +217,11 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
-			createMcpTools({ serverName: r.name, provider: manager }),
+			createMcpTools({
+				serverName: r.name,
+				provider: manager,
+				timeoutMs: r.timeoutMs,
+			}),
 		),
 	);
 	const tools: AgentTool[] = [];

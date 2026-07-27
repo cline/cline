@@ -360,7 +360,7 @@ class StdioMcpClient implements McpServerClient {
 	private async request(
 		method: string,
 		params?: Record<string, unknown>,
-		timeoutMs = MCP_REQUEST_TIMEOUT_MS,
+		timeoutMs = this.registration.timeoutMs ?? MCP_REQUEST_TIMEOUT_MS,
 	): Promise<unknown> {
 		const child = this.process;
 		if (!child?.stdin.writable) {
