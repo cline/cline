@@ -26,6 +26,10 @@ vi.mock("@/context/ClineAuthContext", () => ({
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: mockApiConfiguration,
+		mode: "act",
+		providerModelsByProvider: {},
+		startProviderModelsRequest: vi.fn(),
+		applyProviderModelsResponse: vi.fn(),
 	}),
 }))
 
@@ -45,6 +49,8 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 	ModelsServiceClient: {
 		updateApiConfigurationProto: mockUpdateApiConfigurationProto,
+		commitModelSelection: vi.fn().mockResolvedValue({}),
+		resolveProviderModels: vi.fn().mockResolvedValue({ providerId: "cline", models: {} }),
 	},
 }))
 
