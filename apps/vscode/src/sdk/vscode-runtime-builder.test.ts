@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test"
 import sinon from "sinon"
+import { describe, expect, it } from "vitest"
 import { McpHubToolProvider } from "./vscode-runtime-builder"
 
 describe("McpHubToolProvider", () => {
