@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	resolveGlobalAgentsRulesPath,
 	setHomeDir,
@@ -63,6 +63,11 @@ describe("user instruction config loader", () => {
 				join(workspacePath, "AGENTS.md"),
 				join(workspacePath, ".clinerules"),
 				join(workspacePath, ".cline", "rules"),
+			]),
+		);
+		expect(resolveRulesConfigSearchPaths()).toEqual(
+			expect.arrayContaining([
+				join(dirname(dirname(resolveGlobalAgentsRulesPath())), ".clinerules"),
 			]),
 		);
 		expect(

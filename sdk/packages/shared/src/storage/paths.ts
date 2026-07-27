@@ -415,6 +415,7 @@ export function resolveRulesConfigSearchPaths(
 		...workspaceAgentsFile,
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
+		join(HOME_DIR, DEPRECATED_CONFIG_DIR),
 		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsExtensionPath("Rules"),
 	]);
