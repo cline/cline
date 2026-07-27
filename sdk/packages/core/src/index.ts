@@ -1005,6 +1005,8 @@ export {
 	createComputerUseToolFromEnv,
 	GET_DISPLAY_INFO_ACTION,
 	isComputerUseResponse,
+	PUBLISH_EVENT_ACTION,
+	resolveComputerUseTargetFromEnv,
 	type ComputerUseToolOptions,
 } from "./extensions/computer-use";
 export {
@@ -1018,6 +1020,9 @@ export {
 	type ArtifactSinkStatus,
 	ComputerTaskArtifactRecorder,
 	type ComputerTaskArtifactEvent,
+	createJournalEventSink,
+	createTranscriptRecordingHooks,
+	type JournalPublishTransport,
 } from "./extensions/computer-observability";
 export {
 	COMPUTER_USER_PROMPT_VERSION,

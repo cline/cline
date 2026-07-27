@@ -1,14 +1,21 @@
 import {
+	type AgentHooks,
 	type ClineCore,
 	COMPUTER_USER_SYSTEM_PROMPT,
+	ComputerTaskArtifactRecorder,
+	ComputerUseClient,
 	ComputerUserCoordinator,
 	createComputerUserCollaborationTools,
 	createComputerUserDriverTools,
-	createComputerUseToolFromEnv,
+	createComputerUseTool,
+	createJournalEventSink,
+	createTranscriptRecordingHooks,
+	resolveComputerUseTargetFromEnv,
 	type ProviderSettingsManager,
 	toProviderConfig,
 } from "@cline/core";
 import type { AgentTool } from "@cline/shared";
+import { nanoid } from "nanoid";
 import { createCliCore } from "../../session/session";
 import type { Config } from "../../utils/types";
 
@@ -63,6 +70,12 @@ export function resolveHelperModelId(
 
 export interface InteractiveComputerUser {
 	driverTools: AgentTool[];
+	/**
+	 * Hooks layer to merge into the driver session's config: records the
+	 * driver's transcript and run status to the backend journal alongside
+	 * the helper's, so the observatory can flip between both timelines.
+	 */
+	driverRecordingHooks: AgentHooks;
 	dispose(): Promise<void>;
 }
 
@@ -90,12 +103,28 @@ export async function createInteractiveComputerUser(input: {
 		return undefined;
 	}
 
-	const computerTool = await createComputerUseToolFromEnv(
-		input.env ?? process.env,
-	);
-	if (!computerTool) {
+	const target = resolveComputerUseTargetFromEnv(input.env ?? process.env);
+	if (!target) {
 		return undefined;
 	}
+
+	// One backend client shared by the computer tool and the observability
+	// publisher. The backend serves a single agent connection at a time, so
+	// splitting these across two sockets would make one of them dead.
+	//
+	// No client-side action observer: the backend journals every computer
+	// action (with its screenshot) as it executes it, so recording actions
+	// here too would give the journal two producers for one event type.
+	const computerClient = new ComputerUseClient(target);
+	const recorder = new ComputerTaskArtifactRecorder(
+		`task_${nanoid(10)}`,
+		createJournalEventSink(computerClient),
+	);
+
+	const computerTool = await createComputerUseTool({
+		...target,
+		client: computerClient,
+	});
 	const helperModelId = resolveHelperModelId(
 		helperSettings,
 		input.env ?? process.env,
@@ -158,6 +187,11 @@ export async function createInteractiveComputerUser(input: {
 		// disabled above, and a run that ends in free-form text would leave
 		// the driver waiting with no report.
 		completionPolicy: { requireCompletionTool: true },
+		// Record the helper's transcript and run status to the backend
+		// journal for the observatory.
+		hooks: createTranscriptRecordingHooks(recorder, {
+			kind: "computer_user",
+		}),
 	};
 
 	// Lazy: the helper ClineCore spawns only when the driver first delegates.
@@ -193,17 +227,25 @@ export async function createInteractiveComputerUser(input: {
 		helperConfig,
 		notifyDriver: ({ prompt, delivery }) =>
 			input.notifyDriver(prompt, delivery),
+		recorder,
 	});
 	helperExtraTools.push(...createComputerUserCollaborationTools(coordinator));
 
 	return {
 		driverTools: createComputerUserDriverTools(coordinator),
+		driverRecordingHooks: createTranscriptRecordingHooks(recorder, {
+			kind: "driver",
+		}),
 		dispose: async () => {
 			await coordinator.dispose().catch(() => {});
 			if (helperCorePromise) {
 				const core = await helperCorePromise.catch(() => undefined);
 				await core?.dispose().catch(() => {});
 			}
+			// Push any queued journal publishes out before dropping the
+			// backend connection.
+			await recorder.flush().catch(() => {});
+			computerClient.close();
 		},
 	};
 }
