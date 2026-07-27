@@ -63,8 +63,6 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
-| Theme only an embedded subtree | `@cline/ui/theme/scoped-tokens.css` | No | No |
-| Style Markdown without global base styles | A token entry point, then `@cline/ui/components/markdown.css` | No | No |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -112,7 +110,6 @@ bun add --dev tailwindcss
 ```
 
 Applications already on React 18.3 can retain that compatible version.
-TypeScript consumers should use `@types/react` 18.3 or 19.
 Tokens-only consumers do not need React or Tailwind.
 
 Commit the consuming repository's lockfile so builds continue using the same
@@ -197,41 +194,6 @@ For native controls that should follow the selected theme:
 .dark {
   color-scheme: dark;
 }
-```
-
-## Option 4: subtree-scoped tokens
-
-Use the scoped entry when an embedded Cline surface must preserve its host's
-existing `:root` theme:
-
-```css
-@import "@cline/ui/theme/scoped-tokens.css";
-```
-
-Wrap the surface with `cline-ui-theme`; dark values apply when `dark` is on the
-same element or an ancestor:
-
-```tsx
-<section className="cline-ui-theme dark">...</section>
-```
-
-The scoped entry defines variables only; the host continues to own document
-styles, fonts, shell layout, navigation, and routing.
-
-## Add standalone Markdown styles
-
-Import the framework-neutral Markdown treatment after either token entry and
-keep rendered Markdown inside that token scope:
-
-```css
-@import "@cline/ui/theme/scoped-tokens.css";
-@import "@cline/ui/components/markdown.css";
-```
-
-```tsx
-<section className="cline-ui-theme">
-  <div className="cline-markdown">...</div>
-</section>
 ```
 
 ## Add the agent-chat components
@@ -496,7 +458,6 @@ Until the package has a stable version, contract changes should:
 - Include light/dark visual evidence when values change
 - Avoid renaming standard shadcn/Tailwind variables
 - Keep `tokens.css` framework-neutral
-- Keep `tokens.css` canonical and regenerate the scoped token output
 - Keep component props independent of product runtime schemas
 - Keep product-specific layout and orchestration out of the package
 
@@ -528,7 +489,6 @@ current product contracts should be compared before standardizing them.
 - [Package README](./README.md)
 - [Agent-chat components](./components/agent-chat/index.tsx)
 - [Agent-chat styles](./components/agent-chat/agent-chat.css)
-- [Markdown styles](./components/markdown.css)
 - [Tokens](./theme/tokens.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)

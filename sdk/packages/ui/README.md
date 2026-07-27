@@ -4,20 +4,17 @@ Shared visual foundations and reusable React presentation primitives for Cline
 web products. The package lets teams adopt the same semantic theme and agent
 chat language without adopting another product's routes, state, or runtime.
 
-`@cline/ui@0.1.0` is publicly available. The package has its own version and
+The package is configured for public npm releases on its own version and
 release cycle. Its API is still pre-stable, so consumers should pin an exact
-version and review compatibility notes when updating.
-
-The scoped-token and standalone Markdown exports documented below are part of
-the upcoming `0.2` release. Until a `next` preview is published, use them from
-the Cline workspace rather than expecting them in the current npm release.
+version and review compatibility notes when updating. Check availability with
+`npm view @cline/ui version`; an `E404` means the first release is still pending.
 
 See the [adoption primer](./ADOPTION.md) for complete setup instructions,
 component examples, boundaries, and release status.
 
 ## Install
 
-Install the current release:
+After the initial release is available:
 
 ```bash
 bun add --exact @cline/ui
@@ -65,24 +62,7 @@ An app that only needs framework-neutral values can import:
 @import "@cline/ui/theme/tokens.css";
 ```
 
-An embedded surface that must not replace its host application's root tokens
-can import the scoped contract instead:
-
-```css
-@import "@cline/ui/theme/scoped-tokens.css";
-```
-
-Apply `cline-ui-theme` to the surface boundary. Dark values activate when a
-`dark` class is on that boundary or one of its ancestors:
-
-```tsx
-<section className="cline-ui-theme">...</section>
-<section className="cline-ui-theme dark">...</section>
-```
-
-The standalone Markdown treatment is framework-neutral but intentionally uses
-semantic theme variables. Import it after either token entry point and render
-Markdown beneath the same token scope:
+For an embedded surface, import scoped tokens and optional Markdown styles:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
@@ -113,7 +93,6 @@ bun add react@^19 react-dom@^19
 ```
 
 Applications already on React 18.3 can retain that compatible version.
-TypeScript consumers should use `@types/react` 18.3 or 19.
 
 In the application's global CSS, import the component styles after at least the
 theme tokens:
