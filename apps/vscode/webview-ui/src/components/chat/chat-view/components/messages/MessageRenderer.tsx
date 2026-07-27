@@ -6,7 +6,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
+import { findReasoningForApiReq, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
@@ -55,15 +55,6 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 		return { reasoning: undefined, responseStarted: false }
 	}, [messageOrGroup, modifiedMessages])
 
-	// Check if a text message is waiting for tool call completion
-	const isRequestInProgress = useMemo(() => {
-		if (!Array.isArray(messageOrGroup) && messageOrGroup.say === "text") {
-			// Use modifiedMessages so this stays consistent with the rendered list.
-			return isTextMessagePendingToolCall(messageOrGroup.ts, modifiedMessages)
-		}
-		return false
-	}, [messageOrGroup, modifiedMessages])
-
 	// Tool group (low-stakes tools grouped together)
 	// Determine if this is the last tool group to show active items
 	const isLastToolGroup = useMemo(() => {
@@ -110,7 +101,6 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				inputValue={inputValue}
 				isExpanded={expandedRows[messageOrGroup.ts] || false}
 				isLast={isLastMessage}
-				isRequestInProgress={isRequestInProgress}
 				key={messageOrGroup.ts}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				message={messageOrGroup}

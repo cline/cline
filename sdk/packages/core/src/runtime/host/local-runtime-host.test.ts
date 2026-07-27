@@ -4765,7 +4765,11 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
-	it("does not project compaction state when compaction is disabled", async () => {
+	// Manual /compact persists a sidecar regardless of the auto-compaction
+	// setting, so the projection must stay wired even when compaction is
+	// disabled — otherwise a manual compaction would silently never reach the
+	// model. Without a sidecar the prepareTurn is a no-op.
+	it("projects compaction state even when compaction is disabled", async () => {
 		const sessionId = "sess-compaction-disabled";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
@@ -4833,13 +4837,42 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
-		expect(prepareTurn).toBeUndefined();
-		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+		expect(prepareTurn).toBeDefined();
 
-		await expect(
-			manager.updateSessionCompactionState(sessionId, initialCompactionState),
-		).resolves.toEqual({ updated: true });
-		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
+		// The initial sidecar is persisted alongside the initial messages and
+		// projected into the next turn's working context (compacted messages
+		// plus the canonical tail), without re-compacting.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				messages: initialCompactionState.messages,
+			}),
+		);
+		const followUpMessages = [
+			...initialMessages,
+			{ role: "user", content: "follow-up" },
+		];
+		const projected = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: followUpMessages,
+			apiMessages: followUpMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+		expect(projected?.messages).toEqual([
+			{ role: "user", content: "projected summary" },
+			{ role: "user", content: "follow-up" },
+		]);
 	});
 
 	it("persists active manual compaction state against the persisted transcript", async () => {

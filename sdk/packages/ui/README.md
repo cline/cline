@@ -28,7 +28,9 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
+| `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
+| `@cline/ui/components/markdown.css` | Optional framework-neutral Markdown and Streamdown treatment | Theme tokens |
 | `@cline/ui/theme/base.css` | Optional document, Markdown, scrollbar, selection, and cursor styles | Tailwind v4 |
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
@@ -37,6 +39,11 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
 lets each bundler control font loading and asset emission.
+
+`tokens.css` is the canonical token source; `scoped-tokens.css` is generated
+from it. Contributors change `tokens.css` and run `bun run generate:theme`;
+tests and CI reject drift in the scoped output. Consumers may import either
+public entry point.
 
 ## Theme usage
 
@@ -54,6 +61,21 @@ An app that only needs framework-neutral values can import:
 ```css
 @import "@cline/ui/theme/tokens.css";
 ```
+
+For an embedded surface, import scoped tokens and optional Markdown styles:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components/markdown.css";
+```
+
+```tsx
+<section className="cline-ui-theme">
+	<div className="cline-markdown">...</div>
+</section>
+```
+
+Dark values activate when `.dark` is on the wrapper or an ancestor.
 
 The theme follows the standard shadcn semantic contract (`--background`,
 `--foreground`, `--card`, `--primary`, `--border`, `--ring`, charts, and
@@ -146,6 +168,7 @@ ownership model settle.
 ## Layering and compatibility
 
 - Import the Cline theme after Tailwind so its default typography values win.
+- Import `components/markdown.css` after either token entry point.
 - Import `agent-chat.css` after theme tokens.
 - Override `:root` or `.dark` after package imports for deliberate product
   variations; do not rename the default semantic contract.

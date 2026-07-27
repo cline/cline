@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const themeDir = join(packageRoot, "theme");
+const componentsDir = join(packageRoot, "components");
 const read = (name: string) => readFileSync(join(themeDir, name), "utf8");
+const readComponent = (name: string) =>
+	readFileSync(join(componentsDir, name), "utf8");
 
 const semanticTokens = [
 	"background",
@@ -175,6 +178,7 @@ describe("@cline/ui theme contract", () => {
 	it("provides composable Tailwind and optional base entry points", () => {
 		const theme = read("theme.css");
 		const base = read("base.css");
+		const markdown = readComponent("markdown.css");
 		const index = read("index.css");
 
 		expect(theme).not.toContain("tokens.css");
@@ -198,7 +202,12 @@ describe("@cline/ui theme contract", () => {
 		for (const token of mappedColorTokens) {
 			expect(theme).toContain(`--color-${token}: var(--${token});`);
 		}
-		expect(base).toContain(":is(.markdown, .cline-markdown)");
+		expect(base).toContain(
+			'@import "../components/markdown.css" layer(components);',
+		);
+		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
+		expect(markdown).not.toContain("@apply");
+		expect(markdown).not.toContain("@layer");
 		expect(base).toContain("--scrollbar-thumb");
 		expect(base).toContain("--selection-background");
 		expect(base).not.toContain("#__next");
@@ -214,7 +223,9 @@ describe("@cline/ui theme contract", () => {
 		) as { exports?: Record<string, string> };
 		for (const subpath of [
 			"./components/agent-chat.css",
+			"./components/markdown.css",
 			"./theme/index.css",
+			"./theme/scoped-tokens.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",
 			"./theme/base.css",
