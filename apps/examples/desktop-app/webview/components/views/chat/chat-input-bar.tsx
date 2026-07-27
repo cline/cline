@@ -1198,18 +1198,21 @@ export function ChatInputBar({
 				</div>
 
 				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:contents">
-					<div className="hidden max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
-						<WorkspaceSelector
-							currentBranch={gitBranch}
-							onListGitBranches={onListGitBranches}
-							onRefreshWorkspaces={onRefreshWorkspaces}
-							onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-							onSwitchGitBranch={onSwitchGitBranch}
-							onSwitchWorkspace={onSwitchWorkspace}
-							workspaces={workspaces}
-							workspaceRoot={workspaceRoot}
-						/>
-					</div>
+					{variant === "conversation" ? (
+						<div className="max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
+							<WorkspaceSelector
+								currentBranch={gitBranch}
+								disabled
+								onListGitBranches={onListGitBranches}
+								onRefreshWorkspaces={onRefreshWorkspaces}
+								onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+								onSwitchGitBranch={onSwitchGitBranch}
+								onSwitchWorkspace={onSwitchWorkspace}
+								workspaces={workspaces}
+								workspaceRoot={workspaceRoot}
+							/>
+						</div>
+					) : null}
 					<div className="flex shrink-0 items-center gap-2 max-[560px]:col-start-4 max-[560px]:row-start-2">
 						{canAbort && (
 							<button

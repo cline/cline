@@ -31,6 +31,7 @@ export function WorkspaceSelector({
 	onSwitchWorkspace,
 	onPickWorkspaceDirectory,
 	onCreateGitBranch,
+	disabled = false,
 }: {
 	currentBranch: string;
 	workspaceRoot: string;
@@ -41,6 +42,7 @@ export function WorkspaceSelector({
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory?: (initialPath?: string) => Promise<string | null>;
 	onCreateGitBranch?: (branchName: string) => Promise<boolean>;
+	disabled?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -71,6 +73,9 @@ export function WorkspaceSelector({
 	);
 
 	const openMenu = async () => {
+		if (disabled) {
+			return;
+		}
 		setOpen(true);
 		setSearch("");
 		setShowWorkspacePathInput(false);
@@ -197,8 +202,9 @@ export function WorkspaceSelector({
 		<div className="relative">
 			<Button
 				variant="ghost"
+				aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
 				className="flex items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors"
-				disabled={switching}
+				disabled={disabled || switching}
 				id="git-branch-btn"
 				onClick={() => {
 					if (open) {
@@ -210,6 +216,7 @@ export function WorkspaceSelector({
 					}
 					void openMenu();
 				}}
+				title={`${workspaceRoot || workspaceName} / ${currentBranch}`}
 			>
 				<GitBranch className="size-3" />
 				<span className="max-w-20 truncate">{workspaceName}</span>
@@ -217,7 +224,7 @@ export function WorkspaceSelector({
 				<span className="max-w-20 truncate">{currentBranch}</span>
 			</Button>
 
-			{open && (
+			{open && !disabled && (
 				<>
 					<Button
 						variant="ghost"

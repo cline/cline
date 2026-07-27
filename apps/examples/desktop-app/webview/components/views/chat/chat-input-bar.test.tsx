@@ -113,13 +113,20 @@ describe("ChatInputBar", () => {
 		expect(container.querySelector('[aria-label="Stop agent"]')).not.toBeNull();
 
 		expect(onReasoningChange).not.toHaveBeenCalled();
-		const workspaceTrigger = container.querySelector("#git-branch-btn");
+		const workspaceTrigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		expect(workspaceTrigger?.disabled).toBe(true);
+		expect(workspaceTrigger?.textContent).toContain("cline");
+		expect(workspaceTrigger?.textContent).toContain("main");
 		expect(workspaceTrigger?.parentElement?.parentElement?.className).toContain(
 			"overflow-visible",
 		);
 		expect(
 			workspaceTrigger?.parentElement?.parentElement?.className,
 		).not.toContain("truncate");
+		expect(
+			workspaceTrigger?.parentElement?.parentElement?.className,
+		).not.toContain("hidden");
 	});
 
 	it("selects High from the supported model thinking menu", async () => {

@@ -79,6 +79,8 @@ function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
+
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
@@ -440,6 +442,7 @@ function ChatThreadPane({
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
+	const gitBranchRequestRef = useRef(0);
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -448,6 +451,7 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
 
 	useEffect(() => {
 		setWorkspaces((current) => {
@@ -526,9 +530,12 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		const requestId = ++gitBranchRequestRef.current;
 		const cwd = getWorkspaceCwd();
 		if (!cwd) {
-			setGitBranch("no-git");
+			if (requestId === gitBranchRequestRef.current) {
+				setGitBranch("no-git");
+			}
 			return;
 		}
 		try {
@@ -536,10 +543,15 @@ function ChatThreadPane({
 				"get_git_branch",
 				{ cwd },
 			);
+			if (requestId !== gitBranchRequestRef.current) {
+				return;
+			}
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 		} catch {
-			setGitBranch("no-git");
+			if (requestId === gitBranchRequestRef.current) {
+				setGitBranch("no-git");
+			}
 		}
 	}, [getWorkspaceCwd]);
 
@@ -573,18 +585,17 @@ function ChatThreadPane({
 				return false;
 			}
 			try {
-				const payload = await desktopClient.invoke<{ branch?: string }>(
-					"checkout_git_branch",
-					{ cwd, branch: nextBranch },
-				);
-				const branch = payload?.branch?.trim();
-				setGitBranch(branch && branch.length > 0 ? branch : "no-git");
+				await desktopClient.invoke<{ branch?: string }>("checkout_git_branch", {
+					cwd,
+					branch: nextBranch,
+				});
+				await refreshGitBranch();
 				return true;
 			} catch {
 				return false;
 			}
 		},
-		[getWorkspaceCwd],
+		[getWorkspaceCwd, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -653,28 +664,12 @@ function ChatThreadPane({
 				return false;
 			}
 
+			gitBranchRequestRef.current += 1;
+			setGitBranch("no-git");
 			setWorkspacePath(nextWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
 			);
-
-			// Fire git branch + workspace list refresh in the background
-			desktopClient
-				.invoke<{ branch?: string }>("get_git_branch", {
-					cwd: nextWorkspace,
-				})
-				.then((payload) => {
-					if (requestId !== workspaceSelectionRequestRef.current) {
-						return;
-					}
-					const branch = payload?.branch?.trim();
-					setGitBranch(branch && branch.length > 0 ? branch : "no-git");
-				})
-				.catch(() => {
-					if (requestId === workspaceSelectionRequestRef.current) {
-						setGitBranch("no-git");
-					}
-				});
 
 			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
@@ -686,6 +681,7 @@ function ChatThreadPane({
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
 		workspaceSelectionRequestRef.current += 1;
+		gitBranchRequestRef.current += 1;
 		setWorkspacePath("");
 		setGitBranch("no-git");
 		return true;
@@ -714,7 +710,27 @@ function ChatThreadPane({
 
 	useEffect(() => {
 		void refreshGitBranch();
-	}, [refreshGitBranch]);
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+
+		const refreshVisibleBranch = () => {
+			if (document.visibilityState === "visible") {
+				void refreshGitBranch();
+			}
+		};
+		const intervalId = window.setInterval(
+			refreshVisibleBranch,
+			GIT_BRANCH_REFRESH_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisibleBranch);
+		document.addEventListener("visibilitychange", refreshVisibleBranch);
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener("focus", refreshVisibleBranch);
+			document.removeEventListener("visibilitychange", refreshVisibleBranch);
+		};
+	}, [activeWorkspaceCwd, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);

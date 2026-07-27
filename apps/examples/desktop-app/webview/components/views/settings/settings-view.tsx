@@ -6,6 +6,7 @@ import {
 	APP_ICONS,
 	type AppIconId,
 	appIconAssetPath,
+	DEFAULT_APP_ICON,
 	readStoredAppIcon,
 	setStoredAppIcon,
 } from "@/lib/app-icon";
@@ -494,7 +495,7 @@ function GeneralSettingsContent() {
 		return readStoredHubAccent();
 	});
 	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
-		if (typeof window === "undefined") return "classic";
+		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);

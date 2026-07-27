@@ -39,6 +39,44 @@ function buttonWithText(text: string): HTMLButtonElement {
 }
 
 describe("WorkspaceSelector", () => {
+	it("shows the current workspace and follows branch changes while disabled", async () => {
+		const onListGitBranches = vi.fn(async () => ({
+			current: "main",
+			branches: ["main", "feature/review"],
+		}));
+		const render = async (currentBranch: string) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceSelector
+						currentBranch={currentBranch}
+						disabled
+						onListGitBranches={onListGitBranches}
+						onPickWorkspaceDirectory={vi.fn(async () => null)}
+						onRefreshWorkspaces={vi.fn(async () => undefined)}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onSwitchWorkspace={vi.fn(async () => true)}
+						workspaceRoot="/workspace/one"
+						workspaces={["/workspace/one"]}
+					/>,
+				);
+			});
+		};
+
+		await render("main");
+		const trigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		expect(trigger?.disabled).toBe(true);
+		expect(trigger?.textContent).toContain("one");
+		expect(trigger?.textContent).toContain("main");
+
+		await click(trigger as Element);
+		expect(onListGitBranches).not.toHaveBeenCalled();
+		expect(container.querySelector('input[placeholder*="Search"]')).toBeNull();
+
+		await render("feature/review");
+		expect(trigger?.textContent).toContain("feature/review");
+	});
+
 	it("switches both workspace and branch choices from the opened menu", async () => {
 		const onSwitchWorkspace = vi.fn(async () => true);
 		const onSwitchGitBranch = vi.fn(async () => true);
