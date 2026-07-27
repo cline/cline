@@ -43,16 +43,19 @@ function loadServersWithoutSchemaValidation(path: string): McpServerEntry[] {
 			!Array.isArray(entry.oauth)
 				? (entry.oauth as McpServerOAuthState)
 				: undefined;
-		const oauth = oauthState
-			? {
-					...oauthState,
-					...(oauthState.lastError
-						? {
-								lastError: sanitizeMcpDiagnosticText(oauthState.lastError),
-							}
-						: {}),
-				}
-			: undefined;
+		let oauth: McpServerOAuthState | undefined;
+		if (oauthState) {
+			const { lastError, ...oauthWithoutLastError } = oauthState as Omit<
+				McpServerOAuthState,
+				"lastError"
+			> & { lastError?: unknown };
+			oauth = {
+				...oauthWithoutLastError,
+				...(typeof lastError === "string" && lastError
+					? { lastError: sanitizeMcpDiagnosticText(lastError) }
+					: {}),
+			};
+		}
 		return {
 			name,
 			transport,

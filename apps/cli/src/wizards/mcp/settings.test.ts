@@ -155,13 +155,19 @@ describe("MCP wizard settings", () => {
 						local: {
 							transport: { type: "stdio", command: "node" },
 							metadata: "accepted by the extension",
+							oauth: {
+								tokens: { access_token: "oauth-token" },
+								lastError: { detail: "Authorization: Bearer secret" },
+							},
 						},
 					},
 				}),
 			);
 			await chmod(settingsPath, 0o644);
 
-			expect(loadServers()).toHaveLength(1);
+			const [server] = loadServers();
+			expect(server?.oauth?.tokens?.access_token).toBe("oauth-token");
+			expect(server?.oauth?.lastError).toBeUndefined();
 			expect((await stat(settingsPath)).mode & 0o777).toBe(0o600);
 		},
 	);
