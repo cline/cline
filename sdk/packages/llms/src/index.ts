@@ -77,6 +77,7 @@ export {
 	isBuiltInProviderId,
 	isClineFreeModelLimitError,
 	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

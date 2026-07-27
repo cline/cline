@@ -41,6 +41,7 @@ export {
 	getClinePassSubscriptionUrl,
 	isClineFreeModelLimitError,
 	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
