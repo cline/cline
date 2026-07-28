@@ -155,7 +155,7 @@ function SettingsSectionNavigation({
 					"min-w-0 justify-start",
 					activeSection === section &&
 						"bg-sidebar-accent text-sidebar-accent-foreground",
-					collapsed && "mx-auto size-9 justify-center px-0",
+					collapsed && "size-9 justify-center px-0",
 				)}
 				key={section}
 				onClick={() => onSelect(section)}
@@ -174,7 +174,7 @@ function SettingsSectionNavigation({
 			aria-label="Settings sections"
 			className={cn(
 				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
-				collapsed ? "w-full items-center" : "w-full",
+				collapsed ? "w-full items-start" : "w-full",
 			)}
 		>
 			{!collapsed ? (
@@ -598,12 +598,15 @@ export function AgentSidebar({
 						<HoverCardTrigger asChild>
 							<button
 								aria-label="Cline home"
-								className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+								className={cn(
+									"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									isCollapsed && "size-9",
+								)}
 								onClick={openHome}
 								title="Home"
 								type="button"
 							>
-								<ClineLogo className="size-6" />
+								<ClineLogo className="size-5" />
 							</button>
 						</HoverCardTrigger>
 						<HoverCardContent align="start" className="w-64 p-3" side="bottom">
@@ -649,7 +652,7 @@ export function AgentSidebar({
 				</div>
 
 				{isCollapsed ? (
-					<div className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-1 px-1.5">
+					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
@@ -659,7 +662,7 @@ export function AgentSidebar({
 						) : null}
 						<Button
 							aria-label="Expand sidebar"
-							className="mx-auto size-9 justify-center px-0"
+							className="mt-auto size-9 justify-center px-0"
 							onClick={() => setOpen(true)}
 							title="Expand sidebar"
 							type="button"
@@ -829,49 +832,74 @@ export function AgentSidebar({
 					</>
 				)}
 
-				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
-					{view !== "settings" && (
+				<div
+					className={cn(
+						"shrink-0 border-t border-sidebar-border/70 py-3",
+						isCollapsed ? "px-1.5" : "px-2",
+					)}
+				>
+					{user && !isCollapsed ? (
+						<div className="flex min-w-0 items-center gap-2">
+							<button
+								aria-label="Account settings"
+								className={cn(
+									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									view === "settings" &&
+										settingsSection === "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={() => openSettingsSection("Account")}
+								title={user.email || undefined}
+								type="button"
+							>
+								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+									{accountInitial}
+								</span>
+								<span className="flex min-w-0 flex-col leading-tight">
+									<span className="truncate text-sm font-medium">
+										{accountName}
+									</span>
+									{accountScope ? (
+										<span className="truncate text-[11px] text-muted-foreground">
+											{accountScope}
+										</span>
+									) : null}
+								</span>
+							</button>
+							<Button
+								aria-label="Settings"
+								className={cn(
+									"size-9 shrink-0 justify-center px-0",
+									view === "settings" &&
+										settingsSection !== "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={openSettings}
+								title="Settings"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Settings className="size-4" />
+							</Button>
+						</div>
+					) : (
 						<Button
 							aria-label="Settings"
-							type="button"
-							variant="sidebarItem"
 							className={cn(
 								"min-w-0 justify-start",
-								isCollapsed && "mx-auto size-9 justify-center px-0",
+								isCollapsed && "size-9 justify-center px-0",
+								view === "settings" &&
+									"bg-sidebar-accent text-sidebar-accent-foreground",
 							)}
 							onClick={openSettings}
 							title="Settings"
+							type="button"
+							variant="sidebarItem"
 						>
 							<Settings className="size-4" />
 							{!isCollapsed ? "Settings" : null}
 						</Button>
 					)}
-					{!isCollapsed ? (
-						<button
-							aria-label="Account settings"
-							className={cn(
-								"flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-								view === "settings" &&
-									settingsSection === "Account" &&
-									"bg-sidebar-accent text-sidebar-accent-foreground",
-							)}
-							onClick={() => openSettingsSection("Account")}
-							title={user?.email || undefined}
-							type="button"
-						>
-							<span className="min-w-0 flex gap-2 items-center">
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-									{accountInitial}
-								</span>
-								<span className="block truncate text-sm font-medium">
-									{accountName}
-									<span className="pl-1 truncate text-[11px] text-muted-foreground">
-										{accountScope}
-									</span>
-								</span>
-							</span>
-						</button>
-					) : null}
 				</div>
 			</div>
 			<AlertDialog

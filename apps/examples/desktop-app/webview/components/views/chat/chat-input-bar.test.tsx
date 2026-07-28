@@ -106,20 +106,92 @@ describe("ChatInputBar", () => {
 			);
 			expect(trigger?.textContent).toContain("High");
 			expect(trigger?.disabled).toBe(true);
+			expect(
+				trigger?.querySelector('[data-slot="select-value"]')?.parentElement
+					?.className,
+			).toContain("max-[560px]:sr-only");
 		});
+		const compactModelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		expect(compactModelTrigger?.disabled).toBe(false);
+		await act(async () => compactModelTrigger?.click());
+		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(
+			container.querySelectorAll<HTMLButtonElement>('[aria-label="Provider"]'),
+		).toHaveLength(2);
+		expect(
+			container.querySelectorAll<HTMLButtonElement>('[aria-label="Model"]'),
+		).toHaveLength(2);
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
+				?.click(),
+		);
+		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("false");
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput?.className).toContain("overflow-y-hidden");
+		expect(promptInput?.className).not.toContain("overflow-y-auto");
+
+		await act(async () => {
+			if (!promptInput) return;
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(promptInput, "first line\nsecond line");
+			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(promptInput?.className).toContain("overflow-y-auto");
+
 		await render("starting");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
 		await render("running");
 		expect(container.querySelector('[aria-label="Stop agent"]')).not.toBeNull();
 
 		expect(onReasoningChange).not.toHaveBeenCalled();
-		const workspaceTrigger = container.querySelector("#git-branch-btn");
-		expect(workspaceTrigger?.parentElement?.parentElement?.className).toContain(
-			"overflow-visible",
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Provider"]',
 		);
+		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
+			"max-[560px]:hidden",
+		);
+		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
+		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
+		const workspaceTrigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		const attachTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Attach files"]',
+		);
+		const thinkingTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Thinking level"]',
+		);
+		const leftControls = attachTrigger?.parentElement;
+		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
+		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
+		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
+
+		expect(workspaceTrigger?.disabled).toBe(true);
+		expect(workspaceTrigger?.className).toContain("max-[560px]:size-7");
+		expect(workspaceTrigger?.textContent).toContain("cline");
+		expect(workspaceTrigger?.textContent).toContain("main");
+		const workspaceFooterSlot =
+			workspaceTrigger?.parentElement?.parentElement?.parentElement;
+		expect(workspaceFooterSlot?.className).toContain("overflow-visible");
+		expect(workspaceFooterSlot?.className).not.toContain("truncate");
+		expect(workspaceFooterSlot?.className).not.toContain("hidden");
+		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
+		const rightControls = workspaceFooterSlot?.parentElement;
+		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
 		expect(
-			workspaceTrigger?.parentElement?.parentElement?.className,
-		).not.toContain("truncate");
+			rightControls?.contains(
+				container.querySelector('[aria-label="Send message"]'),
+			),
+		).toBe(true);
+		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
 
 	it("selects High from the supported model thinking menu", async () => {
