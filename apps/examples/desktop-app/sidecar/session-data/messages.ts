@@ -29,6 +29,17 @@ type ChatTurnResult = {
 
 const nowMs = () => Date.now();
 
+function resolveMessageCreatedAt(
+	message: JsonRecord,
+	fallbackCreatedAt: number,
+): number {
+	return (
+		parseU64Value(message.ts) ??
+		parseU64Value(message.createdAt) ??
+		fallbackCreatedAt
+	);
+}
+
 function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 	return message.metadata && typeof message.metadata === "object"
 		? (message.metadata as JsonRecord)
@@ -333,7 +344,6 @@ export async function readSessionMessages(
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
-	let nextCreatedAt = baseTs;
 	let userRunCount = 0;
 
 	for (let idx = start; idx < messages.length; idx += 1) {
@@ -342,6 +352,7 @@ export async function readSessionMessages(
 			continue;
 		}
 		const message = rawMessage as JsonRecord;
+		const createdAt = resolveMessageCreatedAt(message, baseTs + idx);
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
@@ -381,7 +392,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt: nextCreatedAt++,
+				createdAt,
 				meta: textMeta,
 			});
 			continue;
@@ -407,7 +418,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt: nextCreatedAt++,
+				createdAt,
 				meta: textMeta,
 			});
 			textSegmentIndex += 1;
@@ -437,7 +448,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: {
 						toolName,
 						hookEventName: "history_tool_use",
@@ -477,7 +488,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt: nextCreatedAt++,
+						createdAt,
 						meta: {
 							toolName: "tool_result",
 							hookEventName: "history_tool_result",
@@ -528,7 +539,7 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: textMeta,
 				});
 				textMeta = undefined;
@@ -554,7 +565,7 @@ export async function readSessionMessages(
 					content: "",
 					reasoning: reasoning || undefined,
 					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: textMeta,
 				});
 				textMeta = undefined;

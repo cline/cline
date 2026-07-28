@@ -2,6 +2,7 @@
 
 import {
 	Message as AgentMessage,
+	type AgentMessageRole,
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
@@ -20,20 +21,29 @@ import {
 } from "@cline/ui/components/agent-chat";
 import {
 	AlertCircle,
-	Bot,
+	BlocksIcon,
+	BoxIcon,
+	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
-	FileEdit,
-	FileIcon,
-	FileSearch,
+	FilesIcon,
+	LibraryIcon,
 	Loader2,
+	type LucideIcon,
+	MessageCircleQuestionMarkIcon,
 	MessagesSquare,
-	Search,
+	PanelsTopLeftIcon,
+	PencilIcon,
+	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
-	SquareTerminalIcon,
+	SquareArrowRightIcon,
+	TerminalIcon,
 	UndoIcon,
+	UserIcon,
+	UsersIcon,
+	WrenchIcon,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -98,14 +108,114 @@ type AskQuestionRequestItem = {
 };
 
 type ChatRenderItem =
-	| { type: "message"; message: ChatMessage }
+	| {
+			type: "message";
+			agentRole: AgentMessageRole;
+			message: ChatMessage;
+			reasoningMessages: ChatMessage[];
+	  }
 	| { type: "tools"; messages: ChatMessage[] };
 
-function groupConsecutiveToolMessages(
+function hasMessageReasoning(message: ChatMessage): boolean {
+	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
+}
+
+function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "assistant" &&
+		hasMessageReasoning(message) &&
+		!message.content.trim() &&
+		!message.images?.length
+	);
+}
+
+function buildPreviousTimestampMap(
 	messages: ChatMessage[],
-): ChatRenderItem[] {
-	const items: ChatRenderItem[] = [];
+): Map<ChatMessage, number | undefined> {
+	const previousTimestampByMessage = new Map<ChatMessage, number | undefined>();
+	let previousTimestamp: number | undefined;
+
 	for (const message of messages) {
+		previousTimestampByMessage.set(message, previousTimestamp);
+		if (Number.isFinite(message.createdAt)) {
+			previousTimestamp = message.createdAt;
+		}
+	}
+
+	return previousTimestampByMessage;
+}
+
+function getThoughtDurationMilliseconds(
+	previousTimestamp: number | undefined,
+	thinkingTimestamp: number,
+): number | undefined {
+	if (
+		previousTimestamp === undefined ||
+		!Number.isFinite(previousTimestamp) ||
+		!Number.isFinite(thinkingTimestamp) ||
+		thinkingTimestamp < previousTimestamp
+	) {
+		return undefined;
+	}
+
+	return thinkingTimestamp - previousTimestamp;
+}
+
+function formatThoughtLabel(durationMilliseconds?: number): string {
+	if (durationMilliseconds === undefined) {
+		return "Thinking";
+	}
+
+	const seconds =
+		durationMilliseconds === 0
+			? 0
+			: Math.max(1, Math.round(durationMilliseconds / 1000));
+
+	return `Thought for ${seconds}s`;
+}
+
+function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
+	const items: ChatRenderItem[] = [];
+	let pendingReasoningMessages: ChatMessage[] = [];
+
+	const pushMessage = (
+		message: ChatMessage,
+		agentRole: AgentMessageRole,
+		reasoningMessages = hasMessageReasoning(message) ? [message] : [],
+	) => {
+		items.push({
+			type: "message",
+			agentRole,
+			message,
+			reasoningMessages,
+		});
+	};
+
+	const flushPendingReasoning = () => {
+		const message = pendingReasoningMessages.at(-1);
+		if (!message) {
+			return;
+		}
+		pushMessage(message, "assistant", pendingReasoningMessages);
+		pendingReasoningMessages = [];
+	};
+
+	for (const message of messages) {
+		if (isReasoningOnlyAssistantMessage(message)) {
+			pendingReasoningMessages.push(message);
+			continue;
+		}
+
+		if (message.role === "assistant" && pendingReasoningMessages.length > 0) {
+			const reasoningMessages = hasMessageReasoning(message)
+				? [...pendingReasoningMessages, message]
+				: pendingReasoningMessages;
+			pushMessage(message, "assistant", reasoningMessages);
+			pendingReasoningMessages = [];
+			continue;
+		}
+
+		flushPendingReasoning();
 		const previous = items.at(-1);
 		if (message.role === "tool") {
 			if (previous?.type === "tools") {
@@ -115,8 +225,9 @@ function groupConsecutiveToolMessages(
 			}
 			continue;
 		}
-		items.push({ type: "message", message });
+		pushMessage(message, message.role);
 	}
+	flushPendingReasoning();
 	return items;
 }
 
@@ -186,8 +297,9 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
-	const renderItems = useMemo(
-		() => groupConsecutiveToolMessages(messages),
+	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
+	const previousTimestampByMessage = useMemo(
+		() => buildPreviousTimestampMap(messages),
 		[messages],
 	);
 
@@ -397,12 +509,12 @@ function ChatMessagesImpl({
 			>
 				<ConversationContent
 					className={cn(
-						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
 						showIdleDetails ? "p-0" : "px-6 py-6",
 					)}
 				>
 					{showIdleDetails ? null : (
-						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
+						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -443,9 +555,20 @@ function ChatMessagesImpl({
 										/>
 									);
 								}
-								const { message } = item;
+								const { agentRole, message, reasoningMessages } = item;
+								const firstReasoningMessage = reasoningMessages[0];
+								const lastReasoningMessage = reasoningMessages.at(-1);
+								const reasoningContent = reasoningMessages
+									.map((reasoningMessage) => reasoningMessage.reasoning?.trim())
+									.filter((content): content is string => Boolean(content))
+									.join("\n\n");
 								return (
 									<MessageBubble
+										agentRole={agentRole}
+										isLastAssistantMessage={
+											message.role === "assistant" &&
+											lastConversationMessage === message
+										}
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
@@ -469,6 +592,21 @@ function ChatMessagesImpl({
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
+										reasoningContent={reasoningContent}
+										reasoningRedacted={reasoningMessages.some(
+											(reasoningMessage) =>
+												reasoningMessage.reasoningRedacted === true,
+										)}
+										thoughtDurationMilliseconds={
+											firstReasoningMessage && lastReasoningMessage
+												? getThoughtDurationMilliseconds(
+														previousTimestampByMessage.get(
+															firstReasoningMessage,
+														),
+														lastReasoningMessage.createdAt,
+													)
+												: undefined
+										}
 									/>
 								);
 							})}
@@ -756,6 +894,7 @@ function AskQuestionPanel({
 // object that received a delta changes identity, so all other bubbles skip
 // re-rendering (and re-running their Markdown pipeline) per flush.
 const MessageBubble = memo(function MessageBubble({
+	agentRole,
 	message,
 	isStreaming = false,
 	onCopyMessage,
@@ -768,7 +907,12 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession,
 	forkPending = false,
 	forkError,
+	isLastAssistantMessage = false,
+	reasoningContent,
+	reasoningRedacted,
+	thoughtDurationMilliseconds,
 }: {
+	agentRole: AgentMessageRole;
 	message: ChatMessage;
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
@@ -784,6 +928,10 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession?: (messageId: string) => void | Promise<void>;
 	forkPending?: boolean;
 	forkError?: string;
+	isLastAssistantMessage?: boolean;
+	reasoningContent: string;
+	reasoningRedacted: boolean;
+	thoughtDurationMilliseconds?: number;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
@@ -801,17 +949,35 @@ const MessageBubble = memo(function MessageBubble({
 	const shouldRenderUserActions =
 		isUser && Boolean(onCopyMessage || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
-	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
+	const keepAssistantActionsVisible =
+		isLastAssistantMessage || forkPending || Boolean(forkError);
 
-	const reasoningContent = message.reasoning?.trim() || "";
+	const messageDate = new Date(message.createdAt);
+	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
+	const messageTime = hasValidMessageDate
+		? messageDate.toLocaleTimeString(undefined, {
+				hour: "numeric",
+				minute: "2-digit",
+			})
+		: null;
+	const messageTimestamp = messageTime ? (
+		<time
+			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			dateTime={messageDate.toISOString()}
+			title={messageDate.toLocaleString()}
+		>
+			{messageTime}
+		</time>
+	) : null;
 
 	return (
-		<AgentMessage from={message.role}>
+		<AgentMessage className="relative" from={agentRole}>
 			<MessageContent className="space-y-2 wrap-break-word">
-				{reasoningContent || message.reasoningRedacted ? (
+				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
-						redacted={message.reasoningRedacted === true}
+						durationMilliseconds={thoughtDurationMilliseconds}
+						redacted={reasoningRedacted}
 						streaming={isStreaming}
 					/>
 				) : null}
@@ -829,7 +995,7 @@ const MessageBubble = memo(function MessageBubble({
 								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
 								<img
 									alt={`Attachment ${index + 1}`}
-									className="max-h-[225px] max-w-[225px] object-contain"
+									className="max-h-56.25 max-w-56.25 object-contain"
 									src={`data:${image.mediaType};base64,${image.data}`}
 								/>
 							</button>
@@ -849,9 +1015,13 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderUserActions ? (
 				<>
-					<MessageActions visible={keepUserActionsVisible}>
+					<MessageActions
+						className="absolute right-0 top-full z-10 -translate-y-2"
+						visible={keepUserActionsVisible}
+					>
 						{onCopyMessage ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
@@ -865,6 +1035,7 @@ const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{checkpoint ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -879,6 +1050,7 @@ const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
+						{messageTimestamp}
 					</MessageActions>
 					{restoreError ? (
 						<div className="text-right text-xs text-destructive">
@@ -889,9 +1061,13 @@ const MessageBubble = memo(function MessageBubble({
 			) : null}
 
 			{shouldRenderAssistantActions ? (
-				<MessageActions visible={keepAssistantActionsVisible}>
+				<MessageActions
+					className="absolute left-0 top-full z-10 -translate-y-2"
+					visible={keepAssistantActionsVisible}
+				>
 					{onCopyMessage ? (
 						<MessageAction
+							className="min-w-0 p-0"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -909,6 +1085,7 @@ const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{onForkSession ? (
 						<MessageAction
+							className="min-w-0 p-0"
 							disabled={forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
@@ -921,6 +1098,7 @@ const MessageBubble = memo(function MessageBubble({
 							)}
 						</MessageAction>
 					) : null}
+					{messageTimestamp}
 					{forkError ? (
 						<span className="text-[11px] text-destructive">{forkError}</span>
 					) : null}
@@ -932,22 +1110,33 @@ const MessageBubble = memo(function MessageBubble({
 
 function ReasoningBlock({
 	content,
+	durationMilliseconds,
 	redacted,
 	streaming = false,
 }: {
 	content: string;
+	durationMilliseconds?: number;
 	redacted: boolean;
 	streaming?: boolean;
 }) {
 	const displayContent = content || (redacted ? "[redacted]" : "");
+	const label = streaming
+		? "Thinking"
+		: formatThoughtLabel(durationMilliseconds);
 	if (!displayContent) {
 		return null;
 	}
 
 	return (
-		<Reasoning isStreaming={streaming}>
-			<ReasoningTrigger />
-			<ReasoningContent>
+		<Reasoning className="my-0" isStreaming={streaming}>
+			<ReasoningTrigger
+				aria-label={label}
+				className="gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+				<span className="font-medium">{label}</span>
+			</ReasoningTrigger>
+			<ReasoningContent className="ml-2 mt-2 max-h-48 overflow-y-auto rounded-none border-0 border-l border-border bg-transparent p-0 py-1 pl-4 text-sm leading-relaxed text-muted-foreground">
 				<MemoizedMarkdown content={displayContent} streaming={streaming} />
 			</ReasoningContent>
 		</Reasoning>
@@ -1045,37 +1234,80 @@ function parseToolPayload(raw: string): ToolPayload | null {
 	}
 }
 
+const TOOL_NAME_ALIASES: Record<string, string> = {
+	"apply-patch": "apply_patch",
+	bash: "run_commands",
+	edit: "editor",
+	edit_file: "editor",
+	"file-read": "read_files",
+	file_read: "read_files",
+	search: "search_codebase",
+	"spawn-agent": "spawn_agent",
+	spawn_agent_tool: "spawn_agent",
+	"web-fetch": "fetch_web_content",
+	web_fetch: "fetch_web_content",
+};
+
+function normalizeToolName(toolName: string): string {
+	const normalized = toolName.toLowerCase();
+	return TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
 function classifyTool(
 	toolName: string,
 ): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	if (
-		[
-			"search",
-			"search_codebase",
-			"file-read",
-			"file_read",
-			"read_files",
-			"web-fetch",
-			"web_fetch",
-			"fetch_web_content",
-			"skills",
-		].includes(normalized)
-	)
-		return "exploration";
-	if (
-		["editor", "edit_file", "edit", "apply_patch", "apply-patch"].includes(
+		["search_codebase", "read_files", "fetch_web_content", "skills"].includes(
 			normalized,
 		)
 	)
-		return "file-edit";
-	if (["bash", "run_commands"].includes(normalized)) return "bash";
-	if (
-		["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized) ||
-		normalized.startsWith("subagent_")
-	)
+		return "exploration";
+	if (["editor", "apply_patch"].includes(normalized)) return "file-edit";
+	if (normalized === "run_commands") return "bash";
+	if (normalized === "spawn_agent" || normalized.startsWith("subagent_"))
 		return "spawn";
 	return "tool";
+}
+
+const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
+	apply_patch: PencilIcon,
+	ask_question: MessageCircleQuestionMarkIcon,
+	editor: PencilIcon,
+	fetch_web_content: PanelsTopLeftIcon,
+	mcp: BoxIcon,
+	plugins: BlocksIcon,
+	read_files: FilesIcon,
+	run_commands: TerminalIcon,
+	search_codebase: SearchCodeIcon,
+	skills: LibraryIcon,
+	spawn_agent: UserIcon,
+	submit_and_exit: SquareArrowRightIcon,
+};
+
+const TOOL_KIND_ICONS: Record<ReturnType<typeof classifyTool>, LucideIcon> = {
+	bash: TerminalIcon,
+	exploration: SearchCodeIcon,
+	"file-edit": PencilIcon,
+	spawn: UserIcon,
+	tool: WrenchIcon,
+};
+
+function getToolNameIcon(toolName: string): LucideIcon {
+	const normalized = normalizeToolName(toolName);
+	if (normalized.startsWith("subagent_")) {
+		return UserIcon;
+	}
+	if (
+		normalized === "team" ||
+		normalized === "teams" ||
+		normalized.startsWith("team_")
+	) {
+		return UsersIcon;
+	}
+	return (
+		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
+	);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1182,10 +1414,10 @@ function buildToolSummary(
 	result: unknown,
 	inProgress: boolean,
 ): ToolSummary {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	const inputObject = asRecord(input);
 
-	if (["read_files", "file_read", "file-read"].includes(normalized)) {
+	if (normalized === "read_files") {
 		const files = extractReadFilePaths(input);
 		if (files.length > 0) {
 			return {
@@ -1204,7 +1436,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["search_codebase", "search"].includes(normalized)) {
+	if (normalized === "search_codebase") {
 		const queries = asStringArray(inputObject?.queries);
 		if (queries.length > 0) {
 			return {
@@ -1221,7 +1453,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["run_commands", "bash"].includes(normalized)) {
+	if (normalized === "run_commands") {
 		const commands = extractCommands(input);
 		if (commands.length > 0) {
 			return {
@@ -1238,7 +1470,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["fetch_web_content", "web_fetch", "web-fetch"].includes(normalized)) {
+	if (normalized === "fetch_web_content") {
 		const requests = Array.isArray(inputObject?.requests)
 			? inputObject.requests
 			: [];
@@ -1267,7 +1499,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["apply_patch", "apply-patch"].includes(normalized)) {
+	if (normalized === "apply_patch") {
 		const patchText =
 			typeof input === "string"
 				? input
@@ -1300,7 +1532,7 @@ function buildToolSummary(
 		};
 	}
 
-	if (["editor", "edit_file", "edit"].includes(normalized)) {
+	if (normalized === "editor") {
 		// Current editor schema has no `command`; derive it from the input shape.
 		const command =
 			typeof inputObject?.command === "string"
@@ -1472,26 +1704,16 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		const presentations = messages.map(buildToolPresentation);
-		const first = presentations[0];
-		if (!first) return null;
+		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const kinds = new Set(presentations.map(({ kind }) => kind));
-		const kind = kinds.size === 1 ? first.kind : "tool";
-		const isFileRead = presentations.every(({ toolName }) =>
-			["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
+		const icons = presentations.map(({ toolName }) =>
+			getToolNameIcon(toolName),
 		);
-		const Icon = isFileRead
-			? FileIcon
-			: kind === "exploration"
-				? Search
-				: kind === "file-edit"
-					? FileEdit
-					: kind === "bash"
-						? SquareTerminalIcon
-						: kind === "spawn"
-							? Bot
-							: FileSearch;
+		const firstIcon = icons[0] ?? WrenchIcon;
+		const Icon = icons.every((icon) => icon === firstIcon)
+			? firstIcon
+			: WrenchIcon;
 		const details = presentations.flatMap(({ message, summary }) =>
 			summary.details.map((detail) => ({
 				detail,
@@ -1527,7 +1749,7 @@ const ToolMessageBlock = memo(
 		);
 
 		return (
-			<ToolActivity expandable={hasExpandedSections}>
+			<ToolActivity className="my-0" expandable={hasExpandedSections}>
 				<ToolActivityTrigger
 					additions={diff.additions || undefined}
 					deletions={diff.deletions || undefined}
