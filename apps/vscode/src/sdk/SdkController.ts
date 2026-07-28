@@ -847,8 +847,17 @@ export class Controller {
 		if (pluginMatch?.[1] && activeSession) {
 			if (options.pluginCommands === "reject") {
 				const commandName = pluginMatch[1].replace(/^\//, "").toLowerCase()
-				const commands = await activeSession.sdkHost.listSessionCommands(activeSession.sessionId).catch(() => [])
-				if (commands.some((command) => command.name.toLowerCase() === commandName)) {
+				// Fail closed: if the command list is unavailable, treat the slash
+				// command as a plugin command rather than letting it fall through
+				// and be queued as plain text mid-turn.
+				const isPluginCommand = await activeSession.sdkHost
+					.listSessionCommands(activeSession.sessionId)
+					.then((commands) => commands.some((command) => command.name.toLowerCase() === commandName))
+					.catch((error) => {
+						Logger.warn("[SdkController] Failed to list plugin commands; rejecting slash command:", error)
+						return true
+					})
+				if (isPluginCommand) {
 					this.messages.appendAndEmit(
 						[
 							{
@@ -1453,13 +1462,6 @@ export class Controller {
 				return
 			}
 
-			// An edited message is a fresh user submission, so plugin commands
-			// execute here the same as in initTask/askResponse. The send below
-			// already skips COMMAND_CANCEL_TOKEN results.
-			const resolvedPrompt = await this.resolveContextMentions(editedText, {
-				pluginCommands: "execute",
-				hasAttachments: !!(input.images?.length || input.files?.length),
-			})
 			const startInput = {
 				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
 				initialMessages,
@@ -1521,6 +1523,15 @@ export class Controller {
 			])
 			await this.postStateToWebview()
 
+			// An edited message is a fresh user submission, so plugin commands
+			// execute here the same as in initTask/askResponse. Resolve after
+			// startNewSession so the command targets the new session: a
+			// cancelled command then settles running/phase on that session
+			// instead of leaving it stuck in streaming with no model turn.
+			const resolvedPrompt = await this.resolveContextMentions(editedText, {
+				pluginCommands: "execute",
+				hasAttachments: !!(input.images?.length || input.files?.length),
+			})
 			if (resolvedPrompt !== COMMAND_CANCEL_TOKEN) {
 				this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
 			}
