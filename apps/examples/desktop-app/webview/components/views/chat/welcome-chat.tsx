@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	type AgentQuickAction,
-	AgentQuickActions,
-} from "@cline/ui";
+import { type AgentQuickAction, AgentQuickActions } from "@cline/ui";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
