@@ -28,6 +28,7 @@ async function renderHeading() {
 
 describe("AgentHeroHeading", () => {
 	it("renders a stable accessible heading", async () => {
+		vi.useFakeTimers();
 		window.matchMedia = vi.fn().mockReturnValue({ matches: true });
 		await renderHeading();
 
@@ -35,6 +36,13 @@ describe("AgentHeroHeading", () => {
 		expect(heading?.getAttribute("aria-label")).toBe(
 			"What would you like to build?",
 		);
+		expect(
+			container.querySelector(".cline-ui-agent-hero-heading__word")
+				?.textContent,
+		).toBe("build");
+
+		await act(async () => vi.advanceTimersByTime(2600));
+
 		expect(
 			container.querySelector(".cline-ui-agent-hero-heading__word")
 				?.textContent,
