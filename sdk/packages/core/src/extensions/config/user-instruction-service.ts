@@ -1,6 +1,5 @@
 import type { AgentExtension } from "@cline/shared";
 import type { SkillsExecutorWithMetadata } from "../tools";
-import { type BuiltinSkill, listBuiltinSkills } from "./builtin-skills";
 import {
 	type AvailableRuntimeCommand,
 	listAvailableRuntimeCommandsFromWatcher,
@@ -48,7 +47,7 @@ export interface UserInstructionConfigService {
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
-			"watcher" | "watcherReady" | "builtinSkills"
+			"watcher" | "watcherReady"
 		>,
 	): AgentExtension;
 }
@@ -59,15 +58,9 @@ class DefaultUserInstructionConfigService
 	private readonly watcher: UserInstructionConfigWatcher;
 	private ready: Promise<void> | undefined;
 	private stopped = false;
-	private readonly workspacePath: string | undefined;
 
 	constructor(options?: CreateUserInstructionConfigServiceOptions) {
 		this.watcher = createUserInstructionConfigWatcher(options);
-		this.workspacePath = options?.skills?.workspacePath;
-	}
-
-	private builtinSkills(): BuiltinSkill[] {
-		return listBuiltinSkills(this.workspacePath);
 	}
 
 	start(): Promise<void> {
@@ -106,26 +99,17 @@ class DefaultUserInstructionConfigService
 	}
 
 	listRuntimeCommands(): AvailableRuntimeCommand[] {
-		return listAvailableRuntimeCommandsFromWatcher(
-			this.watcher,
-			this.builtinSkills(),
-		);
+		return listAvailableRuntimeCommandsFromWatcher(this.watcher);
 	}
 
 	resolveRuntimeSlashCommand(input: string): string {
-		return resolveRuntimeSlashCommandFromWatcher(
-			input,
-			this.watcher,
-			this.builtinSkills(),
-		);
+		return resolveRuntimeSlashCommandFromWatcher(input, this.watcher);
 	}
 
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean {
-		return getConfiguredSkillsFromWatcher(
-			this.watcher,
-			allowedSkillNames,
-			this.builtinSkills(),
-		).some((skill) => !skill.disabled);
+		return getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).some(
+			(skill) => !skill.disabled,
+		);
 	}
 
 	createSkillsExecutor(
@@ -135,21 +119,19 @@ class DefaultUserInstructionConfigService
 			this.watcher,
 			(this.ready ?? Promise.resolve()).catch(() => {}),
 			allowedSkillNames,
-			this.builtinSkills(),
 		);
 	}
 
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
-			"watcher" | "watcherReady" | "builtinSkills"
+			"watcher" | "watcherReady"
 		>,
 	): AgentExtension {
 		return createUserInstructionPlugin({
 			...options,
 			watcher: this.watcher,
 			watcherReady: (this.ready ?? Promise.resolve()).catch(() => {}),
-			builtinSkills: this.builtinSkills(),
 		});
 	}
 }

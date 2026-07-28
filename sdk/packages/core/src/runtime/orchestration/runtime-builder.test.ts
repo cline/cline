@@ -743,11 +743,8 @@ Use the review plugin guidance.`,
 		const inactiveExtensionTools = await collectExtensionTools(
 			inactiveRuntime.extensions,
 		);
-		const inactiveSkillsTool = inactiveExtensionTools.find(
-			(tool) => tool.name === "skills",
-		);
-		expect(inactiveSkillsTool?.description).toContain(
-			"Available skills: cline-settings.",
+		expect(inactiveExtensionTools.map((tool) => tool.name)).not.toContain(
+			"skills",
 		);
 		await inactiveRuntime.shutdown("test");
 
@@ -762,9 +759,6 @@ Use the review plugin guidance.`,
 			(tool) => tool.name === "skills",
 		);
 		expect(skillsTool).toBeDefined();
-		expect(skillsTool?.description).toContain(
-			"Available skills: cline-settings, review.",
-		);
 		await activeRuntime.shutdown("test");
 	});
 
@@ -804,10 +798,7 @@ Use the review plugin guidance.`,
 		});
 		const extensionTools = await collectExtensionTools(runtime.extensions);
 
-		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
-		expect(skillsTool?.description).toContain(
-			"Available skills: cline-settings.",
-		);
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
 
 		await runtime.shutdown("test");
 	});
@@ -962,7 +953,7 @@ Review skill.`,
 		await runtime.shutdown("test");
 	});
 
-	it("keeps the built-in settings skill when all file skills are disabled", async () => {
+	it("does not register the skills tool when all configured skills are disabled", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "runtime-disabled-skills-"));
 		const skillDir = join(cwd, ".cline", "skills", "review");
 		mkdirSync(skillDir, { recursive: true });
@@ -987,11 +978,7 @@ Review skill.`,
 		});
 
 		const extensionTools = await collectExtensionTools(runtime.extensions);
-		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
-		expect(skillsTool).toBeDefined();
-		expect(skillsTool?.description).toContain(
-			"Available skills: cline-settings.",
-		);
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
 
 		await runtime.shutdown("test");
 	});
