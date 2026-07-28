@@ -1173,12 +1173,16 @@ export async function handleCommand(
 			ctx.hubClient?.getUrl() ??
 			ctx.sessionManager?.runtimeAddress?.trim() ??
 			null;
+		const runningSessionCount = Array.from(ctx.liveSessions.values()).filter(
+			(session) => session.busy || session.status === "running",
+		).length;
 		return {
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			homeDir: homedir(),
 			platform: process.platform,
 			appVersion: packageJson.version,
+			runningSessionCount,
 			hub: {
 				status: ctx.hubClient?.isConnected() ? "connected" : "disconnected",
 				url: hubUrl,

@@ -109,6 +109,7 @@ const NATIVE_COMMANDS = new Set([
 	"get_update_status",
 	"restart_to_apply_update",
 	"set_app_icon",
+	"set_tray_status",
 ]);
 
 class DesktopClient {
