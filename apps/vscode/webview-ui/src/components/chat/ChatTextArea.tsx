@@ -3,7 +3,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { type SlashCommand } from "@shared/slashCommands"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
@@ -43,6 +43,7 @@ import {
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import { getModeChange } from "./chat-textarea-mode-selection"
 import ServersToggleModal from "./ServersToggleModal"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
@@ -1018,39 +1019,56 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
-		const onModeToggle = useCallback(() => {
-			void (async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const submittedText = inputValue
-				const submittedImages = selectedImages
-				const submittedFiles = selectedFiles
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: submittedText.trim() ? submittedText : undefined,
-							images: submittedImages,
-							files: submittedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						// The toggle consumed the composer content as the continuation
-						// message. Clear only what was submitted: the rebuild can take a
-						// moment and the user may have typed or attached new content in
-						// the meantime, which must not be wiped.
-						if ((textAreaRef.current?.value ?? "") === submittedText) {
-							setInputValue("")
+		const changeMode = useCallback(
+			(nextMode: Mode) => {
+				void (async () => {
+					const convertedProtoMode = nextMode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT
+					const submittedText = inputValue
+					const submittedImages = selectedImages
+					const submittedFiles = selectedFiles
+					const response = await StateServiceClient.togglePlanActModeProto(
+						TogglePlanActModeRequest.create({
+							mode: convertedProtoMode,
+							chatContent: {
+								message: submittedText.trim() ? submittedText : undefined,
+								images: submittedImages,
+								files: submittedFiles,
+							},
+						}),
+					)
+					// Focus the textarea after mode toggle with slight delay
+					setTimeout(() => {
+						if (response.value) {
+							// The toggle consumed the composer content as the continuation
+							// message. Clear only what was submitted: the rebuild can take a
+							// moment and the user may have typed or attached new content in
+							// the meantime, which must not be wiped.
+							if ((textAreaRef.current?.value ?? "") === submittedText) {
+								setInputValue("")
+							}
+							setSelectedImages((current) => (current === submittedImages ? [] : current))
+							setSelectedFiles((current) => (current === submittedFiles ? [] : current))
 						}
-						setSelectedImages((current) => (current === submittedImages ? [] : current))
-						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
+						textAreaRef.current?.focus()
+					}, 100)
+				})()
+			},
+			[inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles],
+		)
+
+		const onModeToggle = useCallback(() => {
+			changeMode(mode === "plan" ? "act" : "plan")
+		}, [changeMode, mode])
+
+		const onModeSelect = useCallback(
+			(requestedMode: Mode) => {
+				const nextMode = getModeChange(mode, requestedMode)
+				if (nextMode) {
+					changeMode(nextMode)
+				}
+			},
+			[changeMode, mode],
+		)
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1639,20 +1657,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<SwitchContainer data-testid="mode-switch" disabled={false}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
+								{(["plan", "act"] as const).map((modeOption) => (
 									<div
-										aria-checked={mode === m.toLowerCase()}
+										aria-checked={mode === modeOption}
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+											mode === modeOption ? "text-white" : "text-input-foreground",
 										)}
-										key={m}
+										key={modeOption}
+										onClick={() => onModeSelect(modeOption)}
 										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+										onMouseOver={() => setShownTooltipMode(modeOption)}
 										role="switch">
-										{m}
+										{modeOption === "plan" ? "Plan" : "Act"}
 									</div>
 								))}
 							</SwitchContainer>
