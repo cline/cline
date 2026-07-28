@@ -1,6 +1,7 @@
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -28,7 +29,12 @@ export interface SdkProviderChangeCoordinatorOptions {
 }
 
 function providerForMode(config: ApiConfiguration, mode: Mode): string | undefined {
-	return mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
+	const provider = mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
+	// Compare canonical spellings: previously-persisted snapshots can still
+	// hold SDK ids like `openai-compatible` while new writes use the legacy
+	// `openai` spelling; a spelling-only difference must not be treated as a
+	// provider switch (it would restart the active session for nothing).
+	return provider === undefined ? undefined : toLegacyApiProvider(provider)
 }
 
 export class SdkProviderChangeCoordinator {

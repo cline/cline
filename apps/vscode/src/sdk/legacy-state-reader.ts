@@ -190,11 +190,19 @@ export function readApiConversationHistory(taskId: string, dataDir?: string): An
 }
 
 /**
+ * Say types the legacy extension persisted but the current webview no longer
+ * renders (the pre-SDK auto-retry status rows). Dropped on read so old
+ * transcripts don't degrade into raw-JSON text rows.
+ */
+const REMOVED_LEGACY_SAY_TYPES = new Set(["error_retry", "api_req_retried"])
+
+/**
  * Read the UI messages for a specific task.
  * Returns an empty array if the file is missing or corrupt.
  */
 export function readUiMessages(taskId: string, dataDir?: string): ClineMessage[] {
-	return readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+	const messages = readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+	return messages.filter((message) => !REMOVED_LEGACY_SAY_TYPES.has((message as { say?: string }).say ?? ""))
 }
 
 /**

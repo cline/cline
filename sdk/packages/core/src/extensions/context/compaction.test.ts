@@ -3675,6 +3675,54 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(secondResult).toBeUndefined();
 	});
 
+	it("projects existing sidecar state without a compact fn (manual /compact with auto-compaction disabled)", async () => {
+		const originalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original request" },
+			{ role: "assistant", content: "original answer" },
+		];
+		const compactedMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "summary of the session so far" },
+		];
+		const existingState = createSessionCompactionState({
+			sourceMessages: originalMessages,
+			compactedMessages,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact: undefined,
+			getState: () => existingState,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			...originalMessages,
+			{ role: "user", content: "follow-up request" },
+		];
+
+		const result = await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(result?.messages).toEqual([
+			...compactedMessages,
+			{ role: "user", content: "follow-up request" },
+		]);
+		expect(saveState).not.toHaveBeenCalled();
+	});
+
 	it("keeps stale sidecar state when replacement compaction returns no result", async () => {
 		const originalMessages: LlmsProviders.Message[] = [
 			{ role: "user", content: "original" },

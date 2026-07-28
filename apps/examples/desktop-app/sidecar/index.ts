@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { setHomeDirIfUnset } from "@cline/core";
 import { isHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
+import { configureConnectorCliLaunch } from "./connectors";
 import {
 	createSidecarContext,
 	disposeSidecarContext,
@@ -49,6 +50,7 @@ async function main() {
 
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	setHomeDirIfUnset(homedir());
+	configureConnectorCliLaunch(workspaceRoot);
 	const observability = createDesktopObservability();
 	activeObservability = observability;
 	const ctx = createSidecarContext(workspaceRoot, observability);
