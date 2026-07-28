@@ -98,7 +98,9 @@ export class SdkTaskControlCoordinator {
 				}
 			}
 
-			await this.options.sessions.endActiveSession("showTaskWithId")
+			// stop() flushes the session's persisted messages. Reading history before
+			// it settles can reopen an interrupted task with an empty conversation.
+			await this.options.sessions.endActiveSession("showTaskWithId", { awaitStop: true })
 
 			const currentTask = this.options.getTask()
 			if (currentTask) {
