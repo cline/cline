@@ -237,6 +237,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 		onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	};
 	createSpawnTool: () => AgentTool;
+	createSessionMailTools?: () => AgentTool[];
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
 		metadata: Record<string, unknown>,
@@ -277,6 +278,7 @@ export async function prepareLocalRuntimeBootstrap(
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
+		createSessionMailTools,
 		localRuntime,
 		readSessionMetadata,
 		writeSessionMetadata,
@@ -468,6 +470,7 @@ export async function prepareLocalRuntimeBootstrap(
 			extensions,
 			onTeamEvent,
 			createSpawnTool,
+			createSessionMailTools,
 			onTeamRestored: onTeamRestored,
 			onSubAgentEvent: subAgentLifecycleCallbacks?.onSubAgentEvent,
 			onSubAgentStart: subAgentLifecycleCallbacks?.onSubAgentStart,

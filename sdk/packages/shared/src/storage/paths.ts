@@ -171,6 +171,14 @@ export function resolveTeamDataDir(): string {
 	return join(resolveClineDataDir(), "teams");
 }
 
+export function resolveSessionMailDir(): string {
+	const explicitDir = process.env.CLINE_SESSION_MAIL_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveSessionDataDir(), "mail");
+}
+
 export function resolveConnectorDataDir(): string {
 	const explicitDir = process.env.CLINE_CONNECTOR_DATA_DIR?.trim();
 	if (explicitDir) {

@@ -1,16 +1,17 @@
 # Multi-Agent Coordination
 
-The Cline SDK supports two models for multi-agent work: sub-agents (parent-child) and teams (peer-to-peer).
+The Cline SDK supports three models for multi-agent work: sub-agents (parent-child), teams (peer-to-peer agents inside one runtime), and session mail (peer-to-peer between whole sessions).
 
-## Sub-Agents vs Teams
+## Sub-Agents vs Teams vs Session Mail
 
-| Feature | Sub-Agents | Teams |
-|---------|-----------|-------|
-| Enable with | `enableSpawnAgent: true` | `enableAgentTeams: true` |
-| Persistence | Session-scoped only | Across sessions |
-| Coordination | Parent-child hierarchy | Peer-to-peer |
-| Shared state | None | Task board, mailbox, mission log |
-| Best for | One-off delegation | Complex multi-session projects |
+| Feature | Sub-Agents | Teams | Session Mail |
+|---------|-----------|-------|--------------|
+| Enable with | `enableSpawnAgent: true` | `enableAgentTeams: true` | Always on |
+| Addresses | Child agents | Agents in one `AgentTeamsRuntime` | Whole sessions, by `sessionId` |
+| Persistence | Session-scoped only | Across sessions | Durable store, survives restarts |
+| Coordination | Parent-child hierarchy | Peer-to-peer | Peer-to-peer |
+| Shared state | None | Task board, mailbox, mission log | Per-session inbox |
+| Best for | One-off delegation | Complex multi-session projects | Handoffs between separately started sessions |
 
 ## Sub-Agents
 
@@ -95,6 +96,67 @@ This state persists across sessions, so team members can pick up where they left
 
 ```bash
 cline --team-name auth-sprint "Continue the auth refactor"
+```
+
+## Session Mail
+
+Teams address agents inside one runtime. Session mail addresses whole sessions, so two independently started top-level agents can hand work to each other.
+
+### Availability
+
+Session mail is always on — there is no enable flag. Every session can be addressed by its peers, so the tools are present whenever the runtime host supplies a messenger. To withhold them from a specific session, add `session_messaging` to `disabledToolIds`.
+
+### Session Mail Tools
+
+| Tool | Description |
+|------|-------------|
+| `session_list_peers` | List other sessions and whether each is live right now |
+| `session_send_message` | Send a message to another session by `sessionId` |
+| `session_read_inbox` | Read messages sent to this session |
+
+### Delivery
+
+Every message is written to a durable store (`session-mail.db`, or an append-only `mail.jsonl` when SQLite is unavailable) *before* delivery, then handed to the target's pending-prompt queue:
+
+- `delivery: "queue"` (default) — runs after the target's current work.
+- `delivery: "steer"` — interrupts the target's current turn.
+
+A live target is woken immediately and processes the message as a user turn. A target that is not running keeps the message pending; it is drained on that session's next start.
+
+### Routing
+
+Routing is owned by the `LocalRuntimeHost` that hosts the sessions, not by the hub protocol — there is no session-mail RPC.
+
+- **Under the hub**, `HubRuntimeHost` does not host sessions; it forwards `session.create` to the daemon, which runs a single `LocalRuntimeHost` for every session. Delivery between any two hub sessions is an in-process enqueue on that host.
+- **Standalone cores** each host only their own sessions. A message to a session in another process cannot be delivered live, so it stays pending until that session next starts.
+
+### Loop Guards
+
+Because delivery auto-resumes the target, the SDK bounds message chains:
+
+- **Hop limit** (default 3) — each message-triggered wakeup increments `hopCount`; sends past the limit are refused.
+- **Cycle detection** — a send to any session already in the chain is refused outright.
+- **Rate limit** (default 20 per minute per session).
+
+Override via `SessionMessengerOptions.limits`. Refusals throw `SessionMessageRejectedError` with a `reason` of `self_send`, `unknown_peer`, `hop_limit`, `cycle`, or `rate_limit`.
+
+### Programmatic Use
+
+```typescript
+import { SessionMessenger, createLocalSessionMailStore } from "@cline/sdk"
+
+const messenger = new SessionMessenger({
+  store: createLocalSessionMailStore(),
+  directory: { getSession, listSessions },
+  target: { deliver: async ({ sessionId, prompt, delivery }) => true },
+})
+
+await messenger.send({
+  fromSessionId: "abc",
+  toSessionId: "xyz",
+  subject: "handoff",
+  body: "Auth refactor is merged; please rerun the integration suite.",
+})
 ```
 
 ## Choosing Between Sub-Agents and Teams

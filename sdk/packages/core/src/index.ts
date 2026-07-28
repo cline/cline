@@ -328,6 +328,26 @@ export {
 	updateMcpSettingsFileSync,
 } from "./extensions/mcp";
 export {
+	type CreateSessionMailToolsOptions,
+	createSessionMailTools,
+	SESSION_MAIL_TOOL_NAMES,
+} from "./extensions/tools/session-mail/session-mail-tools";
+export {
+	type SessionDirectory,
+	type SessionMailDeliveryTarget,
+	SessionMessageRejectedError,
+	SessionMessenger,
+	type SessionMessengerOptions,
+} from "./session/messaging/session-messenger";
+export {
+	createLocalSessionMailStore,
+	FileSessionMailStore,
+	type FileSessionMailStoreOptions,
+	SqliteSessionMailStore,
+	type SqliteSessionMailStoreOptions,
+} from "./services/storage/session-mail-store";
+export type { ListInboxOptions, SessionMailStore } from "./types/storage";
+export {
 	type AgentTask,
 	AgentTeam,
 	AgentTeamsRuntime,

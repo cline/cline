@@ -1,7 +1,35 @@
-import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
+import type {
+	SessionMessage,
+	SessionMessageStatus,
+	TeamRuntimeState,
+	TeamTeammateSpec,
+} from "@cline/shared";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";
+
+export interface ListInboxOptions {
+	unreadOnly?: boolean;
+	status?: SessionMessageStatus;
+	limit?: number;
+}
+
+/**
+ * Durable storage for session-to-session messages.
+ *
+ * Kept synchronous to match `TeamStore`'s local-store implementations, both of
+ * which back onto SQLite or the filesystem rather than a network.
+ */
+export interface SessionMailStore {
+	init(): void;
+	append(message: SessionMessage): void;
+	get(messageId: string): SessionMessage | undefined;
+	listInbox(sessionId: string, options?: ListInboxOptions): SessionMessage[];
+	markDelivered(messageId: string): void;
+	markRead(messageIds: string[]): void;
+	markDropped(messageId: string, reason: string): void;
+	countSentSince(fromSessionId: string, since: Date): number;
+}
 
 export interface SessionStore {
 	init(): Promise<void> | void;

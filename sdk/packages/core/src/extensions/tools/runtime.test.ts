@@ -33,6 +33,40 @@ describe("builtin tool catalog", () => {
 		).toBe(false);
 	});
 
+	it("enables session messaging by default in every mode", () => {
+		for (const mode of ["act", "plan", "yolo"] as const) {
+			const catalog = getCoreBuiltinToolCatalog({ mode });
+			expect(
+				catalog.find((entry) => entry.id === "session_messaging")
+					?.defaultEnabled,
+			).toBe(true);
+		}
+	});
+
+	it("allows opting a session out of session messaging", () => {
+		const catalog = getCoreBuiltinToolCatalog({
+			mode: "act",
+			disabledToolIds: new Set(["session_messaging"]),
+		});
+		expect(
+			catalog.find((entry) => entry.id === "session_messaging")?.defaultEnabled,
+		).toBe(false);
+		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).toContain(
+			"session_messaging",
+		);
+	});
+
+	it("expands session messaging into its headless tool names", () => {
+		const names = getCoreHeadlessToolNames(new Set(["session_messaging"]), {
+			mode: "act",
+		});
+		expect(names).toEqual([
+			"session_list_peers",
+			"session_send_message",
+			"session_read_inbox",
+		]);
+	});
+
 	it("expands grouped headless tool names for selected entries", () => {
 		const names = getCoreHeadlessToolNames(new Set(["teams", "read_files"]), {
 			mode: "act",

@@ -4,6 +4,7 @@ import {
 	resolveToolRoutingConfig,
 } from "./model-tool-routing";
 import { resolveToolPresetName, ToolPresets } from "./presets";
+import { SESSION_MAIL_TOOL_NAMES } from "./session-mail/session-mail-tools";
 import { createSpawnAgentTool } from "./team/spawn-agent-tool";
 import { TEAM_TOOL_NAMES } from "./team/team-tools";
 import type { DefaultToolsConfig } from "./types";
@@ -80,6 +81,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		description:
 			"Enable team collaboration tools for teammate management, task coordination, mailbox messaging, mission logs, and outcomes.",
 		headlessToolNames: [...TEAM_TOOL_NAMES],
+	},
+	{
+		id: "session_messaging",
+		description:
+			"Enable peer messaging between top-level sessions: list other sessions, send them a message, and read this session's inbox.",
+		headlessToolNames: [...SESSION_MAIL_TOOL_NAMES],
 	},
 ] as const;
 
@@ -173,6 +180,11 @@ function isEntryEnabledByDefault(
 	}
 	if (entryId === "teams") {
 		return flags.enableAgentTeams === true;
+	}
+	if (entryId === "session_messaging") {
+		// Always on: sessions can always be addressed by their peers. Opt out
+		// per-session with `disabledToolIds`, handled above.
+		return true;
 	}
 	if (entryId === "editor") {
 		return flags.enableEditor === true || flags.enableApplyPatch === true;

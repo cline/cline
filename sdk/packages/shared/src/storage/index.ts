@@ -42,6 +42,7 @@ export {
 	resolveProviderSettingsPath,
 	resolveRulesConfigSearchPaths,
 	resolveSessionDataDir,
+	resolveSessionMailDir,
 	resolveSkillsConfigSearchPaths,
 	resolveTeamDataDir,
 	resolveWorkflowsConfigSearchPaths,

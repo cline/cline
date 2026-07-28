@@ -657,6 +657,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
+		// Always available: any session can be addressed by its peers, so the
+		// tools are present whenever the host supplies a messenger.
+		if (input.createSessionMailTools) {
+			tools.push(...input.createSessionMailTools());
+		}
+
 		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>

@@ -58,6 +58,12 @@ export interface RuntimeBuilderInput {
 	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
 	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	createSpawnTool?: () => AgentTool;
+	/**
+	 * Builds the session-to-session messaging tools. Supplied by the runtime
+	 * host, which owns the session directory and pending-prompt queues the
+	 * builder itself has no handle on.
+	 */
+	createSessionMailTools?: () => AgentTool[];
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	pluginSkillDirectories?: ReadonlyArray<string>;

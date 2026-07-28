@@ -21,6 +21,7 @@ import {
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
+import { createSessionMailTools } from "../../extensions/tools/session-mail/session-mail-tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -36,6 +37,7 @@ import {
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import { createLocalSessionMailStore } from "../../services/storage/session-mail-store";
 import {
 	captureAgentCreated,
 	captureAgentTeamCreated,
@@ -58,6 +60,7 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
+import { SessionMessenger } from "../../session/messaging/session-messenger";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -248,6 +251,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
+	private sessionMessengerInstance: SessionMessenger | undefined;
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -511,6 +515,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					sessionToolExecutors,
 				),
+			createSessionMailTools: () =>
+				createSessionMailTools({
+					messenger: this.sessionMessenger(),
+					sessionId,
+					workspaceRoot: bootstrap.config.workspaceRoot ?? bootstrap.config.cwd,
+				}),
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(
 					subAgentDeps,
@@ -821,6 +831,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		this.emitStatus(sessionId, "running");
+		// Mail that arrived while this session was down is delivered now that
+		// it is live. Detached: a delivery failure must not take down session
+		// start.
+		void this.sessionMessenger()
+			.deliverPending(sessionId)
+			.catch(() => undefined);
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			await this.ensureSessionPersisted(active);
 			await this.invoke<void>(
@@ -2291,6 +2307,39 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private emit(event: CoreSessionEvent): void {
 		this.events.emit(event);
+	}
+
+	/**
+	 * Session mail messenger, created on first use so hosts that never enable
+	 * session messaging do not open the mail store at all.
+	 */
+	sessionMessenger(): SessionMessenger {
+		if (this.sessionMessengerInstance) {
+			return this.sessionMessengerInstance;
+		}
+		this.sessionMessengerInstance = new SessionMessenger({
+			store: createLocalSessionMailStore(),
+			directory: {
+				getSession: (sessionId) => this.getRow(sessionId),
+				listSessions: ({ limit }) => this.listRows(limit),
+			},
+			target: {
+				deliver: async ({ sessionId, prompt, delivery }) => {
+					// Only sessions live in this process can be woken directly.
+					// Anything else stays pending until it next starts here.
+					const session = this.sessions.get(sessionId);
+					if (!session || session.aborting) {
+						return false;
+					}
+					this.pendingPromptsController.enqueue(sessionId, {
+						prompt,
+						delivery,
+					});
+					return true;
+				},
+			},
+		});
+		return this.sessionMessengerInstance;
 	}
 
 	private async listRows(limit: number): Promise<SessionRow[]> {
