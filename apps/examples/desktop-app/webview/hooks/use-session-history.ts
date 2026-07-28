@@ -546,7 +546,7 @@ export function useSessionHistory({
 			await pending;
 		}
 
-		const refreshPromise = (async () => {
+		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
 			refreshLimitRef.current = limit;
@@ -559,7 +559,14 @@ export function useSessionHistory({
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
-					.catch(() => []);
+					.catch(() => null);
+				// A rejected request is not an empty history. Treating it as one
+				// would blank the list (the merge below is keyed off the response)
+				// and mark the backend exhausted, hiding sessions that still exist
+				// and disabling "load more" until some later poll happened to work.
+				if (!Array.isArray(discovered)) {
+					return false;
+				}
 				// Ask the raw response, not the filtered list: subagents and
 				// sessions without a known model are dropped below, so a filtered
 				// count under the limit does not mean the backend is exhausted.
@@ -633,8 +640,10 @@ export function useSessionHistory({
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
+				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
+				return false;
 			} finally {
 				setIsLoadingHistory(false);
 			}
@@ -649,7 +658,7 @@ export function useSessionHistory({
 				refreshPromiseRef.current = null;
 			}
 		});
-		await refreshPromise;
+		return await refreshPromise;
 	}, []);
 
 	const scheduleRefresh = useCallback(
@@ -1319,12 +1328,24 @@ export function useSessionHistory({
 	const loadMoreSessions = useCallback(
 		async (nextLimit: number) => {
 			if (fetchLimitRef.current >= nextLimit) {
-				return;
+				return true;
 			}
+			const previousLimit = fetchLimitRef.current;
 			fetchLimitRef.current = nextLimit;
 			setIsLoadingMore(true);
 			try {
-				await refreshSessions();
+				const loaded = await refreshSessions();
+				if (!loaded) {
+					// Put the limit back so retrying asks for this batch again
+					// instead of skipping past it to the next one.
+					fetchLimitRef.current = previousLimit;
+					toast({
+						variant: "destructive",
+						title: "Could not load more sessions",
+						description: "Session history is unavailable right now.",
+					});
+				}
+				return loaded;
 			} finally {
 				setIsLoadingMore(false);
 			}

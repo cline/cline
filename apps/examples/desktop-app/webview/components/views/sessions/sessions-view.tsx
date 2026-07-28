@@ -240,7 +240,11 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		const nextPage = currentPage + 1;
 		if (nextPage >= pageCount && history.mayHaveMoreSessions) {
 			// Only page boundaries hit the backend; the mount fetch stays small.
-			await history.loadOlderSessions();
+			// Stay put when the fetch fails so the user keeps the page they can
+			// see and the same click retries.
+			if (!(await history.loadOlderSessions())) {
+				return;
+			}
 		}
 		setPage(nextPage);
 	};

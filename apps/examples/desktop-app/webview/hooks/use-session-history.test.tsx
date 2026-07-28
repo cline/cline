@@ -18,7 +18,24 @@ vi.mock("@/lib/desktop-client", () => ({
 }));
 
 type SessionHistoryHook = ReturnType<typeof useSessionHistory>;
-type PendingList = { limit: number; resolve: (rows: unknown[]) => void };
+type PendingList = {
+	limit: number;
+	resolve: (rows: unknown[]) => void;
+	reject: (error: Error) => void;
+};
+
+function sessionRow(sessionId: string) {
+	return {
+		sessionId,
+		status: "completed",
+		provider: "cline",
+		model: "glm-5.2",
+		cwd: "/workspace",
+		workspaceRoot: "/workspace",
+		startedAt: "2026-07-20T10:00:00.000Z",
+		endedAt: "2026-07-20T11:00:00.000Z",
+	};
+}
 
 let container: HTMLDivElement;
 let root: Root;
@@ -47,8 +64,8 @@ beforeEach(() => {
 	invokeMock.mockImplementation(
 		async (command: string, args?: { limit?: number }) => {
 			if (command === "list_discovered_sessions") {
-				return await new Promise<unknown[]>((resolve) => {
-					pendingLists.push({ limit: args?.limit ?? 0, resolve });
+				return await new Promise<unknown[]>((resolve, reject) => {
+					pendingLists.push({ limit: args?.limit ?? 0, resolve, reject });
 				});
 			}
 			return [];
@@ -124,5 +141,67 @@ describe("useSessionHistory refresh coalescing", () => {
 			await loadMore;
 		});
 		expect(pendingLists).toHaveLength(2);
+	});
+});
+
+describe("useSessionHistory failed refresh", () => {
+	async function renderWithSessions() {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				Array.from({ length: 50 }, (_, index) =>
+					sessionRow(`session-${index}`),
+				),
+			);
+			await Promise.resolve();
+		});
+	}
+
+	it("keeps the loaded history when the list request fails", async () => {
+		await renderWithSessions();
+		expect(current.sessions).toHaveLength(50);
+		expect(current.mayHaveMoreSessions).toBe(true);
+
+		let loadMore: Promise<boolean> | undefined;
+		await act(async () => {
+			loadMore = current.loadMoreSessions(100);
+			await Promise.resolve();
+		});
+		expect(pendingLists[1].limit).toBe(100);
+
+		let loaded: boolean | undefined;
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+			loaded = await loadMore;
+		});
+
+		// A rejected request must not read as "no sessions": the list stays put
+		// and the backend is still considered to have more.
+		expect(loaded).toBe(false);
+		expect(current.sessions).toHaveLength(50);
+		expect(current.threads).toHaveLength(50);
+		expect(current.mayHaveMoreSessions).toBe(true);
+	});
+
+	it("retries the same batch after a failure instead of skipping it", async () => {
+		await renderWithSessions();
+
+		await act(async () => {
+			const attempt = current.loadMoreSessions(100);
+			await Promise.resolve();
+			pendingLists[1].reject(new Error("transport closed"));
+			await attempt;
+		});
+
+		await act(async () => {
+			const retry = current.loadOlderSessions();
+			await Promise.resolve();
+			pendingLists[2].resolve([]);
+			await retry;
+		});
+		expect(pendingLists[2].limit).toBe(100);
 	});
 });
