@@ -2461,6 +2461,41 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("ignores changing failures when mixed built-in success is unchanged", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`mixed-stalled-${index}`,
+						[
+							{
+								query: "poll",
+								result: { progress: 50 },
+								success: true,
+							},
+							{
+								query: "optional-check",
+								result: "",
+								error: `attempt ${index}`,
+								success: false,
+							},
+						],
+						{
+							iteration: index,
+							name: "run_commands",
+							input: { commands: ["poll", "optional-check"] },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a stalled partially successful command batch");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("still aborts repeated adapter-promoted MCP failures", async () => {
 		const { session, abortCalls } = loopSession({
 			events: [

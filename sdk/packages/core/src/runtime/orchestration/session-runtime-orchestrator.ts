@@ -101,26 +101,39 @@ const OPERATION_RESULT_TOOL_NAMES = new Set<string>([
 	DefaultToolNames.EDITOR,
 ]);
 
-function containsOnlyFailedToolOperations(
+function isToolOperationResult(
+	value: unknown,
+): value is { query: string; result: unknown; success: boolean } {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		!Array.isArray(value) &&
+		typeof (value as { query?: unknown }).query === "string" &&
+		"result" in value &&
+		typeof (value as { success?: unknown }).success === "boolean"
+	);
+}
+
+function classifyToolOutcome(
 	toolName: string,
 	output: unknown,
-): boolean {
+): { successful: boolean; output: unknown } {
 	if (!OPERATION_RESULT_TOOL_NAMES.has(toolName)) {
-		return false;
+		return { successful: true, output };
 	}
 	const operations = Array.isArray(output) ? output : [output];
-	return (
-		operations.length > 0 &&
-		operations.every(
-			(operation) =>
-				operation !== null &&
-				typeof operation === "object" &&
-				!Array.isArray(operation) &&
-				typeof (operation as { query?: unknown }).query === "string" &&
-				"result" in operation &&
-				(operation as { success?: unknown }).success === false,
-		)
+	if (operations.length === 0 || !operations.every(isToolOperationResult)) {
+		return { successful: true, output };
+	}
+	const successfulOperations = operations.filter(
+		(operation) => operation.success,
 	);
+	return {
+		successful: successfulOperations.length > 0,
+		output: Array.isArray(output)
+			? successfulOperations
+			: successfulOperations[0],
+	};
 }
 
 async function resolveRuleContent(
@@ -1141,26 +1154,23 @@ export class SessionRuntime {
 				);
 				const isError =
 					resultPart?.type === "tool-result" && resultPart.isError === true;
-				const isSuccessfulOutcome =
-					!isError &&
-					resultPart?.type === "tool-result" &&
-					!containsOnlyFailedToolOperations(
-						event.toolCall.toolName,
-						resultPart.output,
-					);
+				const loopOutcome =
+					!isError && resultPart?.type === "tool-result"
+						? classifyToolOutcome(event.toolCall.toolName, resultPart.output)
+						: {
+								successful: false,
+								output:
+									resultPart?.type === "tool-result"
+										? resultPart.output
+										: undefined,
+							};
 				this.loopTracker.observeOutcome(
 					{
 						iteration: event.iteration,
 						name: event.toolCall.toolName,
 						input: event.toolCall.input,
 					},
-					{
-						successful: isSuccessfulOutcome,
-						output:
-							resultPart?.type === "tool-result"
-								? resultPart.output
-								: undefined,
-					},
+					loopOutcome,
 				);
 				const errorText = isError
 					? formatToolResultError(
