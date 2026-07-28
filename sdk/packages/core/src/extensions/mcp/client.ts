@@ -39,10 +39,7 @@ type StdioProtocolMode = "newline" | "framed";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const MCP_REQUEST_TIMEOUT_MS = 5_000;
-// Connect covers process spawn plus the first initialize round-trip. A cold
-// Node start on a loaded machine (notably Windows CI) can exceed a second, so
-// connect gets the same budget as ordinary requests.
-const MCP_CONNECT_TIMEOUT_MS = MCP_REQUEST_TIMEOUT_MS;
+const MCP_CONNECT_TIMEOUT_MS = 1_500;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -256,39 +253,22 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
-		// Windows uses shell: true so .cmd/.bat launchers (npx, bunx) resolve.
-		// cmd.exe receives one concatenated command line, so the executable and
-		// every argument must be quoted or paths like "C:\Program Files\..."
-		// split at the space and the spawn fails with exit code 1.
-		const quoteForCmd = (value: string): string =>
-			value.length === 0 || /[\s"^&|<>()]/.test(value)
-				? `"${value.replace(/"/g, '""')}"`
-				: value;
-		const child =
+		const platformOptions =
 			process.platform === "win32"
-				? spawn(
-						quoteForCmd(transport.command),
-						(transport.args ?? []).map(quoteForCmd),
-						{
-							cwd: transport.cwd,
-							env: {
-								...process.env,
-								...(transport.env ?? {}),
-							},
-							stdio: ["pipe", "pipe", "pipe"],
-							windowsHide: true,
-							shell: true,
-							windowsVerbatimArguments: true,
-						},
-					)
-				: spawn(transport.command, transport.args ?? [], {
-						cwd: transport.cwd,
-						env: {
-							...process.env,
-							...(transport.env ?? {}),
-						},
-						stdio: ["pipe", "pipe", "pipe"],
-					});
+				? {
+						windowsHide: true,
+						shell: true,
+					}
+				: {};
+		const child = spawn(transport.command, transport.args ?? [], {
+			cwd: transport.cwd,
+			env: {
+				...process.env,
+				...(transport.env ?? {}),
+			},
+			stdio: ["pipe", "pipe", "pipe"],
+			...platformOptions,
+		});
 
 		this.process = child;
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));

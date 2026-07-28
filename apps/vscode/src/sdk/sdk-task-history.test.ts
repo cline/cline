@@ -5,14 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
-import { LEGACY_RESUME_MODEL_WARNING } from "./legacy-task-handling"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
-
-const HISTORICAL_LEGACY_RESUME_MODEL_WARNING =
-	"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of."
 
 vi.mock("@/core/storage/disk", () => ({
 	GlobalFileNames: {
@@ -454,10 +450,7 @@ describe("SdkTaskHistory", () => {
 			expect.arrayContaining([
 				expect.objectContaining({ role: "user", content: "legacy prompt" }),
 				expect.objectContaining({ role: "assistant", content: "legacy answer" }),
-				expect.objectContaining({
-					role: "user",
-					content: expect.stringContaining("configuration paths, file formats, and product instructions"),
-				}),
+				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
 			]),
 		)
 	})
@@ -471,10 +464,8 @@ describe("SdkTaskHistory", () => {
 			{ role: "user", content: "raw legacy prompt with <task>tags</task>" },
 			{
 				role: "user",
-				content: [
-					{ type: "text", text: HISTORICAL_LEGACY_RESUME_MODEL_WARNING },
-					{ type: "text", text: "new SDK history" },
-				],
+				content:
+					"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
 			},
 			{ role: "assistant", content: "new SDK answer" },
 		] as never)
@@ -484,7 +475,7 @@ describe("SdkTaskHistory", () => {
 				content: [
 					{
 						type: "text",
-						text: HISTORICAL_LEGACY_RESUME_MODEL_WARNING,
+						text: "Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of.",
 					},
 					{ type: "text", text: "new SDK history" },
 				],
@@ -499,19 +490,10 @@ describe("SdkTaskHistory", () => {
 		expect(readMessages).toHaveBeenCalledWith("legacy-task")
 		expect(clineMessages).toEqual([
 			{ ts: 1, type: "say", say: "task", text: "old legacy UI" },
-			expect.objectContaining({ text: "new SDK history" }),
 			expect.objectContaining({ text: "new SDK answer" }),
 			expect.objectContaining({ type: "ask", ask: "completion_result" }),
 		])
-		expect(resumeMessages).toEqual([
-			{
-				role: "user",
-				content: [
-					{ type: "text", text: LEGACY_RESUME_MODEL_WARNING },
-					{ type: "text", text: "new SDK history" },
-				],
-			},
-		])
+		expect(resumeMessages).toEqual(fallbackMessages)
 	})
 
 	it("emits backlog telemetry when legacy tasks are still pending migration", async () => {

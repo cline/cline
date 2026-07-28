@@ -1,5 +1,4 @@
 import { truncateSplit } from "@cline/shared";
-import type { BuiltinSkill } from "./builtin-skills";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
@@ -19,18 +18,6 @@ export type AvailableRuntimeCommand = {
 type CommandRecord = {
 	item: SkillConfig | WorkflowConfig;
 };
-
-function builtinSkillCommands(
-	builtinSkills: ReadonlyArray<BuiltinSkill>,
-): AvailableRuntimeCommand[] {
-	return builtinSkills.map(({ id, skill }) => ({
-		id,
-		name: skill.name,
-		instructions: skill.instructions,
-		description: resolveCommandDescription(skill, "skill"),
-		kind: "skill",
-	}));
-}
 
 function resolveCommandDescription(
 	item: SkillConfig | WorkflowConfig,
@@ -68,17 +55,14 @@ function listCommandsForKind(
 
 export function listAvailableRuntimeCommandsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
-	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): AvailableRuntimeCommand[] {
 	const byName = new Map<string, AvailableRuntimeCommand>();
 	for (const command of [
-		...builtinSkillCommands(builtinSkills),
 		...listCommandsForKind(watcher, "workflow"),
 		...listCommandsForKind(watcher, "skill"),
 	]) {
-		const normalizedName = command.name.trim().toLowerCase();
-		if (!byName.has(normalizedName)) {
-			byName.set(normalizedName, command);
+		if (!byName.has(command.name)) {
+			byName.set(command.name, command);
 		}
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -87,7 +71,6 @@ export function listAvailableRuntimeCommandsFromWatcher(
 export function resolveRuntimeSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
-	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): string {
 	if (!input.startsWith("/") || input.length < 2) {
 		return input;
@@ -102,9 +85,8 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	}
 	const commandLength = name.length + 1;
 	const remainder = input.slice(commandLength);
-	const matched = listAvailableRuntimeCommandsFromWatcher(
-		watcher,
-		builtinSkills,
-	).find((command) => command.name === name);
+	const matched = listAvailableRuntimeCommandsFromWatcher(watcher).find(
+		(command) => command.name === name,
+	);
 	return matched ? `${matched.instructions}${remainder}` : input;
 }
