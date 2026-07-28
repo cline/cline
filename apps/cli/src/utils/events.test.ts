@@ -239,6 +239,20 @@ describe("handleEvent text formatting", () => {
 		expect(errorOutput).not.toContain("usage-based billing");
 	});
 
+	it("formats removed free model errors using the configured model id", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Error 404: model not found"),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{ modelId: "cline-free/retired-model" } as Config,
+		);
+
+		expect(errorOutput).toContain("Free model promotion ended");
+		expect(errorOutput).toContain("Select another model");
+	});
+
 	it("suppresses heartbeat-only team progress messages", () => {
 		handleTeamEvent({
 			type: "run_progress",

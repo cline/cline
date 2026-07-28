@@ -47,10 +47,10 @@ const CLINE_PASS_LIMIT_DETAIL_MESSAGE =
 	"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
 const CLI_CLINE_PASS_LIMIT_MESSAGE = [
 	"ClinePass limit reached",
-	`${CLINE_PASS_LIMIT_DETAIL_MESSAGE}`,
+	CLINE_PASS_LIMIT_DETAIL_MESSAGE,
 	"Switch to Cline usage-based billing and retry with the Cline provider.",
-	"Open the model selector with /model, choose Cline, then retry.",
-	"or rerun with --provider cline.",
+	"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
+	"Headless CLI: rerun with --provider cline.",
 ].join("\n");
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";

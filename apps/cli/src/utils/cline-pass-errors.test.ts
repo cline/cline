@@ -92,5 +92,19 @@ describe("cline-pass-errors", () => {
 		expect(formatCliErrorMessage(new Error(raw))).not.toContain(
 			"usage-based billing",
 		);
+		expect(
+			isClineFreeModelLimitErrorMessage(getCliClineFreeModelLimitMessage(raw)),
+		).toBe(true);
+	});
+
+	it("formats model-not-found errors for removed free models", () => {
+		const raw = new Error("Error 404: model not found");
+
+		expect(
+			formatCliErrorMessage(raw, { modelId: "cline-free/retired-model" }),
+		).toContain("Free model promotion ended");
+		expect(
+			formatCliErrorMessage(raw, { modelId: "vendor/retired-model" }),
+		).toBe(raw.message);
 	});
 });

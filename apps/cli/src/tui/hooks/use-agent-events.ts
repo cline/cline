@@ -291,6 +291,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 			addUsageDelta,
 			onTurnErrorReported,
 			verbose,
+			modelId,
 			closeToolEntry,
 			finalizeDanglingCompactionEntry,
 			flushPendingCompactionEntries,

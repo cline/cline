@@ -45,6 +45,7 @@ export function getCliClinePassLimitMessage(message: string): string {
 
 const CLINE_FREE_MODEL_PREFIX = "cline-free/";
 const CLINE_FREE_PROMOTION_ENDED_HEADER = "Free model promotion ended";
+const CLINE_FREE_MODEL_LIMIT_HEADER = "Daily free model limit reached";
 
 export function getCliClineFreePromotionEndedMessage(): string {
 	return [
@@ -58,7 +59,7 @@ export function getCliClineFreePromotionEndedMessage(): string {
 export function getCliClineFreeModelLimitMessage(message: string): string {
 	const resetTime = extractClineFreeModelLimitResetTime(message);
 	return [
-		"Daily free model limit reached",
+		CLINE_FREE_MODEL_LIMIT_HEADER,
 		"You've reached today's free usage limit for this model.",
 		resetTime
 			? `Try again in ${resetTime} or select another model.`
@@ -176,7 +177,11 @@ export function isClineFreeModelLimitErrorMessage(error: unknown): boolean {
 			isClineFreeModelLimitMessage(error.message)
 		);
 	}
-	return typeof error === "string" && isClineFreeModelLimitMessage(error);
+	return (
+		typeof error === "string" &&
+		(error.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_HEADER.toLowerCase()) ||
+			isClineFreeModelLimitMessage(error))
+	);
 }
 
 export function formatCliErrorMessage(
