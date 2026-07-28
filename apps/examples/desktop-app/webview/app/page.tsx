@@ -54,6 +54,7 @@ import {
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -442,7 +443,7 @@ function ChatThreadPane({
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
-	const gitBranchRequestRef = useRef(0);
+	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -530,10 +531,10 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
-		const requestId = ++gitBranchRequestRef.current;
+		const requestId = gitBranchRequestGateRef.current.begin();
 		const cwd = getWorkspaceCwd();
 		if (!cwd) {
-			if (requestId === gitBranchRequestRef.current) {
+			if (gitBranchRequestGateRef.current.commit(requestId)) {
 				setGitBranch("no-git");
 			}
 			return;
@@ -543,17 +544,20 @@ function ChatThreadPane({
 				"get_git_branch",
 				{ cwd },
 			);
-			if (requestId !== gitBranchRequestRef.current) {
+			if (!gitBranchRequestGateRef.current.commit(requestId)) {
 				return;
 			}
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 		} catch {
-			if (requestId === gitBranchRequestRef.current) {
-				setGitBranch("no-git");
-			}
+			// Preserve the latest successful branch through transient failures.
 		}
 	}, [getWorkspaceCwd]);
+
+	const invalidateGitBranch = useCallback(() => {
+		gitBranchRequestGateRef.current.invalidate();
+		setGitBranch("no-git");
+	}, []);
 
 	const listGitBranches = useCallback(async (): Promise<{
 		current: string;
@@ -589,13 +593,14 @@ function ChatThreadPane({
 					cwd,
 					branch: nextBranch,
 				});
+				invalidateGitBranch();
 				await refreshGitBranch();
 				return true;
 			} catch {
 				return false;
 			}
 		},
-		[getWorkspaceCwd, refreshGitBranch],
+		[getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -664,8 +669,7 @@ function ChatThreadPane({
 				return false;
 			}
 
-			gitBranchRequestRef.current += 1;
-			setGitBranch("no-git");
+			invalidateGitBranch();
 			setWorkspacePath(nextWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
@@ -676,16 +680,15 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[refreshWorkspaces, setWorkspacePath],
+		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
 		workspaceSelectionRequestRef.current += 1;
-		gitBranchRequestRef.current += 1;
+		invalidateGitBranch();
 		setWorkspacePath("");
-		setGitBranch("no-git");
 		return true;
-	}, [setWorkspacePath]);
+	}, [invalidateGitBranch, setWorkspacePath]);
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
