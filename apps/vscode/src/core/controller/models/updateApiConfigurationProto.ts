@@ -141,6 +141,11 @@ export async function updateApiConfigurationProto(
 
 		// Update the API configuration in storage
 		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
+		// Flush immediately instead of waiting out the 500ms persistence
+		// debounce: a window reload/crash inside that window would otherwise
+		// drop the provider/model selection and revert to the stale on-disk
+		// value (qa-fleet-2026-07 / ENG-2332).
+		await controller.stateManager.flushPendingState()
 		await clearOrganizationForClinePassProviderSelection(controller, normalizedApiConfiguration)
 
 		// Update the task's API handler if there's an active task
