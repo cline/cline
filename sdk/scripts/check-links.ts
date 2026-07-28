@@ -15,6 +15,9 @@
  *                    404s, and it can rot without a commit touching this repo.
  *   4. External    - every other http(s) URL found in the docs (--external).
  *
+ * Only repo links decide the exit code. Site findings are printed but never fatal:
+ * no commit in this repo can fix a link on the published marketing site.
+ *
  * Usage:
  *   bun sdk/scripts/check-links.ts                  # repo checks + crawl cline.bot
  *   bun sdk/scripts/check-links.ts --no-site        # repo checks only (hermetic, for CI gates)
@@ -542,30 +545,42 @@ async function main(): Promise<void> {
 		await writeFile(jsonPath, JSON.stringify({ checked, failures }, null, 2));
 	}
 
-	const inSite = failures.filter((failure) => failure.kind === "site").length;
-	const inRepo = failures.length - inSite;
-	if (failures.length === 0) {
+	const report = (group: Failure[]) => {
+		for (const failure of group.sort(
+			(a, b) => a.file.localeCompare(b.file) || a.line - b.line,
+		)) {
+			const where =
+				failure.line > 0 ? `${failure.file}:${failure.line}` : failure.file;
+			console.error(`  [${failure.status}] ${failure.url}`);
+			console.error(
+				`         ${where}${failure.hint ? ` - ${failure.hint}` : ""}`,
+			);
+		}
+		console.error("");
+	};
+
+	// A broken link on someone else's published site is a finding, not a build
+	// failure: no commit here can fix it. Only repo links decide the exit code,
+	// so the default run stays useful without being permanently red.
+	const siteFailures = failures.filter((failure) => failure.kind === "site");
+	const repoFailures = failures.filter((failure) => failure.kind !== "site");
+
+	if (siteFailures.length > 0) {
+		console.error(
+			`\n${siteFailures.length} broken link(s) on ${siteUrl} - reported, not fatal:\n`,
+		);
+		report(siteFailures);
+	}
+
+	if (repoFailures.length === 0) {
 		console.log(
-			`All good: ${checked} links checked across ${files.length} files${siteUrl ? ` and ${siteUrl}` : ""}, no broken links.`,
+			`All good: ${checked} links checked across ${files.length} files, no broken links in the repo.`,
 		);
 		return;
 	}
 
-	// Repo and site failures are acted on differently, so never blur the two.
-	console.error(
-		`\n${failures.length} broken link(s): ${inRepo} in the repo, ${inSite} on the crawled site.\n`,
-	);
-	for (const failure of failures.sort(
-		(a, b) => a.file.localeCompare(b.file) || a.line - b.line,
-	)) {
-		const where =
-			failure.line > 0 ? `${failure.file}:${failure.line}` : failure.file;
-		console.error(`  [${failure.status}] ${failure.url}`);
-		console.error(
-			`         ${where}${failure.hint ? ` - ${failure.hint}` : ""}`,
-		);
-	}
-	console.error("");
+	console.error(`${repoFailures.length} broken link(s) in the repo:\n`);
+	report(repoFailures);
 	process.exit(1);
 }
 

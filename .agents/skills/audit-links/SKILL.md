@@ -25,8 +25,10 @@ The site crawl is on by default because the published site is where readers actu
 404s, and it can rot without a commit touching this repo. Pass `--site` only when you know
 you want a different target; pass `--no-site` when you need a hermetic, offline run.
 
-Exit code is non-zero when anything is broken. CI blocks on the `--no-site` pass; the
-crawl and external checks run on a schedule, where an outage cannot block a merge.
+**Only repo links decide the exit code.** Site findings are printed under their own heading
+and never fail the run — no commit here can fix a link on the marketing site, so failing on
+one would leave the command permanently red and teach everyone to ignore it. CI blocks on
+the `--no-site` pass; the crawl runs on a schedule.
 
 ## What each failure class means
 
@@ -35,7 +37,7 @@ crawl and external checks run on a schedule, where an outage cannot block a merg
 | `repo` | `[404] https://github.com/cline/cline/...` | An absolute GitHub URL kept pointing at a path that moved. Resolved against the working tree, so it is never a flake. |
 | `local` | `[missing] ../foo.md` | Relative link written from the wrong directory, or a target that was renamed. |
 | `external` | `[404]`, `[ENOTFOUND]` | A third-party page died, or a link to another `cline/*` repo that does not exist. |
-| `site` | same, with the crawled page URL as the location | A link on the published site. The repo cannot fix these directly — see below. |
+| `site` | same, with the crawled page URL as the location | A link on the published site. Reported, never fatal — the repo cannot fix these directly, see below. |
 
 `401`, `403`, and `429` are reported as reachable: bot walls are not broken links.
 
