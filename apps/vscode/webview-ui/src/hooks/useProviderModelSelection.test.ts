@@ -64,6 +64,32 @@ describe("useProviderModelSelection", () => {
 		expect(result.current.selectedModel.modelInfo.contextWindow).toBe(200_000)
 	})
 
+	it("keeps a $0 committed snapshot that carries user overrides", () => {
+		const commitSelection = vi.fn(async () => undefined)
+		// Legitimately free model, but the user has an override (context window).
+		const models = { "free-model": { name: "Fresh Free", contextWindow: 1_000, inputPrice: 0, outputPrice: 0, maxTokens: 1 } }
+		const config = {
+			actSelection: {
+				modelId: "free-model",
+				modelInfo: {
+					name: "Committed Free",
+					contextWindow: 50_000,
+					maxTokens: 8_192,
+					inputPrice: 0,
+					outputPrice: 0,
+					tiers: [],
+				},
+				overrides: { capabilities: [], contextWindow: 50_000 },
+			},
+		} as unknown as ProviderConfigResponse
+
+		const { result } = renderHook(() => useProviderModelSelection("provider", "act", { models, config, commitSelection }))
+
+		// User override is preserved even though pricing is $0 and the model is in the list.
+		expect(result.current.selectedModel.modelInfo.name).toBe("Committed Free")
+		expect(result.current.selectedModel.modelInfo.contextWindow).toBe(50_000)
+	})
+
 	it("falls back to the committed snapshot when the model is absent from the catalog", () => {
 		const commitSelection = vi.fn(async () => undefined)
 		const config = {

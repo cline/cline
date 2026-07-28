@@ -628,6 +628,12 @@ async function fetchPioneerPrivateModels(
 	const payload = (await response.json()) as { data?: PioneerModelResponse[] };
 	const entries = payload?.data ?? [];
 	const models: Record<string, ModelInfo> = {};
+	// Deprecated models are omitted from the live list so they are not added to
+	// the picker. Note this only prevents live-only deprecated models from
+	// appearing: mergeKnownModels overlays this map onto the bundled models.dev
+	// catalog, so a model that is deprecated upstream but still present in the
+	// bundled snapshot remains selectable until the catalog is regenerated
+	// (there is no tombstone mechanism to remove generated entries here).
 	// Pass 1: canonical (non-"anthropic/") ids. These always win the slot.
 	for (const model of entries) {
 		const id = model.id?.trim();

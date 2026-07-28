@@ -540,7 +540,7 @@ describe("resolveProviderConfig", () => {
 							deprecated: false,
 							capabilities: {},
 						},
-						// Deprecated models are skipped entirely.
+						// A live-only deprecated model is not added to the catalog.
 						{ id: "retired-model", display_name: "Retired", deprecated: true },
 					],
 				}),
@@ -604,7 +604,8 @@ describe("resolveProviderConfig", () => {
 		).toBe(false);
 		// Orphan alias (no bare twin) is surfaced under its canonical id.
 		expect(models["only-alias-model"]?.name).toBe("Alias Only");
-		// Deprecated model is dropped.
+		// Live-only deprecated model is not added (a deprecated model already in
+		// the bundled catalog would remain until the catalog is regenerated).
 		expect(models["retired-model"]).toBeUndefined();
 	});
 
