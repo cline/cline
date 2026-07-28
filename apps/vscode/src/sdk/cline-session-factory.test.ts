@@ -467,6 +467,47 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("inherits the base provider's legacy apiLine for coding variants", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai-coding-plan",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai-coding-plan",
+			apiLine: "china",
+		})
+	})
+
+	it("prefers the coding variant's own providers.json apiLine over the shared legacy field", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "qwen-code") {
+				return undefined
+			}
+			return {
+				provider: "qwen-code",
+				apiKey: "qwen-code-key",
+				apiLine: "international",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen-code",
+			actModeApiModelId: "qwen3-coder-plus",
+			qwenApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "qwen-code",
+			apiLine: "international",
+		})
+	})
+
 	it("omits apiLine for unrecognized values", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "qwen",

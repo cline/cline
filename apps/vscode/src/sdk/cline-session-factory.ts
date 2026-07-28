@@ -652,10 +652,18 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 
 /**
  * Resolve the regional API line ("china" | "international") for providers with
- * regional endpoints (Qwen, Moonshot, Z AI, MiniMax). Legacy StateManager
- * fields win (mirroring resolveBaseUrl), with providers.json `apiLine` as the
- * SDK-store fallback. The SDK gateway maps the line to the provider's regional
- * base URL when no explicit base URL is configured.
+ * regional endpoints (Qwen, Moonshot, Z AI, MiniMax and their coding
+ * variants). Resolution order:
+ *
+ * 1. The provider's own legacy StateManager field (mirroring resolveBaseUrl).
+ * 2. The provider's own providers.json `apiLine` (SDK-store fallback).
+ * 3. For coding variants without their own legacy field or stored line, the
+ *    base provider's legacy field (qwen-code shares Qwen's DashScope region,
+ *    zai-coding-plan shares Z AI's account region) — so a variant-specific
+ *    providers.json setting still wins over the shared field.
+ *
+ * The SDK gateway maps the line to the provider's regional base URL when no
+ * explicit base URL is configured.
  */
 export function resolveApiLine(providerId: string, config: ApiConfiguration): ProviderApiLine | undefined {
 	const apiLineMap: Record<string, keyof ApiConfiguration> = {
@@ -663,6 +671,10 @@ export function resolveApiLine(providerId: string, config: ApiConfiguration): Pr
 		moonshot: "moonshotApiLine",
 		zai: "zaiApiLine",
 		minimax: "minimaxApiLine",
+	}
+	const sharedApiLineMap: Record<string, keyof ApiConfiguration> = {
+		"qwen-code": "qwenApiLine",
+		"zai-coding-plan": "zaiApiLine",
 	}
 
 	const field = apiLineMap[providerId]
@@ -680,6 +692,14 @@ export function resolveApiLine(providerId: string, config: ApiConfiguration): Pr
 		}
 	} catch {
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	const sharedField = sharedApiLineMap[providerId]
+	if (sharedField) {
+		const fromSharedState = config[sharedField]
+		if (isProviderApiLine(fromSharedState)) {
+			return fromSharedState
+		}
 	}
 
 	return undefined
