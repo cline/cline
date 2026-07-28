@@ -12,8 +12,10 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataPinned,
 	getSessionMetadataTitle,
 	getSessionSource,
+	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
@@ -92,7 +94,10 @@ export type UseSessionHistoryOptions = {
 	) => void;
 };
 
-const INITIAL_HISTORY_FETCH_LIMIT = 300;
+// Kept small on purpose: the sidebar shows 10 threads and the sessions view
+// pages 10 at a time, so the mount fetch (and every 12s poll after it) only
+// needs enough rows for the first few pages. Older pages are fetched on demand.
+const INITIAL_HISTORY_FETCH_LIMIT = 50;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -255,6 +260,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
+		pinned: getSessionMetadataPinned(session.metadata),
 	};
 }
 
@@ -356,6 +362,8 @@ function areSessionsEquivalent(
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
+			getSessionMetadataPinned(a.metadata) !==
+				getSessionMetadataPinned(b.metadata) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -480,12 +488,18 @@ export function useSessionHistory({
 	const [threads, setThreads] = useState<SessionThread[]>([]);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
 		useState<SessionPendingAction>(null);
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
+	// Limit of the most recent refresh that actually returned sessions. Failed
+	// attempts roll back to this rather than to a caller-local snapshot, which
+	// may itself name a batch that was never fetched.
+	const loadedLimitRef = useRef(0);
+	const mayHaveMoreSessionsRef = useRef(false);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -498,7 +512,9 @@ export function useSessionHistory({
 	const threadsRef = useRef<SessionThread[]>([]);
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const scheduledRefreshAtRef = useRef<number | null>(null);
-	const refreshPromiseRef = useRef<Promise<void> | null>(null);
+	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+	const refreshLimitRef = useRef(0);
+	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
 
 	useEffect(() => {
@@ -524,13 +540,22 @@ export function useSessionHistory({
 	}, [activeSessionId]);
 
 	const refreshSessions = useCallback(async () => {
-		if (refreshPromiseRef.current) {
-			return refreshPromiseRef.current;
+		// Reuse an in-flight refresh only when it already asked for at least as
+		// many sessions as we need now. "Load more" raises the limit and then
+		// awaits a refresh; sharing a request that captured the smaller limit
+		// would resolve without the larger batch ever being fetched.
+		while (refreshPromiseRef.current) {
+			const pending = refreshPromiseRef.current;
+			if (refreshLimitRef.current >= fetchLimitRef.current) {
+				return pending;
+			}
+			await pending;
 		}
 
-		const refreshPromise = (async () => {
+		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
+			refreshLimitRef.current = limit;
 			// Only surface the loading state before anything has been fetched:
 			// consumers only render it for an empty list, and toggling it on
 			// every background poll re-rendered the whole app twice per refresh.
@@ -540,7 +565,20 @@ export function useSessionHistory({
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
-					.catch(() => []);
+					.catch(() => null);
+				// A rejected request is not an empty history. Treating it as one
+				// would blank the list (the merge below is keyed off the response)
+				// and mark the backend exhausted, hiding sessions that still exist
+				// and disabling "load more" until some later poll happened to work.
+				if (!Array.isArray(discovered)) {
+					return false;
+				}
+				// Ask the raw response, not the filtered list: subagents and
+				// sessions without a known model are dropped below, so a filtered
+				// count under the limit does not mean the backend is exhausted.
+				const hasMoreSessions = discovered.length >= limit;
+				mayHaveMoreSessionsRef.current = hasMoreSessions;
+				setMayHaveMoreSessions(hasMoreSessions);
 				const topLevelSessions = discovered
 					.map((session) => {
 						const normalized: SessionHistoryItem = {
@@ -610,21 +648,26 @@ export function useSessionHistory({
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
+				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
+				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
+				return false;
 			} finally {
 				setIsLoadingHistory(false);
 			}
 		})();
 
 		refreshPromiseRef.current = refreshPromise;
-		try {
-			await refreshPromise;
-		} finally {
+		// Release the slot from the promise itself rather than from this caller,
+		// so a waiter in the loop above always observes a cleared ref when it
+		// resumes instead of spinning on a settled promise.
+		refreshPromise.finally(() => {
 			if (refreshPromiseRef.current === refreshPromise) {
 				refreshPromiseRef.current = null;
 			}
-		}
+		});
+		return await refreshPromise;
 	}, []);
 
 	const scheduleRefresh = useCallback(
@@ -1126,6 +1169,56 @@ export function useSessionHistory({
 		[getSessionByThreadId, onUpdateSessionMetadata, pendingAction],
 	);
 
+	const setThreadPinned = useCallback(
+		async (threadId: string, pinned: boolean) => {
+			const applyPinned = (next: boolean) => {
+				setThreads((current) =>
+					updateThreadById(current, threadId, (thread) =>
+						thread.pinned === next ? thread : { ...thread, pinned: next },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, threadId, (session) => ({
+						...session,
+						metadata: {
+							...(session.metadata ?? {}),
+							[PINNED_METADATA_KEY]: next || undefined,
+						},
+					})),
+				);
+			};
+
+			// Favoriting is a single click, so apply it locally first and roll back
+			// if the write fails rather than blocking the row on a round trip.
+			applyPinned(pinned);
+			try {
+				await desktopClient.invoke("update_chat_session_metadata", {
+					sessionId: threadId,
+					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
+				});
+				const sourceSession = getSessionByThreadId(threadId);
+				onUpdateSessionMetadata?.(threadId, {
+					...(sourceSession?.metadata ?? {}),
+					[PINNED_METADATA_KEY]: pinned || undefined,
+				});
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS);
+				return true;
+			} catch (error) {
+				applyPinned(!pinned);
+				toast({
+					variant: "destructive",
+					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					description:
+						error instanceof Error
+							? error.message
+							: "The session could not be updated.",
+				});
+				return false;
+			}
+		},
+		[getSessionByThreadId, onUpdateSessionMetadata, scheduleRefresh],
+	);
+
 	const forkThread = useCallback(
 		async (threadId: string) => {
 			const thread = threadsRef.current.find((item) => item.id === threadId);
@@ -1243,13 +1336,30 @@ export function useSessionHistory({
 
 	const loadMoreSessions = useCallback(
 		async (nextLimit: number) => {
-			if (fetchLimitRef.current >= nextLimit) {
-				return;
+			if (loadedLimitRef.current >= nextLimit) {
+				return true;
 			}
-			fetchLimitRef.current = nextLimit;
+			const requestedLimit = Math.max(fetchLimitRef.current, nextLimit);
+			fetchLimitRef.current = requestedLimit;
 			setIsLoadingMore(true);
 			try {
-				await refreshSessions();
+				const loaded = await refreshSessions();
+				// Roll back to what was last fetched so a retry asks for this batch
+				// again instead of skipping past it — but only when no overlapping
+				// call has raised the limit further in the meantime, since lowering
+				// it would make that call fetch a smaller batch than it asked for
+				// and still report success.
+				if (!loaded && fetchLimitRef.current === requestedLimit) {
+					fetchLimitRef.current = loadedLimitRef.current;
+				}
+				if (!loaded) {
+					toast({
+						variant: "destructive",
+						title: "Could not load more sessions",
+						description: "Session history is unavailable right now.",
+					});
+				}
+				return loaded;
 			} finally {
 				setIsLoadingMore(false);
 			}
@@ -1260,8 +1370,45 @@ export function useSessionHistory({
 		() => loadMoreSessions(fetchLimitRef.current + INITIAL_HISTORY_FETCH_LIMIT),
 		[loadMoreSessions],
 	);
+	const loadAllSessions = useCallback(() => {
+		if (loadAllPromiseRef.current) {
+			return loadAllPromiseRef.current;
+		}
+		const loadAllPromise = (async () => {
+			// A global search, filter, or oldest-first sort can be selected while
+			// the mount request is still in flight. Wait for that request before
+			// deciding whether there is any older history to fetch.
+			if (loadedLimitRef.current === 0 && !(await refreshSessions())) {
+				return false;
+			}
+			// Grow exponentially so complete-history operations need only
+			// logarithmically many requests while ordinary paging stays in
+			// predictable 50-session increments.
+			while (mayHaveMoreSessionsRef.current) {
+				const currentLimit = Math.max(
+					fetchLimitRef.current,
+					loadedLimitRef.current,
+					INITIAL_HISTORY_FETCH_LIMIT,
+				);
+				const nextLimit = Math.max(
+					currentLimit + INITIAL_HISTORY_FETCH_LIMIT,
+					currentLimit * 2,
+				);
+				if (!(await loadMoreSessions(nextLimit))) {
+					return false;
+				}
+			}
+			return true;
+		})();
+		loadAllPromiseRef.current = loadAllPromise;
+		loadAllPromise.finally(() => {
+			if (loadAllPromiseRef.current === loadAllPromise) {
+				loadAllPromiseRef.current = null;
+			}
+		});
+		return loadAllPromise;
+	}, [loadMoreSessions, refreshSessions]);
 
-	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const sessionById = useMemo(
 		() => new Map(sessions.map((session) => [session.sessionId, session])),
 		[sessions],
@@ -1271,6 +1418,7 @@ export function useSessionHistory({
 		getSessionByThreadId,
 		isLoadingHistory,
 		isLoadingMore,
+		loadAllSessions,
 		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
@@ -1278,6 +1426,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		setThreadPinned,
 		deleteThread,
 		forkThread,
 		sessionById,
