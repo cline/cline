@@ -14,6 +14,7 @@ import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import ContextWindow from "./ContextWindow"
 import { highlightText } from "./Highlights"
+import TaskWorkingDirectoryBadge from "./TaskWorkingDirectoryBadge"
 
 const IS_DEV = process.env.IS_DEV === "true"
 interface TaskHeaderProps {
@@ -49,6 +50,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
 		environment,
+		workspaceRoots,
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
@@ -161,6 +163,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
+						<TaskWorkingDirectoryBadge
+							taskCwd={currentTaskItem?.cwdOnTaskInitialization}
+							workspaceRoots={workspaceRoots}
+						/>
 						{isCostAvailable && (
 							<div
 								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"

@@ -1893,6 +1893,11 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 				foregroundCommandRunning: this.foregroundCommands.isRunning,
+				// Without this the webview always receives workspaceRoots: [] on the
+				// SDK path (classic Controller exposes a public workspaceManager;
+				// SdkController builds one lazily). The task-header working-directory
+				// badge and anything else keyed on workspaceRoots depend on it.
+				workspaceManager: await this.ensureWorkspaceManager(),
 			})
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
