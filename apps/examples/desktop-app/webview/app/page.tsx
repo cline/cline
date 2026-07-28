@@ -1094,9 +1094,10 @@ function ChatThreadPane({
 			}),
 		[displayedMessages, isSessionActive],
 	);
-	// The roster is only worth fetching once something displays it, so the
-	// popover's open state gates it — except while a turn is running, when the
-	// pill itself needs live statuses.
+	// The roster is read for every displayed session, not gated on the tally
+	// above: that tally only sees the newest messages, so gating on it would hide
+	// the agents of exactly the long sessions this is most useful for. Opening the
+	// panel re-reads; polling is what the active check gates.
 	const [agentPanelOpen, setAgentPanelOpen] = useState(false);
 	const {
 		agents,
@@ -1104,8 +1105,7 @@ function ChatThreadPane({
 		error: agentsError,
 	} = useSessionAgents({
 		sessionId: displayedSessionId,
-		enabled:
-			agentPanelOpen || (isSessionActive && derivedAgentActivity.total > 0),
+		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
 	});
 	const agentActivity = useMemo(

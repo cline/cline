@@ -70,20 +70,25 @@ function parseAgentEntries(value: unknown): SessionAgentEntry[] {
 }
 
 /**
- * Roster of the child agents a session started, plus on-demand transcript reads.
+ * Roster of the child agents a session started.
  *
- * Fetching is driven by `enabled` so the roster is only queried when something
- * is actually showing it — the header pill's popover — and polled while the
- * session is active so a running agent's status settles without user action.
+ * Read once per displayed session and then polled only while that session is
+ * active. Deliberately *not* gated on whether the header is currently showing
+ * any agents: that tally is derived from the newest messages only, so gating on
+ * it would deadlock — a session whose spawn calls have aged out of the message
+ * window would report zero agents, never query the database that still
+ * remembers them, and so never have anything to display. Polling is the only
+ * part worth gating, since it is the only part that costs anything repeatedly.
  */
 export function useSessionAgents({
 	sessionId,
-	enabled,
 	sessionActive,
+	panelOpen = false,
 }: {
 	sessionId: string | null;
-	enabled: boolean;
 	sessionActive: boolean;
+	/** Re-reads when the roster is put on screen; never gates the first read. */
+	panelOpen?: boolean;
 }) {
 	const [roster, setRoster] = useState<RosterState>(EMPTY_ROSTER);
 	// Guards against a slow response for a previous session overwriting a newer one.
@@ -146,12 +151,29 @@ export function useSessionAgents({
 	const loading = isCurrent && roster.loading;
 	const error = isCurrent ? roster.error : null;
 
+	// One read per displayed session, repeated when the session starts or stops
+	// running — a turn can finish up to a poll interval after the last read, so
+	// this is what settles the final statuses. A read for a session mid-turn is
+	// quiet because its list is already on screen; the first read of a session
+	// that is sitting idle is the one worth showing a spinner for.
 	useEffect(() => {
-		if (!sessionId || !enabled) {
+		if (!sessionId) {
 			return;
 		}
-		void refresh(sessionId);
-		if (!sessionActive) {
+		void refresh(sessionId, { quiet: sessionActive });
+	}, [refresh, sessionActive, sessionId]);
+
+	// Opening the panel is the moment the roster is actually read, so re-read it
+	// then. Quiet, because the list is already on screen.
+	useEffect(() => {
+		if (!sessionId || !panelOpen) {
+			return;
+		}
+		void refresh(sessionId, { quiet: true });
+	}, [panelOpen, refresh, sessionId]);
+
+	useEffect(() => {
+		if (!sessionId || !sessionActive) {
 			return;
 		}
 		const timer = window.setInterval(() => {
@@ -160,7 +182,7 @@ export function useSessionAgents({
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [enabled, refresh, sessionActive, sessionId]);
+	}, [refresh, sessionActive, sessionId]);
 
 	return { agents, loading, error, refresh };
 }

@@ -19,14 +19,14 @@ let current: SessionAgentsHook;
 
 function HookHarness({
 	sessionId,
-	enabled = true,
+	panelOpen = false,
 	sessionActive = false,
 }: {
 	sessionId: string | null;
-	enabled?: boolean;
+	panelOpen?: boolean;
 	sessionActive?: boolean;
 }) {
-	current = useSessionAgents({ sessionId, enabled, sessionActive });
+	current = useSessionAgents({ sessionId, panelOpen, sessionActive });
 	return null;
 }
 
@@ -73,9 +73,37 @@ describe("useSessionAgents", () => {
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
 	});
 
-	it("does not fetch while nothing is displaying the roster", async () => {
-		await render({ sessionId: "a", enabled: false });
-		expect(invokeMock).not.toHaveBeenCalled();
+	it("reads the roster even when the header is showing no agents", async () => {
+		// Regression: the read used to be gated on the header tally, which is
+		// derived from the newest messages only. A session whose spawn calls had
+		// aged out of that window reported zero agents, so the roster was never
+		// queried, so the tally stayed zero — the pill could never appear and the
+		// popover that would have triggered the read could never be opened.
+		invokeMock.mockResolvedValue([agentRow("a", "aged-out")]);
+		await render({ sessionId: "a", panelOpen: false, sessionActive: false });
+		expect(invokeMock).toHaveBeenCalledWith("list_session_agents", {
+			sessionId: "a",
+		});
+		expect(current.agents.map((agent) => agent.agentId)).toEqual(["aged-out"]);
+	});
+
+	it("re-reads the roster when the panel is opened", async () => {
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await render({ sessionId: "a" });
+		const afterFirstRead = invokeMock.mock.calls.length;
+
+		await render({ sessionId: "a", panelOpen: true });
+		expect(invokeMock.mock.calls.length).toBeGreaterThan(afterFirstRead);
+	});
+
+	it("re-reads once a turn finishes so final statuses land", async () => {
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await render({ sessionId: "a", sessionActive: true });
+		const whileRunning = invokeMock.mock.calls.length;
+
+		// The last poll can precede completion by up to an interval.
+		await render({ sessionId: "a", sessionActive: false });
+		expect(invokeMock.mock.calls.length).toBeGreaterThan(whileRunning);
 	});
 
 	it("clears the roster when switching straight to another session", async () => {
@@ -118,8 +146,10 @@ describe("useSessionAgents", () => {
 		await render({ sessionId: "a" });
 		expect(current.agents).toHaveLength(1);
 
-		// enabled: false short-circuits the fetch, so only the reset can clear it.
-		await render({ sessionId: "b", enabled: false });
+		// Hold b's read open so nothing overwrites the roster; a's entries must
+		// still not be readable under b.
+		invokeMock.mockImplementationOnce(() => new Promise(() => {}));
+		await render({ sessionId: "b" });
 		expect(current.agents).toEqual([]);
 	});
 
@@ -164,8 +194,9 @@ describe("useSessionAgents", () => {
 		);
 		await render({ sessionId: "a" });
 
-		// Switch to a session that never fetches, so nothing overwrites the roster.
-		await render({ sessionId: "b", enabled: false });
+		// Hold b's read open, so only the late response for `a` could surface.
+		invokeMock.mockImplementationOnce(() => new Promise(() => {}));
+		await render({ sessionId: "b" });
 		await act(async () => {
 			resolveFirst?.([agentRow("a", "stale")]);
 		});
