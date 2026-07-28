@@ -321,6 +321,19 @@ export class MessageTranslatorState {
 		return this.attemptCompletionSeen
 	}
 
+	/** Whether a provider/agent error surfaced in this turn (ask:"api_req_failed" emitted) */
+	private errorSeen = false
+
+	/** Mark that this turn surfaced an error */
+	setErrorSeen(): void {
+		this.errorSeen = true
+	}
+
+	/** Check if this turn surfaced an error — drives the "error" turn phase (Retry / New Task) */
+	wasErrorSeen(): boolean {
+		return this.errorSeen
+	}
+
 	// -----------------------------------------------------------------------
 	// Turn-final text tracking — the SDK agent usually ends a turn with a plain
 	// text response instead of a completion tool. When a turn ends cleanly with
@@ -484,6 +497,7 @@ export class MessageTranslatorState {
 	 */
 	clearTurnOutcome(): void {
 		this.attemptCompletionSeen = false
+		this.errorSeen = false
 		this.clearTurnFinalText()
 	}
 }
@@ -556,7 +570,11 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 				getStringField(parsedInput, "content")
 			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
 			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
-			const isEdit = toolName === "replace_in_file" || !!oldText
+			// `insert_line` inserts into an existing file (the SDK editor executor requires
+			// the file to already exist), so it is an edit — not a new-file creation. Without
+			// this the card mislabels a prepend/insert as "Cline wants to create a new file".
+			const insertLine = getNumberField(parsedInput, "insert_line")
+			const isEdit = toolName === "replace_in_file" || !!oldText || insertLine != null
 
 			// When the SDK provides both old and new text, build a search/replace
 			// diff in the format DiffEditRow expects. ChatRow passes `content` to
@@ -1624,6 +1642,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// A compaction divider still open here means the turn was aborted mid-compaction.
 			finalizeDanglingCompaction(state, messages, "cancelled")
 
+			// A turn can terminate with done(reason:"error") without a separate
+			// "error" event — record the error outcome here too so turn end still
+			// resolves to the "error" phase (Retry / Start New Task).
+			if (event.reason === "error") {
+				state.setErrorSeen()
+			}
+
 			// Inferred completion feedback: the SDK agent normally ends a turn with a plain
 			// text response rather than a completion tool. When the turn ended cleanly and its
 			// last content was text, retag that text row in place (same ts → upserted by the
@@ -1655,6 +1680,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			if (state.isSuppressedToolApprovalDenial(event.error)) {
 				break
 			}
+
+			// Record the error outcome so turn end resolves to the "error" phase
+			// (footer shows Retry / Start New Task) instead of awaiting_followup.
+			state.setErrorSeen()
 
 			// Serialize the error message for the webview's ErrorRow to parse.
 			// The webview uses ClineError.parse() on the `api_req_failed` text to

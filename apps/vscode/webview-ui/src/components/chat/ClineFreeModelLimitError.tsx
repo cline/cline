@@ -142,7 +142,11 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 						className="w-full mt-3"
 						disabled={isSwitching || didSwitch}
 						onClick={handleSwitchToPaidModel}>
-						{isSwitching ? "Switching..." : didSwitch ? "Switched to the paid model" : "Switch to the paid model"}
+						{isSwitching
+							? "Switching..."
+							: didSwitch
+								? "Switched to Usage-Based billing"
+								: "Switch to Usage-Based billing"}
 					</VSCodeButton>
 					{didSwitch && (
 						<div className="text-(--vscode-descriptionForeground) text-xs mt-2">

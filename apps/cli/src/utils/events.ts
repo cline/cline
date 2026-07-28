@@ -204,7 +204,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(formatCliErrorMessage(event.error, { modelId: config.modelId }));
+				writeErr(
+					formatCliErrorMessage(event.error, { modelId: config.modelId }),
+				);
 			}
 			break;
 		case "notice":

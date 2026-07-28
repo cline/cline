@@ -1233,6 +1233,45 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.turnComplete).toBe(true)
 	})
 
+	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "error",
+					text: "stream failed before assistant output",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.turnComplete).toBe(true)
+		expect(state.wasErrorSeen()).toBe(true)
+	})
+
+	it("does not record an error outcome for a successful done event", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		translateSessionEvent(event, state)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
 	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
 		const state = new MessageTranslatorState()
 		const errorJson = JSON.stringify({
@@ -3096,6 +3135,30 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 		const tool = JSON.parse(result.messages[0].text!)
 		expect(tool.tool).toBe("newFileCreated")
 		expect(tool.content).toBe("export const x = 1")
+	})
+
+	it("editor with insert_line is an edit of an existing file, not a new-file creation", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-insert",
+					// A prepend/insert: new_text present, no old_text, but insert_line set.
+					// The SDK editor executor requires the file to already exist for insert,
+					// so this must map to editedExistingFile (not newFileCreated).
+					input: { path: "/src/existing.ts", new_text: "// prepended", insert_line: 1 },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/existing.ts")
 	})
 
 	it("S6-48: editor with old_str/new_str also builds search/replace diff", () => {
