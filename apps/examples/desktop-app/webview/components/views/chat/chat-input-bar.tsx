@@ -6,14 +6,24 @@ import {
 	Brain,
 	Check,
 	ChevronDown,
+	ChevronRight,
 	CircleStop,
+	Clock3,
 	Coins,
 	Paperclip,
 	Pencil,
-	Undo2,
+	Trash2,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	Select,
 	SelectContent,
@@ -230,7 +240,7 @@ type ChatInputBarProps = {
 		promptId: string,
 		prompt: string,
 	) => Promise<void> | void;
-	onUndoPromptInQueue: (item: PromptInQueue) => Promise<void> | void;
+	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -263,7 +273,7 @@ export function ChatInputBar({
 	onRemoveAttachment,
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
-	onUndoPromptInQueue,
+	onRemovePromptInQueue,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -376,6 +386,8 @@ export function ChatInputBar({
 	const [queueActionPendingId, setQueueActionPendingId] = useState<
 		string | null
 	>(null);
+	const [queueExpanded, setQueueExpanded] = useState(false);
+	const queuedPromptsId = useId();
 
 	const tokensSummary = useMemo(() => {
 		const total = summary.tokensIn + summary.tokensOut;
@@ -465,7 +477,7 @@ export function ChatInputBar({
 	);
 
 	const triggerQueuedPromptAction = useCallback(
-		async (item: PromptInQueue, action: "steer" | "undo") => {
+		async (item: PromptInQueue, action: "steer" | "remove") => {
 			if (queueActionPendingId) {
 				return;
 			}
@@ -474,13 +486,13 @@ export function ChatInputBar({
 				if (action === "steer") {
 					await onSteerPromptInQueue(item.id);
 				} else {
-					await onUndoPromptInQueue(item);
+					await onRemovePromptInQueue(item.id);
 				}
 			} finally {
 				setQueueActionPendingId(null);
 			}
 		},
-		[onSteerPromptInQueue, onUndoPromptInQueue, queueActionPendingId],
+		[onRemovePromptInQueue, onSteerPromptInQueue, queueActionPendingId],
 	);
 
 	useEffect(() => {
@@ -495,6 +507,12 @@ export function ChatInputBar({
 			cancelQueuedPromptEdit();
 		}
 	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
+
+	useEffect(() => {
+		if (promptsInQueue.length === 0) {
+			setQueueExpanded(false);
+		}
+	}, [promptsInQueue.length]);
 
 	useEffect(() => {
 		if (!mentionOpen || !activeMention) {
@@ -682,50 +700,54 @@ export function ChatInputBar({
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				{promptsInQueue.length > 0 && (
-					<div className="mb-3 rounded-lg border border-border bg-background/70 p-2">
-						<div className="mb-2 flex items-center justify-between gap-2">
-							<div className="text-[11px] font-medium text-foreground">
-								Queued for upcoming turns
-							</div>
-							<div className="text-[10px] text-muted-foreground">
-								Steer runs first on the next turn
-							</div>
-						</div>
-						<div className="flex flex-col gap-1.5">
-							{promptsInQueue.map((item, index) => {
+					<div className="mb-2">
+						<button
+							aria-controls={queuedPromptsId}
+							aria-expanded={queueExpanded}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							onClick={() => setQueueExpanded((expanded) => !expanded)}
+							type="button"
+						>
+							{queueExpanded ? (
+								<ChevronDown className="size-3.5 shrink-0" />
+							) : (
+								<ChevronRight className="size-3.5 shrink-0" />
+							)}
+							<span>
+								{promptsInQueue.length} prompt
+								{promptsInQueue.length === 1 ? "" : "s"} queued
+							</span>
+						</button>
+						<div
+							className={cn(
+								"flex flex-col gap-0.5 pb-1 pt-1",
+								!queueExpanded && "hidden",
+							)}
+							hidden={!queueExpanded}
+							id={queuedPromptsId}
+						>
+							{promptsInQueue.map((item) => {
 								const isEditing = editingQueuedPromptId === item.id;
 								const isPending = queueActionPendingId === item.id;
 								const hasAttachments = (item.attachmentCount ?? 0) > 0;
 								return (
 									<div
 										className={cn(
-											"flex items-start justify-between gap-3 rounded-md border px-2.5 py-2",
-											item.steer
-												? "border-amber-300/60 bg-amber-500/8"
-												: "border-border/70 bg-muted/30",
+											"group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent/35",
+											item.steer && "bg-primary/5",
 										)}
 										key={item.id}
 									>
+										{item.steer ? (
+											<ArrowUp className="size-4 shrink-0 text-primary" />
+										) : (
+											<Clock3 className="size-4 shrink-0 text-muted-foreground" />
+										)}
 										<div className="min-w-0 flex-1">
-											<div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-												<span>
-													{item.steer ? "Steer" : `Queue ${index + 1}`}
-												</span>
-												{item.steer ? (
-													<span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-														Next turn
-													</span>
-												) : null}
-												{hasAttachments ? (
-													<span>
-														{item.attachmentCount} attachment
-														{item.attachmentCount === 1 ? "" : "s"}
-													</span>
-												) : null}
-											</div>
 											{isEditing ? (
 												<textarea
-													className="min-h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+													aria-label="Edit queued prompt"
+													className="min-h-8 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
 													disabled={isPending}
 													onChange={(event) =>
 														setEditingQueuedPromptValue(event.target.value)
@@ -740,20 +762,34 @@ export function ChatInputBar({
 															void submitQueuedPromptEdit(item);
 														}
 													}}
-													rows={3}
+													rows={1}
 													value={editingQueuedPromptValue}
 												/>
 											) : (
-												<div className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-foreground">
-													{item.prompt}
+												<div className="flex min-w-0 items-center gap-2">
+													<span className="truncate text-xs text-foreground">
+														{item.prompt}
+													</span>
+													{hasAttachments ? (
+														<span className="shrink-0 text-[10px] text-muted-foreground">
+															{item.attachmentCount} attachment
+															{item.attachmentCount === 1 ? "" : "s"}
+														</span>
+													) : null}
+													{item.steer ? (
+														<span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+															Next turn
+														</span>
+													) : null}
 												</div>
 											)}
 										</div>
-										<div className="flex shrink-0 items-center gap-1">
+										<div className="flex shrink-0 items-center gap-0.5">
 											{isEditing ? (
 												<>
 													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														aria-label="Save queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 														disabled={
 															isPending ||
 															editingQueuedPromptValue.trim().length === 0
@@ -761,56 +797,53 @@ export function ChatInputBar({
 														onClick={() => void submitQueuedPromptEdit(item)}
 														type="button"
 													>
-														<Check className="h-3 w-3" />
-														Save
+														<Check className="size-4" />
 													</button>
 													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														aria-label="Cancel editing queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 														disabled={isPending}
 														onClick={cancelQueuedPromptEdit}
 														type="button"
 													>
-														<X className="h-3 w-3" />
-														Cancel
+														<X className="size-4" />
 													</button>
 												</>
 											) : (
 												<>
 													{!item.steer ? (
 														<button
-															className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+															aria-label="Steer queued prompt"
+															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 															disabled={isPending}
 															onClick={() =>
 																void triggerQueuedPromptAction(item, "steer")
 															}
+															title="Steer next"
 															type="button"
 														>
-															Steer
+															<ArrowUp className="size-4" />
 														</button>
-													) : (
-														<div className="px-1 text-[10px] text-amber-700">
-															Steering
-														</div>
-													)}
+													) : null}
 													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														aria-label="Edit queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 														disabled={isPending}
 														onClick={() => startQueuedPromptEdit(item)}
 														type="button"
 													>
-														<Pencil className="h-3 w-3" />
-														Edit
+														<Pencil className="size-4" />
 													</button>
 													<button
-														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														aria-label="Remove queued prompt"
+														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 														disabled={isPending}
 														onClick={() =>
-															void triggerQueuedPromptAction(item, "undo")
+															void triggerQueuedPromptAction(item, "remove")
 														}
 														type="button"
 													>
-														<Undo2 className="h-3 w-3" />
-														Undo
+														<Trash2 className="size-4" />
 													</button>
 												</>
 											)}

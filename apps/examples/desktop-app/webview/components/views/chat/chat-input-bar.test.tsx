@@ -84,7 +84,7 @@ describe("ChatInputBar", () => {
 							onSend={vi.fn()}
 							onSteerPromptInQueue={vi.fn()}
 							onSwitchGitBranch={vi.fn(async () => true)}
-							onUndoPromptInQueue={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
 							promptDraft={{ version: 0, value: "" }}
 							promptsInQueue={[]}
 							provider="cline"
@@ -164,7 +164,7 @@ describe("ChatInputBar", () => {
 						onSend={vi.fn()}
 						onSteerPromptInQueue={vi.fn()}
 						onSwitchGitBranch={vi.fn(async () => true)}
-						onUndoPromptInQueue={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
 						provider="cline"
@@ -207,5 +207,114 @@ describe("ChatInputBar", () => {
 			thinking: true,
 			reasoningEffort: "high",
 		});
+	});
+
+	it("shows queued prompts in an accessible list with clear priority actions", async () => {
+		const onSteerPromptInQueue = vi.fn();
+		const onRemovePromptInQueue = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={onSteerPromptInQueue}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={onRemovePromptInQueue}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[
+							{
+								id: "queued-prompt-1",
+								prompt: "What else can we update the title to?",
+								steer: false,
+							},
+							{
+								id: "queued-prompt-2",
+								prompt: "Use the shorter title",
+								steer: true,
+							},
+						]}
+						provider="cline"
+						reasoningEffort="low"
+						status="running"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const queueToggle = [
+			...container.querySelectorAll<HTMLButtonElement>(
+				"button[aria-controls][aria-expanded]",
+			),
+		].find((button) => button.textContent?.includes("prompts queued"));
+		expect(queueToggle?.textContent).toContain("2 prompts queued");
+		expect(queueToggle?.getAttribute("aria-expanded")).toBe("false");
+		const queuedPromptsId = queueToggle?.getAttribute("aria-controls");
+		expect(queuedPromptsId).toBeTruthy();
+		const queuedPrompts = document.getElementById(queuedPromptsId ?? "");
+		expect(container.contains(queuedPrompts)).toBe(true);
+		expect(queuedPrompts?.hidden).toBe(true);
+
+		await act(async () => queueToggle?.click());
+
+		expect(queueToggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(queuedPrompts?.hidden).toBe(false);
+		expect(queuedPrompts?.textContent).toContain(
+			"What else can we update the title to?",
+		);
+		expect(queuedPrompts?.textContent).toContain("Use the shorter title");
+		expect(queuedPrompts?.textContent).toContain("Next turn");
+		expect(
+			container.querySelector('[aria-label="Edit queued prompt"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Remove queued prompt"]'),
+		).not.toBeNull();
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Steer queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onSteerPromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Remove queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
 	});
 });

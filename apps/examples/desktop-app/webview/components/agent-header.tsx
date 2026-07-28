@@ -1,7 +1,8 @@
 "use client";
 
+import { SessionStatus } from "@cline/ui";
 import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -52,6 +53,18 @@ export function AgentHeader({
 	const additions = diff?.additions ?? 0;
 	const deletions = diff?.deletions ?? 0;
 	const hasChanges = additions + deletions > 0;
+	const statusTone =
+		status === "running"
+			? "running"
+			: status === "failed"
+				? "error"
+				: "neutral";
+	const statusColor =
+		status === "running"
+			? "var(--color-green-500)"
+			: status === "failed"
+				? "var(--color-red-500)"
+				: "var(--color-gray-500)";
 	const threadTitle = useMemo(
 		() => normalizeTitle(title?.trim()) || "New Session",
 		[title],
@@ -86,16 +99,16 @@ export function AgentHeader({
 		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:pl-12">
 			{/* Left: thread title */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<output
-					aria-label={`Session status: ${status}`}
-					className={cn(
-						"size-2 shrink-0 rounded font-mono",
-						status === "running"
-							? "bg-green-500"
-							: status === "failed"
-								? "bg-red-500"
-								: "bg-gray-500",
-					)}
+				<SessionStatus
+					className="shrink-0 font-mono"
+					label={`Session status: ${status}`}
+					showLabel={false}
+					style={
+						{
+							"--cline-ui-session-status-color": statusColor,
+						} as CSSProperties
+					}
+					tone={statusTone}
 				/>
 				{isEditingTitle ? (
 					<form
