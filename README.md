@@ -32,12 +32,13 @@ scattered across the app.
 
 ![The Drive tab](docs/assets/drivecode/drive-tab.png)
 
-> Screenshots here are light theme. The hub ships light and dark, and follows
-> your theme choice throughout.
+> Hub screenshots are light theme. The hub ships light and dark and follows your
+> theme choice. TUI screenshots below are the dark terminal surface.
 
 ## Contents
 
 - [Drive Mode](#drive-mode) — pair with an agent on a call
+- [CLI (TUI)](#cli-tui) — the same agent core in your terminal
 - [Spotlight](#spotlight) — the shared surface inside a call
 - [Status Hub](#status-hub) — a changelog for every agent
 - [`report_status`](#the-report_status-tool) — how agents publish
@@ -54,7 +55,7 @@ scattered across the app.
 A Drive call is a room. You are in it, and so is at least one agent. The agent
 narrates decisions rather than keystrokes — what it is about to try and why —
 and you steer without waiting for a turn to end. Raise a hand to interrupt, mute
-the narration, or take over the shared surface yourself.
+or deafen the partner, or take over the shared surface yourself.
 
 ![A Drive call, with the Spotlight open](docs/assets/drivecode/drive-call.png)
 
@@ -73,9 +74,38 @@ who holds the Spotlight, mute flags, sub-mode. Every client renders a projection
 of that state rather than keeping its own copy, so two people looking at the same
 room always see the same thing.
 
+**Drive Settings** (in the call chrome) pick a runtime profile —
+`local` / `cloud` / `hybrid` — and BYOK speech providers for STT and TTS. The
+hub resolves a legal topology from those choices so voice input and narration
+stay compatible with how the LLM is reached. Bring your own keys; nothing
+Drive-specific is locked to a single vendor.
+
 **Today:** rooms are in-memory, so restarting the hub ends the room. There is no
 WebRTC or pixel capture — human sharing is a structured pin (see below), which is
 what makes the Spotlight work as a plain event stream.
+
+## CLI (TUI)
+
+**The same agent core, in the terminal.**
+
+Drive's hub is the call UI. The CLI is still first-class for everyday agent
+work: interactive OpenTUI chat, plan/act toggle, slash commands, file mentions,
+live tool approvals, and headless one-shots for scripts and CI. It auto-spawns
+the hub daemon, so you are not managing a second process.
+
+![Cline interactive TUI — home](docs/assets/drivecode/tui-chat.png)
+
+![Provider setup in the TUI](docs/assets/drivecode/tui-auth.png)
+
+```bash
+bun run cli -i                                    # interactive TUI
+bun run cli -P anthropic -m claude-sonnet-4-5 "…" # one-shot
+bun run cli doctor                                # local health
+```
+
+Configure providers with `cline auth` or env vars (`ANTHROPIC_API_KEY`,
+`CLINE_API_KEY`, `OPENROUTER_API_KEY`, …). Full CLI docs:
+[apps/cli/README.md](apps/cli/README.md).
 
 ## Spotlight
 
@@ -116,7 +146,7 @@ updates land quietly in the Hub, where they are found on demand — and where
 *other agents* read them to understand the state of the project. Only genuinely
 urgent updates interrupt you.
 
-Two lenses over one log.
+Three lenses over the same status surface.
 
 ### Board — "where is everything, and what needs me?"
 
@@ -141,6 +171,14 @@ subject, how many updates that subject has, the agent, the publisher it came
 through, the workspace, a link to the originating session, and relative time with
 the exact instant on hover. A `running` item that has not moved in 30 minutes is
 flagged **stale**, which is usually the thing worth noticing.
+
+### Dependency map — "what blocks what?"
+
+The third lens is the **team task graph**, not another view of `status.db`. It
+loads active multi-agent team tasks from the hub (`status.tasks_snapshot`), lays
+them out by dependency layer, and flags cycles or missing references. Select a
+task to see what blocks it and what it unblocks. The map stays empty until a
+team session with tasks is live.
 
 ### How it works
 
@@ -207,7 +245,12 @@ Requires [Bun](https://bun.sh) 1.3+ and Node 22+.
 
 ```bash
 bun install
-bun run build:sdk          # required first — the webview cannot resolve @cline/shared without it
+bun run build:sdk          # required first — packages resolve each other through dist/
+```
+
+**Hub (Drive tab, Spotlight, Status Hub)**
+
+```bash
 bun run --cwd apps/cline-hub dev
 ```
 
@@ -215,7 +258,8 @@ Open **http://127.0.0.1:8787** and click **Connect**.
 
 - **Drive** in the sidebar is the home for everything above.
 - **Start a Drive call** opens a room with an agent.
-- **Status Hub** is the Board and Changelog.
+- **Status Hub** is the Board, Changelog, and Dependency map.
+- In a call, **Drive Settings** chooses local/cloud/hybrid plus STT/TTS providers.
 
 Ports are configurable when 8787 or 5173 are taken:
 
@@ -223,18 +267,30 @@ Ports are configurable when 8787 or 5173 are taken:
 CLINE_HUB_DASHBOARD_PORT=8791 CLINE_HUB_WEBVIEW_DEV_PORT=5175 bun run --cwd apps/cline-hub dev
 ```
 
+**CLI (TUI)**
+
+```bash
+bun run cli -i
+```
+
+The interactive TUI auto-spawns the hub daemon. Use `bun run cli doctor` if
+something looks unhealthy.
+
 ## How it fits together
 
 ```
- Browser (Drive tab · Spotlight · Status Hub)
+ Browser (Drive tab · Spotlight · Status Hub · Drive Settings)
         │  WebSocket
  Cline Hub dashboard
-        │  hub ops: call_* · status.*
+        │  hub ops: call_* · status.* · drive.*
+ CLI TUI  ── same hub daemon, same agent core ── bun run cli -i
+        │
  Hub daemon  ── single writer for room state ── ws://127.0.0.1:25463
         │
- ├── @cline/drive     Drive kernel: sub-modes, narration, interrupts
- ├── @cline/core      sessions, tools, status.db, cron.db
- └── @cline/shared    schemas: room + status events
+ ├── @cline/drive     Drive kernel: sub-modes, narration, topology, BYOK
+ ├── @cline/core      sessions, tools, status.db, cron.db, hub
+ ├── @cline/llms      providers (AI SDK 7 / LanguageModelV4)
+ └── @cline/shared    schemas: room + status + topology events
 ```
 
 The hub is the only writer for shared state. Clients publish facts and render
@@ -246,10 +302,17 @@ repo publishes — rather than beside it.
 
 - [docs/drivecode/README.md](docs/drivecode/README.md) — status schema, hub op
   list, query options, room model
+- [docs/drivecode/architecture.md](docs/drivecode/architecture.md) — diagram-first
+  Status Hub / Drive protocol planes
+- [docs/drivecode/skills-inventory.md](docs/drivecode/skills-inventory.md) —
+  in-repo skills vs candidates for `cline/skills`
 - [ARD-0005](docs/plans/cline-drivemode/ard/ARD-0005-status-hub.md) — Status Hub
   design and the alternatives rejected
+- [ARD-0010](docs/plans/cline-drivemode/ard/ARD-0010-provider-harness-byok.md) —
+  BYOK provider harness and runtime topology
 - [docs/plans/cline-drivemode/](docs/plans/cline-drivemode/) — the full Drive
   plan set, vision through architecture
+- [apps/cli/README.md](apps/cli/README.md) — CLI / TUI details
 
 ---
 

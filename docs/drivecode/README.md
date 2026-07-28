@@ -5,6 +5,7 @@ Everything here is cited to code in this repo.
 
 - [Status Hub](#status-hub)
 - [Drive Mode and Spotlight](#drive-mode-and-spotlight)
+- [Architecture diagrams](architecture.md)
 - [Where the code lives](#where-the-code-lives)
 - [Skills inventory](skills-inventory.md)
 - [Not implemented](#not-implemented)
