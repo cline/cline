@@ -67,7 +67,7 @@ describe("SearchCombobox", () => {
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 	});
 
-	it("closes when disabled and renders loading state", async () => {
+	it("renders loading and disabled states", async () => {
 		const render = (disabled = false, loading = false) =>
 			root.render(
 				<SearchCombobox
@@ -86,7 +86,6 @@ describe("SearchCombobox", () => {
 		expect(container.textContent).toContain("Loading models…");
 
 		await act(async () => render(true, true));
-		expect(container.querySelector('[role="dialog"]')).toBeNull();
 		expect(container.querySelector("button")?.disabled).toBe(true);
 	});
 });

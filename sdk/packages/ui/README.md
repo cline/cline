@@ -43,6 +43,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 for a host-specific status palette.
 
 `SearchCombobox` provides a searchable selector for repository and model lists.
+Its in-place panel requires ancestors that do not clip overflow.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which

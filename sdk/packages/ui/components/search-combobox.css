@@ -100,8 +100,8 @@
 	outline: 0;
 	background: transparent;
 	font: inherit;
-	font-size: 1rem;
-	line-height: 1.5rem;
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
 	padding: 0;
 }
 
