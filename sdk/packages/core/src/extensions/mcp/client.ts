@@ -261,7 +261,9 @@ class StdioMcpClient implements McpServerClient {
 		// every argument must be quoted or paths like "C:\Program Files\..."
 		// split at the space and the spawn fails with exit code 1.
 		const quoteForCmd = (value: string): string =>
-			/[\s"^&|<>()]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+			value.length === 0 || /[\s"^&|<>()]/.test(value)
+				? `"${value.replace(/"/g, '""')}"`
+				: value;
 		const child =
 			process.platform === "win32"
 				? spawn(
