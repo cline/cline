@@ -314,6 +314,26 @@ describe("McpHub.callTool", () => {
 			threw.should.be.true()
 		})
 
+		it("should throw a controlled error when the connection has no client (failed reconnect)", async () => {
+			// A failed (re)connect registers a disconnected entry with a null
+			// client; a tool wrapper captured by an active session can still
+			// call it and must get a controlled error, not a TypeError.
+			const { hub, connection } = createMcpHub()
+			connection.server.status = "disconnected"
+			;(connection.server as any).error = "spawn broken-command ENOENT"
+			;(connection as any).client = null
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "some_tool", undefined, "ulid-018")
+			} catch (error: any) {
+				threw = true
+				error.message.should.containEql('Server "test-server" is not connected')
+				error.message.should.containEql("spawn broken-command ENOENT")
+			}
+			threw.should.be.true()
+		})
+
 		it("should capture error telemetry when client.request fails", async () => {
 			const client = createMockClient()
 			client.request.rejects(new Error("Network timeout"))

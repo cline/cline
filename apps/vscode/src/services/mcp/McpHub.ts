@@ -1421,6 +1421,14 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
+		// A failed (re)connect leaves an entry with no client so the server
+		// stays visible in the list; a tool wrapper captured by an active
+		// session can still target it, and must get a controlled error.
+		if (!connection.client) {
+			const detail = connection.server.error ? ` Last error: ${connection.server.error}` : ""
+			throw new Error(`Server "${serverName}" is not connected and cannot be used.${detail}`)
+		}
+
 		// The config is re-resolved on each call, so a changed timeout takes
 		// effect on the next request.
 		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
