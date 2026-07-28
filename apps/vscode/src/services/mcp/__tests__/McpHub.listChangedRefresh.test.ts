@@ -209,4 +209,34 @@ describe("McpHub list_changed notification refresh", () => {
 		fetchToolsList.calledTwice.should.be.true()
 		connection.server.tools.should.deepEqual([{ name: "newer" }])
 	})
+
+	it("drops the refresh when the connection was replaced by a reconnect mid-fetch", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		let resolveFetch: (tools: Array<{ name: string }>) => void = () => {}
+		fetchToolsList.returns(
+			new Promise((resolve) => {
+				resolveFetch = resolve
+			}),
+		)
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		// Simulate a reconnect while the fetch is in flight: the connection
+		// object is replaced by a new one that fetched fresh lists at connect
+		const replacement = {
+			server: { ...connection.server, tools: [{ name: "fresh-from-connect" }] },
+			client: {},
+			transport: {},
+		}
+		;(hub as any).connections = [replacement]
+
+		resolveFetch([{ name: "stale-from-old-connection" }])
+		await clock.tickAsync(0)
+		await clock.tickAsync(0)
+
+		// The in-flight result must not overwrite the replacement's newer data
+		replacement.server.tools.should.deepEqual([{ name: "fresh-from-connect" }])
+		notifyWebviewOfServerChanges.called.should.be.false()
+	})
 })

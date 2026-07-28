@@ -958,37 +958,53 @@ export class McpHub {
 		// A failed fetch returns undefined; keep the previous cached list in
 		// that case rather than publishing an empty one, and skip the webview
 		// notification entirely when nothing was refreshed.
+		let tools: McpTool[] | undefined
+		let resources: McpResource[] | undefined
+		let resourceTemplates: McpResourceTemplate[] | undefined
+		let prompts: McpPrompt[] | undefined
 		switch (kind) {
-			case "tools": {
-				const tools = await this.fetchToolsList(serverName)
+			case "tools":
+				tools = await this.fetchToolsList(serverName)
 				if (tools === undefined) {
 					return
 				}
-				connection.server.tools = tools
 				break
-			}
-			case "resources": {
-				const resources = await this.fetchResourcesList(serverName)
-				const resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+			case "resources":
+				resources = await this.fetchResourcesList(serverName)
+				resourceTemplates = await this.fetchResourceTemplatesList(serverName)
 				if (resources === undefined && resourceTemplates === undefined) {
 					return
 				}
-				if (resources !== undefined) {
-					connection.server.resources = resources
-				}
-				if (resourceTemplates !== undefined) {
-					connection.server.resourceTemplates = resourceTemplates
-				}
 				break
-			}
-			case "prompts": {
-				const prompts = await this.fetchPromptsList(serverName)
+			case "prompts":
+				prompts = await this.fetchPromptsList(serverName)
 				if (prompts === undefined) {
 					return
 				}
-				connection.server.prompts = prompts
 				break
-			}
+		}
+
+		// The connection may have been deleted or replaced by a reconnect
+		// while the fetches were in flight. Drop the result in that case: a
+		// replacement connection fetched fresh lists when it connected, after
+		// the change that produced this notification, so writing this (older)
+		// result to it could overwrite newer data.
+		const current = this.connections.find((conn) => conn.server.name === serverName)
+		if (current !== connection) {
+			return
+		}
+
+		if (tools !== undefined) {
+			current.server.tools = tools
+		}
+		if (resources !== undefined) {
+			current.server.resources = resources
+		}
+		if (resourceTemplates !== undefined) {
+			current.server.resourceTemplates = resourceTemplates
+		}
+		if (prompts !== undefined) {
+			current.server.prompts = prompts
 		}
 
 		// Push the refreshed lists to the webview; for tools this also runs
