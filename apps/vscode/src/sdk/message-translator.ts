@@ -1576,6 +1576,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// comes from the say:"completion_result" emitted at the completion tool's content_end.
 			// A compaction divider still open here means the turn was aborted mid-compaction.
 			finalizeDanglingCompaction(state, messages, "cancelled")
+
+			// A turn can terminate with done(reason:"error") without a separate
+			// "error" event — record the error outcome here too so turn end still
+			// resolves to the "error" phase (Retry / Start New Task).
+			if (event.reason === "error") {
+				state.setErrorSeen()
+			}
 			break
 		}
 

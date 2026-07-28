@@ -1106,6 +1106,45 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.turnComplete).toBe(true)
 	})
 
+	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "error",
+					text: "stream failed before assistant output",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.turnComplete).toBe(true)
+		expect(state.wasErrorSeen()).toBe(true)
+	})
+
+	it("does not record an error outcome for a successful done event", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		translateSessionEvent(event, state)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
 	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
 		const state = new MessageTranslatorState()
 		const errorJson = JSON.stringify({
