@@ -29,7 +29,8 @@ afterEach(() => {
 });
 
 describe("app icon", () => {
-	it("defaults to classic and validates stored values", () => {
+	it("defaults to the bundled midnight icon and validates stored values", () => {
+		expect(DEFAULT_APP_ICON).toBe("midnight");
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "bogus");
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
@@ -55,14 +56,14 @@ describe("app icon", () => {
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
 	});
 
-	it("re-applies only non-default choices at boot", async () => {
+	it("re-applies only non-bundled choices at boot", async () => {
 		isTauriAvailable.mockReturnValue(true);
 		invoke.mockResolvedValue(true);
 		await syncAppIcon();
 		expect(invoke).not.toHaveBeenCalled();
 
-		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "sunrise");
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "classic");
 		await syncAppIcon();
-		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "sunrise" });
+		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "classic" });
 	});
 });

@@ -1,13 +1,19 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-import { disposeAll, initVcr, isHubDaemonProcess } from "@cline/shared";
+import {
+	disposeAll,
+	initVcr,
+	isHubDaemonProcess,
+	setConnectorCliLaunchSpec,
+} from "@cline/shared";
 import { logCliProcessError } from "./logging/errors";
 import {
 	abortActiveRuntime,
 	cleanupActiveRuntime,
 	isAbortInProgress,
 } from "./runtime/active-runtime";
+import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
 // Initialize VCR before any HTTP requests are made.
@@ -21,6 +27,15 @@ if (!isMainThread) {
 	// fatal rejection handler first would make expected abort rejections exit it.
 	void import("@cline/core/hub/daemon-entry");
 } else {
+	const cliLaunchSpec = resolveCliLaunchSpec({ debugRole: "connector" });
+	if (cliLaunchSpec) {
+		setConnectorCliLaunchSpec({
+			launcher: cliLaunchSpec.launcher,
+			connectArgsPrefix: [...cliLaunchSpec.childArgsPrefix, "connect"],
+			cwd: process.cwd(),
+		});
+	}
+
 	let shuttingDown = false;
 	let handlingFatalProcessError = false;
 	const forwardSignalToRuntime = () => {

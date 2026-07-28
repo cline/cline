@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import {
 	existsSync,
 	readdirSync,
@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
 	ProviderCapability,
@@ -91,6 +92,12 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+
+// All child processes in this module run asynchronously: the sidecar is a
+// single event loop shared by every UI command and streaming chat session, so
+// a synchronous exec (git, folder picker, editor discovery) freezes the whole
+// app until the child exits.
+const execFileAsync = promisify(execFile);
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
 // anything broader (file:, custom app schemes) would let webview content
@@ -476,40 +483,31 @@ async function listSessionsFromSidecarManager(
 // Git helpers
 // ---------------------------------------------------------------------------
 
-function listGitBranches(
+async function listGitBranches(
 	ctx: SidecarContext,
 	cwd?: string,
-): { current?: string; branches?: string[] } {
+): Promise<{ current?: string; branches?: string[] }> {
 	const targetCwd = cwd?.trim() || ctx.workspaceRoot;
-	const current = (() => {
-		try {
-			return execFileSync("git", ["branch", "--show-current"], {
-				cwd: targetCwd,
-				encoding: "utf8",
-				stdio: ["ignore", "pipe", "ignore"],
-			}).trim();
-		} catch {
-			return "";
-		}
-	})();
-	try {
-		const stdout = execFileSync(
+	const [currentResult, branchesResult] = await Promise.all([
+		execFileAsync("git", ["branch", "--show-current"], {
+			cwd: targetCwd,
+			encoding: "utf8",
+		}).catch(() => undefined),
+		execFileAsync(
 			"git",
 			["for-each-ref", "--format=%(refname:short)", "refs/heads"],
 			{
 				cwd: targetCwd,
 				encoding: "utf8",
-				stdio: ["ignore", "pipe", "ignore"],
 			},
-		);
-		const branches = stdout
-			.split("\n")
-			.map((v) => v.trim())
-			.filter(Boolean);
-		return { current: current || undefined, branches };
-	} catch {
-		return { current: current || undefined, branches: [] };
-	}
+		).catch(() => undefined),
+	]);
+	const current = currentResult?.stdout.trim() ?? "";
+	const branches = (branchesResult?.stdout ?? "")
+		.split("\n")
+		.map((v) => v.trim())
+		.filter(Boolean);
+	return { current: current || undefined, branches };
 }
 
 // ---------------------------------------------------------------------------
@@ -897,11 +895,14 @@ async function listUserInstructionConfigs(
 // Native OS commands
 // ---------------------------------------------------------------------------
 
-function pickWorkspaceDirectory(): string | null {
+// Async is load-bearing here: the native picker blocks until the user chooses
+// a folder, and a synchronous exec would freeze every other sidecar command
+// (chat streams, history, settings) for however long the dialog stays open.
+async function pickWorkspaceDirectory(): Promise<string | null> {
 	const platform = process.platform;
 	if (platform === "darwin") {
 		try {
-			const result = execFileSync(
+			const { stdout } = await execFileAsync(
 				"osascript",
 				[
 					"-e",
@@ -909,21 +910,21 @@ function pickWorkspaceDirectory(): string | null {
 					"-e",
 					"return POSIX path of theFolder",
 				],
-				{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-			).trim();
-			return result || null;
+				{ encoding: "utf8" },
+			);
+			return stdout.trim() || null;
 		} catch {
 			return null;
 		}
 	}
 	// Linux — try zenity
 	try {
-		const result = execFileSync(
+		const { stdout } = await execFileAsync(
 			"zenity",
 			["--file-selection", "--directory", "--title=Select workspace directory"],
-			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-		).trim();
-		return result || null;
+			{ encoding: "utf8" },
+		);
+		return stdout.trim() || null;
 	} catch {
 		return null;
 	}
@@ -984,12 +985,11 @@ const CODE_EDITOR_CATALOG: readonly CodeEditorDefinition[] = [
 	{ id: "xcode", label: "Xcode", cli: "xed", macApps: ["Xcode"] },
 ];
 
-function findExecutableOnPath(name: string): string | null {
+async function findExecutableOnPath(name: string): Promise<string | null> {
 	try {
 		const locator = process.platform === "win32" ? "where" : "which";
-		const stdout = execFileSync(locator, [name], {
+		const { stdout } = await execFileAsync(locator, [name], {
 			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
 		});
 		return stdout.split("\n")[0]?.trim() || null;
 	} catch {
@@ -1009,13 +1009,38 @@ function isMacAppInstalled(app: string): boolean {
 	);
 }
 
+// Installed editors change rarely; cache briefly so composer UI refreshes do
+// not re-run a batch of `which` lookups on every open.
+const EDITOR_CATALOG_CACHE_TTL_MS = 60_000;
+let editorCatalogCache: {
+	fetchedAt: number;
+	editors: Array<{ id: string; label: string }>;
+} | null = null;
+
 /** Editors the current machine can actually launch, in catalog order. */
-function listAvailableCodeEditors(): Array<{ id: string; label: string }> {
-	return CODE_EDITOR_CATALOG.filter(
-		(editor) =>
-			findExecutableOnPath(editor.cli) !== null ||
-			(process.platform === "darwin" && editor.macApps.some(isMacAppInstalled)),
+async function listAvailableCodeEditors(): Promise<
+	Array<{ id: string; label: string }>
+> {
+	const now = Date.now();
+	if (
+		editorCatalogCache &&
+		now - editorCatalogCache.fetchedAt < EDITOR_CATALOG_CACHE_TTL_MS
+	) {
+		return editorCatalogCache.editors;
+	}
+	const availability = await Promise.all(
+		CODE_EDITOR_CATALOG.map(
+			async (editor) =>
+				(await findExecutableOnPath(editor.cli)) !== null ||
+				(process.platform === "darwin" &&
+					editor.macApps.some(isMacAppInstalled)),
+		),
+	);
+	const editors = CODE_EDITOR_CATALOG.filter(
+		(_, index) => availability[index],
 	).map(({ id, label }) => ({ id, label }));
+	editorCatalogCache = { fetchedAt: now, editors };
+	return editors;
 }
 
 /** Launches `executable filePath` detached; false if the CLI is unusable. */
@@ -1046,11 +1071,9 @@ function launchEditorCli(executable: string, filePath: string): boolean {
 	return true;
 }
 
-function launchMacApp(app: string, filePath: string): boolean {
+async function launchMacApp(app: string, filePath: string): Promise<boolean> {
 	try {
-		execFileSync("open", ["-a", app, filePath], {
-			stdio: ["ignore", "ignore", "ignore"],
-		});
+		await execFileAsync("open", ["-a", app, filePath]);
 		return true;
 	} catch {
 		return false;
@@ -1058,7 +1081,10 @@ function launchMacApp(app: string, filePath: string): boolean {
 }
 
 /** Returns the launcher that handled the file, for logging/UI feedback. */
-function openFileInCodeEditor(filePath: string, editorId?: string): string {
+async function openFileInCodeEditor(
+	filePath: string,
+	editorId?: string,
+): Promise<string> {
 	if (
 		process.platform === "win32" &&
 		WINDOWS_CMD_UNSAFE_PATTERN.test(filePath)
@@ -1072,32 +1098,32 @@ function openFileInCodeEditor(filePath: string, editorId?: string): string {
 		if (!editor) {
 			throw new Error(`Unknown editor: ${editorId}`);
 		}
-		const executable = findExecutableOnPath(editor.cli);
+		const executable = await findExecutableOnPath(editor.cli);
 		if (executable && launchEditorCli(executable, filePath)) {
 			return editor.label;
 		}
-		if (
-			process.platform === "darwin" &&
-			editor.macApps.some((app) => launchMacApp(app, filePath))
-		) {
-			return editor.label;
+		if (process.platform === "darwin") {
+			for (const app of editor.macApps) {
+				if (await launchMacApp(app, filePath)) {
+					return editor.label;
+				}
+			}
 		}
 		throw new Error(`${editor.label} is not available on this machine`);
 	}
 	if (!editorId) {
 		for (const editor of CODE_EDITOR_CATALOG) {
-			const executable = findExecutableOnPath(editor.cli);
+			const executable = await findExecutableOnPath(editor.cli);
 			if (executable && launchEditorCli(executable, filePath)) {
 				return editor.cli;
 			}
 		}
 		if (process.platform === "darwin") {
 			for (const editor of CODE_EDITOR_CATALOG) {
-				const app = editor.macApps.find((candidate) =>
-					launchMacApp(candidate, filePath),
-				);
-				if (app) {
-					return app;
+				for (const candidate of editor.macApps) {
+					if (await launchMacApp(candidate, filePath)) {
+						return candidate;
+					}
 				}
 			}
 		}
@@ -1613,13 +1639,13 @@ export async function handleCommand(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
 				: ctx.workspaceRoot;
-		const branches = listGitBranches(ctx, cwd);
+		const branches = await listGitBranches(ctx, cwd);
 		const { prewarmWorkspaceMetadata } = await import("./chat-session");
 		prewarmWorkspaceMetadata(cwd);
 		return { branch: branches.current };
 	}
 	if (command === "list_git_branches") {
-		return listGitBranches(
+		return await listGitBranches(
 			ctx,
 			typeof args?.cwd === "string" ? args.cwd : undefined,
 		);
@@ -1629,10 +1655,9 @@ export async function handleCommand(
 		const branch = String(args?.branch ?? "").trim();
 		if (!branch) throw new Error("branch is required");
 		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
-		execFileSync("git", ["checkout", branch], {
+		await execFileAsync("git", ["checkout", branch], {
 			cwd: targetCwd,
 			encoding: "utf8",
-			stdio: ["ignore", "pipe", "pipe"],
 		});
 		const { refreshWorkspaceMetadata } = await import("./chat-session");
 		refreshWorkspaceMetadata(targetCwd);
@@ -1715,7 +1740,7 @@ export async function handleCommand(
 		}
 	}
 	if (command === "pick_workspace_directory") {
-		return pickWorkspaceDirectory();
+		return await pickWorkspaceDirectory();
 	}
 	if (command === "open_mcp_settings_file") {
 		const path = ensureMcpSettingsFile();
@@ -1723,7 +1748,7 @@ export async function handleCommand(
 		return path;
 	}
 	if (command === "list_available_editors") {
-		return listAvailableCodeEditors();
+		return await listAvailableCodeEditors();
 	}
 	if (command === "open_file_in_editor") {
 		const rawPath = String(args?.path ?? "").trim();
@@ -1740,7 +1765,7 @@ export async function handleCommand(
 			typeof args?.editor === "string" && args.editor.trim()
 				? args.editor.trim()
 				: undefined;
-		const editor = openFileInCodeEditor(filePath, requestedEditor);
+		const editor = await openFileInCodeEditor(filePath, requestedEditor);
 		return { path: filePath, editor };
 	}
 
