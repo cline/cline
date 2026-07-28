@@ -57,10 +57,6 @@ export function SearchCombobox({
 			document.removeEventListener("pointerdown", handlePointerDown, true);
 	}, [open]);
 
-	useEffect(() => {
-		if (disabled) setOpen(false);
-	}, [disabled]);
-
 	const selected = options.find((option) => option.value === value);
 	const displayedValue = loading
 		? loadingText
