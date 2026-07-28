@@ -12,6 +12,7 @@ import {
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
 	isClineFreeModelLimitErrorMessage,
+	isClineFreePromotionEndedErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
@@ -537,6 +538,34 @@ function ClineFreeModelLimitErrorView(props: {
 	);
 }
 
+function ClineFreePromotionEndedErrorView(props: { defaultFg?: string }) {
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">Free model promotion ended</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="The free promotion for this model has ended and it is no longer available."
+				/>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="Select another model to continue."
+				/>
+				<text fg="gray">Open the model selector with /model.</text>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -668,6 +697,9 @@ export function ChatEntryView(props: {
 						message={entry.text}
 					/>
 				);
+			}
+			if (isClineFreePromotionEndedErrorMessage(entry.text)) {
+				return <ClineFreePromotionEndedErrorView defaultFg={defaultFg} />;
 			}
 			return (
 				<box flexDirection="row">

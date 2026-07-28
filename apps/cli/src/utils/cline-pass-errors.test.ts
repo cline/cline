@@ -8,6 +8,7 @@ import {
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	isClineFreeModelLimitErrorMessage,
+	isClineFreePromotionEndedErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
@@ -103,6 +104,11 @@ describe("cline-pass-errors", () => {
 		expect(
 			formatCliErrorMessage(raw, { modelId: "cline-free/retired-model" }),
 		).toContain("Free model promotion ended");
+		expect(
+			isClineFreePromotionEndedErrorMessage(
+				formatCliErrorMessage(raw, { modelId: "cline-free/retired-model" }),
+			),
+		).toBe(true);
 		expect(
 			formatCliErrorMessage(raw, { modelId: "vendor/retired-model" }),
 		).toBe(raw.message);
