@@ -33,6 +33,14 @@ export interface SdkTaskControlCoordinatorOptions {
 }
 
 export class SdkTaskControlCoordinator {
+	/**
+	 * Generation counter for task-view mutations (showTaskWithId / clearTask).
+	 * showTaskWithId awaits several reads before installing the task proxy; a
+	 * request that loses the race to a newer mutation abandons installation at
+	 * the next fence check so the user's latest selection always wins.
+	 */
+	private taskViewGeneration = 0
+
 	constructor(private readonly options: SdkTaskControlCoordinatorOptions) {}
 
 	async cancelTask(): Promise<void> {
@@ -79,6 +87,9 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async clearTask(): Promise<void> {
+		// Supersede any in-flight showTaskWithId so it cannot re-install a task
+		// after the user cleared the view (e.g. clicked New Task).
+		this.taskViewGeneration++
 		this.options.interactions.clearPending("Task cleared")
 
 		await this.options.sessions.endActiveSession("clearTask")
@@ -96,6 +107,14 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
+		const generation = ++this.taskViewGeneration
+		const isSuperseded = (): boolean => {
+			if (generation === this.taskViewGeneration) {
+				return false
+			}
+			Logger.debug(`[SdkController] showTaskWithId superseded by a newer selection; skipping: ${taskId}`)
+			return true
+		}
 		try {
 			if (!options.skipHistoryLookup) {
 				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
@@ -114,6 +133,14 @@ export class SdkTaskControlCoordinator {
 				awaitStop: activeSession?.sessionId === taskId,
 			})
 
+			// FENCE: everything below mutates the shared task view (clearing the
+			// current task, installing the new proxy, setting the turn phase). If a
+			// newer showTaskWithId/clearTask started while this call awaited I/O,
+			// bail out so the stale request cannot clobber the newer selection.
+			if (isSuperseded()) {
+				return
+			}
+
 			const currentTask = this.options.getTask()
 			if (currentTask) {
 				currentTask.messageStateHandler.clear()
@@ -126,6 +153,9 @@ export class SdkTaskControlCoordinator {
 			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
 			const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			if (isSuperseded()) {
+				return
+			}
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = isLegacyTask
 				? this.appendLegacyTaskWarningAndResumeMessage(messages)
@@ -173,19 +203,16 @@ export class SdkTaskControlCoordinator {
 	}
 
 	private appendFreshResumeMessage(messages: ClineMessage[], sessionStatus?: string): ClineMessage[] {
-		// Prefer the persisted session status: SDK conversations do not record a
-		// completion tool call in the transcript (a completed turn and a turn
-		// interrupted mid-stream both end with plain assistant text), and history
-		// rendering appends a synthetic trailing ask:"completion_result" either
-		// way. Only the session status distinguishes "completed" from
-		// "cancelled"/"failed" — interrupted tasks must get the Resume affordance.
-		const lastRelevantMessage = [...messages]
-			.reverse()
-			.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-		const completed = sessionStatus
-			? sessionStatus === "completed"
-			: lastRelevantMessage?.ask === "completion_result"
-		const resumeAsk = completed ? "resume_completed_task" : "resume_task"
+		// The persisted session status is the only reliable completion signal:
+		// SDK conversations do not record a completion tool call in the
+		// transcript (a completed turn and a turn interrupted mid-stream both
+		// end with plain assistant text), and history rendering appends a
+		// synthetic trailing ask:"completion_result" either way, so the message
+		// tail cannot be used. When the status is unknown (e.g. a transient
+		// read failure), default to the Resume affordance: resuming a completed
+		// task is harmless, while hiding Resume on an interrupted one is the
+		// data-loss illusion this exists to prevent.
+		const resumeAsk = sessionStatus === "completed" ? "resume_completed_task" : "resume_task"
 		const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
 		cleanedMessages.push({
 			ts: Date.now(),

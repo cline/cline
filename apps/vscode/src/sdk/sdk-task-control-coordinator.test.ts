@@ -76,6 +76,7 @@ describe("SdkTaskControlCoordinator", () => {
 			task: existingTask,
 			hasHistoryItem: true,
 			clineMessages: sdkClineMessages,
+			sessionStatus: "completed",
 		})
 
 		await coordinator.showTaskWithId("task-1")
@@ -192,6 +193,65 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("task-1")
 
 		expect(options.setTurnPhase).toHaveBeenCalledWith("idle")
+	})
+
+	it("abandons a superseded showTaskWithId so the newest selection wins", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		// Park the FIRST open on its message read so a second open can start
+		// and finish while the first is still in flight.
+		let resolveFirstRead: ((messages: ClineMessage[]) => void) | undefined
+		options.taskHistory.getClineMessages.mockImplementationOnce(
+			() =>
+				new Promise<ClineMessage[]>((resolve) => {
+					resolveFirstRead = resolve
+				}),
+		)
+
+		const firstOpen = coordinator.showTaskWithId("task-old")
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(resolveFirstRead).toBeDefined()
+
+		await coordinator.showTaskWithId("task-new")
+		expect(state.task?.taskId).toBe("task-new")
+		const phaseCallsAfterSecondOpen = options.setTurnPhase.mock.calls.length
+
+		resolveFirstRead?.([{ ts: 1, type: "say", say: "task", text: "stale" }])
+		await firstOpen
+
+		// The stale open must not replace the newer selection or its turn phase.
+		expect(state.task?.taskId).toBe("task-new")
+		expect(state.task?.messageStateHandler.getClineMessages().length).toBeGreaterThan(0)
+		expect(options.setTurnPhase.mock.calls.length).toBe(phaseCallsAfterSecondOpen)
+	})
+
+	it("abandons a superseded showTaskWithId when the user clears the task", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		let resolveRead: ((messages: ClineMessage[]) => void) | undefined
+		options.taskHistory.getClineMessages.mockImplementationOnce(
+			() =>
+				new Promise<ClineMessage[]>((resolve) => {
+					resolveRead = resolve
+				}),
+		)
+
+		const open = coordinator.showTaskWithId("task-old")
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		await coordinator.clearTask()
+		resolveRead?.([{ ts: 1, type: "say", say: "task", text: "stale" }])
+		await open
+
+		expect(state.task).toBeUndefined()
 	})
 
 	it("does not install the new task proxy until its messages are loaded", async () => {
