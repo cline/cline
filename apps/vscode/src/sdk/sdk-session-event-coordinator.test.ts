@@ -110,6 +110,22 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("resolves the turn phase to 'error' when the turn surfaced a provider error", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+		options.messageTranslatorState.setErrorSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("error")
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("awaiting_followup")
+	})
+
 	it("marks a submitted queued prompt as a new streaming turn", async () => {
 		const message: ClineMessage = { ts: 1, type: "say", say: "user_feedback", text: "queued prompt" }
 		const { coordinator, options } = makeCoordinator({

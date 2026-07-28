@@ -108,6 +108,10 @@ export class SdkSessionEventCoordinator {
 				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
 				if (!activeSession.isRunning) {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
+					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
+					// offer error recovery (Retry / Start New Task), not the followup state.
+					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
 					this.options.setTurnPhase?.("completed")
 				} else {
