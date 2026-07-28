@@ -24,6 +24,7 @@ import {
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
+import { formatClineFreeModelName, isClineFreeModelId, zeroPricedModelInfo } from "@/shared/cline/free-models"
 import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
@@ -315,6 +316,16 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 					modelInfo.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 					GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 				)
+			}
+
+			// cline-free/ models are promotional: they always bill at $0 and are marked
+			// "(free)" so users can tell them apart from the paid model of the same slug.
+			if (isClineFreeModelId(rawModel.id)) {
+				models[rawModel.id] = zeroPricedModelInfo({
+					...modelInfo,
+					name: formatClineFreeModelName(rawModel.id, modelInfo.name),
+				})
+				continue
 			}
 
 			models[rawModel.id] = modelInfo

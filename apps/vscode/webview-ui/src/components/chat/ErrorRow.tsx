@@ -1,6 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage";
 import { isClineProvider } from "@shared/utils/cline";
 import { memo } from "react";
+import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError";
 import ClinePassLimitError from "@/components/chat/ClinePassLimitError";
 import CreditLimitError from "@/components/chat/CreditLimitError";
 import EntitlementError from "@/components/chat/EntitlementError";
@@ -103,6 +104,15 @@ const ErrorRow = memo(
 							const limitMessage =
 								extractClinePassLimitMessage(detailMessage) ?? detailMessage;
 							return <ClinePassLimitError message={limitMessage} />;
+						}
+
+						// Daily free-model limits have their own remedy (wait for the
+						// reset, pick another model, or switch to the paid twin), so
+						// they get dedicated copy instead of the raw backend message.
+						if (clineError?.isErrorType(ClineErrorType.ClineFreeModelLimit)) {
+							const detailMessage =
+								clineError?._error?.details?.message || errorMessage;
+							return <ClineFreeModelLimitError message={detailMessage} />;
 						}
 
 						if (clineError?.isErrorType(ClineErrorType.RateLimit)) {

@@ -2472,6 +2472,11 @@ export class Task {
 				const isClinePassLimitError = clineError.isErrorType(
 					ClineErrorType.ClinePassLimit,
 				);
+				// Daily Cline free-model limits reset in hours — same reasoning as
+				// ClinePass limits: surface the actionable UI instead of retrying.
+				const isClineFreeModelLimitError = clineError.isErrorType(
+					ClineErrorType.ClineFreeModelLimit,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2500,6 +2505,7 @@ export class Task {
 					!isEntitlementError &&
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
+					!isClineFreeModelLimitError &&
 					this.taskState.autoRetryAttempts < 3;
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
@@ -2564,7 +2570,8 @@ export class Task {
 						!quotaExceeded &&
 						!isEntitlementError &&
 						!isOrgClinePassRestrictionError &&
-						!isClinePassLimitError;
+						!isClinePassLimitError &&
+						!isClineFreeModelLimitError;
 					if (showRetry) {
 						await this.say(
 							"error_retry",
@@ -3592,9 +3599,22 @@ export class Task {
 					const isStreamingSpendLimitError = clineError.isErrorType(
 						ClineErrorType.SpendLimit,
 					);
-					// Auto-retry for streaming failures (skip for spend limit errors)
+					// Inference cap and daily free-model limits reset in hours, so
+					// retrying only burns backoff before surfacing the actionable UI.
+					// Mirrors the non-streaming gating in attemptApiRequest.
+					const isStreamingQuotaExceededError = clineError.isErrorType(
+						ClineErrorType.QuotaExceeded,
+					);
+					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
+						ClineErrorType.ClineFreeModelLimit,
+					);
+					const isStreamingNonRetriableError =
+						isStreamingSpendLimitError ||
+						isStreamingQuotaExceededError ||
+						isStreamingClineFreeModelLimitError;
+					// Auto-retry for streaming failures (skip for non-retriable errors)
 					if (
-						!isStreamingSpendLimitError &&
+						!isStreamingNonRetriableError &&
 						this.taskState.autoRetryAttempts < 3
 					) {
 						this.taskState.autoRetryAttempts++;
@@ -3628,7 +3648,7 @@ export class Task {
 							}
 						});
 					} else if (
-						!isStreamingSpendLimitError &&
+						!isStreamingNonRetriableError &&
 						this.taskState.autoRetryAttempts >= 3
 					) {
 						// Show error_retry with failed flag to indicate all retries exhausted
