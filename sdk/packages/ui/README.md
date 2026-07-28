@@ -42,7 +42,8 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
 
-`AgentAurora` renders the shared decorative welcome background.
+`AgentAurora` fills its nearest positioned ancestor, which must have resolved
+dimensions.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
