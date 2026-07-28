@@ -40,8 +40,9 @@ export function withRetry(options: RetryOptions = {}) {
 				} catch (error: any) {
 					const isRateLimit = error?.status === 429 || error instanceof RetriableError
 					const isLastAttempt = attempt === maxRetries - 1
-
-					if ((!isRateLimit && !retryAllErrors) || isLastAttempt) {
+					const isCapLimitError = error?.code === "INFERENCE_CAP_ERROR"
+					// We shouldn't retry cap limits because they mean the user needs to wait for longer
+					if ((!isRateLimit && !retryAllErrors) || isLastAttempt || isCapLimitError) {
 						throw error
 					}
 

@@ -1,4 +1,5 @@
 import { ApiConfiguration, clinePassDefaultModelId, clinePassModels, ModelInfo, openRouterDefaultModelId } from "@shared/api"
+import { isClineFreeModelId } from "@shared/cline/free-models"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
@@ -209,7 +210,13 @@ export function validateModelId(
 				if (!clineResolvedModelId) {
 					return "You must provide a model ID."
 				}
-				if (clineModels && !Object.keys(clineModels).includes(clineResolvedModelId)) {
+				if (
+					clineModels &&
+					!Object.keys(clineModels).includes(clineResolvedModelId) &&
+					// Cline free models live in their own namespace and are not part of the
+					// paid catalog, so they'd otherwise be rejected here
+					!isClineFreeModelId(clineResolvedModelId)
+				) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
@@ -224,7 +231,9 @@ export function validateModelId(
 				if (
 					!Object.keys(clinePassModels).includes(clinePassResolvedModelId) &&
 					!clinePassResolvedModelId.startsWith("cline-pass/") &&
-					// ClinePass users may also select Cline free models (OpenRouter-style ids)
+					// ClinePass users may also select Cline free models (OpenRouter-style
+					// ids, or ids in the dedicated cline-free/ namespace)
+					!isClineFreeModelId(clinePassResolvedModelId) &&
 					!(clineModels && Object.keys(clineModels).includes(clinePassResolvedModelId)) &&
 					!CLINE_RECOMMENDED_MODELS_FALLBACK.free.some((model) => model.id === clinePassResolvedModelId)
 				) {

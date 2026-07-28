@@ -1,3 +1,4 @@
+import { getClineFreeModelSlug, isClineFreeModelId } from "@shared/cline/free-models"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
@@ -1105,12 +1106,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 			switch (selectedProvider) {
 				case "cline":
-					return `${selectedProvider}:${selectedModelId}`
+					// cline-free/ ids already carry their own namespace, so don't double
+					// up the provider prefix in the badge
+					return isClineFreeModelId(selectedModelId)
+						? `cline:${getClineFreeModelSlug(selectedModelId)} (free)`
+						: `${selectedProvider}:${selectedModelId}`
 				case "cline-pass":
 					// Free models selected on ClinePass go through Cline usage billing,
 					// so label them the same way as the cline provider
-					return selectedModelId.startsWith("cline-pass/")
-						? `${selectedProvider}:${selectedModelId.replace(/^cline-pass\//, "")}`
+					if (selectedModelId.startsWith("cline-pass/")) {
+						return `${selectedProvider}:${selectedModelId.replace(/^cline-pass\//, "")}`
+					}
+					return isClineFreeModelId(selectedModelId)
+						? `cline:${getClineFreeModelSlug(selectedModelId)} (free)`
 						: `cline:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`

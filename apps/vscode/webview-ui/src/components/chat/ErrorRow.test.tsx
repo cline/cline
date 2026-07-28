@@ -12,6 +12,18 @@ const mockApiConfiguration = vi.hoisted(() => ({
 	planModeClinePassModelId: "cline-pass/test-plan-model",
 	actModeClinePassModelId: "cline-pass/test-act-model",
 }));
+// The free-model limit card offers the paid twin of the selected free model, which
+// it resolves out of the Cline catalog by model slug.
+const mockClineModels = vi.hoisted(() => ({
+	"deepseek/deepseek-v4-flash": {
+		name: "DeepSeek V4 Flash",
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 2,
+	},
+}));
 
 // Mock the auth context
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -41,6 +53,8 @@ vi.mock("@/components/chat/EntitlementError", () => ({
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: mockApiConfiguration,
+		mode: "act",
+		clineModels: mockClineModels,
 	}),
 }));
 
@@ -65,8 +79,17 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Entitlement: "entitlement",
 		OrgClinePassRestriction: "orgClinePassRestriction",
 		ClinePassLimit: "clinePassLimit",
+		ClineFreeModelLimit: "clineFreeModelLimit",
 	},
 	extractClinePassLimitMessage: vi.fn((text: string) => text),
+	extractClineFreeModelLimitResetTime: vi.fn((text: string) => {
+		const marker = "try again in ";
+		const start = text.toLowerCase().indexOf(marker);
+		if (start === -1) {
+			return undefined;
+		}
+		return text.slice(start + marker.length).trim() || undefined;
+	}),
 }));
 
 describe("ErrorRow", () => {
@@ -361,6 +384,96 @@ describe("ErrorRow", () => {
 				screen.queryByTestId("cline-pass-limit-error"),
 			).not.toBeInTheDocument();
 			expect(screen.getByText(limitMessage)).toBeInTheDocument();
+		});
+
+		it("renders a daily free model limit without usage-billing guidance", async () => {
+			const limitMessage =
+				"Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m";
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clineFreeModelLimit"),
+				providerId: "cline",
+				_error: { message: limitMessage },
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage={limitMessage}
+					errorType="error"
+					message={mockMessage}
+				/>,
+			);
+
+			expect(
+				screen.getByTestId("cline-free-model-limit-error"),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText(
+					/You've reached today's free usage limit for this model/,
+				),
+			).toBeInTheDocument();
+			expect(screen.getByText(/Try again in 23h 59m/)).toBeInTheDocument();
+			// The raw backend message (including the model id) is replaced by the copy above
+			expect(screen.queryByText(limitMessage)).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/Switch to Usage-Based billing/i),
+			).not.toBeInTheDocument();
+		});
+
+		it("offers the paid twin of the selected free model", async () => {
+			const limitMessage =
+				"Daily free limit reached on model cline-free/deepseek-v4-flash. Try again in 23h 59m";
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clineFreeModelLimit"),
+				providerId: "cline",
+				_error: { message: limitMessage },
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+			// The configured provider drives which model id the card reads
+			mockApiConfiguration.actModeApiProvider = "cline";
+			(mockApiConfiguration as Record<string, unknown>).actModeClineModelId =
+				"cline-free/deepseek-v4-flash";
+
+			try {
+				render(
+					<ErrorRow
+						apiRequestFailedMessage={limitMessage}
+						errorType="error"
+						message={mockMessage}
+					/>,
+				);
+
+				expect(
+					screen.getByText(/deepseek\/deepseek-v4-flash/),
+				).toBeInTheDocument();
+
+				fireEvent.click(screen.getByText("Switch to the paid model"));
+
+				await waitFor(() =>
+					expect(mockUpdateApiConfigurationProto).toHaveBeenCalledTimes(1),
+				);
+				const request = mockUpdateApiConfigurationProto.mock.calls[0][0];
+				expect(request.apiConfiguration.actModeApiProvider).toBe(
+					ApiProvider.CLINE,
+				);
+				expect(request.apiConfiguration.actModeClineModelId).toBe(
+					"deepseek/deepseek-v4-flash",
+				);
+			} finally {
+				mockApiConfiguration.actModeApiProvider = "cline-pass";
+				delete (mockApiConfiguration as Record<string, unknown>)
+					.actModeClineModelId;
+			}
 		});
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {

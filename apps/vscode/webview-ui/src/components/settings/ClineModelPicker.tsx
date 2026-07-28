@@ -1,4 +1,5 @@
 import { type ApiConfiguration, buildModelInfoNameMap, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
+import { formatClineFreeModelName, isClineFreeModelId, zeroPricedModelInfo } from "@shared/cline/free-models"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -266,6 +267,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		const newModelId = models && !(rawModelId in models) ? resolveModelId(rawModelId) : rawModelId
 		setSearchTerm(newModelId)
 
+		const newModelInfo = resolvedModels?.[newModelId]
+
 		handleModeFieldsChange(
 			{
 				clineModelId: modelIdFieldPair,
@@ -273,7 +276,15 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: resolvedModels?.[newModelId],
+				// Free models ride usage billing at $0, so persist them zero-priced and
+				// with the explicit "(free)" name so cost UI never shows paid rates.
+				clineModelInfo:
+					newModelInfo && isClineFreeModelId(newModelId)
+						? zeroPricedModelInfo({
+								...newModelInfo,
+								name: formatClineFreeModelName(newModelId, newModelInfo.name),
+							})
+						: newModelInfo,
 			},
 			currentMode,
 		)
@@ -289,16 +300,18 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 						selectedModelInfo: resolvedModels?.[resolvedModelId] ?? normalizedSelection.selectedModelInfo,
 					}
 				: normalizedSelection
-		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
+		// Explicit cline-free/ ids are free even before the recommended-models
+		// response lands, so check the namespace as well as the fetched free list.
+		if (
+			isClineFreeModelId(selected.selectedModelId) ||
+			freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))
+		) {
 			return {
 				...selected,
-				selectedModelInfo: {
+				selectedModelInfo: zeroPricedModelInfo({
 					...selected.selectedModelInfo,
-					inputPrice: 0,
-					outputPrice: 0,
-					cacheReadsPrice: 0,
-					cacheWritesPrice: 0,
-				},
+					name: formatClineFreeModelName(selected.selectedModelId, selected.selectedModelInfo?.name),
+				}),
 			}
 		}
 		return selected

@@ -9,6 +9,7 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { isClineFreeModelId } from "@/shared/cline/free-models"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
@@ -41,6 +42,10 @@ const CLINE_FREE_MODEL_IDS = new Set([
 	...CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)),
 	...Object.keys(clinePassModels).map((modelId) => normalizeModelId(modelId)),
 ])
+
+function isFreeClineModel(modelId: string, freeModelIds: Set<string>): boolean {
+	return isClineFreeModelId(modelId) || freeModelIds.has(normalizeModelId(modelId))
+}
 
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
@@ -242,7 +247,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const isFreeModel = isFreeClineModel(modelId, freeModelIds)
 					const cacheReadTokens = getCacheReadTokens(chunk.usage)
 					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
@@ -299,7 +304,7 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
-				const isFreeModel = resolvedFreeModelIds.has(normalizeModelId(modelId))
+				const isFreeModel = isFreeClineModel(modelId, resolvedFreeModelIds)
 
 				if (isFreeModel) {
 					totalCost = 0

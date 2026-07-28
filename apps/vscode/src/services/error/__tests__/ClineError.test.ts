@@ -3,7 +3,10 @@ import "should";
 import {
 	ClineError,
 	ClineErrorType,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClinePassLimitMessage,
 } from "../ClineError";
 
@@ -125,6 +128,92 @@ describe("ClineError", () => {
 			});
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit);
+		});
+
+		it("should classify daily Cline free model limits separately", () => {
+			const err = new ClineError(
+				"Error: Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+			);
+
+			ClineError.getErrorType(err)!.should.equal(
+				ClineErrorType.ClineFreeModelLimit,
+			);
+		});
+
+		it("should classify nested daily Cline free model limits as ClineFreeModelLimit", () => {
+			// ClineError maps `error.error` into `details`, matching the real provider error shape.
+			const err = new ClineError({
+				message: "429 Error 429",
+				error: {
+					message:
+						"Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 5h 12m",
+				},
+			});
+
+			ClineError.getErrorType(err)!.should.equal(
+				ClineErrorType.ClineFreeModelLimit,
+			);
+		});
+
+		it("should prefer ClineFreeModelLimit over the generic rate-limit patterns", () => {
+			// The message carries "429", which the RATE_LIMIT_PATTERNS would otherwise match.
+			const err = new ClineError({
+				message:
+					"Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+				status: 429,
+			});
+
+			const result = ClineError.getErrorType(err);
+			result!.should.equal(ClineErrorType.ClineFreeModelLimit);
+			(result !== ClineErrorType.RateLimit).should.be.true();
+		});
+	});
+
+	describe("isClineFreeModelLimitMessage", () => {
+		it("matches daily and generic free-limit messages", () => {
+			isClineFreeModelLimitMessage(
+				"Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+			).should.be.true();
+			isClineFreeModelLimitMessage(
+				"Free limit reached on model cline-free/glm-5",
+			).should.be.true();
+		});
+
+		it("does not match unrelated messages", () => {
+			isClineFreeModelLimitMessage(
+				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
+			).should.be.false();
+			isClineFreeModelLimitMessage("some other error").should.be.false();
+		});
+	});
+
+	describe("isClineModelNotFoundMessage", () => {
+		it("matches the message returned once a free promotion ends", () => {
+			isClineModelNotFoundMessage(
+				"Error 404: Model not found",
+			).should.be.true();
+		});
+
+		it("does not match unrelated messages", () => {
+			isClineModelNotFoundMessage(
+				"Error 500: internal error",
+			).should.be.false();
+		});
+	});
+
+	describe("extractClineFreeModelLimitResetTime", () => {
+		it("extracts the reset window out of the limit message", () => {
+			extractClineFreeModelLimitResetTime(
+				"Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+			)!.should.equal("23h 59m");
+		});
+
+		it("returns undefined when there is no reset window", () => {
+			(
+				extractClineFreeModelLimitResetTime(
+					"Daily free limit reached on model deepseek/deepseek-v4-flash.",
+				) === undefined
+			).should.be.true();
 		});
 	});
 

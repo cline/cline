@@ -68,6 +68,15 @@ import UserMessage from "./UserMessage"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
+function parseErrorMessage(message: string) {
+	try {
+		return JSON.parse(message)
+	} catch {
+		// ignore errors
+		return {}
+	}
+}
+
 interface ChatRowProps {
 	message: ClineMessage
 	isExpanded: boolean
@@ -1062,6 +1071,12 @@ export const ChatRowContent = memo(
 							const retryInfo = JSON.parse(message.text || "{}")
 							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
 							const isFailed = failed === true
+
+							const details = parseErrorMessage(errorMessage)
+							
+							if(details && details.code === "INFERENCE_CAP_ERROR") {
+								return null;
+							}
 
 							return (
 								<div className="flex flex-col gap-2">

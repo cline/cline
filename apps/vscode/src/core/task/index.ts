@@ -2472,6 +2472,11 @@ export class Task {
 				const isClinePassLimitError = clineError.isErrorType(
 					ClineErrorType.ClinePassLimit,
 				);
+				// Daily Cline free-model limits reset in hours — same reasoning as
+				// ClinePass limits: surface the actionable UI instead of retrying.
+				const isClineFreeModelLimitError = clineError.isErrorType(
+					ClineErrorType.ClineFreeModelLimit,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2500,6 +2505,7 @@ export class Task {
 					!isEntitlementError &&
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
+					!isClineFreeModelLimitError &&
 					this.taskState.autoRetryAttempts < 3;
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry

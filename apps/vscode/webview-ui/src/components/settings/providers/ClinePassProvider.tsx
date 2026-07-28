@@ -3,9 +3,11 @@ import {
 	clinePassDefaultModelId,
 	clinePassModelInfoSaneDefaults,
 	clinePassModels,
+	getModelSlug,
 	type ModelInfo,
 	resolveClinePassModelInfo,
 } from "@shared/api"
+import { formatClineFreeModelName, zeroPricedModelInfo } from "@shared/cline/free-models"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
@@ -36,22 +38,18 @@ const CLINE_PASS_MODEL_FIELD_PAIRS = {
 const FREE_TAB_DESCRIPTION =
 	"Try these models with limited free usage, included at no cost and separate from your ClinePass quota."
 
-function zeroPriced(info: ModelInfo): ModelInfo {
-	return {
-		...info,
-		inputPrice: 0,
-		outputPrice: 0,
-		cacheReadsPrice: 0,
-		cacheWritesPrice: 0,
-	}
+// Cline free models come back as either full OpenRouter-style ids or cline-free/ ids,
+// so resolve capabilities by full id first and fall back to the slug map (cline-free
+// ids share their slug with the paid catalog entry).
+function resolveFreeModelInfo(
+	modelId: string,
+	modelCatalog: Record<string, ModelInfo>,
+	modelCatalogByName: Record<string, ModelInfo>,
+): ModelInfo {
+	return modelCatalog[modelId] ?? modelCatalogByName[getModelSlug(modelId)] ?? clinePassModelInfoSaneDefaults
 }
 
-export const ClinePassProvider = ({
-	showModelOptions,
-	isPopup,
-	currentMode,
-	showAccountCard = true,
-}: ClinePassProviderProps) => {
+export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode, showAccountCard = true }: ClinePassProviderProps) => {
 	const { apiConfiguration, openRouterModels, clineModels, refreshClineModels } = useExtensionState()
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const [clinePassRawModels, setClinePassRawModels] = useState<ClineRecommendedModel[]>([])
@@ -104,20 +102,24 @@ export const ClinePassProvider = ({
 		[clineFreeModels],
 	)
 
-	// Free models are OpenRouter-style ids billed at $0, so resolve their info by full id
-	// from the dynamic catalogs and store them zero-priced.
+	// Free models are OpenRouter-style ids or cline-free/ ids billed at $0, so resolve
+	// their info from the dynamic catalogs and store them zero-priced.
 	const freeModelEntries = useMemo(() => {
 		const modelCatalog: Record<string, ModelInfo> = { ...openRouterModels, ...clineModels }
+		const modelCatalogByName = buildModelInfoNameMap(modelCatalog)
 		return Object.fromEntries(
 			freeRecommendedModels
 				.filter((model) => model.id)
 				.map((model) => {
-					const base = modelCatalog[model.id] ?? clinePassModelInfoSaneDefaults
+					const base = resolveFreeModelInfo(model.id, modelCatalog, modelCatalogByName)
+					const name = model.name || base.name || model.id
 					return [
 						model.id,
-						zeroPriced({
+						zeroPricedModelInfo({
 							...base,
-							name: model.name || base.name || model.id,
+							// cline-free/ models are explicitly marked so they can be told
+							// apart from their paid counterpart, which shares the slug
+							name: formatClineFreeModelName(model.id, name),
 							// The info panel shows the full catalog description; the endpoint's
 							// short blurb is only for the featured cards
 							description: base.description || model.description,
