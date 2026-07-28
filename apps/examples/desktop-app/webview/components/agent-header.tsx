@@ -1,7 +1,8 @@
 "use client";
 
+import { SessionStatus } from "@cline/ui";
 import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -52,6 +53,18 @@ export function AgentHeader({
 	const additions = diff?.additions ?? 0;
 	const deletions = diff?.deletions ?? 0;
 	const hasChanges = additions + deletions > 0;
+	const statusTone =
+		status === "running"
+			? "running"
+			: status === "failed"
+				? "error"
+				: "neutral";
+	const statusColor =
+		status === "running"
+			? "var(--color-green-500)"
+			: status === "failed"
+				? "var(--color-red-500)"
+				: "var(--color-gray-500)";
 	const threadTitle = useMemo(
 		() => normalizeTitle(title?.trim()) || "New Session",
 		[title],
@@ -83,19 +96,19 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:pl-12">
+		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7">
 			{/* Left: thread title */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<output
-					aria-label={`Session status: ${status}`}
-					className={cn(
-						"size-2 shrink-0 rounded font-mono",
-						status === "running"
-							? "bg-green-500"
-							: status === "failed"
-								? "bg-red-500"
-								: "bg-gray-500",
-					)}
+				<SessionStatus
+					className="shrink-0 font-mono"
+					label={`Session status: ${status}`}
+					showLabel={false}
+					style={
+						{
+							"--cline-ui-session-status-color": statusColor,
+						} as CSSProperties
+					}
+					tone={statusTone}
 				/>
 				{isEditingTitle ? (
 					<form
@@ -176,24 +189,26 @@ export function AgentHeader({
 
 			{showSessionActions ? (
 				<div className="flex shrink-0 items-center gap-2">
-					<Button
-						aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
-						className={cn(
-							"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-							hasChanges
-								? "hover:bg-secondary/80"
-								: "cursor-default opacity-60",
-						)}
-						disabled={!hasChanges}
-						id="diff-stats"
-						onClick={() => onOpenDiff?.()}
-						size="sm"
-						type="button"
-						variant="secondary"
-					>
-						<span className="text-chart-2">+{additions}</span>
-						<span className="text-destructive">-{deletions}</span>
-					</Button>
+					{additions !== 0 && (
+						<Button
+							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
+							className={cn(
+								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
+								hasChanges
+									? "hover:bg-secondary/80"
+									: "cursor-default opacity-60",
+							)}
+							disabled={!hasChanges}
+							id="diff-stats"
+							onClick={() => onOpenDiff?.()}
+							size="sm"
+							type="button"
+							variant="secondary"
+						>
+							<span className="text-chart-2">+{additions}</span>
+							<span className="text-destructive">-{deletions}</span>
+						</Button>
+					)}
 					<Button
 						aria-label="New session"
 						className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -201,7 +216,7 @@ export function AgentHeader({
 						size="icon-sm"
 						variant="ghost"
 					>
-						<Plus />
+						<Plus className="size-4" />
 					</Button>
 				</div>
 			) : null}
