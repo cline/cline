@@ -1,21 +1,25 @@
 #!/usr/bin/env bun
 
 /**
- * Link checker for the repo's Markdown/MDX documentation.
+ * Link checker for the repo's Markdown/MDX documentation and the published site.
  *
- * Three classes of link are validated:
+ * Four classes of link are validated:
  *   1. Repo links  - https://github.com/cline/cline/{tree,blob}/main/<path>
  *                    resolved against the working tree (offline, no rate limits).
  *                    This catches the most common docs rot: a file moved and the
  *                    absolute GitHub URL kept pointing at the old path.
  *   2. Local links - relative paths and, inside docs/, root-absolute doc routes
  *                    (/sdk/overview) resolved against docs/ plus docs.json redirects.
- *   3. External    - every other http(s) URL, checked over the network (--external).
+ *   3. Site links  - cline.bot is crawled by default and every link on every page
+ *                    reached is checked. The published site is where readers hit
+ *                    404s, and it can rot without a commit touching this repo.
+ *   4. External    - every other http(s) URL found in the docs (--external).
  *
  * Usage:
- *   bun sdk/scripts/check-links.ts                  # offline checks only (fast, hermetic)
- *   bun sdk/scripts/check-links.ts --external       # also check external URLs over HTTP
- *   bun sdk/scripts/check-links.ts --site <url>     # audit links on a rendered page too
+ *   bun sdk/scripts/check-links.ts                  # repo checks + crawl cline.bot
+ *   bun sdk/scripts/check-links.ts --no-site        # repo checks only (hermetic, for CI gates)
+ *   bun sdk/scripts/check-links.ts --site <url>     # crawl a different site instead
+ *   bun sdk/scripts/check-links.ts --external       # also check external URLs in the docs
  *   bun sdk/scripts/check-links.ts --json out.json  # machine-readable report
  */
 
@@ -55,6 +59,11 @@ const SKIP_HOSTS = [
 	"example.org",
 	"your-domain.com",
 ];
+
+/** Crawled unless --no-site or --site says otherwise. */
+const DEFAULT_SITE = "https://cline.bot";
+/** Ceiling on crawled pages, so a big site cannot run away with the job. */
+const MAX_PAGES = 150;
 
 /** Sent on every probe: several docs hosts serve 404 to non-browser agents. */
 const USER_AGENT =
@@ -319,23 +328,86 @@ function isCheckableExternal(url: string): boolean {
 	}
 }
 
-async function checkSite(url: string): Promise<Link[]> {
-	const response = await fetch(url, {
-		headers: { "user-agent": USER_AGENT },
-	});
-	if (!response.ok) {
-		throw new Error(`could not fetch ${url}: HTTP ${response.status}`);
+function sameSite(url: string, host: string): boolean {
+	try {
+		return new URL(url).hostname.replace(/^www\./, "") === host;
+	} catch {
+		return false;
 	}
-	const html = await response.text();
-	const links: Link[] = [];
-	const seen = new Set<string>();
-	// Anchors only: preconnect and analytics hrefs are not links a reader can follow.
-	for (const match of html.matchAll(/<a\b[^>]*?href\s*=\s*"([^"]+)"/gi)) {
-		const absolute = new URL(match[1], url).toString();
-		if (!seen.has(absolute) && isCheckableExternal(absolute)) {
-			seen.add(absolute);
-			links.push({ file: url, line: 0, url: absolute });
+}
+
+async function fetchPage(url: string): Promise<string | null> {
+	try {
+		const response = await fetch(url, {
+			redirect: "follow",
+			headers: { "user-agent": USER_AGENT },
+		});
+		if (!response.ok) {
+			return null;
 		}
+		if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
+			return null;
+		}
+		return await response.text();
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Walk the site from `seed`, following same-host anchors, and return every link
+ * found along the way. Crawling is sequential: this hits someone else's server,
+ * and a link checker has no business hammering it.
+ */
+async function crawlSite(seed: string): Promise<Link[]> {
+	const host = new URL(seed).hostname.replace(/^www\./, "");
+	const queue = [seed];
+	const queued = new Set(queue);
+	const links: Link[] = [];
+	let crawled = 0;
+	let dropped = 0;
+
+	while (queue.length > 0) {
+		const pageUrl = queue.shift() as string;
+		const html = await fetchPage(pageUrl);
+		if (html === null) {
+			if (pageUrl === seed) {
+				console.warn(`Could not read ${seed}; skipping the site crawl.`);
+			}
+			continue;
+		}
+		crawled += 1;
+		const seen = new Set<string>();
+		// Anchors only: preconnect and analytics hrefs are not links a reader follows.
+		for (const match of html.matchAll(/<a\b[^>]*?href\s*=\s*"([^"]+)"/gi)) {
+			let absolute: string;
+			try {
+				absolute = new URL(match[1], pageUrl).toString().split("#")[0];
+			} catch {
+				continue;
+			}
+			if (!seen.has(absolute) && isCheckableExternal(absolute)) {
+				seen.add(absolute);
+				links.push({ file: pageUrl, line: 0, url: absolute });
+			}
+			if (!sameSite(absolute, host) || queued.has(absolute)) {
+				continue;
+			}
+			if (queued.size >= MAX_PAGES) {
+				dropped += 1;
+				continue;
+			}
+			queued.add(absolute);
+			queue.push(absolute);
+		}
+	}
+
+	console.log(`Crawled ${crawled} page(s) on ${host}.`);
+	if (dropped > 0) {
+		// Never let a cap look like full coverage.
+		console.warn(
+			`Stopped at the ${MAX_PAGES}-page ceiling; ${dropped} more page(s) went unvisited.`,
+		);
 	}
 	return links;
 }
@@ -346,9 +418,12 @@ async function main(): Promise<void> {
 	const jsonPath = args.includes("--json")
 		? args[args.indexOf("--json") + 1]
 		: null;
-	const siteUrl = args.includes("--site")
-		? args[args.indexOf("--site") + 1]
-		: null;
+	// The site is crawled by default; --site retargets it, --no-site opts out.
+	const siteUrl = args.includes("--no-site")
+		? null
+		: args.includes("--site")
+			? args[args.indexOf("--site") + 1]
+			: DEFAULT_SITE;
 
 	const files = (await collectDocFiles(repoRoot))
 		.map((file) => relative(repoRoot, file).replaceAll("\\", "/"))
@@ -437,12 +512,13 @@ async function main(): Promise<void> {
 	}
 
 	if (siteUrl) {
-		external.push(...(await checkSite(siteUrl)));
+		console.log(`Crawling ${siteUrl}...`);
+		external.push(...(await crawlSite(siteUrl)));
 	}
 
 	if (external.length > 0) {
 		const unique = [...new Set(external.map((link) => link.url))];
-		console.log(`Checking ${unique.length} external URLs...`);
+		console.log(`Checking ${unique.length} URLs over HTTP...`);
 		const probes = await mapWithConcurrency(
 			unique,
 			8,
@@ -466,15 +542,18 @@ async function main(): Promise<void> {
 		await writeFile(jsonPath, JSON.stringify({ checked, failures }, null, 2));
 	}
 
+	const inSite = failures.filter((failure) => failure.kind === "site").length;
+	const inRepo = failures.length - inSite;
 	if (failures.length === 0) {
 		console.log(
-			`All good: ${checked} links checked across ${files.length} files, no broken links.`,
+			`All good: ${checked} links checked across ${files.length} files${siteUrl ? ` and ${siteUrl}` : ""}, no broken links.`,
 		);
 		return;
 	}
 
+	// Repo and site failures are acted on differently, so never blur the two.
 	console.error(
-		`\n${failures.length} broken link(s) across ${files.length} files:\n`,
+		`\n${failures.length} broken link(s): ${inRepo} in the repo, ${inSite} on the crawled site.\n`,
 	);
 	for (const failure of failures.sort(
 		(a, b) => a.file.localeCompare(b.file) || a.line - b.line,

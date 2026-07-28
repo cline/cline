@@ -43,10 +43,13 @@ jobs:
               with:
                   bun-version: "1.3.13"
 
+            # --no-site keeps this gate hermetic. The published site is checked by
+            # the scheduled job, where an outage cannot block anyone's merge.
             - name: Check internal links
-              run: bun sdk/scripts/check-links.ts
+              run: bun sdk/scripts/check-links.ts --no-site
 
-    # Non-blocking: depends on third-party availability. Runs weekly and on demand.
+    # Non-blocking: crawls cline.bot and checks external URLs, both of which depend
+    # on availability outside this repo. Runs weekly and on demand.
     external:
         # `github.workflow` is the caller's name, so this stays off when another
         # workflow (a publish, say) calls this one for the blocking internal check.
@@ -63,7 +66,7 @@ jobs:
               with:
                   bun-version: "1.3.13"
 
-            - name: Check external links
+            - name: Check external and site links
               run: bun sdk/scripts/check-links.ts --external --json link-report.json
 
             - name: Upload report

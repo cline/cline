@@ -14,14 +14,19 @@ in agreement.
 ## Run it
 
 ```bash
-bun sdk/scripts/check-links.ts                      # offline: repo + local paths (fast, hermetic)
-bun sdk/scripts/check-links.ts --external           # + HTTP-check every external URL
-bun sdk/scripts/check-links.ts --site https://cline.bot/sdk   # + links on a published page
-bun sdk/scripts/check-links.ts --external --json report.json  # machine-readable report
+bun sdk/scripts/check-links.ts                      # repo checks + crawl cline.bot (the default)
+bun sdk/scripts/check-links.ts --no-site            # repo checks only: offline, hermetic
+bun sdk/scripts/check-links.ts --site https://docs.cline.bot   # crawl a different site instead
+bun sdk/scripts/check-links.ts --external           # + HTTP-check every external URL in the docs
+bun sdk/scripts/check-links.ts --json report.json   # machine-readable report
 ```
 
-Exit code is non-zero when anything is broken. The offline pass is what CI blocks on; the
-external pass is network-dependent and runs on a schedule.
+The site crawl is on by default because the published site is where readers actually hit
+404s, and it can rot without a commit touching this repo. Pass `--site` only when you know
+you want a different target; pass `--no-site` when you need a hermetic, offline run.
+
+Exit code is non-zero when anything is broken. CI blocks on the `--no-site` pass; the
+crawl and external checks run on a schedule, where an outage cannot block a merge.
 
 ## What each failure class means
 
@@ -30,7 +35,7 @@ external pass is network-dependent and runs on a schedule.
 | `repo` | `[404] https://github.com/cline/cline/...` | An absolute GitHub URL kept pointing at a path that moved. Resolved against the working tree, so it is never a flake. |
 | `local` | `[missing] ../foo.md` | Relative link written from the wrong directory, or a target that was renamed. |
 | `external` | `[404]`, `[ENOTFOUND]` | A third-party page died, or a link to another `cline/*` repo that does not exist. |
-| `site` | same, with the page URL as the location | A link on the published page. The repo cannot fix these directly — see below. |
+| `site` | same, with the crawled page URL as the location | A link on the published site. The repo cannot fix these directly — see below. |
 
 `401`, `403`, and `429` are reported as reachable: bot walls are not broken links.
 
@@ -53,9 +58,10 @@ Work from the source of the mistake, not the symptom.
    other repo instead.
 6. Re-run the checker until clean, then run `bun run format` if you touched the script.
 
-## Fixing links on a published page
+## Fixing links on the published site
 
-`--site` audits a rendered page, but a broken link there is usually *authored elsewhere*:
+The crawl reports what a reader would hit, but a broken link there is usually *authored
+elsewhere*:
 
 - Search the repo for the bad path first. Marketing and docs copy is frequently lifted from a
   README, so the same wrong path exists in-repo and fixing it there is the real fix.
