@@ -26,6 +26,26 @@ export class RetriableError extends Error {
 	}
 }
 
+const INFERENCE_CAP_ERROR_CODE = "INFERENCE_CAP_ERROR"
+
+/**
+ * Inference cap errors mean the user is out of quota until it resets, so retrying
+ * only burns backoff. Providers surface the code in a few shapes: directly on the
+ * error, nested under `error`/`details`, or embedded in a wrapped message string
+ * (see ClineHandler, which rethrows stream errors as `Cline API Error <code>: ...`).
+ */
+function isInferenceCapError(error: any): boolean {
+	if (
+		error?.code === INFERENCE_CAP_ERROR_CODE ||
+		error?.error?.code === INFERENCE_CAP_ERROR_CODE ||
+		error?.details?.code === INFERENCE_CAP_ERROR_CODE
+	) {
+		return true
+	}
+
+	return typeof error?.message === "string" && error.message.includes(INFERENCE_CAP_ERROR_CODE)
+}
+
 export function withRetry(options: RetryOptions = {}) {
 	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
@@ -40,8 +60,8 @@ export function withRetry(options: RetryOptions = {}) {
 				} catch (error: any) {
 					const isRateLimit = error?.status === 429 || error instanceof RetriableError
 					const isLastAttempt = attempt === maxRetries - 1
-					const isCapLimitError = error?.code === "INFERENCE_CAP_ERROR"
 					// We shouldn't retry cap limits because they mean the user needs to wait for longer
+					const isCapLimitError = isInferenceCapError(error)
 					if ((!isRateLimit && !retryAllErrors) || isLastAttempt || isCapLimitError) {
 						throw error
 					}

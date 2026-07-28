@@ -302,10 +302,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 				: normalizedSelection
 		// Explicit cline-free/ ids are free even before the recommended-models
 		// response lands, so check the namespace as well as the fetched free list.
-		if (
-			isClineFreeModelId(selected.selectedModelId) ||
-			freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))
-		) {
+		if (isClineFreeModelId(selected.selectedModelId) || freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
 			return {
 				...selected,
 				selectedModelInfo: zeroPricedModelInfo({

@@ -71,9 +71,6 @@ const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
 // reset window is extracted from the trailing "try again in" clause.
 const CLINE_FREE_MODEL_LIMIT_MARKER = "free limit reached on model";
 const CLINE_FREE_MODEL_LIMIT_RETRY_MARKER = "try again in ";
-// Once a free promotion ends the cline-free/ model is deleted upstream, so the API
-// answers "model not found" instead of a limit message.
-const CLINE_MODEL_NOT_FOUND_MARKER = "model not found";
 
 function findClinePassLimitMessageBounds(
 	text: string,
@@ -110,10 +107,6 @@ export function extractClinePassLimitMessage(
 
 export function isClineFreeModelLimitMessage(text: string): boolean {
 	return text.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_MARKER);
-}
-
-export function isClineModelNotFoundMessage(text: string): boolean {
-	return text.toLowerCase().includes(CLINE_MODEL_NOT_FOUND_MARKER);
 }
 
 /**

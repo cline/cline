@@ -3608,14 +3608,10 @@ export class Task {
 					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
 						ClineErrorType.ClineFreeModelLimit,
 					);
-					const isStreamingClineModelNotFoundError = clineError.isErrorType(
-						ClineErrorType.ClineModelNotFound,
-					);
 					const isStreamingNonRetriableError =
 						isStreamingSpendLimitError ||
 						isStreamingQuotaExceededError ||
-						isStreamingClineFreeModelLimitError ||
-						isStreamingClineModelNotFoundError;
+						isStreamingClineFreeModelLimitError;
 					// Auto-retry for streaming failures (skip for non-retriable errors)
 					if (
 						!isStreamingNonRetriableError &&

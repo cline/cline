@@ -6,7 +6,6 @@ import {
 	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	isClineFreeModelLimitMessage,
-	isClineModelNotFoundMessage,
 	isClinePassLimitMessage,
 } from "../ClineError";
 
@@ -184,20 +183,6 @@ describe("ClineError", () => {
 				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
 			).should.be.false();
 			isClineFreeModelLimitMessage("some other error").should.be.false();
-		});
-	});
-
-	describe("isClineModelNotFoundMessage", () => {
-		it("matches the message returned once a free promotion ends", () => {
-			isClineModelNotFoundMessage(
-				"Error 404: Model not found",
-			).should.be.true();
-		});
-
-		it("does not match unrelated messages", () => {
-			isClineModelNotFoundMessage(
-				"Error 500: internal error",
-			).should.be.false();
 		});
 	});
 
