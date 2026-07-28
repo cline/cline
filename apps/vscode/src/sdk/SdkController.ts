@@ -1530,7 +1530,7 @@ export class Controller {
 	 * to the welcome screen (S6-6/S6-23 fix).
 	 *
 	 * Instead, we:
-	 * 1. Silently tear down the active session (unsubscribe + stop in background)
+	 * 1. Silently tear down the active session and wait for message persistence
 	 * 2. Create the new task proxy with loaded messages BEFORE any state push
 	 * 3. Only then push state to the webview
 	 */

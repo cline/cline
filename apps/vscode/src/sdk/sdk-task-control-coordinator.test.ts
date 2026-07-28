@@ -81,7 +81,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("task-1")
 
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
-		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId")
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId", { awaitStop: true })
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
@@ -92,6 +92,25 @@ describe("SdkTaskControlCoordinator", () => {
 			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
 		])
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("waits for the interrupted session to persist before loading its messages", async () => {
+		let resolveStop: (() => void) | undefined
+		const stopDeferred = new Promise<void>((resolve) => {
+			resolveStop = resolve
+		})
+		const { coordinator, options } = makeCoordinator({ hasHistoryItem: true })
+		options.sessions.endActiveSession.mockReturnValueOnce(stopDeferred)
+
+		const inFlight = coordinator.showTaskWithId("task-1")
+		await Promise.resolve()
+
+		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()
+
+		resolveStop?.()
+		await inFlight
+
+		expect(options.taskHistory.getClineMessages).toHaveBeenCalledWith("task-1")
 	})
 
 	it("shows a legacy task with a warning and a resume ask", async () => {
