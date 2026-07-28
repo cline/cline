@@ -24,7 +24,9 @@ export function resolveStartupToolAutoApprove(
 	defaultToolAutoApprove: boolean,
 ): boolean {
 	return (
-		args.autoApproveOverride ?? settings.toolAutoApprove ?? defaultToolAutoApprove
+		args.autoApproveOverride ??
+		settings.toolAutoApprove ??
+		defaultToolAutoApprove
 	);
 }
 
