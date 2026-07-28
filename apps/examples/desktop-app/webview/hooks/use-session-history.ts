@@ -113,11 +113,21 @@ export function parseTimestamp(value?: string): number {
 	return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
-function compareSessionsByStartedAtDesc(
+export function sessionActivityTimestamp(session: SessionHistoryItem): number {
+	const endedAt = parseTimestamp(session.endedAt);
+	const startedAt = parseTimestamp(session.startedAt);
+	return Math.max(endedAt, startedAt);
+}
+
+// Order by last activity, not by start time: a long-running session that was
+// resumed today must outrank one that started later but has been idle for
+// days. This is also the timestamp both the sidebar and the sessions view
+// render, so the list order matches the "1d"/"3d" labels next to each row.
+function compareSessionsByActivityDesc(
 	a: SessionHistoryItem,
 	b: SessionHistoryItem,
 ): number {
-	const timeDelta = parseTimestamp(b.startedAt) - parseTimestamp(a.startedAt);
+	const timeDelta = sessionActivityTimestamp(b) - sessionActivityTimestamp(a);
 	if (timeDelta !== 0) {
 		return timeDelta;
 	}
@@ -552,7 +562,7 @@ export function useSessionHistory({
 					.filter((session) => Boolean(session.sessionId))
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
-					.sort(compareSessionsByStartedAtDesc);
+					.sort(compareSessionsByActivityDesc);
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
 					topLevelSessions,
