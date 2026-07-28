@@ -145,7 +145,7 @@ function TestStageCard({ card }: { card: StageCard }) {
 				<TestResultsSummary />
 			</TestResultsHeader>
 			<TestResultsContent>
-				<Test name={card.summary ?? card.title} status={status}>
+				<Test name={card.title} status={status}>
 					<TestStatus />
 					<TestName>{card.summary ?? card.title}</TestName>
 				</Test>
