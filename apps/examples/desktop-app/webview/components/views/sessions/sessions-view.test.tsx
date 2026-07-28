@@ -59,6 +59,7 @@ function renderView({
 		openThread,
 		pendingAction: null,
 		renameThread: vi.fn(),
+		setThreadPinned: vi.fn(),
 		sessionById: new Map(
 			threads.map((item) => [item.id, { ...session, sessionId: item.id }]),
 		),
@@ -142,6 +143,21 @@ describe("SessionsView table", () => {
 		);
 		expect(row?.parentElement?.className).toContain("h-14");
 		expect(row?.parentElement?.className).not.toContain("min-h-14");
+	});
+
+	it("marks favorited sessions with a star", async () => {
+		const plain = renderView();
+		await plain.render();
+		expect(container.querySelector('[aria-label="Favorited"]')).toBeNull();
+
+		await act(async () => root.unmount());
+		root = createRoot(container);
+
+		const favorited = renderView({
+			threads: [{ ...thread, pinned: true }],
+		});
+		await favorited.render();
+		expect(container.querySelector('[aria-label="Favorited"]')).not.toBeNull();
 	});
 
 	it("opens a session on click but not while text is selected", async () => {

@@ -12,8 +12,10 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataPinned,
 	getSessionMetadataTitle,
 	getSessionSource,
+	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
@@ -258,6 +260,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
+		pinned: getSessionMetadataPinned(session.metadata),
 	};
 }
 
@@ -359,6 +362,8 @@ function areSessionsEquivalent(
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
+			getSessionMetadataPinned(a.metadata) !==
+				getSessionMetadataPinned(b.metadata) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -503,6 +508,7 @@ export function useSessionHistory({
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const scheduledRefreshAtRef = useRef<number | null>(null);
 	const refreshPromiseRef = useRef<Promise<void> | null>(null);
+	const refreshLimitRef = useRef(0);
 	const lastRefreshStartedAtRef = useRef(0);
 
 	useEffect(() => {
@@ -528,13 +534,22 @@ export function useSessionHistory({
 	}, [activeSessionId]);
 
 	const refreshSessions = useCallback(async () => {
-		if (refreshPromiseRef.current) {
-			return refreshPromiseRef.current;
+		// Reuse an in-flight refresh only when it already asked for at least as
+		// many sessions as we need now. "Load more" raises the limit and then
+		// awaits a refresh; sharing a request that captured the smaller limit
+		// would resolve without the larger batch ever being fetched.
+		while (refreshPromiseRef.current) {
+			const pending = refreshPromiseRef.current;
+			if (refreshLimitRef.current >= fetchLimitRef.current) {
+				return pending;
+			}
+			await pending;
 		}
 
 		const refreshPromise = (async () => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
+			refreshLimitRef.current = limit;
 			// Only surface the loading state before anything has been fetched:
 			// consumers only render it for an empty list, and toggling it on
 			// every background poll re-rendered the whole app twice per refresh.
@@ -626,13 +641,15 @@ export function useSessionHistory({
 		})();
 
 		refreshPromiseRef.current = refreshPromise;
-		try {
-			await refreshPromise;
-		} finally {
+		// Release the slot from the promise itself rather than from this caller,
+		// so a waiter in the loop above always observes a cleared ref when it
+		// resumes instead of spinning on a settled promise.
+		refreshPromise.finally(() => {
 			if (refreshPromiseRef.current === refreshPromise) {
 				refreshPromiseRef.current = null;
 			}
-		}
+		});
+		await refreshPromise;
 	}, []);
 
 	const scheduleRefresh = useCallback(
@@ -1134,6 +1151,56 @@ export function useSessionHistory({
 		[getSessionByThreadId, onUpdateSessionMetadata, pendingAction],
 	);
 
+	const setThreadPinned = useCallback(
+		async (threadId: string, pinned: boolean) => {
+			const applyPinned = (next: boolean) => {
+				setThreads((current) =>
+					updateThreadById(current, threadId, (thread) =>
+						thread.pinned === next ? thread : { ...thread, pinned: next },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, threadId, (session) => ({
+						...session,
+						metadata: {
+							...(session.metadata ?? {}),
+							[PINNED_METADATA_KEY]: next || undefined,
+						},
+					})),
+				);
+			};
+
+			// Favoriting is a single click, so apply it locally first and roll back
+			// if the write fails rather than blocking the row on a round trip.
+			applyPinned(pinned);
+			try {
+				await desktopClient.invoke("update_chat_session_metadata", {
+					sessionId: threadId,
+					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
+				});
+				const sourceSession = getSessionByThreadId(threadId);
+				onUpdateSessionMetadata?.(threadId, {
+					...(sourceSession?.metadata ?? {}),
+					[PINNED_METADATA_KEY]: pinned || undefined,
+				});
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS);
+				return true;
+			} catch (error) {
+				applyPinned(!pinned);
+				toast({
+					variant: "destructive",
+					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					description:
+						error instanceof Error
+							? error.message
+							: "The session could not be updated.",
+				});
+				return false;
+			}
+		},
+		[getSessionByThreadId, onUpdateSessionMetadata, scheduleRefresh],
+	);
+
 	const forkThread = useCallback(
 		async (threadId: string) => {
 			const thread = threadsRef.current.find((item) => item.id === threadId);
@@ -1285,6 +1352,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		setThreadPinned,
 		deleteThread,
 		forkThread,
 		sessionById,

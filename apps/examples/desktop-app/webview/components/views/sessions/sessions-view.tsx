@@ -14,6 +14,7 @@ import {
 	MoreHorizontal,
 	Pencil,
 	Search,
+	Star,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -130,6 +131,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
+		thread.pinned ? "favorite:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -537,6 +539,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
+												{thread.pinned ? (
+													<Star
+														aria-label="Favorited"
+														className="size-3.5 shrink-0 fill-current text-muted-foreground"
+													/>
+												) : null}
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
 												<Folder className="size-3.5 shrink-0" />
@@ -578,6 +586,22 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" sideOffset={6}>
+												<DropdownMenuItem
+													onClick={() =>
+														void history.setThreadPinned(
+															thread.id,
+															!thread.pinned,
+														)
+													}
+												>
+													<Star
+														className={cn(
+															"size-4",
+															thread.pinned && "fill-current",
+														)}
+													/>
+													{thread.pinned ? "Unfavorite" : "Favorite"}
+												</DropdownMenuItem>
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />
 													Rename
