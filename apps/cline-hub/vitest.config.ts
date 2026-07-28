@@ -24,6 +24,14 @@ export default defineConfig({
 				find: /^@cline\/shared\/(.+)$/,
 				replacement: resolve(rootDir, "../../sdk/packages/shared/src/$1"),
 			},
+			{
+				find: /^@cline\/drive$/,
+				replacement: resolve(rootDir, "../../sdk/packages/drive/src/index.ts"),
+			},
+			{
+				find: /^@cline\/drive\/(.+)$/,
+				replacement: resolve(rootDir, "../../sdk/packages/drive/src/$1"),
+			},
 		],
 	},
 	test: {

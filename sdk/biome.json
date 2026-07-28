@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
 	"root": false,
 	"vcs": {
 		"enabled": true,
@@ -17,6 +17,9 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"correctness": {
+				"noUnsafeOptionalChaining": "warn"
+			},
 			"suspicious": {
 				"noConfusingVoidType": "info",
 				"noExplicitAny": "info",

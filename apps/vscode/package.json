@@ -418,7 +418,7 @@
 		]
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.3.14",
+		"@biomejs/biome": "^2.5.5",
 		"@bufbuild/buf": "^1.54.0",
 		"@microsoft/tui-test": "0.0.1",
 		"@types/better-sqlite3": "^7.6.13",
@@ -460,7 +460,7 @@
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.4.5",
-		"vitest": "^4.0.17"
+		"vitest": "^4.1.10"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",

@@ -213,6 +213,32 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				broadcastHubState(ctx);
 			}
 		},
+
+		onDriveRoomChanged(payload) {
+			const room = (payload as Record<string, unknown>).room;
+			if (!room || typeof room !== "object") return;
+			ctx.broadcast({
+				type: "drive_room_changed",
+				room,
+			});
+		},
+		onDriveShowPresented(payload) {
+			ctx.broadcast({
+				type: "drive_show_presented",
+				showItemId: asString(payload.showItemId) ?? "",
+				ownerParticipantId: asString(payload.ownerParticipantId) ?? "",
+				uri: asString(payload.uri) ?? undefined,
+				caption: asString(payload.caption) ?? undefined,
+			});
+		},
+		onDriveSpotlightChanged(payload) {
+			ctx.broadcast({
+				type: "drive_spotlight_changed",
+				from: asString(payload.from) ?? null,
+				to: asString(payload.to) ?? null,
+				reason: asString(payload.reason) ?? undefined,
+			});
+		},
 		onRoomSnapshot(payload) {
 			const roomId = asString(payload.roomId);
 			const snapshot = payload.snapshot;

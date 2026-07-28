@@ -4,7 +4,7 @@ export {
 	transitionDriveMode,
 	type DriveModeAction,
 	type DriveModeState,
-} from "./driveMode";
+} from "./driveMode.js";
 export {
 	assertFakeHostFailClosed,
 	fakeHost,
@@ -12,7 +12,7 @@ export {
 	runHostConformance,
 	type ConformanceIssue,
 	type ConformanceReport,
-} from "./conformance/fakeHost";
+} from "./conformance/fakeHost.js";
 export {
 	CLINE_HOST_CAPABILITIES,
 	CLINE_HUB_WRITER_ENDPOINT,
@@ -20,7 +20,7 @@ export {
 	type HostCapabilities,
 	type PromptRewriteDecision,
 	type RoomOp,
-} from "./hostPort";
+} from "./hostPort.js";
 export {
 	classifyInterrupt,
 	decideReviseOrRestart,
@@ -29,18 +29,18 @@ export {
 	type InterruptInput,
 	type InterruptIntent,
 	type ReviseDecision,
-} from "./interruptPolicy";
+} from "./interruptPolicy.js";
 export {
 	narrate,
 	type NarrationCandidate,
 	type NarrationDensity,
-} from "./narrationPolicy";
+} from "./narrationPolicy.js";
 export {
 	createEmptyRoomSnapshot,
 	projectRoster,
 	projectStage,
 	reduceRoom,
-} from "./reduceRoom";
+} from "./reduceRoom.js";
 export {
 	DEFAULT_AGENT_APPEARANCE,
 	DEFAULT_BODY_INK,
@@ -50,12 +50,12 @@ export {
 	type DriveFacetCatalog,
 	type DriveFacetKey,
 	type DriveFacetValue,
-} from "./facets/catalog";
+} from "./facets/catalog.js";
 export {
 	createFacetStore,
 	type FacetStore,
 	type FacetStoreSnapshot,
-} from "./facets/store";
+} from "./facets/store.js";
 export {
 	AdaptiveConcurrency,
 	DEFAULT_ADAPTIVE_CONCURRENCY,
@@ -98,4 +98,97 @@ export {
 	type DriveWorkOutcome,
 	type DriveWorkStatus,
 	type TokenQueueConfig,
-} from "./waves";
+} from "./waves/index.js";
+export {
+	createMemoryBankFs,
+	type BankFs,
+} from "./bankFs.js";
+export {
+	archivedPlanPath,
+	archivedTaskPath,
+	bankRoot,
+	planPath,
+	taskPath,
+} from "./bankPaths.js";
+export {
+	deserializeDrivePlan,
+	deserializeDriveTask,
+	serializeDrivePlan,
+	serializeDriveTask,
+} from "./bankSerialize.js";
+export { deriveBankSnapshot } from "./bankSnapshot.js";
+export { createBankStore, type BankStore } from "./bankStore.js";
+export {
+	createDrivePlanActivatedEvent,
+	createDrivePlanArchivedEvent,
+	createDrivePlanStepEvent,
+	createDriveTaskArchivedEvent,
+	createDriveTaskBoundEvent,
+	createDriveTaskCompletedEvent,
+	createDriveTaskOpenedEvent,
+	resetDriveEventSeqForTests,
+} from "./driveEvents.js";
+export {
+	allowWorkspaceMutation,
+	clearPostureOverride,
+	resolveDriveLoop,
+	setPostureOverride,
+	type DriveLoopState,
+	type DrivePosture,
+	type DrivePostureOverride,
+	type MutationPolicyDecision,
+	type ResolveDriveLoopInput,
+} from "./driveLoop.js";
+export { setPostureOverride as setOverride } from "./driveLoop.js";
+export {
+	assertProviderCompatible,
+	listProviders,
+} from "./topology/assertProviderCompatible.js";
+export {
+	assertTopologyLegal,
+	type TopologyReject,
+	type TopologyRejectCode,
+} from "./topology/assertTopologyLegal.js";
+export {
+	assertFacetProviderSelection,
+	cloudDefaultsWithAnthropic,
+	defaultFacetValuesFromProfile,
+	localDefaultsWithOllama,
+	resolveTopologyFromFacets,
+	DEFAULT_TTS_PROVIDER_ID,
+} from "./topology/resolveTopologyFromFacets.js";
+export {
+	seedFacetsForProfile,
+	type ProfileFacetSeed,
+} from "./topology/seedFacetsForProfile.js";
+export {
+	buildVoiceAckNarration,
+	type VoiceAckInput,
+	type VoiceAckResult,
+} from "./voiceAck.js";
+export {
+	advanceScriptBeat,
+	buildDirectorStateFromBags,
+	mergeAgentShowBacklogs,
+	pickActiveScript,
+	rankDoBacklog,
+	rankShowBacklog,
+	type RankedShow,
+} from "./director/rankBacklogs.js";
+export {
+	getShowTemplate,
+	SHOW_TEMPLATE_KIT,
+	type ShowTemplate,
+} from "./director/showTemplates.js";
+export {
+	assertDeliveryAllowed,
+	assertRouteLegal,
+	planRoute,
+	type RouteReject,
+} from "./router/planRoute.js";
+export {
+	setParticipantDeafened,
+	setParticipantMuted,
+	setSpotlight,
+	type SpotlightReject,
+} from "./room/participantControls.js";

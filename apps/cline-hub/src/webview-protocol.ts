@@ -270,6 +270,16 @@ export type WebviewInboundMessage =
 	| { type: "restore"; checkpointRunCount: number }
 	| { type: "forkSession" }
 	| {
+			type: "driveCommand";
+			command:
+				| "drive.room.get"
+				| "drive.spotlight.set"
+				| "drive.participant.mute.set"
+				| "drive.participant.deafen.set"
+				| "drive.show.present";
+			payload?: Record<string, unknown>;
+	  }
+	| {
 			type: "call_join";
 			roomId: string;
 			human: { id: string; displayName: string };
@@ -417,6 +427,44 @@ export type WebviewOutboundMessage =
 			newSessionId: string;
 	  }
 	| { type: "fork_error"; text: string }
+	| {
+			type: "drive_room_changed";
+			room: {
+				roomId: string;
+				spotlightParticipantId: string | null;
+				participantAudio: Array<{
+					participantId: string;
+					muted: boolean;
+					deafened: boolean;
+				}>;
+				director: {
+					activeShowId: string | null;
+					stickyShowIds: string[];
+					spotlightParticipantId: string | null;
+					showBacklog: Array<{
+						id: string;
+						title: string;
+						caption: string;
+						uri?: string;
+						ownerParticipantId: string;
+					}>;
+				};
+				version: number;
+			};
+	  }
+	| {
+			type: "drive_show_presented";
+			showItemId: string;
+			ownerParticipantId: string;
+			uri?: string;
+			caption?: string;
+	  }
+	| {
+			type: "drive_spotlight_changed";
+			from: string | null;
+			to: string | null;
+			reason?: string;
+	  }
 	| {
 			type: "room_snapshot";
 			roomId: string;

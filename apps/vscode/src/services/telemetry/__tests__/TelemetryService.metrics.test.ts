@@ -117,7 +117,9 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
 		assert.strictEqual(events[0].properties?.fallback, true)
 		assert.strictEqual(events[0].properties?.error_type, "TypeError")
-		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		const errorMessage = events[0].properties?.error_message
+		assert.ok(typeof errorMessage === "string")
+		assert.strictEqual(errorMessage.length, ROLLOUT_ERROR_MESSAGE_LIMIT)
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
 	})
 

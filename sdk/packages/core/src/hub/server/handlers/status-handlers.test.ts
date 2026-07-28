@@ -142,7 +142,8 @@ describe("handleStatusCommand", () => {
 			service,
 		);
 		expect(reply.ok).toBe(true);
-		expect((reply.payload?.updates as unknown[]).length).toBe(2);
+		const updates = reply.payload?.updates;
+		expect(Array.isArray(updates) ? updates.length : 0).toBe(2);
 		expect(reply.payload?.hasMore).toBe(true);
 		expect(reply.payload?.nextCursor).toEqual(expect.any(Number));
 	});

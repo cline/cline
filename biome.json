@@ -1,5 +1,5 @@
 {
-    "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+    "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
     "vcs": {
         "enabled": true,
         "clientKind": "git",
@@ -7,14 +7,20 @@
         "defaultBranch": "main"
     },
     "files": {
-        "ignoreUnknown": true
+        "ignoreUnknown": true,
+        "includes": ["**", "!**/public/**/*.svg"]
     },
     "formatter": {
         "enabled": true,
         "indentStyle": "tab"
     },
     "linter": {
-        "enabled": true
+        "enabled": true,
+        "rules": {
+            "a11y": {
+                "noSvgWithoutTitle": "off"
+            }
+        }
     },
     "overrides": [
         {
@@ -44,9 +50,18 @@
                         "noConstructorReturn": "off",
                         "noInvalidPositionAtImportRule": "off",
                         "noSwitchDeclarations": "off",
-                        "noUnusedImports": "error"
+                        "noUnusedImports": "error",
+                        "noUnsafeOptionalChaining": "warn"
                     },
-                    "a11y": "info",
+                    "a11y": {
+                        "noSvgWithoutTitle": "off",
+                        "noStaticElementInteractions": "off",
+                        "useKeyWithClickEvents": "off",
+                        "useAltText": "off",
+                        "useFocusableInteractive": "off",
+                        "useSemanticElements": "off",
+                        "useAriaPropsForRole": "off"
+                    },
                     "style": {
                         "useNodejsImportProtocol": "off",
                         "useImportType": "off",

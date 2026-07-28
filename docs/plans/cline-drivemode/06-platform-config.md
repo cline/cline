@@ -379,6 +379,20 @@ Thirty-four facets. Owner, scope, lane, default, privacy class, and plan phase f
 | 15 | `interrupt.policy` | hub | user | durable | pause-after-tool | public | 2 |
 | 16 | `steer.queue` | hub | user | durable | coalesce on | public | 2 |
 
+### Runtime topology and providers
+
+See [07-runtime-topology.md](07-runtime-topology.md) and [08-provider-harness.md](08-provider-harness.md). LLM keys never land in these facets.
+
+| # | Facet | Owner | Scope | Lane | Default | Privacy | Phase |
+|---|---|---|---|---|---|---|---|
+| 35 | `runtime.profile` | hub | user | durable | `cloud` | public | 0 |
+| 36 | `runtime.egressCeiling` | hub | user | durable | derived from profile | public | 3 |
+| 37 | `providers.sttId` | hub | user | durable | profile-relative seed | public | 3 |
+| 38 | `providers.sttConfig` | hub | user | durable | `{}` (no secrets) | public | 3 |
+| 39 | `providers.ttsId` | hub | user | durable | `builtin.browserTts` | public | 3 |
+| 40 | `providers.ttsConfig` | hub | user | durable | `{}` (no secrets) | public | 3 |
+| 41 | `drive.defaults.pairAgent` | hub | user | durable | builtin `pair_partner` | public | 1 |
+
 ### Narration and voice
 
 | # | Facet | Owner | Scope | Lane | Default | Privacy | Phase |
@@ -386,7 +400,7 @@ Thirty-four facets. Owner, scope, lane, default, privacy class, and plan phase f
 | 17 | `narration.density` | hub | user | durable | `normal` | public | 1 |
 | 18 | `tts.enabled` | hub | user | durable | `false` | public | 3 |
 | 19 | `tts.maxSpokenSentences` | hub | user | durable | 3 | public | 3 |
-| 20 | `stt.backend` | hub | user | durable | `webSpeech` | public | 3 |
+| 20 | `stt.backend` | hub | user | durable | **deprecated** — use `providers.sttId`; kept only for migration | public | 3 |
 | 21 | `captions.enabled` | hub | user | durable | on when mic armed | public | 3 |
 | 22 | `voice.wakePhrase` | hub | user | durable | disabled | sensitive | 3 |
 
@@ -500,7 +514,7 @@ The MVP is one profile and two colors. Everything else is declared in the catalo
 
 ### Phase 3
 
-Voice facets: `tts.*`, `stt.backend`, `captions.enabled`, `voice.wakePhrase`, and `agent.voiceSlot` on the profile.
+Voice and provider facets: `runtime.profile` seeds, `providers.sttId` / `ttsId` (+ config), `tts.*`, `captions.enabled`, `voice.wakePhrase`, and `agent.voiceSlot` on the profile. Drive Settings IA in [08-provider-harness.md](08-provider-harness.md).
 
 ### Phase 4
 
@@ -508,7 +522,7 @@ Multi-member pack seating once `teamOpt.enabled` and `isolation.worktree` are bo
 
 ### Never
 
-Prompts, tools, models, or skills in Drive config. Transcript or audio retention as a configurable facet. A durable debug-retention flag. A second config daemon.
+Prompts, tools, models, or skills in Drive config. API keys or tokens in Drive facet / provider config JSON. Transcript or audio retention as a configurable facet. A durable debug-retention flag. A second config daemon.
 
 ---
 

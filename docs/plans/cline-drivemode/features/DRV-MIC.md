@@ -29,9 +29,9 @@ Voice makes it a call. The user talks to the partner instead of typing, hands st
 
 - [ ] Read `speech-input.tsx` to establish what STT engine it assumes (Web Speech, MediaRecorder upload, or pluggable) and document the local-only constraint fit.
   - Owner package: `@cline/cline-hub`
-  - Files likely: `speech-input.tsx`, `mic-selector.tsx`
-  - Verify: written finding. If the component ships audio to a cloud API by default, flag it against DRV-PRIVACY and pick the local path.
-  - Done when: the STT path is chosen and privacy-checked.
+  - Files likely: `speech-input.tsx`, `mic-selector.tsx`, `drive/voice/createVoiceStack.ts`
+  - Verify: written finding. Selection is via `providers.sttId` + `createVoiceStack` ([ARD-0010](../ard/ARD-0010-provider-harness-byok.md)); Local profile forbids Web Speech ([ARD-0009](../ard/ARD-0009-runtime-topology-local-cloud.md)).
+  - Done when: the STT path is chosen through the provider harness and privacy-checked.
 - [ ] Wire mic input into the composer submitting through the normal message path.
   - Owner package: `@cline/cline-hub`
   - Files likely: `Composer.tsx`

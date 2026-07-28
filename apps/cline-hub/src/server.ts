@@ -15,6 +15,7 @@ import {
 	webviewDistDir,
 } from "./server/deps";
 import { handleDesktopCommand } from "./server/desktop-commands";
+import { handleDriveWebviewCommand } from "./server/drive-commands";
 import {
 	createJsonResponse,
 	isWebviewRoute,
@@ -247,6 +248,9 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						);
 					} else if (frame.type === "restart_hub") {
 						await restartHub(ctx);
+
+					} else if (frame.type === "driveCommand") {
+						await handleDriveWebviewCommand(ctx, peer, frame);
 					} else if (
 						frame.type === "call_join" ||
 						frame.type === "call_leave" ||

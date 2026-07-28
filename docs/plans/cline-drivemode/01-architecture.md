@@ -6,15 +6,17 @@ Back to [README](README.md).
 
 ```
 apps/cline-hub
-  Drive tab (primary IA) ── channels + call rooms, roster, transcripts, stage
-  Chat Join call (shortcut) ── focuses active Drive room
+  Mode control ── Plan | Act | Drive (Drive = Cline mode activation)
+  Chat (default work surface in Drive) ── feed, composer, optional stage split
+  Drive activity (optional room IA) ── channels + call rooms, roster depth
+  PiP (companion) ── glanceable controls while elsewhere in hub
 apps/cli (TUI parity)      apps/vscode (later surface)
         │  render typed events
         ▼
 sdk/packages/core/src/hub  ── single writer of room state, ws://127.0.0.1:25463
         │  room ops (join/leave/mute/stage/address), broadcast events
         ▼
-sdk/packages/drive (@cline/drive) ── Drive kernel: sub-mode machine, narration policy, interrupt policy
+sdk/packages/drive (@cline/drive) ── Drive kernel: active mode + posture machine, narration, interrupt
         │  wraps native Cline session/turn lifecycle via runtime hooks
         ▼
 sdk/packages/shared ── versioned drive/room event schemas, participant/roster/address types
@@ -23,8 +25,9 @@ sdk/packages/shared ── versioned drive/room event schemas, participant/roste
 Domain projection the UI and hub share:
 
 ```
-DriveTab > Workspace > TextChannels[] + CallRooms[]
-Room: participants[] (each with seatSources[]), roomTranscript, agentStreams[], stage (sharer human|agent), addressSet
+DriveMode on|off
+  Room: participants[] (each with seatSources[]), roomTranscript, agentStreams[], stage, addressSet
+Hub Drive activity (optional): Workspace > TextChannels[] + CallRooms[]
 Config: AgentProfile[] (overlay on ConfiguredAgent), RosterPack[], facet catalog
 ```
 
@@ -42,11 +45,13 @@ The existing hub daemon (`sdk/packages/core/src/hub/`, `ws://127.0.0.1:25463`) i
 
 No second daemon. The cursor-drive MCP server on `:7891` is not ported. Nothing defaults to `:7891`. Its responsibilities collapse into hub ops and kernel calls. Bun only for repo tooling.
 
-### D3. Room-first, Drive tab primary, joinCall as façade / Chat shortcut
+### D3. Room-first, Drive mode primary activation, Chat default surface
 
-The core primitive is a `Room` with `Participant` members (human or agent), even in the MVP. The **Drive tab** is the primary UX home for listing and opening rooms (DRV-DRIVE-TAB). `joinCall()` remains a thin façade over `room.createOrAttach()` that builds the smallest room, one human plus one `pair_partner` agent. Chat **Join call** (DRV-TOGGLE) calls the same façade and focuses the active Drive room. It is a shortcut, not a second product surface.
+The core primitive remains a `Room` with `Participant` members (human or agent), even in the MVP. **Drive is a Cline mode** (peer activation to Plan/Act): turning Drive on attaches or creates the room and enables Drive affordances; turning it off returns native Plan | Act ([ARD-0007](ard/ARD-0007-drive-as-cline-mode.md), [PRD 8](prd/prd-drive-as-cline-mode.md)).
 
-This is Redesign from First Principles applied forward. Multi-user arrives later by adding participants and roles, not by rewriting the primitive. See [04-future-multi-user.md](04-future-multi-user.md) and [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md).
+**Chat is the default work surface** while Drive is on (feed, composer, optional stage split). `joinCall()` / Drive on remain a thin façade over `room.createOrAttach()` (one human plus one `pair_partner` by default). The hub **Drive activity** lists and manages rooms (DRV-DRIVE-TAB) but is optional navigation—not a separate product home. Chat Join is synonymous with entering Drive mode and focusing the active room.
+
+This keeps Redesign from First Principles for the room domain while prioritizing seamless Cline integration over a Drive-tab-only entry story. Multi-user arrives later by adding participants and roles, not by rewriting the primitive. See [04-future-multi-user.md](04-future-multi-user.md) and [DRIVE-TAB.md](../../design/drive-wireframes/DRIVE-TAB.md).
 
 ### D4. Screen share is events first; bidirectional sharer pointer
 
@@ -60,7 +65,7 @@ Drive influences prompts and turns through runtime hooks in `@cline/core` (`sdk/
 
 ### D6. Surfaces render, never own state
 
-The hub webview Drive tab (plus Chat as shortcut), `components/ai-elements/`, and the TUI (`apps/cli/src/tui/`) are thin renderers of the same event stream. The bundled ai-elements (persona, speech-input, transcription, voice-selector, code-block, terminal, test-results, plan, task) are already in the tree. The MVP is assembly work, not component work. This is Subtract Before You Add. We wire what exists before writing anything new. Roster, transcript focus, and address chips are projections over hub state, never writable client copies.
+Hub Chat (default), optional Drive activity, PiP, `components/ai-elements/`, and the TUI (`apps/cli/src/tui/`) are thin renderers of the same event stream. The bundled ai-elements (persona, speech-input, transcription, voice-selector, code-block, terminal, test-results, plan, task) are already in the tree. The MVP is assembly work, not component work. This is Subtract Before You Add. We wire what exists before writing anything new. Roster, transcript focus, and address chips are projections over hub state, never writable client copies.
 
 ### D7. Configuration is a typed facet catalog in three lanes, hub-written
 
@@ -70,8 +75,18 @@ The lane is what extends D2 to configuration. `durable` lives in `.cline/drive/*
 
 Drive **overlays** Cline's `ConfiguredAgent` rather than forking it. `AgentProfile` owns display name, two ink channels, seat role, and permission intent; `.cline/agents/*.yaml` keeps owning prompt, tools, skills, provider, and model on its existing two-tier search path. Roster presets are `RosterPack`, never `Team` — that word belongs to Cline's runtime execution group. Seated participants carry `seatSources[]`, which is what makes overlapping packs, idempotent re-add, and cascade dismiss fall out of the data instead of out of special cases.
 
+### D8. Runtime topology (local / cloud / hybrid)
+
+A Drive session declares a `DeploymentProfile` (`local` | `cloud` | `hybrid`) that constrains LLM egress facts and voice backends together. `TopologyPolicy` in `@cline/drive` is pure and fail-closed. Local is airgap for LLM and voice (no Web Speech). Audio never enters hub events. Details: [07-runtime-topology.md](07-runtime-topology.md), [ARD-0009](ard/ARD-0009-runtime-topology-local-cloud.md).
+
+### D9. Provider harness (BYOK) with OOTB packs
+
+STT and TTS are pluggable via `DriveProviderManifest` + registry. LLM BYOK stays in Cline / `@cline/llms`. Drive Settings are facet-backed selections (`providers.sttId` / `ttsId`), not a second settings bag and not a Drive-owned key vault. Default packs seed facets for Local and Cloud so first run works. Details: [08-provider-harness.md](08-provider-harness.md), [ARD-0010](ard/ARD-0010-provider-harness-byok.md).
+
 ## Alternatives considered
 
+- **A separate Cline Drive product shell.** Rejected. Conflicts with seamless integration; Drive is a mode of Cline ([ARD-0007](ard/ARD-0007-drive-as-cline-mode.md)).
+- **Drive tab as the only entry / product home.** Superseded for activation. Room IA remains; mode-first Chat is the default work surface.
 - **A Drive-owned agent registry holding prompts, tools, and models alongside colors.** Rejected. It forks `.cline/agents/`, drifts from it immediately, duplicates the loader and its search-path precedence, and puts prompt text into a file users may commit. Drive owns appearance in a call and nothing else.
 - **One flat settings document with no lane.** Rejected. It makes "the user changed the sub-mode" and "the user changed the default sub-mode" the same write, which breaks D2 the first time someone edits config during a live call.
 - **Port cursor-drive's extension plus MCP daemon wholesale.** Rejected. It duplicates the hub, adds a second server on `:7891`, and its VS Code UI assumptions do not match the hub webview. We port skills and policy logic (DRV-SKILL-PORT), not the transport.

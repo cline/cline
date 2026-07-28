@@ -14,6 +14,7 @@ A pair call is not one-way. The agent shares structured work on the stage (DRV-S
 - User can start and stop share from the call strip / Drive room controls. Agent stage resumes when user share ends (or host sets stage back).
 - Stage remains a derived projection. Hub owns the sharer pointer; clients do not invent a second stage owner.
 - No WebRTC or media SFU in this feature. Pixel capture is an explicit non-goal for MVP (open fork may choose a later pixel path).
+- Demo screenshots / short clips are specified separately as [DRV-DEMO-SHARE](DRV-DEMO-SHARE.md) ([09-demo-share.md](../09-demo-share.md)), still without an SFU.
 
 ## Dependencies
 

@@ -1,10 +1,11 @@
+import { ApertureIcon, HandIcon, HeadphonesIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon, Settings2Icon, VolumeXIcon } from "lucide-react";
 import type { StageCard } from "@cline/shared";
-import { HandIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DriveSubMode, DriveUiState } from "./types";
+import { isDriveHumanId } from "./participantIds";
 
 const SUB_MODES: DriveSubMode[] = ["plan", "agent", "ask", "debug"];
 
@@ -43,7 +44,7 @@ export function DriveHeaderControls({
 						type="button"
 						variant={drive.stageLayout ? "default" : "outline"}
 					>
-						{drive.stageLayout ? "Spotlight on" : "Spotlight off"}
+						{drive.stageLayout ? "Stage on" : "Stage off"}
 					</Button>
 				</>
 			) : null}
@@ -76,48 +77,30 @@ export function DriveCallStrip({
 	onMuteToggle,
 	onHandToggle,
 	onSubModeChange,
-	onTakeStage,
-	pinDefaults,
+	onClearOverride,
+	onOpenSettings,
+	onToggleSpotlight,
+	onTogglePartnerMute,
+	onTogglePartnerDeafen,
 }: {
 	drive: DriveUiState;
 	disabled?: boolean;
 	onMuteToggle: () => void;
 	onHandToggle: () => void;
 	onSubModeChange: (mode: DriveSubMode) => void;
-	/** Hub call_set_stage: agent clears pin; you pins with kind defaults. */
-	onTakeStage?: (
-		who: "agent" | "you",
-		pin?: {
-			kind: "selection" | "file" | "terminal";
-			label: string;
-			ref?: string;
-		},
-	) => void;
-	pinDefaults?: Record<
-		"selection" | "file" | "terminal",
-		{ kind: "selection" | "file" | "terminal"; label: string; ref?: string }
-	>;
+	onClearOverride?: () => void;
+	onOpenSettings?: () => void;
+	onToggleSpotlight?: () => void;
+	onTogglePartnerMute?: () => void;
+	onTogglePartnerDeafen?: () => void;
 }) {
-	const [pinPickerOpen, setPinPickerOpen] = useState(false);
-
 	if (!drive.active) {
 		return null;
 	}
 
-	const kinds = (
-		["selection", "file", "terminal"] as const
-	).map((kind) => {
-		const pin = pinDefaults?.[kind] ?? {
-			kind,
-			label:
-				kind === "selection"
-					? "Current selection"
-					: kind === "file"
-						? "Shared file"
-						: "Terminal",
-		};
-		return { kind, pin };
-	});
+	const spotlightLabel = isDriveHumanId(drive.spotlightParticipantId)
+		? "you"
+		: drive.partnerName;
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/5 px-4 py-2">
@@ -130,11 +113,12 @@ export function DriveCallStrip({
 			/>
 			<span className="text-sm font-medium">{drive.partnerName}</span>
 			<span className="text-xs text-muted-foreground">
-				{drive.muted ? "muted" : "listening"} · {drive.subMode}
+				{drive.muted ? "you muted" : "listening"} · spotlight {spotlightLabel}
+				{drive.partnerMuted ? " · partner muted" : ""}
+				{drive.partnerDeafened ? " · partner deafened" : ""}
+				{` · ${drive.subMode}`}
+				{drive.postureOverride ? ` · override` : " · bank"}
 				{drive.handRaised ? " · hand raised" : ""}
-				{drive.stageSharer === "you"
-					? " · you in the spotlight"
-					: " · agent in the spotlight"}
 			</span>
 			<div className="ml-auto flex flex-wrap items-center gap-1">
 				{SUB_MODES.map((mode) => (
@@ -150,57 +134,67 @@ export function DriveCallStrip({
 						{mode}
 					</Button>
 				))}
-				{onTakeStage ? (
-					<>
-						<Button
-							disabled={disabled}
-							onClick={() => {
-								setPinPickerOpen(false);
-								onTakeStage("agent");
-							}}
-							size="sm"
-							type="button"
-							variant={drive.stageSharer === "agent" ? "default" : "ghost"}
-							className="h-7 px-2 text-xs"
-						>
-							Spotlight agent
-						</Button>
-						<Button
-							disabled={disabled}
-							onClick={() => setPinPickerOpen((open) => !open)}
-							size="sm"
-							type="button"
-							variant={drive.stageSharer === "you" ? "default" : "ghost"}
-							className="h-7 px-2 text-xs"
-						>
-							Spotlight me
-						</Button>
-						{pinPickerOpen ? (
-							<div className="flex w-full flex-wrap items-center gap-1 border-t border-amber-500/20 pt-2">
-								<span className="mr-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-									Share
-								</span>
-								{kinds.map(({ kind, pin }) => (
-									<Button
-										disabled={disabled}
-										key={kind}
-										onClick={() => {
-											setPinPickerOpen(false);
-											onTakeStage("you", pin);
-										}}
-										size="sm"
-										type="button"
-										variant="outline"
-										className="h-7 px-2 text-xs capitalize"
-										title={pin.ref ?? pin.label}
-									>
-										{kind}
-									</Button>
-								))}
-							</div>
-						) : null}
-					</>
+				{drive.postureOverride ? (
+					<Button
+						disabled={disabled}
+						onClick={() => onClearOverride?.()}
+						size="sm"
+						type="button"
+						variant="outline"
+						className="h-7 px-2 text-xs"
+					>
+						Clear override
+					</Button>
 				) : null}
+				<Button
+					aria-label={`Spotlight ${spotlightLabel}`}
+					disabled={disabled}
+					onClick={() => onToggleSpotlight?.()}
+					size="icon-sm"
+					type="button"
+					variant="ghost"
+					title="Toggle spotlight between you and partner"
+				>
+					<ApertureIcon className="size-3.5" />
+				</Button>
+				<Button
+					aria-label={
+						drive.partnerMuted ? "Unmute partner" : "Mute partner"
+					}
+					disabled={disabled}
+					onClick={() => onTogglePartnerMute?.()}
+					size="icon-sm"
+					type="button"
+					variant={drive.partnerMuted ? "default" : "ghost"}
+					title="Partner mute (cannot speak)"
+				>
+					<VolumeXIcon className="size-3.5" />
+				</Button>
+				<Button
+					aria-label={
+						drive.partnerDeafened
+							? "Undeafen partner"
+							: "Deafen partner"
+					}
+					disabled={disabled}
+					onClick={() => onTogglePartnerDeafen?.()}
+					size="icon-sm"
+					type="button"
+					variant={drive.partnerDeafened ? "default" : "ghost"}
+					title="Partner deafen (cannot hear)"
+				>
+					<HeadphonesIcon className="size-3.5" />
+				</Button>
+				<Button
+					aria-label="Drive settings"
+					disabled={disabled}
+					onClick={() => onOpenSettings?.()}
+					size="icon-sm"
+					type="button"
+					variant="ghost"
+				>
+					<Settings2Icon className="size-3.5" />
+				</Button>
 				<Button
 					aria-label={drive.muted ? "Unmute" : "Mute"}
 					disabled={disabled}
@@ -234,13 +228,11 @@ export function DriveStagePanel({
 	sharingLabel,
 	nowLabel,
 	nextLabel,
-	demo,
 	children,
 }: {
 	sharingLabel: string;
 	nowLabel: string;
 	nextLabel: string;
-	demo?: boolean;
 	children: ReactNode;
 }) {
 	return (
@@ -248,11 +240,6 @@ export function DriveStagePanel({
 			<div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
 				<span className="text-emerald-600 dark:text-emerald-400">● sharing</span>
 				<span className="truncate">{sharingLabel}</span>
-				{demo ? (
-					<Badge className="ml-auto shrink-0 text-[10px]" variant="outline">
-						Demo fixture
-					</Badge>
-				) : null}
 			</div>
 			<div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
 			<div className="grid grid-cols-2 gap-2 border-t p-3">
@@ -301,6 +288,7 @@ export function DriveStageCards({ cards }: { cards: readonly StageCard[] }) {
 		</div>
 	);
 }
+
 
 export function DriveNarrationBanner({
 	partnerName,

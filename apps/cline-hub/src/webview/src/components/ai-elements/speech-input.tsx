@@ -69,6 +69,11 @@ export type SpeechInputProps = ComponentProps<typeof Button> & {
 	 */
 	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
 	lang?: string;
+	/**
+	 * When set (e.g. Drive local-worker STT), skip auto-detect so Web Speech
+	 * is never constructed under a loopback-only topology.
+	 */
+	forceMode?: SpeechInputMode;
 };
 
 const detectSpeechInputMode = (): SpeechInputMode => {
@@ -92,11 +97,14 @@ export const SpeechInput = ({
 	onTranscriptionChange,
 	onAudioRecorded,
 	lang = "en-US",
+	forceMode,
 	...props
 }: SpeechInputProps) => {
 	const [isListening, setIsListening] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [mode] = useState<SpeechInputMode>(detectSpeechInputMode);
+	const [mode] = useState<SpeechInputMode>(
+		() => forceMode ?? detectSpeechInputMode(),
+	);
 	const [isRecognitionReady, setIsRecognitionReady] = useState(false);
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);

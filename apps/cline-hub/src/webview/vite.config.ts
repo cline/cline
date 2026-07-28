@@ -29,6 +29,14 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@cline/drive": path.resolve(
+				__dirname,
+				"../../../../sdk/packages/drive/src/index.ts",
+			),
+			"@cline/shared": path.resolve(
+				__dirname,
+				"../../../../sdk/packages/shared/src/index.ts",
+			),
 		},
 		dedupe: ["react", "react-dom"],
 	},

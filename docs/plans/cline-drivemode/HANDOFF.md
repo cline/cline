@@ -1,7 +1,7 @@
 # Handoff · cline-drivemode + Driveagent portfolio
 
-**Reader.** Next agent or human picking up Drivecode / Driveagent work.  
-**Repo.** `hhalperin/cline-drive` (local: `profiles/hhalperin/active/cline-drivecode`).  
+**Reader.** Next agent or human picking up Drivecode / Driveagent work.
+**Repo.** `hhalperin/cline-drive` (local: `profiles/hhalperin/active/cline-drivecode`).
 **Date.** 2026-07-25.
 
 ## Problem
@@ -15,7 +15,7 @@ Must stay true:
 - Hub `ws://127.0.0.1:25463` is the single writer of room state. No default second MCP on `:7891`.
 - Bun only in this repo.
 - Privacy-strict. No transcript/audio persistence without an explicit debug flag. No auto-dump of calls into agent knowledge.
-- Drive tab is primary UX. Chat Join is a shortcut only.
+- Drive is a Cline mode (Plan/Act-class). Chat is the default work surface; Drive hub activity is optional room IA.
 - `Team` is Cline’s runtime word. Drive seating presets are `RosterPack`. Spoken “team” = pack displayName or recruit query text.
 - `AgentProfile` is an appearance overlay. Prompts/tools/skills live in `.driveagent/<slug>/` (or compile from it), not in Drive facets.
 - Events-first stage. WebRTC later.
@@ -59,7 +59,7 @@ Out of scope for the next “continue implementation” slice unless Harrison sa
 | `apps/cline-hub/src/webview/src/Chat.tsx` | Wires Drive UI state / persona hint / stage snippet |
 | `apps/cli/src/tui/...` | Status bar Drive fields, Ctrl+Shift+D toggle, help entry |
 
-**Not done.** `@cline/drive` package, hub room single-writer for Drive rooms, `.driveagent/` loader, recruit, participant sheet, RosterPack seating.
+**Not done.** Full hub room single-writer for Drive rooms, `.driveagent/` loader, recruit, participant sheet, RosterPack seating. Topology + BYOK provider harness are specified in [07-runtime-topology.md](07-runtime-topology.md), [08-provider-harness.md](08-provider-harness.md), [ARD-0009](ard/ARD-0009-runtime-topology-local-cloud.md), [ARD-0010](ard/ARD-0010-provider-harness-byok.md); kernel files under `sdk/packages/drive` already include mode/loop/events/bank slices.
 
 ### Outside this repo (do not expect in the PR tree)
 

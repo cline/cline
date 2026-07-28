@@ -12,6 +12,7 @@ On a call with agents in the roster, the next message needs an explicit audience
 - User can set address to one participant, several, or everyone via click on roster entries and via documented hotkeys.
 - Outbound send carries `addressSet: "everyone" | { agentIds: string[] }` (or equivalent typed shape in DRV-EVENTS) on the conversation event.
 - Hub validates and delivers only to addressed participants. Agents not in the set do not receive the prompt as their turn input.
+- Automatic recipient suggestion / auto-routing among seated agents is [DRV-AGENT-ROUTER](DRV-AGENT-ROUTER.md). It emits `addressSet` values; it does not bypass this feature’s enforcement.
 - Clearing chips restores `everyone`. Illegal empty set is rejected at the boundary.
 - A pack mode exists: `{ mode: "pack", packId }` addresses a `RosterPack` whose `addressable` flag is true, resolving at send time to currently-seated participants whose `seatSources` contain that pack ([DRV-ROSTER-PACK](DRV-ROSTER-PACK.md)). Resolution happens at send, not at chip creation, so a member who left is simply not addressed. An empty resolution is rejected like any other empty set — never silently widened to everyone.
 - Privacy. Address metadata is fine; payloads still omit raw audio (DRV-PRIVACY).

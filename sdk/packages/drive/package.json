@@ -1,7 +1,7 @@
 {
 	"name": "@cline/drive",
 	"version": "0.0.65",
-	"description": "Pure Drive collaboration kernel — modes, narration, interrupt, room fold, host port",
+	"description": "Pure Drive kernel: room fold, modes, task bank, topology, director, waves",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -14,7 +14,8 @@
 		".": {
 			"browser": "./dist/index.js",
 			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
 		}
 	},
 	"files": ["dist"],

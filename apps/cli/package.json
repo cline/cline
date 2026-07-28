@@ -93,7 +93,7 @@
 		"react-reconciler": "0.33.0",
 		"yaml": "^2.8.2",
 		"nanoid": "^5.1.7",
-		"zod": "^4.1.11"
+		"zod": "^4.3.6"
 	},
 	"devDependencies": {
 		"@cline/core": "workspace:*",
