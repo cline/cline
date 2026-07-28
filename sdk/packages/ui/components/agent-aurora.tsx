@@ -57,6 +57,7 @@ const STARS = Array.from({ length: 32 }, (_, index): AuroraStar => {
 	};
 });
 
+/** Decorative layer that fills its nearest positioned ancestor. */
 export function AgentAurora() {
 	return (
 		<div aria-hidden="true" className="cline-ui-agent-aurora">
