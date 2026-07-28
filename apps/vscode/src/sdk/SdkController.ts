@@ -283,7 +283,7 @@ export class Controller {
 		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize message translator state. The mode getter styles the inferred turn-final
-		// completion row (plan → "Plan Created" box, act → green "Task Completed" box).
+		// completion row (plan → yellow plan box, act → green completion box).
 		this.messageTranslatorState = new MessageTranslatorState(
 			undefined,
 			() => this.getActiveProviderId(),

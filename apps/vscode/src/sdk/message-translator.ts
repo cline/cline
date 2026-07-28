@@ -157,7 +157,7 @@ export class MessageTranslatorState {
 
 	/**
 	 * Plan/act mode governing the current turn, used to style the inferred turn-final
-	 * response (plan → "Plan Created" box, act/yolo → green "Task Completed" box).
+	 * response (plan → yellow plan box, act/yolo → green completion box).
 	 * Defaults to act when the host doesn't supply a mode source.
 	 */
 	currentUiMode(): "plan" | "act" {
@@ -719,8 +719,9 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
 
 /**
  * Whether a tool name is the agent's completion tool — the one that declares the task done and
- * drives the green "Task Completed" box plus the `completed` turn phase. Two names are accepted:
- * the VSCode extra tool `attempt_completion` and the SDK's built-in `submit_and_exit`
+ * drives the green completion box plus the `completed` turn phase. Two names are accepted:
+ * the legacy VSCode extra tool `attempt_completion` (no longer registered for new sessions,
+ * but still present in persisted transcripts) and the SDK's built-in `submit_and_exit`
  * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
  */
 function isCompletionTool(toolName: string): boolean {
@@ -1138,7 +1139,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// The completion tool (attempt_completion / submit_and_exit) is handled specially:
-					// it drives the green "Task Completed" rectangle. We emit say:"completion_result"
+					// it drives the green completion box. We emit say:"completion_result"
 					// here (partial) and finalize it at content_end. Recording attemptCompletionSeen
 					// makes the turn end in the "completed" phase ("Start New Task") rather than
 					// "awaiting_followup".
@@ -1396,14 +1397,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// Completion tool (attempt_completion / submit_and_exit) → finalize the green
-					// "Task Completed" rectangle. The partial say:"completion_result" was emitted at
+					// completion box. The partial say:"completion_result" was emitted at
 					// content_start; here we emit the non-partial version.
 					if (isCompletionTool(toolName)) {
 						const storedInput = state.getStreamingToolInput()
 						const ts = state.clearStreamingTool()
 						const resultText = getCompletionResultText(storedInput)
 						// Finalize the say:"completion_result" (non-partial)
-						// This renders the green "Task Completed" rectangle.
+						// This renders the green completion box.
 						messages.push({
 							ts,
 							type: "say",
@@ -1627,7 +1628,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// text response rather than a completion tool. When the turn ended cleanly and its
 			// last content was text, retag that text row in place (same ts → upserted by the
 			// message store / webview reducer) so the user gets the legacy-style "done" visual:
-			// green "Task Completed" box in act mode, "Plan Created" box in plan mode. Turns
+			// green box in act mode, yellow plan box in plan mode. Turns
 			// that ended via the completion tool already rendered their green box at the tool's
 			// content_end; aborted/errored turns keep their plain text.
 			if (event.reason === "completed" && !state.wasAttemptCompletionSeen()) {
@@ -2037,8 +2038,8 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 
 	// A visible user message marks the end of the preceding agent turn. Replay the turn end
 	// through the same `done` translation as the live path so a turn that ended cleanly on a
-	// text response gets the same inferred completion retag (green "Task Completed" box in act
-	// mode, "Plan Created" box in plan mode) when a task is rehydrated from SDK history.
+	// text response gets the same inferred completion retag (green box in act
+	// mode, yellow plan box in plan mode) when a task is rehydrated from SDK history.
 	const endTurn = () => {
 		upsertClineMessages(
 			agentEventToMessages({ type: "done", reason: "completed", text: "", iterations: 0 } as AgentEvent, state),
