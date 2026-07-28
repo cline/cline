@@ -731,9 +731,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
 			)
 
-			// This provider is the one the session will actually run (and bill)
-			// on. Record it in providers.json so the SDK-side store always
-			// reflects real usage, even if a switch path missed the mirror write.
+			// Record the provider the session actually runs (and bills) on.
 			setLastUsedProvider(providerId)
 		}
 	} catch (error) {

@@ -113,18 +113,11 @@ export function getProviderSettingsManager(dataDir?: string): ProviderSettingsMa
 }
 
 /**
- * Record the given provider as `lastUsedProvider` in providers.json.
- *
- * The extension's active provider lives in StateManager (globalState.json);
- * providers.json is the SDK-side store shared with the CLI and other hosts.
- * Nothing else reconciles the two, so provider switches and session starts
- * must call this to keep providers.json from going stale — a stale
- * lastUsedProvider is what the session-factory fallback (and fresh CLI
- * sessions) silently run on.
- *
- * Accepts either the extension's legacy spelling (e.g. `openai`) or the SDK
- * spelling (e.g. `openai-compatible`). Best-effort: failures are logged and
- * never propagate into caller flows.
+ * Record the given provider as `lastUsedProvider` in providers.json, keeping
+ * the SDK-side store in sync with the extension's active provider. A stale
+ * pointer is what the session-factory fallback and fresh CLI sessions run on.
+ * Accepts legacy (`openai`) or SDK (`openai-compatible`) spellings.
+ * Best-effort: failures are logged, never thrown.
  */
 export function setLastUsedProvider(providerId: string, dataDir?: string): void {
 	const sdkProviderId = toSdkProviderId(providerId).trim()

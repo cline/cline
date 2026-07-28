@@ -51,9 +51,7 @@ export class SdkProviderChangeCoordinator {
 		}
 
 		if (nextProvider) {
-			// Mirror the switch into providers.json. StateManager decides which
-			// provider requests actually use, so a stale lastUsedProvider there
-			// makes the two provider stores disagree about the active provider.
+			// Mirror the switch into providers.json so lastUsedProvider never goes stale.
 			setLastUsedProvider(nextProvider)
 		}
 
