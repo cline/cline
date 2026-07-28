@@ -2001,12 +2001,28 @@ function finalizePersistedToolUse(
 	)
 }
 
+export interface SdkMessagesToClineMessagesOptions {
+	/**
+	 * Whether the transcript's LAST agent turn ended cleanly (the session record's status is not
+	 * failed/cancelled). Mid-transcript turns are always treated as completed — the user sent a
+	 * follow-up after them, and history carries no per-turn outcome — but the terminal text of a
+	 * failed or cancelled session must not be retagged as an inferred completion, or a reopened
+	 * broken task would render its dangling response as a green/plan "done" box.
+	 * Defaults to true.
+	 */
+	finalTurnCompleted?: boolean
+}
+
 /**
  * Convert SDK-persisted LLM messages back into the ClineMessage format used by
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], minter?: MessageIdMinter): ClineMessage[] {
+export function sdkMessagesToClineMessages(
+	messages: SdkMessageWithMetrics[],
+	minter?: MessageIdMinter,
+	options?: SdkMessagesToClineMessagesOptions,
+): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
 	// Plan/act mode of the turn currently being replayed, recovered from each user message's
 	// persisted <user_input mode="..."> wrapper (stamped as `uiMode` before sanitization).
@@ -2152,8 +2168,12 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 	}
 
 	// The transcript's last agent turn has no trailing user message — close it out here so its
-	// final text (if the turn ended on text) gets the same inferred completion retag.
-	endTurn()
+	// final text (if the turn ended on text) gets the same inferred completion retag. Skipped
+	// when the session record says that last run failed or was cancelled: its terminal text is
+	// a dangling partial response, not a completion, and must stay a plain text row.
+	if (options?.finalTurnCompleted !== false) {
+		endTurn()
+	}
 
 	// Always emit ask:"completion_result"
 	// as the LAST message so it comes after the usage event's

@@ -453,6 +453,11 @@ export class SdkTaskHistory {
 		const clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
+			{
+				// A failed/cancelled session's terminal text is a dangling partial response, not a
+				// completion — don't retag it into the inferred completion box on rehydration.
+				finalTurnCompleted: sdkRecord ? sdkRecord.status !== "failed" && sdkRecord.status !== "cancelled" : true,
+			},
 		)
 		if (sdkRecord && legacyTask) {
 			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)

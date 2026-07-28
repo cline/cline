@@ -241,6 +241,27 @@ describe("SdkTaskHistory", () => {
 		])
 	})
 
+	it("does not retag the terminal text of a failed or cancelled session", async () => {
+		// The dangling response of a broken/aborted last run is not a completion; only
+		// mid-transcript turns (the user kept going after them) keep the inferred box.
+		for (const status of ["failed", "cancelled"] as const) {
+			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
+			readMessages.mockResolvedValueOnce([
+				{ role: "user", content: "first request" },
+				{ role: "assistant", content: [{ type: "text", text: "First answer." }] },
+				{ role: "user", content: "second request" },
+				{ role: "assistant", content: [{ type: "text", text: "Dangling partial answer" }] },
+			] as never)
+
+			const result = await history.getClineMessages("task-1")
+
+			expect(result).toContainEqual(
+				expect.objectContaining({ type: "say", say: "completion_result", text: "First answer." }),
+			)
+			expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Dangling partial answer" }))
+		}
+	})
+
 	it("does not retag a transcript that ends on a dangling tool call", () => {
 		const result = sdkMessagesToClineMessages([
 			{ role: "user", content: "do the thing" },
