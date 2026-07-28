@@ -8,13 +8,13 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
+import type { SdkTaskHistory } from "./sdk-task-history"
+import { prepareTaskResumeStartInput } from "./sdk-task-resume"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
-type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
 export interface SdkFollowupCoordinatorOptions {
@@ -36,12 +36,20 @@ export interface SdkFollowupCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no session rebuild is in flight. */
 	waitForPendingRebuilds: () => Promise<void>
+	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
+	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
 	 * Called when resuming a task fails. askResponse moved the turn phase to
 	 * streaming before delegating here, so the failure must move it to a
 	 * terminal phase or the footer stays stuck on Thinking/Cancel.
 	 */
 	onResumeFailed: () => void
+	/**
+	 * Called when a follow-up ends without starting a turn (the displayed task
+	 * changed, or no session could be chosen). Settles the streaming phase that
+	 * askResponse pre-set, for the same reason as onResumeFailed.
+	 */
+	onFollowUpAbandoned: () => void
 }
 
 export class SdkFollowupCoordinator {
@@ -62,31 +70,60 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		let activeSession = this.options.sessions.getActiveSession()
+		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
-		const isActiveTurnInProgress = () => !!activeSession && (activeSession.isRunning || submittedDuringActiveTurn)
-		if (!isActiveTurnInProgress()) {
-			// Rebuilds replace the active session. Wait before choosing the host so
-			// this follow-up cannot be sent to the session being replaced.
-			await this.options.waitForPendingRebuilds()
-			activeSession = this.options.sessions.getActiveSession()
-		}
-		if (!isActiveTurnInProgress() && task) {
-			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
-			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
+		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
+			await this.sendToActiveSession(activeSession, true, prompt, images, files)
 			return
 		}
 
-		if (!activeSession) {
-			Logger.error("[SdkController] askResponse: No active session")
-			return
-		}
+		// Rebuilds replace idle sessions. Wait before acquiring the shared
+		// prepare/start boundary so this follow-up cannot target a replaced host.
+		await this.options.waitForPendingRebuilds()
 
+		await this.options.runExclusive(async () => {
+			// Task navigation does not use the rebuild scheduler. Do not deliver a
+			// prompt submitted from one task into a task selected while we waited.
+			// Compare by taskId: reloading the same task allocates a new TaskProxy,
+			// and the user's follow-up should survive that.
+			if (task && this.options.getTask()?.taskId !== task.taskId) {
+				await this.abandonFollowUp(
+					`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`,
+				)
+				return
+			}
+
+			const currentSession = this.options.sessions.getActiveSession()
+			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
+				await this.sendToActiveSession(currentSession, true, prompt, images, files)
+				return
+			}
+
+			if (task) {
+				Logger.log(`[SdkController] askResponse: Resuming task ${task.taskId} before follow-up`)
+				await this.tryResumeSessionFromTask(task, prompt, images, files)
+				return
+			}
+
+			if (!currentSession) {
+				Logger.error("[SdkController] askResponse: No active session")
+				await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
+				return
+			}
+
+			await this.sendToActiveSession(currentSession, false, prompt, images, files)
+		})
+	}
+
+	private async sendToActiveSession(
+		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		shouldQueue: boolean,
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
-		const shouldQueue = isActiveTurnInProgress()
-		const delivery = shouldQueue ? ("queue" as const) : undefined
-
 		if (shouldQueue) {
 			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 		}
@@ -94,20 +131,30 @@ export class SdkFollowupCoordinator {
 		this.options.sessions.setRunning(true)
 		if (!shouldQueue) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
-		}
-
-		if (!shouldQueue) {
 			this.options.resetMessageTranslator()
 		}
 
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
+		this.options.sessions.fireAndForgetSend(
+			sdkHost,
+			sessionId,
+			resolvedPrompt,
+			images,
+			files,
+			shouldQueue ? "queue" : undefined,
+		)
 	}
 
-	private async tryResumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
+	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		try {
-			await this.resumeSessionFromTask(taskId, prompt, images, files)
+			await this.resumeSessionFromTask(task, prompt, images, files)
 		} catch (error) {
+			if (this.options.getTask()?.taskId !== task.taskId) {
+				// Settle the pre-set streaming phase, but do not emit the stale
+				// failure into the newly displayed task's transcript.
+				await this.abandonFollowUp(`Suppressing resume failure for task no longer displayed: ${task.taskId}`)
+				return
+			}
 			Logger.error("[SdkController] Failed to resume session from task:", error)
 
 			const errorMsg = error instanceof Error ? error.message : String(error)
@@ -130,7 +177,7 @@ export class SdkFollowupCoordinator {
 							partial: false,
 						},
 					],
-					{ type: "status", payload: { sessionId: taskId, status: "error" } },
+					{ type: "status", payload: { sessionId: task.taskId, status: "error" } },
 				)
 			}
 			this.options.onResumeFailed()
@@ -138,66 +185,101 @@ export class SdkFollowupCoordinator {
 		}
 	}
 
-	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
+	private async resumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		const taskId = task.taskId
 		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
 
 		const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
-		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.options.getWorkspaceRoot())
+		const resumeStart = await prepareTaskResumeStartInput(this.options, taskId)
+		// Targeting checks below compare by taskId (logical identity): reloading
+		// the same task allocates a new TaskProxy and must not cancel the
+		// follow-up. Cleanup (endStartedResume) uses object identity instead.
+		if (this.options.getTask()?.taskId !== taskId) {
+			await this.abandonFollowUp(`Task changed before resume start for ${taskId}; cancelling follow-up`)
+			return
+		}
 
-		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")
-		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
-		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
-		config.sessionId = taskId
-
-		const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
-		const tempManager = await this.options.createTempSessionHost()
-		const persistedInitialMessages = await this.options.loadInitialMessages(tempManager, taskId)
-		await tempManager.dispose("readMessages")
-		const initialMessages = isLegacyTask
-			? await this.options.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
-			: persistedInitialMessages
-
-		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
+		Logger.log(`[SdkController] Resuming with ${resumeStart.initialMessages?.length ?? 0} initial messages`)
 
 		const { startResult, sdkHost } = await this.options.sessions.startNewSession({
-			config,
+			...resumeStart,
 			interactive: true,
-			...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
-			...(historyItem ? { sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId) } : {}),
 		})
 
-		const task = this.options.getTask()
-		if (task && task.taskId !== startResult.sessionId) {
-			task.taskId = startResult.sessionId
+		if (this.options.getTask()?.taskId !== taskId) {
+			await this.endStartedResume(sdkHost, startResult.sessionId)
+			await this.abandonFollowUp(`Task changed during resume start for ${taskId}; cancelled follow-up`)
+			return
 		}
 
-		this.options.resetMessageTranslator()
+		try {
+			if (historyItem) {
+				historyItem.ts = Date.now()
+				historyItem.modelId = resumeStart.config.modelId
+				await this.options.taskHistory.updateTaskHistoryItem(historyItem)
+				if (this.options.getTask()?.taskId !== taskId) {
+					await this.endStartedResume(sdkHost, startResult.sessionId)
+					await this.abandonFollowUp(`Task changed while updating history for ${taskId}; cancelled follow-up`)
+					return
+				}
+			}
 
-		if (historyItem) {
-			historyItem.ts = Date.now()
-			historyItem.modelId = config.modelId
-			await this.options.taskHistory.updateTaskHistoryItem(historyItem)
+			const effectivePrompt =
+				prompt?.trim() ||
+				(historyItem
+					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
+					: "[TASK RESUMPTION] Please continue where you left off.")
+			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+			if (this.options.getTask()?.taskId !== taskId) {
+				await this.endStartedResume(sdkHost, startResult.sessionId)
+				await this.abandonFollowUp(`Task changed while resolving mentions for ${taskId}; cancelled follow-up`)
+				return
+			}
+
+			if (task.taskId !== startResult.sessionId) {
+				task.taskId = startResult.sessionId
+			}
+			this.options.resetMessageTranslator()
+
+			// Echo whenever the user supplied content, including attachment-only
+			// resumes, and include the attachments in the bubble. This also keeps the
+			// visible transcript aligned with SDK history for edit/regenerate ordinal
+			// mapping: a resumption prompt carrying user attachments is counted as a
+			// visible user message, a bare resumption prompt is not.
+			if (prompt?.trim() || images?.length || files?.length) {
+				this.emitUserFeedback(startResult.sessionId, prompt, images, files)
+			}
+
+			await this.options.postStateToWebview()
+			// Compare against the original taskId: a proxy reloaded from history
+			// carries it, while task.taskId may have been reassigned above.
+			if (this.options.getTask()?.taskId !== taskId && this.options.getTask() !== task) {
+				await this.endStartedResume(sdkHost, startResult.sessionId)
+				await this.abandonFollowUp(`Task changed while posting resumed state for ${taskId}; cancelled follow-up`)
+				return
+			}
+
+			this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
+		} catch (error) {
+			await this.endStartedResume(sdkHost, startResult.sessionId)
+			throw error
 		}
+	}
 
-		// Echo whenever the user supplied content, including attachment-only
-		// resumes, and include the attachments in the bubble. This also keeps the
-		// visible transcript aligned with SDK history for edit/regenerate ordinal
-		// mapping: a resumption prompt carrying user attachments is counted as a
-		// visible user message, a bare resumption prompt is not.
-		if (prompt?.trim() || images?.length || files?.length) {
-			this.emitUserFeedback(startResult.sessionId, prompt, images, files)
+	private async endStartedResume(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
+		// startNewSession installs the session before resolving. Clear that exact
+		// session synchronously, but never stop a replacement session.
+		const activeSession = this.options.sessions.getActiveSession()
+		if (activeSession?.sdkHost === sdkHost && activeSession.sessionId === sessionId) {
+			await this.options.sessions.endActiveSession("followupTargetChanged", { awaitStop: true })
 		}
+	}
 
+	/** Settle the pre-set streaming phase for a follow-up that started no turn. */
+	private async abandonFollowUp(detail: string): Promise<void> {
+		Logger.log(`[SdkController] ${detail}`)
+		this.options.onFollowUpAbandoned()
 		await this.options.postStateToWebview()
-
-		const effectivePrompt =
-			prompt?.trim() ||
-			(historyItem
-				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-				: "[TASK RESUMPTION] Please continue where you left off.")
-
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-		this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
 	}
 
 	private emitUserFeedback(sessionId: string, prompt?: string, images?: string[], files?: string[]): void {
