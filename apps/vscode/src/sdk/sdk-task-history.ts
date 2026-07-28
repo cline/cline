@@ -455,15 +455,15 @@ export class SdkTaskHistory {
 			this.options.getMinter?.(),
 			{
 				// Only retag the transcript's terminal text as an inferred completion when the
-				// session record says its last run ended cleanly:
-				// - "completed": the session was stopped after a clean final turn.
-				// - "idle": interactive sessions persist "idle" between turns (markTurnIdle in
-				//   the SDK runtime host), so this is the normal at-rest state of a conversation
-				//   whose last turn finished and is awaiting user input.
-				// Anything else stays a plain text row: "failed"/"cancelled" runs ended on a
-				// dangling partial response, and "running"/"pending" at rest means the process
-				// died mid-turn without recording an outcome.
-				finalTurnCompleted: sdkRecord ? sdkRecord.status === "completed" || sdkRecord.status === "idle" : true,
+				// session record says its last turn ended cleanly — status "completed", written
+				// by the SDK runtime host's resolveInteractiveStopStatus when the session is
+				// released (task switch, clear, extension dispose). Everything else stays a
+				// plain text row: "failed"/"cancelled" runs ended on a dangling response, and
+				// non-terminal statuses at rest ("idle"/"running"/"pending") mean the process
+				// died without recording an outcome — "idle" in particular is also the state
+				// after an aborted turn (markTurnIdle runs for every finish reason), so it
+				// cannot be trusted as a clean ending.
+				finalTurnCompleted: sdkRecord ? sdkRecord.status === "completed" : true,
 			},
 		)
 		if (sdkRecord && legacyTask) {

@@ -259,28 +259,26 @@ describe("SdkTaskHistory", () => {
 		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Built." }))
 	})
 
-	it("retags the terminal text of a session at rest in a clean state (completed / idle)", async () => {
-		// "idle" is the normal at-rest status of an interactive conversation between turns
-		// (markTurnIdle in the SDK runtime host); "completed" is a formally stopped clean run.
-		for (const status of ["completed", "idle"] as const) {
-			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
-			readMessages.mockResolvedValueOnce([
-				{ role: "user", content: "first request" },
-				{ role: "assistant", content: [{ type: "text", text: "Final answer." }] },
-			] as never)
+	it("retags the terminal text of a session whose record says it completed", async () => {
+		// "completed" is written by the runtime host when the session is released after a
+		// clean final turn (task switch / clear / extension dispose).
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status: "completed" })])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: "first request" },
+			{ role: "assistant", content: [{ type: "text", text: "Final answer." }] },
+		] as never)
 
-			const result = await history.getClineMessages("task-1")
+		const result = await history.getClineMessages("task-1")
 
-			expect(result).toContainEqual(
-				expect.objectContaining({ type: "say", say: "completion_result", text: "Final answer." }),
-			)
-		}
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Final answer." }))
 	})
 
-	it("does not retag the terminal text of a failed, cancelled, or died-mid-run session", async () => {
-		// The dangling response of a broken/aborted last run is not a completion ("running"/
-		// "pending" at rest means the process died mid-turn without recording an outcome).
-		for (const status of ["failed", "cancelled", "running", "pending"] as const) {
+	it("does not retag the terminal text of a session that did not end cleanly", async () => {
+		// "failed"/"cancelled" runs ended on a dangling response. Non-terminal statuses at
+		// rest mean the process died without recording an outcome — "idle" is also the state
+		// after an aborted turn (markTurnIdle runs for every finish reason), so it cannot be
+		// trusted as a clean ending.
+		for (const status of ["failed", "cancelled", "running", "pending", "idle"] as const) {
 			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
 			readMessages.mockResolvedValueOnce([
 				{ role: "user", content: "first request" },
