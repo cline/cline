@@ -224,6 +224,15 @@ interface PreparedToolExecution {
 	tool?: AgentTool;
 	input: unknown;
 	skipReason?: string;
+	/**
+	 * True when `skipReason` is an explicit rejection returned by the approval
+	 * callback (the user clicking Reject), as opposed to a policy/hook skip or
+	 * an approval-infrastructure failure. A rejection is a user decision, not a
+	 * tool malfunction, so its result is delivered to the model as plain
+	 * content instead of an errored tool call — models treat tool errors as
+	 * transient and retry them, which is exactly wrong after a denial.
+	 */
+	deniedByUser?: boolean;
 }
 
 interface HookBag {
@@ -422,6 +431,8 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	/** Tool calls the user rejected during the current run (never executed). */
+	private readonly deniedToolCallIds = new Set<string>();
 	private readonly telemetryProviderId?: string;
 	private readonly telemetryModelId?: string;
 
@@ -605,6 +616,7 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.deniedToolCallIds.clear();
 
 		try {
 			await this.callBeforeRunHooks();
@@ -1293,7 +1305,13 @@ export class AgentRuntime {
 	): Promise<AgentMessage[]> {
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
-			prepared.push(await this.prepareToolExecution(toolCall));
+			const preparedExecution = await this.prepareToolExecution(toolCall);
+			if (preparedExecution.deniedByUser) {
+				// Denied results are not errors, so findCompletingToolMessage
+				// needs this to know a denied completesRun tool did not run.
+				this.deniedToolCallIds.add(preparedExecution.toolCall.toolCallId);
+			}
+			prepared.push(preparedExecution);
 		}
 
 		if (this.config.toolExecution === "parallel") {
@@ -1316,6 +1334,11 @@ export class AgentRuntime {
 		for (let index = 0; index < toolCalls.length; index += 1) {
 			const toolCall = toolCalls[index];
 			if (this.tools.get(toolCall.toolName)?.lifecycle?.completesRun !== true) {
+				continue;
+			}
+			if (this.deniedToolCallIds.has(toolCall.toolCallId)) {
+				// A user-denied completesRun tool never executed; its result is
+				// non-error denial content, but it must not complete the run.
 				continue;
 			}
 			const toolMessage = toolMessages[index];
@@ -1393,6 +1416,7 @@ export class AgentRuntime {
 			}
 		}
 
+		let deniedByUser = false;
 		if (tool && !skipReason) {
 			const policy = {
 				...resolveToolPolicy(toolCall.toolName, this.config.toolPolicies),
@@ -1409,6 +1433,7 @@ export class AgentRuntime {
 				if (!approval.approved) {
 					skipReason =
 						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+					deniedByUser = approval.deniedByCallback === true;
 				}
 			}
 		}
@@ -1418,6 +1443,7 @@ export class AgentRuntime {
 			tool,
 			input,
 			skipReason,
+			...(deniedByUser ? { deniedByUser: true } : {}),
 		};
 	}
 
@@ -1425,7 +1451,7 @@ export class AgentRuntime {
 		toolCall: AgentToolCallPart,
 		input: unknown,
 		policy: ToolPolicy,
-	): Promise<ToolApprovalResult> {
+	): Promise<ToolApprovalResult & { deniedByCallback?: boolean }> {
 		const requestApproval = this.config.requestToolApproval;
 		if (!requestApproval) {
 			return {
@@ -1434,7 +1460,10 @@ export class AgentRuntime {
 			};
 		}
 		try {
-			return await requestApproval({
+			// A non-approval returned by the callback is an explicit host/user
+			// decision — distinct from the missing-callback and thrown-error
+			// paths, which are infrastructure failures.
+			const result = await requestApproval({
 				sessionId:
 					this.config.sessionId?.trim() ||
 					this.config.conversationId?.trim() ||
@@ -1451,6 +1480,9 @@ export class AgentRuntime {
 				input,
 				policy,
 			});
+			return result.approved
+				? result
+				: { ...result, deniedByCallback: true };
 		} catch (error) {
 			return {
 				approved: false,
@@ -1473,7 +1505,14 @@ export class AgentRuntime {
 		});
 
 		let result: AgentToolResult;
-		if (prepared.skipReason) {
+		if (prepared.skipReason && prepared.deniedByUser) {
+			// A user rejection is not a tool malfunction: deliver it as plain,
+			// non-error tool-result content (no `{error}` wrapper, no isError /
+			// provider `is_error` flag). Errored tool calls read as transient
+			// failures that models are trained to retry or work around; a
+			// denial must read as a user decision to respect.
+			result = { output: prepared.skipReason };
+		} else if (prepared.skipReason) {
 			result = {
 				output: { error: prepared.skipReason },
 				isError: true,

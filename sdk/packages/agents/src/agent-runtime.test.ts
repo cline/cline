@@ -667,11 +667,16 @@ describe("AgentRuntime", () => {
 			(request) => {
 				const toolMessage = request.messages.at(-1) as AgentMessage;
 				expect(toolMessage.role).toBe("tool");
+				// A user denial is plain content, NOT an errored tool call — an
+				// error result reads as a transient failure the model should
+				// retry, which is the opposite of what a rejection means.
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
-					isError: true,
-					output: { error: "denied by test" },
+					output: "denied by test",
 				});
+				expect(
+					(toolMessage.content[0] as { isError?: boolean }).isError,
+				).toBeFalsy();
 				return [
 					{ type: "text-delta", text: "approval handled" },
 					{ type: "finish", reason: "stop" },
@@ -712,6 +717,94 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("keeps approval-infrastructure failures as errored tool results", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_approval_broken",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				// The callback THREW — this is a real failure, not a user
+				// decision, so the error framing stays.
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: {
+						error: 'Tool "echo" approval request failed: approval transport broke',
+					},
+				});
+				return [
+					{ type: "text-delta", text: "handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async () => {
+				throw new Error("approval transport broke");
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("handled");
+	});
+
+	it("does not complete the run when a completesRun tool is denied", async () => {
+		const completeTool = vi.fn(async () => "completed!");
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_completion",
+					toolName: "attempt_completion",
+					inputText: '{"result":"done"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "okay, waiting for guidance" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "attempt_completion",
+					description: "Complete the task",
+					inputSchema: { type: "object" },
+					lifecycle: { completesRun: true },
+					execute: completeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async () => ({
+				approved: false,
+				reason: "user rejected the completion",
+			}),
+		});
+
+		const result = await runtime.run("Start");
+
+		// The denial result is non-error content, but it must not be treated
+		// as a successful completion — the loop continues to the next turn.
+		expect(completeTool).not.toHaveBeenCalled();
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("okay, waiting for guidance");
+	});
+
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
@@ -731,11 +824,14 @@ describe("AgentRuntime", () => {
 			(request) => {
 				const toolMessage = request.messages.at(-1) as AgentMessage;
 				expect(toolMessage.role).toBe("tool");
+				// Denied via the approval callback → plain non-error content.
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
-					isError: true,
-					output: { error: "live policy denied" },
+					output: "live policy denied",
 				});
+				expect(
+					(toolMessage.content[0] as { isError?: boolean }).isError,
+				).toBeFalsy();
 				return [
 					{ type: "text-delta", text: "live policy handled" },
 					{ type: "finish", reason: "stop" },
