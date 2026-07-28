@@ -603,7 +603,7 @@ export function AgentSidebar({
 								title="Home"
 								type="button"
 							>
-								<ClineLogo className="size-6" />
+								<ClineLogo className="size-5" />
 							</button>
 						</HoverCardTrigger>
 						<HoverCardContent align="start" className="w-64 p-3" side="bottom">
