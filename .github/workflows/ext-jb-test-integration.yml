@@ -17,13 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     # Auto-run only for trusted PR authors. Anyone else needs a maintainer
     # to opt their PR in by commenting /test-jetbrains.
+    # The app token is scoped to the private cline/intellij-plugin repo, so this
+    # can only ever work on the upstream repo - forks fail at token generation.
     if: |
-      (github.event_name == 'pull_request_target' &&
+      github.repository == 'cline/cline' &&
+      ((github.event_name == 'pull_request_target' &&
        contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        contains(github.event.comment.body, '/test-jetbrains') &&
-       contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association))
+       contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)))
     steps:
       - name: Generate GitHub App Token
         id: app-token
