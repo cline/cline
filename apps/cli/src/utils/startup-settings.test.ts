@@ -17,7 +17,10 @@ function makeSettings(overrides: Partial<GlobalSettings> = {}): GlobalSettings {
 describe("resolveStartupMode", () => {
 	it("uses the parsed default when nothing is persisted", () => {
 		expect(
-			resolveStartupMode({ mode: "act", modeExplicitlySet: false }, makeSettings()),
+			resolveStartupMode(
+				{ mode: "act", modeExplicitlySet: false },
+				makeSettings(),
+			),
 		).toBe("act");
 	});
 

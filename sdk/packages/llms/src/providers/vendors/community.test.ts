@@ -209,9 +209,15 @@ describe("createSapAiCoreProviderModule", () => {
 		};
 
 		expect(model.config?.requestConfig?.adapter).toBe("fetch");
-		expect(model.config?.requestConfig?.headers?.["ai-client-type"]).toBe("Cline");
-		expect(model.config?.requestConfig?.maxBodyLength).toBe(Number.POSITIVE_INFINITY);
-		expect(model.config?.requestConfig?.maxContentLength).toBe(Number.POSITIVE_INFINITY);
+		expect(model.config?.requestConfig?.headers?.["ai-client-type"]).toBe(
+			"Cline",
+		);
+		expect(model.config?.requestConfig?.maxBodyLength).toBe(
+			Number.POSITIVE_INFINITY,
+		);
+		expect(model.config?.requestConfig?.maxContentLength).toBe(
+			Number.POSITIVE_INFINITY,
+		);
 		expect(model.config?.requestConfig?.fetch).toBeUndefined();
 	});
 
