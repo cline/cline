@@ -1234,6 +1234,42 @@ function parseToolPayload(raw: string): ToolPayload | null {
 	}
 }
 
+const TOOL_NAME_ALIASES: Record<string, string> = {
+	"apply-patch": "apply_patch",
+	bash: "run_commands",
+	edit: "editor",
+	edit_file: "editor",
+	"file-read": "read_files",
+	file_read: "read_files",
+	search: "search_codebase",
+	"spawn-agent": "spawn_agent",
+	spawn_agent_tool: "spawn_agent",
+	"web-fetch": "fetch_web_content",
+	web_fetch: "fetch_web_content",
+};
+
+function normalizeToolName(toolName: string): string {
+	const normalized = toolName.toLowerCase();
+	return TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
+function classifyTool(
+	toolName: string,
+): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
+	const normalized = normalizeToolName(toolName);
+	if (
+		["search_codebase", "read_files", "fetch_web_content", "skills"].includes(
+			normalized,
+		)
+	)
+		return "exploration";
+	if (["editor", "apply_patch"].includes(normalized)) return "file-edit";
+	if (normalized === "run_commands") return "bash";
+	if (normalized === "spawn_agent" || normalized.startsWith("subagent_"))
+		return "spawn";
+	return "tool";
+}
+
 const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
 	apply_patch: PencilIcon,
 	ask_question: MessageCircleQuestionMarkIcon,
@@ -1245,13 +1281,20 @@ const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
 	run_commands: TerminalIcon,
 	search_codebase: SearchCodeIcon,
 	skills: LibraryIcon,
-	spaw_agent: UserIcon,
 	spawn_agent: UserIcon,
 	submit_and_exit: SquareArrowRightIcon,
 };
 
+const TOOL_KIND_ICONS: Record<ReturnType<typeof classifyTool>, LucideIcon> = {
+	bash: TerminalIcon,
+	exploration: SearchCodeIcon,
+	"file-edit": PencilIcon,
+	spawn: UserIcon,
+	tool: WrenchIcon,
+};
+
 function getToolNameIcon(toolName: string): LucideIcon {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	if (normalized.startsWith("subagent_")) {
 		return UserIcon;
 	}
@@ -1262,40 +1305,9 @@ function getToolNameIcon(toolName: string): LucideIcon {
 	) {
 		return UsersIcon;
 	}
-	return TOOL_NAME_ICONS[normalized] ?? WrenchIcon;
-}
-
-function classifyTool(
-	toolName: string,
-): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
-	const normalized = toolName.toLowerCase();
-	if (
-		[
-			"search",
-			"search_codebase",
-			"file-read",
-			"file_read",
-			"read_files",
-			"web-fetch",
-			"web_fetch",
-			"fetch_web_content",
-			"skills",
-		].includes(normalized)
-	)
-		return "exploration";
-	if (
-		["editor", "edit_file", "edit", "apply_patch", "apply-patch"].includes(
-			normalized,
-		)
-	)
-		return "file-edit";
-	if (["bash", "run_commands"].includes(normalized)) return "bash";
-	if (
-		["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized) ||
-		normalized.startsWith("subagent_")
-	)
-		return "spawn";
-	return "tool";
+	return (
+		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
+	);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1402,10 +1414,10 @@ function buildToolSummary(
 	result: unknown,
 	inProgress: boolean,
 ): ToolSummary {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	const inputObject = asRecord(input);
 
-	if (["read_files", "file_read", "file-read"].includes(normalized)) {
+	if (normalized === "read_files") {
 		const files = extractReadFilePaths(input);
 		if (files.length > 0) {
 			return {
@@ -1424,7 +1436,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["search_codebase", "search"].includes(normalized)) {
+	if (normalized === "search_codebase") {
 		const queries = asStringArray(inputObject?.queries);
 		if (queries.length > 0) {
 			return {
@@ -1441,7 +1453,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["run_commands", "bash"].includes(normalized)) {
+	if (normalized === "run_commands") {
 		const commands = extractCommands(input);
 		if (commands.length > 0) {
 			return {
@@ -1458,7 +1470,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["fetch_web_content", "web_fetch", "web-fetch"].includes(normalized)) {
+	if (normalized === "fetch_web_content") {
 		const requests = Array.isArray(inputObject?.requests)
 			? inputObject.requests
 			: [];
@@ -1487,7 +1499,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["apply_patch", "apply-patch"].includes(normalized)) {
+	if (normalized === "apply_patch") {
 		const patchText =
 			typeof input === "string"
 				? input
@@ -1520,7 +1532,7 @@ function buildToolSummary(
 		};
 	}
 
-	if (["editor", "edit_file", "edit"].includes(normalized)) {
+	if (normalized === "editor") {
 		// Current editor schema has no `command`; derive it from the input shape.
 		const command =
 			typeof inputObject?.command === "string"
