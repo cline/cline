@@ -243,10 +243,9 @@ function normalizeSkillToken(token: string): string {
 function toAllowedSkillSet(
 	allowedSkillNames?: ReadonlyArray<string>,
 ): Set<string> | undefined {
-	const normalized = (allowedSkillNames ?? [])
-		.map(normalizeSkillToken)
-		.filter(Boolean);
-	return normalized.length > 0 ? new Set(normalized) : undefined;
+	if (allowedSkillNames === undefined) return undefined;
+	const normalized = allowedSkillNames.map(normalizeSkillToken).filter(Boolean);
+	return new Set(normalized);
 }
 
 function isSkillAllowed(
@@ -276,7 +275,26 @@ function configuredSkills(
 	allowedSkillNames?: ReadonlyArray<string>,
 ) {
 	const allowed = toAllowedSkillSet(allowedSkillNames);
-	return snapshot.records.skill
+	const runtimeSkills = snapshot.runtimeCommands
+		.filter((command) => command.kind === "skill")
+		.map((command) => ({
+			id: command.id,
+			name: command.name,
+			description: command.description,
+			disabled: false,
+			skill: {
+				name: command.name,
+				description: command.description,
+				instructions: command.instructions,
+			},
+		}));
+	const reservedTokens = new Set(
+		runtimeSkills.flatMap(({ id, name }) => [
+			normalizeSkillToken(id),
+			normalizeSkillToken(name),
+		]),
+	);
+	const recordSkills = snapshot.records.skill
 		.map((record) => ({
 			id: record.id,
 			name: record.item.name,
@@ -288,7 +306,14 @@ function configuredSkills(
 			disabled: record.item.disabled === true,
 			skill: record.item,
 		}))
-		.filter((entry) => isSkillAllowed(entry.id, entry.name, allowed));
+		.filter(
+			({ id, name }) =>
+				!reservedTokens.has(normalizeSkillToken(id)) &&
+				!reservedTokens.has(normalizeSkillToken(name)),
+		);
+	return [...runtimeSkills, ...recordSkills].filter((entry) =>
+		isSkillAllowed(entry.id, entry.name, allowed),
+	);
 }
 
 function createSnapshotSkillsExecutor(

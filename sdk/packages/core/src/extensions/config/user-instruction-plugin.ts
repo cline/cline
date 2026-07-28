@@ -5,6 +5,7 @@ import {
 	type SkillsExecutor,
 	type SkillsExecutorWithMetadata,
 } from "../tools";
+import type { BuiltinSkill } from "./builtin-skills";
 import { listAvailableRuntimeCommandsFromWatcher } from "./runtime-commands";
 import type {
 	SkillConfig,
@@ -30,6 +31,7 @@ export interface CreateUserInstructionPluginOptions {
 	includeWorkflows?: boolean;
 	registerSkillsTool?: boolean;
 	allowedSkillNames?: ReadonlyArray<string>;
+	builtinSkills?: ReadonlyArray<BuiltinSkill>;
 }
 
 function normalizeSkillToken(token: string): string {
@@ -39,13 +41,13 @@ function normalizeSkillToken(token: string): string {
 function toAllowedSkillSet(
 	allowedSkillNames?: ReadonlyArray<string>,
 ): Set<string> | undefined {
-	if (!allowedSkillNames || allowedSkillNames.length === 0) {
+	if (allowedSkillNames === undefined) {
 		return undefined;
 	}
 	const normalized = allowedSkillNames
 		.map(normalizeSkillToken)
 		.filter((token) => token.length > 0);
-	return normalized.length > 0 ? new Set(normalized) : undefined;
+	return new Set(normalized);
 }
 
 function isSkillAllowed(
@@ -75,28 +77,52 @@ function isSkillAllowed(
 export function getConfiguredSkillsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 	allowedSkillNames?: ReadonlyArray<string>,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): ConfiguredSkill[] {
 	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const snapshot = watcher.getSnapshot("skill");
-	return [...snapshot.entries()]
-		.map(([id, record]) => {
-			const skill = record.item as SkillConfig;
-			return {
-				id,
-				name: skill.name.trim(),
-				description: skill.description?.trim(),
-				disabled: skill.disabled === true,
-				skill,
-			};
-		})
-		.filter((skill) => isSkillAllowed(skill.id, skill.name, allowedSkills));
+	const configuredSkills = [...snapshot.entries()].map(([id, record]) => {
+		const skill = record.item as SkillConfig;
+		return {
+			id,
+			name: skill.name.trim(),
+			description: skill.description?.trim(),
+			disabled: skill.disabled === true,
+			skill,
+		};
+	});
+	const reservedTokens = new Set(
+		builtinSkills.flatMap(({ id, skill }) => [
+			normalizeSkillToken(id),
+			normalizeSkillToken(skill.name),
+		]),
+	);
+	return [
+		...builtinSkills.map(({ id, skill }) => ({
+			id,
+			name: skill.name.trim(),
+			description: skill.description?.trim(),
+			disabled: false,
+			skill,
+		})),
+		...configuredSkills.filter(
+			({ id, name }) =>
+				!reservedTokens.has(normalizeSkillToken(id)) &&
+				!reservedTokens.has(normalizeSkillToken(name)),
+		),
+	].filter((skill) => isSkillAllowed(skill.id, skill.name, allowedSkills));
 }
 
 function listAvailableSkillNames(
 	watcher: UserInstructionConfigWatcher,
 	allowedSkillNames?: ReadonlyArray<string>,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): string[] {
-	return getConfiguredSkillsFromWatcher(watcher, allowedSkillNames)
+	return getConfiguredSkillsFromWatcher(
+		watcher,
+		allowedSkillNames,
+		builtinSkills,
+	)
 		.filter((skill) => !skill.disabled)
 		.map((skill) => skill.name.trim())
 		.filter((name) => name.length > 0)
@@ -107,6 +133,7 @@ function resolveSkillRecord(
 	watcher: UserInstructionConfigWatcher,
 	requestedSkill: string,
 	allowedSkillNames?: ReadonlyArray<string>,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): { id: string; skill: SkillConfig } | { error: string } {
 	const normalized = normalizeSkillToken(requestedSkill);
 	if (!normalized) {
@@ -116,6 +143,7 @@ function resolveSkillRecord(
 	const configuredSkills = getConfiguredSkillsFromWatcher(
 		watcher,
 		allowedSkillNames,
+		builtinSkills,
 	);
 	const exact = configuredSkills.find((entry) => entry.id === normalized);
 	if (exact) {
@@ -162,7 +190,11 @@ function resolveSkillRecord(
 		};
 	}
 
-	const available = listAvailableSkillNames(watcher, allowedSkillNames);
+	const available = listAvailableSkillNames(
+		watcher,
+		allowedSkillNames,
+		builtinSkills,
+	);
 	return {
 		error:
 			available.length > 0
@@ -175,11 +207,17 @@ export function createUserInstructionSkillsExecutor(
 	watcher: UserInstructionConfigWatcher,
 	watcherReady: Promise<void> = Promise.resolve(),
 	allowedSkillNames?: ReadonlyArray<string>,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
 ): SkillsExecutorWithMetadata {
 	const runningSkills = new Set<string>();
 	const executor: SkillsExecutorWithMetadata = (async (skillName, args) => {
 		await watcherReady;
-		const resolved = resolveSkillRecord(watcher, skillName, allowedSkillNames);
+		const resolved = resolveSkillRecord(
+			watcher,
+			skillName,
+			allowedSkillNames,
+			builtinSkills,
+		);
 		if ("error" in resolved) {
 			return resolved.error;
 		}
@@ -207,9 +245,11 @@ export function createUserInstructionSkillsExecutor(
 
 	Object.defineProperty(executor, "configuredSkills", {
 		get: () =>
-			getConfiguredSkillsFromWatcher(watcher, allowedSkillNames).map(
-				({ skill: _skill, ...metadata }) => metadata,
-			),
+			getConfiguredSkillsFromWatcher(
+				watcher,
+				allowedSkillNames,
+				builtinSkills,
+			).map(({ skill: _skill, ...metadata }) => metadata),
 		enumerable: true,
 		configurable: false,
 	});
@@ -249,6 +289,7 @@ export function createUserInstructionPlugin(
 							options.watcher,
 							watcherReady,
 							options.allowedSkillNames,
+							options.builtinSkills,
 						),
 					) as AgentTool,
 				);
@@ -256,6 +297,7 @@ export function createUserInstructionPlugin(
 
 			for (const command of listAvailableRuntimeCommandsFromWatcher(
 				options.watcher,
+				options.builtinSkills,
 			).filter(
 				(command) =>
 					(command.kind === "skill" && options.includeSkills) ||
