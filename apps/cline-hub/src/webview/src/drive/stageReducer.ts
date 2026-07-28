@@ -341,6 +341,7 @@ export function projectStageFromMessages(
 	const events = collectToolEventsFromMessages(messages);
 	return {
 		sharer: options?.sharer ?? null,
+		pin: null,
 		cards: projectStageCardsFromToolEvents(events, { now: options?.now }),
 	};
 }
