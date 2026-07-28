@@ -71,7 +71,13 @@ describe("WorkspaceSelector", () => {
 		const branchLabel = trigger?.querySelector("span:last-child");
 		expect(branchLabel?.className).toContain("min-w-0");
 		expect(branchLabel?.className).toContain("truncate");
+		expect(branchLabel?.className).toContain("max-[560px]:sr-only");
 		expect(branchLabel?.className).not.toContain("max-w-");
+		expect(trigger?.className).toContain("max-[560px]:size-7");
+		expect(trigger?.parentElement?.dataset.slot).toBe("tooltip-trigger");
+		expect(trigger?.parentElement?.className).toContain(
+			"[&>button]:pointer-events-none",
+		);
 
 		await click(trigger as Element);
 		expect(onListGitBranches).not.toHaveBeenCalled();

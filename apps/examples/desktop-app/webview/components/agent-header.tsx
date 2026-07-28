@@ -201,7 +201,7 @@ export function AgentHeader({
 						size="icon-sm"
 						variant="ghost"
 					>
-						<Plus />
+						<Plus className="size-4" />
 					</Button>
 				</div>
 			) : null}
