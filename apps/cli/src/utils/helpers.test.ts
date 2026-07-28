@@ -46,6 +46,7 @@ describe("parseArgs", () => {
 			interactive: false,
 			outputMode: "text",
 			mode: "act",
+			modeExplicitlySet: false,
 			sandbox: false,
 			acpMode: false,
 			thinking: false,
@@ -218,6 +219,15 @@ describe("parseArgs", () => {
 		expect(parsedYolo.mode).toBe("yolo");
 		expect(parsedYolo.defaultToolAutoApprove).toBe(true);
 		expect(parsedYolo.autoApproveOverride).toBe(true);
+	});
+
+	it("marks explicit mode flags so persisted settings do not override them", () => {
+		expect(parseArgs([]).modeExplicitlySet).toBe(false);
+		expect(parseArgs(["Audit the repo"]).modeExplicitlySet).toBe(false);
+		expect(parseArgs(["--plan"]).modeExplicitlySet).toBe(true);
+		expect(parseArgs(["--act"]).modeExplicitlySet).toBe(true);
+		expect(parseArgs(["--yolo"]).modeExplicitlySet).toBe(true);
+		expect(parseArgs(["--zen", "do it"]).modeExplicitlySet).toBe(true);
 	});
 
 	it("parses --zen flag for background hub dispatch", () => {

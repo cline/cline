@@ -136,6 +136,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		interactive: !!opts.tui,
 		outputMode: opts.json ? "json" : "text",
 		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
+		modeExplicitlySet: !!(opts.plan || opts.act || opts.yolo || opts.zen),
 		sandbox: !!opts.dataDir,
 		acpMode: !!opts.acp,
 		thinking: false,

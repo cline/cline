@@ -159,6 +159,21 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		null,
 	);
 	const [page, setPage] = useState(0);
+	const requiresCompleteHistory =
+		query.trim().length > 0 ||
+		sessionFilters.length > 0 ||
+		sortDirection === "oldest";
+
+	useEffect(() => {
+		if (!requiresCompleteHistory || !history.mayHaveMoreSessions) {
+			return;
+		}
+		void history.loadAllSessions();
+	}, [
+		history.loadAllSessions,
+		history.mayHaveMoreSessions,
+		requiresCompleteHistory,
+	]);
 
 	const filterOptions = useMemo(
 		() =>
@@ -219,11 +234,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		() => filteredThreads.slice(pageStart, pageStart + PAGE_SIZE),
 		[filteredThreads, pageStart],
 	);
-	// Search and filters only see loaded sessions, so paging past the last
-	// local page may only fetch when the full list is shown.
 	const canGoNext =
 		currentPage + 1 < pageCount ||
-		(history.mayHaveMoreSessions && !query && sessionFilters.length === 0);
+		(history.mayHaveMoreSessions && !requiresCompleteHistory);
 
 	// Snap back when a page disappears (filters changed, or "next" asked the
 	// backend for older sessions and there were none left).
@@ -238,7 +251,11 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 
 	const goToNextPage = async () => {
 		const nextPage = currentPage + 1;
-		if (nextPage >= pageCount && history.mayHaveMoreSessions) {
+		if (
+			nextPage >= pageCount &&
+			history.mayHaveMoreSessions &&
+			!requiresCompleteHistory
+		) {
 			// Only page boundaries hit the backend; the mount fetch stays small.
 			// Stay put when the fetch fails so the user keeps the page they can
 			// see and the same click retries.
@@ -340,7 +357,17 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<DropdownMenu>
+					<DropdownMenu
+						onOpenChange={(open) => {
+							// Filter choices are derived from the loaded rows, so
+							// complete the history as soon as the user opens this
+							// menu. This keeps both the options and their results
+							// global rather than limited to the newest batch.
+							if (open && history.mayHaveMoreSessions) {
+								void history.loadAllSessions();
+							}
+						}}
+					>
 						<DropdownMenuTrigger asChild>
 							<Button
 								aria-label="Filter sessions"

@@ -498,7 +498,8 @@ export function useSessionHistory({
 	// Limit of the most recent refresh that actually returned sessions. Failed
 	// attempts roll back to this rather than to a caller-local snapshot, which
 	// may itself name a batch that was never fetched.
-	const loadedLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
+	const loadedLimitRef = useRef(0);
+	const mayHaveMoreSessionsRef = useRef(false);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -513,6 +514,7 @@ export function useSessionHistory({
 	const scheduledRefreshAtRef = useRef<number | null>(null);
 	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 	const refreshLimitRef = useRef(0);
+	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
 
 	useEffect(() => {
@@ -574,7 +576,9 @@ export function useSessionHistory({
 				// Ask the raw response, not the filtered list: subagents and
 				// sessions without a known model are dropped below, so a filtered
 				// count under the limit does not mean the backend is exhausted.
-				setMayHaveMoreSessions(discovered.length >= limit);
+				const hasMoreSessions = discovered.length >= limit;
+				mayHaveMoreSessionsRef.current = hasMoreSessions;
+				setMayHaveMoreSessions(hasMoreSessions);
 				const topLevelSessions = discovered
 					.map((session) => {
 						const normalized: SessionHistoryItem = {
@@ -1332,10 +1336,11 @@ export function useSessionHistory({
 
 	const loadMoreSessions = useCallback(
 		async (nextLimit: number) => {
-			if (fetchLimitRef.current >= nextLimit) {
+			if (loadedLimitRef.current >= nextLimit) {
 				return true;
 			}
-			fetchLimitRef.current = nextLimit;
+			const requestedLimit = Math.max(fetchLimitRef.current, nextLimit);
+			fetchLimitRef.current = requestedLimit;
 			setIsLoadingMore(true);
 			try {
 				const loaded = await refreshSessions();
@@ -1344,7 +1349,7 @@ export function useSessionHistory({
 				// call has raised the limit further in the meantime, since lowering
 				// it would make that call fetch a smaller batch than it asked for
 				// and still report success.
-				if (!loaded && fetchLimitRef.current === nextLimit) {
+				if (!loaded && fetchLimitRef.current === requestedLimit) {
 					fetchLimitRef.current = loadedLimitRef.current;
 				}
 				if (!loaded) {
@@ -1365,6 +1370,44 @@ export function useSessionHistory({
 		() => loadMoreSessions(fetchLimitRef.current + INITIAL_HISTORY_FETCH_LIMIT),
 		[loadMoreSessions],
 	);
+	const loadAllSessions = useCallback(() => {
+		if (loadAllPromiseRef.current) {
+			return loadAllPromiseRef.current;
+		}
+		const loadAllPromise = (async () => {
+			// A global search, filter, or oldest-first sort can be selected while
+			// the mount request is still in flight. Wait for that request before
+			// deciding whether there is any older history to fetch.
+			if (loadedLimitRef.current === 0 && !(await refreshSessions())) {
+				return false;
+			}
+			// Grow exponentially so complete-history operations need only
+			// logarithmically many requests while ordinary paging stays in
+			// predictable 50-session increments.
+			while (mayHaveMoreSessionsRef.current) {
+				const currentLimit = Math.max(
+					fetchLimitRef.current,
+					loadedLimitRef.current,
+					INITIAL_HISTORY_FETCH_LIMIT,
+				);
+				const nextLimit = Math.max(
+					currentLimit + INITIAL_HISTORY_FETCH_LIMIT,
+					currentLimit * 2,
+				);
+				if (!(await loadMoreSessions(nextLimit))) {
+					return false;
+				}
+			}
+			return true;
+		})();
+		loadAllPromiseRef.current = loadAllPromise;
+		loadAllPromise.finally(() => {
+			if (loadAllPromiseRef.current === loadAllPromise) {
+				loadAllPromiseRef.current = null;
+			}
+		});
+		return loadAllPromise;
+	}, [loadMoreSessions, refreshSessions]);
 
 	const sessionById = useMemo(
 		() => new Map(sessions.map((session) => [session.sessionId, session])),
@@ -1375,6 +1418,7 @@ export function useSessionHistory({
 		getSessionByThreadId,
 		isLoadingHistory,
 		isLoadingMore,
+		loadAllSessions,
 		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,

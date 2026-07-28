@@ -40,11 +40,13 @@ const session: SessionHistoryItem = {
 
 function renderView({
 	openThread = vi.fn(),
+	loadAllSessions = vi.fn(async () => true),
 	loadOlderSessions = vi.fn(),
 	mayHaveMoreSessions = false,
 	threads = [thread],
 }: {
 	openThread?: ReturnType<typeof vi.fn>;
+	loadAllSessions?: ReturnType<typeof vi.fn>;
 	loadOlderSessions?: ReturnType<typeof vi.fn>;
 	mayHaveMoreSessions?: boolean;
 	threads?: SessionThread[];
@@ -54,6 +56,7 @@ function renderView({
 		forkThread: vi.fn(),
 		isLoadingHistory: false,
 		isLoadingMore: false,
+		loadAllSessions,
 		loadOlderSessions,
 		mayHaveMoreSessions,
 		openThread,
@@ -67,6 +70,7 @@ function renderView({
 	};
 	return {
 		history,
+		loadAllSessions,
 		loadOlderSessions,
 		openThread,
 		render: () =>
@@ -182,6 +186,70 @@ describe("SessionsView table", () => {
 			row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		});
 		expect(view.openThread).toHaveBeenCalledWith(thread.id);
+	});
+
+	it("loads complete history before treating search results as exhaustive", async () => {
+		const view = renderView({ mayHaveMoreSessions: true });
+		await view.render();
+
+		const search = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Search sessions"]',
+		);
+		expect(search).not.toBeNull();
+		await act(async () => {
+			if (search) {
+				const setValue = Object.getOwnPropertyDescriptor(
+					HTMLInputElement.prototype,
+					"value",
+				)?.set;
+				setValue?.call(search, "older match");
+				search.dispatchEvent(new Event("input", { bubbles: true }));
+			}
+		});
+
+		expect(view.loadAllSessions).toHaveBeenCalledOnce();
+	});
+
+	it("loads complete history for filters and oldest-first sorting", async () => {
+		const view = renderView({ mayHaveMoreSessions: true });
+		await view.render();
+
+		const filterButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Filter sessions"]',
+		);
+		await act(async () => {
+			filterButton?.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+				}),
+			);
+		});
+		expect(view.loadAllSessions).toHaveBeenCalledOnce();
+
+		view.loadAllSessions.mockClear();
+		const sortButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Sort sessions"]',
+		);
+		await act(async () => {
+			sortButton?.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+				}),
+			);
+		});
+		const oldestItem = Array.from(
+			document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+		).find((item) => item.textContent === "Oldest first");
+		expect(oldestItem).not.toBeUndefined();
+		await act(async () => {
+			oldestItem?.click();
+		});
+
+		expect(view.loadAllSessions).toHaveBeenCalledOnce();
 	});
 });
 

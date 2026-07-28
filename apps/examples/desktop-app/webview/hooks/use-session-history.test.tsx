@@ -277,3 +277,49 @@ describe("useSessionHistory failed refresh", () => {
 		expect(pendingLists[2].limit).toBe(100);
 	});
 });
+
+describe("useSessionHistory complete history loading", () => {
+	it("expands requests until the backend returns fewer rows than requested", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				Array.from({ length: 50 }, (_, index) =>
+					sessionRow(`session-${index}`),
+				),
+			);
+			await Promise.resolve();
+		});
+
+		let complete: Promise<boolean> | undefined;
+		await act(async () => {
+			complete = current.loadAllSessions();
+			await Promise.resolve();
+		});
+		expect(pendingLists[1].limit).toBe(100);
+
+		await act(async () => {
+			pendingLists[1].resolve(
+				Array.from({ length: 100 }, (_, index) =>
+					sessionRow(`session-${index}`),
+				),
+			);
+			await Promise.resolve();
+		});
+		expect(pendingLists[2].limit).toBe(200);
+
+		await act(async () => {
+			pendingLists[2].resolve(
+				Array.from({ length: 120 }, (_, index) =>
+					sessionRow(`session-${index}`),
+				),
+			);
+			expect(await complete).toBe(true);
+		});
+
+		expect(current.sessions).toHaveLength(120);
+		expect(current.mayHaveMoreSessions).toBe(false);
+	});
+});
