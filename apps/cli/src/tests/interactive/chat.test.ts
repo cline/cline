@@ -63,7 +63,11 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
 		...TERMINAL_WIDE,
-		env: clineEnv("default"),
+		// This suite asserts on an exact packed 24-bit background. Without
+		// COLORTERM the renderer degrades to the 256-color palette and no cell
+		// ever reports #262626, so the assertion is only meaningful when
+		// truecolor is forced rather than inherited from the runner.
+		env: clineEnv("default", { COLORTERM: "truecolor" }),
 	});
 
 	type Background = {
@@ -144,6 +148,7 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 			dialogPosition,
 		);
 		expect(dialogBackground).not.toEqual(backgroundAtDialogPosition);
+
 
 		terminal.keyEscape();
 		await expectNotVisible(terminal, "Keyboard Shortcuts");

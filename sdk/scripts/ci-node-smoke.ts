@@ -52,8 +52,18 @@ async function runCommand(
 	return stdout.trim();
 }
 
+/**
+ * Every workspace package reachable from `@cline/core`. All of them have to be
+ * packed and installed from disk: `workspace:*` resolves to a plain version on
+ * pack, so anything left out is fetched from the public registry — where these
+ * versions do not exist.
+ */
+const SMOKE_WORKSPACES = ["core", "agents", "drive", "llms", "shared"] as const;
+
+type SmokeWorkspace = (typeof SMOKE_WORKSPACES)[number];
+
 async function packWorkspace(
-	workspace: "core" | "agents" | "llms" | "shared",
+	workspace: SmokeWorkspace,
 	packDir: string,
 ): Promise<string> {
 	const destination = await mkdtemp(join(packDir, `${workspace}-`));
@@ -81,12 +91,10 @@ async function main(): Promise<void> {
 
 	try {
 		console.log("Packing smoke-test tarballs with Bun...");
-		const tarballs = {
-			core: await packWorkspace("core", packDir),
-			agents: await packWorkspace("agents", packDir),
-			llms: await packWorkspace("llms", packDir),
-			shared: await packWorkspace("shared", packDir),
-		};
+		const tarballs = {} as Record<SmokeWorkspace, string>;
+		for (const workspace of SMOKE_WORKSPACES) {
+			tarballs[workspace] = await packWorkspace(workspace, packDir);
+		}
 
 		await writeFile(
 			join(smokeDir, "package.json"),
@@ -95,12 +103,12 @@ async function main(): Promise<void> {
 					name: "cline-node-smoke",
 					private: true,
 					type: "module",
-					dependencies: {
-						"@cline/core": `file:${tarballs.core}`,
-						"@cline/agents": `file:${tarballs.agents}`,
-						"@cline/llms": `file:${tarballs.llms}`,
-						"@cline/shared": `file:${tarballs.shared}`,
-					},
+					dependencies: Object.fromEntries(
+						SMOKE_WORKSPACES.map((workspace) => [
+							`@cline/${workspace}`,
+							`file:${tarballs[workspace]}`,
+						]),
+					),
 				},
 				null,
 				2,
