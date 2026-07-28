@@ -65,51 +65,6 @@ export type McpPrompt = {
 	arguments?: McpPromptArgument[]
 }
 
-type McpPromptMessageContent =
-	| {
-			type: "text"
-			text: string
-	  }
-	| {
-			type: "image"
-			data: string
-			mimeType: string
-	  }
-	| {
-			type: "audio"
-			data: string
-			mimeType: string
-	  }
-	| {
-			type: "resource"
-			resource: {
-				uri: string
-				mimeType?: string
-				text?: string
-				blob?: string
-			}
-	  }
-
-type McpPromptMessage = {
-	role: "user" | "assistant"
-	content: McpPromptMessageContent
-}
-
-export type McpPromptResponse = {
-	description?: string
-	messages: McpPromptMessage[]
-}
-
-export type McpResourceResponse = {
-	_meta?: Record<string, any>
-	contents: Array<{
-		uri: string
-		mimeType?: string
-		text?: string
-		blob?: string
-	}>
-}
-
 export type McpToolCallResponse = {
 	_meta?: Record<string, any>
 	content: Array<

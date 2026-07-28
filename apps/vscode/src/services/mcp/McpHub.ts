@@ -9,19 +9,15 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
-	GetPromptResultSchema,
 	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
-	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	MAX_MCP_TIMEOUT_SECONDS,
 	type McpPrompt,
-	type McpPromptResponse,
 	type McpResource,
-	type McpResourceResponse,
 	type McpResourceTemplate,
 	type McpServer,
 	type McpTool,
@@ -761,10 +757,7 @@ export class McpHub {
 			}
 
 			// Initial fetch of tools, resources, and prompts
-			connection.server.tools = await this.fetchToolsList(name)
-			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
-			connection.server.prompts = await this.fetchPromptsList(name)
+			await this.fetchServerCapabilities(connection)
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)
@@ -779,6 +772,28 @@ export class McpHub {
 	private appendErrorMessage(connection: McpConnection, error: string) {
 		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
 		connection.server.error = newError //.slice(0, 800)
+	}
+
+	/**
+	 * Fetches the server's tools, resources, resource templates, and prompts
+	 * onto the connection. The four list requests run in parallel so a server
+	 * that hangs after initialize costs one timeout bound rather than four;
+	 * the MCP client correlates concurrent requests by JSON-RPC id. Each
+	 * fetch helper swallows its own errors and returns an empty list, so a
+	 * failure in one capability cannot reject the others.
+	 */
+	private async fetchServerCapabilities(connection: McpConnection): Promise<void> {
+		const name = connection.server.name
+		const [tools, resources, resourceTemplates, prompts] = await Promise.all([
+			this.fetchToolsList(name),
+			this.fetchResourcesList(name),
+			this.fetchResourceTemplatesList(name),
+			this.fetchPromptsList(name),
+		])
+		connection.server.tools = tools
+		connection.server.resources = resources
+		connection.server.resourceTemplates = resourceTemplates
+		connection.server.prompts = prompts
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
@@ -1364,74 +1379,6 @@ export class McpHub {
 			throw error
 		} finally {
 			this.isConnecting = false
-		}
-	}
-
-	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
-		}
-		if (connection.server.disabled) {
-			throw new Error(`Server "${serverName}" is disabled`)
-		}
-
-		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
-		try {
-			return await connection.client.request(
-				{
-					method: "resources/read",
-					params: {
-						uri,
-					},
-				},
-				ReadResourceResultSchema,
-				{ timeout },
-			)
-		} catch (error) {
-			throw augmentMcpTimeoutError(error, serverName, timeout)
-		}
-	}
-
-	async getPrompt(
-		serverName: string,
-		promptName: string,
-		promptArguments?: Record<string, string>,
-	): Promise<McpPromptResponse> {
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
-		}
-		if (connection.server.disabled) {
-			throw new Error(`Server "${serverName}" is disabled`)
-		}
-		if (!connection.client) {
-			throw new Error(`No client available for server: ${serverName}`)
-		}
-
-		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
-		const response = await connection.client
-			.request(
-				{
-					method: "prompts/get",
-					params: {
-						name: promptName,
-						arguments: promptArguments,
-					},
-				},
-				GetPromptResultSchema,
-				{ timeout },
-			)
-			.catch((error) => {
-				throw augmentMcpTimeoutError(error, serverName, timeout)
-			})
-
-		return {
-			description: response.description,
-			messages: response.messages.map((msg) => ({
-				role: msg.role,
-				content: msg.content as McpPromptResponse["messages"][0]["content"],
-			})),
 		}
 	}
 

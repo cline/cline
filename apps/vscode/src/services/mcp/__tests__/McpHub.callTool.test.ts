@@ -227,6 +227,41 @@ describe("McpHub.callTool", () => {
 			requestOptions.timeout.should.equal(120_000)
 		})
 
+		it("should fetch the four capability lists in parallel", async () => {
+			// Each request resolves on the next macrotask and records how many
+			// requests were in flight when it started. Sequential awaits would
+			// observe one in-flight request each; parallel dispatch observes all
+			// four before the first resolves.
+			let inFlight = 0
+			const inFlightAtStart: number[] = []
+			const client = {
+				request: sinon.stub().callsFake((request: { method: string }) => {
+					inFlight += 1
+					inFlightAtStart.push(inFlight)
+					return new Promise((resolve) => {
+						setTimeout(() => {
+							inFlight -= 1
+							resolve(
+								request.method === "tools/list"
+									? { tools: [] }
+									: request.method === "resources/list"
+										? { resources: [] }
+										: request.method === "resources/templates/list"
+											? { resourceTemplates: [] }
+											: { prompts: [] },
+							)
+						}, 0)
+					})
+				}),
+			}
+			const { hub, connection } = createMcpHub({ client: client as never })
+
+			await (hub as any).fetchServerCapabilities(connection)
+
+			client.request.callCount.should.equal(4)
+			Math.max(...inFlightAtStart).should.equal(4)
+		})
+
 		it("should augment request-timeout errors with how to raise the bound", async () => {
 			const failingClient = {
 				request: sinon.stub().rejects(new McpError(ErrorCode.RequestTimeout, "Request timed out")),
