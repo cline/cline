@@ -40,6 +40,9 @@ describe("AgentHeader title editor", () => {
 		expect(container.querySelector("header")?.className).toContain(
 			"max-md:pl-28",
 		);
+		expect(container.querySelector("header")?.className).toContain(
+			"max-md:h-7",
+		);
 		expect(titleButton).not.toBeNull();
 		vi.spyOn(
 			titleButton as HTMLButtonElement,
