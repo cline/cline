@@ -116,10 +116,14 @@ export function SearchCombobox({
 								aria-hidden="true"
 								className="cline-ui-search-combobox__search-icon"
 								fill="none"
-								viewBox="0 0 16 16"
+								stroke="currentColor"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth="2"
+								viewBox="0 0 24 24"
 							>
-								<circle cx="7" cy="7" r="4.25" stroke="currentColor" />
-								<path d="m10.25 10.25 3 3" stroke="currentColor" />
+								<path d="m21 21-4.34-4.34" />
+								<circle cx="11" cy="11" r="8" />
 							</svg>
 							<input
 								aria-label={searchPlaceholder}
@@ -160,15 +164,13 @@ export function SearchCombobox({
 											aria-hidden="true"
 											className="cline-ui-search-combobox__check"
 											fill="none"
-											viewBox="0 0 16 16"
+											stroke="currentColor"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											viewBox="0 0 24 24"
 										>
-											<path
-												d="m3.5 8 3 3 6-6"
-												stroke="currentColor"
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												strokeWidth="1.5"
-											/>
+											<path d="M20 6 9 17l-5-5" />
 										</svg>
 									) : null}
 								</button>

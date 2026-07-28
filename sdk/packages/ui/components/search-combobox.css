@@ -48,7 +48,6 @@
 	border: 1px solid var(--border);
 	border-radius: var(--radius-lg);
 	background: var(--popover);
-	color: var(--popover-foreground);
 	box-shadow:
 		0 20px 25px -5px rgb(0 0 0 / 10%),
 		0 8px 10px -6px rgb(0 0 0 / 10%);
@@ -97,12 +96,17 @@
 	width: 100%;
 	height: auto;
 	border: 0;
+	border-radius: var(--radius-md);
 	outline: 0;
 	background: transparent;
-	color: var(--foreground);
 	font: inherit;
-	font-size: var(--text-xs);
+	font-size: 1rem;
+	line-height: 1.5rem;
 	padding: 0;
+}
+
+.dark .cline-ui-search-combobox__search {
+	background: color-mix(in oklab, var(--input) 30%, transparent);
 }
 
 .cline-ui-search-combobox__search::placeholder {
@@ -154,6 +158,7 @@
 	flex: 1;
 	flex-direction: column;
 	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
 }
 
 .cline-ui-search-combobox__option-copy > span,
@@ -184,5 +189,12 @@
 	.cline-ui-search-combobox__trigger,
 	.cline-ui-search-combobox__option {
 		transition: none;
+	}
+}
+
+@media (min-width: 48rem) {
+	.cline-ui-search-combobox__search {
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
 	}
 }
