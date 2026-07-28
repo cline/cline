@@ -3,7 +3,15 @@ import path from "path"
 import proxyquire from "proxyquire"
 import sinon from "sinon"
 
+const DEFAULT_OUTPUT_LINES = ['{"type":"text","text":"Hello"}', '{"type":"text","text":" world"}']
+
+// Mutable state the mock factories read, so individual tests can simulate
+// different CLI output streams and exit results.
+let mockOutputLines = DEFAULT_OUTPUT_LINES
+let mockProcessError: Error | null = null
+
 const createMockProcess = () => {
+	const exitCode = mockProcessError ? ((mockProcessError as any).exitCode ?? 1) : 0
 	const mockProcess = {
 		stdin: {
 			write: sinon.fake(),
@@ -18,15 +26,20 @@ const createMockProcess = () => {
 		},
 		on: sinon.fake((event, callback) => {
 			if (event === "close") {
-				setImmediate(() => callback(0))
+				setImmediate(() => callback(exitCode))
 			}
 			if (event === "error") {
 			}
 		}),
 		killed: false,
 		kill: sinon.fake(),
-		exitCode: 0,
-		then: (onResolve: (value: any) => void) => {
+		exitCode,
+		then: (onResolve: (value: any) => void, onReject?: (reason: any) => void) => {
+			// execa's process promise rejects on nonzero exit (default `reject: true`)
+			if (mockProcessError && onReject) {
+				setImmediate(() => onReject(mockProcessError))
+				return Promise.resolve()
+			}
 			setImmediate(() => onResolve({ exitCode: 0 }))
 			return Promise.resolve({ exitCode: 0 })
 		},
@@ -42,9 +55,8 @@ const createMockProcess = () => {
 const createMockReadlineInterface = () => {
 	const mockInterface = {
 		async *[Symbol.asyncIterator]() {
-			// Simulate Claude CLI JSON output - yield a few chunks then end
-			yield '{"type":"text","text":"Hello"}'
-			yield '{"type":"text","text":" world"}'
+			// Simulate Claude CLI JSON output - yield the configured chunks then end
+			yield* mockOutputLines
 			// Iterator ends naturally when function returns
 			return
 		},
@@ -79,6 +91,8 @@ describe("Claude Code Integration", () => {
 
 	afterEach(() => {
 		sinon.restore()
+		mockOutputLines = DEFAULT_OUTPUT_LINES
+		mockProcessError = null
 	})
 
 	const itCallsTheScriptWithAFile = (systemPrompt: string) => {
@@ -157,6 +171,62 @@ describe("Claude Code Integration", () => {
 				expect(params).to.not.be.null
 				expect(params.includes("--system-prompt-file")).to.be.false
 				expect(params.includes("--system-prompt")).to.be.true
+			})
+		})
+	})
+
+	describe("when the process exits with code 1", () => {
+		// Mimics execa's rejection: an Error carrying exitCode, whose message
+		// includes the full command after ": "
+		const createExitCodeOneError = () => {
+			const error = new Error("Command failed with exit code 1: claude --system-prompt aaa --verbose")
+			;(error as any).exitCode = 1
+			return error
+		}
+
+		const collectChunks = async () => {
+			const chunks: unknown[] = []
+			for await (const chunk of runClaudeCode({
+				systemPrompt: "test",
+				messages: [],
+				modelId: "test",
+				path: scriptPath,
+			})) {
+				chunks.push(chunk)
+			}
+			return chunks
+		}
+
+		describe("after a result chunk was streamed (max-turns exit)", () => {
+			beforeEach(() => {
+				mockOutputLines = [
+					'{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}',
+					'{"type":"result","subtype":"success","is_error":false,"num_turns":1}',
+				]
+				mockProcessError = createExitCodeOneError()
+			})
+
+			it("suppresses the error and yields the full response", async () => {
+				const chunks = await collectChunks()
+
+				expect(chunks).to.have.length(2)
+				expect((chunks[1] as { type: string }).type).to.equal("result")
+			})
+		})
+
+		describe("without a result chunk", () => {
+			beforeEach(() => {
+				mockOutputLines = ['{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}']
+				mockProcessError = createExitCodeOneError()
+			})
+
+			it("throws", async () => {
+				try {
+					await collectChunks()
+					expect.fail("expected runClaudeCode to throw")
+				} catch (error) {
+					expect((error as Error).message).to.include("Command failed with exit code 1")
+				}
 			})
 		})
 	})
