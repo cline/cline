@@ -76,6 +76,13 @@ you scroll; keyset stays flat. `limit` defaults to 50, capped at 200
 
 A page comes back as `{ updates, nextCursor, hasMore }`.
 
+Under `orderBy: "attention"` the sort key is `(attention band, seq)`, not `seq`,
+so the cursor predicate is composite: a row qualifies if its band is later than
+the cursor row's, or if the band matches and its `seq` is lower. The store
+resolves the cursor row's band in SQL, so `cursor` on the wire stays a plain
+`seq`. Paging on `seq` alone would silently drop every higher-`seq` row sitting
+in a later band — a page ending mid-band made the rest of the board unreachable.
+
 ### Search: LIKE baseline, FTS5 upgrade
 
 `text` search is specified against indexed `LIKE`, which works on every runtime.
@@ -154,6 +161,14 @@ view never materializes the whole log. State-filter chips, free-text search, a
 blocked count in the header, expandable `detail`, and Load more off `nextCursor`.
 Live `status_updated` messages splice in at the top; on the Board lens an update
 for a subject already on screen replaces its row rather than stacking.
+
+A broadcast row bypasses the server-side query, so the view re-applies the
+active filters client-side before splicing one in
+(`components/views/status-filters.ts`) — otherwise a live update surfaces rows
+that contradict the filters until the next refresh. When a filter is on, section
+headings and the footer count the rows on screen instead of quoting
+`summary.byState` / `summary.total`, which count every live row and would
+otherwise disagree with what is visible.
 
 ## Drive Mode and Spotlight
 

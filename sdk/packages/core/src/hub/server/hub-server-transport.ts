@@ -297,6 +297,7 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async stop(): Promise<void> {
+		this.detachStatusBroadcast();
 		for (const approvalId of this.pendingApprovals.keys()) {
 			resolvePendingApproval(this.ctx, approvalId, {
 				approved: false,

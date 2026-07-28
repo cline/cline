@@ -216,6 +216,43 @@ describe("SqliteStatusStore", () => {
 		]);
 	});
 
+	it("pages attention order across bands without dropping rows", () => {
+		// Publish oldest-first within each band so that a bare `seq < cursor`
+		// cursor would exclude the later bands entirely: every `running` row
+		// carries a higher seq than every `blocked` row.
+		const expected: string[] = [];
+		for (const state of ["blocked", "failed", "running", "done"]) {
+			for (let i = 0; i < 3; i += 1) {
+				const subject = `${state}/${i}`;
+				publish({ subject, state });
+				expected.push(subject);
+			}
+		}
+		// Within a band the order is seq DESC, so each band reverses.
+		const bandOrdered = expected.flatMap((_, i) =>
+			i % 3 === 0 ? expected.slice(i, i + 3).reverse() : [],
+		);
+
+		const seen: string[] = [];
+		let cursor: number | null = null;
+		for (let page = 0; page < 20; page += 1) {
+			const result = store.query(
+				parseStatusQuery({
+					currentOnly: true,
+					orderBy: "attention",
+					limit: 2,
+					...(cursor == null ? {} : { cursor }),
+				}),
+			);
+			seen.push(...result.updates.map((u) => u.subject));
+			if (!result.hasMore) break;
+			cursor = result.nextCursor;
+		}
+
+		expect(seen).toEqual(bandOrdered);
+		expect(new Set(seen).size).toBe(12);
+	});
+
 	it("still leads with recency by default", () => {
 		publish({ subject: "a", state: "blocked" });
 		publish({ subject: "b", state: "done" });

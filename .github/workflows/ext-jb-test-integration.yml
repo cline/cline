@@ -15,6 +15,10 @@ jobs:
   trigger-integration-test:
     name: Run Tests
     runs-on: ubuntu-latest
+    # Only upstream can run this: it dispatches into cline/intellij-plugin
+    # using an App token that lives in cline org secrets. On a fork the token
+    # step fails outright, so every PR carries a permanently red "Run Tests".
+    #
     # Auto-run only for trusted PR authors. Anyone else needs a maintainer
     # to opt their PR in by commenting /test-jetbrains.
     # The app token is scoped to the private cline/intellij-plugin repo, so this

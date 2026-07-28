@@ -144,6 +144,13 @@ This is deliberately the mechanism the [AHP review](#context) found missing from
 cannot detect a gap in it. The Status Hub does not repeat that. If hub events
 later gain `serverSeq`, the two cursors should unify.
 
+`seq` alone is only a complete sort key under recency order. The board sorts by
+`(attention band, seq)`, so it pages on that composite key — a row qualifies if
+its band is later than the cursor row's, or if the band matches and its `seq` is
+lower. The store resolves the cursor row's band in SQL so the wire cursor stays
+a plain `seq`. Paging the board on bare `seq` dropped every higher-`seq` row in
+a later band, which made most of the board unreachable behind **Load more**.
+
 ### D6. `LIKE` is the baseline; FTS5 is an opportunistic upgrade
 
 "Easy to find" includes searching prose. The obvious answer is an FTS5 virtual
@@ -180,6 +187,15 @@ That is the "maintain it and use it" loop: an agent publishes through the hub
 sees it immediately, and anyone who was not listening queries the DB with a
 `since` cursor. The hub remains the single writer per D2 of
 [01-architecture.md](../01-architecture.md).
+
+The broadcast hangs off a `StatusService` subscription (`attachStatusBroadcast`),
+not off the `status.publish` handler. D9 has agents publishing through a tool
+that calls `StatusService.publish` directly and never touches the command, so
+broadcasting from the handler left exactly the publishes that matter invisible —
+including `critical` ones that should have interrupted the human. The transport
+owns that subscription's lifetime and drops it in `stop()`; the service is
+process-wide and outlives any one transport, so a listener left attached goes on
+publishing into a dead context.
 
 ### D8. Priority decides who gets interrupted
 

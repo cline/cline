@@ -71,7 +71,9 @@ export function attachStatusBroadcast(
 }
 
 export async function handleStatusCommand(
-	ctx: HubTransportContext,
+	// Kept for symmetry with every other command handler. Broadcasting moved to
+	// `attachStatusBroadcast`, so this handler no longer touches the wire.
+	_ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	service: StatusService = getStatusService(),
 ): Promise<HubReplyEnvelope> {

@@ -71,13 +71,17 @@ function parseJsonStringArray(value: unknown): string[] {
  * Attention order: what a human needs to look at, not what moved last.
  * Lower sorts first.
  */
-const ATTENTION_ORDER_SQL = `CASE s.state
+function attentionOrderSql(alias: string): string {
+	return `CASE ${alias}.state
 	WHEN 'blocked' THEN 0
 	WHEN 'failed' THEN 1
 	WHEN 'running' THEN 2
 	WHEN 'queued' THEN 3
 	WHEN 'done' THEN 4
 	ELSE 5 END`;
+}
+
+const ATTENTION_ORDER_SQL = attentionOrderSql("s");
 
 function rowToStatusUpdate(row: Record<string, unknown>): StatusUpdate {
 	const historyCount = asOptionalNumber(row.history_count);
@@ -290,19 +294,29 @@ export class SqliteStatusStore {
 		}
 
 		const newer = query.direction === "newer";
+		const byAttention = query.orderBy === "attention";
 		if (query.cursor != null) {
-			where.push(newer ? "s.seq > ?" : "s.seq < ?");
-			params.push(query.cursor);
+			if (byAttention) {
+				// Attention order is (band, seq), so a bare `seq < cursor` cursor
+				// would drop every higher-seq row sitting in a later band. Page on
+				// the composite key instead, resolving the cursor row's band in
+				// SQL so the wire cursor stays a plain seq.
+				const cursorRank = `(SELECT ${attentionOrderSql("c")}
+					FROM status_updates c WHERE c.seq = ?)`;
+				where.push(
+					`(${ATTENTION_ORDER_SQL} > ${cursorRank}
+						OR (${ATTENTION_ORDER_SQL} = ${cursorRank} AND s.seq < ?))`,
+				);
+				params.push(query.cursor, query.cursor, query.cursor);
+			} else {
+				where.push(newer ? "s.seq > ?" : "s.seq < ?");
+				params.push(query.cursor);
+			}
 		}
 
-		// Attention order still tie-breaks on seq, so keyset paging by seq stays
-		// correct within a band. Paging across bands is intentionally not
-		// supported for attention order -- the board is meant to be read from
-		// the top, and the summary carries the full counts.
-		const orderSql =
-			query.orderBy === "attention"
-				? `${ATTENTION_ORDER_SQL} ASC, s.seq DESC`
-				: `s.seq ${newer ? "ASC" : "DESC"}`;
+		const orderSql = byAttention
+			? `${ATTENTION_ORDER_SQL} ASC, s.seq DESC`
+			: `s.seq ${newer ? "ASC" : "DESC"}`;
 
 		const extraColumns = [
 			query.includeHistoryCount

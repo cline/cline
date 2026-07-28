@@ -123,7 +123,9 @@ Two lenses over one log.
 One row per piece of work, grouped by state in **attention order**: blocked
 first, then failed, then running. The counts at the top are computed across every
 live row, not across the rows on screen — a board that says "3 blocked" when 40
-are blocked is worse than no board.
+are blocked is worse than no board. Narrow the board with a filter and the
+headings switch to counting what you are actually looking at, so they can never
+contradict the rows beneath them.
 
 ![Status Hub board](docs/assets/drivecode/status-board.png)
 
@@ -156,6 +158,9 @@ flagged **stale**, which is usually the thing worth noticing.
 - **Keyset pagination.** A cursor is the sequence number of the last row you
   hold, never an offset. Offset paging rescans everything it skips, so deep
   scrolls of a long changelog get slower the further you go; this stays flat.
+  On the Board, where rows are ordered by attention rather than by sequence,
+  the cursor spans both — so **Load more** walks into the next attention band
+  instead of stopping at the end of the current one.
 - **`seq` is a monotonic cursor, not a clock.** A client that disconnects
   resumes with `since: seq` and gets exactly what it missed — no skew, no
   duplicates, no gaps it cannot detect.

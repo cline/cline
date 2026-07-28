@@ -24,6 +24,11 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postToHost } from "../../vscode";
 import { PageEmptyState, PageFrame, PageHeader } from "./page-layout";
+import {
+	hasActiveFilters,
+	matchesStatusFilters,
+	sectionHeadingCount,
+} from "./status-filters";
 import { relativeTime, STATE_STYLES, StatusRow } from "./status-row";
 
 const PAGE_LIMIT = 50;
@@ -111,6 +116,18 @@ export function StatusView() {
 	 * the list, so the fresh page appended onto stale rows.
 	 */
 	const replaceOnArrivalRef = useRef(true);
+	/**
+	 * The `message` listener is registered once per `mode`, so reading the
+	 * filters from its closure evaluated live rows against whatever the filters
+	 * were when it was attached. Keep them in a ref the listener can read at
+	 * delivery time instead.
+	 */
+	const filtersRef = useRef({ stateFilter, agentFilter, search });
+	useEffect(() => {
+		filtersRef.current = { stateFilter, agentFilter, search };
+	}, [stateFilter, agentFilter, search]);
+
+	const filtersActive = hasActiveFilters({ stateFilter, agentFilter, search });
 
 	const request = useCallback(
 		(cursor: number | null, replace: boolean) => {
@@ -179,14 +196,7 @@ export function StatusView() {
 				// A broadcast row is not necessarily part of the view being shown.
 				// Prepending it unconditionally surfaced rows that contradict the
 				// active filters until the next refresh.
-				const matchesFilters =
-					(stateFilter.length === 0 || stateFilter.includes(live.state)) &&
-					(!agentFilter || live.agentId === agentFilter) &&
-					(!search ||
-						`${live.headline} ${live.detail ?? ""}`
-							.toLowerCase()
-							.includes(search.toLowerCase()));
-				if (!matchesFilters) {
+				if (!matchesStatusFilters(live, filtersRef.current)) {
 					// Counts still moved even though the row is not shown here.
 					requestSummary();
 					return;
@@ -413,7 +423,11 @@ export function StatusView() {
 									{section.state}
 								</Badge>
 								<span className="text-sm font-medium text-foreground">
-									{summary?.byState[section.state] ?? section.rows.length}
+									{sectionHeadingCount(
+										section.rows.length,
+										summary?.byState[section.state],
+										filtersActive,
+									)}
 								</span>
 								<span className="text-xs text-muted-foreground">
 									{section.blurb}
@@ -442,7 +456,10 @@ export function StatusView() {
 			<div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
 				<span>
 					{updates.length} shown
-					{summary && mode === "board" ? ` of ${summary.total} active` : ""}
+					{summary && mode === "board" && !filtersActive
+						? ` of ${summary.total} active`
+						: ""}
+					{filtersActive ? " · filtered" : ""}
 					{hasMore ? " · more available" : ""}
 				</span>
 				{hasMore ? (

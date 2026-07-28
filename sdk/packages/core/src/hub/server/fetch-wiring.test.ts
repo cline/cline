@@ -1,5 +1,5 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeCapabilities } from "../../runtime/capabilities/runtime-capabilities";
 
 const localRuntimeHostMock = vi.hoisted(() =>
@@ -19,41 +19,59 @@ vi.mock("../../runtime/host/local-runtime-host", () => ({
 	LocalRuntimeHost: localRuntimeHostMock,
 }));
 
+/**
+ * Pulling the hub barrel in transforms a large module graph. Doing it inside
+ * the first `it` charged that cost to the test clock, so the first test blew
+ * the 5s default and its pending construction then landed inside the next
+ * test's call count. Import once, up front, with room to do it.
+ */
+let HubServerTransport: new (options: unknown) => { stop(): Promise<void> };
+let createLocalHubScheduleRuntimeHandlers: (options?: {
+	fetch?: typeof fetch;
+}) => unknown;
+
+beforeAll(async () => {
+	({ HubServerTransport } = (await import(".")) as unknown as {
+		HubServerTransport: typeof HubServerTransport;
+	});
+	({ createLocalHubScheduleRuntimeHandlers } = (await import(
+		"../daemon/runtime-handlers"
+	)) as unknown as {
+		createLocalHubScheduleRuntimeHandlers: typeof createLocalHubScheduleRuntimeHandlers;
+	});
+}, 120_000);
+
+beforeEach(() => {
+	localRuntimeHostMock.mockClear();
+});
+
 describe("hub runtime wiring", () => {
 	it("forwards observability into the internal LocalRuntimeHost", async () => {
-		localRuntimeHostMock.mockClear();
-		const { HubServerTransport } = (await import(".")) as unknown as {
-			HubServerTransport: new (options: unknown) => unknown;
-		};
 		const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
 		const telemetry = { capture: vi.fn() };
 
-		new HubServerTransport({
+		const transport = new HubServerTransport({
 			runtimeHandlers: {
 				startSession: vi.fn(),
 				sendSession: vi.fn(),
 				abortSession: vi.fn(),
 				stopSession: vi.fn(),
 			},
+			scheduleOptions: { dbPath: ":memory:" },
 			logger,
 			telemetry,
 		});
 
-		expect(localRuntimeHostMock).toHaveBeenCalledWith(
-			expect.objectContaining({ logger, telemetry }),
-		);
+		try {
+			expect(localRuntimeHostMock).toHaveBeenCalledWith(
+				expect.objectContaining({ logger, telemetry }),
+			);
+		} finally {
+			await transport.stop();
+		}
 	});
 
 	it("forwards HubWebSocketServerOptions.fetch into the internal LocalRuntimeHost", async () => {
-		localRuntimeHostMock.mockClear();
-		const { HubServerTransport } = (await import(".")) as unknown as {
-			HubServerTransport: new (
-				options: unknown,
-			) => {
-				stop(): Promise<void>;
-			};
-		};
-
 		const customFetch = (async () => new Response()) as unknown as typeof fetch;
 
 		const transport = new HubServerTransport({
@@ -79,15 +97,6 @@ describe("hub runtime wiring", () => {
 	});
 
 	it("does not construct a default LocalRuntimeHost when sessionHost is supplied", async () => {
-		localRuntimeHostMock.mockClear();
-		const { HubServerTransport } = (await import(".")) as unknown as {
-			HubServerTransport: new (
-				options: unknown,
-			) => {
-				stop(): Promise<void>;
-			};
-		};
-
 		const suppliedHost = {
 			subscribe: vi.fn(() => () => {}),
 			dispose: vi.fn(async () => {}),
@@ -113,12 +122,7 @@ describe("hub runtime wiring", () => {
 		}
 	});
 
-	it("forwards createLocalHubScheduleRuntimeHandlers fetch into its internal LocalRuntimeHost", async () => {
-		localRuntimeHostMock.mockClear();
-		const { createLocalHubScheduleRuntimeHandlers } = await import(
-			"../daemon/runtime-handlers"
-		);
-
+	it("forwards createLocalHubScheduleRuntimeHandlers fetch into its internal LocalRuntimeHost", () => {
 		const customFetch = (async () => new Response()) as unknown as typeof fetch;
 		createLocalHubScheduleRuntimeHandlers({ fetch: customFetch });
 
@@ -129,12 +133,7 @@ describe("hub runtime wiring", () => {
 		expect(constructorArgs.fetch).toBe(customFetch);
 	});
 
-	it("leaves fetch undefined when createLocalHubScheduleRuntimeHandlers is called without one", async () => {
-		localRuntimeHostMock.mockClear();
-		const { createLocalHubScheduleRuntimeHandlers } = await import(
-			"../daemon/runtime-handlers"
-		);
-
+	it("leaves fetch undefined when createLocalHubScheduleRuntimeHandlers is called without one", () => {
 		createLocalHubScheduleRuntimeHandlers();
 
 		expect(localRuntimeHostMock).toHaveBeenCalledTimes(1);
@@ -145,10 +144,6 @@ describe("hub runtime wiring", () => {
 	});
 
 	it("provides an executable headless completion tool to the real yolo runtime builder", async () => {
-		localRuntimeHostMock.mockClear();
-		const { createLocalHubScheduleRuntimeHandlers } = await import(
-			"../daemon/runtime-handlers"
-		);
 		const { DefaultRuntimeBuilder } = await import(
 			"../../runtime/orchestration/runtime-builder"
 		);
