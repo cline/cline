@@ -38,11 +38,19 @@ export function useProviderModelSelection(
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
 	const selectedModelId = committedSelection?.modelId ?? fallbackModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ??
-			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
-			fallbackModelInfo)
+	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const freshModelInfo = models[selectedModelId]
+	// The committed snapshot normally wins (it carries user per-model overrides).
+	// But a generic provider's live-only models (e.g. most of Pioneer's catalog)
+	// aren't in the static catalog, so their committed snapshot resolves to a
+	// $0/no-metadata placeholder. In that case only — a snapshot with no pricing —
+	// fall through to the freshly-resolved catalog entry so live pricing/metadata
+	// show correctly. Snapshots that already carry pricing are left untouched.
+	const committedHasPricing = Boolean(committedModelInfo?.inputPrice || committedModelInfo?.outputPrice)
+	const selectedModelInfo =
+		(committedHasPricing ? committedModelInfo : (freshModelInfo ?? committedModelInfo)) ??
+		(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
+		fallbackModelInfo
 
 	const selectedModel: DisplayProviderModelSelection = {
 		providerId,
