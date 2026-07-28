@@ -1,9 +1,9 @@
 "use client";
 
+import { AgentAurora } from "@cline/ui";
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
@@ -116,7 +116,7 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AuroraBackground /> : null}
+			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active

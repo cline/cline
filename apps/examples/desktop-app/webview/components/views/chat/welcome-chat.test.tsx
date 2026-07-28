@@ -96,6 +96,9 @@ describe("WelcomeScreen", () => {
 			workspaces,
 		});
 
+		expect(
+			container.querySelectorAll(".cline-ui-agent-aurora__star"),
+		).toHaveLength(32);
 		await clickButton("project-1");
 
 		for (let index = 1; index <= workspaces.length; index += 1) {
