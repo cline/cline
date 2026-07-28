@@ -5,7 +5,8 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 ### Cline CLI
 - Run from source: `bun run cli` (interactive: `bun run cli -i`; one-shot: append a prompt). This resolves to `apps/cli` and **auto-spawns the `@cline/cline-hub` daemon** — you do not start the hub separately.
 - Inspect local health with `bun run cli doctor`; `bun run cli version` prints the version.
-- An actual agent turn requires an **LLM provider credential**. With no credentials the default `cline` provider fails fast with an `Unauthorized` error and the interactive TUI shows a provider sign-in screen. Configure via `cline auth` or provider env vars (e.g. `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENROUTER_API_KEY`); see `apps/cli/README.md`.
+- An actual agent turn requires an **LLM provider credential**. With no credentials the default `cline` provider fails fast with an `Unauthorized` error and the interactive TUI shows a provider sign-in screen. Configure via `cline auth` or provider env vars (e.g. `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENROUTER_API_KEY`); see `apps/cli/README.md`. One-shot form: `bun run cli -P anthropic -m claude-sonnet-4-5 "<prompt>"`.
+- Credential gotcha: the injected `ANTHROPIC_API_KEY` may authenticate but still fail the turn with `Your credit balance is too low` — that means auth works and only billing blocks the LLM call, not the environment. Use a funded key (or another funded provider) to run live turns.
 
 ### Build / Lint / test
 - SDK packages (`@cline/shared|llms|agents|core|sdk`) resolve each other through compiled `dist/` (their `exports` point only at `dist/`, with no `development` source condition). You **must** run `bun run build:sdk` after changing SDK dependencies/source before running the CLI or SDK tests, otherwise imports fail with missing `@cline/*` / missing `dist/` errors. Running processes do **not** hot-reload SDK source changes — rebuild and restart.\
