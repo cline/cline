@@ -41,32 +41,45 @@ describe("desktop tray", () => {
 		expect(mocks.listen).not.toHaveBeenCalled();
 	});
 
-	it("forwards known actions and ignores unknown payloads", async () => {
+	it("drains startup actions after registering the native listener", async () => {
 		mocks.isTauriAvailable = true;
 		let eventHandler: MenuEventHandler | undefined;
+		const pendingBatches: unknown[][] = [
+			["new-session", "unexpected"],
+			["open-settings"],
+		];
 		mocks.listen.mockImplementation(
 			async (_eventName: string, handler: MenuEventHandler) => {
 				eventHandler = handler;
 				return mocks.unlisten;
 			},
 		);
+		mocks.invoke.mockImplementation(async (command: string) => {
+			if (command === "drain_desktop_menu_actions") {
+				return pendingBatches.shift() ?? [];
+			}
+			return undefined;
+		});
 		const onAction = vi.fn();
-		const { DESKTOP_MENU_ACTION_EVENT, subscribeToDesktopMenuActions } =
+		const { DESKTOP_MENU_ACTION_PENDING_EVENT, subscribeToDesktopMenuActions } =
 			await importFresh();
 
 		const unsubscribe = subscribeToDesktopMenuActions(onAction);
 		await vi.waitFor(() =>
 			expect(mocks.listen).toHaveBeenCalledWith(
-				DESKTOP_MENU_ACTION_EVENT,
+				DESKTOP_MENU_ACTION_PENDING_EVENT,
 				expect.any(Function),
 			),
 		);
+		await vi.waitFor(() =>
+			expect(onAction.mock.calls).toEqual([["new-session"]]),
+		);
 
-		eventHandler?.({ payload: "new-session" });
-		eventHandler?.({ payload: "open-settings" });
-		eventHandler?.({ payload: "unexpected" });
+		eventHandler?.({ payload: undefined });
 
-		expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]);
+		await vi.waitFor(() =>
+			expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]),
+		);
 		unsubscribe();
 		expect(mocks.unlisten).toHaveBeenCalledOnce();
 	});

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -23,7 +24,29 @@ const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
-const DESKTOP_MENU_ACTION_EVENT: &str = "desktop-menu-action";
+const DESKTOP_MENU_ACTION_PENDING_EVENT: &str = "desktop-menu-action-pending";
+
+#[derive(Default)]
+struct DesktopMenuActionState {
+    pending: Mutex<VecDeque<String>>,
+}
+
+impl DesktopMenuActionState {
+    fn enqueue(&self, action: &str) {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push_back(action.to_string());
+    }
+
+    fn drain(&self) -> Vec<String> {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drain(..)
+            .collect()
+    }
+}
 
 struct TrayMenuState {
     status: MenuItem<tauri::Wry>,
@@ -753,10 +776,13 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
-fn dispatch_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
+fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
     show_main_window(app);
-    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_MENU_ACTION_EVENT, action) {
-        eprintln!("[desktop-menu] failed to dispatch {action}: {error}");
+    app.state::<DesktopMenuActionState>().enqueue(action);
+    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_MENU_ACTION_PENDING_EVENT, ()) {
+        // The action remains queued and will be picked up by the webview's
+        // initial drain after its event listener is registered.
+        eprintln!("[desktop-menu] failed to signal pending {action}: {error}");
     }
 }
 
@@ -798,8 +824,8 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
 
     tray.on_menu_event(|app, event| match event.id().as_ref() {
         TRAY_OPEN_MENU_ID => show_main_window(app),
-        TRAY_NEW_SESSION_MENU_ID => dispatch_desktop_menu_action(app, "new-session"),
-        TRAY_SETTINGS_MENU_ID => dispatch_desktop_menu_action(app, "open-settings"),
+        TRAY_NEW_SESSION_MENU_ID => queue_desktop_menu_action(app, "new-session"),
+        TRAY_SETTINGS_MENU_ID => queue_desktop_menu_action(app, "open-settings"),
         TRAY_QUIT_MENU_ID => app.exit(0),
         _ => {}
     })
@@ -810,6 +836,11 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
         running_sessions,
     });
     Ok(())
+}
+
+#[tauri::command]
+fn drain_desktop_menu_actions(action_state: State<'_, DesktopMenuActionState>) -> Vec<String> {
+    action_state.drain()
 }
 
 #[tauri::command]
@@ -851,6 +882,7 @@ fn main() {
         .manage(desktop_backend)
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
+        .manage(DesktopMenuActionState::default())
         .setup(|app| {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
@@ -893,6 +925,7 @@ fn main() {
             get_update_status,
             restart_to_apply_update,
             set_app_icon,
+            drain_desktop_menu_actions,
             set_tray_status
         ])
         .build(tauri::generate_context!())
@@ -917,6 +950,16 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn desktop_menu_actions_are_buffered_in_order_until_drained() {
+        let state = DesktopMenuActionState::default();
+        state.enqueue("new-session");
+        state.enqueue("open-settings");
+
+        assert_eq!(state.drain(), vec!["new-session", "open-settings"]);
+        assert!(state.drain().is_empty());
+    }
 
     #[test]
     fn tray_status_prioritizes_update_progress_over_hub_health() {
