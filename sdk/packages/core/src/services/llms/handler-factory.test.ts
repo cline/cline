@@ -10,12 +10,13 @@ const gatewayMock = vi.hoisted(() => {
 		// registered handler" so existing tests exercise the gateway path.
 		hasRegisteredHandler: vi.fn(() => false),
 		createHandlerAsync: vi.fn(),
+		modelCollections: {} as Record<string, { models: Record<string, unknown> }>,
 	};
 });
 
 vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+	MODEL_COLLECTIONS_BY_PROVIDER_ID: gatewayMock.modelCollections,
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
@@ -31,6 +32,9 @@ describe("createAgentModelFromConfig", () => {
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
 		gatewayMock.createHandlerAsync.mockReset();
+		for (const providerId of Object.keys(gatewayMock.modelCollections)) {
+			delete gatewayMock.modelCollections[providerId];
+		}
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {
@@ -374,6 +378,80 @@ describe("createAgentModelFromConfig", () => {
 				],
 			}),
 		);
+	});
+
+	it("falls back to the provider registry when providerConfig.knownModels omits the selected model", async () => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+
+		gatewayMock.modelCollections["openai-compatible"] = {
+			models: {
+				"glm-5.2": {
+					id: "glm-5.2",
+					name: "glm-5.2",
+					contextWindow: 1_048_576,
+					maxInputTokens: 1_048_576,
+				},
+			},
+		};
+		const builtinSnapshot = {
+			"gpt-4o": {
+				id: "gpt-4o",
+				name: "gpt-4o",
+				contextWindow: 128_000,
+				maxInputTokens: 128_000,
+			},
+		};
+
+		const resolved = resolveKnownModelsFromConfig({
+			providerId: "openai-compatible",
+			modelId: "glm-5.2",
+			systemPrompt: "",
+			tools: [],
+			knownModels: builtinSnapshot,
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "glm-5.2",
+				knownModels: builtinSnapshot,
+			},
+		} as unknown as AgentConfig);
+
+		expect(resolved?.["glm-5.2"]?.contextWindow).toBe(1_048_576);
+	});
+
+	it("keeps providerConfig.knownModels authoritative when it defines the selected model", async () => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+
+		gatewayMock.modelCollections["openai-compatible"] = {
+			models: {
+				"glm-5.2": {
+					id: "glm-5.2",
+					name: "glm-5.2",
+					contextWindow: 1_048_576,
+					maxInputTokens: 1_048_576,
+				},
+			},
+		};
+
+		const resolved = resolveKnownModelsFromConfig({
+			providerId: "openai-compatible",
+			modelId: "glm-5.2",
+			systemPrompt: "",
+			tools: [],
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "glm-5.2",
+				knownModels: {
+					"glm-5.2": {
+						id: "glm-5.2",
+						name: "glm-5.2",
+						contextWindow: 200_000,
+						maxInputTokens: 200_000,
+					},
+				},
+			},
+		} as unknown as AgentConfig);
+
+		expect(resolved?.["glm-5.2"]?.contextWindow).toBe(200_000);
 	});
 
 	it("surfaces a caller-supplied modelInfo for the selected model as a gateway model definition", async () => {

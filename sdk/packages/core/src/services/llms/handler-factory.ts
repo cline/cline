@@ -87,15 +87,26 @@ function readPositiveInteger(value: unknown): number | undefined {
 		: undefined;
 }
 
+function selectKnownModels(
+	config: AgentConfig,
+	pc: ProviderConfig | undefined,
+): Record<string, ModelInfo> | undefined {
+	const sources = [
+		pc?.knownModels,
+		config.knownModels,
+		MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models,
+	];
+	return (
+		sources.find((source) => source?.[config.modelId]) ??
+		sources.find((source) => source !== undefined)
+	);
+}
+
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
-	const knownModels = pc?.knownModels
-		? pc.knownModels
-		: (config.knownModels ??
-			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
-			undefined);
+	const knownModels = selectKnownModels(config, pc);
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
