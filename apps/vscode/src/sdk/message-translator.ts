@@ -522,7 +522,11 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 				getStringField(parsedInput, "content")
 			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
 			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
-			const isEdit = toolName === "replace_in_file" || !!oldText
+			// `insert_line` inserts into an existing file (the SDK editor executor requires
+			// the file to already exist), so it is an edit — not a new-file creation. Without
+			// this the card mislabels a prepend/insert as "Cline wants to create a new file".
+			const insertLine = getNumberField(parsedInput, "insert_line")
+			const isEdit = toolName === "replace_in_file" || !!oldText || insertLine != null
 
 			// When the SDK provides both old and new text, build a search/replace
 			// diff in the format DiffEditRow expects. ChatRow passes `content` to
