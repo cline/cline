@@ -127,6 +127,9 @@ describe("ChatInputBar", () => {
 		expect(
 			workspaceTrigger?.parentElement?.parentElement?.className,
 		).not.toContain("hidden");
+		expect(
+			workspaceTrigger?.parentElement?.parentElement?.className,
+		).not.toContain("max-w-");
 	});
 
 	it("selects High from the supported model thinking menu", async () => {

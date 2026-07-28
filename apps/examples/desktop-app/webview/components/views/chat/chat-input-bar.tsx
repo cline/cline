@@ -1094,8 +1094,8 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings and submit */}
-			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:grid max-[560px]:grid-cols-[auto_auto_minmax(0,1fr)_auto] max-[560px]:items-center">
-				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-[560px]:contents">
+			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:grid max-[560px]:grid-cols-[auto_auto_minmax(0,1fr)_auto] max-[560px]:items-center">
+				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:contents">
 					<button
 						aria-label="Attach files"
 						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-[560px]:col-start-1 max-[560px]:row-start-1"
@@ -1197,9 +1197,9 @@ export function ChatInputBar({
 					) : null}
 				</div>
 
-				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:contents">
+				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:contents">
 					{variant === "conversation" ? (
-						<div className="max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
+						<div className="min-w-0 overflow-visible max-[560px]:col-start-3 max-[560px]:row-start-2">
 							<WorkspaceSelector
 								currentBranch={gitBranch}
 								disabled

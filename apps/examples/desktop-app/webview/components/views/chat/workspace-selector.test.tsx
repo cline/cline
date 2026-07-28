@@ -68,6 +68,10 @@ describe("WorkspaceSelector", () => {
 		expect(trigger?.disabled).toBe(true);
 		expect(trigger?.textContent).toContain("one");
 		expect(trigger?.textContent).toContain("main");
+		const branchLabel = trigger?.querySelector("span:last-child");
+		expect(branchLabel?.className).toContain("min-w-0");
+		expect(branchLabel?.className).toContain("truncate");
+		expect(branchLabel?.className).not.toContain("max-w-");
 
 		await click(trigger as Element);
 		expect(onListGitBranches).not.toHaveBeenCalled();

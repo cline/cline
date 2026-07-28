@@ -199,11 +199,11 @@ export function WorkspaceSelector({
 	);
 
 	return (
-		<div className="relative">
+		<div className="relative min-w-0 max-w-full">
 			<Button
 				variant="ghost"
 				aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
-				className="flex items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors"
+				className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors"
 				disabled={disabled || switching}
 				id="git-branch-btn"
 				onClick={() => {
@@ -219,9 +219,9 @@ export function WorkspaceSelector({
 				title={`${workspaceRoot || workspaceName} / ${currentBranch}`}
 			>
 				<GitBranch className="size-3" />
-				<span className="max-w-20 truncate">{workspaceName}</span>
-				<span className="text-muted-foreground/60">/</span>
-				<span className="max-w-20 truncate">{currentBranch}</span>
+				<span className="max-w-20 shrink-0 truncate">{workspaceName}</span>
+				<span className="shrink-0 text-muted-foreground/60">/</span>
+				<span className="min-w-0 truncate">{currentBranch}</span>
 			</Button>
 
 			{open && !disabled && (
