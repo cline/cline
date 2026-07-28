@@ -1,9 +1,12 @@
+import { TOOL_REJECTED_BY_USER_MESSAGE, TOOL_REJECTED_BY_USER_NOTICE } from "@cline/shared"
 import { isEditTool } from "./sdk-tool-policies"
 
-export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = "User denied the tool execution"
+const WAIT_FOR_USER_GUIDANCE = "Wait for the user to tell you how to proceed."
+const EDIT_NOT_APPLIED_NOTICE = `${TOOL_REJECTED_BY_USER_NOTICE} The file was NOT modified and still contains its original content.`
+
+export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = TOOL_REJECTED_BY_USER_MESSAGE
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
-export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
-	"The user denied this edit. The file was NOT modified and still contains its original content."
+export const EDIT_TOOL_APPROVAL_DENIAL_REASON = `${EDIT_NOT_APPLIED_NOTICE} ${WAIT_FOR_USER_GUIDANCE}`
 
 /**
  * Builds the model-facing reason for a denied tool approval.
@@ -15,12 +18,14 @@ export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
  * sync with the file on every retry.
  */
 export function buildToolApprovalDenialReason(toolName: string | undefined, feedback: string | undefined): string {
-	const denial = toolName && isEditTool(toolName) ? EDIT_TOOL_APPROVAL_DENIAL_REASON : DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+	const isEdit = Boolean(toolName && isEditTool(toolName))
 	const trimmedFeedback = feedback?.trim()
 	if (!trimmedFeedback) {
-		return denial
+		return isEdit ? EDIT_TOOL_APPROVAL_DENIAL_REASON : DEFAULT_TOOL_APPROVAL_DENIAL_REASON
 	}
-	return `${denial} The user provided the following feedback:\n<feedback>\n${trimmedFeedback}\n</feedback>`
+	// Feedback replaces the "wait for the user" guidance: the user already said how to proceed.
+	const notice = isEdit ? EDIT_NOT_APPLIED_NOTICE : TOOL_REJECTED_BY_USER_NOTICE
+	return `${notice} The user provided the following feedback:\n<feedback>\n${trimmedFeedback}\n</feedback>`
 }
 
 function getMessage(value: unknown): string | undefined {
@@ -46,11 +51,7 @@ export function isKnownToolApprovalDenial(value: unknown): boolean {
 		return false
 	}
 
-	return (
-		message.includes(USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON) ||
-		message.includes(DEFAULT_TOOL_APPROVAL_DENIAL_REASON) ||
-		message.includes(EDIT_TOOL_APPROVAL_DENIAL_REASON)
-	)
+	return message.includes(USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON) || message.includes(TOOL_REJECTED_BY_USER_NOTICE)
 }
 
 export function isDeniedToolApprovalMistake(

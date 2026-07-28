@@ -5,7 +5,11 @@ import type {
 	RequestPermissionRequest,
 	ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import {
+	TOOL_REJECTED_BY_USER_MESSAGE,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+} from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 // ---------------------------------------------------------------------------
@@ -78,7 +82,7 @@ export function handlePermissionResponse(
 			return { approved: true };
 		case "reject_once":
 		case "reject_always":
-			return { approved: false, reason: "User rejected the tool call" };
+			return { approved: false, reason: TOOL_REJECTED_BY_USER_MESSAGE };
 		default:
 			return {
 				approved: false,

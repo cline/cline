@@ -744,7 +744,6 @@ class LinearConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
-					deniedReason: "Denied by Linear user",
 				})
 			) {
 				return;
@@ -767,7 +766,6 @@ class LinearConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
-					deniedReason: "Denied by Linear user",
 				})
 			) {
 				return;

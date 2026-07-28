@@ -1,5 +1,9 @@
 import { createInterface } from "node:readline";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import {
+	TOOL_REJECTED_BY_USER_MESSAGE,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+} from "@cline/shared";
 import { truncate } from "./helpers";
 import { c, getActiveCliSession, write } from "./output";
 
@@ -91,7 +95,7 @@ async function requestTerminalToolApproval(
 	}
 	return {
 		approved: false,
-		reason: `Tool "${request.toolName}" was denied by user`,
+		reason: TOOL_REJECTED_BY_USER_MESSAGE,
 	};
 }
 

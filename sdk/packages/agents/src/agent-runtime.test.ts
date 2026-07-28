@@ -14,6 +14,7 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	TOOL_REJECTED_BY_USER_MESSAGE,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
@@ -710,6 +711,51 @@ describe("AgentRuntime", () => {
 			input: { text: "hi" },
 			policy: { autoApprove: false },
 		});
+	});
+
+	it("reports a user rejection when approval is denied without a reason", async () => {
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_reasonless_denial",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: TOOL_REJECTED_BY_USER_MESSAGE },
+				});
+				return [
+					{ type: "text-delta", text: "rejection handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async () => ({ approved: false }),
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).not.toHaveBeenCalled();
 	});
 
 	it("applies beforeTool approval policy overrides before executing tools", async () => {

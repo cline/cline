@@ -118,6 +118,8 @@ export {
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
 	stripUtf8Bom,
+	TOOL_REJECTED_BY_USER_MESSAGE,
+	TOOL_REJECTED_BY_USER_NOTICE,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {

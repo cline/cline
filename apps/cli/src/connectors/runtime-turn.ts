@@ -1,4 +1,5 @@
 import type { ChatRunTurnRequest, HubSessionClient } from "@cline/core";
+import { TOOL_REJECTED_BY_USER_MESSAGE } from "@cline/shared";
 import type { CliLoggerAdapter } from "../logging/adapter";
 
 export type PendingConnectorApproval = {
@@ -82,7 +83,6 @@ export function formatConnectorApprovalPrompt(
 
 export function parseConnectorApprovalDecision(
 	text: string,
-	deniedReason = "Denied by user",
 ): { approved: boolean; reason?: string } | undefined {
 	const normalized = text.trim().toLowerCase();
 	if (
@@ -99,7 +99,7 @@ export function parseConnectorApprovalDecision(
 		normalized === "deny" ||
 		normalized === "denied"
 	) {
-		return { approved: false, reason: deniedReason };
+		return { approved: false, reason: TOOL_REJECTED_BY_USER_MESSAGE };
 	}
 	return undefined;
 }

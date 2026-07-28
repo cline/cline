@@ -1,7 +1,8 @@
-import type {
-	RuntimeCapabilities,
-	ToolApprovalRequest,
-	ToolApprovalResult,
+import {
+	type RuntimeCapabilities,
+	TOOL_REJECTED_BY_USER_MESSAGE,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
 } from "@cline/core";
 
 type QuickPickOptions = {
@@ -94,7 +95,7 @@ export function createVsCodeRuntimeCapabilities(options: {
 		);
 		return selected === approve
 			? { approved: true }
-			: { approved: false, reason: "Denied by VS Code user" };
+			: { approved: false, reason: TOOL_REJECTED_BY_USER_MESSAGE };
 	};
 
 	return {

@@ -2,6 +2,7 @@ import * as readline from "node:readline";
 import {
 	type AgentEvent,
 	ClineCore,
+	TOOL_REJECTED_BY_USER_MESSAGE,
 	type ToolApprovalRequest,
 } from "@cline/sdk";
 
@@ -109,7 +110,7 @@ async function requestToolApproval(request: ToolApprovalRequest) {
 	const approved = answer.trim().toLowerCase() === "y";
 	return {
 		approved,
-		...(approved ? {} : { reason: "User denied tool execution" }),
+		...(approved ? {} : { reason: TOOL_REJECTED_BY_USER_MESSAGE }),
 	};
 }
 

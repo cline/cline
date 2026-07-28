@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@cline/shared"
+import { type AgentEvent, TOOL_REJECTED_BY_USER_NOTICE } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -128,7 +128,7 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-		const expectedReason = `${DEFAULT_TOOL_APPROVAL_DENIAL_REASON} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
+		const expectedReason = `${TOOL_REJECTED_BY_USER_NOTICE} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", expectedReason)
 		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
 			type: "say",

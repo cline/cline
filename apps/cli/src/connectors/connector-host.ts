@@ -1050,17 +1050,13 @@ export async function maybeHandleConnectorApprovalReply<
 	client: HubSessionClient;
 	clientId: string;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
-	deniedReason: string;
 	transport?: string;
 }): Promise<boolean> {
 	const pending = input.pendingApprovals.get(input.thread.id);
 	if (!pending) {
 		return false;
 	}
-	const decision = parseConnectorApprovalDecision(
-		input.text,
-		input.deniedReason,
-	);
+	const decision = parseConnectorApprovalDecision(input.text);
 	if (!decision) {
 		await postConnectorText(
 			input.thread,

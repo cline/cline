@@ -84,6 +84,19 @@ export interface ToolApprovalResult {
 	reason?: string;
 }
 
+/**
+ * Model-facing statement of what a user rejection means. Hosts append their own
+ * details (edit specifics, user feedback) after it, so it must stay a standalone
+ * sentence.
+ */
+export const TOOL_REJECTED_BY_USER_NOTICE =
+	"This tool call was rejected by the user and not performed (this was not a tool or system failure).";
+
+/**
+ * Default reason hosts report when a user rejects a tool call without feedback.
+ */
+export const TOOL_REJECTED_BY_USER_MESSAGE = `${TOOL_REJECTED_BY_USER_NOTICE} Wait for the user to tell you how to proceed.`;
+
 export const ToolCallRecordSchema = z.object({
 	id: z.string(),
 	name: z.string(),

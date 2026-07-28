@@ -222,7 +222,11 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTED_BY_USER_MESSAGE,
+	TOOL_REJECTED_BY_USER_NOTICE,
+	ToolCallRecordSchema,
+} from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
