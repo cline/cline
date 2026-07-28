@@ -7,6 +7,27 @@ import type { SessionAgentEntry } from "@/lib/session-agents";
 /** While a turn runs, child agents come and go faster than a one-shot fetch sees. */
 const ACTIVE_POLL_INTERVAL_MS = 2500;
 
+/**
+ * The roster is stored tagged with the session it belongs to, so a stale one is
+ * structurally unreadable rather than something a reset has to remember to clear.
+ */
+type RosterState = {
+	sessionId: string | null;
+	entries: SessionAgentEntry[];
+	loading: boolean;
+	error: string | null;
+};
+
+const EMPTY_ROSTER: RosterState = {
+	sessionId: null,
+	entries: [],
+	loading: false,
+	error: null,
+};
+
+/** Stable identity so consumers memoizing on `agents` do not churn. */
+const NO_AGENTS: SessionAgentEntry[] = [];
+
 function parseAgentEntries(value: unknown): SessionAgentEntry[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -64,9 +85,7 @@ export function useSessionAgents({
 	enabled: boolean;
 	sessionActive: boolean;
 }) {
-	const [agents, setAgents] = useState<SessionAgentEntry[]>([]);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const [roster, setRoster] = useState<RosterState>(EMPTY_ROSTER);
 	// Guards against a slow response for a previous session overwriting a newer one.
 	const requestSessionRef = useRef<string | null>(null);
 
@@ -74,7 +93,16 @@ export function useSessionAgents({
 		async (targetSessionId: string, options?: { quiet?: boolean }) => {
 			requestSessionRef.current = targetSessionId;
 			if (!options?.quiet) {
-				setLoading(true);
+				setRoster((prev) =>
+					prev.sessionId === targetSessionId
+						? { ...prev, loading: true }
+						: {
+								sessionId: targetSessionId,
+								entries: [],
+								loading: true,
+								error: null,
+							},
+				);
 			}
 			try {
 				const result = await desktopClient.invoke<unknown>(
@@ -84,33 +112,39 @@ export function useSessionAgents({
 				if (requestSessionRef.current !== targetSessionId) {
 					return;
 				}
-				setAgents(parseAgentEntries(result));
-				setError(null);
+				setRoster({
+					sessionId: targetSessionId,
+					entries: parseAgentEntries(result),
+					loading: false,
+					error: null,
+				});
 			} catch (err) {
 				if (requestSessionRef.current !== targetSessionId) {
 					return;
 				}
 				// A host without this command (or without a session DB) simply has no
 				// roster to show; the header still renders its message-derived tally.
-				setAgents([]);
-				setError(err instanceof Error ? err.message : "Could not load agents.");
-			} finally {
-				if (requestSessionRef.current === targetSessionId) {
-					setLoading(false);
-				}
+				setRoster({
+					sessionId: targetSessionId,
+					entries: [],
+					loading: false,
+					error: err instanceof Error ? err.message : "Could not load agents.",
+				});
 			}
 		},
 		[],
 	);
 
-	useEffect(() => {
-		if (!sessionId) {
-			requestSessionRef.current = null;
-			setAgents([]);
-			setError(null);
-			setLoading(false);
-		}
-	}, [sessionId]);
+	// A roster is only ever read back for the session it was fetched for, so
+	// switching sessions cannot surface the previous one's agents — there is no
+	// reset to forget and no window where stale rows are clickable. That matters
+	// because mergeAgentActivity prefers a non-empty roster over the
+	// message-derived tally, so a leaked one would render as phantom agents
+	// belonging to the new session.
+	const isCurrent = sessionId !== null && roster.sessionId === sessionId;
+	const agents = isCurrent ? roster.entries : NO_AGENTS;
+	const loading = isCurrent && roster.loading;
+	const error = isCurrent ? roster.error : null;
 
 	useEffect(() => {
 		if (!sessionId || !enabled) {
