@@ -91,14 +91,17 @@ export function useSessionAgents({
 	panelOpen?: boolean;
 }) {
 	const [roster, setRoster] = useState<RosterState>(EMPTY_ROSTER);
-	// Only the newest read may write. Comparing session ids is not enough: two
-	// reads for the *same* session can overlap — a poll tick alongside an
-	// on-open or turn-finished read, and `list_session_agents` opens one
-	// transcript per child, so it can outlast the poll interval. Both would pass
-	// a session-id check, letting whichever arrives last win regardless of which
-	// was issued last, so a stale snapshot could revert completed agents to
-	// running or drop ones already discovered.
+	// Reads for the *same* session can overlap — a poll tick alongside an on-open
+	// or turn-finished read, and `list_session_agents` opens one transcript per
+	// child, so it can outlast the poll interval. Comparing session ids cannot
+	// order those, so each read takes a ticket.
 	const requestSeqRef = useRef(0);
+	// Ordering data and ordering attempts are different questions, so they get
+	// different watermarks. A snapshot is superseded only by a *newer snapshot*:
+	// gating success on the newest issued ticket instead would mean a failed
+	// attempt silently voided an older read that succeeded after it, discarding
+	// the only real data either attempt produced.
+	const appliedSeqRef = useRef(0);
 
 	const refresh = useCallback(
 		async (targetSessionId: string, options?: { quiet?: boolean }) => {
@@ -121,9 +124,12 @@ export function useSessionAgents({
 					"list_session_agents",
 					{ sessionId: targetSessionId },
 				);
-				if (requestSeqRef.current !== seq) {
+				// Superseded only by a newer snapshot, not by a newer attempt — so a
+				// read that succeeds after a later one failed still counts.
+				if (seq <= appliedSeqRef.current) {
 					return;
 				}
+				appliedSeqRef.current = seq;
 				setRoster({
 					sessionId: targetSessionId,
 					entries: parseAgentEntries(result),
@@ -131,6 +137,9 @@ export function useSessionAgents({
 					error: null,
 				});
 			} catch (err) {
+				// Only the newest attempt may report a failure, and it deliberately
+				// does not advance the applied watermark: an older read still in flight
+				// may yet return real data, and must be allowed to.
 				if (requestSeqRef.current !== seq) {
 					return;
 				}

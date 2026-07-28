@@ -363,6 +363,71 @@ describe("useSessionAgents", () => {
 		expect(current.error).toBeNull();
 	});
 
+	it("still applies an older read that succeeds after a newer one failed", async () => {
+		// A failure carries no snapshot, so it must not void a read that was already
+		// in flight: with nothing loaded yet, discarding the success would leave the
+		// roster empty despite valid data having arrived, and an idle session has
+		// nothing scheduled to try again.
+		let resolveOlder: ((value: unknown) => void) | undefined;
+		let rejectNewer: ((reason: unknown) => void) | undefined;
+		invokeMock
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveOlder = resolve;
+					}),
+			)
+			.mockImplementationOnce(
+				() =>
+					new Promise((_resolve, reject) => {
+						rejectNewer = reject;
+					}),
+			);
+
+		await render({ sessionId: "a" });
+		await act(async () => {
+			void current.refresh("a", { quiet: true });
+		});
+
+		// The newer attempt fails first, with nothing loaded to fall back on.
+		await act(async () => {
+			rejectNewer?.(new Error("database is locked"));
+		});
+		expect(current.agents).toEqual([]);
+		expect(current.error).toBe("database is locked");
+
+		// The older read then succeeds — its data is real and must win.
+		await act(async () => {
+			resolveOlder?.([agentRow("a", "one")]);
+		});
+		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
+		expect(current.error).toBeNull();
+	});
+
+	it("keeps the newest snapshot when an older read succeeds after it", async () => {
+		// The converse must still hold: a late older *success* cannot roll back a
+		// newer one, which is what the applied watermark tracks.
+		let resolveOlder: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveOlder = resolve;
+				}),
+		);
+		await render({ sessionId: "a" });
+
+		invokeMock.mockResolvedValue([agentRow("a", "one"), agentRow("a", "two")]);
+		await act(async () => {
+			await current.refresh("a", { quiet: true });
+		});
+		expect(current.agents).toHaveLength(2);
+
+		await act(async () => {
+			resolveOlder?.([agentRow("a", "one")]);
+		});
+		expect(current.agents).toHaveLength(2);
+	});
+
 	it("clears a previous error when switching sessions", async () => {
 		invokeMock.mockRejectedValue(new Error("no session database"));
 		await render({ sessionId: "a" });
