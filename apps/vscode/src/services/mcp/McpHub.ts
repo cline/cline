@@ -13,6 +13,9 @@ import {
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
+	PromptListChangedNotificationSchema,
+	ResourceListChangedNotificationSchema,
+	ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	MAX_MCP_TIMEOUT_SECONDS,
@@ -115,6 +118,12 @@ export class McpHub {
 	// (status change, tools discovered, etc.). Without debouncing, the callback
 	// fires multiple times causing duplicate messages (S6-28).
 	private toolListChangeDebounceTimer?: ReturnType<typeof setTimeout>
+	// Debounce timers for list_changed notification refreshes, keyed by
+	// "<serverName>:<kind>". Servers emit these notifications in bursts
+	// (e.g. a toolset change or shutdown can produce a dozen
+	// notifications/tools/list_changed at once), so refreshes are coalesced
+	// per server and list kind.
+	private listChangedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -702,17 +711,26 @@ export class McpHub {
 				})
 				//Logger.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
 
-				// Also set a fallback handler for any other notification types
-				connection.client.fallbackNotificationHandler = async (notification: any) => {
-					//Logger.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+				// When the server reports that a list changed, refresh the cached
+				// list instead of surfacing the notification to the user.
+				connection.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "tools")
+				})
+				connection.client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "resources")
+				})
+				connection.client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "prompts")
+				})
 
-					// Show in VS Code for visibility
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
-					})
+				// Log any other unhandled notification types instead of toasting
+				// them: servers can emit these at any time and a toast per
+				// notification quickly floods the user.
+				connection.client.fallbackNotificationHandler = async (notification: any) => {
+					Logger.log(
+						`[MCP] ${name}: unhandled notification ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
+					)
 				}
-				//Logger.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
 			} catch (error) {
 				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
@@ -880,6 +898,55 @@ export class McpHub {
 		} catch (_error) {
 			return []
 		}
+	}
+
+	/**
+	 * Debounced entry point for notifications/<kind>/list_changed. Servers
+	 * emit these in bursts (a toolset change or shutdown can produce a dozen
+	 * notifications/tools/list_changed at once), so refreshes are coalesced
+	 * per server and list kind.
+	 */
+	private scheduleListChangedRefresh(serverName: string, kind: "tools" | "resources" | "prompts"): void {
+		const key = `${serverName}:${kind}`
+		const existingTimer = this.listChangedRefreshTimers.get(key)
+		if (existingTimer) {
+			clearTimeout(existingTimer)
+		}
+		this.listChangedRefreshTimers.set(
+			key,
+			setTimeout(() => {
+				this.listChangedRefreshTimers.delete(key)
+				this.refreshChangedList(serverName, kind).catch((error) => {
+					Logger.error(`[MCP] Failed to refresh ${kind} for ${serverName} after list_changed notification:`, error)
+				})
+			}, 300),
+		)
+	}
+
+	private async refreshChangedList(serverName: string, kind: "tools" | "resources" | "prompts"): Promise<void> {
+		// Look the connection up fresh: it may have been deleted (or replaced
+		// by a reconnect) while the debounce timer was pending.
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection || connection.server.disabled || !connection.client) {
+			return
+		}
+
+		switch (kind) {
+			case "tools":
+				connection.server.tools = await this.fetchToolsList(serverName)
+				break
+			case "resources":
+				connection.server.resources = await this.fetchResourcesList(serverName)
+				connection.server.resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+				break
+			case "prompts":
+				connection.server.prompts = await this.fetchPromptsList(serverName)
+				break
+		}
+
+		// Push the refreshed lists to the webview; for tools this also runs
+		// the tool-list change check that notifies the SDK controller.
+		await this.notifyWebviewOfServerChanges()
 	}
 
 	async deleteConnection(name: string): Promise<void> {
@@ -1863,6 +1930,10 @@ export class McpHub {
 	}
 
 	async dispose(): Promise<void> {
+		for (const timer of this.listChangedRefreshTimers.values()) {
+			clearTimeout(timer)
+		}
+		this.listChangedRefreshTimers.clear()
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
 			try {
