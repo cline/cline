@@ -4,6 +4,30 @@ import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 export type SdkUserMessage = {
 	role?: unknown
 	content?: unknown
+	metadata?: unknown
+}
+
+/**
+ * Metadata `kind` tags marking a persisted `role: "user"` message as a
+ * synthetic system-injected notice with no visible transcript counterpart.
+ * Keep in sync with sdk/packages/core/src/hooks/checkpoint-hooks.ts.
+ */
+const SYNTHETIC_USER_MESSAGE_KINDS = new Set([
+	"recovery_notice",
+	"loop_detection_notice",
+	"mistake_stop_notice",
+	"completion_reminder",
+	"compaction",
+	"compaction_summary",
+])
+
+function hasSyntheticKindTag(message: SdkUserMessage): boolean {
+	const metadata = message.metadata
+	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+		return false
+	}
+	const kind = (metadata as { kind?: unknown }).kind
+	return typeof kind === "string" && SYNTHETIC_USER_MESSAGE_KINDS.has(kind)
 }
 
 export function extractSdkUserText(message: SdkUserMessage): string {
@@ -78,6 +102,9 @@ function hasAttachmentBlocks(message: SdkUserMessage): boolean {
  * user's image/file blocks AND a visible bubble, so it must still be counted.
  */
 export function isSyntheticSdkUserMessage(message: SdkUserMessage): boolean {
+	if (hasSyntheticKindTag(message)) {
+		return true
+	}
 	const text = extractSdkUserText(message)
 	return !!text && isSyntheticUserPrompt(text) && !hasAttachmentBlocks(message)
 }

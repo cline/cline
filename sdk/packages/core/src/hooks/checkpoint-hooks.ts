@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import type { AgentHooks, BasicLogger } from "@cline/shared";
+import type { AgentHooks, AgentMessage, BasicLogger } from "@cline/shared";
+import { normalizeUserInput, stripModeNotices } from "@cline/shared";
 
 const execFile = promisify(execFileCallback);
 
@@ -34,14 +35,85 @@ type CreateCheckpointHooksOptions = {
 		sessionId: string;
 		runCount: number;
 	}) => Promise<CheckpointEntry | undefined> | CheckpointEntry | undefined;
-	/**
-	 * Starting value for the internal run counter. Use this when a session
-	 * is created with initial messages (e.g. after a checkpoint restore) so
-	 * that new checkpoint entries get runCount values that don't collide
-	 * with entries carried over from the source session.
-	 */
-	initialRunCount?: number;
 };
+
+/**
+ * Metadata `kind` tags that mark a `role: "user"` message as synthetic and
+ * system-injected rather than typed by the user. Keep in sync with the tags
+ * applied in session-runtime-orchestrator.ts, agent-runtime.ts
+ * (addUserReminderMessage), and the compaction extensions.
+ */
+const SYNTHETIC_USER_MESSAGE_KINDS = new Set([
+	"recovery_notice",
+	"loop_detection_notice",
+	"mistake_stop_notice",
+	"completion_reminder",
+	"compaction",
+	"compaction_summary",
+]);
+
+/**
+ * Host continuation prompts (task resumption after an interruption, the VS
+ * Code plan -> act auto-continue) are sent as `role: "user"` messages but have
+ * no user-authored counterpart in the visible transcript. They must not count
+ * as new runs, or the recorded checkpoint numbers drift from the transcript's
+ * turn ordinals and restore fails with "No checkpoint found at or before run
+ * N". Persisted prompts are wrapped as `<user_input mode="...">...` and may
+ * carry a `<mode_notice>` prefix, so both are stripped before matching. Keep
+ * in sync with apps/vscode/src/sdk/sdk-user-message-mapping.ts.
+ */
+function isSyntheticContinuationPrompt(text: string): boolean {
+	const normalized = stripModeNotices(normalizeUserInput(text));
+	return (
+		normalized.startsWith("[TASK RESUMPTION]") ||
+		normalized ===
+			"The user approved switching to act mode. Continue with the approved plan now."
+	);
+}
+
+/**
+ * A message counts as a genuine user turn only if it is user-role, not tagged
+ * as a synthetic system notice, and carries visible user input (non-empty
+ * text or an image/file attachment). An attachment-carrying continuation
+ * prompt still counts: the host shows a bubble for the attachment.
+ */
+function isGenuineUserMessage(message: AgentMessage): boolean {
+	if (message.role !== "user") {
+		return false;
+	}
+	const kind = message.metadata?.kind;
+	if (typeof kind === "string" && SYNTHETIC_USER_MESSAGE_KINDS.has(kind)) {
+		return false;
+	}
+	const text = message.content
+		.map((part) =>
+			part.type === "text"
+				? part.text.trim()
+				: part.type === "file"
+					? part.content.trim()
+					: "",
+		)
+		.filter(Boolean)
+		.join("\n")
+		.trim();
+	const hasAttachments = message.content.some(
+		(part) => part.type === "image" || part.type === "file",
+	);
+	if (!text && !hasAttachments) {
+		return false;
+	}
+	return hasAttachments || !isSyntheticContinuationPrompt(text);
+}
+
+function countGenuineUserMessages(messages: readonly AgentMessage[]): number {
+	let count = 0;
+	for (const message of messages) {
+		if (isGenuineUserMessage(message)) {
+			count += 1;
+		}
+	}
+	return count;
+}
 
 function warn(logger: BasicLogger | undefined, message: string): void {
 	logger?.log(message, { severity: "warn" });
@@ -155,7 +227,6 @@ function upsertCheckpointHistory(
 export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
-	let runCount = options.initialRunCount ?? 0;
 	let repoSupported: boolean | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
@@ -174,7 +245,9 @@ export function createCheckpointHooks(
 		return repoSupported;
 	};
 
-	const createCheckpoint = async (): Promise<CheckpointEntry | undefined> => {
+	const createCheckpoint = async (
+		runCount: number,
+	): Promise<CheckpointEntry | undefined> => {
 		if (options.createCheckpoint) {
 			return await options.createCheckpoint({
 				cwd: options.cwd,
@@ -253,22 +326,37 @@ export function createCheckpointHooks(
 	};
 
 	return {
-		beforeRun: async ({ snapshot }) => {
-			if (snapshot.parentAgentId != null) {
-				return undefined;
-			}
-			runCount += 1;
-			return undefined;
-		},
+		// The run number is derived from the count of genuine user turns in the
+		// snapshot rather than a counter incremented per run()/continue()
+		// invocation: internal continuations (retries, recovery notices,
+		// auto-continues) invoke the runtime without a new user turn, which
+		// silently drifts a counter away from the transcript ordinals the host
+		// restores by (apps/vscode/src/sdk/sdk-checkpoints.ts) and makes
+		// restore fail with "No checkpoint found at or before run N".
 		beforeModel: async ({ snapshot }) => {
-			if (
-				snapshot.parentAgentId != null ||
-				snapshot.iteration !== 1 ||
-				runCount < 1
-			) {
+			if (snapshot.parentAgentId != null || snapshot.iteration !== 1) {
 				return undefined;
 			}
-			const entry = await createCheckpoint();
+			// A run triggered by a synthetic message (recovery notice, host
+			// continuation prompt) is not a new user turn: the genuine count is
+			// unchanged, so writing a checkpoint here would overwrite the entry
+			// recorded at the start of the CURRENT turn with a snapshot of that
+			// turn's half-finished workspace state.
+			for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
+				const message = snapshot.messages[index];
+				if (message?.role !== "user") {
+					continue;
+				}
+				if (!isGenuineUserMessage(message)) {
+					return undefined;
+				}
+				break;
+			}
+			const runCount = countGenuineUserMessages(snapshot.messages);
+			if (runCount < 1) {
+				return undefined;
+			}
+			const entry = await createCheckpoint(runCount);
 			if (!entry) {
 				return undefined;
 			}

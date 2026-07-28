@@ -129,6 +129,18 @@ describe("findSdkUserMessageIndexByOrdinal", () => {
 
 		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(2)
 	})
+
+	it("skips kind-tagged synthetic user messages (recovery notices, reminders)", () => {
+		const messages = [
+			user("task"),
+			assistant("working"),
+			{ role: "user", content: "A transient error occurred, continuing.", metadata: { kind: "recovery_notice" } },
+			{ role: "user", content: "Remember to call attempt_completion.", metadata: { kind: "completion_reminder" } },
+			user("follow-up"),
+		]
+
+		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(4)
+	})
 })
 
 describe("extractSdkUserText", () => {

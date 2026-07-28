@@ -190,6 +190,12 @@ export async function compareCheckpointToWorkspace(): Promise<CheckpointWorkspac
 	throw new Error("compareCheckpointToWorkspace is not implemented in the Vitest @cline/core stub")
 }
 
+export { retainCheckpointRefs } from "../../../../sdk/packages/core/src/hooks/checkpoint-hooks"
+// Real (dependency-light) checkpoint helpers re-exported from the sdk source
+// (same pattern as the executors above): only pull in @cline/llms types and
+// node:child_process, not the heavy core runtime.
+export { createRestoredCheckpointMetadata } from "../../../../sdk/packages/core/src/session/checkpoint-restore"
+
 export type CoreSessionEvent = { type: string; payload?: unknown }
 
 export type TelemetryProperties = Record<string, unknown>

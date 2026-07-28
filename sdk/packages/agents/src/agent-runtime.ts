@@ -582,7 +582,11 @@ export class AgentRuntime {
 	}
 
 	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
-		const reminderMessage = createMessage("user", [{ type: "text", text }]);
+		// Tagged so checkpoint run counting can exclude this synthetic message
+		// (see sdk/packages/core/src/hooks/checkpoint-hooks.ts).
+		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			kind: "completion_reminder",
+		});
 		this.state.messages.push(reminderMessage);
 		await this.emit({
 			type: "message-added",

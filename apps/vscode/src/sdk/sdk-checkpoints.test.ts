@@ -97,4 +97,37 @@ describe("SDK checkpoint user-run mapping", () => {
 		expect(findVisibleCheckpointUserMessageByRun(messages, 1)?.message.text).toBe("start")
 		expect(findVisibleCheckpointUserMessageByRun(messages, 2)?.message.text).toBe("next task")
 	})
+
+	it("does not count tool approval rejection feedback as a checkpoint run", () => {
+		const toolAsk: ClineMessage = { ts: 3, type: "ask", ask: "tool", text: "{}", partial: false }
+		const messages = [
+			userTask("start", 1),
+			checkpointRow(1, 2),
+			toolAsk,
+			userFeedback("no, use the other file", 4),
+			assistant("understood", 5),
+			userFeedback("next task", 6),
+		]
+
+		expect(isCheckpointAnswerMessage(messages, 3)).toBe(true)
+		expect(getCheckpointRunCountForMessage(messages, 3)).toBeUndefined()
+		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
+	})
+
+	it("counts a follow-up sent after the run progressed past a resolved ask as its own run", () => {
+		const toolAsk: ClineMessage = { ts: 2, type: "ask", ask: "tool", text: "{}", partial: false }
+		const apiReqStarted: ClineMessage = { ts: 3, type: "say", say: "api_req_started", text: "{}", partial: false }
+		const completion: ClineMessage = { ts: 5, type: "say", say: "completion_result", text: "done", partial: false }
+		const messages = [
+			userTask("start", 1),
+			toolAsk,
+			apiReqStarted,
+			assistant("done", 4),
+			completion,
+			userFeedback("follow-up", 6),
+		]
+
+		expect(isCheckpointAnswerMessage(messages, 5)).toBe(false)
+		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
+	})
 })

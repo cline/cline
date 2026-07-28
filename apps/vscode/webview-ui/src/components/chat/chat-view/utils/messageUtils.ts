@@ -77,6 +77,20 @@ function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
 	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
 }
 
+// Keep in sync with the extension's copy in src/sdk/sdk-checkpoints.ts.
+const IN_RUN_ANSWER_ASKS = new Set<string>([
+	"followup",
+	"plan_mode_respond",
+	"act_mode_respond",
+	"mistake_limit_reached",
+	"tool",
+	"command",
+	"command_output",
+	"use_mcp_server",
+	"use_subagents",
+	"browser_action_launch",
+])
+
 function isCheckpointAnswerMessage(messages: ClineMessage[], index: number): boolean {
 	const message = messages[index]
 	if (message?.type !== "say" || message.say !== "user_feedback") {
@@ -89,9 +103,14 @@ function isCheckpointAnswerMessage(messages: ClineMessage[], index: number): boo
 			continue
 		}
 		if (previous.type === "ask") {
-			return previous.ask === "followup" || previous.ask === "mistake_limit_reached"
+			return IN_RUN_ANSWER_ASKS.has(previous.ask ?? "")
 		}
-		if (isVisibleCheckpointUserMessage(previous)) {
+		if (
+			isVisibleCheckpointUserMessage(previous) ||
+			previous.say === "api_req_started" ||
+			previous.say === "error" ||
+			previous.say === "completion_result"
+		) {
 			return false
 		}
 	}

@@ -429,9 +429,12 @@ export class SessionRuntime {
 			getConversationId: () => this.conversation.getConversationId(),
 			getActiveRunId: () => this.activeRunId ?? "",
 			appendRecoveryNotice: (message, _reason) => {
+				// Tagged so checkpoint run counting can exclude this synthetic
+				// message (see ../../hooks/checkpoint-hooks.ts).
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: message }],
+					metadata: { kind: "recovery_notice" },
 				});
 			},
 		});
@@ -1258,6 +1261,7 @@ export class SessionRuntime {
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: verdict.message }],
+					metadata: { kind: "loop_detection_notice" },
 				});
 			}
 			return;
@@ -1303,6 +1307,7 @@ export class SessionRuntime {
 				this.conversation.appendMessage({
 					role: "user",
 					content: [{ type: "text", text: outcome.message }],
+					metadata: { kind: "mistake_stop_notice" },
 				});
 				this.activeRuntime?.abort(outcome.reason ?? outcome.message);
 			}
