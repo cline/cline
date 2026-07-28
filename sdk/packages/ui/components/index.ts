@@ -1,6 +1,11 @@
 "use client";
 
 export {
+	type AgentQuickAction,
+	AgentQuickActions,
+	type AgentQuickActionsProps,
+} from "./agent-quick-actions.js";
+export {
 	SessionStatus,
 	type SessionStatusProps,
 	type SessionStatusTone,
