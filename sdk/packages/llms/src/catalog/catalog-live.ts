@@ -1,4 +1,5 @@
 import {
+	MODELS_DEV_BLOCKED_MODEL_IDS,
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
@@ -270,9 +271,14 @@ export function normalizeModelsDevProviderModels(
 			continue;
 		}
 
+		const blockedModelIds = MODELS_DEV_BLOCKED_MODEL_IDS[targetProviderId];
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
-			if (model.tool_call !== true || isDeprecatedModel(model)) {
+			if (
+				model.tool_call !== true ||
+				isDeprecatedModel(model) ||
+				blockedModelIds?.has(modelId)
+			) {
 				continue;
 			}
 			models[modelId] = toModelInfo(modelId, model);

@@ -168,6 +168,26 @@ export const MODELS_DEV_PROVIDER_KEY_MAP = Object.fromEntries(
  */
 export const MODELS_DEV_BLOCKED_PROVIDER_IDS: ReadonlySet<string> = new Set();
 
+/**
+ * Models retired by their provider but not yet flagged `status: "deprecated"`
+ * on models.dev. Filtered out of both the generated catalog and runtime live
+ * fetches so pickers don't offer model IDs that error on every request. Keyed
+ * by Cline's generated provider identifier. Remove entries once the upstream
+ * models.dev catalog marks them deprecated.
+ */
+export const MODELS_DEV_BLOCKED_MODEL_IDS: Readonly<
+	Record<string, ReadonlySet<string>>
+> = {
+	// Deprecated by Baseten at 5pm PT on 2026-07-24; the IDs now return errors:
+	// https://www.baseten.co/resources/changelog/model-deprecation-glm5-glm51-kimik25-nemosuper120b/
+	baseten: new Set([
+		"zai-org/GLM-5.1",
+		"zai-org/GLM-5",
+		"moonshotai/Kimi-K2.5",
+		"nvidia/Nemotron-120B-A12B",
+	]),
+};
+
 export const MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS = new Set(
 	PROVIDER_IDS_MAP.map((entry) => entry.modelsDevKey),
 );
