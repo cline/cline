@@ -84,6 +84,13 @@ function createAttemptCompletionTool(options: { cwd?: string } = {}): AgentTool 
 			},
 			required: ["result"],
 		},
+		// Ends the agent run after a successful call. Without this the runtime
+		// loops back for another model request after every attempt_completion —
+		// wasting a request per task at best, and looping unboundedly if the
+		// model keeps calling attempt_completion.
+		lifecycle: {
+			completesRun: true,
+		},
 		execute: async (input: unknown, context: AgentToolContext) => {
 			const parsedInput = input && typeof input === "object" ? (input as Record<string, unknown>) : {}
 			const resultText = typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."

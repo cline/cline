@@ -422,6 +422,16 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("bounds the agent loop with a finite maxIterations", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// An undefined maxIterations lets a run loop on model requests forever
+		// (ENG-2331: 1,000+ requests observed in a single task).
+		expect(config.maxIterations).toBeDefined()
+		expect(Number.isFinite(config.maxIterations)).toBe(true)
+		expect(config.maxIterations).toBeGreaterThan(0)
+	})
+
 	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
