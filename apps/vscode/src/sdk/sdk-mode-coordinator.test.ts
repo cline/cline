@@ -471,6 +471,42 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
 
+	it("seeds the rebuilt session from the task transcript when no history was committed", async () => {
+		// A toggle during a task's first turn aborts it before the SDK commits
+		// anything, so loadInitialMessages comes back empty; the rebuild must
+		// fall back to the UI transcript instead of starting the new mode blank.
+		const activeSession = makeActiveSession({ isRunning: true })
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "task", text: "Create greeting.txt with hello" },
+			{ ts: 2, type: "say", say: "text", text: "I will create the file.", partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		options.loadInitialMessages.mockResolvedValueOnce(undefined)
+
+		await coordinator.rebuildSessionForMode("act")
+
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: [
+					{ role: "user", content: "Create greeting.txt with hello" },
+					{ role: "assistant", content: "I will create the file." },
+				],
+			}),
+		)
+	})
+
+	it("prefers committed history over the transcript fallback", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [{ ts: 1, type: "say", say: "task", text: "from transcript" }])
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.rebuildSessionForMode("act")
+
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: [{ role: "user", content: "hello" }] }),
+		)
+	})
+
 	describe("mode switch notices", () => {
 		it("records a notice for a manual toggle and consumes it exactly once", async () => {
 			const activeSession = makeActiveSession()
