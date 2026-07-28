@@ -30,6 +30,7 @@ interface AgentEventDeps {
 	}) => void;
 	onTurnErrorReported: TuiProps["onTurnErrorReported"];
 	verbose: boolean;
+	modelId?: string;
 }
 
 export function useAgentEventHandlers(deps: AgentEventDeps) {
@@ -45,6 +46,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		addUsageDelta,
 		onTurnErrorReported,
 		verbose,
+		modelId,
 	} = deps;
 
 	// Compaction dividers that arrived while an assistant message was still
@@ -224,7 +226,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					if (!event.recoverable || verbose) {
 						appendEntry({
 							kind: "error",
-							text: formatCliErrorMessage(event.error),
+							text: formatCliErrorMessage(event.error, { modelId }),
 						});
 					}
 					break;
@@ -289,6 +291,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 			addUsageDelta,
 			onTurnErrorReported,
 			verbose,
+			modelId,
 			closeToolEntry,
 			finalizeDanglingCompactionEntry,
 			flushPendingCompactionEntries,
