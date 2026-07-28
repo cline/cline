@@ -1,4 +1,5 @@
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -106,7 +107,20 @@ export class SdkTaskControlCoordinator {
 		this.options.resetMessageTranslator()
 	}
 
-	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
+	/**
+	 * Opens a task from History. The view generation is allocated synchronously
+	 * on entry — BEFORE any asynchronous work, including the history lookup —
+	 * so the newest user selection always holds the newest generation and every
+	 * older in-flight request self-abandons at its next fence check. (The
+	 * lookup used to live in SdkController before the generation was taken; a
+	 * stalled preflight could then re-enter with a NEWER generation than a
+	 * later selection and replace it.)
+	 *
+	 * Returns the task's HistoryItem, or undefined when the task is unknown.
+	 * A superseded call still returns the item (the lookup succeeded); it just
+	 * skips mutating the task view.
+	 */
+	async showTaskWithId(taskId: string): Promise<HistoryItem | undefined> {
 		const generation = ++this.taskViewGeneration
 		const isSuperseded = (): boolean => {
 			if (generation === this.taskViewGeneration) {
@@ -115,15 +129,26 @@ export class SdkTaskControlCoordinator {
 			Logger.debug(`[SdkController] showTaskWithId superseded by a newer selection; skipping: ${taskId}`)
 			return true
 		}
-		try {
-			if (!options.skipHistoryLookup) {
-				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
-				if (!historyItem) {
-					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-					return
-				}
-			}
 
+		let historyItem: HistoryItem | undefined
+		try {
+			historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+		} catch (error) {
+			Logger.error(`[SdkController] Failed to look up task in history: ${taskId}`, error)
+			return undefined
+		}
+		if (!historyItem) {
+			Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+			return undefined
+		}
+
+		// FENCE: before stopping the active session. A superseded request must
+		// not stop a session that a newer selection just started or resumed.
+		if (isSuperseded()) {
+			return historyItem
+		}
+
+		try {
 			// When reopening the task that is currently active, wait for its stop to
 			// land so the persisted session status read below reflects how the last
 			// turn actually ended (completed vs cancelled) instead of a transient
@@ -138,7 +163,7 @@ export class SdkTaskControlCoordinator {
 			// newer showTaskWithId/clearTask started while this call awaited I/O,
 			// bail out so the stale request cannot clobber the newer selection.
 			if (isSuperseded()) {
-				return
+				return historyItem
 			}
 
 			const currentTask = this.options.getTask()
@@ -154,7 +179,7 @@ export class SdkTaskControlCoordinator {
 			const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
 			if (isSuperseded()) {
-				return
+				return historyItem
 			}
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = isLegacyTask
@@ -200,6 +225,7 @@ export class SdkTaskControlCoordinator {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)
 		}
+		return historyItem
 	}
 
 	private appendFreshResumeMessage(messages: ClineMessage[], sessionStatus?: string): ClineMessage[] {

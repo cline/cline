@@ -195,6 +195,42 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.setTurnPhase).toHaveBeenCalledWith("idle")
 	})
 
+	it("keeps the newest selection when an older open's history lookup resolves last", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		// Task A's preflight history lookup stalls. The view generation must be
+		// allocated BEFORE this await: when the lookup used to live in
+		// SdkController ahead of the coordinator, a stalled lookup re-entered
+		// with a NEWER generation than a later selection and replaced it.
+		let resolveLookup: ((item: unknown) => void) | undefined
+		options.taskHistory.findHistoryItem.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveLookup = resolve
+				}),
+		)
+
+		const staleOpen = coordinator.showTaskWithId("task-old")
+
+		// Task B is selected afterwards and loads successfully.
+		await coordinator.showTaskWithId("task-new")
+		expect(state.task?.taskId).toBe("task-new")
+		const endActiveSessionCalls = options.sessions.endActiveSession.mock.calls.length
+
+		// Task A's lookup finally resolves. It must neither stop the session the
+		// newer selection installed nor replace the selection.
+		resolveLookup?.({ id: "task-old", ts: 1, task: "old", tokensIn: 0, tokensOut: 0, totalCost: 0 })
+		const staleResult = await staleOpen
+
+		expect(staleResult).toBeDefined()
+		expect(state.task?.taskId).toBe("task-new")
+		expect(options.sessions.endActiveSession.mock.calls.length).toBe(endActiveSessionCalls)
+	})
+
 	it("abandons a superseded showTaskWithId so the newest selection wins", async () => {
 		const { coordinator, options, state } = makeCoordinator({
 			hasHistoryItem: true,
