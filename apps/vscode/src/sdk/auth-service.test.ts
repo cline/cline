@@ -9,6 +9,7 @@
 // - workos: prefix handling
 
 import { getValidClineCredentials, type ITelemetryService, type OAuthCredentials } from "@cline/core"
+import axios from "axios"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
@@ -547,6 +548,158 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
+		})
+	})
+
+	describe("manual API key authentication (providers.json settings.apiKey)", () => {
+		const apiKeyUserInfo = {
+			id: "user-apikey",
+			email: "apikey@example.com",
+			displayName: "Api Key User",
+			organizations: [],
+		}
+
+		function mockUserInfoFetchSuccess() {
+			vi.mocked(axios.get).mockResolvedValue({
+				status: 200,
+				data: { data: apiKeyUserInfo },
+			})
+		}
+
+		it("restores authenticated state from a manual API key when no OAuth session exists", async () => {
+			mockProviderSettings.set("cline", { provider: "cline", apiKey: "manual-cline-key" })
+			mockUserInfoFetchSuccess()
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("manual-cline-key")
+			expect(testAccess(authService)._clineAuthInfo?.authMethod).toBe("apiKey")
+			expect(testAccess(authService)._clineAuthInfo?.apiKeyProviderId).toBe("cline")
+			expect(testAccess(authService)._clineAuthInfo?.userInfo).toEqual(apiKeyUserInfo)
+			expect(authService.getInfo().user?.email).toBe("apikey@example.com")
+		})
+
+		it("sends the API key as a raw bearer token without the workos: prefix", async () => {
+			mockProviderSettings.set("cline", { provider: "cline", apiKey: "manual-cline-key" })
+			mockUserInfoFetchSuccess()
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				"https://api.cline.bot/api/v1/users/me",
+				expect.objectContaining({
+					headers: expect.objectContaining({ Authorization: "Bearer manual-cline-key" }),
+				}),
+			)
+		})
+
+		it("falls back to a cline-pass API key when the cline provider has none", async () => {
+			mockProviderSettings.set("cline-pass", { provider: "cline-pass", apiKey: "manual-pass-key" })
+			mockUserInfoFetchSuccess()
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("manual-pass-key")
+			expect(testAccess(authService)._clineAuthInfo?.apiKeyProviderId).toBe("cline-pass")
+		})
+
+		it("prefers OAuth credentials over a manual API key when both exist", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				apiKey: "manual-cline-key",
+				auth: { accessToken: "workos:oauth-token", refreshToken: "r", accountId: "user-123" },
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "oauth-token",
+				refresh: "r",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+			})
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("oauth-token")
+			expect(testAccess(authService)._clineAuthInfo?.authMethod).not.toBe("apiKey")
+		})
+
+		it("falls back to the manual API key when the stored OAuth session is unrecoverable", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				apiKey: "manual-cline-key",
+				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue(null)
+			mockUserInfoFetchSuccess()
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("manual-cline-key")
+			expect(testAccess(authService)._clineAuthInfo?.authMethod).toBe("apiKey")
+			// The stale OAuth auth block is cleared, but the API key survives.
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			expect(mockProviderSettings.get("cline")?.apiKey).toBe("manual-cline-key")
+		})
+
+		it("stays signed out when the API key cannot be validated", async () => {
+			mockProviderSettings.set("cline", { provider: "cline", apiKey: "invalid-key" })
+			vi.mocked(axios.get).mockRejectedValue(new Error("401 Unauthorized"))
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(testAccess(authService)._clineAuthInfo).toBeNull()
+			// The key must not be deleted — it may be a transient network failure.
+			expect(mockProviderSettings.get("cline")?.apiKey).toBe("invalid-key")
+		})
+
+		it("getAuthToken() returns the raw API key without the workos: prefix", async () => {
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				idToken: "manual-cline-key",
+				refreshToken: undefined,
+				expiresAt: undefined,
+				authMethod: "apiKey",
+				apiKeyProviderId: "cline",
+			})
+			testAccess(authService)._authenticated = true
+
+			expect(await authService.getAuthToken()).toBe("manual-cline-key")
+		})
+
+		it("handleDeauth() removes the manual API key so logout sticks", async () => {
+			mockProviderSettings.set("cline", { provider: "cline", apiKey: "manual-cline-key", model: "some-model" })
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				idToken: "manual-cline-key",
+				authMethod: "apiKey",
+				apiKeyProviderId: "cline",
+			})
+			testAccess(authService)._authenticated = true
+
+			await authService.handleDeauth(LogoutReason.USER_INITIATED)
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(mockProviderSettings.get("cline")?.apiKey).toBeUndefined()
+			// Other provider settings survive logout.
+			expect(mockProviderSettings.get("cline")?.model).toBe("some-model")
+		})
+
+		it("handleDeauth() leaves manual API keys alone for OAuth sessions", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				apiKey: "manual-cline-key",
+				auth: { accessToken: "workos:oauth-token" },
+			})
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo()
+			testAccess(authService)._authenticated = true
+
+			await authService.handleDeauth(LogoutReason.USER_INITIATED)
+
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			expect(mockProviderSettings.get("cline")?.apiKey).toBe("manual-cline-key")
 		})
 	})
 
