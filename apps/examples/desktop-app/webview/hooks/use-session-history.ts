@@ -92,7 +92,10 @@ export type UseSessionHistoryOptions = {
 	) => void;
 };
 
-const INITIAL_HISTORY_FETCH_LIMIT = 300;
+// Kept small on purpose: the sidebar shows 10 threads and the sessions view
+// pages 10 at a time, so the mount fetch (and every 12s poll after it) only
+// needs enough rows for the first few pages. Older pages are fetched on demand.
+const INITIAL_HISTORY_FETCH_LIMIT = 50;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -480,6 +483,7 @@ export function useSessionHistory({
 	const [threads, setThreads] = useState<SessionThread[]>([]);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
 		useState<SessionPendingAction>(null);
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
@@ -541,6 +545,10 @@ export function useSessionHistory({
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
 					.catch(() => []);
+				// Ask the raw response, not the filtered list: subagents and
+				// sessions without a known model are dropped below, so a filtered
+				// count under the limit does not mean the backend is exhausted.
+				setMayHaveMoreSessions(discovered.length >= limit);
 				const topLevelSessions = discovered
 					.map((session) => {
 						const normalized: SessionHistoryItem = {
@@ -1261,7 +1269,6 @@ export function useSessionHistory({
 		[loadMoreSessions],
 	);
 
-	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const sessionById = useMemo(
 		() => new Map(sessions.map((session) => [session.sessionId, session])),
 		[sessions],

@@ -4,6 +4,8 @@ import { SessionStatus } from "@cline/ui";
 import {
 	ArrowUpDown,
 	Check,
+	ChevronLeft,
+	ChevronRight,
 	Filter,
 	Folder,
 	GitFork,
@@ -14,7 +16,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -54,6 +56,8 @@ type SessionsViewProps = {
 	history: UseSessionHistoryResult;
 };
 
+const PAGE_SIZE = 10;
+
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
 		return `${thread.provider}:${thread.model}`;
@@ -61,11 +65,26 @@ function modelLabel(thread: SessionThread): string {
 	return thread.model || thread.provider || "No model";
 }
 
+export function formatCompactTokens(value: number): string {
+	if (!Number.isFinite(value) || value < 0) {
+		return "0";
+	}
+	if (value >= 1_000_000) {
+		return `${(value / 1_000_000).toFixed(1)}m`;
+	}
+	if (value >= 1_000) {
+		return `${(value / 1_000).toFixed(1)}k`;
+	}
+	return `${value}`;
+}
+
 function tokensLabel(thread: SessionThread): string {
 	if (thread.inputTokens == null && thread.outputTokens == null) {
 		return "-";
 	}
-	return `${thread.inputTokens ?? 0}/${thread.outputTokens ?? 0}`;
+	const input = formatCompactTokens(thread.inputTokens ?? 0);
+	const output = formatCompactTokens(thread.outputTokens ?? 0);
+	return `${input}/${output}`;
 }
 
 function sessionFilterDetails(
@@ -101,6 +120,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
+	const [page, setPage] = useState(0);
 
 	const filterOptions = useMemo(
 		() =>
@@ -154,6 +174,39 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		sortDirection,
 	]);
 
+	const pageCount = Math.max(1, Math.ceil(filteredThreads.length / PAGE_SIZE));
+	const currentPage = Math.min(page, pageCount - 1);
+	const pageStart = currentPage * PAGE_SIZE;
+	const visibleThreads = useMemo(
+		() => filteredThreads.slice(pageStart, pageStart + PAGE_SIZE),
+		[filteredThreads, pageStart],
+	);
+	// Search and filters only see loaded sessions, so paging past the last
+	// local page may only fetch when the full list is shown.
+	const canGoNext =
+		currentPage + 1 < pageCount ||
+		(history.mayHaveMoreSessions && !query && sessionFilters.length === 0);
+
+	// Snap back when a page disappears (filters changed, or "next" asked the
+	// backend for older sessions and there were none left).
+	useEffect(() => {
+		setPage((current) => Math.min(current, pageCount - 1));
+	}, [pageCount]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: restart paging whenever the result set changes
+	useEffect(() => {
+		setPage(0);
+	}, [query, sessionFilters, sortDirection]);
+
+	const goToNextPage = async () => {
+		const nextPage = currentPage + 1;
+		if (nextPage >= pageCount && history.mayHaveMoreSessions) {
+			// Only page boundaries hit the backend; the mount fetch stays small.
+			await history.loadOlderSessions();
+		}
+		setPage(nextPage);
+	};
+
 	const toggleFilter = (detail: string, checked: boolean) => {
 		setSessionFilters((current) => {
 			if (checked) {
@@ -161,6 +214,17 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 			}
 			return current.filter((item) => item !== detail);
 		});
+	};
+
+	const openRow = (thread: SessionThread) => {
+		if (history.pendingAction?.sessionId === thread.id) {
+			return;
+		}
+		// Don't open the session when the click only finished a text selection.
+		if (window.getSelection()?.toString()) {
+			return;
+		}
+		history.openThread(thread.id);
 	};
 
 	const startRename = (thread: SessionThread) => {
@@ -285,13 +349,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 
 			<section className="min-h-0 flex-1 overflow-auto px-18 pb-10 max-[1200px]:px-8 max-[720px]:px-4">
 				<div className="min-w-240 overflow-hidden rounded-lg border bg-card">
-					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_2.5rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
-						<span>Session</span>
+					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
+						<span>Title</span>
 						<span>Workspace</span>
 						<span>Model</span>
 						<span>Tokens</span>
 						<span>Cost</span>
-						<span>Updated</span>
+						<span>Time</span>
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
@@ -308,7 +372,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 									: "No sessions match the current filters."}
 							</div>
 						) : null}
-						{filteredThreads.map((thread) => {
+						{visibleThreads.map((thread) => {
 							const session = history.sessionById.get(thread.id);
 							const isEditing = editingSessionId === thread.id;
 							const isPending = history.pendingAction?.sessionId === thread.id;
@@ -322,7 +386,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							return (
 								<div
 									className={cn(
-										"grid min-h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_2.5rem] items-center gap-x-4 border-t px-4 py-3 text-sm transition-colors",
+										// Fixed height: every row is the same size so the table
+										// never reflows as long values wrap or hydrate in.
+										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
 										activeSessionId === thread.id
 											? "bg-accent/50"
 											: "hover:bg-accent/30",
@@ -381,7 +447,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													<X className="size-4" />
 												</Button>
 											</div>
-											<span className="truncate text-muted-foreground">
+											<span
+												className="truncate text-muted-foreground"
+												title={modelLabel(thread)}
+											>
 												{modelLabel(thread)}
 											</span>
 											<span className="text-muted-foreground">
@@ -395,20 +464,27 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											</span>
 										</form>
 									) : (
-										<button
-											className="col-span-6 grid cursor-pointer select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 border-0 bg-transparent p-0 text-left font-inherit text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-default"
-											disabled={Boolean(pendingKind)}
-											onClick={() => {
-												if (pendingKind) {
+										// A native <button> suppresses drag-to-select, so the row is a
+										// plain container with button semantics: the cells stay
+										// selectable and a click that ends a selection does not open
+										// the session.
+										// biome-ignore lint/a11y/useSemanticElements: buttons are not text-selectable
+										<div
+											aria-disabled={Boolean(pendingKind)}
+											className={cn(
+												"col-span-6 grid select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+												pendingKind ? "cursor-default" : "cursor-pointer",
+											)}
+											onClick={() => openRow(thread)}
+											onKeyDown={(event) => {
+												if (event.key !== "Enter" && event.key !== " ") {
 													return;
 												}
-												// Don't open the session when the user is selecting text.
-												if (window.getSelection()?.toString()) {
-													return;
-												}
-												history.openThread(thread.id);
+												event.preventDefault();
+												openRow(thread);
 											}}
-											type="button"
+											role="button"
+											tabIndex={pendingKind ? -1 : 0}
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
 												<span className="sr-only">Open session: </span>
@@ -432,19 +508,22 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													{workspace ? basenamePath(workspace) : "No workspace"}
 												</span>
 											</span>
-											<span className="truncate text-muted-foreground">
+											<span
+												className="truncate text-muted-foreground"
+												title={modelLabel(thread)}
+											>
 												{modelLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{tokensLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{formatCostUsd(thread.totalCostUsd) ?? "-"}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{updated || thread.time}
 											</span>
-										</button>
+										</div>
 									)}
 									<div>
 										<DropdownMenu>
@@ -487,22 +566,45 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								</div>
 							);
 						})}
-						{history.mayHaveMoreSessions ? (
-							<div className="border-t px-4 py-3">
-								<Button
-									className="h-8 rounded-md px-3 text-xs"
-									disabled={history.isLoadingMore}
-									onClick={() =>
-										void history.loadMoreSessions(history.threads.length + 100)
-									}
-									type="button"
-									variant="outline"
-								>
-									{history.isLoadingMore ? (
-										<Loader2 className="size-3.5 animate-spin" />
-									) : null}
-									Load more
-								</Button>
+						{filteredThreads.length > 0 ? (
+							<div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
+								<span>
+									{`${pageStart + 1}-${pageStart + visibleThreads.length} of ${filteredThreads.length}`}
+									{history.mayHaveMoreSessions ? "+" : ""}
+								</span>
+								<div className="flex items-center gap-2">
+									<Button
+										aria-label="Previous page"
+										className="h-8 rounded-md px-2.5"
+										disabled={currentPage === 0 || history.isLoadingMore}
+										onClick={() => setPage(currentPage - 1)}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<ChevronLeft className="size-4" />
+									</Button>
+									<span className="tabular-nums">
+										{`Page ${currentPage + 1}${
+											history.mayHaveMoreSessions ? "" : ` of ${pageCount}`
+										}`}
+									</span>
+									<Button
+										aria-label="Next page"
+										className="h-8 rounded-md px-2.5"
+										disabled={!canGoNext || history.isLoadingMore}
+										onClick={() => void goToNextPage()}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										{history.isLoadingMore ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<ChevronRight className="size-4" />
+										)}
+									</Button>
+								</div>
 							</div>
 						) : null}
 					</div>
