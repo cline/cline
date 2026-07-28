@@ -46,14 +46,17 @@ export function AgentQuickActions({
 						aria-hidden="true"
 						className="cline-ui-agent-quick-actions__arrow"
 					>
-						<svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-							<path
-								d="M5 12h14M12 5l7 7-7 7"
-								stroke="currentColor"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth="2"
-							/>
+						<svg
+							aria-hidden="true"
+							fill="none"
+							stroke="currentColor"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth="2"
+							viewBox="0 0 24 24"
+						>
+							<path d="M5 12h14" />
+							<path d="m12 5 7 7-7 7" />
 						</svg>
 					</span>
 				</button>
