@@ -39,6 +39,36 @@ describe("shouldZeroClineFreeModelCost", () => {
 		);
 	});
 
+	it("matches cline-free model ids from the free endpoint bucket exactly", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						free: [{ id: "cline-free/deepseek-v4-flash" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}),
+		);
+
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline",
+				modelId: "cline-free/deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(true);
+
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline-pass",
+				modelId: "deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(false);
+	});
+
 	it("does not zero non-Cline providers", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
