@@ -1,5 +1,6 @@
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineFreeModelLimitMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitMessage,
@@ -16,6 +17,7 @@ export enum ClineErrorType {
 	Entitlement = "entitlement",
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
+	ClineFreeModelLimit = "clineFreeModelLimit",
 }
 
 interface ErrorDetails {
@@ -183,6 +185,13 @@ export class ClineError extends Error {
 			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
 		) {
 			return ClineErrorType.Entitlement
+		}
+
+		if (
+			(detailMessage ? isClineFreeModelLimitMessage(detailMessage) : false) ||
+			(rawMessage ? isClineFreeModelLimitMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.ClineFreeModelLimit
 		}
 
 		if (
