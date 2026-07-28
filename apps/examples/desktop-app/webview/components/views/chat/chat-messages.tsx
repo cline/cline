@@ -21,18 +21,24 @@ import {
 } from "@cline/ui/components/agent-chat";
 import {
 	AlertCircle,
+	BlocksIcon,
+	BoxIcon,
 	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
 	FilesIcon,
+	LibraryIcon,
 	Loader2,
 	type LucideIcon,
+	MessageCircleQuestionMarkIcon,
 	MessagesSquare,
+	PanelsTopLeftIcon,
 	PencilIcon,
 	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
+	SquareArrowRightIcon,
 	TerminalIcon,
 	UndoIcon,
 	UserIcon,
@@ -1230,17 +1236,25 @@ function parseToolPayload(raw: string): ToolPayload | null {
 
 const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
 	apply_patch: PencilIcon,
+	ask_question: MessageCircleQuestionMarkIcon,
 	editor: PencilIcon,
+	fetch_web_content: PanelsTopLeftIcon,
+	mcp: BoxIcon,
+	plugins: BlocksIcon,
 	read_files: FilesIcon,
 	run_commands: TerminalIcon,
 	search_codebase: SearchCodeIcon,
+	skills: LibraryIcon,
 	spaw_agent: UserIcon,
 	spawn_agent: UserIcon,
-	subagent_subagent: UserIcon,
+	submit_and_exit: SquareArrowRightIcon,
 };
 
 function getToolNameIcon(toolName: string): LucideIcon {
 	const normalized = toolName.toLowerCase();
+	if (normalized.startsWith("subagent_")) {
+		return UserIcon;
+	}
 	if (
 		normalized === "team" ||
 		normalized === "teams" ||
