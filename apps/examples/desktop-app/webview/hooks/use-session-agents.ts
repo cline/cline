@@ -91,12 +91,19 @@ export function useSessionAgents({
 	panelOpen?: boolean;
 }) {
 	const [roster, setRoster] = useState<RosterState>(EMPTY_ROSTER);
-	// Guards against a slow response for a previous session overwriting a newer one.
-	const requestSessionRef = useRef<string | null>(null);
+	// Only the newest read may write. Comparing session ids is not enough: two
+	// reads for the *same* session can overlap — a poll tick alongside an
+	// on-open or turn-finished read, and `list_session_agents` opens one
+	// transcript per child, so it can outlast the poll interval. Both would pass
+	// a session-id check, letting whichever arrives last win regardless of which
+	// was issued last, so a stale snapshot could revert completed agents to
+	// running or drop ones already discovered.
+	const requestSeqRef = useRef(0);
 
 	const refresh = useCallback(
 		async (targetSessionId: string, options?: { quiet?: boolean }) => {
-			requestSessionRef.current = targetSessionId;
+			requestSeqRef.current += 1;
+			const seq = requestSeqRef.current;
 			if (!options?.quiet) {
 				setRoster((prev) =>
 					prev.sessionId === targetSessionId
@@ -114,7 +121,7 @@ export function useSessionAgents({
 					"list_session_agents",
 					{ sessionId: targetSessionId },
 				);
-				if (requestSessionRef.current !== targetSessionId) {
+				if (requestSeqRef.current !== seq) {
 					return;
 				}
 				setRoster({
@@ -124,7 +131,7 @@ export function useSessionAgents({
 					error: null,
 				});
 			} catch (err) {
-				if (requestSessionRef.current !== targetSessionId) {
+				if (requestSeqRef.current !== seq) {
 					return;
 				}
 				// A host without this command (or without a session DB) simply has no

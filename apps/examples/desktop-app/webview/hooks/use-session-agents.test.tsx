@@ -30,6 +30,14 @@ function HookHarness({
 	return null;
 }
 
+function runningRow(sessionIdPrefix: string, agentId: string) {
+	return {
+		...agentRow(sessionIdPrefix, agentId),
+		status: "running",
+		lastAction: "Running read_files",
+	};
+}
+
 function agentRow(sessionIdPrefix: string, agentId: string) {
 	return {
 		sessionId: `${sessionIdPrefix}__${agentId}`,
@@ -206,6 +214,96 @@ describe("useSessionAgents", () => {
 		invokeMock.mockResolvedValue([agentRow("a", "one")]);
 		await render({ sessionId: "a" });
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
+	});
+
+	it("ignores an older overlapping read that resolves last", async () => {
+		// Two reads for the SAME session can overlap: a poll tick alongside an
+		// on-open or turn-finished read. A session-id-only guard admits both, so
+		// arrival order decides — and an older snapshot landing last would revert
+		// what the newer one already reported.
+		let resolveOlder: ((value: unknown) => void) | undefined;
+		let resolveNewer: ((value: unknown) => void) | undefined;
+		invokeMock
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveOlder = resolve;
+					}),
+			)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveNewer = resolve;
+					}),
+			);
+
+		await render({ sessionId: "a" });
+		await act(async () => {
+			void current.refresh("a");
+		});
+
+		// Newer read lands first and reports both agents finished.
+		await act(async () => {
+			resolveNewer?.([agentRow("a", "one"), agentRow("a", "two")]);
+		});
+		expect(current.agents.map((agent) => agent.agentId)).toEqual([
+			"one",
+			"two",
+		]);
+
+		// The older read lands last, still describing an earlier moment.
+		await act(async () => {
+			resolveOlder?.([runningRow("a", "one")]);
+		});
+		expect(current.agents.map((agent) => agent.agentId)).toEqual([
+			"one",
+			"two",
+		]);
+	});
+
+	it("does not let a stale read revert a completed agent to running", async () => {
+		let resolveOlder: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveOlder = resolve;
+				}),
+		);
+		await render({ sessionId: "a" });
+
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await act(async () => {
+			await current.refresh("a");
+		});
+		expect(current.agents[0]?.status).toBe("completed");
+
+		await act(async () => {
+			resolveOlder?.([runningRow("a", "one")]);
+		});
+		expect(current.agents[0]?.status).toBe("completed");
+		expect(current.agents[0]?.lastAction).toBeUndefined();
+	});
+
+	it("does not let a stale failure clobber a newer successful read", async () => {
+		let rejectOlder: ((reason: unknown) => void) | undefined;
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectOlder = reject;
+				}),
+		);
+		await render({ sessionId: "a" });
+
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await act(async () => {
+			await current.refresh("a");
+		});
+
+		await act(async () => {
+			rejectOlder?.(new Error("stale failure"));
+		});
+		expect(current.error).toBeNull();
+		expect(current.agents).toHaveLength(1);
 	});
 
 	it("reports a roster failure without dropping the header tally", async () => {
