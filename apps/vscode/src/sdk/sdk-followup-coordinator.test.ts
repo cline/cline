@@ -302,6 +302,37 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("does not present the original task text as new user instructions on a bare resume", async () => {
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Original task",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			expect.not.stringContaining("New instructions from the user"),
+			undefined,
+			undefined,
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			expect.not.stringContaining("Original task"),
+			undefined,
+			undefined,
+		)
+	})
+
 	it("ends a resumed session without mutating a task selected while start was pending", async () => {
 		const task = makeTask("task-1")
 		const replacementTask = makeTask("task-2")
