@@ -1,5 +1,10 @@
 import { type ApiConfiguration, buildModelInfoNameMap, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
-import { formatClineFreeModelName, isClineFreeModelId, zeroPricedModelInfo } from "@shared/cline/free-models"
+import {
+	formatClineFreeModelName,
+	isClineFreeModelId,
+	resolveClineFreeModelInfo,
+	zeroPricedModelInfo,
+} from "@shared/cline/free-models"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -268,6 +273,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		setSearchTerm(newModelId)
 
 		const newModelInfo = resolvedModels?.[newModelId]
+		// cline-free/ ids are not published in the models catalog, so borrow the paid
+		// twin's capabilities. Without this the handler would fall back to
+		// openRouterDefaultModelInfo and use Claude Sonnet's limits for another model.
+		const freeModelInfo = isClineFreeModelId(newModelId)
+			? (newModelInfo ?? resolveClineFreeModelInfo(newModelId, resolvedModels))
+			: undefined
 
 		handleModeFieldsChange(
 			{
@@ -278,13 +289,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 				clineModelId: newModelId,
 				// Free models ride usage billing at $0, so persist them zero-priced and
 				// with the explicit "(free)" name so cost UI never shows paid rates.
-				clineModelInfo:
-					newModelInfo && isClineFreeModelId(newModelId)
-						? zeroPricedModelInfo({
-								...newModelInfo,
-								name: formatClineFreeModelName(newModelId, newModelInfo.name),
-							})
-						: newModelInfo,
+				clineModelInfo: freeModelInfo
+					? zeroPricedModelInfo({
+							...freeModelInfo,
+							name: formatClineFreeModelName(newModelId, freeModelInfo.name),
+						})
+					: newModelInfo,
 			},
 			currentMode,
 		)
@@ -303,11 +313,18 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		// Explicit cline-free/ ids are free even before the recommended-models
 		// response lands, so check the namespace as well as the fetched free list.
 		if (isClineFreeModelId(selected.selectedModelId) || freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
+			// cline-free/ ids are absent from the catalog, so normalizeApiConfiguration
+			// can only supply the default info. Prefer the paid twin's real capabilities
+			// so the info panel and context-window UI don't show Claude Sonnet's limits.
+			const freeModelInfo =
+				resolvedModels?.[selected.selectedModelId] ??
+				resolveClineFreeModelInfo(selected.selectedModelId, resolvedModels) ??
+				selected.selectedModelInfo
 			return {
 				...selected,
 				selectedModelInfo: zeroPricedModelInfo({
-					...selected.selectedModelInfo,
-					name: formatClineFreeModelName(selected.selectedModelId, selected.selectedModelInfo?.name),
+					...freeModelInfo,
+					name: formatClineFreeModelName(selected.selectedModelId, freeModelInfo?.name),
 				}),
 			}
 		}

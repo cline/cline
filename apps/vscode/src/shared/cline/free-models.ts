@@ -57,6 +57,26 @@ export function zeroPricedModelInfo(info: ModelInfo): ModelInfo {
 	}
 }
 
+export function resolveClineFreeModelInfo(
+	freeModelId: string | undefined,
+	clineModels: Record<string, ModelInfo> | undefined | null,
+): ModelInfo | undefined {
+	if (!isClineFreeModelId(freeModelId) || !clineModels) {
+		return undefined
+	}
+
+	const paidModelId = findPaidClineModelId(freeModelId, Object.keys(clineModels))
+	const paidModelInfo = paidModelId ? clineModels[paidModelId] : undefined
+	if (!paidModelInfo) {
+		return undefined
+	}
+
+	return zeroPricedModelInfo({
+		...paidModelInfo,
+		name: formatClineFreeModelName(freeModelId as string, paidModelInfo.name),
+	})
+}
+
 /**
  * Free model ids are `cline-free/<model-slug>`; their paid counterpart is the
  * catalog model with the same slug under its lab prefix (for example

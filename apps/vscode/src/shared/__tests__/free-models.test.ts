@@ -5,6 +5,7 @@ import {
 	formatClineFreeModelName,
 	getClineFreeModelSlug,
 	isClineFreeModelId,
+	resolveClineFreeModelInfo,
 	zeroPricedModelInfo,
 } from "../cline/free-models"
 
@@ -95,6 +96,48 @@ describe("Cline free models", () => {
 			expect(findPaidClineModelId("deepseek/deepseek-v4-flash", clineModelIds)).to.equal(undefined)
 			expect(findPaidClineModelId("cline-free/unknown-model", clineModelIds)).to.equal(undefined)
 			expect(findPaidClineModelId(undefined, clineModelIds)).to.equal(undefined)
+		})
+	})
+
+	describe("resolveClineFreeModelInfo", () => {
+		// cline-free/ ids are never published in the models catalog, so capabilities
+		// have to come from the paid twin sharing the slug.
+		const clineModels: Record<string, ModelInfo> = {
+			"deepseek/deepseek-v4-flash": {
+				name: "DeepSeek V4 Flash",
+				maxTokens: 393_216,
+				contextWindow: 1_048_576,
+				supportsImages: false,
+				supportsPromptCache: true,
+				inputPrice: 1,
+				outputPrice: 2,
+				cacheReadsPrice: 0.1,
+				cacheWritesPrice: 0.2,
+			},
+		}
+
+		it("borrows the paid twin's capabilities and zeroes the pricing", () => {
+			const info = resolveClineFreeModelInfo("cline-free/deepseek-v4-flash", clineModels)
+
+			expect(info?.contextWindow).to.equal(1_048_576)
+			expect(info?.maxTokens).to.equal(393_216)
+			expect(info?.supportsPromptCache).to.equal(true)
+			expect(info?.inputPrice).to.equal(0)
+			expect(info?.outputPrice).to.equal(0)
+			expect(info?.cacheReadsPrice).to.equal(0)
+			expect(info?.cacheWritesPrice).to.equal(0)
+			expect(info?.name).to.equal("DeepSeek V4 Flash (free)")
+		})
+
+		it("returns undefined when there is no paid twin to borrow from", () => {
+			expect(resolveClineFreeModelInfo("cline-free/unknown-model", clineModels)).to.equal(undefined)
+			expect(resolveClineFreeModelInfo("cline-free/deepseek-v4-flash", {})).to.equal(undefined)
+			expect(resolveClineFreeModelInfo("cline-free/deepseek-v4-flash", undefined)).to.equal(undefined)
+		})
+
+		it("ignores non-free ids", () => {
+			expect(resolveClineFreeModelInfo("deepseek/deepseek-v4-flash", clineModels)).to.equal(undefined)
+			expect(resolveClineFreeModelInfo(undefined, clineModels)).to.equal(undefined)
 		})
 	})
 })
