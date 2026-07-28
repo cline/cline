@@ -759,12 +759,27 @@ export class McpHub {
 			// Initial fetch of tools, resources, and prompts
 			await this.fetchServerCapabilities(connection)
 		} catch (error) {
-			// Update status with error
-			const connection = this.findConnection(name, source)
-			if (connection) {
-				connection.server.status = "disconnected"
-				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
+			// Update status with error. A failure before the connection was
+			// registered (e.g. the transport failed to start) must still leave
+			// an entry, so the server stays visible in the list with its error
+			// rather than silently disappearing.
+			let connection = this.findConnection(name, source)
+			if (!connection) {
+				connection = {
+					server: {
+						name,
+						config: JSON.stringify(config),
+						status: "disconnected",
+						disabled: config.disabled,
+						uid: this.getMcpServerKey(name),
+					},
+					client: null as unknown as Client,
+					transport: null as unknown as Transport,
+				}
+				this.connections.push(connection)
 			}
+			connection.server.status = "disconnected"
+			this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
 			throw error
 		}
 	}
@@ -1043,6 +1058,9 @@ export class McpHub {
 					connectionChangesOccurred = true
 				} catch (error) {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
 				}
 			} else if (
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
@@ -1066,6 +1084,9 @@ export class McpHub {
 					connectionChangesOccurred = true
 				} catch (error) {
 					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
 				}
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart

@@ -53,6 +53,31 @@ function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Both stdio framings were tried during connect and both failed. When the two
+ * attempts failed the same way (typically both timed out), the shared message
+ * is the whole story and the newline error is rethrown unchanged; otherwise
+ * each framing's error is named so neither diagnostic is lost.
+ */
+function combineInitializeErrors(
+	serverName: string,
+	newlineError: unknown,
+	framedError: unknown,
+): Error {
+	const newlineMessage = toErrorMessage(newlineError);
+	const framedMessage = toErrorMessage(framedError);
+	if (newlineMessage === framedMessage) {
+		return newlineError instanceof Error
+			? newlineError
+			: new Error(newlineMessage);
+	}
+	return new Error(
+		`MCP server "${serverName}" failed to initialize. ` +
+			`Newline-delimited attempt: ${newlineMessage} ` +
+			`Content-Length framed attempt: ${framedMessage}`,
+	);
+}
+
 function encodeNewlineMessage(message: Record<string, unknown>): Buffer {
 	return Buffer.from(`${JSON.stringify(message)}\n`, "utf8");
 }
@@ -184,7 +209,7 @@ class StdioMcpClient implements McpServerClient {
 				initializeParams,
 				this.connectAttemptTimeoutMs,
 			);
-		} catch (primaryError) {
+		} catch (newlineError) {
 			await this.disconnect().catch(() => {});
 			this.spawnProcess("framed");
 			try {
@@ -193,9 +218,13 @@ class StdioMcpClient implements McpServerClient {
 					initializeParams,
 					this.connectAttemptTimeoutMs,
 				);
-			} catch {
+			} catch (framedError) {
 				await this.disconnect().catch(() => {});
-				throw primaryError;
+				throw combineInitializeErrors(
+					this.registration.name,
+					newlineError,
+					framedError,
+				);
 			}
 		}
 		this.notify("notifications/initialized");

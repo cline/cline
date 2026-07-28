@@ -103,6 +103,30 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Rejects every newline-delimited request with a JSON-RPC error and never
+// answers framed input (the framed body carries no trailing newline, so it
+// stays buffered), making the two initialize attempts fail differently.
+const NEWLINE_REJECTING_SERVER_SCRIPT = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+	buffer += chunk.toString("utf8");
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined) continue;
+		process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32000, message: "newline framing rejected" } }) + "\\n");
+	}
+});
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
@@ -111,6 +135,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(tempRoot, "framed-server.js"),
 		FRAMED_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "newline-rejecting-server.js"),
+		NEWLINE_REJECTING_SERVER_SCRIPT,
 		"utf8",
 	);
 });
@@ -326,6 +355,27 @@ describe("mcp client request timeout", () => {
 			expect(await client.listTools()).toEqual([]);
 			expect(Date.now() - startedAt).toBeGreaterThanOrEqual(4_500);
 			expect(Date.now() - startedAt).toBeLessThan(7_000);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("names both framing attempts when they fail differently", async () => {
+		const command =
+			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
+		const client = await createDefaultMcpServerClientFactory()({
+			name: "rejecting-server",
+			transport: {
+				type: "stdio",
+				command,
+				args: [join(tempRoot, "newline-rejecting-server.js")],
+			},
+			timeoutSeconds: 1,
+		});
+		try {
+			await expect(client.connect()).rejects.toThrow(
+				/Newline-delimited attempt: newline framing rejected.*Content-Length framed attempt: .*timed out/s,
+			);
 		} finally {
 			await client.disconnect();
 		}
