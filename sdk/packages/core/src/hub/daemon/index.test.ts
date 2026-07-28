@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
 	spawn,
 	closeSync,
+	existsSync,
 	mkdirSync,
 	openSync,
 	rememberRecoverableLocalHubUrl,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
 	closeSync: vi.fn(),
+	existsSync: vi.fn(() => true),
 	mkdirSync: vi.fn(),
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
@@ -53,6 +55,7 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("node:fs", () => ({
 	closeSync,
+	existsSync,
 	mkdirSync,
 	openSync,
 }));
@@ -99,6 +102,8 @@ describe("ensureDetachedHubServer", () => {
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));
 		closeSync.mockReset();
+		existsSync.mockReset();
+		existsSync.mockImplementation(() => true);
 		mkdirSync.mockReset();
 		openSync.mockReset();
 		openSync.mockImplementation(() => 17);
