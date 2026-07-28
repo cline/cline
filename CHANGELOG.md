@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.0.12]
+
+### Added
+
+- Add support for free Cline models, shown as "(free)" in the model picker, with a dedicated error card that includes the reset time when the free limit is reached.
+
+### Fixed
+
+- Keep Claude Code responses that were already streamed when the CLI exits with a max-turns error, instead of discarding a valid response.
+
 ## [4.0.11]
 
 ### Added
