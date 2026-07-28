@@ -692,6 +692,35 @@ function collectCandidateProviderIds(
 		candidates.add("openai-codex");
 	if (trimNonEmpty(legacySecrets.geminiApiKey)) candidates.add("gemini");
 	if (trimNonEmpty(legacySecrets.ollamaApiKey)) candidates.add("ollama");
+	if (trimNonEmpty(legacySecrets.deepSeekApiKey)) candidates.add("deepseek");
+	if (trimNonEmpty(legacySecrets.requestyApiKey)) candidates.add("requesty");
+	if (trimNonEmpty(legacySecrets.togetherApiKey)) candidates.add("together");
+	if (trimNonEmpty(legacySecrets.fireworksApiKey)) candidates.add("fireworks");
+	if (trimNonEmpty(legacySecrets.qwenApiKey)) candidates.add("qwen");
+	if (trimNonEmpty(legacySecrets.doubaoApiKey)) candidates.add("doubao");
+	if (trimNonEmpty(legacySecrets.mistralApiKey)) candidates.add("mistral");
+	if (trimNonEmpty(legacySecrets.liteLlmApiKey)) candidates.add("litellm");
+	if (trimNonEmpty(legacySecrets.asksageApiKey)) candidates.add("asksage");
+	if (trimNonEmpty(legacySecrets.xaiApiKey)) candidates.add("xai");
+	if (trimNonEmpty(legacySecrets.moonshotApiKey)) candidates.add("moonshot");
+	if (trimNonEmpty(legacySecrets.zaiApiKey)) candidates.add("zai");
+	if (trimNonEmpty(legacySecrets.huggingFaceApiKey))
+		candidates.add("huggingface");
+	if (trimNonEmpty(legacySecrets.nebiusApiKey)) candidates.add("nebius");
+	if (trimNonEmpty(legacySecrets.sambanovaApiKey)) candidates.add("sambanova");
+	if (trimNonEmpty(legacySecrets.cerebrasApiKey)) candidates.add("cerebras");
+	if (trimNonEmpty(legacySecrets.groqApiKey)) candidates.add("groq");
+	if (trimNonEmpty(legacySecrets.huaweiCloudMaasApiKey))
+		candidates.add("huawei-cloud-maas");
+	if (trimNonEmpty(legacySecrets.basetenApiKey)) candidates.add("baseten");
+	if (trimNonEmpty(legacySecrets.vercelAiGatewayApiKey))
+		candidates.add("vercel-ai-gateway");
+	if (trimNonEmpty(legacySecrets.difyApiKey)) candidates.add("dify");
+	if (trimNonEmpty(legacySecrets.minimaxApiKey)) candidates.add("minimax");
+	if (trimNonEmpty(legacySecrets.hicapApiKey)) candidates.add("hicap");
+	if (trimNonEmpty(legacySecrets.aihubmixApiKey)) candidates.add("aihubmix");
+	if (trimNonEmpty(legacySecrets.nousResearchApiKey))
+		candidates.add("nousResearch");
 	if (
 		trimNonEmpty(legacySecrets.awsAccessKey) ||
 		trimNonEmpty(legacySecrets.awsBedrockApiKey) ||
@@ -746,6 +775,17 @@ export function migrateLegacyProviderSettings(
 
 	const { globalState, secrets } = legacyStorage;
 	const mode: LegacyMode = globalState.mode === "plan" ? "plan" : "act";
+	const otherMode: LegacyMode = mode === "plan" ? "act" : "plan";
+	const currentModeProvider = trimNonEmpty(
+		mode === "plan"
+			? globalState.planModeApiProvider
+			: globalState.actModeApiProvider,
+	);
+	const otherModeProvider = trimNonEmpty(
+		mode === "plan"
+			? globalState.actModeApiProvider
+			: globalState.planModeApiProvider,
+	);
 	const candidates = collectCandidateProviderIds(globalState, secrets);
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
@@ -764,11 +804,18 @@ export function migrateLegacyProviderSettings(
 		if (next.providers[providerId]) {
 			continue;
 		}
+		// A provider selected only in the non-current mode must be read through
+		// that mode, or its per-mode model falls back to the catalog default.
+		const modeForProvider =
+			legacyProviderId !== currentModeProvider &&
+			legacyProviderId === otherModeProvider
+				? otherMode
+				: mode;
 		const settings = buildLegacyProviderSettings(
 			legacyProviderId,
 			globalState,
 			secrets,
-			mode,
+			modeForProvider,
 		);
 		if (!settings) {
 			continue;
