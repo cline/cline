@@ -9,7 +9,7 @@ import { errorReply, type HubTransportContext, okReply } from "./context";
 export async function requestToolApproval(
 	ctx: HubTransportContext,
 	request: ToolApprovalRequest,
-): Promise<{ approved: boolean; reason?: string }> {
+): Promise<{ approved: boolean; reason?: string; deniedByUser?: boolean }> {
 	const approvalId = createSessionId("approval_");
 	const sessionId = request.sessionId;
 	const state = ctx.sessionState.get(sessionId);
@@ -48,7 +48,7 @@ export async function requestToolApproval(
 export function resolvePendingApproval(
 	ctx: HubTransportContext,
 	approvalId: string,
-	result: { approved: boolean; reason?: string },
+	result: { approved: boolean; reason?: string; deniedByUser?: boolean },
 ): { sessionId: string } | undefined {
 	const pending = ctx.pendingApprovals.get(approvalId);
 	if (!pending) {
@@ -111,9 +111,19 @@ export async function handleApprovalRespond(
 						.reason as string)
 				: undefined;
 	const approved = envelope.payload?.approved === true;
+	// Like `reason`, the flag may arrive top-level or nested under `payload`
+	// depending on the responding client.
+	const deniedByUser =
+		envelope.payload?.deniedByUser === true ||
+		(envelope.payload?.payload &&
+			typeof envelope.payload.payload === "object" &&
+			!Array.isArray(envelope.payload.payload) &&
+			(envelope.payload.payload as Record<string, unknown>).deniedByUser ===
+				true);
 	const resolved = resolvePendingApproval(ctx, approvalId, {
 		approved,
 		reason,
+		...(deniedByUser && !approved ? { deniedByUser: true } : {}),
 	});
 	if (!resolved) {
 		return errorReply(

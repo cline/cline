@@ -972,11 +972,13 @@ export const AgentConfigSchema = z.object({
 				z.object({
 					approved: z.boolean(),
 					reason: z.string().optional(),
+					deniedByUser: z.boolean().optional(),
 				}),
 				z.promise(
 					z.object({
 						approved: z.boolean(),
 						reason: z.string().optional(),
+						deniedByUser: z.boolean().optional(),
 					}),
 				),
 			]),

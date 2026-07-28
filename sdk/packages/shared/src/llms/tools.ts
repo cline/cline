@@ -82,6 +82,18 @@ export interface ToolApprovalRequest {
 export interface ToolApprovalResult {
 	approved: boolean;
 	reason?: string;
+	/**
+	 * Set to true when `approved: false` is an explicit user decision (e.g.
+	 * the user clicked Reject or answered "no"), as opposed to the approval
+	 * infrastructure failing to obtain a decision (timeout, unavailable IPC,
+	 * non-interactive session, missing approver UI).
+	 *
+	 * The agent runtime delivers user denials to the model as plain non-error
+	 * tool-result content — an errored tool call reads as a transient failure
+	 * that models retry, which is the opposite of what a rejection means.
+	 * Unmarked non-approvals keep the error framing.
+	 */
+	deniedByUser?: boolean;
 }
 
 export const ToolCallRecordSchema = z.object({

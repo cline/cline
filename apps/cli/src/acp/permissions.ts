@@ -78,7 +78,11 @@ export function handlePermissionResponse(
 			return { approved: true };
 		case "reject_once":
 		case "reject_always":
-			return { approved: false, reason: "User rejected the tool call" };
+			return {
+				approved: false,
+				reason: "User rejected the tool call",
+				deniedByUser: true,
+			};
 		default:
 			return {
 				approved: false,

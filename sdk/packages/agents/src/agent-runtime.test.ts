@@ -653,6 +653,7 @@ describe("AgentRuntime", () => {
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
 			reason: "denied by test",
+			deniedByUser: true,
 		}));
 		const model = new ScriptedModel([
 			() => [
@@ -737,7 +738,8 @@ describe("AgentRuntime", () => {
 					type: "tool-result",
 					isError: true,
 					output: {
-						error: 'Tool "echo" approval request failed: approval transport broke',
+						error:
+							'Tool "echo" approval request failed: approval transport broke',
 					},
 				});
 				return [
@@ -793,6 +795,7 @@ describe("AgentRuntime", () => {
 			requestToolApproval: async () => ({
 				approved: false,
 				reason: "user rejected the completion",
+				deniedByUser: true,
 			}),
 		});
 
@@ -805,11 +808,57 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("okay, waiting for guidance");
 	});
 
+	it("keeps unflagged non-approvals as errored tool results", async () => {
+		// Hosts represent approval-infrastructure failures (timeouts,
+		// unavailable IPC, non-interactive sessions) as returned
+		// `approved: false` WITHOUT `deniedByUser`. Those are failures, not
+		// user decisions, and must keep the error framing.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_infra_denied",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "Tool approval request timed out" },
+				});
+				return [
+					{ type: "text-delta", text: "handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async () => ({
+				approved: false,
+				reason: "Tool approval request timed out",
+			}),
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("handled");
+	});
+
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
 			reason: "live policy denied",
+			deniedByUser: true,
 		}));
 		const model = new ScriptedModel([
 			() => [

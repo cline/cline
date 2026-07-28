@@ -80,10 +80,17 @@ export async function requestDesktopToolApproval(
 			const parsed = JSON.parse(raw) as {
 				approved?: boolean;
 				reason?: string;
+				deniedByUser?: boolean;
 			};
+			const approved = parsed.approved === true;
 			const result = {
-				approved: parsed.approved === true,
+				approved,
 				reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+				// A written decision file is an explicit user decision; the
+				// timeout / not-configured paths below stay unflagged.
+				...(!approved && parsed.deniedByUser !== false
+					? { deniedByUser: true }
+					: {}),
 			};
 			await Promise.all([
 				unlinkIfPresent(decisionPath),

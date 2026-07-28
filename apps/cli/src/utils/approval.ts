@@ -92,6 +92,7 @@ async function requestTerminalToolApproval(
 	return {
 		approved: false,
 		reason: `Tool "${request.toolName}" was denied by user`,
+		deniedByUser: true,
 	};
 }
 

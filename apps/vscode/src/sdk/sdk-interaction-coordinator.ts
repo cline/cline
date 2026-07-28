@@ -46,7 +46,9 @@ export interface SdkInteractionCoordinatorOptions {
 
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
-	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+	private pendingToolApprovalResolve:
+		| ((result: { approved: boolean; reason?: string; deniedByUser?: boolean }) => void)
+		| undefined
 	private pendingToolApprovalMessage:
 		| {
 				toolCallId: string
@@ -86,7 +88,9 @@ export class SdkInteractionCoordinator {
 		return { action: "stop", reason: `mistake_limit_reached: ${latest}` }
 	}
 
-	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
+	async handleRequestToolApproval(
+		request: ToolApprovalRequest,
+	): Promise<{ approved: boolean; reason?: string; deniedByUser?: boolean }> {
 		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
@@ -110,7 +114,7 @@ export class SdkInteractionCoordinator {
 		this.options.setTurnPhase?.("awaiting_approval", toolAskMessage.ts)
 		await this.options.postStateToWebview()
 
-		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+		return new Promise<{ approved: boolean; reason?: string; deniedByUser?: boolean }>((resolve) => {
 			this.pendingToolApprovalResolve = resolve
 			this.pendingToolApprovalMessage = {
 				toolCallId: request.toolCallId,
@@ -200,7 +204,9 @@ export class SdkInteractionCoordinator {
 		}
 		resolve({
 			approved,
-			...(approved ? {} : { reason: denialReason }),
+			// The Reject button is an explicit user decision; the runtime frames
+			// it as plain (non-error) tool-result content for the model.
+			...(approved ? {} : { reason: denialReason, deniedByUser: true }),
 		})
 		return true
 	}

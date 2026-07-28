@@ -1205,11 +1205,14 @@ export async function handleCommand(
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
 		if (pending) {
+			const approved = Boolean(args?.approved);
 			pending.resolve({
-				approved: Boolean(args?.approved),
+				approved,
 				...(typeof args?.reason === "string" && args.reason.trim().length > 0
 					? { reason: args.reason.trim() }
 					: {}),
+				// The desktop approval prompt is an explicit user decision.
+				...(approved ? {} : { deniedByUser: true }),
 			});
 		}
 		ctx.pendingApprovals.delete(requestId);

@@ -225,12 +225,14 @@ interface PreparedToolExecution {
 	input: unknown;
 	skipReason?: string;
 	/**
-	 * True when `skipReason` is an explicit rejection returned by the approval
-	 * callback (the user clicking Reject), as opposed to a policy/hook skip or
-	 * an approval-infrastructure failure. A rejection is a user decision, not a
-	 * tool malfunction, so its result is delivered to the model as plain
-	 * content instead of an errored tool call — models treat tool errors as
-	 * transient and retry them, which is exactly wrong after a denial.
+	 * True when `skipReason` is an explicit user rejection — the approval
+	 * callback returned `approved: false` with `deniedByUser: true` — as
+	 * opposed to a policy/hook skip or an approval-infrastructure failure
+	 * (timeout, unavailable approver, thrown callback). A rejection is a user
+	 * decision, not a tool malfunction, so its result is delivered to the
+	 * model as plain content instead of an errored tool call — models treat
+	 * tool errors as transient and retry them, which is exactly wrong after
+	 * a denial.
 	 */
 	deniedByUser?: boolean;
 }
@@ -1433,7 +1435,7 @@ export class AgentRuntime {
 				if (!approval.approved) {
 					skipReason =
 						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
-					deniedByUser = approval.deniedByCallback === true;
+					deniedByUser = approval.deniedByUser === true;
 				}
 			}
 		}
@@ -1451,7 +1453,7 @@ export class AgentRuntime {
 		toolCall: AgentToolCallPart,
 		input: unknown,
 		policy: ToolPolicy,
-	): Promise<ToolApprovalResult & { deniedByCallback?: boolean }> {
+	): Promise<ToolApprovalResult> {
 		const requestApproval = this.config.requestToolApproval;
 		if (!requestApproval) {
 			return {
@@ -1460,10 +1462,7 @@ export class AgentRuntime {
 			};
 		}
 		try {
-			// A non-approval returned by the callback is an explicit host/user
-			// decision — distinct from the missing-callback and thrown-error
-			// paths, which are infrastructure failures.
-			const result = await requestApproval({
+			return await requestApproval({
 				sessionId:
 					this.config.sessionId?.trim() ||
 					this.config.conversationId?.trim() ||
@@ -1480,9 +1479,6 @@ export class AgentRuntime {
 				input,
 				policy,
 			});
-			return result.approved
-				? result
-				: { ...result, deniedByCallback: true };
 		} catch (error) {
 			return {
 				approved: false,

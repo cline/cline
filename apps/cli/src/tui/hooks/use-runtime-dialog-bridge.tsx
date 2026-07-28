@@ -40,6 +40,9 @@ function deniedToolResult(request: ToolApprovalRequest): ToolApprovalResult {
 	return {
 		approved: false,
 		reason: `Tool "${request.toolName}" was denied by user`,
+		// Both the explicit "No" answer and dismissing the dialog are user
+		// decisions — the runtime frames them as plain non-error content.
+		deniedByUser: true,
 	};
 }
 

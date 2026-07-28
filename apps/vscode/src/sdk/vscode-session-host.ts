@@ -51,7 +51,7 @@ export interface VscodeSessionHostOptions {
 		toolName: string
 		input: unknown
 		policy: { enabled: boolean; autoApprove: boolean }
-	}) => Promise<{ approved: boolean; reason?: string }>
+	}) => Promise<{ approved: boolean; reason?: string; deniedByUser?: boolean }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
 	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
 	/**

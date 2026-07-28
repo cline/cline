@@ -574,12 +574,17 @@ export class HubSessionClient {
 		approvalId: string;
 		approved: boolean;
 		reason?: string;
+		/** True when the non-approval is an explicit user rejection. */
+		deniedByUser?: boolean;
 		responderClientId?: string;
 	}): Promise<void> {
 		await this.ensureMetadataApplied();
 		await this.client.command("approval.respond", {
 			approvalId: input.approvalId,
 			approved: input.approved,
+			...(input.deniedByUser === true && !input.approved
+				? { deniedByUser: true }
+				: {}),
 			payload: input.reason ? { reason: input.reason } : undefined,
 			responderClientId: input.responderClientId,
 		});

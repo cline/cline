@@ -2148,6 +2148,11 @@ export class HubRuntimeHost implements RuntimeHost {
 					approvalId,
 					approved: result.approved,
 					reason: result.reason,
+					// Preserve the user-denial marker across the hub boundary so
+					// the runtime frames explicit rejections as plain content.
+					...("deniedByUser" in result && result.deniedByUser === true
+						? { deniedByUser: true }
+						: {}),
 				},
 				sessionId,
 			)

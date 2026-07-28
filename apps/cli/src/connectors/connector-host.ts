@@ -1074,6 +1074,7 @@ export async function maybeHandleConnectorApprovalReply<
 		approvalId: pending.approvalId,
 		approved: decision.approved,
 		reason: decision.reason,
+		deniedByUser: decision.deniedByUser,
 		responderClientId: input.clientId,
 	});
 	await postConnectorText(

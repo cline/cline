@@ -26,7 +26,11 @@ import {
 
 export type PendingApproval = {
 	sessionId: string;
-	resolve: (result: { approved: boolean; reason?: string }) => void;
+	resolve: (result: {
+		approved: boolean;
+		reason?: string;
+		deniedByUser?: boolean;
+	}) => void;
 };
 
 export type PendingCapabilityRequest = {
