@@ -7,6 +7,7 @@ import {
 	sharedSessionMessagesWritePath,
 } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
+import { readChildSessionMessages } from "./agents";
 import {
 	parseF64Value,
 	parseU64Value,
@@ -316,7 +317,12 @@ export async function readSessionMessages(
 	sessionId: string,
 	maxMessages = 800,
 ): Promise<unknown[]> {
-	const persisted = readPersistedChatMessages(sessionId);
+	const persisted =
+		readPersistedChatMessages(sessionId) ??
+		// A child agent's transcript is not stored under its own session
+		// directory — it lives beside the root session's artifacts — so opening a
+		// subagent session has to resolve the path recorded on its row.
+		readChildSessionMessages(sessionId);
 	const messages =
 		persisted && persisted.length > 0
 			? persisted

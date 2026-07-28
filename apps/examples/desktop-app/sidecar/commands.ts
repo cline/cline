@@ -82,6 +82,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
 import { discoverChatSessions } from "./session-data/discovery";
@@ -1164,6 +1165,12 @@ export async function handleCommand(
 		return await readSessionHooks(
 			String(args?.sessionId ?? ""),
 			typeof args?.limit === "number" ? args.limit : 300,
+		);
+	}
+	if (command === "list_session_agents") {
+		return listSessionAgents(
+			String(args?.sessionId ?? ""),
+			typeof args?.limit === "number" ? args.limit : 200,
 		);
 	}
 

@@ -42,6 +42,7 @@ import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -65,6 +66,10 @@ import {
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
 import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
+import {
+	buildSessionAgentActivity,
+	mergeAgentActivity,
+} from "@/lib/session-agents";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -285,6 +290,19 @@ export default function Home() {
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
 	);
+	// A child agent session names its parent, but only the history list knows the
+	// parent's title — resolve it here so the chat header can point back to it.
+	const activeParentSession = useMemo(() => {
+		const parentSessionId =
+			activeThread?.historySession?.parentSessionId?.trim();
+		if (!parentSessionId) {
+			return undefined;
+		}
+		const title = sessionHistory.threads.find(
+			(thread) => thread.id === parentSessionId,
+		)?.title;
+		return { sessionId: parentSessionId, title };
+	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
 
 	return (
 		<AccountProvider>
@@ -343,6 +361,8 @@ export default function Home() {
 									onDeleteSession={handleDeleteSession}
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
+									onOpenSessionById={handleOpenSessionById}
+									parentSession={activeParentSession}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -376,6 +396,8 @@ function ChatThreadPane({
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
+	onOpenSessionById,
+	parentSession,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -388,6 +410,8 @@ function ChatThreadPane({
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (session: SessionHistoryItem) => void;
+	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1079,6 +1103,44 @@ function ChatThreadPane({
 		: isHydratingSession;
 	const isWelcomeState =
 		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
+	const isSessionActive =
+		displayedStatus === "starting" ||
+		displayedStatus === "running" ||
+		displayedStatus === "stopping";
+	const derivedAgentActivity = useMemo(
+		() =>
+			buildSessionAgentActivity(displayedMessages, {
+				sessionActive: isSessionActive,
+			}),
+		[displayedMessages, isSessionActive],
+	);
+	// The roster is read for every displayed session, not gated on the tally
+	// above: that tally only sees the newest messages, so gating on it would hide
+	// the agents of exactly the long sessions this is most useful for. Opening the
+	// panel re-reads; polling is what the active check gates.
+	const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+	const {
+		agents,
+		loading: agentsLoading,
+		error: agentsError,
+	} = useSessionAgents({
+		sessionId: displayedSessionId,
+		panelOpen: agentPanelOpen,
+		sessionActive: isSessionActive,
+	});
+	const agentActivity = useMemo(
+		() =>
+			mergeAgentActivity(agents, derivedAgentActivity, {
+				sessionActive: isSessionActive,
+			}),
+		[agents, derivedAgentActivity, isSessionActive],
+	);
+	// A child agent has its own session row, so opening it goes through the same
+	// path as any other session — it is just never listed in the sidebar.
+	const onOpenAgentSession = useCallback(
+		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
+		[onOpenSessionById],
+	);
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -1262,6 +1324,14 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
+							agentActivity={agentActivity}
+							agents={agents}
+							agentsError={agentsError}
+							agentsLoading={agentsLoading}
+							onAgentsOpenChange={setAgentPanelOpen}
+							onOpenAgentSession={onOpenAgentSession}
+							onOpenParentSession={onOpenSessionById}
+							parentSession={hideDeletedSessionUi ? undefined : parentSession}
 							canEditTitle={Boolean(activeSessionForTitle)}
 							canDeleteSession={Boolean(activeSessionToDelete)}
 							deletingSession={deletingSession}
