@@ -81,7 +81,7 @@ export function SearchCombobox({
 				aria-busy={loading || undefined}
 				aria-expanded={open}
 				aria-haspopup="dialog"
-				aria-label={ariaLabel}
+				aria-label={`${ariaLabel}: ${displayedValue}`}
 				className={["cline-ui-search-combobox__trigger", className]
 					.filter(Boolean)
 					.join(" ")}

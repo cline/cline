@@ -99,8 +99,10 @@
 	border-radius: var(--radius-md);
 	outline: 0;
 	background: transparent;
+	color: var(--muted-foreground);
 	font: inherit;
 	font-size: var(--text-xs);
+	letter-spacing: var(--text-xs--letter-spacing);
 	line-height: var(--text-xs--line-height);
 	padding: 0;
 }
@@ -158,6 +160,7 @@
 	flex: 1;
 	flex-direction: column;
 	font-size: var(--text-xs);
+	letter-spacing: var(--text-xs--letter-spacing);
 	line-height: var(--text-xs--line-height);
 }
 
@@ -182,6 +185,7 @@
 .cline-ui-search-combobox__empty {
 	color: var(--muted-foreground);
 	font-size: var(--text-xs);
+	letter-spacing: var(--text-xs--letter-spacing);
 	padding: 0.5rem;
 }
 
@@ -195,6 +199,7 @@
 @media (min-width: 48rem) {
 	.cline-ui-search-combobox__search {
 		font-size: var(--text-sm);
+		letter-spacing: var(--text-sm--letter-spacing);
 		line-height: var(--text-sm--line-height);
 	}
 }
