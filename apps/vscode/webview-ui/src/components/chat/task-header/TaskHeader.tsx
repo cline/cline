@@ -51,6 +51,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		setExpandTaskHeader: setIsTaskExpanded,
 		environment,
 		workspaceRoots,
+		platform,
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
@@ -164,6 +165,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
 						<TaskWorkingDirectoryBadge
+							platform={platform}
 							taskCwd={currentTaskItem?.cwdOnTaskInitialization}
 							workspaceRoots={workspaceRoots}
 						/>

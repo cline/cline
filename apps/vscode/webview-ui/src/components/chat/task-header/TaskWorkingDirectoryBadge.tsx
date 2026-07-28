@@ -1,19 +1,29 @@
+import type { Platform } from "@shared/ExtensionMessage"
 import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { FolderIcon } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 /**
- * Normalizes a path for comparison only: forward slashes, no trailing
- * separator, lowercased. Lowercasing trades exactness on case-sensitive
- * filesystems for no false positives on Windows/macOS; acceptable for an
- * informational badge.
+ * Normalizes a path for comparison only, with platform-aware semantics
+ * (mirrors the extension host's `arePathsEqual` in src/utils/path.ts):
+ * - win32: backslashes are separators; comparison is case-insensitive.
+ * - darwin: comparison is case-insensitive (APFS/HFS+ default).
+ * - everything else (including "unknown"): strict — case-sensitive and
+ *   backslash is an ordinary filename character. When in doubt the
+ *   comparison stays strict so a real mismatch is never hidden.
  */
-function normalizeForComparison(p: string): string {
-	let normalized = p.replace(/\\/g, "/").trim()
+function normalizeForComparison(p: string, platform: Platform): string {
+	let normalized = p.trim()
+	if (platform === "win32") {
+		normalized = normalized.replace(/\\/g, "/")
+	}
 	while (normalized.length > 1 && normalized.endsWith("/")) {
 		normalized = normalized.slice(0, -1)
 	}
-	return normalized.toLowerCase()
+	if (platform === "win32" || platform === "darwin") {
+		normalized = normalized.toLowerCase()
+	}
+	return normalized
 }
 
 /**
@@ -22,20 +32,33 @@ function normalizeForComparison(p: string): string {
  * unknown (no cwd recorded, or roots not yet initialized) so the badge never
  * shows a false alarm.
  */
-export function isTaskCwdOutsideWorkspace(taskCwd: string | undefined, workspaceRoots: WorkspaceRoot[] | undefined): boolean {
+export function isTaskCwdOutsideWorkspace(
+	taskCwd: string | undefined,
+	workspaceRoots: WorkspaceRoot[] | undefined,
+	platform: Platform,
+): boolean {
 	const cwd = taskCwd?.trim()
 	if (!cwd || !workspaceRoots || workspaceRoots.length === 0) {
 		return false
 	}
-	const normalizedCwd = normalizeForComparison(cwd)
+	const normalizedCwd = normalizeForComparison(cwd, platform)
 	return !workspaceRoots.some((root) => {
-		const rootPath = normalizeForComparison(root.path ?? "")
-		return rootPath.length > 0 && (normalizedCwd === rootPath || normalizedCwd.startsWith(`${rootPath}/`))
+		const rootPath = normalizeForComparison(root.path ?? "", platform)
+		if (rootPath.length === 0) {
+			return false
+		}
+		// A root may already end with a separator (e.g. "/" or "C:/").
+		const containmentPrefix = rootPath.endsWith("/") ? rootPath : `${rootPath}/`
+		return normalizedCwd === rootPath || normalizedCwd.startsWith(containmentPrefix)
 	})
 }
 
-function basename(p: string): string {
-	const cleaned = p.replace(/\\/g, "/").replace(/\/+$/, "")
+function basename(p: string, platform: Platform): string {
+	let cleaned = p
+	if (platform === "win32") {
+		cleaned = cleaned.replace(/\\/g, "/")
+	}
+	cleaned = cleaned.replace(/\/+$/, "")
 	return cleaned.split("/").pop() || p
 }
 
@@ -48,8 +71,9 @@ function basename(p: string): string {
 const TaskWorkingDirectoryBadge: React.FC<{
 	taskCwd?: string
 	workspaceRoots?: WorkspaceRoot[]
-}> = ({ taskCwd, workspaceRoots }) => {
-	if (!isTaskCwdOutsideWorkspace(taskCwd, workspaceRoots ?? [])) {
+	platform: Platform
+}> = ({ taskCwd, workspaceRoots, platform }) => {
+	if (!isTaskCwdOutsideWorkspace(taskCwd, workspaceRoots ?? [], platform)) {
 		return null
 	}
 	const cwd = (taskCwd ?? "").trim()
@@ -66,7 +90,9 @@ const TaskWorkingDirectoryBadge: React.FC<{
 					className="mx-1 px-1.5 py-0.25 rounded-full inline-flex items-center gap-1 min-w-0 max-w-32 border border-(--vscode-editorWarning-foreground)/60 text-(--vscode-editorWarning-foreground)"
 					id="task-cwd-badge">
 					<FolderIcon className="shrink-0" size={11} />
-					<span className="text-xs whitespace-nowrap overflow-hidden text-ellipsis min-w-0">{basename(cwd)}</span>
+					<span className="text-xs whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
+						{basename(cwd, platform)}
+					</span>
 				</div>
 			</TooltipTrigger>
 		</Tooltip>
