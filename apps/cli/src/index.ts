@@ -1,13 +1,19 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-import { disposeAll, initVcr, isHubDaemonProcess } from "@cline/shared";
+import {
+	disposeAll,
+	initVcr,
+	isHubDaemonProcess,
+	setConnectorCliLaunchSpec,
+} from "@cline/shared";
 import { logCliProcessError } from "./logging/errors";
 import {
 	abortActiveRuntime,
 	cleanupActiveRuntime,
 	isAbortInProgress,
 } from "./runtime/active-runtime";
+import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
 // Initialize VCR before any HTTP requests are made.
@@ -16,7 +22,20 @@ initVcr(process.env.CLINE_VCR);
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (isHubDaemonProcess()) {
+	// The hub daemon owns its process-level abort handling. Installing the CLI's
+	// fatal rejection handler first would make expected abort rejections exit it.
+	void import("@cline/core/hub/daemon-entry");
 } else {
+	const cliLaunchSpec = resolveCliLaunchSpec({ debugRole: "connector" });
+	if (cliLaunchSpec) {
+		setConnectorCliLaunchSpec({
+			launcher: cliLaunchSpec.launcher,
+			connectArgsPrefix: [...cliLaunchSpec.childArgsPrefix, "connect"],
+			cwd: process.cwd(),
+		});
+	}
+
 	let shuttingDown = false;
 	let handlingFatalProcessError = false;
 	const forwardSignalToRuntime = () => {
@@ -57,11 +76,6 @@ if (!isMainThread) {
 	});
 
 	void (async () => {
-		if (isHubDaemonProcess()) {
-			await import("@cline/core/hub/daemon-entry");
-			return;
-		}
-
 		let exitCode = 0;
 		try {
 			const { runCli } = await import("./main");

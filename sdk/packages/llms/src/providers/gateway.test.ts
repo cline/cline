@@ -3796,6 +3796,116 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it.each([
+		["zai", "china", "glm-5.2", "https://open.bigmodel.cn/api/paas/v4"],
+		["zai", "international", "glm-5.2", "https://api.z.ai/api/paas/v4"],
+		["moonshot", "china", "kimi-k3", "https://api.moonshot.cn/v1"],
+		["moonshot", "international", "kimi-k3", "https://api.moonshot.ai/v1"],
+		[
+			"qwen",
+			"china",
+			"qwen-plus-latest",
+			"https://dashscope.aliyuncs.com/compatible-mode/v1",
+		],
+		[
+			"qwen",
+			"international",
+			"qwen-plus-latest",
+			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		],
+	])(
+		"routes %s to the %s regional endpoint when options.apiLine is set",
+		async (providerId, apiLine, modelId, expectedBaseUrl) => {
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([
+					{ type: "text-delta", textDelta: "Regional" },
+					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+				]),
+			});
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId, apiKey: "test-key", options: { apiLine } },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId,
+					modelId,
+					messages: baseMessages,
+				}),
+			);
+
+			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+				expect.objectContaining({ baseURL: expectedBaseUrl }),
+			);
+		},
+	);
+
+	it("lets an explicit base URL win over options.apiLine", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Explicit" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "test-key",
+					baseUrl: "https://proxy.example.com/v4",
+					options: { apiLine: "china" },
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "glm-5.2",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: "https://proxy.example.com/v4" }),
+		);
+	});
+
+	it("ignores unrecognized apiLine values and keeps the provider default", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Default" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "test-key",
+					options: { apiLine: "mars" },
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "glm-5.2",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: "https://api.z.ai/api/paas/v4" }),
+		);
+	});
+
 	it("allows unregistered model ids on known providers", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

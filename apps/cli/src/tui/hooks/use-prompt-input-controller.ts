@@ -38,6 +38,7 @@ export function usePromptInputController(input: {
 	onSubmit: TuiProps["onSubmit"];
 	initialPrompt?: string;
 	providerId: string;
+	modelId?: string;
 	configVerbose: boolean;
 	refreshRepoStatus: () => void;
 	setAppView: (view: AppView) => void;
@@ -50,6 +51,7 @@ export function usePromptInputController(input: {
 		onSubmit,
 		initialPrompt,
 		providerId,
+		modelId,
 		configVerbose,
 		refreshRepoStatus,
 		setAppView,
@@ -377,7 +379,7 @@ export function usePromptInputController(input: {
 				if (!turnErrorReportedRef.current) {
 					session.appendEntry({
 						kind: "error",
-						text: formatCliErrorMessage(error),
+						text: formatCliErrorMessage(error, { modelId }),
 					});
 				}
 			} finally {
@@ -393,6 +395,7 @@ export function usePromptInputController(input: {
 			clearPasteAttachments,
 			configVerbose,
 			inputHistory,
+			modelId,
 			onSubmit,
 			providerId,
 			refreshRepoStatus,

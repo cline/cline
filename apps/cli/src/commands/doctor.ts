@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
 	ensureFileExists,
+	listActiveConnectors,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
@@ -11,15 +12,15 @@ import {
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import {
+	type ActiveConnectorRecord,
+	formatUptime,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
-import {
-	type ActiveConnectorRecord,
-	listActiveConnectors,
-} from "../connectors/status";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";

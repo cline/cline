@@ -63,6 +63,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
+| Render shared session status | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -70,8 +71,8 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 The package exports `base.css` separately for consumers that want its global,
 Markdown, scrollbar, selection, cursor, and native `color-scheme` behavior.
 
-There is no root JavaScript export and no `@cline/ui/theme` shorthand. Use the
-explicit paths documented here so dependencies remain visible.
+There is no `@cline/ui/theme` shorthand. Use the explicit paths documented here
+so dependencies remain visible.
 
 ## Install inside the Cline monorepo
 
@@ -101,7 +102,7 @@ The package is ESM. Its React entry point targets browser applications. Install
 only the prerequisites for the layer being adopted:
 
 ```bash
-# Required only for agent-chat components
+# Required for React components
 bun add react@^19 react-dom@^19
 
 # Required for the documented Tailwind-backed theme and Cline fonts
