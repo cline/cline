@@ -279,10 +279,22 @@ function resolveLegacyStorage(
 }
 
 function resolveMigratedProviderId(providerId: string): string {
+	// normalizeProviderId maps "openai" -> "openai-compatible" and collapses
+	// the remaining declared aliases (e.g. "togetherai" -> "together").
+	return LlmsModels.normalizeProviderId(providerId);
+}
+
+/**
+ * Collapses declared provider-id aliases (e.g. "togetherai" -> "together") to
+ * the ids used by this module's legacy lookup tables. "openai" is kept as-is:
+ * it is the legacy id for the OpenAI-compatible provider and only becomes
+ * "openai-compatible" at the final resolveMigratedProviderId boundary.
+ */
+function normalizeLegacyProviderId(providerId: string): string {
 	if (providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
-		return OPENAI_COMPATIBLE_PROVIDER_ID;
+		return providerId;
 	}
-	return providerId;
+	return LlmsModels.normalizeProviderId(providerId);
 }
 
 function resolveModelForProvider(
@@ -433,11 +445,14 @@ function buildLegacyProviderSettings(
 	mode: LegacyMode,
 ): ProviderSettings | undefined {
 	const targetProviderId = resolveMigratedProviderId(providerId);
-	const activeProviderForMode = trimNonEmpty(
+	const rawActiveProviderForMode = trimNonEmpty(
 		mode === "plan"
 			? legacyGlobalState.planModeApiProvider
 			: legacyGlobalState.actModeApiProvider,
 	);
+	const activeProviderForMode = rawActiveProviderForMode
+		? normalizeLegacyProviderId(rawActiveProviderForMode)
+		: undefined;
 	const model =
 		resolveModelForProvider(
 			legacyGlobalState,
@@ -677,7 +692,7 @@ function collectCandidateProviderIds(
 	]) {
 		const provider = trimNonEmpty(maybeProvider);
 		if (provider) {
-			candidates.add(provider);
+			candidates.add(normalizeLegacyProviderId(provider));
 		}
 	}
 	if (trimNonEmpty(legacySecrets.apiKey)) candidates.add("anthropic");
@@ -776,16 +791,22 @@ export function migrateLegacyProviderSettings(
 	const { globalState, secrets } = legacyStorage;
 	const mode: LegacyMode = globalState.mode === "plan" ? "plan" : "act";
 	const otherMode: LegacyMode = mode === "plan" ? "act" : "plan";
-	const currentModeProvider = trimNonEmpty(
+	const rawCurrentModeProvider = trimNonEmpty(
 		mode === "plan"
 			? globalState.planModeApiProvider
 			: globalState.actModeApiProvider,
 	);
-	const otherModeProvider = trimNonEmpty(
+	const currentModeProvider = rawCurrentModeProvider
+		? normalizeLegacyProviderId(rawCurrentModeProvider)
+		: undefined;
+	const rawOtherModeProvider = trimNonEmpty(
 		mode === "plan"
 			? globalState.actModeApiProvider
 			: globalState.planModeApiProvider,
 	);
+	const otherModeProvider = rawOtherModeProvider
+		? normalizeLegacyProviderId(rawOtherModeProvider)
+		: undefined;
 	const candidates = collectCandidateProviderIds(globalState, secrets);
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };

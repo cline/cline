@@ -289,6 +289,59 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
+	it("resolves aliased legacy provider ids without duplicating entries or losing the mode's model", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "plan",
+					planModeApiProvider: "gemini",
+					planModeApiModelId: "gemini-3-pro",
+					// "togetherai" is a declared alias of "together".
+					actModeApiProvider: "togetherai",
+					actModeApiModelId: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					geminiApiKey: "gemini-key",
+					togetherApiKey: "together-key",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 2,
+			lastUsedProvider: "gemini",
+		});
+		expect(manager.read().providers.togetherai).toBeUndefined();
+		expect(manager.getProviderSettings("together")).toMatchObject({
+			provider: "together",
+			apiKey: "together-key",
+			model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+		});
+	});
+
 	it("migrates missing providers without overwriting existing providers", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
