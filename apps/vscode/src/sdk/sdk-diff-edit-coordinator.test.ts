@@ -4,7 +4,7 @@ import * as os from "os"
 import * as path from "path"
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest"
 import { buildEditPreviewAnimation, EditPreview, type EditPreviewContent } from "@/integrations/editor/EditPreview"
-import { computeNewEditorContent, SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
+import { computeNewEditorContent, patchTargetPaths, SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 
 /** Records open/close calls; previews are purely visual so no other behavior is needed. */
 class FakeEditPreview extends EditPreview {
@@ -484,5 +484,134 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(result).toBe("fallback apply_patch result")
 		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
 		expect(previews).toHaveLength(0)
+	})
+
+	// Everything below guards against the dirty-buffer data-loss bug: the edit pipeline
+	// is disk-based, so unsaved editor changes must be flushed to disk before any read
+	// or write, or the user's unsaved work is silently destroyed.
+	describe("dirty-buffer flush", () => {
+		it("flushes the target file before reading the preview baseline", async () => {
+			const absolutePath = await writeFile("a.ts", "line1\nline2\n")
+			// Simulate an open dirty buffer: the flush persists newer content to disk.
+			const saveDirtyDocument = vi.fn(async (savedPath: string) => {
+				expect(savedPath).toBe(absolutePath)
+				await fs.writeFile(absolutePath, "line1\nline2\nUNSAVED USER LINE\n")
+			})
+			coordinator = makeCoordinator({ saveDirtyDocument })
+
+			await coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "line1", new_text: "changed" })
+
+			expect(saveDirtyDocument).toHaveBeenCalledExactlyOnceWith(absolutePath)
+			expect(previews[0].opened).toMatchObject({
+				leftContent: "line1\nline2\nUNSAVED USER LINE\n",
+				rightContent: "changed\nline2\nUNSAVED USER LINE\n",
+			})
+		})
+
+		it("flushes again before the executor writes, so the write baseline is current", async () => {
+			const absolutePath = await writeFile("a.ts", "old content")
+			const callOrder: string[] = []
+			const saveDirtyDocument = vi.fn(async () => {
+				callOrder.push("flush")
+			})
+			fallbackEditor.mockImplementation(async () => {
+				callOrder.push("write")
+				return "fallback editor result"
+			})
+			coordinator = makeCoordinator({ saveDirtyDocument })
+			const input = { path: "a.ts", old_text: "old", new_text: "new" }
+			await coordinator.openForApproval("tc1", "editor", input)
+
+			const result = await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+
+			expect(result).toBe("fallback editor result")
+			// Once at preview time, once right before the write — always before it.
+			expect(saveDirtyDocument).toHaveBeenCalledTimes(2)
+			expect(saveDirtyDocument).toHaveBeenLastCalledWith(absolutePath)
+			expect(callOrder).toEqual(["flush", "flush", "write"])
+		})
+
+		it("skips the preview but never throws when the flush fails at approval time", async () => {
+			await writeFile("a.ts", "content")
+			coordinator = makeCoordinator({
+				saveDirtyDocument: vi.fn().mockRejectedValue(new Error("save vetoed")),
+			})
+
+			await coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "content", new_text: "x" })
+
+			expect(previews).toHaveLength(0)
+		})
+
+		it("aborts the write when the flush fails at execution time (no silent clobber)", async () => {
+			await writeFile("a.ts", "content")
+			coordinator = makeCoordinator({
+				saveDirtyDocument: vi.fn().mockRejectedValue(new Error("save vetoed")),
+			})
+			const input = { path: "a.ts", old_text: "content", new_text: "x" }
+
+			await expect(coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))).rejects.toThrow("save vetoed")
+			expect(fallbackEditor).not.toHaveBeenCalled()
+		})
+
+		it("skips invalid paths so the executor still produces its canonical error", async () => {
+			const saveDirtyDocument = vi.fn().mockResolvedValue(undefined)
+			coordinator = makeCoordinator({ saveDirtyDocument })
+			fallbackEditor.mockRejectedValueOnce(new Error("Path must stay within cwd: ../outside.ts"))
+			const input = { path: "../outside.ts", old_text: "a", new_text: "b" }
+
+			await expect(coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))).rejects.toThrow(
+				"Path must stay within cwd",
+			)
+			expect(saveDirtyDocument).not.toHaveBeenCalled()
+		})
+
+		it("flushes every file an apply_patch updates or deletes, before preview and write", async () => {
+			const updatedPath = await writeFile("patched.ts", "line one\nline two\n")
+			const deletedPath = await writeFile("gone.ts", "bye")
+			const saveDirtyDocument = vi.fn().mockResolvedValue(undefined)
+			coordinator = makeCoordinator({ saveDirtyDocument })
+			const patch = [
+				"*** Begin Patch",
+				"*** Update File: patched.ts",
+				"@@",
+				"-line one",
+				"+line ONE",
+				"*** Delete File: gone.ts",
+				"*** Add File: brand-new.ts",
+				"+hello",
+				"*** End Patch",
+			].join("\n")
+
+			await coordinator.openForApproval("tc1", "apply_patch", { input: patch })
+			expect(saveDirtyDocument.mock.calls.map(([p]) => p)).toEqual([updatedPath, deletedPath])
+
+			saveDirtyDocument.mockClear()
+			await coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc1"))
+			// Added files are not flushed: there is no existing buffer to protect.
+			expect(saveDirtyDocument.mock.calls.map(([p]) => p)).toEqual([updatedPath, deletedPath])
+		})
+	})
+})
+
+describe("patchTargetPaths", () => {
+	it("returns update and delete targets, excluding added files", () => {
+		const patch = [
+			"*** Begin Patch",
+			"*** Update File: src/a.ts",
+			"@@",
+			"-x",
+			"+y",
+			"*** Delete File: src/b.ts",
+			"*** Add File: src/c.ts",
+			"+new",
+			"*** End Patch",
+		].join("\n")
+		expect(patchTargetPaths(patch)).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	it("returns an empty list for malformed or non-string input", () => {
+		expect(patchTargetPaths("")).toEqual([])
+		expect(patchTargetPaths(undefined)).toEqual([])
+		expect(patchTargetPaths("not a patch")).toEqual([])
 	})
 })

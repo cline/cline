@@ -35,6 +35,11 @@ export interface SdkDiffEditCoordinatorOptions {
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
 	/** Test seam: overrides the auto-approve preview linger. */
 	autoApprovePreviewLingerMs?: number
+	/**
+	 * Saves the file's editor document to disk if it is open with unsaved changes.
+	 * Injectable for tests. Defaults to the host bridge's saveOpenDocumentIfDirty.
+	 */
+	saveDirtyDocument?: (absolutePath: string) => Promise<void>
 }
 
 interface DiffEditSession {
@@ -47,11 +52,16 @@ interface DiffEditSession {
  * Shows a read-only diff preview of SDK edit-tool changes (editor / apply_patch).
  *
  * The preview is a virtual-document diff — both sides are virtual, the real file is
- * never opened or modified by the preview — so opening it has no side effects,
- * rejecting an edit only closes a tab, and multiple previews (even of the same file)
- * can't interfere with each other. The actual write is always the SDK's default
- * disk-writing executor, which the overridden executors delegate to after closing
- * the preview; its results and error strings reach the model unchanged.
+ * never opened or modified by the preview — so rejecting an edit only closes a tab,
+ * and multiple previews (even of the same file) can't interfere with each other. The
+ * actual write is always the SDK's default disk-writing executor, which the overridden
+ * executors delegate to after closing the preview; its results and error strings reach
+ * the model unchanged.
+ *
+ * Because that whole pipeline reads and writes the filesystem, any unsaved editor
+ * changes in a target file are flushed to disk first (see flushDirtyTargets) — both
+ * when a preview's baseline is read and again just before the executor writes —
+ * otherwise the write would silently destroy the user's unsaved work.
  *
  * Previews open at approval time (the SDK surfaces tool input only after the model's
  * stream completes, so the approval callback is the only pre-execution point with
@@ -63,11 +73,41 @@ export class SdkDiffEditCoordinator {
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
 	private readonly autoApprovePreviewLingerMs: number
+	private readonly saveDirtyDocument: (absolutePath: string) => Promise<void>
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
 		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
+		this.saveDirtyDocument = options.saveDirtyDocument ?? saveDirtyDocumentViaHost
+	}
+
+	/**
+	 * Flushes unsaved editor changes for the edit's target file(s) to disk before the
+	 * edit pipeline touches them. The whole pipeline is disk-based — the preview
+	 * baseline, the executor's read, and the executor's write all use the filesystem —
+	 * so an open dirty buffer would otherwise be invisible to the edit and then
+	 * silently overwritten when the write lands (permanent loss of the user's unsaved
+	 * work). Flushing first makes the buffer content the edit's baseline, matching the
+	 * legacy DiffViewProvider, which saved dirty documents before reading the file.
+	 *
+	 * Failures propagate: aborting the tool call with an error the model can see is
+	 * always preferable to destroying the user's unsaved changes.
+	 */
+	private async flushDirtyTargets(cwd: string, inputPaths: unknown[]): Promise<void> {
+		for (const inputPath of inputPaths) {
+			if (typeof inputPath !== "string" || inputPath.length === 0) {
+				continue
+			}
+			let absolutePath: string
+			try {
+				// Invalid paths are skipped so the executor still produces its canonical error.
+				absolutePath = resolveEditPath(cwd, inputPath)
+			} catch {
+				continue
+			}
+			await this.saveDirtyDocument(absolutePath)
+		}
 	}
 
 	/**
@@ -100,6 +140,10 @@ export class SdkDiffEditCoordinator {
 		const toolCallId = context.toolCallId ?? ""
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		try {
+			// The user may have typed into the target file at any point up to approval;
+			// flush right before the write so those changes become the edit's baseline
+			// instead of being clobbered by the disk-based executor.
+			await this.flushDirtyTargets(cwd, [input?.path])
 			if (!hadPreApprovalPreview && !this.options.isBackgroundEditEnabled()) {
 				// Auto-approved (or hook-approved) edit: no preview was opened at approval
 				// time, so show one now. Best-effort — never blocks the edit.
@@ -130,6 +174,9 @@ export class SdkDiffEditCoordinator {
 		const toolCallId = context.toolCallId ?? ""
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		try {
+			// Same dirty-buffer flush as executeEditorTool, for every file the patch
+			// updates or deletes (added files have no existing buffer to protect).
+			await this.flushDirtyTargets(cwd, patchTargetPaths(input?.input))
 			if (hadPreApprovalPreview) {
 				await this.discardPreview(toolCallId)
 			} else if (!this.options.isBackgroundEditEnabled()) {
@@ -181,6 +228,9 @@ export class SdkDiffEditCoordinator {
 		}
 		const cwd = await this.options.getCwd()
 		const absolutePath = resolveEditPath(cwd, input.path)
+		// Flush unsaved editor changes first so the preview's baseline (and the diff the
+		// user approves) reflects what is actually in their buffer, not stale disk state.
+		await this.flushDirtyTargets(cwd, [input.path])
 		let originalContent: string | undefined
 		try {
 			originalContent = await fs.readFile(absolutePath, "utf-8")
@@ -209,6 +259,9 @@ export class SdkDiffEditCoordinator {
 			return
 		}
 		const cwd = await this.options.getCwd()
+		// Flush unsaved editor changes for the patch's targets before computePatchChanges
+		// reads them from disk, so the preview baseline matches the user's buffers.
+		await this.flushDirtyTargets(cwd, patchTargetPaths(input.input))
 		const { changes } = await computePatchChanges(input.input, cwd)
 		// Preview the first file the patch creates or updates. Multi-file patches are
 		// uncommon; any remaining files apply without a preview.
@@ -323,6 +376,39 @@ export function computeNewEditorContent(
 		throw new Error(`No replacement performed: multiple occurrences of text found in ${filePath}.`)
 	}
 	return originalContent.replace(input.old_text, input.new_text ?? "")
+}
+
+/**
+ * Extracts the existing files an apply_patch input touches (Update/Delete headers).
+ * Added files are excluded: they have no existing editor buffer to protect. Returns
+ * an empty list for malformed input, letting the executor produce its canonical error.
+ */
+export function patchTargetPaths(patchText: unknown): string[] {
+	if (typeof patchText !== "string" || patchText.length === 0) {
+		return []
+	}
+	const paths: string[] = []
+	const header = /^\s*\*\*\* (?:Update|Delete) File: (.+)$/gm
+	let match: RegExpExecArray | null = header.exec(patchText)
+	while (match !== null) {
+		const filePath = match[1].trim()
+		if (filePath.length > 0) {
+			paths.push(filePath)
+		}
+		match = header.exec(patchText)
+	}
+	return paths
+}
+
+/**
+ * Default dirty-buffer flush: saves the file's open editor document if it has unsaved
+ * changes. No-ops when the host bridge isn't up (unit tests) or the file isn't open.
+ */
+async function saveDirtyDocumentViaHost(absolutePath: string): Promise<void> {
+	if (!HostProvider.isInitialized()) {
+		return
+	}
+	await HostProvider.workspace.saveOpenDocumentIfDirty({ filePath: absolutePath })
 }
 
 /** Mirrors the SDK executor's resolveFilePath (restrictToCwd=true): absolute paths pass through. */
