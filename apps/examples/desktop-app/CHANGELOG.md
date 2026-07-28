@@ -1,5 +1,15 @@
 # Cline Code Desktop Changelog
 
+## 0.0.6
+
+- Queued messages now appear in a collapsible list above the composer with a count — expand it to edit, send-now, or delete individual queued turns.
+- New sidebar update indicator: once an update has been downloaded, an accent-colored icon stays in the sidebar showing the new version with a one-click restart, so the update is still reachable after you dismiss the toast (and restart failures are now surfaced instead of silently doing nothing).
+- No more appearance flash on launch — the app paints in your saved (or system) light/dark theme before the first frame.
+- The header and sidebar now show the full workspace name and git branch, and lay out correctly on narrow windows; a transient git lookup no longer wipes a valid branch name back to "no git".
+- Cleaner collapsed-sidebar settings layout: compact width, left-aligned navigation, stacked account details.
+- Clarified the auto-update setting — it's now "Keep CLI up to date" and explains that it governs the `cline` terminal command, not the app itself (the app updates separately).
+- Toggle switches now use a solid accent color when on, for clearer contrast.
+
 ## 0.0.5
 
 - Major performance overhaul: the app now feels snappy end-to-end. The animated background renders at a locked 60fps instead of ~10fps, typing in the composer no longer stutters (245 slow keystrokes → 3), streaming responses coalesce updates instead of re-rendering the whole chat per token, and app boot fetches the provider catalog once instead of three times.
