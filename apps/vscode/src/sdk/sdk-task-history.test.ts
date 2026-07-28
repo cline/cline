@@ -294,6 +294,19 @@ describe("SdkTaskHistory", () => {
 		}
 	})
 
+	it("does not retag the terminal text when no session record exists (unknown outcome)", async () => {
+		const { history, readMessages } = makeHistory([])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: "do the thing" },
+			{ role: "assistant", content: [{ type: "text", text: "Answer of unknown outcome" }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-without-record")
+
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Answer of unknown outcome" }))
+		expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
+	})
+
 	it("does not retag a transcript that ends on a dangling tool call", () => {
 		const result = sdkMessagesToClineMessages([
 			{ role: "user", content: "do the thing" },

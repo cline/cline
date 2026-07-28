@@ -462,8 +462,9 @@ export class SdkTaskHistory {
 				// non-terminal statuses at rest ("idle"/"running"/"pending") mean the process
 				// died without recording an outcome — "idle" in particular is also the state
 				// after an aborted turn (markTurnIdle runs for every finish reason), so it
-				// cannot be trusted as a clean ending.
-				finalTurnCompleted: sdkRecord ? sdkRecord.status === "completed" : true,
+				// cannot be trusted as a clean ending. A missing record is likewise an unknown
+				// outcome, so it gets no completion styling either.
+				finalTurnCompleted: sdkRecord?.status === "completed",
 			},
 		)
 		if (sdkRecord && legacyTask) {
