@@ -9,10 +9,7 @@
 	text-wrap: balance;
 }
 
-/*
- * Animate opacity and transform only. Animating blur forces a main-thread
- * repaint for every character on each cycle.
- */
+/* Opacity and transform avoid per-character blur repaints. */
 .cline-ui-agent-hero-heading__character {
 	display: inline-block;
 	white-space: pre;
@@ -21,11 +18,7 @@
 		both;
 }
 
-/*
- * Keep the gradient on each animated character: WebKit can drop a shared
- * parent's clipped background when a child paints on its own transform layer,
- * leaving the animating letters invisible.
- */
+/* Per-character clipping avoids invisible text on transformed WebKit layers. */
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
 	.cline-ui-agent-hero-heading__character {
 		background-image: linear-gradient(
