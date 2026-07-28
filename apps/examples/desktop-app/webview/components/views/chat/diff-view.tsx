@@ -150,6 +150,13 @@ function DiffFileSection({
 	const [opening, setOpening] = useState(false);
 	const copyResetTimerRef = useRef<number | null>(null);
 	const resolvedPath = resolveWorkspaceFilePath(file.path, cwd);
+	const hunkOccurrences = new Map<string, number>();
+	const hunkEntries = file.hunks.map((hunk) => {
+		const signature = `${hunk.oldStart ?? ""}:${hunk.newStart ?? ""}:${hunk.old}:${hunk.new}`;
+		const occurrence = (hunkOccurrences.get(signature) ?? 0) + 1;
+		hunkOccurrences.set(signature, occurrence);
+		return { hunk, key: `${file.path}-${occurrence}-${signature}` };
+	});
 
 	const handleCopyPath = useCallback(async () => {
 		try {
@@ -285,11 +292,8 @@ function DiffFileSection({
 							No hunk details available.
 						</p>
 					) : (
-						file.hunks.map((hunk) => (
-							<DiffHunk
-								hunk={hunk}
-								key={`${file.path}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
-							/>
+						hunkEntries.map((entry) => (
+							<DiffHunk hunk={entry.hunk} key={entry.key} />
 						))
 					)}
 				</div>
@@ -301,14 +305,17 @@ function DiffFileSection({
 function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
 	const oldLines = hunk.old.length > 0 ? hunk.old.split("\n") : [];
 	const newLines = hunk.new.length > 0 ? hunk.new.split("\n") : [];
+	// Hunks parsed from context-based patches (apply_patch) carry no line
+	// numbers; render those without a gutter rather than showing wrong ones.
+	const showLineNumbers = hunk.oldStart != null || hunk.newStart != null;
 	const oldOccurrences = new Map<string, number>();
 	const oldLineEntries = oldLines.map((line, offset) => {
 		const occurrence = (oldOccurrences.get(line) ?? 0) + 1;
 		oldOccurrences.set(line, occurrence);
 		return {
-			key: `old-${hunk.oldStart + offset}-${occurrence}-${line}`,
+			key: `old-${occurrence}-${line}`,
 			line,
-			lineNumber: hunk.oldStart + offset,
+			lineNumber: hunk.oldStart != null ? hunk.oldStart + offset : undefined,
 		};
 	});
 	const newOccurrences = new Map<string, number>();
@@ -316,9 +323,9 @@ function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
 		const occurrence = (newOccurrences.get(line) ?? 0) + 1;
 		newOccurrences.set(line, occurrence);
 		return {
-			key: `new-${hunk.newStart + offset}-${occurrence}-${line}`,
+			key: `new-${occurrence}-${line}`,
 			line,
-			lineNumber: hunk.newStart + offset,
+			lineNumber: hunk.newStart != null ? hunk.newStart + offset : undefined,
 		};
 	});
 
@@ -326,9 +333,11 @@ function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
 		<div className="overflow-x-auto rounded-md border border-border bg-background font-mono text-[11px] leading-5">
 			{oldLineEntries.map((entry) => (
 				<div className="flex bg-destructive/10" key={entry.key}>
-					<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
-						{entry.lineNumber}
-					</span>
+					{showLineNumbers && (
+						<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
+							{entry.lineNumber}
+						</span>
+					)}
 					<span className="flex w-6 shrink-0 items-center justify-center text-destructive">
 						<Minus className="h-2.5 w-2.5" />
 					</span>
@@ -339,9 +348,11 @@ function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
 			))}
 			{newLineEntries.map((entry) => (
 				<div className="flex bg-primary/10" key={entry.key}>
-					<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
-						{entry.lineNumber}
-					</span>
+					{showLineNumbers && (
+						<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
+							{entry.lineNumber}
+						</span>
+					)}
 					<span className="flex w-6 shrink-0 items-center justify-center text-primary">
 						<Plus className="h-2.5 w-2.5" />
 					</span>

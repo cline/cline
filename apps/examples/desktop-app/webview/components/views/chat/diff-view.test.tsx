@@ -180,3 +180,62 @@ describe("DiffView file actions", () => {
 		expect(writeText).toHaveBeenCalledWith("docs/a.mdx");
 	});
 });
+
+describe("DiffView hunk line numbers", () => {
+	function renderedGutterNumbers(): string[] {
+		// The gutter is the only w-12 span inside a hunk row.
+		return Array.from(container.querySelectorAll<HTMLElement>("span.w-12")).map(
+			(el) => el.textContent ?? "",
+		);
+	}
+
+	it("shows real line numbers when the hunk position is known", async () => {
+		await act(async () => {
+			root.render(
+				<DiffView
+					fileDiffs={[
+						{
+							path: "src/app.ts",
+							additions: 1,
+							deletions: 2,
+							hunks: [
+								{
+									oldStart: 40,
+									newStart: 40,
+									old: "old line\nsecond old",
+									new: "new line",
+								},
+							],
+						},
+					]}
+					onClose={vi.fn()}
+				/>,
+			);
+		});
+
+		expect(renderedGutterNumbers()).toEqual(["40", "41", "40"]);
+	});
+
+	it("omits the gutter when the hunk position is unknown", async () => {
+		await act(async () => {
+			root.render(
+				<DiffView
+					fileDiffs={[
+						{
+							path: "src/app.ts",
+							additions: 1,
+							deletions: 1,
+							hunks: [{ old: "old line", new: "new line" }],
+						},
+					]}
+					onClose={vi.fn()}
+				/>,
+			);
+		});
+
+		expect(renderedGutterNumbers()).toEqual([]);
+		// The diff lines themselves still render.
+		expect(container.textContent).toContain("old line");
+		expect(container.textContent).toContain("new line");
+	});
+});

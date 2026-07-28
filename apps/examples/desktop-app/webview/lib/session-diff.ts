@@ -20,8 +20,17 @@ export type SessionHookEvent = {
 };
 
 export type SessionDiffHunk = {
-	oldStart: number;
-	newStart: number;
+	/**
+	 * One-based line number of the first removed line in the pre-edit file,
+	 * when known. apply_patch hunks omit it because the patch format carries
+	 * no line numbers, so any value would be a guess.
+	 */
+	oldStart?: number;
+	/**
+	 * One-based line number of the first added line in the post-edit file,
+	 * when known.
+	 */
+	newStart?: number;
 	old: string;
 	new: string;
 };
@@ -96,11 +105,15 @@ function getHookEventName(event: SessionHookEvent): string {
 	return event.hookEventName ?? event.hookName ?? "";
 }
 
+function stripTrailingNewline(value: string): string {
+	return value.endsWith("\n") ? value.slice(0, -1) : value;
+}
+
 function countAddedLines(value: string | undefined): number {
 	if (!value) {
 		return 0;
 	}
-	return value.split("\n").filter((line) => line.length > 0).length;
+	return stripTrailingNewline(value).split("\n").length;
 }
 
 function stripApplyPatchWrapperLines(lines: string[]): string[] {
@@ -176,7 +189,6 @@ export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 					addedLines.length > 0
 						? [
 								{
-									oldStart: 1,
 									newStart: 1,
 									old: "",
 									new: addedLines.join("\n"),
@@ -206,12 +218,11 @@ export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 
 			let additions = 0;
 			let deletions = 0;
-			let oldLineNo = 1;
-			let newLineNo = 1;
+			// The apply_patch format locates hunks by context, not by line
+			// number, so real file positions are unknowable here. Hunks are
+			// emitted without oldStart/newStart instead of fabricating them.
 			let activeHunk:
 				| {
-						oldStart: number;
-						newStart: number;
 						old: string[];
 						new: string[];
 				  }
@@ -223,8 +234,6 @@ export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 					return;
 				}
 				hunks.push({
-					oldStart: activeHunk.oldStart,
-					newStart: activeHunk.newStart,
 					old: activeHunk.old.join("\n"),
 					new: activeHunk.new.join("\n"),
 				});
@@ -233,47 +242,21 @@ export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 
 			for (let i = index + 1; i < end; i += 1) {
 				const bodyLine = lines[i] ?? "";
-				if (bodyLine.startsWith("@@")) {
-					flushActiveHunk();
-					continue;
-				}
 				if (bodyLine.startsWith("+")) {
 					additions += 1;
-					if (!activeHunk) {
-						activeHunk = {
-							oldStart: oldLineNo,
-							newStart: newLineNo,
-							old: [],
-							new: [],
-						};
-					}
+					activeHunk ??= { old: [], new: [] };
 					activeHunk.new.push(bodyLine.slice(1));
-					newLineNo += 1;
 					continue;
 				}
 				if (bodyLine.startsWith("-")) {
 					deletions += 1;
-					if (!activeHunk) {
-						activeHunk = {
-							oldStart: oldLineNo,
-							newStart: newLineNo,
-							old: [],
-							new: [],
-						};
-					}
+					activeHunk ??= { old: [], new: [] };
 					activeHunk.old.push(bodyLine.slice(1));
-					oldLineNo += 1;
 					continue;
 				}
-				if (bodyLine.startsWith(" ")) {
-					flushActiveHunk();
-					oldLineNo += 1;
-					newLineNo += 1;
-					continue;
-				}
-				if (bodyLine === "*** End of File") {
-					flushActiveHunk();
-				}
+				// Anything else (`@@` section markers, ` `-prefixed or bare
+				// context lines, `*** End of File`) separates change runs.
+				flushActiveHunk();
 			}
 			flushActiveHunk();
 
@@ -346,8 +329,8 @@ function parseDiffFromEditorResult(
 		deletions,
 		hunks: [
 			{
-				oldStart: oldStart ?? 1,
-				newStart: newStart ?? 1,
+				oldStart,
+				newStart,
 				old: old.join("\n"),
 				new: next.join("\n"),
 			},
@@ -406,11 +389,16 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		command === "insert" ||
 		command === "str_replace"
 	) {
-		const newContent =
+		const newContent = stripTrailingNewline(
 			toStringValue(input.new_text) ??
-			toStringValue(input.file_text) ??
-			toStringValue(input.new_str) ??
-			"";
+				toStringValue(input.file_text) ??
+				toStringValue(input.new_str) ??
+				"",
+		);
+		// Inserted text starts at the one-based insert_line boundary; created
+		// files start at line 1.
+		const insertLine =
+			typeof input.insert_line === "number" ? input.insert_line : undefined;
 		return {
 			path,
 			additions: countAddedLines(newContent),
@@ -418,8 +406,7 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 			hunks: newContent
 				? [
 						{
-							oldStart: 1,
-							newStart: 1,
+							newStart: command === "insert" ? insertLine : 1,
 							old: "",
 							new: newContent,
 						},
