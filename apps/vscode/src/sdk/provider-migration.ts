@@ -15,7 +15,6 @@ import path from "node:path"
 import { ProviderSettingsManager } from "@cline/core"
 import { Logger } from "@shared/services/Logger"
 import { resolveDataDir } from "./legacy-state-reader"
-import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -110,28 +109,4 @@ export function getProviderSettingsManager(dataDir?: string): ProviderSettingsMa
 	_cachedManager = new ProviderSettingsManager({ filePath, dataDir: resolvedDataDir })
 	_cachedDataDir = resolvedDataDir
 	return _cachedManager
-}
-
-/**
- * Record the given provider as `lastUsedProvider` in providers.json, keeping
- * the SDK-side store in sync with the extension's active provider. A stale
- * pointer is what the session-factory fallback and fresh CLI sessions run on.
- * Accepts legacy (`openai`) or SDK (`openai-compatible`) spellings.
- * Best-effort: failures are logged, never thrown.
- */
-export function setLastUsedProvider(providerId: string, dataDir?: string): void {
-	const sdkProviderId = toSdkProviderId(providerId).trim()
-	if (!sdkProviderId) {
-		return
-	}
-	try {
-		const manager = getProviderSettingsManager(dataDir)
-		const state = manager.read()
-		if (state.lastUsedProvider === sdkProviderId) {
-			return
-		}
-		manager.write({ ...state, lastUsedProvider: sdkProviderId })
-	} catch (error) {
-		Logger.warn(`[ProviderMigration] Failed to record last-used provider ${providerId}:`, error)
-	}
 }

@@ -66,10 +66,6 @@ Module.prototype.require = function (id) {
 				return this.state
 			}
 
-			write(state) {
-				this.state = state
-			}
-
 			getLastUsedProviderSettings() {
 				return undefined
 			}

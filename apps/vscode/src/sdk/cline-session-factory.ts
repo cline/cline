@@ -49,7 +49,7 @@ import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from ".
 import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
-import { getProviderSettingsManager, setLastUsedProvider } from "./provider-migration"
+import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
@@ -730,9 +730,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			Logger.log(
 				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
 			)
-
-			// Record the provider the session actually runs (and bills) on.
-			setLastUsedProvider(providerId)
 		}
 	} catch (error) {
 		Logger.warn("[SessionFactory] StateManager credential resolution failed:", error)

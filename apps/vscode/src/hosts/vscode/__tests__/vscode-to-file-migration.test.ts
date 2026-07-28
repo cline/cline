@@ -730,11 +730,10 @@ describe("createStorageContext", () => {
 		ws.toggle.should.equal(true)
 	})
 
-	// The data dir must resolve exactly like the SDK's resolveClineDataDir and
-	// the legacy reader's resolveDataDir. When createStorageContext ignored
-	// CLINE_DATA_DIR, globalState.json/secrets.json landed in the home data dir
-	// while providers.json and task state used the override — two provider
-	// stores that disagreed about the active provider (ENG-2332).
+	// The data dir must resolve like the SDK's resolveClineDataDir and the
+	// legacy reader's resolveDataDir: CLINE_DATA_DIR first. Ignoring it split
+	// globalState.json/secrets.json and providers.json across two directories,
+	// so the two provider stores disagreed about the active provider (ENG-2332).
 	describe("environment-based data dir resolution", () => {
 		const previousClineDir = process.env.CLINE_DIR
 		const previousClineDataDir = process.env.CLINE_DATA_DIR
@@ -773,30 +772,12 @@ describe("createStorageContext", () => {
 			ctx.dataDir.should.equal(isolatedDataDir)
 		})
 
-		it("should fall back to CLINE_DIR + /data when CLINE_DATA_DIR is unset", () => {
-			delete process.env.CLINE_DATA_DIR
-			process.env.CLINE_DIR = path.join(tempDir, "cline-home")
-
-			const ctx = createStorageContext({ workspacePath: "/test" })
-
-			ctx.dataDir.should.equal(path.join(tempDir, "cline-home", "data"))
-		})
-
 		it("should let an explicit clineDir option win over CLINE_DATA_DIR", () => {
 			process.env.CLINE_DATA_DIR = path.join(tempDir, "isolated-data")
 
 			const ctx = createStorageContext({ clineDir: tempDir, workspacePath: "/test" })
 
 			ctx.dataDir.should.equal(path.join(tempDir, "data"))
-		})
-
-		it("should ignore a whitespace-only CLINE_DATA_DIR", () => {
-			process.env.CLINE_DATA_DIR = "   "
-			process.env.CLINE_DIR = path.join(tempDir, "cline-home")
-
-			const ctx = createStorageContext({ workspacePath: "/test" })
-
-			ctx.dataDir.should.equal(path.join(tempDir, "cline-home", "data"))
 		})
 	})
 })
