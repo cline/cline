@@ -152,6 +152,31 @@ describe("useSessionAgents", () => {
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["beta"]);
 	});
 
+	it("cannot resurrect a session's roster after switching away", async () => {
+		// A response that lands for a session no longer displayed is unreadable
+		// rather than merely guarded against, so no ordering can surface it.
+		let resolveFirst: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveFirst = resolve;
+				}),
+		);
+		await render({ sessionId: "a" });
+
+		// Switch to a session that never fetches, so nothing overwrites the roster.
+		await render({ sessionId: "b", enabled: false });
+		await act(async () => {
+			resolveFirst?.([agentRow("a", "stale")]);
+		});
+		expect(current.agents).toEqual([]);
+
+		// Returning to `a` is a fresh load, not the leaked response.
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await render({ sessionId: "a" });
+		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
+	});
+
 	it("reports a roster failure without dropping the header tally", async () => {
 		invokeMock.mockRejectedValue(new Error("no session database"));
 		await render({ sessionId: "a" });
