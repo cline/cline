@@ -457,7 +457,7 @@ describe("ErrorRow", () => {
 					screen.getByText(/deepseek\/deepseek-v4-flash/),
 				).toBeInTheDocument();
 
-				fireEvent.click(screen.getByText("Switch to the paid model"));
+				fireEvent.click(screen.getByText("Switch to Usage-Based billing"));
 
 				await waitFor(() =>
 					expect(mockUpdateApiConfigurationProto).toHaveBeenCalledTimes(1),
