@@ -454,9 +454,16 @@ export class SdkTaskHistory {
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
 			{
-				// A failed/cancelled session's terminal text is a dangling partial response, not a
-				// completion — don't retag it into the inferred completion box on rehydration.
-				finalTurnCompleted: sdkRecord ? sdkRecord.status !== "failed" && sdkRecord.status !== "cancelled" : true,
+				// Only retag the transcript's terminal text as an inferred completion when the
+				// session record says its last run ended cleanly:
+				// - "completed": the session was stopped after a clean final turn.
+				// - "idle": interactive sessions persist "idle" between turns (markTurnIdle in
+				//   the SDK runtime host), so this is the normal at-rest state of a conversation
+				//   whose last turn finished and is awaiting user input.
+				// Anything else stays a plain text row: "failed"/"cancelled" runs ended on a
+				// dangling partial response, and "running"/"pending" at rest means the process
+				// died mid-turn without recording an outcome.
+				finalTurnCompleted: sdkRecord ? sdkRecord.status === "completed" || sdkRecord.status === "idle" : true,
 			},
 		)
 		if (sdkRecord && legacyTask) {

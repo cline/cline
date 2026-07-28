@@ -241,10 +241,29 @@ describe("SdkTaskHistory", () => {
 		])
 	})
 
-	it("does not retag the terminal text of a failed or cancelled session", async () => {
-		// The dangling response of a broken/aborted last run is not a completion; only
+	it("retags the terminal text of a session at rest in a clean state (completed / idle)", async () => {
+		// "idle" is the normal at-rest status of an interactive conversation between turns
+		// (markTurnIdle in the SDK runtime host); "completed" is a formally stopped clean run.
+		for (const status of ["completed", "idle"] as const) {
+			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
+			readMessages.mockResolvedValueOnce([
+				{ role: "user", content: "first request" },
+				{ role: "assistant", content: [{ type: "text", text: "Final answer." }] },
+			] as never)
+
+			const result = await history.getClineMessages("task-1")
+
+			expect(result).toContainEqual(
+				expect.objectContaining({ type: "say", say: "completion_result", text: "Final answer." }),
+			)
+		}
+	})
+
+	it("does not retag the terminal text of a failed, cancelled, or died-mid-run session", async () => {
+		// The dangling response of a broken/aborted last run is not a completion ("running"/
+		// "pending" at rest means the process died mid-turn without recording an outcome); only
 		// mid-transcript turns (the user kept going after them) keep the inferred box.
-		for (const status of ["failed", "cancelled"] as const) {
+		for (const status of ["failed", "cancelled", "running", "pending"] as const) {
 			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
 			readMessages.mockResolvedValueOnce([
 				{ role: "user", content: "first request" },

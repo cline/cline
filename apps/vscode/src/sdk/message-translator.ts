@@ -2003,11 +2003,11 @@ function finalizePersistedToolUse(
 
 export interface SdkMessagesToClineMessagesOptions {
 	/**
-	 * Whether the transcript's LAST agent turn ended cleanly (the session record's status is not
-	 * failed/cancelled). Mid-transcript turns are always treated as completed — the user sent a
-	 * follow-up after them, and history carries no per-turn outcome — but the terminal text of a
-	 * failed or cancelled session must not be retagged as an inferred completion, or a reopened
-	 * broken task would render its dangling response as a green/plan "done" box.
+	 * Whether the transcript's LAST agent turn ended cleanly (per the session record's status).
+	 * Mid-transcript turns are always treated as completed — the user sent a follow-up after
+	 * them, and history carries no per-turn outcome — but the terminal text of a session that
+	 * failed, was cancelled, or died mid-run must not be retagged as an inferred completion, or
+	 * a reopened broken task would render its dangling response as a green/plan "done" box.
 	 * Defaults to true.
 	 */
 	finalTurnCompleted?: boolean
