@@ -37,6 +37,7 @@ function createMcpHub(serverName = "test-server", options: { disabled?: boolean 
 	const hub = Object.create(McpHub.prototype) as McpHub
 	;(hub as any).connections = [connection]
 	;(hub as any).listChangedRefreshTimers = new Map()
+	;(hub as any).listChangedRefreshInFlight = new Map()
 
 	const fetchToolsList = sinon.stub().resolves([{ name: "tool1" }])
 	const fetchResourcesList = sinon.stub().resolves([{ name: "resource1" }])
@@ -153,5 +154,59 @@ describe("McpHub list_changed notification refresh", () => {
 
 		// Would surface as an unhandled rejection if the error weren't caught
 		await clock.tickAsync(300)
+	})
+
+	it("keeps the previous cached list when the fetch fails", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		connection.server.tools = [{ name: "existing" }]
+		// The fetch helpers signal failure by resolving to undefined
+		fetchToolsList.resolves(undefined)
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+
+		connection.server.tools.should.deepEqual([{ name: "existing" }])
+		notifyWebviewOfServerChanges.called.should.be.false()
+	})
+
+	it("applies the successful half of a resources refresh when the other half fails", async () => {
+		const { hub, connection, fetchResourcesList, fetchResourceTemplatesList, notifyWebviewOfServerChanges } = createMcpHub()
+		connection.server.resources = [{ name: "existing-resource" }]
+		fetchResourcesList.resolves(undefined)
+		fetchResourceTemplatesList.resolves([{ name: "template1" }])
+		;(hub as any).scheduleListChangedRefresh("test-server", "resources")
+		await clock.tickAsync(300)
+
+		connection.server.resources.should.deepEqual([{ name: "existing-resource" }])
+		connection.server.resourceTemplates.should.deepEqual([{ name: "template1" }])
+		notifyWebviewOfServerChanges.calledOnce.should.be.true()
+	})
+
+	it("serializes overlapping refreshes so a stale response cannot overwrite a newer one", async () => {
+		const { hub, connection, fetchToolsList } = createMcpHub()
+		let resolveFirstFetch: (tools: Array<{ name: string }>) => void = () => {}
+		fetchToolsList.onFirstCall().returns(
+			new Promise((resolve) => {
+				resolveFirstFetch = resolve
+			}),
+		)
+		fetchToolsList.onSecondCall().resolves([{ name: "newer" }])
+
+		// First refresh fires and its fetch hangs in flight
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		// Second notification arrives while the first fetch is still pending:
+		// its refresh must wait for the first to finish, not run concurrently
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		resolveFirstFetch([{ name: "older" }])
+		await clock.tickAsync(0)
+		await clock.tickAsync(0)
+
+		fetchToolsList.calledTwice.should.be.true()
+		connection.server.tools.should.deepEqual([{ name: "newer" }])
 	})
 })

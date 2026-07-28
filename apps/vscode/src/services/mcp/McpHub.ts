@@ -124,6 +124,10 @@ export class McpHub {
 	// notifications/tools/list_changed at once), so refreshes are coalesced
 	// per server and list kind.
 	private listChangedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
+	// In-flight list_changed refreshes, keyed like listChangedRefreshTimers.
+	// A new refresh for the same key chains onto the in-flight one so
+	// overlapping fetches can't complete out of order and publish stale lists.
+	private listChangedRefreshInFlight: Map<string, Promise<void>> = new Map()
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -772,8 +776,9 @@ export class McpHub {
 	 * onto the connection. The four list requests run in parallel so a server
 	 * that hangs after initialize costs one timeout bound rather than four;
 	 * the MCP client correlates concurrent requests by JSON-RPC id. Each
-	 * fetch helper swallows its own errors and returns an empty list, so a
-	 * failure in one capability cannot reject the others.
+	 * fetch helper swallows its own errors and resolves (undefined on
+	 * failure, mapped to an empty list here), so a failure in one capability
+	 * cannot reject the others.
 	 */
 	private async fetchServerCapabilities(connection: McpConnection): Promise<void> {
 		const name = connection.server.name
@@ -783,13 +788,17 @@ export class McpHub {
 			this.fetchResourceTemplatesList(name),
 			this.fetchPromptsList(name),
 		])
-		connection.server.tools = tools
-		connection.server.resources = resources
-		connection.server.resourceTemplates = resourceTemplates
-		connection.server.prompts = prompts
+		connection.server.tools = tools ?? []
+		connection.server.resources = resources ?? []
+		connection.server.resourceTemplates = resourceTemplates ?? []
+		connection.server.prompts = prompts ?? []
 	}
 
-	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
+	/**
+	 * Fetches the server's tool list. Returns undefined when the fetch fails,
+	 * so callers can distinguish an error from a genuinely empty list.
+	 */
+	private async fetchToolsList(serverName: string): Promise<McpTool[] | undefined> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 
@@ -825,11 +834,12 @@ export class McpHub {
 				? augmentMcpTimeoutError(error, serverName, resolveMcpServerTimeoutMs(connection.server.config))
 				: error
 			Logger.error(`Failed to fetch tools for ${serverName}:`, effectiveError)
-			return []
+			return undefined
 		}
 	}
 
-	private async fetchResourcesList(serverName: string): Promise<McpResource[]> {
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchResourcesList(serverName: string): Promise<McpResource[] | undefined> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 
@@ -844,11 +854,12 @@ export class McpHub {
 			return response?.resources || []
 		} catch (_error) {
 			// Logger.error(`Failed to fetch resources for ${serverName}:`, error)
-			return []
+			return undefined
 		}
 	}
 
-	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[]> {
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[] | undefined> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 
@@ -868,11 +879,12 @@ export class McpHub {
 			return response?.resourceTemplates || []
 		} catch (_error) {
 			// Logger.error(`Failed to fetch resource templates for ${serverName}:`, error)
-			return []
+			return undefined
 		}
 	}
 
-	private async fetchPromptsList(serverName: string): Promise<McpPrompt[]> {
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[] | undefined> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 
@@ -896,7 +908,7 @@ export class McpHub {
 				})),
 			}))
 		} catch (_error) {
-			return []
+			return undefined
 		}
 	}
 
@@ -916,8 +928,20 @@ export class McpHub {
 			key,
 			setTimeout(() => {
 				this.listChangedRefreshTimers.delete(key)
-				this.refreshChangedList(serverName, kind).catch((error) => {
-					Logger.error(`[MCP] Failed to refresh ${kind} for ${serverName} after list_changed notification:`, error)
+				// Chain onto any refresh still in flight for this key: two
+				// concurrent refreshes could otherwise complete out of order
+				// and let a stale response overwrite a newer list.
+				const previous = this.listChangedRefreshInFlight.get(key) ?? Promise.resolve()
+				const run = previous
+					.then(() => this.refreshChangedList(serverName, kind))
+					.catch((error) => {
+						Logger.error(`[MCP] Failed to refresh ${kind} for ${serverName} after list_changed notification:`, error)
+					})
+				this.listChangedRefreshInFlight.set(key, run)
+				run.finally(() => {
+					if (this.listChangedRefreshInFlight.get(key) === run) {
+						this.listChangedRefreshInFlight.delete(key)
+					}
 				})
 			}, 300),
 		)
@@ -931,17 +955,40 @@ export class McpHub {
 			return
 		}
 
+		// A failed fetch returns undefined; keep the previous cached list in
+		// that case rather than publishing an empty one, and skip the webview
+		// notification entirely when nothing was refreshed.
 		switch (kind) {
-			case "tools":
-				connection.server.tools = await this.fetchToolsList(serverName)
+			case "tools": {
+				const tools = await this.fetchToolsList(serverName)
+				if (tools === undefined) {
+					return
+				}
+				connection.server.tools = tools
 				break
-			case "resources":
-				connection.server.resources = await this.fetchResourcesList(serverName)
-				connection.server.resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+			}
+			case "resources": {
+				const resources = await this.fetchResourcesList(serverName)
+				const resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+				if (resources === undefined && resourceTemplates === undefined) {
+					return
+				}
+				if (resources !== undefined) {
+					connection.server.resources = resources
+				}
+				if (resourceTemplates !== undefined) {
+					connection.server.resourceTemplates = resourceTemplates
+				}
 				break
-			case "prompts":
-				connection.server.prompts = await this.fetchPromptsList(serverName)
+			}
+			case "prompts": {
+				const prompts = await this.fetchPromptsList(serverName)
+				if (prompts === undefined) {
+					return
+				}
+				connection.server.prompts = prompts
 				break
+			}
 		}
 
 		// Push the refreshed lists to the webview; for tools this also runs
