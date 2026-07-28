@@ -327,6 +327,14 @@ describe("AgentSidebar session organization", () => {
 		const settingsButton = container.querySelector('[aria-label="Settings"]');
 		expect(accountButton?.parentElement).toBe(settingsButton?.parentElement);
 		expect(settingsButton?.textContent).toBe("");
+		const accountName = [
+			...(accountButton?.querySelectorAll("span") ?? []),
+		].find((element) => element.textContent === "Beatrix");
+		const organizationName = [
+			...(accountButton?.querySelectorAll("span") ?? []),
+		].find((element) => element.textContent === "Cline Bot Inc");
+		expect(accountName?.nextElementSibling).toBe(organizationName);
+		expect(accountName?.parentElement?.className).toContain("flex-col");
 	});
 
 	it("opens the Account settings section when the footer account row is clicked", async () => {
@@ -551,6 +559,58 @@ describe("AgentSidebar session organization", () => {
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
 		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Expand sidebar"]')?.className,
+		).toContain("mt-auto");
+	});
+
+	it("uses a compact overlay-friendly width in collapsed settings", async () => {
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider defaultOpen={false}>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="Account"
+							view="settings"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const sidebarWrapper = container.querySelector<HTMLElement>(
+			'[data-slot="sidebar-wrapper"]',
+		);
+		expect(sidebarWrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe(
+			"3rem",
+		);
+		expect(sidebarWrapper?.dataset.state).toBe("collapsed");
+		expect(
+			container.querySelector('[aria-label="Settings sections"]'),
+		).not.toBeNull();
+		const leftAlignedButtons = [
+			"Cline home",
+			"General",
+			"Account",
+			"Expand sidebar",
+			"Settings",
+		];
+		for (const label of leftAlignedButtons) {
+			const button = container.querySelector(`[aria-label="${label}"]`);
+			expect(button?.className).not.toContain("mx-auto");
+		}
+		expect(
+			container.querySelector('[aria-label="Expand sidebar"]')?.className,
+		).toContain("mt-auto");
+		expect(
+			container.querySelector('[aria-label="Settings sections"]')?.className,
+		).toContain("items-start");
 	});
 
 	it("shows only the labeled Settings button when signed out", async () => {
