@@ -106,8 +106,22 @@ type ChatRenderItem =
 			type: "message";
 			agentRole: AgentMessageRole;
 			message: ChatMessage;
+			reasoningMessages: ChatMessage[];
 	  }
 	| { type: "tools"; messages: ChatMessage[] };
+
+function hasMessageReasoning(message: ChatMessage): boolean {
+	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
+}
+
+function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "assistant" &&
+		hasMessageReasoning(message) &&
+		!message.content.trim() &&
+		!message.images?.length
+	);
+}
 
 function buildPreviousTimestampMap(
 	messages: ChatMessage[],
@@ -154,11 +168,48 @@ function formatThoughtLabel(durationMilliseconds?: number): string {
 	return `Thought for ${seconds}s`;
 }
 
-function groupConsecutiveToolMessages(
-	messages: ChatMessage[],
-): ChatRenderItem[] {
+function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 	const items: ChatRenderItem[] = [];
+	let pendingReasoningMessages: ChatMessage[] = [];
+
+	const pushMessage = (
+		message: ChatMessage,
+		agentRole: AgentMessageRole,
+		reasoningMessages = hasMessageReasoning(message) ? [message] : [],
+	) => {
+		items.push({
+			type: "message",
+			agentRole,
+			message,
+			reasoningMessages,
+		});
+	};
+
+	const flushPendingReasoning = () => {
+		const message = pendingReasoningMessages.at(-1);
+		if (!message) {
+			return;
+		}
+		pushMessage(message, "assistant", pendingReasoningMessages);
+		pendingReasoningMessages = [];
+	};
+
 	for (const message of messages) {
+		if (isReasoningOnlyAssistantMessage(message)) {
+			pendingReasoningMessages.push(message);
+			continue;
+		}
+
+		if (message.role === "assistant" && pendingReasoningMessages.length > 0) {
+			const reasoningMessages = hasMessageReasoning(message)
+				? [...pendingReasoningMessages, message]
+				: pendingReasoningMessages;
+			pushMessage(message, "assistant", reasoningMessages);
+			pendingReasoningMessages = [];
+			continue;
+		}
+
+		flushPendingReasoning();
 		const previous = items.at(-1);
 		if (message.role === "tool") {
 			if (previous?.type === "tools") {
@@ -168,8 +219,9 @@ function groupConsecutiveToolMessages(
 			}
 			continue;
 		}
-		items.push({ type: "message", agentRole: message.role, message });
+		pushMessage(message, message.role);
 	}
+	flushPendingReasoning();
 	return items;
 }
 
@@ -239,10 +291,7 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
-	const renderItems = useMemo(
-		() => groupConsecutiveToolMessages(messages),
-		[messages],
-	);
+	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
 	const previousTimestampByMessage = useMemo(
 		() => buildPreviousTimestampMap(messages),
 		[messages],
@@ -454,12 +503,12 @@ function ChatMessagesImpl({
 			>
 				<ConversationContent
 					className={cn(
-						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
 						showIdleDetails ? "p-0" : "px-6 py-6",
 					)}
 				>
 					{showIdleDetails ? null : (
-						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
+						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -500,14 +549,23 @@ function ChatMessagesImpl({
 										/>
 									);
 								}
-								const { agentRole, message } = item;
+								const { agentRole, message, reasoningMessages } = item;
+								const firstReasoningMessage = reasoningMessages[0];
+								const lastReasoningMessage = reasoningMessages.at(-1);
+								const reasoningContent = reasoningMessages
+									.map((reasoningMessage) => reasoningMessage.reasoning?.trim())
+									.filter((content): content is string => Boolean(content))
+									.join("\n\n");
 								return (
 									<MessageBubble
 										agentRole={agentRole}
+										isLastAssistantMessage={
+											message.role === "assistant" &&
+											lastConversationMessage === message
+										}
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
-										previousTimestamp={previousTimestampByMessage.get(message)}
 										onExpandImage={handleExpandImage}
 										onCopyMessage={handleCopyMessage}
 										onRestoreCheckpoint={
@@ -528,6 +586,21 @@ function ChatMessagesImpl({
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
+										reasoningContent={reasoningContent}
+										reasoningRedacted={reasoningMessages.some(
+											(reasoningMessage) =>
+												reasoningMessage.reasoningRedacted === true,
+										)}
+										thoughtDurationMilliseconds={
+											firstReasoningMessage && lastReasoningMessage
+												? getThoughtDurationMilliseconds(
+														previousTimestampByMessage.get(
+															firstReasoningMessage,
+														),
+														lastReasoningMessage.createdAt,
+													)
+												: undefined
+										}
 									/>
 								);
 							})}
@@ -828,7 +901,10 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession,
 	forkPending = false,
 	forkError,
-	previousTimestamp,
+	isLastAssistantMessage = false,
+	reasoningContent,
+	reasoningRedacted,
+	thoughtDurationMilliseconds,
 }: {
 	agentRole: AgentMessageRole;
 	message: ChatMessage;
@@ -846,7 +922,10 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession?: (messageId: string) => void | Promise<void>;
 	forkPending?: boolean;
 	forkError?: string;
-	previousTimestamp?: number;
+	isLastAssistantMessage?: boolean;
+	reasoningContent: string;
+	reasoningRedacted: boolean;
+	thoughtDurationMilliseconds?: number;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
@@ -864,22 +943,35 @@ const MessageBubble = memo(function MessageBubble({
 	const shouldRenderUserActions =
 		isUser && Boolean(onCopyMessage || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
-	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
+	const keepAssistantActionsVisible =
+		isLastAssistantMessage || forkPending || Boolean(forkError);
 
-	const reasoningContent = message.reasoning?.trim() || "";
-	const thoughtDurationMilliseconds = getThoughtDurationMilliseconds(
-		previousTimestamp,
-		message.createdAt,
-	);
+	const messageDate = new Date(message.createdAt);
+	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
+	const messageTime = hasValidMessageDate
+		? messageDate.toLocaleTimeString(undefined, {
+				hour: "numeric",
+				minute: "2-digit",
+			})
+		: null;
+	const messageTimestamp = messageTime ? (
+		<time
+			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			dateTime={messageDate.toISOString()}
+			title={messageDate.toLocaleString()}
+		>
+			{messageTime}
+		</time>
+	) : null;
 
 	return (
 		<AgentMessage className="relative" from={agentRole}>
 			<MessageContent className="space-y-2 wrap-break-word">
-				{reasoningContent || message.reasoningRedacted ? (
+				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
 						durationMilliseconds={thoughtDurationMilliseconds}
-						redacted={message.reasoningRedacted === true}
+						redacted={reasoningRedacted}
 						streaming={isStreaming}
 					/>
 				) : null}
@@ -918,11 +1010,12 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10"
+						className="absolute right-0 top-full z-10 -translate-y-2"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
@@ -936,6 +1029,7 @@ const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{checkpoint ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -950,6 +1044,7 @@ const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
+						{messageTimestamp}
 					</MessageActions>
 					{restoreError ? (
 						<div className="text-right text-xs text-destructive">
@@ -961,11 +1056,12 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10"
+					className="absolute left-0 top-full z-10 -translate-y-2"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
 						<MessageAction
+							className="min-w-0 p-0"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -983,6 +1079,7 @@ const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{onForkSession ? (
 						<MessageAction
+							className="min-w-0 p-0"
 							disabled={forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
@@ -995,6 +1092,7 @@ const MessageBubble = memo(function MessageBubble({
 							)}
 						</MessageAction>
 					) : null}
+					{messageTimestamp}
 					{forkError ? (
 						<span className="text-[11px] text-destructive">{forkError}</span>
 					) : null}
@@ -1027,7 +1125,7 @@ function ReasoningBlock({
 		<Reasoning className="my-0" isStreaming={streaming}>
 			<ReasoningTrigger
 				aria-label={label}
-				className="gap-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+				className="gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
 				<span className="font-medium">{label}</span>
@@ -1625,7 +1723,7 @@ const ToolMessageBlock = memo(
 		);
 
 		return (
-			<ToolActivity expandable={hasExpandedSections}>
+			<ToolActivity className="my-0" expandable={hasExpandedSections}>
 				<ToolActivityTrigger
 					additions={diff.additions || undefined}
 					deletions={diff.deletions || undefined}

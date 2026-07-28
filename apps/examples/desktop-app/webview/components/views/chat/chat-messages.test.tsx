@@ -94,6 +94,9 @@ describe("ChatMessages tool disclosures", () => {
 		);
 		expect(summary).toBeDefined();
 		expect(summary?.closest("button")).toBeNull();
+		expect(
+			container.querySelector(".cline-chat-tool")?.classList.contains("my-0"),
+		).toBe(true);
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -281,22 +284,25 @@ describe("ChatMessages tool disclosures", () => {
 	});
 
 	it("positions hidden message actions outside the message layout", async () => {
-		await renderMessages([
-			{
-				id: "user-actions",
-				sessionId: "session-1",
-				role: "user",
-				content: "User message",
-				createdAt: 1,
-			},
-			{
-				id: "assistant-actions",
-				sessionId: "session-1",
-				role: "assistant",
-				content: "Assistant message",
-				createdAt: 2,
-			},
-		]);
+		await renderMessages(
+			[
+				{
+					id: "user-actions",
+					sessionId: "session-1",
+					role: "user",
+					content: "User message",
+					createdAt: 1,
+				},
+				{
+					id: "assistant-actions",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Assistant message",
+					createdAt: 2,
+				},
+			],
+			{ onForkSession: vi.fn() },
+		);
 
 		const userMessage = container.querySelector(
 			'.cline-chat-message[data-role="user"]',
@@ -315,10 +321,52 @@ describe("ChatMessages tool disclosures", () => {
 		expect(userActions?.classList.contains("absolute")).toBe(true);
 		expect(userActions?.classList.contains("right-0")).toBe(true);
 		expect(userActions?.classList.contains("top-full")).toBe(true);
+		expect(userActions?.classList.contains("-translate-y-2")).toBe(true);
 		expect(assistantMessage?.classList.contains("relative")).toBe(true);
 		expect(assistantActions?.classList.contains("absolute")).toBe(true);
 		expect(assistantActions?.classList.contains("left-0")).toBe(true);
 		expect(assistantActions?.classList.contains("top-full")).toBe(true);
+		expect(assistantActions?.classList.contains("-translate-y-2")).toBe(true);
+		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
+		const userAction = userActions?.querySelector(".cline-chat-message-action");
+		expect(userAction?.classList.contains("min-w-0")).toBe(true);
+		expect(userAction?.classList.contains("p-0")).toBe(true);
+		const assistantActionButtons = [
+			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
+				[]),
+		];
+		expect(assistantActionButtons).toHaveLength(2);
+		expect(
+			assistantActionButtons.every(
+				(action) =>
+					action.classList.contains("min-w-0") &&
+					action.classList.contains("p-0"),
+			),
+		).toBe(true);
+		expect(userActions?.querySelector("time")?.getAttribute("datetime")).toBe(
+			new Date(1).toISOString(),
+		);
+		expect(
+			assistantActions?.querySelector("time")?.getAttribute("datetime"),
+		).toBe(new Date(2).toISOString());
+	});
+
+	it("leaves vertical scrolling to the conversation viewport", async () => {
+		await renderMessages([
+			{
+				id: "assistant-scroll",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Assistant message",
+				createdAt: 1,
+			},
+		]);
+
+		const content = container.querySelector(".cline-chat-conversation-content");
+		const messageList = content?.querySelector(":scope > div");
+
+		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
+		expect(messageList?.classList.contains("overflow-x-hidden")).toBe(false);
 	});
 });
 
@@ -409,6 +457,8 @@ describe("ChatMessages reasoning disclosure", () => {
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
 		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
+		expect(trigger?.classList.contains("text-sm")).toBe(true);
+		expect(trigger?.classList.contains("text-xs")).toBe(false);
 
 		await act(async () => trigger?.click());
 
@@ -419,6 +469,90 @@ describe("ChatMessages reasoning disclosure", () => {
 		expect(content?.classList.contains("pl-4")).toBe(true);
 		expect(content?.classList.contains("rounded-none")).toBe(true);
 		expect(content?.classList.contains("bg-transparent")).toBe(true);
+	});
+
+	it("combines consecutive assistant reasoning into one disclosure", async () => {
+		await renderMessages([
+			{
+				id: "user-before-combined-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Investigate this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning-first",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "First reasoning segment.",
+				createdAt: 2_000,
+			},
+			{
+				id: "assistant-reasoning-second",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Investigation complete.",
+				reasoning: "Second reasoning segment.",
+				createdAt: 3_000,
+			},
+		]);
+
+		const disclosures = container.querySelectorAll(".cline-chat-reasoning");
+		expect(disclosures).toHaveLength(1);
+		const trigger = disclosures[0]?.querySelector("button");
+		expect(trigger?.textContent).toContain("Thought for 2s");
+
+		await act(async () => trigger?.click());
+
+		const content = disclosures[0]?.querySelector(
+			".cline-chat-reasoning-content",
+		);
+		const contentText = content?.textContent ?? "";
+		expect(contentText).toContain("First reasoning segment.");
+		expect(contentText).toContain("Second reasoning segment.");
+		expect(contentText.indexOf("First reasoning segment.")).toBeLessThan(
+			contentText.indexOf("Second reasoning segment."),
+		);
+		expect(container.textContent).toContain("Investigation complete.");
+	});
+
+	it("keeps reasoning disclosures separate across tool activity", async () => {
+		await renderMessages([
+			{
+				id: "user-before-separated-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Investigate this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning-before-tool",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "Reasoning before the tool.",
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-between-reasoning",
+				sessionId: "session-1",
+				role: "tool",
+				content: "not-json",
+				createdAt: 2_500,
+				meta: { toolName: "search" },
+			},
+			{
+				id: "assistant-reasoning-after-tool",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Investigation complete.",
+				reasoning: "Reasoning after the tool.",
+				createdAt: 3_000,
+			},
+		]);
+
+		expect(container.querySelectorAll(".cline-chat-reasoning")).toHaveLength(2);
 	});
 
 	it("falls back to Thinking when there is no previous timestamp", async () => {
