@@ -54,6 +54,10 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import {
+	subscribeToDesktopMenuActions,
+	watchDesktopTrayStatus,
+} from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
@@ -154,6 +158,8 @@ export default function Home() {
 		void syncDesktopWindowTitle();
 	}, []);
 
+	useEffect(() => watchDesktopTrayStatus(), []);
+
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
 	}, []);
@@ -228,6 +234,20 @@ export default function Home() {
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
 		[navigateWith],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopMenuActions((action) => {
+				switch (action) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+				}
+			}),
+		[handleNewThread, handleViewChange],
 	);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		dispatchApp({ type: "thread-started", threadId });

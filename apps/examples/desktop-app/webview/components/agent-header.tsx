@@ -22,6 +22,7 @@ import {
 	type SessionAgentEntry,
 	type SessionAgentRunState,
 } from "@/lib/session-agents";
+import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import {
@@ -89,18 +90,8 @@ export function AgentHeader({
 	const additions = diff?.additions ?? 0;
 	const deletions = diff?.deletions ?? 0;
 	const hasChanges = additions + deletions > 0;
-	const statusTone =
-		status === "running"
-			? "running"
-			: status === "failed"
-				? "error"
-				: "neutral";
-	const statusColor =
-		status === "running"
-			? "var(--color-green-500)"
-			: status === "failed"
-				? "var(--color-red-500)"
-				: "var(--color-gray-500)";
+	const statusTone = sessionStatusTone(status);
+	const statusColor = sessionStatusColor(status);
 	const threadTitle = useMemo(
 		() => normalizeTitle(title?.trim()) || "New Session",
 		[title],
