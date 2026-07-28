@@ -1213,10 +1213,10 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					model: provider.model(context.model.id) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
-					tools: tools as never,
+					...(tools ? { tools: tools as never } : {}),
 					abortSignal: request.signal,
-					experimental_repairToolCall: repairMalformedToolCall as never,
-					experimental_telemetry: {
+					repairToolCall: repairMalformedToolCall as never,
+					telemetry: {
 						isEnabled: langfuse,
 					},
 					providerOptions,

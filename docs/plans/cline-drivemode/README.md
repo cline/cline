@@ -8,7 +8,8 @@ Mode-first integration. [ARD-0007](ard/ARD-0007-drive-as-cline-mode.md), [PRD 8]
 
 Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 
-**Session handoff.** [HANDOFF.md](HANDOFF.md) — start here if you are picking this work up cold.
+**Session handoff.** [HANDOFF.md](HANDOFF.md) — start here if you are picking this work up cold.  
+**PR 24 (U4 AI SDK 7) handoff.** [HANDOFF-pr24-u4.md](HANDOFF-pr24-u4.md) — remaining work to land the AI SDK major.
 
 ## Documents
 
@@ -32,6 +33,7 @@ Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 | [12-performance.md](12-performance.md) | Drive compute/memory measurement and optimization architecture |
 | [13-deps-inventory.md](13-deps-inventory.md) | Dependency inventory and compatible upgrade matrix (U0) |
 | [14-primitives-audit.md](14-primitives-audit.md) | Primitives misuse / dead-code audit (P0) |
+| [HANDOFF-pr24-u4.md](HANDOFF-pr24-u4.md) | **Active:** remaining U4 work for PR 24 (AI SDK 7) |
 | [share-and-router/](share-and-router/) | Full reference PLAN for demo share + agent router |
 | [prd/](prd/) | Product requirements. PRD 6 portfolio; PRD 7 PiP; PRD 8 Drive-as-mode; PRD 9 task-bank loop |
 | [task-bank-drive-loop/](task-bank-drive-loop/) | Multi-phase plan for the task-bank Drive loop |
