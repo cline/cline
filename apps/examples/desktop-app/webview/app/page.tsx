@@ -40,7 +40,6 @@ import {
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -55,6 +54,7 @@ import {
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -79,6 +79,8 @@ import {
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
+
+const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
@@ -300,7 +302,7 @@ export default function Home() {
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 						{view === "sessions" ? (
 							<SessionsView
 								activeSessionId={activeHistorySessionId}
@@ -441,6 +443,7 @@ function ChatThreadPane({
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
+	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -449,6 +452,7 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
 
 	useEffect(() => {
 		setWorkspaces((current) => {
@@ -527,9 +531,12 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		const requestId = gitBranchRequestGateRef.current.begin();
 		const cwd = getWorkspaceCwd();
 		if (!cwd) {
-			setGitBranch("no-git");
+			if (gitBranchRequestGateRef.current.commit(requestId)) {
+				setGitBranch("no-git");
+			}
 			return;
 		}
 		try {
@@ -537,12 +544,20 @@ function ChatThreadPane({
 				"get_git_branch",
 				{ cwd },
 			);
+			if (!gitBranchRequestGateRef.current.commit(requestId)) {
+				return;
+			}
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 		} catch {
-			setGitBranch("no-git");
+			// Preserve the latest successful branch through transient failures.
 		}
 	}, [getWorkspaceCwd]);
+
+	const invalidateGitBranch = useCallback(() => {
+		gitBranchRequestGateRef.current.invalidate();
+		setGitBranch("no-git");
+	}, []);
 
 	const listGitBranches = useCallback(async (): Promise<{
 		current: string;
@@ -574,18 +589,18 @@ function ChatThreadPane({
 				return false;
 			}
 			try {
-				const payload = await desktopClient.invoke<{ branch?: string }>(
-					"checkout_git_branch",
-					{ cwd, branch: nextBranch },
-				);
-				const branch = payload?.branch?.trim();
-				setGitBranch(branch && branch.length > 0 ? branch : "no-git");
+				await desktopClient.invoke<{ branch?: string }>("checkout_git_branch", {
+					cwd,
+					branch: nextBranch,
+				});
+				invalidateGitBranch();
+				await refreshGitBranch();
 				return true;
 			} catch {
 				return false;
 			}
 		},
-		[getWorkspaceCwd],
+		[getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -654,43 +669,26 @@ function ChatThreadPane({
 				return false;
 			}
 
+			invalidateGitBranch();
 			setWorkspacePath(nextWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
 			);
-
-			// Fire git branch + workspace list refresh in the background
-			desktopClient
-				.invoke<{ branch?: string }>("get_git_branch", {
-					cwd: nextWorkspace,
-				})
-				.then((payload) => {
-					if (requestId !== workspaceSelectionRequestRef.current) {
-						return;
-					}
-					const branch = payload?.branch?.trim();
-					setGitBranch(branch && branch.length > 0 ? branch : "no-git");
-				})
-				.catch(() => {
-					if (requestId === workspaceSelectionRequestRef.current) {
-						setGitBranch("no-git");
-					}
-				});
 
 			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
 
 			return true;
 		},
-		[refreshWorkspaces, setWorkspacePath],
+		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
 		workspaceSelectionRequestRef.current += 1;
+		invalidateGitBranch();
 		setWorkspacePath("");
-		setGitBranch("no-git");
 		return true;
-	}, [setWorkspacePath]);
+	}, [invalidateGitBranch, setWorkspacePath]);
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
@@ -715,7 +713,27 @@ function ChatThreadPane({
 
 	useEffect(() => {
 		void refreshGitBranch();
-	}, [refreshGitBranch]);
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+
+		const refreshVisibleBranch = () => {
+			if (document.visibilityState === "visible") {
+				void refreshGitBranch();
+			}
+		};
+		const intervalId = window.setInterval(
+			refreshVisibleBranch,
+			GIT_BRANCH_REFRESH_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisibleBranch);
+		document.addEventListener("visibilitychange", refreshVisibleBranch);
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener("focus", refreshVisibleBranch);
+			document.removeEventListener("visibilitychange", refreshVisibleBranch);
+		};
+	}, [activeWorkspaceCwd, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
@@ -802,27 +820,11 @@ function ChatThreadPane({
 		[setConfig],
 	);
 
-	const handleUndoQueuedPrompt = useCallback(
-		async (item: PromptInQueue) => {
-			const removed = await removePromptInQueue(item.id);
-			const prompt = removed?.prompt.trim();
-			if (!prompt) {
-				return;
-			}
-			const attachmentCount =
-				removed?.attachmentCount ?? item.attachmentCount ?? 0;
-			if (attachmentCount > 0) {
-				toast({
-					title: "Queued attachments removed",
-					description: "Reattach files before sending the restored message.",
-				});
-			}
-			const current = promptInputRef.current;
-			setPromptInput(
-				current.trim().length > 0 ? `${current}\n\n${prompt}` : prompt,
-			);
+	const handleRemoveQueuedPrompt = useCallback(
+		async (promptId: string) => {
+			await removePromptInQueue(promptId);
 		},
-		[removePromptInQueue, setPromptInput],
+		[removePromptInQueue],
 	);
 	const handleApproveToolApproval = useCallback(
 		(requestId: string) => {
@@ -1180,9 +1182,7 @@ function ChatThreadPane({
 			onEditPromptInQueue={(promptId, prompt) => {
 				void updatePromptInQueue(promptId, prompt);
 			}}
-			onUndoPromptInQueue={(item) => {
-				void handleUndoQueuedPrompt(item);
-			}}
+			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={(nextProvider) =>
 				setConfig((prev) => {
 					const selected = providerCredentials[nextProvider];

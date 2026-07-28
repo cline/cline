@@ -83,6 +83,24 @@ describe("spawnDetachedConnector", () => {
 			],
 		});
 	});
+
+	it("marks detached children and removes the hub-daemon-only environment flag", () => {
+		const env = {
+			CLINE_BUILD_ENV: "production",
+			CLINE_RUN_AS_HUB_DAEMON: "1",
+			UNCHANGED: "value",
+		};
+
+		expect(
+			__test__.buildDetachedConnectorEnv("CLINE_TELEGRAM_CONNECT_CHILD", env),
+		).toEqual({
+			CLINE_BUILD_ENV: "production",
+			CLINE_CONNECTOR_DETACHED_CHILD: "1",
+			CLINE_TELEGRAM_CONNECT_CHILD: "1",
+			UNCHANGED: "value",
+		});
+		expect(env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+	});
 });
 
 describe("readSessionReplyText", () => {

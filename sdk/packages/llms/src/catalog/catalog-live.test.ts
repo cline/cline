@@ -176,13 +176,12 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
-	it("matches Cline recommended clinePass models against OpenRouter model names", () => {
+	it("matches Cline recommended clinePass models against OpenRouter model slugs", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
 				clinePass: [
 					{
-						id: "cline-pass/cline-pass/glm-5.2",
-						name: "zai/glm-5.2",
+						id: "cline-pass/glm-5.2",
 					},
 				],
 			},
@@ -199,10 +198,8 @@ describe("models-dev-catalog", () => {
 			},
 		);
 
-		expect(
-			result["cline-pass"]?.["cline-pass/cline-pass/glm-5.2"],
-		).toMatchObject({
-			id: "cline-pass/cline-pass/glm-5.2",
+		expect(result["cline-pass"]?.["cline-pass/glm-5.2"]).toMatchObject({
+			id: "cline-pass/glm-5.2",
 			name: "GLM 5.2",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
@@ -218,11 +215,11 @@ describe("models-dev-catalog", () => {
 		).toEqual({});
 	});
 
-	it("includes zero-priced Cline free models alongside ClinePass models", () => {
+	it("includes Cline free models alongside ClinePass models", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
 				clinePass: [{ id: "cline-pass/glm-5.1", name: "glm-5.1" }],
-				free: [{ id: "kwaipilot/kat-coder-pro", name: "kat-coder-pro" }],
+				free: [{ id: "cline-free/kat-coder-pro", name: "kat-coder-pro" }],
 			},
 			{
 				"kwaipilot/kat-coder-pro": {
@@ -241,23 +238,61 @@ describe("models-dev-catalog", () => {
 		// ClinePass models stay first so the provider default remains a pass model
 		expect(Object.keys(models)).toEqual([
 			"cline-pass/glm-5.1",
-			"kwaipilot/kat-coder-pro",
+			"cline-free/kat-coder-pro",
 		]);
-		expect(models["kwaipilot/kat-coder-pro"]).toMatchObject({
-			id: "kwaipilot/kat-coder-pro",
-			name: "KAT Coder Pro",
+		expect(models["cline-free/kat-coder-pro"]).toMatchObject({
+			id: "cline-free/kat-coder-pro",
+			name: "KAT Coder Pro (free)",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			// free models are billed at $0 regardless of catalog pricing
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
+		expect(result.cline?.["cline-free/kat-coder-pro"]).toMatchObject({
+			id: "cline-free/kat-coder-pro",
+			name: "KAT Coder Pro (free)",
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+		expect(models["cline-free/kat-coder-pro"]).not.toBe(
+			result.cline?.["cline-free/kat-coder-pro"],
+		);
 	});
 
-	it("resolves free-model capabilities by slug and ignores free-only payloads", () => {
+	it("labels a Cline free model when its name matches a ClinePass model", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{
+						id: "cline-pass/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+					},
+				],
+				free: [
+					{
+						id: "cline-free/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+					},
+				],
+			},
+			{},
+		);
+
+		expect(result["cline-pass"]?.["cline-pass/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash",
+		);
+		expect(result["cline-pass"]?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash (free)",
+		);
+		expect(result.cline?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash (free)",
+		);
+	});
+
+	it("resolves free-model capabilities by slug and preserves free-only Cline catalog payloads", () => {
 		const suffixed = normalizeClineRecommendedProviderModels(
 			{
 				clinePass: [{ id: "cline-pass/glm-5.1" }],
-				free: [{ id: "arcee-ai/trinity-large-preview:free" }],
+				free: [{ id: "cline-free/trinity-large-preview:free" }],
 			},
 			{
 				"arcee-ai/trinity-large-preview:free": {
@@ -272,19 +307,54 @@ describe("models-dev-catalog", () => {
 			},
 		);
 		expect(
-			suffixed["cline-pass"]?.["arcee-ai/trinity-large-preview:free"],
+			suffixed["cline-pass"]?.["cline-free/trinity-large-preview:free"],
 		).toMatchObject({
-			name: "Trinity Large Preview",
+			name: "Trinity Large Preview (free)",
+			contextWindow: 512_000,
+		});
+		expect(
+			suffixed.cline?.["cline-free/trinity-large-preview:free"],
+		).toMatchObject({
+			name: "Trinity Large Preview (free)",
 			contextWindow: 512_000,
 		});
 
-		// free bucket alone does not create a cline-pass catalog
-		expect(
-			normalizeClineRecommendedProviderModels(
-				{ free: [{ id: "kwaipilot/kat-coder-pro" }] },
-				{},
-			),
-		).toEqual({});
+		// free bucket alone updates the Cline provider catalog but does not rotate
+		// ClinePass away from its bundled subscription list/default.
+		const freeOnly = normalizeClineRecommendedProviderModels(
+			{ free: [{ id: "cline-free/kat-coder-pro" }] },
+			{},
+		);
+		expect(freeOnly.cline?.["cline-free/kat-coder-pro"]).toBeDefined();
+		expect(freeOnly["cline-pass"]).toBeUndefined();
+	});
+
+	it("normalizes cline-free ids from the free endpoint bucket", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{ free: [{ id: "cline-free/k2-think" }] },
+			{
+				"moonshotai/k2-think": {
+					id: "moonshotai/k2-think",
+					name: "K2 Think",
+					contextWindow: 1_000_000,
+					maxInputTokens: 800_000,
+					maxTokens: 128_000,
+					capabilities: ["tools", "reasoning"],
+					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				},
+			},
+		);
+
+		expect(result).toEqual({
+			cline: {
+				"cline-free/k2-think": expect.objectContaining({
+					id: "cline-free/k2-think",
+					name: "K2 Think (free)",
+					contextWindow: 1_000_000,
+					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				}),
+			},
+		});
 	});
 
 	it("uses input limits as the model request context window", () => {

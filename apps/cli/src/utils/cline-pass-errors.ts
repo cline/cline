@@ -1,7 +1,11 @@
 import {
 	type ClineSubscriptionPlan,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -37,6 +41,31 @@ export function getCliClinePassLimitMessage(message: string): string {
 		"Headless CLI: rerun with --provider cline.",
 	];
 	return lines.filter((line) => line.trim().length > 0).join("\n");
+}
+
+const CLINE_FREE_MODEL_PREFIX = "cline-free/";
+const CLINE_FREE_PROMOTION_ENDED_HEADER = "Free model promotion ended";
+const CLINE_FREE_MODEL_LIMIT_HEADER = "Daily free model limit reached";
+
+export function getCliClineFreePromotionEndedMessage(): string {
+	return [
+		CLINE_FREE_PROMOTION_ENDED_HEADER,
+		"The free promotion for this model has ended and it is no longer available.",
+		"Select another model to continue.",
+		"Open the model selector with /model.",
+	].join("\n");
+}
+
+export function getCliClineFreeModelLimitMessage(message: string): string {
+	const resetTime = extractClineFreeModelLimitResetTime(message);
+	return [
+		CLINE_FREE_MODEL_LIMIT_HEADER,
+		"You've reached today's free usage limit for this model.",
+		resetTime
+			? `Try again in ${resetTime} or select another model.`
+			: "Try again later or select another model.",
+		"Open the model selector with /model.",
+	].join("\n");
 }
 
 export function getIndividualPlanFeatures(
@@ -114,7 +143,51 @@ export function isClinePassLimitErrorMessage(error: unknown): boolean {
 	return typeof error === "string" && isClinePassLimitMessage(error);
 }
 
-export function formatCliErrorMessage(error: unknown): string {
+// Detects that a deleted free model was requested: the backend answers "model
+// not found" once a free promotion ends and the cline-free/ model is removed.
+// The modelId gate keeps regular model-not-found errors on their generic path.
+export function isClineFreePromotionEndedErrorMessage(
+	error: unknown,
+	modelId?: string,
+): boolean {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	if (
+		message.toLowerCase().includes(CLINE_FREE_PROMOTION_ENDED_HEADER.toLowerCase())
+	) {
+		return true;
+	}
+	if (!modelId?.startsWith(CLINE_FREE_MODEL_PREFIX)) {
+		return false;
+	}
+	return isClineModelNotFoundMessage(message);
+}
+
+export function isClineFreeModelLimitErrorMessage(error: unknown): boolean {
+	if (isClineFreeModelLimitError(error)) {
+		return true;
+	}
+	if (error instanceof Error) {
+		return (
+			error.name === "ClineFreeModelLimitError" ||
+			isClineFreeModelLimitMessage(error.message)
+		);
+	}
+	return (
+		typeof error === "string" &&
+		(error.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_HEADER.toLowerCase()) ||
+			isClineFreeModelLimitMessage(error))
+	);
+}
+
+export function formatCliErrorMessage(
+	error: unknown,
+	options?: { modelId?: string },
+): string {
 	if (isClinePassSubscriptionError(error)) {
 		return getCliNotSubscribedMessage();
 	}
@@ -125,6 +198,14 @@ export function formatCliErrorMessage(error: unknown): string {
 		return getCliClinePassLimitMessage(
 			error instanceof Error ? error.message : String(error),
 		);
+	}
+	if (isClineFreeModelLimitErrorMessage(error)) {
+		return getCliClineFreeModelLimitMessage(
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+	if (isClineFreePromotionEndedErrorMessage(error, options?.modelId)) {
+		return getCliClineFreePromotionEndedMessage();
 	}
 	if (error instanceof Error) {
 		return error.message;
