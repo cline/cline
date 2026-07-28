@@ -29,6 +29,17 @@ description: "Configure Anthropic API keys or Claude Code subscription with Clin
 4.  **Select Model:** Choose your desired Claude model from the "Model" dropdown.
 5.  **(Optional) Custom Base URL:** If you need to use a custom base URL for the Anthropic API, check "Use custom base URL" and enter the URL. Most users won't need to adjust this setting.
 
+### Using an Anthropic-Compatible Provider
+
+Cline can also connect to third-party services that implement the Anthropic Messages API. For example, to use [API Token Sale](https://apitoken.sale/):
+
+1.  Select **Anthropic** as the API Provider.
+2.  Paste the API key issued by the provider into the **Anthropic API Key** field.
+3.  Enable **Use custom base URL** and enter `https://api.apitoken.sale`.
+4.  Select `claude-sonnet-4-6` from the **Model** dropdown.
+
+API Token Sale is an independent provider and is not affiliated with Anthropic or Cline. Third-party services have their own billing, privacy, and availability terms.
+
 ## Claude Code (Subscription)
 
 Use this path if you already have Claude Max/Pro and want to use subscription-based access in Cline.
