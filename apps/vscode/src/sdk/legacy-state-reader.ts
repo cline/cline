@@ -25,7 +25,10 @@ import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
  */
 export function resolveDataDir(override?: string): string {
 	if (override) return override
-	if (process.env.CLINE_DATA_DIR) return process.env.CLINE_DATA_DIR
+	// Trim to match createStorageContext and the SDK's resolveClineDataDir, so
+	// a whitespace-padded CLINE_DATA_DIR cannot split the two stores again.
+	const envDataDir = process.env.CLINE_DATA_DIR?.trim()
+	if (envDataDir) return envDataDir
 	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	return path.join(clineDir, "data")
 }
