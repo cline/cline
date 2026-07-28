@@ -38,6 +38,8 @@
 		"components/agent-chat/index.tsx",
 		"components/agent-hero-heading.css",
 		"components/agent-hero-heading.tsx",
+		"components/agent-quick-actions.css",
+		"components/agent-quick-actions.tsx",
 		"components/markdown.css",
 		"components/index.ts",
 		"components/session-status.css",
