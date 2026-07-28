@@ -477,6 +477,7 @@ export type HubCommandName =
 	| "status.board"
 	| "status.summary"
 	| "status.subjects"
+	| "status.tasks_snapshot"
 	| "status.prune"
 	| "ui.notify"
 	| "ui.show_window";

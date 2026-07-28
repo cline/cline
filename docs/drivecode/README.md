@@ -6,6 +6,7 @@ Everything here is cited to code in this repo.
 - [Status Hub](#status-hub)
 - [Drive Mode and Spotlight](#drive-mode-and-spotlight)
 - [Where the code lives](#where-the-code-lives)
+- [Skills inventory](skills-inventory.md)
 - [Not implemented](#not-implemented)
 
 ## Status Hub
@@ -122,7 +123,7 @@ report unprompted. The SDK has no global system prompt, so hosts compose it in.
 
 Commands (`sdk/packages/shared/src/hub.ts`): `status.publish`, `status.query`,
 `status.current`, `status.board`, `status.summary`, `status.subjects`,
-`status.prune`.
+`status.prune`, `status.tasks_snapshot`.
 Event: `status.updated`, broadcast to every connected client on publish with the
 full row and its `seq`.
 
@@ -135,6 +136,14 @@ page 1 — the grouping would then be quietly wrong.
 `status.summary` returns counts over *every* live row, independent of any page:
 `{ total, byState, byAgent[{agentId, agentName, total, blocked, running}],
 lastUpdatedAt }`. Counting from a page would silently under-report.
+
+`status.tasks_snapshot` returns `TeamRuntimeState[]` for a session (or every
+active team via `listTeamStates` on the runtime host). It is a **read-only,
+live-runtime snapshot**: it does not mutate team state, publish an event, or
+re-query `sessions.db` from the webview. An explicit `sessionId` (from the
+payload or command envelope) selects one active session; without one, it lists
+all active team runtimes. An inactive or restored-but-not-running team is not
+included.
 
 ### Query options beyond filtering
 
@@ -155,12 +164,15 @@ caller decides.
 
 ### The view
 
-`apps/cline-hub/src/webview/src/components/views/status-view.tsx`. Board and
-Changelog are the same paginated query with `currentOnly` flipped, so opening the
-view never materializes the whole log. State-filter chips, free-text search, a
-blocked count in the header, expandable `detail`, and Load more off `nextCursor`.
-Live `status_updated` messages splice in at the top; on the Board lens an update
-for a subject already on screen replaces its row rather than stacking.
+`apps/cline-hub/src/webview/src/components/views/status-view.tsx` exposes three
+modes: **Board**, **Changelog**, and **Dependency map**.
+
+Board and Changelog are the same paginated query with `currentOnly` flipped, so
+opening the view never materializes the whole log. State-filter chips, free-text
+search, a blocked count in the header, expandable `detail`, and Load more off
+`nextCursor`. Live `status_updated` messages splice in at the top; on the Board
+lens an update for a subject already on screen replaces its row rather than
+stacking.
 
 A broadcast row bypasses the server-side query, so the view re-applies the
 active filters client-side before splicing one in
@@ -169,6 +181,69 @@ that contradict the filters until the next refresh. When a filter is on, section
 headings and the footer count the rows on screen instead of quoting
 `summary.byState` / `summary.total`, which count every live row and would
 otherwise disagree with what is visible.
+
+### Dependency map
+
+The Dependency map is an operational view of active team tasks, not a second
+task database and not a scheduling engine. It projects the canonical
+`TeamRuntimeState.tasks[].dependsOn` data returned by `status.tasks_snapshot`.
+That keeps task ownership and writes in the team runtime, while the Hub is only
+responsible for transport and presentation.
+
+Each node has a stable view identity of `teamId:taskId`. The team prefix avoids
+colliding task IDs when several active teams use common names such as `build` or
+`test`. A dependency normally resolves within the same team. A fully-qualified
+node key is accepted only when the source data intentionally names one.
+
+The pure `buildDependencyMap()` projection builds prerequisite and dependent
+edges, assigns deterministic layers, and derives task state without changing
+the source snapshot:
+
+- A pending task is **ready** when every resolved prerequisite is completed.
+- It is **waiting** when a prerequisite is unfinished, missing, or part of a
+  cycle.
+- Missing references and direct or indirect cycles remain visible as integrity
+  warnings. The UI never silently repairs or guesses an edge.
+- Layer zero contains tasks with no resolved prerequisites; later layers are
+  one greater than the deepest prerequisite. Cyclic nodes remain at layer zero
+  and are flagged rather than being given a misleading topological position.
+- Within a layer, title and stable key make the order repeatable for users and
+  tests.
+
+Opening the map requests a snapshot, and a `team.progress` event requests a
+fresh one. The snapshot is intentionally live-only today, so the empty state
+means no active team tasks are available—not that no historical tasks exist.
+
+#### Accessibility and keyboard behavior
+
+The map is a semantic list of native task buttons, rather than a canvas-only
+diagram, so it remains usable without a pointer or visual graph interpretation.
+Cards expose their selection with `aria-pressed`; the selected task's
+prerequisites and dependents are announced in a polite live region. Loading is a
+status announcement, and missing references/cycles use an alert.
+
+There are no global shortcuts or bare-letter hotkeys. After focus enters the
+task list with Tab, unmodified Arrow keys move selection, Home/End select the
+first/last task, and Escape clears the selection. Enter and Space retain native
+button behavior. Modified keys and IME composition are ignored, preserving host
+and browser shortcuts such as command palette, find, save, and close-tab.
+
+#### Design boundaries
+
+The implementation intentionally separates responsibilities:
+
+| Responsibility | Boundary |
+|---|---|
+| Canonical task data and mutations | Team runtime / `TeamRuntimeState` |
+| Optional snapshot capability | `RuntimeHost.readTeamState` / `listTeamStates` |
+| Hub validation and read-only command dispatch | `handleStatusCommand` |
+| Hub-to-webview forwarding and live invalidation | `apps/cline-hub/src/server/` |
+| Dependency analysis | Pure `buildDependencyMap()` model |
+| Rendering, focus, and selection state | `DependencyMap` component |
+
+This keeps the model independently testable, lets non-local runtime hosts opt
+into snapshots without coupling to `LocalRuntimeHost`, and prevents the view
+from taking on persistence or task-mutation responsibilities.
 
 ## Drive Mode and Spotlight
 
@@ -230,7 +305,8 @@ and every client. Surfaces render "Spotlight"; the protocol says `stage`.
 | Room, participant, Spotlight (`stage`) schemas | `sdk/packages/shared/src/drive/` |
 | Room state and `call_*` ops | `sdk/packages/core/src/hub/collaboration/` |
 | Spotlight UI, call chrome | `apps/cline-hub/src/webview/src/drive/` |
-| Status Hub view | `apps/cline-hub/src/webview/src/components/views/status-view.tsx` |
+| Status Hub view (Board / Changelog / Dependency map) | `apps/cline-hub/src/webview/src/components/views/status-view.tsx`, `dependency-map.tsx` |
+| Drive tab home | `apps/cline-hub/src/webview/src/components/views/drive-view.tsx` |
 | Cline brand tokens | `apps/cline-hub/src/webview/src/index.css` |
 
 ## Not implemented
@@ -240,9 +316,11 @@ Stated plainly so nobody plans around it:
 - **WebRTC / pixel screen share.** Not implemented, and an explicit anti-pattern
   for the agent Spotlight path. Human share is the structured pin only.
 - **Room persistence.** Rooms are in-memory; a hub restart ends the room.
-- **The Drive tab.** The planned sidebar IA of channels and call rooms is a
-  wireframe prototype ([drive-tab-discord-slack.html](../design/drive-wireframes/drive-tab-discord-slack.html)),
-  not a hub route. The shipped entry point is Chat → **Join call**.
+- **Discord-like Drive channels IA.** The shipped **Drive** sidebar tab
+  (`drive-view.tsx`) is the product home (status tiles, Start a Drive call,
+  links into Spotlight / Status Hub). The channels-and-rooms wireframe
+  ([drive-tab-discord-slack.html](../design/drive-wireframes/drive-tab-discord-slack.html))
+  is still a prototype, not a hub route.
 - **Recruit ranking and RosterPack runtime.** Planned, not built.
 - **Multi-human rooms.** The room primitive carries `participants[]` so it does
   not need a rewrite later, but no multi-human media plane exists.

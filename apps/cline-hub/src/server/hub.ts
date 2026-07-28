@@ -265,6 +265,9 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				snapshot,
 			});
 		},
+		onTeamProgress(payload) {
+			ctx.broadcast({ type: "team_progress", payload });
+		},
 		onStatusUpdated(payload) {
 			// Only the new row is pushed; open views append it to whatever page
 			// they already hold rather than refetching.

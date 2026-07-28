@@ -110,6 +110,7 @@ export class HubUIClient {
 		onRoomSnapshot?: (payload: Record<string, unknown>) => void;
 		onRoomEvent?: (payload: Record<string, unknown>) => void;
 		onStatusUpdated?: (payload: Record<string, unknown>) => void;
+		onTeamProgress?: (payload: Record<string, unknown>) => void;
 	}): () => void {
 		return this.client.subscribe((event: HubEventEnvelope) => {
 			switch (event.event) {
@@ -154,6 +155,9 @@ export class HubUIClient {
 					break;
 				case "status.updated":
 					handlers.onStatusUpdated?.(event.payload ?? {});
+					break;
+				case "team.progress":
+					handlers.onTeamProgress?.(event.payload ?? {});
 					break;
 			}
 		});

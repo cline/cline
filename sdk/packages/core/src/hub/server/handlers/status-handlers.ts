@@ -25,6 +25,10 @@ const SubjectsPayloadSchema = z
 	.object({ limit: z.number().int().positive().max(1000).optional() })
 	.strict();
 
+const TasksSnapshotPayloadSchema = z
+	.object({ sessionId: z.string().min(1).optional() })
+	.strict();
+
 /** Serialize an update for the wire (payloads are plain JSON records). */
 function toPayload(update: StatusUpdate): Record<string, unknown> {
 	return update as unknown as Record<string, unknown>;
@@ -73,7 +77,7 @@ export function attachStatusBroadcast(
 export async function handleStatusCommand(
 	// Kept for symmetry with every other command handler. Broadcasting moved to
 	// `attachStatusBroadcast`, so this handler no longer touches the wire.
-	_ctx: HubTransportContext,
+	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	service: StatusService = getStatusService(),
 ): Promise<HubReplyEnvelope> {
@@ -136,6 +140,19 @@ export async function handleStatusCommand(
 			case "status.subjects": {
 				const { limit } = SubjectsPayloadSchema.parse(payload);
 				return okReply(envelope, { subjects: service.subjects(limit) });
+			}
+
+			case "status.tasks_snapshot": {
+				const { sessionId } = TasksSnapshotPayloadSchema.parse(payload);
+				const targetSessionId = sessionId ?? envelope.sessionId;
+				const teams = targetSessionId
+					? await ctx.sessionHost
+							.readTeamState?.(targetSessionId)
+							.then((team) => (team ? [team] : []))
+					: await ctx.sessionHost.listTeamStates?.();
+				return okReply(envelope, {
+					teams: (teams ?? []) as unknown as Record<string, unknown>,
+				});
 			}
 
 			case "status.prune": {

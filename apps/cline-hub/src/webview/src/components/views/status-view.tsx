@@ -15,7 +15,12 @@
  * the whole log.
  */
 
-import type { StatusState, StatusSummary, StatusUpdate } from "@cline/shared";
+import type {
+	StatusState,
+	StatusSummary,
+	StatusUpdate,
+	TeamRuntimeState,
+} from "@cline/shared";
 import { ActivityIcon, RefreshCwIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postToHost } from "../../vscode";
 import { PageEmptyState, PageFrame, PageHeader } from "./page-layout";
+import { DependencyMap } from "./dependency-map";
 import {
 	hasActiveFilters,
 	matchesStatusFilters,
@@ -52,7 +58,7 @@ const TILE_STATES: readonly StatusState[] = [
 	"done",
 ];
 
-export type StatusViewMode = "board" | "changelog";
+export type StatusViewMode = "board" | "changelog" | "dependency-map";
 
 function StatTile({
 	label,
@@ -102,6 +108,9 @@ export function StatusView() {
 	const [agentFilter, setAgentFilter] = useState<string | null>(null);
 	const [searchDraft, setSearchDraft] = useState("");
 	const [search, setSearch] = useState("");
+	const [teams, setTeams] = useState<TeamRuntimeState[]>([]);
+	const [tasksLoading, setTasksLoading] = useState(false);
+	const tasksRequestRef = useRef<string | null>(null);
 
 	/**
 	 * Only the newest request may write results. Without this, a slow first
@@ -156,6 +165,13 @@ export function StatusView() {
 		postToHost({ type: "status_summary", requestId: "status-summary" });
 	}, []);
 
+	const requestTasks = useCallback(() => {
+		const requestId = `status-tasks-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		tasksRequestRef.current = requestId;
+		setTasksLoading(true);
+		postToHost({ type: "status_tasks_snapshot", requestId });
+	}, []);
+
 	useEffect(() => {
 		request(null, true);
 	}, [request]);
@@ -163,6 +179,10 @@ export function StatusView() {
 	useEffect(() => {
 		requestSummary();
 	}, [requestSummary]);
+
+	useEffect(() => {
+		if (mode === "dependency-map") requestTasks();
+	}, [mode, requestTasks]);
 
 	useEffect(() => {
 		function onMessage(event: MessageEvent) {
@@ -181,6 +201,22 @@ export function StatusView() {
 
 			if (message.type === "status_summary_result") {
 				setSummary(message.summary as StatusSummary);
+				return;
+			}
+
+			if (message.type === "status_tasks_snapshot_result") {
+				if (message.requestId !== tasksRequestRef.current) return;
+				setTeams(
+					Array.isArray(message.teams)
+						? (message.teams as TeamRuntimeState[])
+						: [],
+				);
+				setTasksLoading(false);
+				return;
+			}
+
+			if (message.type === "team_progress") {
+				if (mode === "dependency-map") requestTasks();
 				return;
 			}
 
@@ -218,7 +254,7 @@ export function StatusView() {
 
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, [mode, requestSummary]);
+	}, [mode, requestSummary, requestTasks]);
 
 	const toggleState = useCallback((value: StatusState) => {
 		setStateFilter((current) =>
@@ -240,7 +276,8 @@ export function StatusView() {
 	const refreshAll = useCallback(() => {
 		request(null, true);
 		requestSummary();
-	}, [request, requestSummary]);
+		if (mode === "dependency-map") requestTasks();
+	}, [mode, request, requestSummary, requestTasks]);
 
 	const activeAgent = summary?.byAgent.find((a) => a.agentId === agentFilter);
 
@@ -249,8 +286,10 @@ export function StatusView() {
 			<PageHeader
 				description={
 					mode === "board"
-						? "Where every agent is right now — one row per piece of work, most urgent first."
-						: "Everything that has happened, newest first, including superseded updates."
+						? "Where every agent is right now ? one row per piece of work, most urgent first."
+						: mode === "dependency-map"
+							? "Task prerequisites and dependent work from active teams."
+							: "Everything that has happened, newest first, including superseded updates."
 				}
 				icon={ActivityIcon}
 				meta={
@@ -296,7 +335,7 @@ export function StatusView() {
 
 			<div className="mb-4 flex flex-wrap items-center gap-2">
 				<div className="flex overflow-hidden rounded-md border">
-					{(["board", "changelog"] as const).map((value) => (
+					{(["board", "changelog", "dependency-map"] as const).map((value) => (
 						<button
 							className={cn(
 								"px-3 py-1.5 text-xs capitalize transition-colors",
@@ -304,6 +343,7 @@ export function StatusView() {
 									? "bg-primary text-primary-foreground"
 									: "text-muted-foreground hover:text-foreground",
 							)}
+							aria-pressed={mode === value}
 							key={value}
 							onClick={() => setMode(value)}
 							type="button"
@@ -399,12 +439,17 @@ export function StatusView() {
 			) : null}
 
 			{error ? (
-				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+				<div
+					className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+					role="alert"
+				>
 					{error}
 				</div>
 			) : null}
 
-			{updates.length === 0 && !loading ? (
+			{mode === "dependency-map" ? (
+				<DependencyMap loading={tasksLoading} teams={teams} />
+			) : updates.length === 0 && !loading ? (
 				<div className="rounded-lg border bg-card">
 					<PageEmptyState>
 						No status updates yet. Agents publish here with the{" "}
@@ -453,27 +498,29 @@ export function StatusView() {
 				</div>
 			)}
 
-			<div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-				<span>
-					{updates.length} shown
-					{summary && mode === "board" && !filtersActive
-						? ` of ${summary.total} active`
-						: ""}
-					{filtersActive ? " · filtered" : ""}
-					{hasMore ? " · more available" : ""}
-				</span>
-				{hasMore ? (
-					<Button
-						disabled={loading || nextCursor == null}
-						onClick={() => request(nextCursor, false)}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						{loading ? "Loading…" : "Load more"}
-					</Button>
-				) : null}
-			</div>
+			{mode !== "dependency-map" ? (
+				<div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+					<span>
+						{updates.length} shown
+						{summary && mode === "board" && !filtersActive
+							? ` of ${summary.total} active`
+							: ""}
+						{filtersActive ? " · filtered" : ""}
+						{hasMore ? " · more available" : ""}
+					</span>
+					{hasMore ? (
+						<Button
+							disabled={loading || nextCursor == null}
+							onClick={() => request(nextCursor, false)}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{loading ? "Loading…" : "Load more"}
+						</Button>
+					) : null}
+				</div>
+			) : null}
 		</PageFrame>
 	);
 }

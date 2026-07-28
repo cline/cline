@@ -1,7 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HubCommandEnvelope, HubEventEnvelope } from "@cline/shared";
+import type {
+	HubCommandEnvelope,
+	HubEventEnvelope,
+	TeamRuntimeState,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { StatusService } from "../../../status";
 import { SqliteStatusStore } from "../../../status/store/sqlite-status-store";
@@ -245,6 +249,75 @@ describe("handleStatusCommand", () => {
 		);
 		expect(reply.ok).toBe(true);
 		expect(reply.payload?.update).toBeNull();
+	});
+
+	it("reads a requested team snapshot without mutating team state", async () => {
+		const team = { teamId: "team-a", tasks: [] } as unknown as TeamRuntimeState;
+		let requestedSessionId: string | undefined;
+		Object.assign(ctx, {
+			sessionHost: {
+				readTeamState: async (sessionId: string) => {
+					requestedSessionId = sessionId;
+					return team;
+				},
+			} as unknown as HubTransportContext["sessionHost"],
+		});
+
+		const reply = await handleStatusCommand(
+			ctx,
+			envelope("status.tasks_snapshot", { sessionId: "session-a" }),
+			service,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(requestedSessionId).toBe("session-a");
+		expect(reply.payload?.teams).toEqual([team]);
+		expect(published).toHaveLength(0);
+	});
+
+	it("returns all active team snapshots when no session is requested", async () => {
+		const teams = [
+			{ teamId: "team-a", tasks: [] },
+			{ teamId: "team-b", tasks: [] },
+		] as unknown as TeamRuntimeState[];
+		let listCalls = 0;
+		Object.assign(ctx, {
+			sessionHost: {
+				listTeamStates: async () => {
+					listCalls += 1;
+					return teams;
+				},
+			} as unknown as HubTransportContext["sessionHost"],
+		});
+
+		const reply = await handleStatusCommand(
+			ctx,
+			envelope("status.tasks_snapshot"),
+			service,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(listCalls).toBe(1);
+		expect(reply.payload?.teams).toEqual(teams);
+		expect(published).toHaveLength(0);
+	});
+
+	it("returns an empty snapshot when the runtime has no active teams", async () => {
+		Object.assign(ctx, {
+			sessionHost: {
+				listTeamStates: async () => [],
+			} as unknown as HubTransportContext["sessionHost"],
+		});
+
+		const reply = await handleStatusCommand(
+			ctx,
+			envelope("status.tasks_snapshot"),
+			service,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(reply.payload?.teams).toEqual([]);
+		expect(published).toHaveLength(0);
 	});
 
 	it("rejects an invalid payload without broadcasting", async () => {

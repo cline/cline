@@ -23,6 +23,7 @@ export async function handleStatusCommand(
 			| "status_board"
 			| "status_current"
 			| "status_subjects"
+			| "status_tasks_snapshot"
 			| "status_summary";
 		requestId: string;
 		[key: string]: unknown;
@@ -72,6 +73,15 @@ export async function handleStatusCommand(
 				subjects: Array.isArray(reply.payload?.subjects)
 					? (reply.payload.subjects as string[])
 					: [],
+			});
+			return;
+		}
+
+		if (frame.type === "status_tasks_snapshot") {
+			ctx.send(peer, {
+				type: "status_tasks_snapshot_result",
+				requestId,
+				teams: reply.payload?.teams ?? [],
 			});
 			return;
 		}

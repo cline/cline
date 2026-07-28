@@ -19,6 +19,7 @@ import type {
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
+import type { TeamRuntimeState } from "@cline/shared";
 import type { RuntimeCapabilities } from "../capabilities";
 import type { ConnectionUpdate } from "../config/connection-update";
 
@@ -339,6 +340,8 @@ export interface RuntimeHost {
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readTeamState?(sessionId: string): Promise<TeamRuntimeState | undefined>;
+	listTeamStates?(): Promise<TeamRuntimeState[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

@@ -1081,6 +1081,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
+	async readTeamState(sessionId: string) {
+		return this.sessions.get(sessionId)?.runtime.teamRuntime?.exportState();
+	}
+
+	async listTeamStates() {
+		return [...this.sessions.values()].flatMap((session) => {
+			const state = session.runtime.teamRuntime?.exportState();
+			return state ? [state] : [];
+		});
+	}
+
 	async listSessions(limit = 200): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit);
 		const persisted = rows.map(toSessionRecord);

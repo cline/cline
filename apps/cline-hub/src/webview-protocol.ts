@@ -353,7 +353,8 @@ export type WebviewInboundMessage =
 			limit?: number;
 	  }
 	| { type: "status_subjects"; requestId: string; limit?: number }
-	| { type: "status_summary"; requestId: string };
+	| { type: "status_summary"; requestId: string }
+	| { type: "status_tasks_snapshot"; requestId: string; sessionId?: string };
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
