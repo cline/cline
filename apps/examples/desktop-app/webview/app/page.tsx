@@ -301,7 +301,7 @@ export default function Home() {
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+						<SidebarTrigger className="absolute left-20 top-3 z-40 md:hidden" />
 						{view === "sessions" ? (
 							<SessionsView
 								activeSessionId={activeHistorySessionId}

@@ -37,6 +37,9 @@ describe("AgentHeader title editor", () => {
 		const titleButton = container.querySelector<HTMLButtonElement>(
 			'button[title="A title wide enough to expose resizing"]',
 		);
+		expect(container.querySelector("header")?.className).toContain(
+			"max-md:pl-28",
+		);
 		expect(titleButton).not.toBeNull();
 		vi.spyOn(
 			titleButton as HTMLButtonElement,
