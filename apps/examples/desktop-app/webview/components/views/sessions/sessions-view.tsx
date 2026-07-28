@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionStatus } from "@cline/ui";
 import {
 	ArrowUpDown,
 	Check,
@@ -13,7 +14,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -40,25 +41,18 @@ import {
 	basenamePath,
 	formatCostUsd,
 	formatRelativeTime,
-	parseTimestamp,
 	type SessionThread,
+	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import type { SessionHistoryItem } from "@/lib/session-history";
+import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 
 type SessionsViewProps = {
 	activeSessionId?: string | null;
 	history: UseSessionHistoryResult;
 };
-
-function statusTone(status?: string): string {
-	if (status === "running") return "bg-green-500";
-	if (status === "completed") return "bg-emerald-400";
-	if (status === "failed") return "bg-destructive";
-	if (status === "cancelled") return "bg-yellow-500";
-	return "bg-muted-foreground";
-}
 
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
@@ -89,7 +83,10 @@ function sessionFilterDetails(
 }
 
 function sortTimestamp(session?: SessionHistoryItem) {
-	const timestamp = parseTimestamp(session?.endedAt || session?.startedAt);
+	if (!session) {
+		return 0;
+	}
+	const timestamp = sessionActivityTimestamp(session);
 	return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -415,14 +412,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
 												<span className="sr-only">Open session: </span>
-												<span
-													className={cn(
-														"size-1.5 shrink-0 rounded-full",
-														statusTone(thread.status),
-													)}
-													aria-hidden="true"
+												<SessionStatus
+													className="shrink-0"
+													label={`Session status: ${thread.status}`}
+													showLabel={false}
+													style={
+														{
+															"--cline-ui-session-status-color":
+																sessionStatusColor(thread.status),
+														} as CSSProperties
+													}
+													tone={sessionStatusTone(thread.status)}
 												/>
-												<span className="sr-only">{thread.status}: </span>
 												<span className="truncate">{thread.title}</span>
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
