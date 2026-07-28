@@ -2,6 +2,7 @@
 
 import {
 	Message as AgentMessage,
+	type AgentMessageRole,
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
@@ -20,20 +21,23 @@ import {
 } from "@cline/ui/components/agent-chat";
 import {
 	AlertCircle,
-	Bot,
+	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
-	FileEdit,
-	FileIcon,
-	FileSearch,
+	FilesIcon,
 	Loader2,
+	type LucideIcon,
 	MessagesSquare,
-	Search,
+	PencilIcon,
+	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
-	SquareTerminalIcon,
+	TerminalIcon,
 	UndoIcon,
+	UserIcon,
+	UsersIcon,
+	WrenchIcon,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -98,8 +102,57 @@ type AskQuestionRequestItem = {
 };
 
 type ChatRenderItem =
-	| { type: "message"; message: ChatMessage }
+	| {
+			type: "message";
+			agentRole: AgentMessageRole;
+			message: ChatMessage;
+	  }
 	| { type: "tools"; messages: ChatMessage[] };
+
+function buildPreviousTimestampMap(
+	messages: ChatMessage[],
+): Map<ChatMessage, number | undefined> {
+	const previousTimestampByMessage = new Map<ChatMessage, number | undefined>();
+	let previousTimestamp: number | undefined;
+
+	for (const message of messages) {
+		previousTimestampByMessage.set(message, previousTimestamp);
+		if (Number.isFinite(message.createdAt)) {
+			previousTimestamp = message.createdAt;
+		}
+	}
+
+	return previousTimestampByMessage;
+}
+
+function getThoughtDurationMilliseconds(
+	previousTimestamp: number | undefined,
+	thinkingTimestamp: number,
+): number | undefined {
+	if (
+		previousTimestamp === undefined ||
+		!Number.isFinite(previousTimestamp) ||
+		!Number.isFinite(thinkingTimestamp) ||
+		thinkingTimestamp < previousTimestamp
+	) {
+		return undefined;
+	}
+
+	return thinkingTimestamp - previousTimestamp;
+}
+
+function formatThoughtLabel(durationMilliseconds?: number): string {
+	if (durationMilliseconds === undefined) {
+		return "Thinking";
+	}
+
+	const seconds =
+		durationMilliseconds === 0
+			? 0
+			: Math.max(1, Math.round(durationMilliseconds / 1000));
+
+	return `Thought for ${seconds}s`;
+}
 
 function groupConsecutiveToolMessages(
 	messages: ChatMessage[],
@@ -115,7 +168,7 @@ function groupConsecutiveToolMessages(
 			}
 			continue;
 		}
-		items.push({ type: "message", message });
+		items.push({ type: "message", agentRole: message.role, message });
 	}
 	return items;
 }
@@ -188,6 +241,10 @@ function ChatMessagesImpl({
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(
 		() => groupConsecutiveToolMessages(messages),
+		[messages],
+	);
+	const previousTimestampByMessage = useMemo(
+		() => buildPreviousTimestampMap(messages),
 		[messages],
 	);
 
@@ -443,12 +500,14 @@ function ChatMessagesImpl({
 										/>
 									);
 								}
-								const { message } = item;
+								const { agentRole, message } = item;
 								return (
 									<MessageBubble
+										agentRole={agentRole}
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
+										previousTimestamp={previousTimestampByMessage.get(message)}
 										onExpandImage={handleExpandImage}
 										onCopyMessage={handleCopyMessage}
 										onRestoreCheckpoint={
@@ -756,6 +815,7 @@ function AskQuestionPanel({
 // object that received a delta changes identity, so all other bubbles skip
 // re-rendering (and re-running their Markdown pipeline) per flush.
 const MessageBubble = memo(function MessageBubble({
+	agentRole,
 	message,
 	isStreaming = false,
 	onCopyMessage,
@@ -768,7 +828,9 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession,
 	forkPending = false,
 	forkError,
+	previousTimestamp,
 }: {
+	agentRole: AgentMessageRole;
 	message: ChatMessage;
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
@@ -784,6 +846,7 @@ const MessageBubble = memo(function MessageBubble({
 	onForkSession?: (messageId: string) => void | Promise<void>;
 	forkPending?: boolean;
 	forkError?: string;
+	previousTimestamp?: number;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
@@ -804,13 +867,18 @@ const MessageBubble = memo(function MessageBubble({
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
 
 	const reasoningContent = message.reasoning?.trim() || "";
+	const thoughtDurationMilliseconds = getThoughtDurationMilliseconds(
+		previousTimestamp,
+		message.createdAt,
+	);
 
 	return (
-		<AgentMessage from={message.role}>
+		<AgentMessage className="relative" from={agentRole}>
 			<MessageContent className="space-y-2 wrap-break-word">
 				{reasoningContent || message.reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
+						durationMilliseconds={thoughtDurationMilliseconds}
 						redacted={message.reasoningRedacted === true}
 						streaming={isStreaming}
 					/>
@@ -829,7 +897,7 @@ const MessageBubble = memo(function MessageBubble({
 								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
 								<img
 									alt={`Attachment ${index + 1}`}
-									className="max-h-[225px] max-w-[225px] object-contain"
+									className="max-h-56.25 max-w-56.25 object-contain"
 									src={`data:${image.mediaType};base64,${image.data}`}
 								/>
 							</button>
@@ -849,7 +917,10 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderUserActions ? (
 				<>
-					<MessageActions visible={keepUserActionsVisible}>
+					<MessageActions
+						className="absolute right-0 top-full z-10"
+						visible={keepUserActionsVisible}
+					>
 						{onCopyMessage ? (
 							<MessageAction
 								label={wasCopied ? "Copied user message" : "Copy user message"}
@@ -889,7 +960,10 @@ const MessageBubble = memo(function MessageBubble({
 			) : null}
 
 			{shouldRenderAssistantActions ? (
-				<MessageActions visible={keepAssistantActionsVisible}>
+				<MessageActions
+					className="absolute left-0 top-full z-10"
+					visible={keepAssistantActionsVisible}
+				>
 					{onCopyMessage ? (
 						<MessageAction
 							label={
@@ -932,22 +1006,33 @@ const MessageBubble = memo(function MessageBubble({
 
 function ReasoningBlock({
 	content,
+	durationMilliseconds,
 	redacted,
 	streaming = false,
 }: {
 	content: string;
+	durationMilliseconds?: number;
 	redacted: boolean;
 	streaming?: boolean;
 }) {
 	const displayContent = content || (redacted ? "[redacted]" : "");
+	const label = streaming
+		? "Thinking"
+		: formatThoughtLabel(durationMilliseconds);
 	if (!displayContent) {
 		return null;
 	}
 
 	return (
-		<Reasoning isStreaming={streaming}>
-			<ReasoningTrigger />
-			<ReasoningContent>
+		<Reasoning className="my-0" isStreaming={streaming}>
+			<ReasoningTrigger
+				aria-label={label}
+				className="gap-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+				<span className="font-medium">{label}</span>
+			</ReasoningTrigger>
+			<ReasoningContent className="ml-2 mt-2 max-h-48 overflow-y-auto rounded-none border-0 border-l border-border bg-transparent p-0 py-1 pl-4 text-sm leading-relaxed text-muted-foreground">
 				<MemoizedMarkdown content={displayContent} streaming={streaming} />
 			</ReasoningContent>
 		</Reasoning>
@@ -1043,6 +1128,29 @@ function parseToolPayload(raw: string): ToolPayload | null {
 	} catch {
 		return null;
 	}
+}
+
+const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
+	apply_patch: PencilIcon,
+	editor: PencilIcon,
+	read_files: FilesIcon,
+	run_commands: TerminalIcon,
+	search_codebase: SearchCodeIcon,
+	spaw_agent: UserIcon,
+	spawn_agent: UserIcon,
+	subagent_subagent: UserIcon,
+};
+
+function getToolNameIcon(toolName: string): LucideIcon {
+	const normalized = toolName.toLowerCase();
+	if (
+		normalized === "team" ||
+		normalized === "teams" ||
+		normalized.startsWith("team_")
+	) {
+		return UsersIcon;
+	}
+	return TOOL_NAME_ICONS[normalized] ?? WrenchIcon;
 }
 
 function classifyTool(
@@ -1472,26 +1580,16 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		const presentations = messages.map(buildToolPresentation);
-		const first = presentations[0];
-		if (!first) return null;
+		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const kinds = new Set(presentations.map(({ kind }) => kind));
-		const kind = kinds.size === 1 ? first.kind : "tool";
-		const isFileRead = presentations.every(({ toolName }) =>
-			["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
+		const icons = presentations.map(({ toolName }) =>
+			getToolNameIcon(toolName),
 		);
-		const Icon = isFileRead
-			? FileIcon
-			: kind === "exploration"
-				? Search
-				: kind === "file-edit"
-					? FileEdit
-					: kind === "bash"
-						? SquareTerminalIcon
-						: kind === "spawn"
-							? Bot
-							: FileSearch;
+		const firstIcon = icons[0] ?? WrenchIcon;
+		const Icon = icons.every((icon) => icon === firstIcon)
+			? firstIcon
+			: WrenchIcon;
 		const details = presentations.flatMap(({ message, summary }) =>
 			summary.details.map((detail) => ({
 				detail,

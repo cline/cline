@@ -47,6 +47,36 @@ async function renderMessages(
 }
 
 describe("ChatMessages tool disclosures", () => {
+	it.each([
+		["run_commands", "lucide-terminal"],
+		["read_files", "lucide-files"],
+		["search_codebase", "lucide-search-code"],
+		["editor", "lucide-pencil"],
+		["apply_patch", "lucide-pencil"],
+		["spawn_agent", "lucide-user"],
+		["spaw_agent", "lucide-user"],
+		["subagent_subagent", "lucide-user"],
+		["team_status", "lucide-users"],
+		["unknown_tool", "lucide-wrench"],
+	])("uses the expected icon for %s", async (toolName, iconClass) => {
+		await renderMessages([
+			{
+				id: `tool-icon-${toolName}`,
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName,
+					input: {},
+					result: {},
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const icon = container.querySelector(".cline-chat-tool-icon svg");
+		expect(icon?.classList.contains(iconClass)).toBe(true);
+	});
+
 	it("renders a detail-less tool summary as static text", async () => {
 		await renderMessages([
 			{
@@ -249,6 +279,47 @@ describe("ChatMessages tool disclosures", () => {
 			container.querySelector('button[aria-label="Copy assistant message"]'),
 		).toBeNull();
 	});
+
+	it("positions hidden message actions outside the message layout", async () => {
+		await renderMessages([
+			{
+				id: "user-actions",
+				sessionId: "session-1",
+				role: "user",
+				content: "User message",
+				createdAt: 1,
+			},
+			{
+				id: "assistant-actions",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Assistant message",
+				createdAt: 2,
+			},
+		]);
+
+		const userMessage = container.querySelector(
+			'.cline-chat-message[data-role="user"]',
+		);
+		const userActions = userMessage?.querySelector(
+			":scope > .cline-chat-message-actions",
+		);
+		const assistantMessage = container.querySelector(
+			'.cline-chat-message[data-role="assistant"]',
+		);
+		const assistantActions = assistantMessage?.querySelector(
+			":scope > .cline-chat-message-actions",
+		);
+
+		expect(userMessage?.classList.contains("relative")).toBe(true);
+		expect(userActions?.classList.contains("absolute")).toBe(true);
+		expect(userActions?.classList.contains("right-0")).toBe(true);
+		expect(userActions?.classList.contains("top-full")).toBe(true);
+		expect(assistantMessage?.classList.contains("relative")).toBe(true);
+		expect(assistantActions?.classList.contains("absolute")).toBe(true);
+		expect(assistantActions?.classList.contains("left-0")).toBe(true);
+		expect(assistantActions?.classList.contains("top-full")).toBe(true);
+	});
 });
 
 describe("ChatMessages image attachments", () => {
@@ -270,8 +341,8 @@ describe("ChatMessages image attachments", () => {
 			'img[alt="Attachment 1"]',
 		);
 		expect(image?.src).toBe("data:image/png;base64,aGVsbG8=");
-		expect(image?.className).toContain("max-h-[225px]");
-		expect(image?.className).toContain("max-w-[225px]");
+		expect(image?.className).toContain("max-h-56.25");
+		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
 	});
 
@@ -309,6 +380,61 @@ describe("ChatMessages image attachments", () => {
 			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 		});
 		expect(container.querySelector('[role="dialog"]')).toBeNull();
+	});
+});
+
+describe("ChatMessages reasoning disclosure", () => {
+	it("shows elapsed thinking time with the border-left disclosure style", async () => {
+		await renderMessages([
+			{
+				id: "user-before-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Solve this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Done",
+				reasoning: "Carefully considered the request.",
+				createdAt: 7_500,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Thought for 7s"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
+		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
+
+		await act(async () => trigger?.click());
+
+		const content = container.querySelector(".cline-chat-reasoning-content");
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(content?.textContent).toContain("Carefully considered the request.");
+		expect(content?.classList.contains("border-l")).toBe(true);
+		expect(content?.classList.contains("pl-4")).toBe(true);
+		expect(content?.classList.contains("rounded-none")).toBe(true);
+		expect(content?.classList.contains("bg-transparent")).toBe(true);
+	});
+
+	it("falls back to Thinking when there is no previous timestamp", async () => {
+		await renderMessages([
+			{
+				id: "first-reasoning",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "Starting from scratch.",
+				createdAt: 1_000,
+			},
+		]);
+
+		expect(container.textContent).toContain("Thinking");
+		expect(container.textContent).not.toContain("Thought for");
 	});
 });
 
