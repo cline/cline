@@ -452,20 +452,32 @@ function AgentRoster({
 	}
 
 	return (
-		// A plain scroller rather than ScrollArea: Radix's viewport wraps content in
-		// a `display: table` element, which sizes to its widest line and pushes long
-		// prompts past the popover edge instead of wrapping them.
-		<div className="max-h-80 overflow-y-auto overscroll-contain">
-			<ul className="divide-y divide-border/60">
-				{agents.map((agent) => (
-					<AgentRosterRow
-						agent={agent}
-						key={agent.sessionId}
-						onSelect={() => onSelect(agent.sessionId)}
-					/>
-				))}
-			</ul>
-		</div>
+		<>
+			{/* A plain scroller rather than ScrollArea: Radix's viewport wraps content
+			    in a `display: table` element, which sizes to its widest line and
+			    pushes long prompts past the popover edge instead of wrapping them. */}
+			<div className="max-h-80 overflow-y-auto overscroll-contain">
+				<ul className="divide-y divide-border/60">
+					{agents.map((agent) => (
+						<AgentRosterRow
+							agent={agent}
+							key={agent.sessionId}
+							onSelect={() => onSelect(agent.sessionId)}
+						/>
+					))}
+				</ul>
+			</div>
+			{/* A failed refresh keeps the last good list rather than blanking it, so
+			    say so — otherwise stale rows would pass for current ones. */}
+			{error ? (
+				<div
+					className="border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground"
+					id="agent-roster-stale"
+				>
+					Could not refresh — showing the last known agents. {error}
+				</div>
+			) : null}
+		</>
 	);
 }
 

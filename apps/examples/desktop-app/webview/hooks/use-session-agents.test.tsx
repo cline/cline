@@ -313,6 +313,56 @@ describe("useSessionAgents", () => {
 		expect(current.error).toBe("no session database");
 	});
 
+	it("keeps a loaded roster when a later refresh fails", async () => {
+		// A transient sidecar/SQLite error means this read learned nothing, not
+		// that the agents vanished. Blanking them is unrecoverable on an idle
+		// session: nothing polls, and if the roster was the only source of agents
+		// the pill disappears along with the popover that would re-read it.
+		invokeMock.mockResolvedValue([agentRow("a", "one"), agentRow("a", "two")]);
+		await render({ sessionId: "a" });
+		expect(current.agents).toHaveLength(2);
+
+		invokeMock.mockRejectedValue(new Error("database is locked"));
+		await act(async () => {
+			await current.refresh("a", { quiet: true });
+		});
+		expect(current.agents.map((agent) => agent.agentId)).toEqual([
+			"one",
+			"two",
+		]);
+		expect(current.error).toBe("database is locked");
+	});
+
+	it("does not carry entries across sessions when a refresh fails", async () => {
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await render({ sessionId: "a" });
+		expect(current.agents).toHaveLength(1);
+
+		// b's read fails; a's entries must not surface under b.
+		invokeMock.mockRejectedValue(new Error("database is locked"));
+		await render({ sessionId: "b" });
+		expect(current.agents).toEqual([]);
+		expect(current.error).toBe("database is locked");
+	});
+
+	it("recovers the roster on the next successful refresh", async () => {
+		invokeMock.mockResolvedValue([agentRow("a", "one")]);
+		await render({ sessionId: "a" });
+
+		invokeMock.mockRejectedValue(new Error("database is locked"));
+		await act(async () => {
+			await current.refresh("a", { quiet: true });
+		});
+		expect(current.error).toBe("database is locked");
+
+		invokeMock.mockResolvedValue([agentRow("a", "one"), agentRow("a", "two")]);
+		await act(async () => {
+			await current.refresh("a", { quiet: true });
+		});
+		expect(current.agents).toHaveLength(2);
+		expect(current.error).toBeNull();
+	});
+
 	it("clears a previous error when switching sessions", async () => {
 		invokeMock.mockRejectedValue(new Error("no session database"));
 		await render({ sessionId: "a" });

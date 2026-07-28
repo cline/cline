@@ -134,14 +134,24 @@ export function useSessionAgents({
 				if (requestSeqRef.current !== seq) {
 					return;
 				}
-				// A host without this command (or without a session DB) simply has no
-				// roster to show; the header still renders its message-derived tally.
-				setRoster({
+				const message =
+					err instanceof Error ? err.message : "Could not load agents.";
+				setRoster((prev) => ({
 					sessionId: targetSessionId,
-					entries: [],
+					// A failed read means this attempt learned nothing — not that the
+					// agents are gone. Discarding them would blank a list that had
+					// loaded fine, and because the sequence guard drops any older
+					// in-flight response there would be nothing left to restore it: on
+					// an idle session nothing polls, and if the roster was the only
+					// source of agents the pill itself disappears, taking away the
+					// popover that would have triggered a re-read.
+					//
+					// Entries from a *different* session are still dropped, so a failure
+					// cannot make the previous session's agents surface under this one.
+					entries: prev.sessionId === targetSessionId ? prev.entries : [],
 					loading: false,
-					error: err instanceof Error ? err.message : "Could not load agents.",
-				});
+					error: message,
+				}));
 			}
 		},
 		[],

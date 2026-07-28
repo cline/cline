@@ -338,6 +338,22 @@ describe("AgentHeader agent roster popover", () => {
 		expect(panel?.textContent).toContain("Loading agents...");
 	});
 
+	it("says the list is stale when a refresh failed but agents remain", async () => {
+		await renderHeader({ agentsError: "database is locked" });
+		const panel = await openPanel();
+		// The rows are kept, so the failure has to be stated or they read as fresh.
+		expect(panel?.textContent).toContain("Review the diff for regressions");
+		const stale = panel?.querySelector("#agent-roster-stale");
+		expect(stale?.textContent).toContain("showing the last known agents");
+		expect(stale?.textContent).toContain("database is locked");
+	});
+
+	it("shows no staleness note when the roster loaded cleanly", async () => {
+		await renderHeader();
+		const panel = await openPanel();
+		expect(panel?.querySelector("#agent-roster-stale")).toBeNull();
+	});
+
 	it("explains an empty roster while agents are still starting up", async () => {
 		await renderHeader({ agents: [], agentsLoading: false });
 		const panel = await openPanel();
