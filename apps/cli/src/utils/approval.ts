@@ -91,7 +91,8 @@ async function requestTerminalToolApproval(
 	}
 	return {
 		approved: false,
-		reason: `Tool "${request.toolName}" was denied by user`,
+		reason:
+			"This tool call was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed.",
 	};
 }
 

@@ -1,6 +1,7 @@
 import { isEditTool } from "./sdk-tool-policies"
 
-export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = "User denied the tool execution"
+export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON =
+	"This tool call was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed."
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
 	"The user denied this edit. The file was NOT modified and still contains its original content."
