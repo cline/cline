@@ -245,6 +245,38 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("carries the current user-authored overrides when only the model id changes", async () => {
+		mocks.refreshOpenAiModels.mockResolvedValue({ values: ["custom-model", "listed-model"] })
+		setCommittedSelection({ contextWindow: 1_300_000, inputPrice: 3, outputPrice: 15 })
+		renderProvider()
+		await act(async () => {})
+
+		fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "listed-model" } })
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "listed-model",
+			overrides: { contextWindow: 1_300_000, inputPrice: 3, outputPrice: 15 },
+		})
+	})
+
+	it("keeps carried overrides as the base for edits made right after a model-id change", async () => {
+		mocks.refreshOpenAiModels.mockResolvedValue({ values: ["custom-model", "listed-model"] })
+		setCommittedSelection({ inputPrice: 3, outputPrice: 15 })
+		renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+
+		fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "listed-model" } })
+		fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.25" } })
+
+		expect(mocks.commitSelection).toHaveBeenLastCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "listed-model",
+			overrides: { inputPrice: 3, outputPrice: 15, temperature: 0.25 },
+		})
+	})
+
 	it("persists only the edited vision field while preserving existing overrides", async () => {
 		setCommittedSelection({
 			apiFormat: ApiFormat.OPENAI_RESPONSES,

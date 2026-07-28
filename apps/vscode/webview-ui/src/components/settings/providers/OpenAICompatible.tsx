@@ -130,7 +130,11 @@ export const OpenAICompatibleProvider = ({
 
 	const updateModelOverride = useCallback(
 		<K extends keyof ProviderModelOverrides>(key: K, value: ProviderModelOverrides[K] | undefined) => {
-			const modelId = selectedModelId?.trim()
+			// Prefer the pending selection's model id: while a model-id commit
+			// is still round-tripping, `selectedModelId` reads back the old id
+			// and an edit would be committed against the model just switched
+			// away from.
+			const modelId = (selectedModelOverridesRef.current.modelId ?? selectedModelId)?.trim()
 			if (!modelId) {
 				return
 			}
@@ -263,7 +267,16 @@ export const OpenAICompatibleProvider = ({
 			if (isOpenAiProvider) {
 				handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, modelId, currentMode)
 			}
-			commitOpenAiSelection(modelId)
+			// Model metadata here is user-authored (prices, context window,
+			// capabilities), not catalog data, so it must survive a model-id
+			// edit like it did when the legacy extension kept it in a single
+			// id-independent blob. Recommit the displayed overrides under the
+			// new id; otherwise an unknown id resolves to safe defaults whose
+			// zero prices misbill paid requests as $0.
+			const overrides = selectedModelOverridesRef.current.overrides
+			const hasOverrides = Object.keys(overrides).length > 0
+			selectedModelOverridesRef.current = { modelId, overrides }
+			commitOpenAiSelection(modelId, hasOverrides ? overrides : undefined)
 		},
 		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider],
 	)
