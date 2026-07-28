@@ -41,12 +41,13 @@ import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
+import { terminateProcessTree } from "@/utils/process-termination"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
-import { updateMcpSettingsFile } from "./settingsLock"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -524,6 +525,38 @@ export class McpHub {
 						Logger.error(`No stderr stream for ${name}`)
 					}
 					transport.start = async () => {}
+
+					// The MCP SDK's StdioClientTransport.close() only signals the direct launcher
+					// process (SIGTERM/SIGKILL on its PID). When the launcher spawns its own
+					// children (e.g. a wrapper script that execs the real server), those
+					// grandchildren are reparented to init and leak on teardown/connect-timeout.
+					// Wrap close() to tree-kill the launcher's whole process tree first — while
+					// it is still intact and reachable from the launcher PID — then delegate to
+					// the SDK's own teardown for internal state cleanup.
+					const stdioTransport = transport
+					const launcherPid = stdioTransport.pid ?? undefined
+					const originalClose = stdioTransport.close.bind(stdioTransport)
+					stdioTransport.close = async () => {
+						if (launcherPid !== undefined) {
+							const isLauncherAlive = () => {
+								try {
+									process.kill(launcherPid, 0)
+									return true
+								} catch {
+									return false
+								}
+							}
+							try {
+								await terminateProcessTree({
+									pid: launcherPid,
+									isCompleted: () => !isLauncherAlive(),
+								})
+							} catch (error) {
+								Logger.error(`Failed to terminate MCP server process tree for "${name}":`, error)
+							}
+						}
+						await originalClose()
+					}
 					break
 				}
 				case "sse": {
