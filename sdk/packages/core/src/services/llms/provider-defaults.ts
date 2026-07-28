@@ -528,6 +528,137 @@ async function fetchPoolsidePrivateModels(
 	return models;
 }
 
+interface PioneerModelResponse {
+	id?: string;
+	display_name?: string;
+	description?: string;
+	max_input_tokens?: number;
+	max_tokens?: number;
+	deprecated?: boolean;
+	capabilities?: {
+		image_input?: { supported?: boolean };
+		thinking?: { supported?: boolean };
+		structured_outputs?: { supported?: boolean };
+	};
+	input_price_per_million?: number;
+	output_price_per_million?: number;
+	cache_read_price_per_million?: number;
+	cache_write_price_per_million?: number;
+}
+
+// Pioneer's gateway lists every model twice: once under its canonical
+// OpenAI-style id (e.g. "gpt-5.4", "pioneer/auto") and once under an
+// Anthropic-format routing alias ("anthropic/pioneer/gpt-5.4",
+// "anthropic/pioneer-auto"). No real model id begins with "anthropic/", so we
+// drop that whole namespace to avoid duplicate picker entries — both within
+// the live list and against the bundled models.dev catalog, whose ids are the
+// canonical form. The "anthropic/pioneer/<id>" slash form is additionally
+// recovered to its canonical "<id>" so any alias lacking a bare twin still
+// surfaces once.
+const PIONEER_ROUTING_ALIAS_PREFIX = "anthropic/";
+const PIONEER_MODEL_ID_ALIAS_PREFIX = "anthropic/pioneer/";
+
+function buildPioneerModel(model: PioneerModelResponse, id: string): ModelInfo {
+	const capabilities: NonNullable<ModelInfo["capabilities"]> = [
+		"streaming",
+		"tools",
+	];
+	includeCapability(
+		capabilities,
+		"images",
+		Boolean(model.capabilities?.image_input?.supported),
+	);
+	includeCapability(
+		capabilities,
+		"reasoning",
+		Boolean(model.capabilities?.thinking?.supported),
+	);
+	includeCapability(
+		capabilities,
+		"structured_output",
+		Boolean(model.capabilities?.structured_outputs?.supported),
+	);
+	const cacheRead = parseOptionalNumber(model.cache_read_price_per_million);
+	const cacheWrite = parseOptionalNumber(model.cache_write_price_per_million);
+	includeCapability(
+		capabilities,
+		"prompt-cache",
+		cacheRead !== undefined || cacheWrite !== undefined,
+	);
+	const pricing = {
+		input: parseOptionalNumber(model.input_price_per_million),
+		output: parseOptionalNumber(model.output_price_per_million),
+		cacheRead,
+		cacheWrite,
+	};
+	const hasPricing = Object.values(pricing).some(
+		(value) => value !== undefined,
+	);
+	return {
+		id,
+		name: model.display_name ?? id,
+		description: model.description,
+		contextWindow: model.max_input_tokens,
+		maxInputTokens: model.max_input_tokens,
+		maxTokens: model.max_tokens,
+		capabilities,
+		pricing: hasPricing ? pricing : undefined,
+		status: "active",
+	};
+}
+
+async function fetchPioneerPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl =
+		normalizeBaseUrl(config.baseUrl) || "https://api.pioneer.ai/v1";
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`Pioneer model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: PioneerModelResponse[] };
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	// Pass 1: canonical (non-"anthropic/") ids. These always win the slot.
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id || model.deprecated) {
+			continue;
+		}
+		if (id.startsWith(PIONEER_ROUTING_ALIAS_PREFIX)) {
+			continue;
+		}
+		models[id] = buildPioneerModel(model, id);
+	}
+	// Pass 2: recover any "anthropic/pioneer/<id>" slash alias whose canonical
+	// "<id>" has no bare twin. All other "anthropic/" routing aliases are
+	// dropped as duplicates.
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id || model.deprecated) {
+			continue;
+		}
+		if (!id.startsWith(PIONEER_MODEL_ID_ALIAS_PREFIX)) {
+			continue;
+		}
+		const canonicalId = id.slice(PIONEER_MODEL_ID_ALIAS_PREFIX.length);
+		if (!canonicalId || canonicalId in models) {
+			continue;
+		}
+		models[canonicalId] = buildPioneerModel(model, canonicalId);
+	}
+	return models;
+}
+
 interface LiteLlmModelInfoResponse {
 	model_name?: string;
 	litellm_params?: {
@@ -652,6 +783,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
+	pioneer: fetchPioneerPrivateModels,
 };
 
 const PUBLIC_MODELS_CACHE = new Map<

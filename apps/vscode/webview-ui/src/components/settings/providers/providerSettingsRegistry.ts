@@ -52,6 +52,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://console.groq.com/keys",
 	},
 	poolside: {},
+	pioneer: {
+		signupUrl: "https://agent.pioneer.ai/",
+	},
 	cerebras: {
 		signupUrl: "https://cloud.cerebras.ai/",
 	},
@@ -156,6 +159,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	mistral: "Mistral",
 	nousResearch: "NousResearch",
 	poolside: "Poolside",
+	pioneer: "Pioneer",
 	together: "Together",
 	v0: "Vercel v0",
 	wandb: "W&B",

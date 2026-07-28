@@ -500,6 +500,114 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("loads Pioneer models and collapses anthropic/pioneer aliases", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						// Anthropic-format alias listed FIRST — the canonical bare id
+						// below must still win the slot and keep its rich metadata.
+						{
+							id: "anthropic/pioneer/gpt-5.4",
+							display_name: "GPT-5.4 (anthropic route)",
+							max_input_tokens: 400_000,
+							max_tokens: 128_000,
+							deprecated: false,
+							capabilities: {},
+						},
+						{
+							id: "gpt-5.4",
+							display_name: "GPT-5.4",
+							max_input_tokens: 400_000,
+							max_tokens: 128_000,
+							deprecated: false,
+							capabilities: {
+								image_input: { supported: true },
+								thinking: { supported: true },
+								structured_outputs: { supported: true },
+							},
+							input_price_per_million: 1.25,
+							output_price_per_million: 10,
+							cache_read_price_per_million: 0.125,
+							cache_write_price_per_million: 1.5,
+						},
+						// Alias with no bare twin — surfaced under its canonical id.
+						{
+							id: "anthropic/pioneer/only-alias-model",
+							display_name: "Alias Only",
+							max_input_tokens: 200_000,
+							max_tokens: 8192,
+							deprecated: false,
+							capabilities: {},
+						},
+						// Deprecated models are skipped entirely.
+						{ id: "retired-model", display_name: "Retired", deprecated: true },
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"pioneer",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "pioneer",
+				modelId: "gpt-5.4",
+				apiKey: "pioneer-key",
+				baseUrl: "https://api.pioneer.ai/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.pioneer.ai/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer pioneer-key",
+				}),
+			}),
+		);
+
+		const models = resolved?.knownModels ?? {};
+		// Canonical model keeps rich metadata (alias did not clobber it).
+		expect(models["gpt-5.4"]).toEqual(
+			expect.objectContaining({
+				name: "GPT-5.4",
+				contextWindow: 400_000,
+				maxInputTokens: 400_000,
+				maxTokens: 128_000,
+				capabilities: expect.arrayContaining([
+					"streaming",
+					"tools",
+					"images",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				]),
+				pricing: expect.objectContaining({
+					input: 1.25,
+					output: 10,
+					cacheRead: 0.125,
+					cacheWrite: 1.5,
+				}),
+				status: "active",
+			}),
+		);
+		// No anthropic/pioneer/* duplicate keys survive.
+		expect(
+			Object.keys(models).some((id) => id.startsWith("anthropic/pioneer/")),
+		).toBe(false);
+		// Orphan alias (no bare twin) is surfaced under its canonical id.
+		expect(models["only-alias-model"]?.name).toBe("Alias Only");
+		// Deprecated model is dropped.
+		expect(models["retired-model"]).toBeUndefined();
+	});
+
 	it("falls back to /model/info for LiteLLM private models", async () => {
 		const fetchMock = vi
 			.fn()

@@ -34,6 +34,7 @@ export type ApiProvider =
 	| "sapaicore"
 	| "groq"
 	| "poolside"
+	| "pioneer"
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "dify"
