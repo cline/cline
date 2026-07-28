@@ -5,7 +5,6 @@ import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
-import { buildFallbackInitialMessages } from "./initial-message-fallback"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -251,20 +250,7 @@ export class SdkModeCoordinator {
 		let continuationSent = false
 		let sessionReplaced = false
 		try {
-			let initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
-			if (!initialMessages || initialMessages.length === 0) {
-				// Nothing was committed yet (mode toggle mid first turn): seed the
-				// replacement session from the UI transcript so the task context
-				// survives the rebuild instead of starting the new mode blank.
-				const clineMessages = this.options.getTask()?.messageStateHandler?.getClineMessages() ?? []
-				const fallback = buildFallbackInitialMessages(clineMessages)
-				if (fallback) {
-					Logger.warn(
-						`[SdkController] Mode rebuild found no committed history for ${oldSessionId}; seeding ${fallback.length} message(s) reconstructed from the task transcript`,
-					)
-					initialMessages = fallback
-				}
-			}
+			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
 			const cwd = await this.options.getWorkspaceRoot()
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd,
