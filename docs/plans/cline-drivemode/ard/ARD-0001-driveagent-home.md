@@ -9,7 +9,7 @@ Recommended
 - Date: 2026-07-25
 - Deciders: Drivecode planning (cline-drivemode)
 - Related: PRD 6, [06-platform-config.md](../06-platform-config.md), DRV-AGENT-PROFILE
-- Inspired by: BRIEF [dot-agents layout](https://github.com/hhalperin/briefs/blob/main/docs/standards/brief/dot-agents-layout.md) (canonical vs derived)
+- Inspired by: BRIEF's dot-agents layout (canonical vs derived)
 
 ## Context
 

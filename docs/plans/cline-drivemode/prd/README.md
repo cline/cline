@@ -14,7 +14,7 @@ Example agent home: [../examples/driveagent-pair-partner/](../examples/driveagen
 
 ## Lessons imported from `briefs`
 
-The [BRIEF.md](https://github.com/hhalperin/briefs) work informs this area without replacing it:
+The BRIEF.md work informs this area without replacing it:
 
 | BRIEF primitive | Driveagent portfolio analog |
 |---|---|

@@ -94,7 +94,7 @@ BRIEF and Driveagent are complementary. BRIEF scopes *codebase* context for a tu
     audit-last-inject.json    # last turn graph slice (optional, privacy-tiered)
 ```
 
-Canonical vs derived mirrors BRIEF’s `.agents/briefs/` vs `latest/` split ([dot-agents-layout](https://github.com/hhalperin/briefs/blob/main/docs/standards/brief/dot-agents-layout.md)).
+Canonical vs derived mirrors BRIEF’s `.agents/briefs/` vs `latest/` split (dot-agents-layout).
 
 ### Graph node kinds (MVP)
 
