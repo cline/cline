@@ -534,7 +534,6 @@ export {
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
 	toggleDisabledTool,
-	updateGlobalSettings,
 	writeGlobalSettings,
 } from "./services/global-settings";
 export type {

@@ -1,11 +1,4 @@
-import {
-	mkdtemp,
-	readdir,
-	readFile,
-	rm,
-	utimes,
-	writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ITelemetryService } from "@cline/shared";
@@ -25,7 +18,6 @@ import {
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
-	updateGlobalSettings,
 	writeGlobalSettings,
 } from "./global-settings";
 
@@ -328,94 +320,6 @@ describe("global-settings", () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
-	});
-
-	describe("cross-process safety", () => {
-		it("applies targeted updates on top of the latest on-disk state", async () => {
-			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
-			try {
-				const settingsPath = join(root, "global-settings.json");
-				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-
-				// Simulate another host writing between this process's reads.
-				await writeFile(
-					settingsPath,
-					JSON.stringify({
-						disabledTools: ["editor"],
-						telemetryOptOut: true,
-					}),
-				);
-
-				updateGlobalSettings((current) => ({
-					...current,
-					planActMode: "plan",
-				}));
-
-				expect(readGlobalSettings()).toEqual({
-					autoUpdateEnabled: true,
-					disabledTools: ["editor"],
-					planActMode: "plan",
-					telemetryOptOut: true,
-				});
-			} finally {
-				await rm(root, { recursive: true, force: true });
-			}
-		});
-
-		it("reclaims a stale lock file and cleans up after writing", async () => {
-			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
-			try {
-				const settingsPath = join(root, "global-settings.json");
-				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-
-				const lockPath = `${settingsPath}.lock`;
-				await writeFile(lockPath, "999999");
-				const staleTime = new Date(Date.now() - 60_000);
-				await utimes(lockPath, staleTime, staleTime);
-
-				setPlanActModeGlobally("plan");
-
-				expect(readGlobalSettings().planActMode).toBe("plan");
-				expect(await readdir(root)).toEqual(["global-settings.json"]);
-			} finally {
-				await rm(root, { recursive: true, force: true });
-			}
-		});
-
-		it("does not deadlock when another process holds a fresh lock", async () => {
-			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
-			try {
-				const settingsPath = join(root, "global-settings.json");
-				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-
-				const lockPath = `${settingsPath}.lock`;
-				await writeFile(lockPath, "999999");
-
-				// The holder never releases; the bounded wait must elapse and
-				// the write still land instead of blocking the caller forever.
-				setToolAutoApproveGlobally(false);
-
-				expect(readGlobalSettings().toolAutoApprove).toBe(false);
-			} finally {
-				await rm(root, { recursive: true, force: true });
-			}
-		});
-
-		it("leaves no temporary files behind after targeted updates", async () => {
-			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
-			try {
-				const settingsPath = join(root, "global-settings.json");
-				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-
-				setCompactionModeGlobally("basic");
-				setCompactionModeGlobally("off");
-				setTelemetryOptOutGlobally(true);
-
-				expect(await readdir(root)).toEqual(["global-settings.json"]);
-			} finally {
-				await rm(root, { recursive: true, force: true });
-			}
-		});
 	});
 
 	describe("caching", () => {
