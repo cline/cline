@@ -130,9 +130,9 @@ describe("SdkTaskHistory", () => {
 
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
-			// A turn that ended cleanly on a text response is retagged to the inferred
-			// completion row (green "Task Completed" box) when rehydrated from history.
-			{ type: "say", say: "completion_result", text: "Done", partial: false },
+			// Mid-transcript turns are never retagged into the inferred completion row:
+			// history carries no per-turn outcome, so an earlier turn's text stays plain.
+			{ type: "say", say: "text", text: "Done", partial: false },
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
 			// A trailing ask:"completion_result" is appended so a reopened task
 			// shows the completion/resume affordance instead of a stuck spinner.
@@ -219,7 +219,7 @@ describe("SdkTaskHistory", () => {
 		})
 	})
 
-	it("retags each turn-final text using the mode recovered from user_input wrappers", async () => {
+	it("retags only the final turn's text, styled by the mode recovered from user_input wrappers", async () => {
 		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
 		readMessages.mockResolvedValueOnce([
 			{ role: "user", content: '<user_input mode="plan">plan the feature</user_input>' },
@@ -232,13 +232,31 @@ describe("SdkTaskHistory", () => {
 
 		expect(result).toMatchObject([
 			// The <user_input mode="..."> wrapper is stripped for display but its mode
-			// styles the following turn's inferred completion row.
+			// styles the final turn's inferred completion row. Mid-transcript turns stay
+			// plain — history has no per-turn outcome to trust.
 			{ type: "say", say: "task", text: "plan the feature" },
-			{ type: "say", say: "plan_completion_result", text: "Here is the plan." },
+			{ type: "say", say: "text", text: "Here is the plan." },
 			{ type: "say", say: "user_feedback", text: "looks good, do it" },
 			{ type: "say", say: "completion_result", text: "Implemented." },
 			{ type: "ask", ask: "completion_result" },
 		])
+	})
+
+	it("styles the final turn's inferred completion with the plan box when the last turn ran in plan mode", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="act">build it</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Built." }] },
+			{ role: "user", content: '<user_input mode="plan">now plan the next phase</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Phase two plan." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toContainEqual(
+			expect.objectContaining({ type: "say", say: "plan_completion_result", text: "Phase two plan." }),
+		)
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Built." }))
 	})
 
 	it("retags the terminal text of a session at rest in a clean state (completed / idle)", async () => {
@@ -261,8 +279,7 @@ describe("SdkTaskHistory", () => {
 
 	it("does not retag the terminal text of a failed, cancelled, or died-mid-run session", async () => {
 		// The dangling response of a broken/aborted last run is not a completion ("running"/
-		// "pending" at rest means the process died mid-turn without recording an outcome); only
-		// mid-transcript turns (the user kept going after them) keep the inferred box.
+		// "pending" at rest means the process died mid-turn without recording an outcome).
 		for (const status of ["failed", "cancelled", "running", "pending"] as const) {
 			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
 			readMessages.mockResolvedValueOnce([
@@ -274,10 +291,8 @@ describe("SdkTaskHistory", () => {
 
 			const result = await history.getClineMessages("task-1")
 
-			expect(result).toContainEqual(
-				expect.objectContaining({ type: "say", say: "completion_result", text: "First answer." }),
-			)
 			expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Dangling partial answer" }))
+			expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
 		}
 	})
 

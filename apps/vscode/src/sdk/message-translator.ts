@@ -2004,11 +2004,11 @@ function finalizePersistedToolUse(
 export interface SdkMessagesToClineMessagesOptions {
 	/**
 	 * Whether the transcript's LAST agent turn ended cleanly (per the session record's status).
-	 * Mid-transcript turns are always treated as completed — the user sent a follow-up after
-	 * them, and history carries no per-turn outcome — but the terminal text of a session that
-	 * failed, was cancelled, or died mid-run must not be retagged as an inferred completion, or
-	 * a reopened broken task would render its dangling response as a green/plan "done" box.
-	 * Defaults to true.
+	 * Only that final turn is ever retagged into the inferred completion row — persisted
+	 * transcripts carry no per-turn outcome, so earlier turns always render as plain text —
+	 * and the terminal text of a session that failed, was cancelled, or died mid-run must not
+	 * be retagged either, or a reopened broken task would render its dangling response as a
+	 * green/plan "done" box. Defaults to true.
 	 */
 	finalTurnCompleted?: boolean
 }
@@ -2052,11 +2052,15 @@ export function sdkMessagesToClineMessages(
 		}
 	}
 
-	// A visible user message marks the end of the preceding agent turn. Replay the turn end
-	// through the same `done` translation as the live path so a turn that ended cleanly on a
-	// text response gets the same inferred completion retag (green box in act
-	// mode, yellow plan box in plan mode) when a task is rehydrated from SDK history.
-	const endTurn = () => {
+	// Close out the transcript's FINAL agent turn by replaying the same `done` translation as
+	// the live path, so a final turn that ended on a text response gets the inferred completion
+	// retag (green box in act mode, yellow plan box in plan mode) when rehydrated from SDK
+	// history. Only the final turn is eligible: persisted transcripts carry no per-turn
+	// outcome, so an earlier turn that the user cancelled mid-response and then followed up on
+	// is indistinguishable from one that ended cleanly — retagging it would present an
+	// interrupted response as a deliberate turn end. The final turn's outcome IS known (the
+	// caller gates it on the session record's status via `finalTurnCompleted`).
+	const endFinalTurn = () => {
 		upsertClineMessages(
 			agentEventToMessages({ type: "done", reason: "completed", text: "", iterations: 0 } as AgentEvent, state),
 		)
@@ -2124,9 +2128,10 @@ export function sdkMessagesToClineMessages(
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
-				// Visible user text ends the preceding turn (retag its final text, if any)
-				// before the mode of the NEW turn is picked up from this message's wrapper.
-				endTurn()
+				// Visible user text marks a turn boundary: drop the preceding turn's outcome
+				// signals (its text is NOT retagged — see endFinalTurn) and pick up the mode
+				// of the NEW turn from this message's wrapper.
+				state.clearTurnOutcome()
 				currentMode = message.uiMode ?? currentMode
 				clineMessages.push({
 					ts: state.nextTs(),
@@ -2141,7 +2146,7 @@ export function sdkMessagesToClineMessages(
 
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
-			endTurn()
+			state.clearTurnOutcome()
 			currentMode = message.uiMode ?? currentMode
 			clineMessages.push({
 				ts: state.nextTs(),
@@ -2167,12 +2172,12 @@ export function sdkMessagesToClineMessages(
 		}
 	}
 
-	// The transcript's last agent turn has no trailing user message — close it out here so its
-	// final text (if the turn ended on text) gets the same inferred completion retag. Skipped
-	// when the session record says that last run failed or was cancelled: its terminal text is
-	// a dangling partial response, not a completion, and must stay a plain text row.
+	// Close out the transcript's final agent turn so its terminal text (if the turn ended on
+	// text) gets the inferred completion retag. Skipped when the session record says the last
+	// run failed, was cancelled, or died mid-turn: its terminal text is a dangling partial
+	// response, not a completion, and must stay a plain text row.
 	if (options?.finalTurnCompleted !== false) {
-		endTurn()
+		endFinalTurn()
 	}
 
 	// Always emit ask:"completion_result"
