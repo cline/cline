@@ -402,6 +402,33 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
+	it("omits the synthesized maxOutputTokens for Groq requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "groq",
+			clientType: "openai-compatible",
+			modelId: "openai/gpt-oss-20b",
+			apiKey: "test-key",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { maxOutputTokens?: unknown }
+			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
