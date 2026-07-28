@@ -6,13 +6,18 @@
 
 export * as Llms from "@cline/llms";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -487,6 +492,17 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export { listActiveConnectors } from "./services/connectors/active-connectors";
+export {
+	disableConnectorAutostart,
+	getPersistedConnectorConnection,
+	persistConnectorConnection,
+	type ReconnectAttempt,
+	type ReconnectPersistedConnectorsOptions,
+	type ReconnectTarget,
+	reconnectPersistedConnectors,
+	removePersistedConnectorConnection,
+} from "./services/connectors/connector-autostart";
 export {
 	FeatureFlagsService,
 	type FeatureFlagsServiceOptions,

@@ -305,7 +305,7 @@ export interface OpenTelemetryClientConfig {
 
 	/**
 	 * Metrics exporter type(s) - can be comma-separated for multiple exporters
-	 * Examples: "console", "otlp", "prometheus", "console,otlp"
+	 * Examples: "console", "otlp", "console,otlp"
 	 */
 	metricsExporter?: string;
 

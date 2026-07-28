@@ -36,7 +36,7 @@ import {
 	UndoIcon,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -186,6 +186,10 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
+	const renderItems = useMemo(
+		() => groupConsecutiveToolMessages(messages),
+		[messages],
+	);
 
 	useEffect(() => {
 		if (!visibleExpandedImage) {
@@ -346,6 +350,13 @@ function ChatMessagesImpl({
 		[onRestoreCheckpoint],
 	);
 
+	const handleExpandImage = useCallback(
+		(image: ChatMessageImage) => {
+			setExpandedImage({ sessionId, image });
+		},
+		[sessionId],
+	);
+
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
 			if (!onForkSession) {
@@ -423,7 +434,7 @@ function ChatMessagesImpl({
 									requestErrors={askQuestionErrors}
 								/>
 							) : null}
-							{groupConsecutiveToolMessages(messages).map((item) => {
+							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
 										<ToolMessageBlock
@@ -438,14 +449,10 @@ function ChatMessagesImpl({
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
-										onExpandImage={(image) =>
-											setExpandedImage({ sessionId, image })
-										}
-										onCopyRawText={() =>
-											void handleCopyMessage(message.id, message.content)
-										}
-										onRestoreCheckpoint={(runCount) =>
-											void handleRestoreCheckpoint(message.id, runCount)
+										onExpandImage={handleExpandImage}
+										onCopyMessage={handleCopyMessage}
+										onRestoreCheckpoint={
+											onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
 										}
 										restoreDisabled={
 											!onRestoreCheckpoint ||
@@ -458,9 +465,7 @@ function ChatMessagesImpl({
 										restorePending={checkpointActions[message.id] === "undoing"}
 										wasCopied={copiedMessageId === message.id}
 										onForkSession={
-											onForkSession
-												? () => void handleForkSession(message.id)
-												: undefined
+											onForkSession ? handleForkSession : undefined
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
@@ -747,10 +752,13 @@ function AskQuestionPanel({
 	);
 }
 
-function MessageBubble({
+// Memoized with id-parameterized callbacks: during streaming only the message
+// object that received a delta changes identity, so all other bubbles skip
+// re-rendering (and re-running their Markdown pipeline) per flush.
+const MessageBubble = memo(function MessageBubble({
 	message,
 	isStreaming = false,
-	onCopyRawText,
+	onCopyMessage,
 	onExpandImage,
 	onRestoreCheckpoint,
 	restoreDisabled = false,
@@ -763,14 +771,17 @@ function MessageBubble({
 }: {
 	message: ChatMessage;
 	isStreaming?: boolean;
-	onCopyRawText?: () => void;
+	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
-	onRestoreCheckpoint?: (runCount: number) => void;
+	onRestoreCheckpoint?: (
+		messageId: string,
+		runCount: number,
+	) => void | Promise<void>;
 	restoreDisabled?: boolean;
 	restorePending?: boolean;
 	restoreError?: string;
 	wasCopied?: boolean;
-	onForkSession?: () => void;
+	onForkSession?: (messageId: string) => void | Promise<void>;
 	forkPending?: boolean;
 	forkError?: string;
 }) {
@@ -786,9 +797,9 @@ function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyRawText || onForkSession);
+		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
-		isUser && Boolean(onCopyRawText || checkpoint);
+		isUser && Boolean(onCopyMessage || checkpoint);
 	const keepUserActionsVisible = restorePending || Boolean(restoreError);
 	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
 
@@ -839,10 +850,10 @@ function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions visible={keepUserActionsVisible}>
-						{onCopyRawText ? (
+						{onCopyMessage ? (
 							<MessageAction
 								label={wasCopied ? "Copied user message" : "Copy user message"}
-								onClick={onCopyRawText}
+								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
@@ -856,7 +867,9 @@ function MessageBubble({
 							<MessageAction
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
-								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+								onClick={() =>
+									void onRestoreCheckpoint?.(message.id, checkpoint.runCount)
+								}
 								title="Restore checkpoint"
 							>
 								{restorePending ? (
@@ -877,14 +890,14 @@ function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions visible={keepAssistantActionsVisible}>
-					{onCopyRawText ? (
+					{onCopyMessage ? (
 						<MessageAction
 							label={
 								wasCopied
 									? "Copied assistant message"
 									: "Copy assistant message"
 							}
-							onClick={onCopyRawText}
+							onClick={() => void onCopyMessage(message.id, message.content)}
 							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
@@ -898,7 +911,7 @@ function MessageBubble({
 						<MessageAction
 							disabled={forkPending}
 							label="Fork session"
-							onClick={onForkSession}
+							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
@@ -915,7 +928,7 @@ function MessageBubble({
 			) : null}
 		</AgentMessage>
 	);
-}
+});
 
 function ReasoningBlock({
 	content,
@@ -1453,100 +1466,115 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 		.join(". ");
 }
 
-function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
-	const presentations = messages.map(buildToolPresentation);
-	const first = presentations[0];
-	if (!first) return null;
-	const hasError = presentations.some(({ payload }) => payload?.isError);
-	const isRunning = presentations.some(({ inProgress }) => inProgress);
-	const kinds = new Set(presentations.map(({ kind }) => kind));
-	const kind = kinds.size === 1 ? first.kind : "tool";
-	const isFileRead = presentations.every(({ toolName }) =>
-		["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
-	);
-	const Icon = isFileRead
-		? FileIcon
-		: kind === "exploration"
-			? Search
-			: kind === "file-edit"
-				? FileEdit
-				: kind === "bash"
-					? SquareTerminalIcon
-					: kind === "spawn"
-						? Bot
-						: FileSearch;
-	const details = presentations.flatMap(({ message, summary }) =>
-		summary.details.map((detail) => ({
-			detail,
-			key: `${message.id}_${detail}`,
-		})),
-	);
-	const inputPreviews = IS_DEBUG
-		? presentations
-				.map(({ message, payload, toolName }) => ({
-					key: message.id,
-					toolName,
-					value: payload ? formatToolValue(payload.input) : "",
-				}))
-				.filter(({ value }) => Boolean(value))
-		: [];
-	const resultPreviews = presentations
-		.map(({ message, payload, toolName }) => ({
-			key: message.id,
-			toolName,
-			value: payload?.isError ? formatToolValue(payload.result) : "",
-		}))
-		.filter(({ value }) => Boolean(value));
-	const hasExpandedSections =
-		details.length > 0 || inputPreviews.length > 0 || resultPreviews.length > 0;
-	const diff = presentations.reduce(
-		(total, { summary }) => ({
-			additions: total.additions + (summary.diff?.additions ?? 0),
-			deletions: total.deletions + (summary.diff?.deletions ?? 0),
-		}),
-		{ additions: 0, deletions: 0 },
-	);
+// Memoized with element-wise comparison: the grouping pass wraps the same
+// message objects in fresh arrays every commit, so reference-comparing the
+// contents lets finished tool blocks skip re-rendering during streaming.
+const ToolMessageBlock = memo(
+	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
+		const presentations = messages.map(buildToolPresentation);
+		const first = presentations[0];
+		if (!first) return null;
+		const hasError = presentations.some(({ payload }) => payload?.isError);
+		const isRunning = presentations.some(({ inProgress }) => inProgress);
+		const kinds = new Set(presentations.map(({ kind }) => kind));
+		const kind = kinds.size === 1 ? first.kind : "tool";
+		const isFileRead = presentations.every(({ toolName }) =>
+			["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
+		);
+		const Icon = isFileRead
+			? FileIcon
+			: kind === "exploration"
+				? Search
+				: kind === "file-edit"
+					? FileEdit
+					: kind === "bash"
+						? SquareTerminalIcon
+						: kind === "spawn"
+							? Bot
+							: FileSearch;
+		const details = presentations.flatMap(({ message, summary }) =>
+			summary.details.map((detail) => ({
+				detail,
+				key: `${message.id}_${detail}`,
+			})),
+		);
+		const inputPreviews = IS_DEBUG
+			? presentations
+					.map(({ message, payload, toolName }) => ({
+						key: message.id,
+						toolName,
+						value: payload ? formatToolValue(payload.input) : "",
+					}))
+					.filter(({ value }) => Boolean(value))
+			: [];
+		const resultPreviews = presentations
+			.map(({ message, payload, toolName }) => ({
+				key: message.id,
+				toolName,
+				value: payload?.isError ? formatToolValue(payload.result) : "",
+			}))
+			.filter(({ value }) => Boolean(value));
+		const hasExpandedSections =
+			details.length > 0 ||
+			inputPreviews.length > 0 ||
+			resultPreviews.length > 0;
+		const diff = presentations.reduce(
+			(total, { summary }) => ({
+				additions: total.additions + (summary.diff?.additions ?? 0),
+				deletions: total.deletions + (summary.diff?.deletions ?? 0),
+			}),
+			{ additions: 0, deletions: 0 },
+		);
 
-	return (
-		<ToolActivity expandable={hasExpandedSections}>
-			<ToolActivityTrigger
-				additions={diff.additions || undefined}
-				deletions={diff.deletions || undefined}
-				icon={
-					hasError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
-					) : (
-						<Icon className="size-4" />
-					)
-				}
-				label={buildGroupedToolLabel(presentations)}
-				status={hasError ? "error" : isRunning ? "running" : "success"}
-			/>
-			<ToolActivityContent>
-				{details.length > 0 ? (
-					<ToolActivityDetails>
-						{details.map(({ detail, key }) => (
-							<div key={key}>{detail}</div>
-						))}
-					</ToolActivityDetails>
-				) : null}
-				{inputPreviews.map((preview) => (
-					<div className="space-y-1" key={`input_${preview.key}`}>
-						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							{presentations.length > 1 ? `${preview.toolName} input` : "Input"}
+		return (
+			<ToolActivity expandable={hasExpandedSections}>
+				<ToolActivityTrigger
+					additions={diff.additions || undefined}
+					deletions={diff.deletions || undefined}
+					icon={
+						hasError ? (
+							<AlertCircle className="size-4 text-destructive/80" />
+						) : (
+							<Icon className="size-4" />
+						)
+					}
+					label={buildGroupedToolLabel(presentations)}
+					status={hasError ? "error" : isRunning ? "running" : "success"}
+				/>
+				<ToolActivityContent>
+					{details.length > 0 ? (
+						<ToolActivityDetails>
+							{details.map(({ detail, key }) => (
+								<div key={key}>{detail}</div>
+							))}
+						</ToolActivityDetails>
+					) : null}
+					{inputPreviews.map((preview) => (
+						<div className="space-y-1" key={`input_${preview.key}`}>
+							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+								{presentations.length > 1
+									? `${preview.toolName} input`
+									: "Input"}
+							</div>
+							<ToolActivityCode className="text-sm">
+								{preview.value}
+							</ToolActivityCode>
 						</div>
-						<ToolActivityCode className="text-sm">
+					))}
+					{resultPreviews.map((preview) => (
+						<div
+							className="mt-1 text-destructive"
+							key={`result_${preview.key}`}
+						>
+							{presentations.length > 1 ? `${preview.toolName}: ` : null}
 							{preview.value}
-						</ToolActivityCode>
-					</div>
-				))}
-				{resultPreviews.map((preview) => (
-					<div className="mt-1 text-destructive" key={`result_${preview.key}`}>
-						{presentations.length > 1 ? `${preview.toolName}: ` : null}
-						{preview.value}
-					</div>
-				))}
-			</ToolActivityContent>
-		</ToolActivity>
-	);
-}
+						</div>
+					))}
+				</ToolActivityContent>
+			</ToolActivity>
+		);
+	},
+	(prev, next) =>
+		prev.messages.length === next.messages.length &&
+		prev.messages.every((message, index) => message === next.messages[index]),
+);
