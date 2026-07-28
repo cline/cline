@@ -20,7 +20,8 @@
 // - SDK "agent_event" content_end → ClineMessage with partial=false
 // - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
 // - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage say="completion_result" (final)
-// - SDK "agent_event" done → ClineMessage ask="completion_result" (always; must be last message)
+// - SDK "agent_event" done (reason "completed", turn ended on text) → retags that final
+//   say="text" row in place to say="completion_result" (act) / say="plan_completion_result" (plan)
 // - SDK "agent_event" error → ClineMessage say="error"
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
@@ -144,6 +145,7 @@ export class MessageTranslatorState {
 	constructor(
 		minter: MessageIdMinter = new MessageIdMinter(),
 		private readonly getActiveProviderId?: () => string | undefined,
+		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
 	) {
 		this.minter = minter
 	}
@@ -151,6 +153,15 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/**
+	 * Plan/act mode governing the current turn, used to style the inferred turn-final
+	 * response (plan → "Plan Created" box, act/yolo → green "Task Completed" box).
+	 * Defaults to act when the host doesn't supply a mode source.
+	 */
+	currentUiMode(): "plan" | "act" {
+		return this.getUiMode?.() === "plan" ? "plan" : "act"
 	}
 
 	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
@@ -311,6 +322,41 @@ export class MessageTranslatorState {
 	}
 
 	// -----------------------------------------------------------------------
+	// Turn-final text tracking — the SDK agent usually ends a turn with a plain
+	// text response instead of a completion tool. When a turn ends cleanly with
+	// text as its last content, that text row is retagged in place (same ts) to
+	// say:"completion_result" (act) or say:"plan_completion_result" (plan) so
+	// the webview shows the legacy-style completion feedback box.
+	// -----------------------------------------------------------------------
+
+	/** ts of the last finalized (non-partial, non-empty) text message of the current turn */
+	private turnFinalTextTs: number | undefined
+	/** Text of the message tracked by turnFinalTextTs */
+	private turnFinalText = ""
+
+	/** Remember the most recent finalized text as the candidate turn-final response. */
+	recordTurnFinalText(ts: number, text: string): void {
+		this.turnFinalTextTs = ts
+		this.turnFinalText = text
+	}
+
+	/** Forget the candidate turn-final text (tool activity means the turn didn't end on it). */
+	clearTurnFinalText(): void {
+		this.turnFinalTextTs = undefined
+		this.turnFinalText = ""
+	}
+
+	/** Take (and clear) the candidate turn-final text, if any. */
+	takeTurnFinalText(): { ts: number; text: string } | undefined {
+		if (this.turnFinalTextTs === undefined) {
+			return undefined
+		}
+		const result = { ts: this.turnFinalTextTs, text: this.turnFinalText }
+		this.clearTurnFinalText()
+		return result
+	}
+
+	// -----------------------------------------------------------------------
 	// spawn_agent tracking — aggregates parallel spawn_agent tool calls into
 	// the rich SubagentStatusRow UI (use_subagents + subagent messages).
 	// -----------------------------------------------------------------------
@@ -431,12 +477,14 @@ export class MessageTranslatorState {
 	}
 
 	/**
-	 * Clear turn-outcome signals (`attemptCompletionSeen`). Called at a new user turn / task
-	 * boundary so each turn's phase is computed fresh; it is intentionally separate from the
-	 * per-iteration `reset()` so the completion signal persists across the iterations of one turn.
+	 * Clear turn-outcome signals (`attemptCompletionSeen`, the turn-final text candidate).
+	 * Called at a new user turn / task boundary so each turn's phase is computed fresh; it is
+	 * intentionally separate from the per-iteration `reset()` so the completion signal persists
+	 * across the iterations of one turn.
 	 */
 	clearTurnOutcome(): void {
 		this.attemptCompletionSeen = false
+		this.clearTurnFinalText()
 	}
 }
 
@@ -1065,6 +1113,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					const toolName = event.toolName ?? "unknown"
 					const input = event.input
 
+					// Tool activity after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
+
 					if (state.isToolApprovalDenied(event.toolCallId)) {
 						break
 					}
@@ -1228,13 +1280,19 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			switch (event.contentType) {
 				case "text": {
 					const ts = state.clearStreamingText()
+					const finalText = event.text ?? ""
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.text ?? "",
+						text: finalText,
 						partial: false,
 					})
+					// Candidate for the turn-final response: if the turn ends cleanly with
+					// this text as its last content, `done` retags it as a completion row.
+					if (finalText.trim()) {
+						state.recordTurnFinalText(ts, finalText)
+					}
 					break
 				}
 				case "reasoning": {
@@ -1252,6 +1310,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					// A completed tool call after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
 
 					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
 						state.clearStreamingTool()
@@ -1555,18 +1617,40 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. This emits no transcript message — it only signals
-			// turnComplete to the caller. UI mode comes from the authoritative TurnState the
+			// Agent turn is complete. Footer/buttons come from the authoritative TurnState the
 			// session-event coordinator sets on turn end (completed when the completion tool was
-			// used this turn, otherwise awaiting_followup), and the green "Task Completed" box
-			// comes from the say:"completion_result" emitted at the completion tool's content_end.
+			// used this turn, otherwise awaiting_followup) — never from the message tail.
 			// A compaction divider still open here means the turn was aborted mid-compaction.
 			finalizeDanglingCompaction(state, messages, "cancelled")
+
+			// Inferred completion feedback: the SDK agent normally ends a turn with a plain
+			// text response rather than a completion tool. When the turn ended cleanly and its
+			// last content was text, retag that text row in place (same ts → upserted by the
+			// message store / webview reducer) so the user gets the legacy-style "done" visual:
+			// green "Task Completed" box in act mode, "Plan Created" box in plan mode. Turns
+			// that ended via the completion tool already rendered their green box at the tool's
+			// content_end; aborted/errored turns keep their plain text.
+			if (event.reason === "completed" && !state.wasAttemptCompletionSeen()) {
+				const finalText = state.takeTurnFinalText()
+				if (finalText) {
+					messages.push({
+						ts: finalText.ts,
+						type: "say",
+						say: state.currentUiMode() === "plan" ? "plan_completion_result" : "completion_result",
+						text: finalText.text,
+						partial: false,
+					})
+				}
+			} else {
+				state.clearTurnFinalText()
+			}
 			break
 		}
 
 		case "error": {
 			finalizeDanglingCompaction(state, messages, "failed")
+			// An errored turn didn't end on its text response — no completion retag.
+			state.clearTurnFinalText()
 			if (state.isSuppressedToolApprovalDenial(event.error)) {
 				break
 			}
@@ -1804,6 +1888,12 @@ type SdkMessageWithMetrics = SdkMessage & {
 		cacheWriteTokens?: number
 		cost?: number
 	}
+	/**
+	 * Plan/act mode recovered from the persisted <user_input mode="..."> wrapper before display
+	 * sanitization strips it (see sanitizeSdkUserMessagesForDisplay in sdk-task-history.ts).
+	 * Only meaningful on user messages; governs the turn that follows.
+	 */
+	uiMode?: "plan" | "act" | "yolo"
 }
 
 function textContentBlocksToText(content: SdkMessage["content"]): string {
@@ -1917,9 +2007,12 @@ function finalizePersistedToolUse(
  */
 export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], minter?: MessageIdMinter): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
+	// Plan/act mode of the turn currently being replayed, recovered from each user message's
+	// persisted <user_input mode="..."> wrapper (stamped as `uiMode` before sanitization).
+	let currentMode: "plan" | "act" | "yolo" | undefined
 	// Use the process-wide minter when provided so regenerated history ids are globally unique
 	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
-	const state = new MessageTranslatorState(minter)
+	const state = new MessageTranslatorState(minter, undefined, () => currentMode)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
@@ -1927,6 +2020,30 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state))
 		}
 		pendingToolUses.clear()
+	}
+
+	// Add or update by ts — the synthesized turn-end `done` below retags an already-emitted
+	// text row in place (same ts), mirroring the live path's upsert-by-ts message store.
+	const upsertClineMessages = (updates: ClineMessage[]) => {
+		for (const update of updates) {
+			const existingIndex = clineMessages.findIndex((m) => m.ts === update.ts)
+			if (existingIndex !== -1) {
+				clineMessages[existingIndex] = update
+			} else {
+				clineMessages.push(update)
+			}
+		}
+	}
+
+	// A visible user message marks the end of the preceding agent turn. Replay the turn end
+	// through the same `done` translation as the live path so a turn that ended cleanly on a
+	// text response gets the same inferred completion retag (green "Task Completed" box in act
+	// mode, "Plan Created" box in plan mode) when a task is rehydrated from SDK history.
+	const endTurn = () => {
+		upsertClineMessages(
+			agentEventToMessages({ type: "done", reason: "completed", text: "", iterations: 0 } as AgentEvent, state),
+		)
+		state.clearTurnOutcome()
 	}
 
 	for (const message of messages) {
@@ -1975,6 +2092,10 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 						}
 						break
 					case "tool_use":
+						// Tool activity after a text block means that text wasn't the
+						// turn-final response (also covers dangling tool_use blocks whose
+						// results never arrived — an aborted turn must not retag).
+						state.clearTurnFinalText()
 						pendingToolUses.set(block.id, block)
 						break
 				}
@@ -1986,6 +2107,10 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
+				// Visible user text ends the preceding turn (retag its final text, if any)
+				// before the mode of the NEW turn is picked up from this message's wrapper.
+				endTurn()
+				currentMode = message.uiMode ?? currentMode
 				clineMessages.push({
 					ts: state.nextTs(),
 					type: "say",
@@ -1999,6 +2124,8 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
+			endTurn()
+			currentMode = message.uiMode ?? currentMode
 			clineMessages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -2022,6 +2149,10 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}
 	}
+
+	// The transcript's last agent turn has no trailing user message — close it out here so its
+	// final text (if the turn ended on text) gets the same inferred completion retag.
+	endTurn()
 
 	// Always emit ask:"completion_result"
 	// as the LAST message so it comes after the usage event's

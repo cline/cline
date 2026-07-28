@@ -282,8 +282,13 @@ export class Controller {
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
-		// Initialize message translator state
-		this.messageTranslatorState = new MessageTranslatorState(undefined, () => this.getActiveProviderId())
+		// Initialize message translator state. The mode getter styles the inferred turn-final
+		// completion row (plan → "Plan Created" box, act → green "Task Completed" box).
+		this.messageTranslatorState = new MessageTranslatorState(
+			undefined,
+			() => this.getActiveProviderId(),
+			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+		)
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({

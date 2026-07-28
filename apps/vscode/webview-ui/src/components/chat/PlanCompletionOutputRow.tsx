@@ -12,18 +12,19 @@ interface PlanCompletionOutputProps {
 
 /**
  * Styled completion output for Plan Mode responses
- * Uses grayscale colors to distinguish from Act Mode's green success theme
+ * Uses the yellow plan accent (matching the plan/act toggle and the CLI's
+ * plan-mode color) to distinguish from Act Mode's green success theme
  */
 const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOutputProps) => {
 	return (
-		<div className="rounded-sm border border-description/50 overflow-visible bg-code p-2 pt-3">
+		<div className="rounded-sm border border-warning/20 overflow-visible bg-warning/10 p-2 pt-3">
 			{/* Header */}
 			<div className={cn(headClassNames, "justify-between px-1")}>
 				<div className="flex gap-2 items-center">
-					<NotepadTextIcon className="size-2" />
-					<span className="text-foreground font-bold">Plan Created</span>
+					<NotepadTextIcon className="size-3 text-warning" />
+					<span className="text-warning font-bold">Plan Created</span>
 				</div>
-				<CopyButton textToCopy={text || ""} />
+				<CopyButton className="text-warning" textToCopy={text || ""} />
 			</div>
 
 			{/* Content */}

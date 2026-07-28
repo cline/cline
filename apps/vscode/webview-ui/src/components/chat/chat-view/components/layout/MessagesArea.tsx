@@ -113,7 +113,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		}
 		// attempt_completion emits a final say("completion_result") before ask("completion_result").
 		// Treat that final completion message as non-waiting to avoid a brief footer flicker.
-		if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+		// The turn-end inferred completion rows (say completion_result / plan_completion_result)
+		// are likewise terminal.
+		if (
+			lastRawMessage?.type === "say" &&
+			(lastRawMessage.say === "completion_result" || lastRawMessage.say === "plan_completion_result")
+		) {
 			return false
 		}
 		if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {

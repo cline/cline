@@ -130,7 +130,9 @@ describe("SdkTaskHistory", () => {
 
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
-			{ type: "say", say: "text", text: "Done", partial: false },
+			// A turn that ended cleanly on a text response is retagged to the inferred
+			// completion row (green "Task Completed" box) when rehydrated from history.
+			{ type: "say", say: "completion_result", text: "Done", partial: false },
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
 			// A trailing ask:"completion_result" is appended so a reopened task
 			// shows the completion/resume affordance instead of a stuck spinner.
@@ -206,7 +208,8 @@ describe("SdkTaskHistory", () => {
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "add a joke", partial: false },
 			{ type: "say", say: "tool", partial: false },
-			{ type: "say", say: "text", text: "Done!", partial: false },
+			// The turn's final text response is retagged to the inferred completion row.
+			{ type: "say", say: "completion_result", text: "Done!", partial: false },
 			{ type: "ask", ask: "completion_result", partial: false },
 		])
 		expect(result.map((message) => message.text).join("\n")).not.toContain(rawToolResult)
@@ -214,6 +217,45 @@ describe("SdkTaskHistory", () => {
 			tool: "editedExistingFile",
 			path: "/Users/maxpaulus/c/c2/README.md",
 		})
+	})
+
+	it("retags each turn-final text using the mode recovered from user_input wrappers", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="plan">plan the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Here is the plan." }] },
+			{ role: "user", content: '<user_input mode="act">looks good, do it</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Implemented." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toMatchObject([
+			// The <user_input mode="..."> wrapper is stripped for display but its mode
+			// styles the following turn's inferred completion row.
+			{ type: "say", say: "task", text: "plan the feature" },
+			{ type: "say", say: "plan_completion_result", text: "Here is the plan." },
+			{ type: "say", say: "user_feedback", text: "looks good, do it" },
+			{ type: "say", say: "completion_result", text: "Implemented." },
+			{ type: "ask", ask: "completion_result" },
+		])
+	})
+
+	it("does not retag a transcript that ends on a dangling tool call", () => {
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "do the thing" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Reading the file first." },
+					{ type: "tool_use", id: "toolu_dangling", name: "read_files", input: { path: "/a.ts" } },
+				],
+			},
+		])
+
+		// The aborted turn's text stays a plain text row — no inferred completion box.
+		expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Reading the file first." }))
 	})
 
 	it("hides subagent sessions from task history", async () => {
