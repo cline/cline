@@ -6,6 +6,7 @@ import {
 	Check,
 	ChevronLeft,
 	ChevronRight,
+	ChevronsLeft,
 	Filter,
 	Folder,
 	GitFork,
@@ -76,6 +77,41 @@ export function formatCompactTokens(value: number): string {
 		return `${(value / 1_000).toFixed(1)}k`;
 	}
 	return `${value}`;
+}
+
+const MAX_PAGE_BUTTONS = 7;
+
+/**
+ * Page buttons for a 1-indexed pager: every page while the list is short, and
+ * first/last plus a window around the current page once it grows.
+ */
+export function paginationItems(
+	currentPage: number,
+	pageCount: number,
+): Array<number | "gap-start" | "gap-end"> {
+	if (pageCount <= MAX_PAGE_BUTTONS) {
+		return Array.from({ length: pageCount }, (_, index) => index + 1);
+	}
+	const windowStart = Math.max(
+		2,
+		Math.min(currentPage - 1, pageCount - MAX_PAGE_BUTTONS + 3),
+	);
+	const windowEnd = Math.min(
+		pageCount - 1,
+		Math.max(currentPage + 1, MAX_PAGE_BUTTONS - 2),
+	);
+	const items: Array<number | "gap-start" | "gap-end"> = [1];
+	if (windowStart > 2) {
+		items.push("gap-start");
+	}
+	for (let page = windowStart; page <= windowEnd; page += 1) {
+		items.push(page);
+	}
+	if (windowEnd < pageCount - 1) {
+		items.push("gap-end");
+	}
+	items.push(pageCount);
+	return items;
 }
 
 function tokensLabel(thread: SessionThread): string {
@@ -572,29 +608,65 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 									{`${pageStart + 1}-${pageStart + visibleThreads.length} of ${filteredThreads.length}`}
 									{history.mayHaveMoreSessions ? "+" : ""}
 								</span>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1">
+									<Button
+										aria-label="First page"
+										className="h-8 rounded-md px-2.5"
+										disabled={currentPage === 0 || history.isLoadingMore}
+										onClick={() => setPage(0)}
+										size="sm"
+										title="First page"
+										type="button"
+										variant="outline"
+									>
+										<ChevronsLeft className="size-4" />
+									</Button>
 									<Button
 										aria-label="Previous page"
 										className="h-8 rounded-md px-2.5"
 										disabled={currentPage === 0 || history.isLoadingMore}
 										onClick={() => setPage(currentPage - 1)}
 										size="sm"
+										title="Previous page"
 										type="button"
 										variant="outline"
 									>
 										<ChevronLeft className="size-4" />
 									</Button>
-									<span className="tabular-nums">
-										{`Page ${currentPage + 1}${
-											history.mayHaveMoreSessions ? "" : ` of ${pageCount}`
-										}`}
-									</span>
+									{paginationItems(currentPage + 1, pageCount).map((item) =>
+										typeof item === "number" ? (
+											<Button
+												aria-current={
+													item === currentPage + 1 ? "page" : undefined
+												}
+												aria-label={`Page ${item}`}
+												className="h-8 min-w-8 rounded-md px-2 tabular-nums"
+												disabled={history.isLoadingMore}
+												key={item}
+												onClick={() => setPage(item - 1)}
+												size="sm"
+												type="button"
+												variant={item === currentPage + 1 ? "default" : "ghost"}
+											>
+												{item}
+											</Button>
+										) : (
+											<span
+												aria-hidden="true"
+												className="px-1 text-muted-foreground"
+												key={item}
+											>
+												...
+											</span>
+										),
+									)}
 									<Button
 										aria-label="Next page"
 										className="h-8 rounded-md px-2.5"
 										disabled={!canGoNext || history.isLoadingMore}
 										onClick={() => void goToNextPage()}
 										size="sm"
+										title="Next page"
 										type="button"
 										variant="outline"
 									>

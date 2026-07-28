@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	formatCompactTokens,
+	paginationItems,
 	SessionsView,
 } from "@/components/views/sessions/sessions-view";
 import type { SessionThread } from "@/hooks/use-session-history";
@@ -180,14 +181,17 @@ describe("SessionsView pagination", () => {
 			(row) => row.querySelector("span > span:last-child")?.textContent,
 		);
 
-	const clickNext = async () => {
-		const next = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Next page"]',
+	const clickButton = async (label: string) => {
+		const button = container.querySelector<HTMLButtonElement>(
+			`button[aria-label="${label}"]`,
 		);
+		expect(button).not.toBeNull();
 		await act(async () => {
-			next?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		});
 	};
+
+	const clickNext = () => clickButton("Next page");
 
 	it("shows ten sessions per page", async () => {
 		const view = renderView({ threads: manyThreads });
@@ -230,5 +234,53 @@ describe("SessionsView pagination", () => {
 
 		expect(container.textContent).toContain("21-25 of 25");
 		expect(rowTitles()).toHaveLength(5);
+	});
+
+	it("jumps to a numbered page and back to the first page in one click", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+
+		const pageButtons = Array.from(
+			container.querySelectorAll('button[aria-label^="Page "]'),
+		).map((button) => button.textContent);
+		expect(pageButtons).toEqual(["1", "2", "3"]);
+		expect(container.textContent).not.toContain("Page 1 of");
+
+		await clickButton("Page 3");
+		expect(rowTitles()[0]).toBe("Session 20");
+		expect(
+			container
+				.querySelector('button[aria-label="Page 3"]')
+				?.getAttribute("aria-current"),
+		).toBe("page");
+
+		await clickButton("First page");
+		expect(rowTitles()[0]).toBe("Session 0");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'button[aria-label="First page"]',
+			)?.disabled,
+		).toBe(true);
+	});
+});
+
+describe("paginationItems", () => {
+	it("lists every page while the pager is short", () => {
+		expect(paginationItems(1, 3)).toEqual([1, 2, 3]);
+		expect(paginationItems(4, 7)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+	});
+
+	it("keeps first, last and a window around the current page", () => {
+		expect(paginationItems(1, 12)).toEqual([1, 2, 3, 4, 5, "gap-end", 12]);
+		expect(paginationItems(6, 12)).toEqual([
+			1,
+			"gap-start",
+			5,
+			6,
+			7,
+			"gap-end",
+			12,
+		]);
+		expect(paginationItems(12, 12)).toEqual([1, "gap-start", 8, 9, 10, 11, 12]);
 	});
 });
