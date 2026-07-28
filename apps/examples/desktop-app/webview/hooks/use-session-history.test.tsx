@@ -92,7 +92,7 @@ describe("useSessionHistory refresh coalescing", () => {
 		expect(pendingLists).toHaveLength(1);
 		expect(pendingLists[0].limit).toBe(50);
 
-		let second: Promise<void> | undefined;
+		let second: Promise<boolean> | undefined;
 		await act(async () => {
 			second = current.refreshSessions();
 		});
@@ -113,7 +113,7 @@ describe("useSessionHistory refresh coalescing", () => {
 		expect(pendingLists[0].limit).toBe(50);
 
 		// Click "next" while the periodic refresh is still running.
-		let loadMore: Promise<void> | undefined;
+		let loadMore: Promise<boolean> | undefined;
 		await act(async () => {
 			loadMore = current.loadMoreSessions(100);
 		});
@@ -184,6 +184,78 @@ describe("useSessionHistory failed refresh", () => {
 		expect(current.sessions).toHaveLength(50);
 		expect(current.threads).toHaveLength(50);
 		expect(current.mayHaveMoreSessions).toBe(true);
+	});
+
+	it("does not lower a limit an overlapping call already raised", async () => {
+		await renderWithSessions();
+
+		// Two "next page" clicks overlap: the first expands to 100 and is still
+		// in flight when the second expands to 150.
+		let first: Promise<boolean> | undefined;
+		let second: Promise<boolean> | undefined;
+		await act(async () => {
+			first = current.loadMoreSessions(100);
+			await Promise.resolve();
+			second = current.loadMoreSessions(150);
+			await Promise.resolve();
+		});
+		expect(pendingLists).toHaveLength(2);
+		expect(pendingLists[1].limit).toBe(100);
+
+		// The 100-row request fails. Rolling the shared limit back to 50 here
+		// would make the waiting call fetch 50 rows and still report success.
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+			expect(await first).toBe(false);
+			await Promise.resolve();
+		});
+
+		expect(pendingLists).toHaveLength(3);
+		expect(pendingLists[2].limit).toBe(150);
+		await act(async () => {
+			pendingLists[2].resolve(
+				Array.from({ length: 150 }, (_, index) =>
+					sessionRow(`session-${index}`),
+				),
+			);
+			expect(await second).toBe(true);
+		});
+		expect(current.sessions).toHaveLength(150);
+	});
+
+	it("retries the oldest unfetched batch when overlapping calls both fail", async () => {
+		await renderWithSessions();
+
+		let first: Promise<boolean> | undefined;
+		let second: Promise<boolean> | undefined;
+		await act(async () => {
+			first = current.loadMoreSessions(100);
+			await Promise.resolve();
+			second = current.loadMoreSessions(150);
+			await Promise.resolve();
+		});
+
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+			expect(await first).toBe(false);
+			await Promise.resolve();
+		});
+		await act(async () => {
+			pendingLists[2].reject(new Error("transport closed"));
+			expect(await second).toBe(false);
+			await Promise.resolve();
+		});
+
+		// Neither batch landed, so the next attempt must go back to the first
+		// unfetched one (100) rather than resuming from a limit that was only
+		// ever requested.
+		await act(async () => {
+			const retry = current.loadOlderSessions();
+			await Promise.resolve();
+			pendingLists[3].resolve([]);
+			await retry;
+		});
+		expect(pendingLists[3].limit).toBe(100);
 	});
 
 	it("retries the same batch after a failure instead of skipping it", async () => {

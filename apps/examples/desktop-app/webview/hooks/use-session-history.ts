@@ -495,6 +495,10 @@ export function useSessionHistory({
 		() => new Set(),
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
+	// Limit of the most recent refresh that actually returned sessions. Failed
+	// attempts roll back to this rather than to a caller-local snapshot, which
+	// may itself name a batch that was never fetched.
+	const loadedLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -507,7 +511,7 @@ export function useSessionHistory({
 	const threadsRef = useRef<SessionThread[]>([]);
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const scheduledRefreshAtRef = useRef<number | null>(null);
-	const refreshPromiseRef = useRef<Promise<void> | null>(null);
+	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 	const refreshLimitRef = useRef(0);
 	const lastRefreshStartedAtRef = useRef(0);
 
@@ -640,6 +644,7 @@ export function useSessionHistory({
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
+				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
 				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
@@ -1330,15 +1335,19 @@ export function useSessionHistory({
 			if (fetchLimitRef.current >= nextLimit) {
 				return true;
 			}
-			const previousLimit = fetchLimitRef.current;
 			fetchLimitRef.current = nextLimit;
 			setIsLoadingMore(true);
 			try {
 				const loaded = await refreshSessions();
+				// Roll back to what was last fetched so a retry asks for this batch
+				// again instead of skipping past it — but only when no overlapping
+				// call has raised the limit further in the meantime, since lowering
+				// it would make that call fetch a smaller batch than it asked for
+				// and still report success.
+				if (!loaded && fetchLimitRef.current === nextLimit) {
+					fetchLimitRef.current = loadedLimitRef.current;
+				}
 				if (!loaded) {
-					// Put the limit back so retrying asks for this batch again
-					// instead of skipping past it to the next one.
-					fetchLimitRef.current = previousLimit;
 					toast({
 						variant: "destructive",
 						title: "Could not load more sessions",
