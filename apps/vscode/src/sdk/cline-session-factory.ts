@@ -380,6 +380,15 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 const DEFAULT_PROVIDER_ID = "cline"
 
 /**
+ * Defensive ceiling on model requests per run (one run = one user turn).
+ * Legitimate agentic turns stay far below this; hitting it surfaces an error
+ * row and the user can continue with a new message. Without a bound, a model
+ * stuck in a tool loop issues requests indefinitely (observed 1,000+ requests
+ * per task before this was capped).
+ */
+const MAX_ITERATIONS_PER_RUN = 200
+
+/**
  * Providers whose model list comes from a live local endpoint (Ollama's
  * `/api/tags`, LM Studio's `/v1/models`). Their installed models are the only
  * meaningful catalog; a bundled-catalog default would silently select a model
@@ -911,7 +920,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...reasoningConfig,
 		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
-		maxIterations: undefined,
+		maxIterations: MAX_ITERATIONS_PER_RUN,
 		logger: sdkLogger,
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,

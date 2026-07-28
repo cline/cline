@@ -30,18 +30,6 @@ export const formatResponse = {
 	permissionDeniedError: (reason: string) =>
 		`Command execution blocked by CLINE_COMMAND_PERMISSIONS: ${reason}. You must try a different approach or ask the user to update the permission settings.`,
 
-	noToolsUsed: (usingNativeToolCalls: boolean) =>
-		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
-
-${usingNativeToolCalls ? "" : toolUseInstructionsReminder}
-
-# Next Steps
-
-If you have completed the user's task, use the attempt_completion tool. 
-If you require additional information from the user, use the ask_followup_question tool. 
-Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. 
-(This is an automated message, so do not respond to it conversationally.)`,
-
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
 
@@ -374,9 +362,7 @@ Tool uses are formatted using XML-style tags. The tool name is enclosed in openi
 ...
 </tool_name>
 For example:
-<attempt_completion>
-<result>
-I have completed the task...
-</result>
-</attempt_completion>
+<read_file>
+<path>src/main.js</path>
+</read_file>
 Always adhere to this format for all tool uses to ensure proper parsing and execution.`
