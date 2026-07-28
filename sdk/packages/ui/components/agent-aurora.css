@@ -12,7 +12,7 @@
 	position: absolute;
 }
 
-/* Static masks and opacity/transform animation avoid full-surface repaints. */
+/* Avoid filter: blur; it forced full-surface repaints below 10fps. */
 .cline-ui-agent-aurora__soft-band {
 	-webkit-mask-image: linear-gradient(
 		to bottom,
