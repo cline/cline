@@ -3813,35 +3813,32 @@ describe("sdk-gateway", () => {
 			"qwen-plus-latest",
 			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		],
-	])(
-		"routes %s to the %s regional endpoint when options.apiLine is set",
-		async (providerId, apiLine, modelId, expectedBaseUrl) => {
-			streamTextSpy.mockReturnValue({
-				fullStream: makeStreamParts([
-					{ type: "text-delta", textDelta: "Regional" },
-					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
-				]),
-			});
+	])("routes %s to the %s regional endpoint when options.apiLine is set", async (providerId, apiLine, modelId, expectedBaseUrl) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Regional" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
 
-			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId, apiKey: "test-key", options: { apiLine } },
-				],
-			});
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId, apiKey: "test-key", options: { apiLine } },
+			],
+		});
 
-			await collect(
-				await gateway.stream({
-					providerId,
-					modelId,
-					messages: baseMessages,
-				}),
-			);
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
 
-			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
-				expect.objectContaining({ baseURL: expectedBaseUrl }),
-			);
-		},
-	);
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: expectedBaseUrl }),
+		);
+	});
 
 	it("lets an explicit base URL win over options.apiLine", async () => {
 		streamTextSpy.mockReturnValue({

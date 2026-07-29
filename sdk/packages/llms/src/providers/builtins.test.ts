@@ -308,9 +308,7 @@ describe("regional API line base URLs", () => {
 	it("returns undefined for unknown lines and non-regional providers", () => {
 		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
 		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
-		expect(
-			resolveProviderApiLineBaseUrl("anthropic", "china"),
-		).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("anthropic", "china")).toBeUndefined();
 	});
 
 	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {
