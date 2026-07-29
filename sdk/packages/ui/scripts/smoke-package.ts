@@ -16,6 +16,7 @@ import {
 	AgentAurora,
 	AgentHeroHeading,
 	AgentQuickActions,
+	SearchCombobox,
 	SessionStatus,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
@@ -36,6 +37,7 @@ if (
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentQuickActions ||
+	!SearchCombobox ||
 	!SessionStatus ||
 	!Conversation ||
 	!Message ||
