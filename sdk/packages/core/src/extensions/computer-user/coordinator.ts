@@ -7,10 +7,11 @@ import type { ComputerTaskArtifactRecorder } from "../computer-observability/rec
  *
  * The helper is a persistent, interactive session on a separately configured
  * provider (e.g. Anthropic/Sonnet while the driver runs GPT). Driver-facing
- * commands start, steer, and interrupt the helper without waiting for its turn;
- * status can either return a snapshot or wait for a bounded status change. The
- * helper reports back through terminal collaboration tools (`ask_driver`,
- * `finish_computer_task`) plus non-terminal notes (`post_driver_update`).
+ * commands start and steer the helper without waiting for its turn; interruption
+ * waits until the active helper run is quiescent. Status can either return a
+ * snapshot or wait for a bounded status change. The helper reports back through
+ * terminal collaboration tools (`ask_driver`, `finish_computer_task`) plus
+ * non-terminal notes (`post_driver_update`).
  *
  * Consistency boundary: the helper's provider profile, tool inventory, and
  * system prompt become effective together when the helper session is created
@@ -116,6 +117,8 @@ export class ComputerUserCoordinator {
 	private lastReport: { result: string; observations: string[] } | undefined;
 	/** Serializes all state transitions; the background run stays outside it. */
 	private transitionQueue: Promise<unknown> = Promise.resolve();
+	/** Resolves after each run's serialized settlement has completed. */
+	private readonly runSettlements = new WeakMap<HelperRun, Promise<void>>();
 	private readonly now: () => number;
 
 	constructor(private readonly options: ComputerUserCoordinatorOptions) {
@@ -201,23 +204,51 @@ export class ComputerUserCoordinator {
 	}
 
 	/**
-	 * Hard interruption: aborts the active run. The helper session and
-	 * transcript are preserved; the run settles as aborted via settleRun.
+	 * Aborts the active run and returns only after that exact run is quiescent.
+	 * The helper session and transcript are preserved for a later turn.
 	 */
 	async interrupt(reason?: string): Promise<{ interrupted: boolean }> {
-		return this.transition(async () => {
+		const interruption = await this.transition(async () => {
 			if (this.state.kind !== "running") {
-				return { interrupted: false };
+				return undefined;
 			}
 			const { sessionId, run } = this.state;
+			const settlement = this.runSettlements.get(run);
+			if (!settlement) {
+				throw new Error("Computer user run settlement is unavailable");
+			}
 			this.state = { kind: "cancelling", sessionId, run };
 			this.recordStatusChange("cancelling");
+			return { sessionId, run, settlement };
+		});
+		if (!interruption) {
+			return { interrupted: false };
+		}
+		try {
 			await this.options.host.abort(
-				sessionId,
+				interruption.sessionId,
 				new Error(reason ?? "Interrupted by driver"),
 			);
-			return { interrupted: true };
-		});
+		} catch (error) {
+			await this.transition(async () => {
+				const current = this.state;
+				if (current.kind === "cancelling" && current.run === interruption.run) {
+					// The host did not establish quiescence, so keep the run retryably
+					// active rather than claiming that interruption succeeded.
+					this.state = {
+						kind: "running",
+						sessionId: interruption.sessionId,
+						run: interruption.run,
+					};
+					this.recordStatusChange("running");
+				}
+			});
+			throw error;
+		}
+		// Consistency boundary: the driver regains control only after the
+		// targeted run has settled through the serialized state machine.
+		await interruption.settlement;
+		return { interrupted: true };
 	}
 
 	status(): ComputerUserStatus {
@@ -389,15 +420,22 @@ export class ComputerUserCoordinator {
 	 * returns so a fast failure can never become an unhandled rejection.
 	 */
 	private launchRun(sessionId: string, run: HelperRun): void {
-		void this.options.host.send({ sessionId, prompt: run.prompt }).then(
-			(result) => this.settleRun(run, result, undefined),
-			(error) =>
-				this.settleRun(
-					run,
-					undefined,
-					error instanceof Error ? error : new Error(String(error)),
-				),
-		);
+		const settlement = this.options.host
+			.send({ sessionId, prompt: run.prompt })
+			.then(
+				(result) => this.settleRun(run, result, undefined),
+				(error) =>
+					this.settleRun(
+						run,
+						undefined,
+						error instanceof Error ? error : new Error(String(error)),
+					),
+			);
+		this.runSettlements.set(run, settlement);
+		// Normal runs have no foreground waiter. Keep settlement failures from
+		// becoming process-level unhandled rejections without hiding them from
+		// an interrupt caller that awaits the original promise.
+		void settlement.catch(() => {});
 	}
 
 	/**
@@ -409,8 +447,8 @@ export class ComputerUserCoordinator {
 		run: HelperRun,
 		result: AgentResult | undefined,
 		error: Error | undefined,
-	): void {
-		void this.transition(async () => {
+	): Promise<void> {
+		return this.transition(async () => {
 			const current = this.state;
 			if (
 				(current.kind !== "running" && current.kind !== "cancelling") ||
@@ -427,11 +465,6 @@ export class ComputerUserCoordinator {
 			if (current.kind === "cancelling" || result?.finishReason === "aborted") {
 				this.state = { kind: "idle", sessionId };
 				this.recordStatusChange("idle");
-				this.options.notifyDriver({
-					prompt:
-						"[COMPUTER USER] The computer user was interrupted and is now idle.",
-					delivery: "steer",
-				});
 				return;
 			}
 			if (error || result?.finishReason === "error") {
