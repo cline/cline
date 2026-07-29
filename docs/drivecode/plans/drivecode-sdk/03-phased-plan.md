@@ -63,6 +63,9 @@ The `drivecode-sdk` layer proper. Pure, hostless, and provably so.
 7. `reduceRoom` is a pure fold — replaying the same event sequence from the same initial snapshot yields an identical result, and applying the same event twice by id is idempotent.
 8. The package builds for a browser target with no polyfills. This is the mechanical proof that the webview can import the reducer instead of writing its own.
 9. `HostCapabilities.writerEndpoint` is required, not optional.
+10. **`createDriveHarness({ host })` exists** with rooms MVP (`createOrAttach`, `setAddress`, `setSharer`, …) and `director` pure helpers — see [06-sdk-leverage.md](06-sdk-leverage.md).
+
+**Status** — Phase 2 skeleton largely landed (`DriveHostPort`, conformance, `reduceRoom`, `createDriveHarness`). Still open vs original list: `expandRosterPack`, `applySeatSourceDelta`, `capPreset`, `resolveAddress`, `mergeFacetScopes` as drive exports; hub product path still prefers wire commands over the harness.
 
 **Verification** — `bun -F @cline/drive test`, `bun run types`, plus the browser-target build from criterion 8. No runtime surface to drive yet, so no control-ui or control-cli pass; this is called out in [§Verification gaps](#verification-gaps).
 

@@ -33,17 +33,36 @@ export type HostCapabilities = {
 
 export type RoomOp =
 	| { type: "create"; roomId: string; hostParticipantId: string }
-	| { type: "join"; participant: RoomSnapshot["participants"][number] }
-	| { type: "leave"; participantId: string }
-	| { type: "setAddress"; addressSet: RoomSnapshot["addressSet"] }
+	| {
+			type: "join";
+			roomId: string;
+			participant: RoomSnapshot["participants"][number];
+	  }
+	| { type: "leave"; roomId: string; participantId: string }
+	| {
+			type: "setAddress";
+			roomId: string;
+			addressSet: RoomSnapshot["addressSet"];
+	  }
 	| {
 			type: "setStage";
+			roomId: string;
 			sharer: RoomSnapshot["stage"]["sharer"];
 			pin?: RoomSnapshot["stage"]["pin"];
 	  }
-	| { type: "setMode"; subMode: RoomSnapshot["subMode"]; driveActive?: boolean }
-	| { type: "raiseHand"; participantId: string; raised: boolean }
-	| { type: "mute"; participantId: string; muted: boolean };
+	| {
+			type: "setMode";
+			roomId: string;
+			subMode: RoomSnapshot["subMode"];
+			driveActive?: boolean;
+	  }
+	| {
+			type: "raiseHand";
+			roomId: string;
+			participantId: string;
+			raised: boolean;
+	  }
+	| { type: "mute"; roomId: string; participantId: string; muted: boolean };
 
 export type PromptRewriteDecision = {
 	readonly turnId: string;
@@ -60,6 +79,8 @@ export type DriveHostPort = {
 	writeDurableFacets(workspaceRoot: string, next: unknown): Promise<void>;
 
 	commitRoomOp(op: RoomOp): Promise<RoomSnapshot>;
+	/** Read current room snapshot (required by DriveHarness for pack/spotlight). */
+	getRoom?(roomId: string): Promise<RoomSnapshot | null>;
 	broadcast(event: DriveEvent): Promise<void>;
 	subscribe(handler: (event: DriveEvent) => void): () => void;
 

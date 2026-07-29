@@ -2,6 +2,7 @@
  * Local Cline DriveHostPort adapter (ARD-0013).
  * Hub command handlers remain the primary entry; this adapter is the
  * commit/broadcast/facets boundary for conformance and future remote hosts.
+ * Prefer createDriveHarness({ host }) from @cline/drive for room composition.
  */
 
 import {
@@ -71,6 +72,9 @@ export function createClineDriveHost(
 			const facets = parseDriveFacetValues(next);
 			writeDriveFacetsFile(workspaceRoot, facets);
 		},
+		async getRoom(roomId: string) {
+			return store.get(roomId) ?? null;
+		},
 		async commitRoomOp(op: RoomOp): Promise<RoomSnapshot> {
 			switch (op.type) {
 				case "create": {
@@ -78,36 +82,32 @@ export function createClineDriveHost(
 					return store.getOrThrow(op.roomId);
 				}
 				case "join": {
-					const roomId = firstRoomId(store);
 					const result = store.join({
-						roomId,
+						roomId: op.roomId,
 						participant: op.participant,
 					});
 					emit(result.event);
 					return result.snapshot;
 				}
 				case "leave": {
-					const roomId = findRoomForParticipant(store, op.participantId);
 					const result = store.leave({
-						roomId,
+						roomId: op.roomId,
 						participantId: op.participantId,
 					});
 					emit(result.event);
 					return result.snapshot;
 				}
 				case "setAddress": {
-					const roomId = firstRoomId(store);
 					const result = store.setAddress({
-						roomId,
+						roomId: op.roomId,
 						addressSet: op.addressSet,
 					});
 					emit(result.event);
 					return result.snapshot;
 				}
 				case "setStage": {
-					const roomId = firstRoomId(store);
 					const result = store.setStage({
-						roomId,
+						roomId: op.roomId,
 						sharer: op.sharer,
 						pin: op.pin,
 					});
@@ -115,9 +115,8 @@ export function createClineDriveHost(
 					return result.snapshot;
 				}
 				case "setMode": {
-					const roomId = firstRoomId(store);
 					const result = store.setMode({
-						roomId,
+						roomId: op.roomId,
 						subMode: op.subMode,
 						driveActive: op.driveActive,
 					});
@@ -125,9 +124,8 @@ export function createClineDriveHost(
 					return result.snapshot;
 				}
 				case "raiseHand": {
-					const roomId = firstRoomId(store);
 					const result = store.raiseHand({
-						roomId,
+						roomId: op.roomId,
 						participantId: op.participantId,
 						raised: op.raised,
 					});
@@ -135,9 +133,8 @@ export function createClineDriveHost(
 					return result.snapshot;
 				}
 				case "mute": {
-					const roomId = firstRoomId(store);
 					const result = store.mute({
-						roomId,
+						roomId: op.roomId,
 						participantId: op.participantId,
 						muted: op.muted,
 					});
@@ -174,24 +171,4 @@ export function createClineDriveHost(
 			await options.promptRewriteFn(decision);
 		},
 	};
-}
-
-function firstRoomId(store: DriveRoomStore): string {
-	const id = store.rooms.keys().next().value;
-	if (!id) {
-		throw new Error("room_not_found:empty");
-	}
-	return id;
-}
-
-function findRoomForParticipant(
-	store: DriveRoomStore,
-	participantId: string,
-): string {
-	for (const [roomId, snap] of store.rooms) {
-		if (snap.participants.some((p) => p.id === participantId)) {
-			return roomId;
-		}
-	}
-	throw new Error(`room_not_found:participant:${participantId}`);
 }

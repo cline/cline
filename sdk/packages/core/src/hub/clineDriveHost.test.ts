@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLINE_HOST_CAPABILITIES, runHostConformance } from "@cline/drive";
+import { CLINE_HOST_CAPABILITIES, createDriveHarness, runHostConformance } from "@cline/drive";
 import { afterEach, describe, expect, it } from "vitest";
 import { createClineDriveHost } from "./clineDriveHost";
 import { DriveRoomStore } from "./collaboration";
@@ -81,6 +81,7 @@ describe("createClineDriveHost", () => {
 		});
 		const snap = await host.commitRoomOp({
 			type: "join",
+			roomId: "r1",
 			participant: {
 				id: "h1",
 				kind: "human",
@@ -91,6 +92,26 @@ describe("createClineDriveHost", () => {
 		});
 		expect(snap.participants).toHaveLength(1);
 		expect(store.lastSeq("r1")).toBe(1);
+	});
+
+	it("createDriveHarness createOrAttach works on the Cline host", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-drive-host-"));
+		dirs.push(dir);
+		const store = new DriveRoomStore();
+		const host = createClineDriveHost({ configParent: dir, store });
+		const drive = createDriveHarness({ host });
+		await drive.start();
+		const room = await drive.rooms.createOrAttach({
+			roomId: "call-1",
+			humanId: "drive:human",
+			humanDisplayName: "You",
+		});
+		expect(room.driveActive).toBe(true);
+		expect(room.participants).toHaveLength(2);
+		expect(await host.getRoom?.("call-1")).toMatchObject({
+			roomId: "call-1",
+			driveActive: true,
+		});
 	});
 
 	it("round-trips durable facets", async () => {
