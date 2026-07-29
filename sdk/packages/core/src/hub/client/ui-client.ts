@@ -106,6 +106,7 @@ export class HubUIClient {
 
 		onDriveRoomChanged?: (payload: Record<string, unknown>) => void;
 		onDriveShowPresented?: (payload: Record<string, unknown>) => void;
+		onDriveShowPlanned?: (payload: Record<string, unknown>) => void;
 		onDriveSpotlightChanged?: (payload: Record<string, unknown>) => void;
 		onRoomSnapshot?: (payload: Record<string, unknown>) => void;
 		onRoomEvent?: (payload: Record<string, unknown>) => void;
@@ -143,6 +144,9 @@ export class HubUIClient {
 					break;
 				case "drive.show.presented":
 					handlers.onDriveShowPresented?.(event.payload ?? {});
+					break;
+				case "drive.show.planned":
+					handlers.onDriveShowPlanned?.(event.payload ?? {});
 					break;
 				case "drive.spotlight.changed":
 					handlers.onDriveSpotlightChanged?.(event.payload ?? {});

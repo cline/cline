@@ -152,4 +152,117 @@ describe("handleDriveCommand", () => {
 			typeof (presented?.payload as { uri?: string } | undefined)?.uri,
 		).toBe("string");
 	});
+
+	it("enqueues without presenting, then tick presents higher priority", () => {
+		const { ctx, published } = createCtx();
+		const low = {
+			id: "show-low",
+			ownerParticipantId: "drive:partner",
+			title: "Low",
+			intent: "Explain",
+			artifactKind: "diagram.architecture" as const,
+			mediaClass: "still" as const,
+			caption: "low",
+			produce: {
+				tool: "render_mermaid",
+				args: { mermaidSource: "graph TD; L-->Z;" },
+			},
+			priority: 1,
+			status: "planned" as const,
+			scoreReasons: [],
+		};
+		const high = {
+			...low,
+			id: "show-high",
+			title: "High",
+			caption: "high",
+			priority: 50,
+			produce: {
+				tool: "render_mermaid",
+				args: { mermaidSource: "graph TD; H-->Z;" },
+			},
+		};
+
+		const enqueueLow = handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", { roomId: "r1", showItem: low }),
+		);
+		expect(enqueueLow.ok).toBe(true);
+		const enqueueHigh = handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", { roomId: "r1", showItem: high }),
+		);
+		expect(enqueueHigh.ok).toBe(true);
+		expect(
+			published.some((event) => event.event === "drive.show.planned"),
+		).toBe(true);
+		const roomAfterEnqueue = enqueueHigh.payload?.room as {
+			director: { activeShowId: string | null; showBacklog: unknown[] };
+		};
+		expect(roomAfterEnqueue.director.activeShowId).toBeNull();
+		expect(roomAfterEnqueue.director.showBacklog).toHaveLength(2);
+
+		const tick = handleDriveCommand(
+			ctx,
+			envelope("drive.show.tick", { roomId: "r1" }),
+		);
+		expect(tick.ok).toBe(true);
+		const room = tick.payload?.room as {
+			director: {
+				activeShowId: string;
+				showBacklog: Array<{ id: string; uri?: string; status: string }>;
+			};
+		};
+		expect(room.director.activeShowId).toBe("show-high");
+		expect(room.director.showBacklog[0]?.uri).toMatch(/^data:image\/svg\+xml/);
+		expect(room.director.showBacklog[0]?.status).toBe("showing");
+		expect(
+			published.some((event) => event.event === "drive.show.presented"),
+		).toBe(true);
+	});
+
+	it("tick is a no-op when backlog is empty", () => {
+		const { ctx } = createCtx();
+		const tick = handleDriveCommand(
+			ctx,
+			envelope("drive.show.tick", { roomId: "empty" }),
+		);
+		expect(tick.ok).toBe(true);
+		expect(tick.payload?.presented).toBeNull();
+	});
+
+	it("enqueue with presentNow presents immediately", () => {
+		const { ctx, published } = createCtx();
+		const reply = handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", {
+				roomId: "r2",
+				presentNow: true,
+				showItem: {
+					id: "show-now",
+					ownerParticipantId: "drive:partner",
+					title: "Now",
+					intent: "Explain",
+					artifactKind: "diagram.architecture",
+					mediaClass: "still",
+					caption: "now",
+					produce: {
+						tool: "render_mermaid",
+						args: { mermaidSource: "graph TD; N-->Z;" },
+					},
+					priority: 10,
+					status: "planned",
+					scoreReasons: [],
+				},
+			}),
+		);
+		expect(reply.ok).toBe(true);
+		const room = reply.payload?.room as {
+			director: { activeShowId: string };
+		};
+		expect(room.director.activeShowId).toBe("show-now");
+		expect(
+			published.some((event) => event.event === "drive.show.presented"),
+		).toBe(true);
+	});
 });

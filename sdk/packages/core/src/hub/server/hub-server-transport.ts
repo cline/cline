@@ -439,6 +439,8 @@ export class HubServerTransport implements NativeHubTransport {
 			case "drive.participant.mute.set":
 			case "drive.participant.deafen.set":
 			case "drive.show.present":
+			case "drive.show.enqueue":
+			case "drive.show.tick":
 				return handleDriveCommand(this.ctx, envelope);
 			case "drive.fork.claim":
 			case "drive.fork.promote":
