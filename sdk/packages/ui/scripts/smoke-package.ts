@@ -10,8 +10,9 @@ import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { AgentHeroHeading, SessionStatus } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 
@@ -23,6 +24,12 @@ for (const specifier of [
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
 		throw new Error("packed CSS export does not exist: " + specifier);
 	}
+}
+
+const packageRoot = dirname(fileURLToPath(import.meta.resolve("@cline/ui/package.json")));
+const license = join(packageRoot, "LICENSE");
+if (!existsSync(license) || !readFileSync(license, "utf8").includes("Apache License")) {
+	throw new Error("packed package does not contain the Apache LICENSE");
 }
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");

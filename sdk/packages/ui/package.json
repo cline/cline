@@ -44,6 +44,7 @@
 		"components/session-status.tsx",
 		"dist",
 		"theme",
+		"LICENSE",
 		"ADOPTION.md",
 		"README.md"
 	],
