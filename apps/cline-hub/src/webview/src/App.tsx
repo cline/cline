@@ -1,4 +1,8 @@
 import {
+	DrivePlansDemoTeamsSource,
+	readDrivecodeDemoHubBootstrap,
+} from "@cline/drivecode-demo";
+import {
 	ActivityIcon,
 	ArrowUpDownIcon,
 	BotIcon,
@@ -1155,6 +1159,15 @@ function App() {
 		[],
 	);
 
+	const demoHub = useMemo(() => readDrivecodeDemoHubBootstrap(), []);
+	const demoTeamsSource = useMemo(
+		() =>
+			demoHub.useDemoTeamsAdapter
+				? new DrivePlansDemoTeamsSource()
+				: undefined,
+		[demoHub.useDemoTeamsAdapter],
+	);
+
 	useEffect(() => {
 		syncHubTheme();
 		replaceLegacyCustomizationRoute();
@@ -1273,7 +1286,12 @@ function App() {
 			);
 		}
 		if (view === "status") {
-			return <StatusView />;
+			return (
+				<StatusView
+					initialMode={demoHub.initialStatusMode}
+					teamsSource={demoTeamsSource}
+				/>
+			);
 		}
 		if (view === "sessions") {
 			return (
@@ -1377,6 +1395,8 @@ function App() {
 			/>
 		);
 	}, [
+		demoHub.initialStatusMode,
+		demoTeamsSource,
 		hubState,
 		deleteSession,
 		navigate,

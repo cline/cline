@@ -1,6 +1,7 @@
 export type { DrivecodeDemoCliBootstrap } from "./cli-env";
 export { readDrivecodeDemoCliBootstrap } from "./cli-env";
 export { DrivePlansDemoStatusSnapshotSource } from "./drive-plans-demo-status-source";
+export { DrivePlansDemoTeamsSource } from "./drive-plans-demo-teams-source";
 export type { DrivecodeDemoHubBootstrap } from "./hub-query";
 export { readDrivecodeDemoHubBootstrap } from "./hub-query";
 export {

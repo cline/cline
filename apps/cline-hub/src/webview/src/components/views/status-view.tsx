@@ -12,8 +12,9 @@
  * every update including superseded ones, showing state transitions.
  *
  * **Dependency map** answers "what blocks what?" It projects active team tasks
- * (`status.tasks_snapshot`) into a layered graph. Pass `?demoPlans=1` to load
- * the Drive plan fixture from `plan-tasks-fixture.ts` (docs / demos).
+ * (`status.tasks_snapshot`) into a layered graph. Demo teams are injected via
+ * the optional `teamsSource` prop from the composition root (App.tsx) — this
+ * view does not read demo query params or import fixtures.
  *
  * Board and Changelog page server-side with a keyset cursor, so opening this
  * view never pulls the whole log.
@@ -31,10 +32,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { StatusTeamsSource } from "../../status/status-teams-source";
 import { postToHost } from "../../vscode";
 import { PageEmptyState, PageFrame, PageHeader } from "./page-layout";
 import { DependencyMap } from "./dependency-map";
-import { PLAN_DEPENDENCY_DEMO_TEAMS } from "./plan-tasks-fixture";
 import {
 	hasActiveFilters,
 	matchesStatusFilters,
@@ -45,23 +46,6 @@ import { relativeTime, STATE_STYLES, StatusRow } from "./status-row";
 const PAGE_LIMIT = 50;
 
 export type StatusViewMode = "board" | "changelog" | "dependency-map";
-
-function statusViewSearchParams(): URLSearchParams {
-	if (typeof window === "undefined") return new URLSearchParams();
-	return new URLSearchParams(window.location.search);
-}
-
-function initialStatusMode(): StatusViewMode {
-	const raw = statusViewSearchParams().get("statusMode")?.trim();
-	if (raw === "board" || raw === "changelog" || raw === "dependency-map") {
-		return raw;
-	}
-	return "board";
-}
-
-function readPlanDependencyDemo(): boolean {
-	return statusViewSearchParams().get("demoPlans") === "1";
-}
 
 /** Board section order — what needs a human first. */
 const BOARD_SECTIONS: ReadonlyArray<{ state: StatusState; blurb: string }> = [
@@ -118,9 +102,12 @@ function StatTile({
 	);
 }
 
-export function StatusView() {
-	const planDemo = readPlanDependencyDemo();
-	const [mode, setMode] = useState<StatusViewMode>(initialStatusMode);
+export function StatusView(props: {
+	teamsSource?: StatusTeamsSource;
+	initialMode?: StatusViewMode;
+}) {
+	const { teamsSource, initialMode = "board" } = props;
+	const [mode, setMode] = useState<StatusViewMode>(initialMode);
 	const [updates, setUpdates] = useState<StatusUpdate[]>([]);
 	const [summary, setSummary] = useState<StatusSummary | null>(null);
 	const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -131,9 +118,7 @@ export function StatusView() {
 	const [agentFilter, setAgentFilter] = useState<string | null>(null);
 	const [searchDraft, setSearchDraft] = useState("");
 	const [search, setSearch] = useState("");
-	const [teams, setTeams] = useState<TeamRuntimeState[]>(() =>
-		planDemo ? PLAN_DEPENDENCY_DEMO_TEAMS : [],
-	);
+	const [teams, setTeams] = useState<TeamRuntimeState[]>([]);
 	const [tasksLoading, setTasksLoading] = useState(false);
 	const tasksRequestRef = useRef<string | null>(null);
 
@@ -191,16 +176,22 @@ export function StatusView() {
 	}, []);
 
 	const requestTasks = useCallback(() => {
-		if (planDemo) {
-			setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
-			setTasksLoading(false);
+		if (teamsSource) {
+			const requestId = `status-tasks-adapter-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+			tasksRequestRef.current = requestId;
+			setTasksLoading(true);
+			void teamsSource.loadTeams().then((next) => {
+				if (tasksRequestRef.current !== requestId) return;
+				setTeams(next);
+				setTasksLoading(false);
+			});
 			return;
 		}
 		const requestId = `status-tasks-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 		tasksRequestRef.current = requestId;
 		setTasksLoading(true);
 		postToHost({ type: "status_tasks_snapshot", requestId });
-	}, [planDemo]);
+	}, [teamsSource]);
 
 	useEffect(() => {
 		request(null, true);
@@ -235,6 +226,8 @@ export function StatusView() {
 			}
 
 			if (message.type === "status_tasks_snapshot_result") {
+				// Adapter-backed loads resolve via Promise; ignore host snapshots.
+				if (teamsSource) return;
 				if (message.requestId !== tasksRequestRef.current) return;
 				setTeams(
 					Array.isArray(message.teams)
@@ -246,6 +239,8 @@ export function StatusView() {
 			}
 
 			if (message.type === "team_progress") {
+				// Demo adapters are static — skip live team progress refreshes.
+				if (teamsSource) return;
 				if (mode === "dependency-map") requestTasks();
 				return;
 			}
@@ -284,7 +279,7 @@ export function StatusView() {
 
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, [mode, requestSummary, requestTasks]);
+	}, [mode, requestSummary, requestTasks, teamsSource]);
 
 	const toggleState = useCallback((value: StatusState) => {
 		setStateFilter((current) =>

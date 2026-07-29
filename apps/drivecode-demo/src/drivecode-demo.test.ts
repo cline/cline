@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readDrivecodeDemoCliBootstrap } from "./cli-env";
 import { DrivePlansDemoStatusSnapshotSource } from "./drive-plans-demo-status-source";
+import { DrivePlansDemoTeamsSource } from "./drive-plans-demo-teams-source";
 import { readDrivecodeDemoHubBootstrap } from "./hub-query";
 
 describe("DrivePlansDemoStatusSnapshotSource", () => {
@@ -11,6 +12,14 @@ describe("DrivePlansDemoStatusSnapshotSource", () => {
 		expect(snap.teams.length).toBeGreaterThan(0);
 		expect(snap.summary).toBeNull();
 		expect(snap.teams[0]?.tasks.length).toBeGreaterThan(0);
+	});
+});
+
+describe("DrivePlansDemoTeamsSource", () => {
+	it("loadTeams() returns plan dependency demo teams", async () => {
+		const teams = await new DrivePlansDemoTeamsSource().loadTeams();
+		expect(teams.length).toBeGreaterThan(0);
+		expect(teams[0]?.tasks.length).toBeGreaterThan(0);
 	});
 });
 

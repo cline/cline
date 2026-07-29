@@ -9,12 +9,21 @@ export type DrivecodeDemoCliBootstrap = {
 	driveActiveOnStart: boolean;
 };
 
+type EnvMap = Record<string, string | undefined>;
+
+function defaultEnv(): EnvMap {
+	const g = globalThis as typeof globalThis & {
+		process?: { env?: EnvMap };
+	};
+	return g.process?.env ?? {};
+}
+
 /**
  * Read CLI demo flags from env at the composition-root edge only.
  * Product views must not call this; adapters must not read env inside `load()`.
  */
 export function readDrivecodeDemoCliBootstrap(
-	env: NodeJS.ProcessEnv = process.env,
+	env: EnvMap = defaultEnv(),
 ): DrivecodeDemoCliBootstrap {
 	const lens = env.CLINE_DEMO_STATUS_LENS?.trim();
 	return {

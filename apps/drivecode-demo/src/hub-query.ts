@@ -10,6 +10,9 @@ function toSearchParams(search?: string | URLSearchParams): URLSearchParams {
 		return search;
 	}
 	if (search === undefined) {
+		if (typeof window !== "undefined") {
+			return new URLSearchParams(window.location.search);
+		}
 		return new URLSearchParams();
 	}
 	const trimmed = search.startsWith("?") ? search.slice(1) : search;

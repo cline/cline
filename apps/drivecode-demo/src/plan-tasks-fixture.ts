@@ -3,7 +3,8 @@ import type { TeamRuntimeState, TeamTask } from "@cline/shared";
 /**
  * Demo team snapshot: Drive plan features from
  * `docs/plans/cline-drivemode/` with TASK-GRAPH dependency edges.
- * Used for docs screenshots, hub `?demoPlans=1`, and TUI `/status` demos.
+ * Used for docs screenshots and demos; hub wires via
+ * `DrivePlansDemoTeamsSource` when `?demoPlans=1`.
  */
 const now = new Date("2026-07-29T12:00:00.000Z");
 
