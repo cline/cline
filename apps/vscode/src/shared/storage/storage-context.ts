@@ -95,7 +95,7 @@ export function resolveDataDirFromEnv(): string {
 	if (envDataDir) {
 		return envDataDir
 	}
-	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
+	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
 	return path.join(clineDir, SETTINGS_SUBFOLDER)
 }
 

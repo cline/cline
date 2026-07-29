@@ -779,5 +779,14 @@ describe("createStorageContext", () => {
 
 			ctx.dataDir.should.equal(path.join(tempDir, "data"))
 		})
+
+		it("should trim whitespace-padded env values like the SDK resolvers", () => {
+			delete process.env.CLINE_DATA_DIR
+			process.env.CLINE_DIR = `  ${path.join(tempDir, "cline-home")}  `
+
+			const ctx = createStorageContext({ workspacePath: "/test" })
+
+			ctx.dataDir.should.equal(path.join(tempDir, "cline-home", "data"))
+		})
 	})
 })
