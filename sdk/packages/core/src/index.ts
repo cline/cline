@@ -72,6 +72,10 @@ export type {
 	ProviderListItem,
 	ProviderModel,
 	ProviderOAuthLoginResponse,
+	ResourceDiagnosticsPolicy,
+	ResourcePolicyOverrides,
+	ResourcePolicyProfile,
+	ResourcePolicyProfileV1,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 	SdkTelemetryErrorComponent,
@@ -111,10 +115,16 @@ export {
 	FEATURE_FLAGS,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
+	isResourcePolicyProfile,
 	noopBasicLogger,
 	normalizeSdkError,
 	normalizeUserInput,
+	parseResourcePolicyProfile,
 	parseUserCommandEnvelope,
+	RESOURCE_POLICY_VERSION,
+	ResourceDiagnosticsPolicySchema,
+	ResourcePolicyProfileSchema,
+	ResourcePolicyProfileV1Schema,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
 	stripUtf8Bom,
@@ -337,6 +347,8 @@ export {
 	AgentTeam,
 	AgentTeamsRuntime,
 	type AgentTeamsRuntimeOptions,
+	TeamRunAdmissionError,
+	type TeamRunAdmissionLimit,
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
 	bootstrapAgentTeams,
@@ -405,7 +417,6 @@ export type {
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
-export * from "./status";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
@@ -423,6 +434,20 @@ export {
 	readRemoteConfigSessionBlobUploadMetadata,
 	registerRemoteConfigSessionBlobUpload,
 } from "./remote-config/integration";
+export {
+	RESOURCE_POLICY_ENV,
+	RESOURCE_POLICY_HARD_LIMITS,
+	type ResolvedResourcePolicy,
+	type ResolveResourcePolicyOptions,
+	type ResourceDiagnosticsApi,
+	type ResourceDiagnosticsListener,
+	type ResourceDiagnosticsSnapshot,
+	type ResourceHardwareProfile,
+	ResourceMonitor,
+	type ResourcePolicySources,
+	type ResourcePolicyValueSource,
+	resolveResourcePolicy,
+} from "./resources";
 export type { RuntimeCapabilities } from "./runtime/capabilities";
 export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 export type {
@@ -797,6 +822,7 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+export * from "./status";
 export type {
 	ChatMessage,
 	ChatMessageImage,

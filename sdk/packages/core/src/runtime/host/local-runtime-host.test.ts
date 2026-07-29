@@ -194,72 +194,121 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
-	it.each([
-		{ source: "generated", requestedSessionId: undefined },
-		{ source: "requested", requestedSessionId: "session-explicit" },
-	] as const)("resolves an omitted workspace with the $source session ID", async ({
-		requestedSessionId,
-	}) => {
-		const runtimeBuilder = {
-			build: vi.fn().mockReturnValue({
-				tools: [],
-				shutdown: vi.fn().mockResolvedValue(undefined),
-			}),
-		};
-		const agent = {
-			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
-			getMessages: vi.fn().mockReturnValue([]),
-			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
-			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
-			abort: vi.fn(),
-			subscribeEvents: vi.fn().mockReturnValue(() => {}),
-			canStartRun: vi.fn().mockReturnValue(true),
-			shutdown: vi.fn().mockResolvedValue(undefined),
-		};
+	it("applies resolved pending-prompt resource limits", () => {
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
 			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
-			runtimeBuilder: runtimeBuilder as never,
-			createAgent: () => agent as never,
-		});
-		let chatWorkspace = "";
-
-		try {
-			const result = await manager.startSession({
-				config: {
-					...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
-					providerId: "mock-provider",
-					modelId: "mock-model",
-					systemPrompt: "You are a test agent",
-					enableTools: false,
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
+			resourcePolicy: {
+				version: 1,
+				maxParallelism: 2,
+				processMemoryLimitBytes: 1024 ** 3,
+				heapMemoryLimitBytes: 512 * 1024 ** 2,
+				diagnostics: {
+					enabled: false,
+					sampleIntervalMs: 5000,
+					eventLoopResolutionMs: 20,
 				},
-			});
+				admission: {
+					pendingPrompts: {
+						maxItems: 3,
+						maxBytes: 4096,
+						maxItemBytes: 1024,
+					},
+					teamRuns: {
+						maxConcurrent: 2,
+						maxQueued: 10,
+						maxMessageBytes: 4096,
+					},
+				},
+				transport: {
+					websocket: {
+						softWatermarkBytes: 1024,
+						hardWatermarkBytes: 2048,
+						congestionGraceMs: 5000,
+						closeGraceMs: 1000,
+						maxInboundPayloadBytes: 4096,
+					},
+				},
+				streaming: { flushIntervalMs: 32, maxBatchBytes: 4096 },
+			},
+		});
 
-			chatWorkspace = result.manifest.cwd;
-			if (requestedSessionId) {
-				expect(result.sessionId).toBe(requestedSessionId);
-			}
-			expect(chatWorkspace).toBe(resolveChatWorkspacePath());
-			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
-			expect(result.manifest.workspace_root).toBe(chatWorkspace);
-			expect(runtimeBuilder.build).toHaveBeenCalledWith(
-				expect.objectContaining({
-					config: expect.objectContaining({
-						cwd: chatWorkspace,
-						workspaceRoot: chatWorkspace,
-					}),
-				}),
-			);
-		} finally {
-			await manager.dispose();
-			if (chatWorkspace) {
-				rmSync(dirname(chatWorkspace), { recursive: true, force: true });
-			}
-		}
+		expect(manager.getResourceLimits().pendingPrompts).toEqual({
+			maxPendingPrompts: 3,
+			maxEstimatedBytes: 4096,
+			maxSingleItemBytes: 1024,
+		});
 	});
+
+	it.each([
+		{ source: "generated", requestedSessionId: undefined },
+		{ source: "requested", requestedSessionId: "session-explicit" },
+	] as const)(
+		"resolves an omitted workspace with the $source session ID",
+		async ({ requestedSessionId }) => {
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+				getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: new FileSessionService(
+					join(isolatedHomeDir, "sessions"),
+				),
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+			let chatWorkspace = "";
+
+			try {
+				const result = await manager.startSession({
+					config: {
+						...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						systemPrompt: "You are a test agent",
+						enableTools: false,
+						enableSpawnAgent: false,
+						enableAgentTeams: false,
+					},
+				});
+
+				chatWorkspace = result.manifest.cwd;
+				if (requestedSessionId) {
+					expect(result.sessionId).toBe(requestedSessionId);
+				}
+				expect(chatWorkspace).toBe(resolveChatWorkspacePath());
+				expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
+				expect(result.manifest.workspace_root).toBe(chatWorkspace);
+				expect(runtimeBuilder.build).toHaveBeenCalledWith(
+					expect.objectContaining({
+						config: expect.objectContaining({
+							cwd: chatWorkspace,
+							workspaceRoot: chatWorkspace,
+						}),
+					}),
+				);
+			} finally {
+				await manager.dispose();
+				if (chatWorkspace) {
+					rmSync(dirname(chatWorkspace), { recursive: true, force: true });
+				}
+			}
+		},
+	);
 
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");

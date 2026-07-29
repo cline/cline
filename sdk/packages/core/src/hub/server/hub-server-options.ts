@@ -1,4 +1,9 @@
-import type { BasicLogger, ITelemetryService } from "@cline/shared";
+import type {
+	BasicLogger,
+	ITelemetryService,
+	ResourcePolicyOverrides,
+	ResourcePolicyProfile,
+} from "@cline/shared";
 import type { CronServiceOptions } from "../../cron/service/cron-service";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -10,12 +15,16 @@ import type {
 } from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
 import type { HubOwnerContext } from "../discovery";
+import type { BoundedOutboundChannelOptions } from "./bounded-outbound-channel";
 
 export interface HubWebSocketServerOptions {
 	host?: string;
 	port?: number;
 	pathname?: string;
 	owner?: HubOwnerContext;
+	maxInboundPayloadBytes?: number;
+	websocketDelivery?: BoundedOutboundChannelOptions;
+	resourcePolicy?: ResourcePolicyOverrides | ResourcePolicyProfile;
 	sessionHost?: RuntimeHost & Partial<PendingPromptsRuntimeService>;
 	settingsService?: CoreSettingsService;
 	runtimeHandlers: HubScheduleRuntimeHandlers;

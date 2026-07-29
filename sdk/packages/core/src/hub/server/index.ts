@@ -1,3 +1,4 @@
+export * from "./bounded-outbound-channel";
 export { truncateNotificationBody } from "./hub-notifications";
 export * from "./hub-server-options";
 export * from "./hub-server-transport";

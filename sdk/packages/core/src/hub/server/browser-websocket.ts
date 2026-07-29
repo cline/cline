@@ -11,13 +11,38 @@ import {
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
 } from "@cline/shared";
+import {
+	BoundedOutboundChannel,
+	type BoundedOutboundChannelOptions,
+	type OutboundMessageOptions,
+} from "./bounded-outbound-channel";
 import type { HubCommandTransport } from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
+
+function eventDeliveryOptions(
+	envelope: HubEventEnvelope,
+): OutboundMessageOptions {
+	const replaceableEvents = new Set([
+		"hub.status.updated",
+		"session.updated",
+		"drive.room.changed",
+		"drive.spotlight.changed",
+		"room.snapshot",
+	]);
+	return replaceableEvents.has(envelope.event)
+		? {
+				priority: "low",
+				replaceableKey: `${envelope.event}:${envelope.sessionId ?? "*"}`,
+			}
+		: { priority: "normal" };
+}
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
 export interface BrowserHubSocketLike {
-	send(data: string): void;
+	send(data: string, callback?: (error?: unknown) => void): void;
+	close?(code?: number, reason?: string): void;
+	terminate?(): void;
 	addEventListener(
 		type: "message",
 		listener: (event: { data: string }) => void,
@@ -56,29 +81,37 @@ export class BrowserWebSocketHubAdapter {
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
+		private readonly deliveryOptions: BoundedOutboundChannelOptions = {},
 	) {}
 
 	attach(socket: BrowserHubSocketLike): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
 		let closed = false;
+		const outbound = new BoundedOutboundChannel(
+			{
+				write(data, complete) {
+					socket.send(data, complete);
+				},
+				close(code, reason) {
+					socket.close?.(code, reason);
+				},
+				terminate() {
+					socket.terminate?.();
+				},
+			},
+			this.deliveryOptions,
+		);
 
-		const sendFrame = (frame: HubTransportFrame): void => {
-			try {
-				socket.send(JSON.stringify(frame));
-			} catch (error) {
-				console.error(
-					`[hub] failed to send websocket frame: ${
-						error instanceof Error
-							? error.stack || error.message
-							: String(error)
-					}`,
-				);
-			}
+		const sendFrame = (
+			frame: HubTransportFrame,
+			options: OutboundMessageOptions = { priority: "high" },
+		): void => {
+			outbound.send(JSON.stringify(frame), options);
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
-			sendFrame({ kind: "event", envelope });
+			sendFrame({ kind: "event", envelope }, eventDeliveryOptions(envelope));
 		};
 
 		const onMessage = async (event: { data: string }): Promise<void> => {
@@ -237,7 +270,7 @@ export class BrowserWebSocketHubAdapter {
 					typeof event.data === "string"
 						? safeJsonParse<HubTransportFrame>(event.data)
 						: undefined;
-				if (!parsed || parsed.kind !== "command") {
+				if (parsed?.kind !== "command") {
 					logHubMessage("error", "rejected malformed websocket frame", {
 						error,
 					});
@@ -283,6 +316,7 @@ export class BrowserWebSocketHubAdapter {
 				});
 			}
 			registeredClientIds.clear();
+			outbound.dispose();
 			socket.removeEventListener("message", onMessage);
 			socket.removeEventListener("close", onClose);
 		};

@@ -3,7 +3,41 @@ import {
 	isLocalHubHostName,
 	isLocalHubOrigin,
 	readBearerToken,
+	resolveHubMaxInboundPayloadBytes,
+	resolveHubResourceOptions,
 } from "./hub-websocket-server";
+
+describe("websocket payload limit", () => {
+	it("defaults to one MiB and accepts a configured maximum", () => {
+		expect(resolveHubMaxInboundPayloadBytes({})).toBe(1024 * 1024);
+		expect(
+			resolveHubMaxInboundPayloadBytes({ maxInboundPayloadBytes: 42 }),
+		).toBe(42);
+	});
+
+	it("resolves central policy defaults with explicit transport precedence", () => {
+		const options = resolveHubResourceOptions({
+			runtimeHandlers: {} as never,
+			resourcePolicy: {
+				transport: {
+					websocket: {
+						softWatermarkBytes: 2000,
+						hardWatermarkBytes: 4000,
+						maxInboundPayloadBytes: 8000,
+					},
+				},
+			},
+			websocketDelivery: { softWatermarkBytes: 3000 },
+		});
+
+		expect(options.maxInboundPayloadBytes).toBe(8000);
+		expect(options.websocketDelivery).toMatchObject({
+			softWatermarkBytes: 3000,
+			hardWatermarkBytes: 4000,
+		});
+		expect(options.resourcePolicy).toMatchObject({ version: 1 });
+	});
+});
 
 describe("readBearerToken", () => {
 	it("reads a bearer token with case-insensitive scheme", () => {

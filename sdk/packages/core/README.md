@@ -74,6 +74,10 @@ pathless starts expose neither `cwd` nor `workspaceRoot` to `prepare(input)`.
 
 ## Main APIs
 
+See [Adaptive Resource Guardrails](./RESOURCE_GUARDRAILS.md) for effective
+budgets, environment overrides, overload behavior, diagnostics, and soak-test
+coverage.
+
 ### Runtime and Sessions
 
 Use `@cline/core` for host-facing runtime assembly:

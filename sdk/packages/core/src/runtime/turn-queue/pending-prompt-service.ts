@@ -51,7 +51,65 @@ export interface PendingPromptConsumeResult {
 	prompts: SessionPendingPrompt[];
 }
 
+export interface PendingPromptServiceOptions {
+	/** Maximum number of distinct pending prompts. */
+	maxPendingPrompts?: number;
+	/** Maximum estimated UTF-8 bytes retained by the entire pending queue. */
+	maxEstimatedBytes?: number;
+	/** Maximum estimated UTF-8 bytes retained by one pending prompt. */
+	maxSingleItemBytes?: number;
+}
+
+export type PendingPromptAdmissionLimit =
+	| "count"
+	| "estimated_bytes"
+	| "single_item_bytes";
+
+export class PendingPromptAdmissionError extends Error {
+	readonly code = "PENDING_PROMPT_ADMISSION_REJECTED";
+
+	constructor(
+		readonly limit: PendingPromptAdmissionLimit,
+		readonly actual: number,
+		readonly maximum: number,
+	) {
+		super(
+			`Pending prompt admission rejected: ${limit} limit is ${maximum}, received ${actual}`,
+		);
+		this.name = "PendingPromptAdmissionError";
+	}
+}
+
+const DEFAULT_PENDING_PROMPT_LIMITS = {
+	maxPendingPrompts: 100,
+	maxEstimatedBytes: 1024 * 1024,
+	maxSingleItemBytes: 256 * 1024,
+} as const;
+
 export class PendingPromptService {
+	private readonly limits: Required<PendingPromptServiceOptions>;
+
+	constructor(options: PendingPromptServiceOptions = {}) {
+		this.limits = {
+			maxPendingPrompts: normalizeLimit(
+				options.maxPendingPrompts,
+				DEFAULT_PENDING_PROMPT_LIMITS.maxPendingPrompts,
+			),
+			maxEstimatedBytes: normalizeLimit(
+				options.maxEstimatedBytes,
+				DEFAULT_PENDING_PROMPT_LIMITS.maxEstimatedBytes,
+			),
+			maxSingleItemBytes: normalizeLimit(
+				options.maxSingleItemBytes,
+				DEFAULT_PENDING_PROMPT_LIMITS.maxSingleItemBytes,
+			),
+		};
+	}
+
+	getLimits(): Readonly<Required<PendingPromptServiceOptions>> {
+		return { ...this.limits };
+	}
+
 	list(state: PendingPromptQueueState | undefined): SessionPendingPrompt[] {
 		return state ? snapshotPrompts(state) : [];
 	}
@@ -97,8 +155,12 @@ export class PendingPromptService {
 			mode: input.mode ?? existing.mode,
 			delivery,
 		};
-		state.pendingPrompts.splice(index, 1);
-		insertUpdatedPrompt(state, next, index, existing.delivery);
+		const prospective = [...state.pendingPrompts];
+		prospective.splice(index, 1);
+		const prospectiveState = { pendingPrompts: prospective };
+		insertUpdatedPrompt(prospectiveState, next, index, existing.delivery);
+		this.assertAdmitted(prospective, next);
+		state.pendingPrompts.splice(0, state.pendingPrompts.length, ...prospective);
 		return {
 			sessionId: input.sessionId,
 			prompts: snapshotPrompts(state),
@@ -142,36 +204,71 @@ export class PendingPromptService {
 		const existingIndex = state.pendingPrompts.findIndex(
 			(queued) => queued.prompt === prompt,
 		);
-		if (existingIndex >= 0) {
-			const [existing] = state.pendingPrompts.splice(existingIndex, 1);
-			const next: PendingPromptEntry = {
-				...existing,
-				prompt,
-				mode: mode ?? existing.mode,
-				userImages: userImages ?? existing.userImages,
-				userFiles: userFiles ?? existing.userFiles,
-			};
-			if (delivery === "steer" || existing.delivery === "steer") {
-				state.pendingPrompts.unshift({ ...next, delivery: "steer" });
-			} else {
-				state.pendingPrompts.push(next);
-			}
+		const existing =
+			existingIndex >= 0 ? state.pendingPrompts[existingIndex] : undefined;
+		const next: PendingPromptEntry = existing
+			? {
+					...existing,
+					prompt,
+					mode: mode ?? existing.mode,
+					delivery:
+						delivery === "steer" || existing.delivery === "steer"
+							? "steer"
+							: "queue",
+					userImages: userImages ?? existing.userImages,
+					userFiles: userFiles ?? existing.userFiles,
+				}
+			: {
+					id: `pending_${Date.now()}_${nanoid(5)}`,
+					prompt,
+					mode,
+					delivery,
+					userImages,
+					userFiles,
+				};
+		const prospective = state.pendingPrompts.filter(
+			(_, index) => index !== existingIndex,
+		);
+		if (next.delivery === "steer") {
+			prospective.unshift(next);
 		} else {
-			const newEntry: PendingPromptEntry = {
-				id: `pending_${Date.now()}_${nanoid(5)}`,
-				prompt,
-				mode,
-				delivery,
-				userImages,
-				userFiles,
-			};
-			if (delivery === "steer") {
-				state.pendingPrompts.unshift(newEntry);
-			} else {
-				state.pendingPrompts.push(newEntry);
-			}
+			prospective.push(next);
 		}
+		this.assertAdmitted(prospective, next);
+		state.pendingPrompts.splice(0, state.pendingPrompts.length, ...prospective);
 		return snapshotPrompts(state);
+	}
+
+	private assertAdmitted(
+		prompts: PendingPromptEntry[],
+		admittedItem: PendingPromptEntry,
+	): void {
+		const itemBytes = estimatePendingPromptBytes(admittedItem);
+		if (itemBytes > this.limits.maxSingleItemBytes) {
+			throw new PendingPromptAdmissionError(
+				"single_item_bytes",
+				itemBytes,
+				this.limits.maxSingleItemBytes,
+			);
+		}
+		if (prompts.length > this.limits.maxPendingPrompts) {
+			throw new PendingPromptAdmissionError(
+				"count",
+				prompts.length,
+				this.limits.maxPendingPrompts,
+			);
+		}
+		const estimatedBytes = prompts.reduce(
+			(total, prompt) => total + estimatePendingPromptBytes(prompt),
+			0,
+		);
+		if (estimatedBytes > this.limits.maxEstimatedBytes) {
+			throw new PendingPromptAdmissionError(
+				"estimated_bytes",
+				estimatedBytes,
+				this.limits.maxEstimatedBytes,
+			);
+		}
 	}
 
 	consumeSteer(state: PendingPromptQueueState): PendingPromptConsumeResult {
@@ -205,9 +302,18 @@ export class PendingPromptService {
 }
 
 export class PendingPromptsController {
-	private readonly service = new PendingPromptService();
+	private readonly service: PendingPromptService;
 
-	constructor(private readonly deps: PendingPromptsControllerDeps) {}
+	constructor(
+		private readonly deps: PendingPromptsControllerDeps,
+		options: PendingPromptServiceOptions = {},
+	) {
+		this.service = new PendingPromptService(options);
+	}
+
+	getLimits(): Readonly<Required<PendingPromptServiceOptions>> {
+		return this.service.getLimits();
+	}
 
 	list(sessionId: string): SessionPendingPrompt[] {
 		return this.service.list(this.deps.getSession(sessionId));
@@ -367,6 +473,24 @@ function snapshotPrompts(
 	state: PendingPromptQueueState,
 ): SessionPendingPrompt[] {
 	return state.pendingPrompts.map(snapshotPrompt);
+}
+
+function normalizeLimit(value: number | undefined, fallback: number): number {
+	return value === undefined ? fallback : Math.max(0, Math.floor(value));
+}
+
+function estimatePendingPromptBytes(entry: PendingPromptEntry): number {
+	return (
+		Buffer.byteLength(entry.prompt, "utf8") +
+		(entry.userImages ?? []).reduce(
+			(total, image) => total + Buffer.byteLength(image, "utf8"),
+			0,
+		) +
+		(entry.userFiles ?? []).reduce(
+			(total, file) => total + Buffer.byteLength(file, "utf8"),
+			0,
+		)
+	);
 }
 
 function insertUpdatedPrompt(

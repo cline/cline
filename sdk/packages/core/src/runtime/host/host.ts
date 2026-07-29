@@ -7,6 +7,10 @@ import {
 import { prewarmDetachedHubServer } from "../../hub/daemon";
 import { HubRuntimeHost } from "../../hub/runtime-host/hub-runtime-host";
 import { RemoteRuntimeHost } from "../../hub/runtime-host/remote-runtime-host";
+import {
+	type ResolvedResourcePolicy,
+	resolveResourcePolicy,
+} from "../../resources/policy";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
@@ -99,6 +103,7 @@ function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 function createLocalRuntimeHost(
 	options: ClineCoreOptions,
 	distinctId: string,
+	resourcePolicy: ResolvedResourcePolicy,
 	backend?: SessionBackend,
 ): LocalRuntimeHost {
 	return new LocalRuntimeHost({
@@ -110,6 +115,7 @@ function createLocalRuntimeHost(
 		toolPolicies: options.toolPolicies,
 		distinctId,
 		fetch: options.fetch,
+		resourcePolicy: resourcePolicy.profile,
 	});
 }
 
@@ -136,7 +142,11 @@ export async function resolveSessionBackend(
 
 export async function createRuntimeHost(
 	options: ClineCoreOptions,
+	resolvedResourcePolicy?: ResolvedResourcePolicy,
 ): Promise<RuntimeHost> {
+	const resourcePolicy =
+		resolvedResourcePolicy ??
+		resolveResourcePolicy({ overrides: options.resourcePolicy });
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
@@ -243,7 +253,7 @@ export async function createRuntimeHost(
 			reason: "compatible_hub_unavailable",
 			severity: "warn",
 		});
-		return createLocalRuntimeHost(options, distinctId);
+		return createLocalRuntimeHost(options, distinctId, resourcePolicy);
 	}
-	return createLocalRuntimeHost(options, distinctId);
+	return createLocalRuntimeHost(options, distinctId, resourcePolicy);
 }

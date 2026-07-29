@@ -307,6 +307,24 @@ export {
 	VertexModelSchema,
 	VertexSettingsSchema,
 } from "./remote-config/schema";
+export {
+	isResourcePolicyProfile,
+	parseResourcePolicyProfile,
+	RESOURCE_POLICY_VERSION,
+	type ResourceAdmissionPolicy,
+	ResourceAdmissionPolicySchema,
+	type ResourceDiagnosticsPolicy,
+	ResourceDiagnosticsPolicySchema,
+	type ResourcePolicyOverrides,
+	type ResourcePolicyProfile,
+	ResourcePolicyProfileSchema,
+	type ResourcePolicyProfileV1,
+	ResourcePolicyProfileV1Schema,
+	type ResourceStreamingPolicy,
+	ResourceStreamingPolicySchema,
+	type ResourceTransportPolicy,
+	ResourceTransportPolicySchema,
+} from "./resource-policy";
 export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
 export type {
 	AddProviderActionRequest,

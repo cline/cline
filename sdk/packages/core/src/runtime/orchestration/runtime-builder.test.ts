@@ -77,6 +77,25 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("spawn_agent");
 	});
 
+	it("applies resolved team-run resource limits", async () => {
+		const runtime = await new DefaultRuntimeBuilder({
+			teamRuns: {
+				maxConcurrent: 5,
+				maxQueued: 17,
+				maxMessageBytes: 4096,
+			},
+		}).build({
+			config: makeBaseConfig({ enableAgentTeams: true }),
+		});
+
+		expect(runtime.teamRuntime?.getRunLimits()).toEqual({
+			maxConcurrentRuns: 5,
+			maxQueuedRuns: 17,
+			maxRunMessageBytes: 4096,
+		});
+		await runtime.shutdown("test");
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},

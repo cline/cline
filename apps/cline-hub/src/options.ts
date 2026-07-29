@@ -1,5 +1,10 @@
 import { isIP } from "node:net";
 
+import {
+	type BoundedOutboundChannelOptions,
+	resolveResourcePolicy,
+} from "@cline/core";
+
 export interface ClineHubServerOptions {
 	host: string;
 	port: number;
@@ -10,11 +15,27 @@ export interface ClineHubServerOptions {
 	publicUrlExplicit: boolean;
 	roomSecret?: string;
 	workspaceRoot: string;
+	maxInboundPayloadBytes: number;
+	websocketDelivery: BoundedOutboundChannelOptions;
 }
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
+const DEFAULT_MAX_INBOUND_PAYLOAD_BYTES = 1024 * 1024;
+
+function parsePositiveBytes(
+	value: string | undefined,
+	fallback: number,
+	name: string,
+): number {
+	if (!value?.trim()) return fallback;
+	const bytes = Number(value);
+	if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+		throw new Error(`${name} must be a positive integer, got ${value}`);
+	}
+	return bytes;
+}
 
 function parsePort(
 	value: string | undefined,
@@ -83,10 +104,25 @@ export function resolveClineHubServerOptions(
 	const publicUrlExplicit = Boolean(env.PUBLIC_URL?.trim());
 	const publicUrl = normalizePublicUrl(env.PUBLIC_URL, host, port);
 	const roomSecret = normalizeRoomSecret(env.ROOM_SECRET);
+	const resourcePolicy = resolveResourcePolicy({ env });
+	const websocketPolicy = resourcePolicy.profile.transport.websocket;
 	if (isNonLocalBindHost(host) && !roomSecret) {
 		throw new Error(
 			`ROOM_SECRET is required when HOST=${host}. Use HOST=127.0.0.1 for local-only development or set ROOM_SECRET before exposing this example on a LAN/tunnel.`,
 		);
+	}
+	const hardWatermarkBytes = parsePositiveBytes(
+		env.CLINE_HUB_WS_HARD_WATERMARK_BYTES,
+		websocketPolicy.hardWatermarkBytes,
+		"CLINE_HUB_WS_HARD_WATERMARK_BYTES",
+	);
+	const softWatermarkBytes = parsePositiveBytes(
+		env.CLINE_HUB_WS_SOFT_WATERMARK_BYTES,
+		websocketPolicy.softWatermarkBytes,
+		"CLINE_HUB_WS_SOFT_WATERMARK_BYTES",
+	);
+	if (softWatermarkBytes > hardWatermarkBytes) {
+		throw new Error("WebSocket soft watermark cannot exceed hard watermark");
 	}
 	return {
 		host,
@@ -96,6 +132,18 @@ export function resolveClineHubServerOptions(
 		publicUrlExplicit,
 		roomSecret,
 		workspaceRoot: env.WORKSPACE_ROOT?.trim() || process.cwd(),
+		maxInboundPayloadBytes: parsePositiveBytes(
+			env.CLINE_HUB_WS_MAX_INBOUND_PAYLOAD_BYTES,
+			websocketPolicy.maxInboundPayloadBytes ??
+				DEFAULT_MAX_INBOUND_PAYLOAD_BYTES,
+			"CLINE_HUB_WS_MAX_INBOUND_PAYLOAD_BYTES",
+		),
+		websocketDelivery: {
+			softWatermarkBytes,
+			hardWatermarkBytes,
+			congestionGraceMs: websocketPolicy.congestionGraceMs,
+			closeGraceMs: websocketPolicy.closeGraceMs,
+		},
 	};
 }
 

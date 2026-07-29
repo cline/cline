@@ -1,4 +1,7 @@
-import type { SaveProviderSettingsActionRequest } from "@cline/core";
+import type {
+	BoundedOutboundChannel,
+	SaveProviderSettingsActionRequest,
+} from "@cline/core";
 import type { ToolApprovalResult } from "@cline/shared";
 import type {
 	WebviewInboundMessage,
@@ -55,6 +58,7 @@ export type BrowserPeer = {
 	displayName: string;
 	selectedSessionId?: string;
 	unsubscribeEvents?: () => void;
+	outbound?: BoundedOutboundChannel;
 	sending: boolean;
 };
 

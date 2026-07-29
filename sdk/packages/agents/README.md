@@ -154,8 +154,13 @@ new Agent({
 ```
 
 `AgentRuntimeEvent` covers run/turn boundaries, assistant text and reasoning
-deltas, tool lifecycle, usage updates, and run completion/failure. See
-`AgentRuntimeEvent` in `@cline/shared` for the full union.
+deltas, tool lifecycle, usage updates, and run completion/failure. Streaming
+and repeated lifecycle events use the message-free `AgentRuntimeEventSnapshot`,
+which includes `messageCount`, pending tool IDs, usage, status, and identifiers.
+This keeps event size independent of conversation history. Call
+`agent.snapshot()` for the full `AgentRuntimeStateSnapshot`, including messages.
+`message-added` and `assistant-message` retain full snapshots for conversation
+synchronization. See `AgentRuntimeEvent` in `@cline/shared` for the full union.
 
 ### Conversation Control
 

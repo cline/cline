@@ -4,6 +4,8 @@ import type {
 	AutomationEventEnvelope,
 	BasicLogger,
 	ITelemetryService,
+	ResourcePolicyOverrides,
+	ResourcePolicyProfile,
 } from "@cline/shared";
 import type { CronEventSuppression } from "../cron/events/cron-event-ingress";
 import type {
@@ -225,6 +227,12 @@ export interface ClineCoreOptions {
 	 * runtime-host selection and fallback decisions.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Explicit resource-policy values. Values override environment variables and
+	 * hardware-derived defaults, and are always clamped to finite safety bounds.
+	 * The initial policy is observe-only and does not throttle runtime work.
+	 */
+	resourcePolicy?: ResourcePolicyOverrides | ResourcePolicyProfile;
 	/**
 	 * Per-tool approval policies that control whether a tool runs automatically,
 	 * requires user confirmation, or is blocked entirely.

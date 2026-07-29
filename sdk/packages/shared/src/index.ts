@@ -54,7 +54,6 @@ export type {
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export * from "./drive";
-export * from "./status";
 export type {
 	ClientContext,
 	ClientName,
@@ -341,6 +340,24 @@ export {
 	VertexSettingsSchema,
 } from "./remote-config/schema";
 export {
+	isResourcePolicyProfile,
+	parseResourcePolicyProfile,
+	RESOURCE_POLICY_VERSION,
+	type ResourceAdmissionPolicy,
+	ResourceAdmissionPolicySchema,
+	type ResourceDiagnosticsPolicy,
+	ResourceDiagnosticsPolicySchema,
+	type ResourcePolicyOverrides,
+	type ResourcePolicyProfile,
+	ResourcePolicyProfileSchema,
+	type ResourcePolicyProfileV1,
+	ResourcePolicyProfileV1Schema,
+	type ResourceStreamingPolicy,
+	ResourceStreamingPolicySchema,
+	type ResourceTransportPolicy,
+	ResourceTransportPolicySchema,
+} from "./resource-policy";
+export {
 	CLINE_DEFAULT_RPC_ADDRESS,
 	CLINE_DEFAULT_RPC_PORT,
 	CLINE_HUB_DEV_PORT,
@@ -504,6 +521,7 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export * from "./status";
 export {
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,

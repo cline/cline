@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession } from "../../types/session";
 import {
+	PendingPromptAdmissionError,
 	type PendingPromptQueueState,
 	PendingPromptService,
 	PendingPromptsController,
@@ -27,6 +28,56 @@ describe("PendingPromptService", () => {
 			{ prompt: "second", delivery: "queue" },
 		]);
 		expect(state.pendingPrompts).toHaveLength(2);
+	});
+
+	it("enforces count, total-byte, and single-item admission without mutating state", () => {
+		const countLimited = new PendingPromptService({ maxPendingPrompts: 1 });
+		const countState = createState();
+		countLimited.enqueue(countState, { prompt: "first", delivery: "queue" });
+		expect(() =>
+			countLimited.enqueue(countState, { prompt: "second", delivery: "queue" }),
+		).toThrow(PendingPromptAdmissionError);
+		expect(countLimited.list(countState).map((entry) => entry.prompt)).toEqual([
+			"first",
+		]);
+
+		const bytesLimited = new PendingPromptService({
+			maxEstimatedBytes: 6,
+			maxSingleItemBytes: 5,
+		});
+		const bytesState = createState();
+		bytesLimited.enqueue(bytesState, { prompt: "abc", delivery: "queue" });
+		expect(() =>
+			bytesLimited.enqueue(bytesState, { prompt: "defg", delivery: "queue" }),
+		).toThrow(
+			expect.objectContaining<Partial<PendingPromptAdmissionError>>({
+				limit: "estimated_bytes",
+			}),
+		);
+		expect(() =>
+			bytesLimited.enqueue(bytesState, { prompt: "123456", delivery: "queue" }),
+		).toThrow(
+			expect.objectContaining<Partial<PendingPromptAdmissionError>>({
+				limit: "single_item_bytes",
+			}),
+		);
+	});
+
+	it("preserves duplicate promotion when the queue is at its count limit", () => {
+		const service = new PendingPromptService({ maxPendingPrompts: 2 });
+		const state = createState();
+		service.enqueue(state, { prompt: "first", delivery: "queue" });
+		service.enqueue(state, { prompt: "second", delivery: "queue" });
+
+		expect(() =>
+			service.enqueue(state, { prompt: "first", delivery: "steer" }),
+		).not.toThrow();
+		expect(
+			service.list(state).map(({ prompt, delivery }) => ({ prompt, delivery })),
+		).toEqual([
+			{ prompt: "first", delivery: "steer" },
+			{ prompt: "second", delivery: "queue" },
+		]);
 	});
 
 	it("updates prompts and reorders when delivery changes", () => {

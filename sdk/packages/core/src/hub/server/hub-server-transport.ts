@@ -9,6 +9,7 @@ import { captureSdkError, createSessionId } from "@cline/shared";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { resolveResourcePolicy } from "../../resources/policy";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	PendingPromptsRuntimeService,
@@ -42,7 +43,6 @@ import {
 	handleClientUpdate,
 } from "./handlers/client-handlers";
 import { handleConnectorCommand } from "./handlers/connector-handlers";
-import { handleDriveCommand } from "./handlers/drive-handlers";
 import {
 	buildHubEvent,
 	type HubTransportContext,
@@ -50,6 +50,7 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import { handleDriveCommand } from "./handlers/drive-handlers";
 import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
 import {
 	handleRunAbort,
@@ -191,6 +192,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly detachStatusBroadcast: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		const resourcePolicy = resolveResourcePolicy({
+			overrides: options.resourcePolicy,
+		}).profile;
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -198,6 +202,7 @@ export class HubServerTransport implements NativeHubTransport {
 				fetch: options.fetch,
 				logger: options.logger,
 				telemetry: options.telemetry,
+				resourcePolicy,
 			});
 		this.ctx = {
 			clients: this.clients,

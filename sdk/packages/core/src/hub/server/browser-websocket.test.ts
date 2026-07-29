@@ -7,9 +7,12 @@ function createSocket() {
 	const closeListeners = new Set<() => void>();
 	return {
 		sent: [] as string[],
-		send(data: string) {
+		send(data: string, callback?: (error?: unknown) => void) {
 			this.sent.push(data);
+			callback?.();
 		},
+		close() {},
+		terminate() {},
 		addEventListener(
 			type: "message" | "close",
 			listener: ((event: { data: string }) => void) | (() => void),
@@ -30,15 +33,21 @@ function createSocket() {
 			}
 			closeListeners.delete(listener as () => void);
 		},
-		emitMessage(data: string) {
-			for (const listener of messageListeners) {
-				void listener({ data });
-			}
+		async emitMessage(data: string) {
+			await Promise.all(
+				[...messageListeners].map((listener) => listener({ data })),
+			);
 		},
 		emitClose() {
 			for (const listener of closeListeners) {
 				listener();
 			}
+		},
+		listenerCounts() {
+			return {
+				message: messageListeners.size,
+				close: closeListeners.size,
+			};
 		},
 	};
 }
@@ -169,5 +178,55 @@ describe("BrowserWebSocketHubAdapter", () => {
 				},
 			},
 		});
+	});
+
+	it("releases subscriptions and listeners during sustained session churn", async () => {
+		const activeSubscriptions = new Set<string>();
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(
+				(
+					clientId: string,
+					_listener: unknown,
+					options?: {
+						sessionId?: string;
+					},
+				) => {
+					const key = `${clientId}:${options?.sessionId ?? "*"}`;
+					activeSubscriptions.add(key);
+					return () => activeSubscriptions.delete(key);
+				},
+			),
+		};
+		const adapter = new BrowserWebSocketHubAdapter(transport as never);
+		const socketCount = 200;
+		const sessionsPerSocket = 20;
+
+		for (let socketIndex = 0; socketIndex < socketCount; socketIndex++) {
+			const socket = createSocket();
+			const detach = adapter.attach(socket);
+			for (
+				let sessionIndex = 0;
+				sessionIndex < sessionsPerSocket;
+				sessionIndex++
+			) {
+				await socket.emitMessage(
+					JSON.stringify({
+						kind: "stream.subscribe",
+						clientId: `client-${socketIndex}`,
+						sessionId: `session-${sessionIndex}`,
+					}),
+				);
+			}
+
+			expect(activeSubscriptions.size).toBe(sessionsPerSocket);
+			detach();
+			expect(activeSubscriptions.size).toBe(0);
+			expect(socket.listenerCounts()).toEqual({ message: 0, close: 0 });
+		}
+
+		expect(transport.subscribe).toHaveBeenCalledTimes(
+			socketCount * sessionsPerSocket,
+		);
 	});
 });

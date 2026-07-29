@@ -12,6 +12,7 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	type ResourcePolicyProfile,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -23,6 +24,7 @@ import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
+import { resolveResourcePolicy } from "../../resources/policy";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
@@ -219,6 +221,8 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+	/** Resolved immutable policy for host-owned admission and team runtime limits. */
+	resourcePolicy?: ResourcePolicyProfile;
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -253,8 +257,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const homeDir = homedir();
 		if (homeDir) setHomeDirIfUnset(homeDir);
 		const distinctId = resolveCoreDistinctId(options.distinctId);
+		const resourcePolicy =
+			options.resourcePolicy ?? resolveResourcePolicy().profile;
 		this.sessionService = options.sessionService;
-		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
+		this.runtimeBuilder =
+			options.runtimeBuilder ??
+			new DefaultRuntimeBuilder({
+				teamRuns: resourcePolicy.admission.teamRuns,
+			});
 		this.createAgentInstance =
 			options.createAgent ?? ((config) => new SessionRuntime(config));
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
@@ -275,11 +285,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 
-		this.pendingPromptsController = new PendingPromptsController({
-			getSession: (sid) => this.sessions.get(sid),
-			emit: (event) => this.emit(event),
-			send: (input) => this.runTurn(input),
-		});
+		this.pendingPromptsController = new PendingPromptsController(
+			{
+				getSession: (sid) => this.sessions.get(sid),
+				emit: (event) => this.emit(event),
+				send: (input) => this.runTurn(input),
+			},
+			{
+				maxPendingPrompts: resourcePolicy.admission.pendingPrompts.maxItems,
+				maxEstimatedBytes: resourcePolicy.admission.pendingPrompts.maxBytes,
+				maxSingleItemBytes:
+					resourcePolicy.admission.pendingPrompts.maxItemBytes,
+			},
+		);
 		this.pendingPrompts = {
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
@@ -304,6 +322,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method, ...args) =>
 				this.invokeOptional(method, ...args),
 		});
+	}
+
+	getResourceLimits(): Readonly<{
+		pendingPrompts: ReturnType<PendingPromptsController["getLimits"]>;
+	}> {
+		return { pendingPrompts: this.pendingPromptsController.getLimits() };
 	}
 
 	private async applyInitialOAuthCredentials(

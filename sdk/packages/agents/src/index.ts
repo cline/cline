@@ -29,6 +29,7 @@ export type {
 	AgentRunResult,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 	AgentRuntimeEvent,
+	AgentRuntimeEventSnapshot,
 	AgentRuntimeHooks,
 	AgentRuntimeStateSnapshot,
 	AgentStopControl,

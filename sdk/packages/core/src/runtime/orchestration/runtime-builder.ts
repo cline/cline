@@ -1,6 +1,7 @@
 import type {
 	AgentTool,
 	BasicLogger,
+	ResourceAdmissionPolicy,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
@@ -323,6 +324,12 @@ function normalizeConfig(
 }
 
 export class DefaultRuntimeBuilder implements RuntimeBuilder {
+	constructor(
+		private readonly resourcePolicy: {
+			teamRuns?: ResourceAdmissionPolicy["teamRuns"];
+		} = {},
+	) {}
+
 	private readonly teamRuntimeEntries = new Map<
 		string,
 		{
@@ -559,6 +566,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: config.sessionId || "lead",
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
+					maxConcurrentRuns: this.resourcePolicy.teamRuns?.maxConcurrent,
+					maxQueuedRuns: this.resourcePolicy.teamRuns?.maxQueued,
+					maxRunMessageBytes: this.resourcePolicy.teamRuns?.maxMessageBytes,
 					onTeamEvent: (event: TeamEvent) => {
 						onTeamEvent(event);
 						if (teamRuntime && teamStore) {

@@ -139,6 +139,22 @@ export interface AgentRuntimeStateSnapshot {
 	lastError?: string;
 }
 
+/** Message-free runtime state included with high-frequency events. */
+export interface AgentRuntimeEventSnapshot {
+	agentId: string;
+	agentRole?: AgentRole;
+	parentAgentId?: string | null;
+	conversationId?: string;
+	runId?: string;
+	status: AgentRunStatus;
+	iteration: number;
+	/** Current history length. Omitted only by legacy hand-built event fixtures. */
+	messageCount?: number;
+	pendingToolCalls: readonly string[];
+	usage: AgentUsage;
+	lastError?: string;
+}
+
 // =============================================================================
 // Tools
 // =============================================================================
@@ -466,7 +482,7 @@ export interface AgentRuntimeConfig {
 export type AgentRuntimeEvent =
 	| {
 			type: "run-started";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 	  }
 	| {
 			type: "message-added";
@@ -475,19 +491,19 @@ export type AgentRuntimeEvent =
 	  }
 	| {
 			type: "turn-started";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 	  }
 	| {
 			type: "assistant-text-delta";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			text: string;
 			accumulatedText: string;
 	  }
 	| {
 			type: "assistant-reasoning-delta";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			text: string;
 			accumulatedText: string;
@@ -503,38 +519,38 @@ export type AgentRuntimeEvent =
 	  }
 	| {
 			type: "tool-started";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			toolCall: AgentToolCallPart;
 	  }
 	| {
 			type: "tool-updated";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			toolCall: AgentToolCallPart;
 			update: unknown;
 	  }
 	| {
 			type: "tool-finished";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			toolCall: AgentToolCallPart;
 			message: AgentMessage;
 	  }
 	| {
 			type: "usage-updated";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			usage: AgentUsage;
 	  }
 	| {
 			type: "turn-finished";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			iteration: number;
 			toolCallCount: number;
 	  }
 	| {
 			type: "status-notice";
-			snapshot: AgentRuntimeStateSnapshot;
+			snapshot: AgentRuntimeEventSnapshot;
 			message: string;
 			metadata?: Record<string, unknown>;
 	  }

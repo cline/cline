@@ -11,6 +11,7 @@ import type {
 	AgentModelRequest,
 	AgentRunResult,
 	AgentRuntimeEvent,
+	AgentRuntimeEventSnapshot,
 	AgentRuntimeHooks,
 	AgentRuntimeStateSnapshot,
 	AgentStopControl,
@@ -518,6 +519,22 @@ export class AgentRuntime {
 		};
 	}
 
+	private eventSnapshot(): AgentRuntimeEventSnapshot {
+		return {
+			agentId: this.state.agentId,
+			agentRole: this.state.agentRole,
+			parentAgentId: this.state.parentAgentId,
+			conversationId: this.config.conversationId?.trim() || undefined,
+			runId: this.state.runId,
+			status: this.state.status,
+			iteration: this.state.iteration,
+			messageCount: this.state.messages.length,
+			pendingToolCalls: [...this.state.pendingToolCalls],
+			usage: cloneUsage(this.state.usage),
+			lastError: this.state.lastError,
+		};
+	}
+
 	private async ensureInitialized(): Promise<void> {
 		this.initialization ??= this.initialize();
 		await this.initialization;
@@ -608,7 +625,7 @@ export class AgentRuntime {
 
 		try {
 			await this.callBeforeRunHooks();
-			await this.emit({ type: "run-started", snapshot: this.snapshot() });
+			await this.emit({ type: "run-started", snapshot: this.eventSnapshot() });
 
 			for (const message of input ? normalizeInput(input) : []) {
 				this.state.messages.push(message);
@@ -635,7 +652,7 @@ export class AgentRuntime {
 				this.state.iteration += 1;
 				await this.emit({
 					type: "turn-started",
-					snapshot: this.snapshot(),
+					snapshot: this.eventSnapshot(),
 					iteration: this.state.iteration,
 				});
 
@@ -681,7 +698,7 @@ export class AgentRuntime {
 				if (toolCalls.length === 0) {
 					await this.emit({
 						type: "turn-finished",
-						snapshot: this.snapshot(),
+						snapshot: this.eventSnapshot(),
 						iteration: this.state.iteration,
 						toolCallCount: 0,
 					});
@@ -715,7 +732,7 @@ export class AgentRuntime {
 				}
 				await this.emit({
 					type: "turn-finished",
-					snapshot: this.snapshot(),
+					snapshot: this.eventSnapshot(),
 					iteration: this.state.iteration,
 					toolCallCount: toolCalls.length,
 				});
@@ -926,7 +943,7 @@ export class AgentRuntime {
 					}
 					await this.emit({
 						type: "assistant-text-delta",
-						snapshot: this.snapshot(),
+						snapshot: this.eventSnapshot(),
 						iteration: this.state.iteration,
 						text: event.text,
 						accumulatedText,
@@ -953,7 +970,7 @@ export class AgentRuntime {
 					}
 					await this.emit({
 						type: "assistant-reasoning-delta",
-						snapshot: this.snapshot(),
+						snapshot: this.eventSnapshot(),
 						iteration: this.state.iteration,
 						text: event.text,
 						accumulatedText: accumulatedReasoning,
@@ -1228,7 +1245,7 @@ export class AgentRuntime {
 			emitStatusNotice: (message, metadata) => {
 				void this.emit({
 					type: "status-notice",
-					snapshot: this.snapshot(),
+					snapshot: this.eventSnapshot(),
 					message,
 					metadata,
 				});
@@ -1283,7 +1300,7 @@ export class AgentRuntime {
 		};
 		await this.emit({
 			type: "usage-updated",
-			snapshot: this.snapshot(),
+			snapshot: this.eventSnapshot(),
 			usage: cloneUsage(this.state.usage),
 		});
 	}
@@ -1467,7 +1484,7 @@ export class AgentRuntime {
 		const startedAt = new Date();
 		await this.emit({
 			type: "tool-started",
-			snapshot: this.snapshot(),
+			snapshot: this.eventSnapshot(),
 			iteration: this.state.iteration,
 			toolCall: prepared.toolCall,
 		});
@@ -1498,7 +1515,7 @@ export class AgentRuntime {
 					emitUpdate: (update: unknown) => {
 						void this.emit({
 							type: "tool-updated",
-							snapshot: this.snapshot(),
+							snapshot: this.eventSnapshot(),
 							iteration: this.state.iteration,
 							toolCall: prepared.toolCall,
 							update,
@@ -1550,7 +1567,7 @@ export class AgentRuntime {
 
 		await this.emit({
 			type: "tool-finished",
-			snapshot: this.snapshot(),
+			snapshot: this.eventSnapshot(),
 			iteration: this.state.iteration,
 			toolCall: prepared.toolCall,
 			message,

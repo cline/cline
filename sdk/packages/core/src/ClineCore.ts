@@ -31,6 +31,12 @@ import type {
 } from "./cline-core/types";
 
 import { CronService } from "./cron/service/cron-service";
+import type { ResourceDiagnosticsApi } from "./resources/monitor";
+import { ResourceMonitor } from "./resources/monitor";
+import {
+	type ResolvedResourcePolicy,
+	resolveResourcePolicy,
+} from "./resources/policy";
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
@@ -99,6 +105,9 @@ export class ClineCore {
 	readonly settings: ClineCoreSettingsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
+	/** Observe-only process resource and event-loop diagnostics. */
+	readonly diagnostics: ResourceDiagnosticsApi;
+	private readonly resourceMonitor: ResourceMonitor;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly capabilities: RuntimeCapabilities | undefined;
@@ -122,6 +131,7 @@ export class ClineCore {
 		telemetry: ITelemetryService | undefined,
 		distinctId: string | undefined,
 		featureFlags: FeatureFlagsService,
+		resourcePolicy: ResolvedResourcePolicy,
 		automationOptions:
 			| (ClineCoreAutomationOptions & { logger?: BasicLogger })
 			| undefined,
@@ -180,6 +190,8 @@ export class ClineCore {
 			}
 			void this.disposeSessionBootstrap(event.payload.sessionId);
 		});
+		this.resourceMonitor = new ResourceMonitor(resourcePolicy);
+		this.diagnostics = this.resourceMonitor;
 	}
 
 	/**
@@ -203,8 +215,16 @@ export class ClineCore {
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
 		const distinctId = resolveCoreDistinctId(options.distinctId);
 		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
-		const normalizedOptions = { ...options, capabilities, distinctId };
-		const host = await createRuntimeHost(normalizedOptions);
+		const resourcePolicy = resolveResourcePolicy({
+			overrides: options.resourcePolicy,
+		});
+		const normalizedOptions = {
+			...options,
+			capabilities,
+			distinctId,
+			resourcePolicy: resourcePolicy.profile,
+		};
+		const host = await createRuntimeHost(normalizedOptions, resourcePolicy);
 		const automationOptions = normalizeAutomationOptions(options.automation);
 		const featureFlags =
 			options.featureFlags ||
@@ -227,6 +247,7 @@ export class ClineCore {
 			options.telemetry,
 			distinctId,
 			featureFlags,
+			resourcePolicy,
 			automationOptions
 				? { ...automationOptions, logger: options.logger }
 				: undefined,
@@ -404,6 +425,7 @@ export class ClineCore {
 			await this.automationService?.dispose();
 			await this.host.dispose(...args);
 		} finally {
+			this.resourceMonitor.dispose();
 			this.unsubscribeBootstrapCleanup();
 			const sessionIds = [...this.activeSessionBootstraps.keys()];
 			await Promise.allSettled(

@@ -13,6 +13,8 @@ export const {
 	publicUrlExplicit,
 	roomSecret,
 	workspaceRoot,
+	maxInboundPayloadBytes,
+	websocketDelivery,
 } = options;
 export const inviteUrl = buildInviteUrl(publicUrl, roomSecret);
 

@@ -30,6 +30,8 @@ export {
 	AgentTeam,
 	AgentTeamsRuntime,
 	type AgentTeamsRuntimeOptions,
+	TeamRunAdmissionError,
+	type TeamRunAdmissionLimit,
 	createAgentTeam,
 	createWorkerReviewerTeam,
 	type SpawnTeammateOptions,

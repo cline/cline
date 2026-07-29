@@ -130,7 +130,28 @@ export interface AgentTeamsRuntimeOptions {
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
 	maxConcurrentRuns?: number;
+	/** Maximum number of runs waiting for a physical execution lane. */
+	maxQueuedRuns?: number;
+	/** Maximum UTF-8 byte length accepted for one queued run message. */
+	maxRunMessageBytes?: number;
 	onTeamEvent?: (event: TeamEvent) => void;
+}
+
+export type TeamRunAdmissionLimit = "queued_count" | "message_bytes";
+
+export class TeamRunAdmissionError extends Error {
+	readonly code = "TEAM_RUN_ADMISSION_REJECTED";
+
+	constructor(
+		readonly limit: TeamRunAdmissionLimit,
+		readonly actual: number,
+		readonly maximum: number,
+	) {
+		super(
+			`Team run admission rejected: ${limit} limit is ${maximum}, received ${actual}`,
+		);
+		this.name = "TeamRunAdmissionError";
+	}
 }
 
 export interface SpawnTeammateOptions {
@@ -168,6 +189,14 @@ function isIntentionalShutdownAbort(
 
 const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const RECOVERED_QUEUED_ACTIVITY = "recovered_queued";
+const DEFAULT_MAX_QUEUED_RUNS = 100;
+const DEFAULT_MAX_RUN_MESSAGE_BYTES = 256 * 1024;
+
+interface ActiveTeamRunExecution {
+	generation: number;
+	agentId: string;
+	agent: SessionRuntime;
+}
 
 function buildRecoveredRunMessage(run: TeamRunRecord): string {
 	return `This is an automatic recovery of interrupted team run ${run.id}. The previous process stopped before completion. Continue the task safely, inspect the current workspace state before making changes, and avoid duplicating completed work.\n\n${run.message}`;
@@ -537,6 +566,12 @@ export class AgentTeamsRuntime {
 	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
 		new Map();
 	private readonly runQueue: string[] = [];
+	private readonly activeRunExecutions = new Map<
+		string,
+		ActiveTeamRunExecution
+	>();
+	private readonly activeTeammateLanes = new Set<string>();
+	private nextExecutionGeneration = 0;
 	private queuedRunDispatchTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
 	private readonly outcomeFragments: Map<string, TeamOutcomeFragment> =
@@ -544,6 +579,8 @@ export class AgentTeamsRuntime {
 	private readonly missionLogIntervalSteps: number;
 	private readonly missionLogIntervalMs: number;
 	private readonly maxConcurrentRuns: number;
+	private readonly maxQueuedRuns: number;
+	private readonly maxRunMessageBytes: number;
 
 	constructor(options: AgentTeamsRuntimeOptions) {
 		this.teamName = options.teamName;
@@ -558,6 +595,14 @@ export class AgentTeamsRuntime {
 			options.missionLogIntervalMs ?? 120000,
 		);
 		this.maxConcurrentRuns = Math.max(1, options.maxConcurrentRuns ?? 2);
+		this.maxQueuedRuns = normalizeAdmissionLimit(
+			options.maxQueuedRuns,
+			DEFAULT_MAX_QUEUED_RUNS,
+		);
+		this.maxRunMessageBytes = normalizeAdmissionLimit(
+			options.maxRunMessageBytes,
+			DEFAULT_MAX_RUN_MESSAGE_BYTES,
+		);
 		const leadAgentId = options.leadAgentId ?? "lead";
 		this.members.set(leadAgentId, {
 			agentId: leadAgentId,
@@ -575,6 +620,18 @@ export class AgentTeamsRuntime {
 
 	getTeamName(): string {
 		return this.teamName;
+	}
+
+	getRunLimits(): Readonly<{
+		maxConcurrentRuns: number;
+		maxQueuedRuns: number;
+		maxRunMessageBytes: number;
+	}> {
+		return {
+			maxConcurrentRuns: this.maxConcurrentRuns,
+			maxQueuedRuns: this.maxQueuedRuns,
+			maxRunMessageBytes: this.maxRunMessageBytes,
+		};
 	}
 
 	getMemberRole(agentId: string): "lead" | "teammate" | undefined {
@@ -1087,6 +1144,27 @@ export class AgentTeamsRuntime {
 			leaseOwner?: string;
 		},
 	): TeamRunRecord {
+		const messageBytes = Buffer.byteLength(message, "utf8");
+		if (messageBytes > this.maxRunMessageBytes) {
+			throw new TeamRunAdmissionError(
+				"message_bytes",
+				messageBytes,
+				this.maxRunMessageBytes,
+			);
+		}
+		const queuedCount = this.runQueue.reduce((count, runId) => {
+			return this.runs.get(runId)?.status === "queued" ? count + 1 : count;
+		}, 0);
+		const mustWaitForLane =
+			this.countActiveRuns() >= this.maxConcurrentRuns ||
+			this.activeTeammateLanes.has(agentId);
+		if (mustWaitForLane && queuedCount >= this.maxQueuedRuns) {
+			throw new TeamRunAdmissionError(
+				"queued_count",
+				queuedCount + 1,
+				this.maxQueuedRuns,
+			);
+		}
 		const runId = `run_${String(++this.runCounter).padStart(5, "0")}`;
 		const record: TeamRunRecord & { result?: AgentResult } = {
 			id: runId,
@@ -1149,6 +1227,9 @@ export class AgentTeamsRuntime {
 			if (!run || run.status !== "queued") {
 				continue;
 			}
+			if (this.activeTeammateLanes.has(run.agentId)) {
+				continue;
+			}
 			if (run.nextAttemptAt && run.nextAttemptAt.getTime() > now) {
 				if (!nextDelayedAttemptAt || run.nextAttemptAt < nextDelayedAttemptAt) {
 					nextDelayedAttemptAt = run.nextAttemptAt;
@@ -1183,18 +1264,29 @@ export class AgentTeamsRuntime {
 	}
 
 	private countActiveRuns(): number {
-		let count = 0;
-		for (const run of this.runs.values()) {
-			if (run.status === "running") {
-				count++;
-			}
-		}
-		return count;
+		return this.activeRunExecutions.size;
 	}
 
 	private async executeQueuedRun(
 		run: TeamRunRecord & { result?: AgentResult },
 	): Promise<void> {
+		const member = this.members.get(run.agentId);
+		if (!member || member.role !== "teammate" || !member.agent) {
+			run.status = "failed";
+			run.error = `Teammate "${run.agentId}" was not found`;
+			run.endedAt = new Date();
+			run.currentActivity = "failed";
+			this.emitEvent({ type: TeamMessageType.RunFailed, run: { ...run } });
+			this.dispatchQueuedRuns();
+			return;
+		}
+		const execution: ActiveTeamRunExecution = {
+			generation: ++this.nextExecutionGeneration,
+			agentId: run.agentId,
+			agent: member.agent,
+		};
+		this.activeRunExecutions.set(run.id, execution);
+		this.activeTeammateLanes.add(run.agentId);
 		const recoveredRun = run.currentActivity === RECOVERED_QUEUED_ACTIVITY;
 		run.nextAttemptAt = undefined;
 		run.status = "running";
@@ -1204,10 +1296,12 @@ export class AgentTeamsRuntime {
 		this.emitEvent({ type: TeamMessageType.RunStarted, run: { ...run } });
 
 		const heartbeatTimer = setInterval(() => {
-			if (run.status !== "running") {
-				return;
+			if (
+				this.isCurrentExecution(run.id, execution) &&
+				run.status === "running"
+			) {
+				this.recordRunProgress(run, "heartbeat");
 			}
-			this.recordRunProgress(run, "heartbeat");
 		}, 2000);
 
 		try {
@@ -1218,10 +1312,12 @@ export class AgentTeamsRuntime {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
-			// Model-stream failures surface as results with finishReason
-			// "error" rather than throws; route them through the failure
-			// path so the run is reported as failed (and retried when
-			// maxRetries allows) instead of masquerading as completed.
+			if (
+				!this.isCurrentExecution(run.id, execution) ||
+				run.status !== "running"
+			) {
+				return;
+			}
 			if (result.finishReason === "error") {
 				throw new Error(result.text || "Teammate run failed");
 			}
@@ -1231,14 +1327,20 @@ export class AgentTeamsRuntime {
 			run.currentActivity = "completed";
 			this.emitEvent({ type: TeamMessageType.RunCompleted, run: { ...run } });
 		} catch (error) {
+			if (
+				!this.isCurrentExecution(run.id, execution) ||
+				run.status !== "running"
+			) {
+				return;
+			}
 			const message =
 				error instanceof Error
 					? error.message
 					: String(error ?? "Unknown error");
 			run.error = message;
 			run.endedAt = new Date();
-			const member = this.members.get(run.agentId);
-			if (isIntentionalShutdownAbort(member, error)) {
+			const currentMember = this.members.get(run.agentId);
+			if (isIntentionalShutdownAbort(currentMember, error)) {
 				run.status = "cancelled";
 				run.currentActivity = "cancelled";
 				this.emitEvent({
@@ -1261,8 +1363,21 @@ export class AgentTeamsRuntime {
 			}
 		} finally {
 			clearInterval(heartbeatTimer);
+			if (this.isCurrentExecution(run.id, execution)) {
+				this.activeRunExecutions.delete(run.id);
+				this.activeTeammateLanes.delete(run.agentId);
+			}
 			this.dispatchQueuedRuns();
 		}
+	}
+
+	private isCurrentExecution(
+		runId: string,
+		execution: ActiveTeamRunExecution,
+	): boolean {
+		return (
+			this.activeRunExecutions.get(runId)?.generation === execution.generation
+		);
 	}
 
 	listRuns(options?: {
@@ -1319,9 +1434,10 @@ export class AgentTeamsRuntime {
 		if (!run) {
 			throw new Error(`Run "${runId}" was not found`);
 		}
-		if (run.status === "completed" || run.status === "failed") {
+		if (run.status !== "queued" && run.status !== "running") {
 			return { ...run };
 		}
+		const execution = this.activeRunExecutions.get(runId);
 		run.status = "cancelled";
 		run.error = reason;
 		run.endedAt = new Date();
@@ -1335,6 +1451,15 @@ export class AgentTeamsRuntime {
 			run: { ...run },
 			reason,
 		});
+		if (execution) {
+			try {
+				execution.agent.abort(reason);
+			} catch {
+				// Cancellation is already durable; an abort implementation throwing
+				// synchronously must not make repeated cancellation unstable.
+			}
+		}
+		this.dispatchQueuedRuns();
 		return { ...run };
 	}
 
@@ -1835,6 +1960,13 @@ export class AgentTeamsRuntime {
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeAdmissionLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	return value === undefined ? fallback : Math.max(0, Math.floor(value));
 }
 
 function maxCounter(ids: string[], prefix: string): number {

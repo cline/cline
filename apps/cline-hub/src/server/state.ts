@@ -1,7 +1,9 @@
 import {
+	type BoundedOutboundChannelOptions,
 	type ClineCore,
 	CORE_BUILD_VERSION,
 	type HubUIClient,
+	type OutboundMessageOptions,
 } from "@cline/core";
 import type { WebviewHubEvent } from "../webview-protocol";
 import type {
@@ -19,6 +21,7 @@ import type {
  */
 export class HubContext {
 	readonly peers = new Set<BrowserPeer>();
+	constructor(readonly websocketDelivery: BoundedOutboundChannelOptions = {}) {}
 	readonly clients = new Map<string, TrackedClient>();
 	readonly sessions = new Map<string, TrackedSession>();
 	readonly pendingToolApprovals = new Map<string, PendingToolApproval>();
@@ -36,14 +39,29 @@ export class HubContext {
 	lastSessionContext: SessionContext | undefined;
 	initialHubEventEmitted = false;
 
-	send(peer: BrowserPeer, payload: unknown): void {
-		peer.socket.send(JSON.stringify(payload));
+	send(
+		peer: BrowserPeer,
+		payload: unknown,
+		options: OutboundMessageOptions = { priority: "high" },
+	): void {
+		peer.outbound?.send(JSON.stringify(payload), options);
 	}
 
-	broadcast(payload: unknown): void {
+	broadcast(
+		payload: unknown,
+		options: OutboundMessageOptions = { priority: "normal" },
+	): void {
 		const data = JSON.stringify(payload);
+		const type =
+			payload && typeof payload === "object"
+				? (payload as { type?: unknown }).type
+				: undefined;
+		const delivery =
+			type === "hub_state" || type === "sessions" || type === "room_snapshot"
+				? { priority: "low" as const, replaceableKey: String(type) }
+				: options;
 		for (const peer of this.peers) {
-			peer.socket.send(data);
+			peer.outbound?.send(data, delivery);
 		}
 	}
 
@@ -66,7 +84,17 @@ export class HubContext {
 	sendToSelectedPeers(sessionId: string, payload: unknown): void {
 		for (const peer of this.peers) {
 			if (peer.selectedSessionId === sessionId) {
-				this.send(peer, payload);
+				const type =
+					payload && typeof payload === "object"
+						? (payload as { type?: unknown }).type
+						: undefined;
+				this.send(
+					peer,
+					payload,
+					type === "assistant_delta" || type === "reasoning_delta"
+						? { priority: "low" }
+						: { priority: "normal" },
+				);
 			}
 		}
 	}

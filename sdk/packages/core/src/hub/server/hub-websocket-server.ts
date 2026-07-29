@@ -11,6 +11,7 @@ import {
 } from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
+import { resolveResourcePolicy } from "../../resources/policy";
 import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
 import {
 	clearHubDiscovery,
@@ -25,6 +26,7 @@ import {
 	writeHubDiscovery,
 } from "../discovery";
 import { resolveDefaultHubPort } from "../discovery/defaults";
+import { DEFAULT_WEBSOCKET_MAX_INBOUND_PAYLOAD_BYTES } from "./bounded-outbound-channel";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type {
 	EnsuredHubWebSocketServerResult,
@@ -45,7 +47,8 @@ export type {
 export { HubServerTransport } from "./hub-server-transport";
 
 type NodeWebSocketLike = {
-	send(data: string): void;
+	send(data: string, callback?: (error?: Error) => void): void;
+	close(code?: number, reason?: string): void;
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
 	on(event: "pong", listener: () => void): void;
@@ -82,8 +85,14 @@ function decodeSocketData(data: unknown): string {
 
 function wrapWsSocket(socket: NodeWebSocketLike) {
 	return {
-		send(data: string): void {
-			socket.send(data);
+		send(data: string, callback?: (error?: unknown) => void): void {
+			socket.send(data, callback as ((error?: Error) => void) | undefined);
+		},
+		close(code?: number, reason?: string): void {
+			socket.close(code, reason);
+		},
+		terminate(): void {
+			socket.terminate?.();
 		},
 		addEventListener(
 			type: "message" | "close",
@@ -215,6 +224,39 @@ function isAuthHeaderWhitespace(code: number): boolean {
 	return code === 0x20 || code === 0x09;
 }
 
+/** @internal Exported for focused payload-limit tests. */
+export function resolveHubMaxInboundPayloadBytes(
+	options: Pick<HubWebSocketServerOptions, "maxInboundPayloadBytes">,
+): number {
+	return (
+		options.maxInboundPayloadBytes ??
+		DEFAULT_WEBSOCKET_MAX_INBOUND_PAYLOAD_BYTES
+	);
+}
+
+/** @internal Resolves one immutable policy view for transport and runtime ownership. */
+export function resolveHubResourceOptions(
+	options: HubWebSocketServerOptions,
+): HubWebSocketServerOptions {
+	const resourcePolicy = resolveResourcePolicy({
+		overrides: options.resourcePolicy,
+	});
+	const websocketPolicy = resourcePolicy.profile.transport.websocket;
+	return {
+		...options,
+		resourcePolicy: resourcePolicy.profile,
+		maxInboundPayloadBytes:
+			options.maxInboundPayloadBytes ?? websocketPolicy.maxInboundPayloadBytes,
+		websocketDelivery: {
+			softWatermarkBytes: websocketPolicy.softWatermarkBytes,
+			hardWatermarkBytes: websocketPolicy.hardWatermarkBytes,
+			congestionGraceMs: websocketPolicy.congestionGraceMs,
+			closeGraceMs: websocketPolicy.closeGraceMs,
+			...options.websocketDelivery,
+		},
+	};
+}
+
 export function readBearerToken(
 	value: string | string[] | undefined,
 ): string | null {
@@ -280,6 +322,7 @@ export function isLocalHubOrigin(
 export async function startHubWebSocketServer(
 	options: HubWebSocketServerOptions,
 ): Promise<HubWebSocketServer> {
+	const resolvedOptions = resolveHubResourceOptions(options);
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
 	const pathname = options.pathname ?? "/hub";
@@ -290,11 +333,12 @@ export async function startHubWebSocketServer(
 	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
 	const authToken = createHubAuthToken();
-	const transport = new HubServerTransport(options);
+	const transport = new HubServerTransport(resolvedOptions);
 	await transport.start();
 	const adapter = new BrowserWebSocketHubAdapter(
 		new NativeHubTransportAdapter(transport),
 		options.telemetry,
+		resolvedOptions.websocketDelivery,
 	);
 	const cleanup = new Set<() => void>();
 	const startedAt = new Date().toISOString();
@@ -427,7 +471,10 @@ export async function startHubWebSocketServer(
 		res.statusCode = 404;
 		res.end("Not found");
 	});
-	const wss = new WebSocketServer({ noServer: true });
+	const wss = new WebSocketServer({
+		noServer: true,
+		maxPayload: resolveHubMaxInboundPayloadBytes(resolvedOptions),
+	});
 	heartbeatTimer = setInterval(() => {
 		for (const websocket of sockets) {
 			if (websocket.isAlive === false) {

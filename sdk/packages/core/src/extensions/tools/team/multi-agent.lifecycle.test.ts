@@ -4,6 +4,7 @@ import {
 	AgentTeamsRuntime,
 	type TeamEvent,
 	TeamMessageType,
+	TeamRunAdmissionError,
 } from "./multi-agent";
 
 const { createSessionRuntimeMock } = vi.hoisted(() => {

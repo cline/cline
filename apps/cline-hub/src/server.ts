@@ -1,4 +1,4 @@
-import { CORE_BUILD_VERSION } from "@cline/core";
+import { BoundedOutboundChannel, CORE_BUILD_VERSION } from "@cline/core";
 import {
 	buildInviteUrl,
 	isNonLocalBindHost,
@@ -12,14 +12,17 @@ import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
 	host,
+	maxInboundPayloadBytes,
 	port,
 	portExplicit,
 	publicUrl as preferredPublicUrl,
 	publicUrlExplicit,
 	roomSecret,
+	websocketDelivery,
 	webviewDistDir,
 } from "./server/deps";
 import { handleDesktopCommand } from "./server/desktop-commands";
+import { handleCallCommand } from "./server/drive-calls";
 import { handleDriveWebviewCommand } from "./server/drive-commands";
 import {
 	createJsonResponse,
@@ -52,10 +55,10 @@ import {
 } from "./server/sessions";
 import { HubContext } from "./server/state";
 import { broadcastHubState, hubStatusPayload } from "./server/state-payloads";
-import { handleCallCommand } from "./server/drive-calls";
 import { handleStatusCommand } from "./server/status-calls";
 import type { BrowserFrame, BrowserPeer } from "./server/types";
 import { resolveAvailablePort } from "./port";
+import { rejectOversizedWebSocketPayload } from "./server/websocket-transport";
 
 export interface ClineHubDashboardServer {
 	listenUrl: string;
@@ -90,7 +93,7 @@ function isPublicBrowserRoute(_req: Request, url: URL): boolean {
 }
 
 export async function startClineHubDashboardServer(): Promise<ClineHubDashboardServer> {
-	const ctx = new HubContext();
+	const ctx = new HubContext(websocketDelivery);
 	const assets = new WebviewAssets(webviewDistDir);
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
@@ -181,13 +184,41 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			return assets.serve(url.pathname);
 		},
 		websocket: {
+			maxPayloadLength: maxInboundPayloadBytes,
 			async open(socket) {
 				const peer = socket.data;
 				peer.socket = socket;
+				peer.outbound = new BoundedOutboundChannel(
+					{
+						write(data, complete) {
+							const result = socket.send(data);
+							if (result !== -1) complete();
+						},
+						close(code, reason) {
+							socket.close(code, reason);
+						},
+						terminate() {
+							socket.terminate();
+						},
+					},
+					ctx.websocketDelivery,
+				);
 				ctx.peers.add(peer);
+			},
+			drain(socket) {
+				socket.data.outbound?.notifyWritable();
 			},
 			async message(socket, raw) {
 				const peer = socket.data;
+				if (
+					rejectOversizedWebSocketPayload(
+						raw,
+						maxInboundPayloadBytes,
+						(code, reason) => socket.close(code, reason),
+					)
+				) {
+					return;
+				}
 				try {
 					const frame = JSON.parse(String(raw)) as BrowserFrame;
 					if (frame.type === "desktopCommand") {
@@ -274,7 +305,6 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						);
 					} else if (frame.type === "restart_hub") {
 						await restartHub(ctx);
-
 					} else if (frame.type === "driveCommand") {
 						await handleDriveWebviewCommand(ctx, peer, frame);
 					} else if (
@@ -305,6 +335,8 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			close(socket) {
 				const peer = socket.data;
 				peer.unsubscribeEvents?.();
+				peer.outbound?.dispose();
+				peer.outbound = undefined;
 				ctx.peers.delete(peer);
 				rejectOrphanedApprovals(ctx);
 			},
@@ -323,6 +355,8 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			stopped = true;
 			clearInterval(healthInterval);
 			try {
+				for (const peer of ctx.peers) peer.outbound?.dispose();
+				ctx.peers.clear();
 				server.stop(true);
 			} finally {
 				await detachHub(ctx);
