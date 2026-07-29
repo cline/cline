@@ -13,7 +13,7 @@
  *
  * **Dependency map** answers "what blocks what?" It projects active team tasks
  * (`status.tasks_snapshot`) into a layered graph. Demo teams are injected via
- * the optional `teamsSource` prop from the composition root (App.tsx) — this
+ * the `teamsSource` prop from the composition root (App.tsx) — this
  * view does not read demo query params or import fixtures.
  *
  * Board and Changelog page server-side with a keyset cursor, so opening this
