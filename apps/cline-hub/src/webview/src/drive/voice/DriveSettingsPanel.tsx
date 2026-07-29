@@ -1,6 +1,18 @@
 import type { DriveFacetValues, DeploymentProfile } from "@cline/shared";
+import {
+	MicSelector,
+	MicSelectorContent,
+	MicSelectorEmpty,
+	MicSelectorInput,
+	MicSelectorItem,
+	MicSelectorList,
+	MicSelectorTrigger,
+	MicSelectorValue,
+} from "@/components/ai-elements/mic-selector";
 import { Button } from "@/components/ui/button";
 import { listDriveSettingsProviders } from "./driveSettingsModel";
+import type { DriveHardwarePrefs } from "./driveHardwarePrefs";
+import { clampOutputVolume } from "./driveHardwarePrefs";
 import type { DriveVoiceUi } from "./driveVoiceUi";
 import { resolveLlmEgressForUi } from "./driveVoiceUi";
 
@@ -13,6 +25,7 @@ export function DriveSettingsPanel({
 	onProfileChange,
 	onSttChange,
 	onTtsChange,
+	onHardwareChange,
 }: {
 	providerId: string;
 	voice: DriveVoiceUi;
@@ -20,6 +33,7 @@ export function DriveSettingsPanel({
 	onProfileChange: (profile: DeploymentProfile) => void;
 	onSttChange: (sttId: string) => void;
 	onTtsChange: (ttsId: string) => void;
+	onHardwareChange: (patch: Partial<DriveHardwarePrefs>) => void;
 }) {
 	const llm = resolveLlmEgressForUi({
 		profile: voice.profile,
@@ -35,6 +49,7 @@ export function DriveSettingsPanel({
 		llm,
 		slot: "tts",
 	});
+	const volumePercent = Math.round(voice.hardware.outputVolume * 100);
 
 	return (
 		<div className="space-y-3 border-t bg-muted/20 px-3 py-3 text-sm">
@@ -104,12 +119,80 @@ export function DriveSettingsPanel({
 				</select>
 			</label>
 
+			<div className="space-y-1">
+				<span className="text-xs text-muted-foreground">Microphone</span>
+				<MicSelector
+					onValueChange={(deviceId) =>
+						onHardwareChange({
+							micDeviceId:
+								!deviceId || deviceId === "__default__"
+									? undefined
+									: deviceId,
+						})
+					}
+					value={voice.hardware.micDeviceId ?? "__default__"}
+				>
+					<MicSelectorTrigger className="w-full justify-between">
+						<MicSelectorValue />
+					</MicSelectorTrigger>
+					<MicSelectorContent>
+						<MicSelectorInput />
+						<MicSelectorList>
+							{(devices) => (
+								<>
+									<MicSelectorEmpty />
+									<MicSelectorItem value="__default__">
+										System default
+									</MicSelectorItem>
+									{devices.map((device) => (
+										<MicSelectorItem
+											key={device.deviceId}
+											value={device.deviceId}
+										>
+											{device.label || `Microphone ${device.deviceId}`}
+										</MicSelectorItem>
+									))}
+								</>
+							)}
+						</MicSelectorList>
+					</MicSelectorContent>
+				</MicSelector>
+				<p className="text-[11px] text-muted-foreground">
+					Applies to MediaRecorder capture (local STT). Web Speech uses the
+					browser default mic.
+				</p>
+			</div>
+
+			<label className="block space-y-1">
+				<span className="flex items-center justify-between text-xs text-muted-foreground">
+					<span>Partner volume</span>
+					<span className="font-mono tabular-nums">{volumePercent}%</span>
+				</span>
+				<input
+					aria-label="Partner playback volume"
+					className="w-full accent-foreground"
+					max={100}
+					min={0}
+					onChange={(event) =>
+						onHardwareChange({
+							outputVolume: clampOutputVolume(
+								Number(event.target.value) / 100,
+							),
+						})
+					}
+					type="range"
+					value={volumePercent}
+				/>
+			</label>
+
 			<p className="text-xs text-muted-foreground">
 				LLM providers and API keys stay in Cline Auth / provider settings. Drive
-				only stores profile and voice provider ids (no secrets).
+				only stores profile and voice provider ids (no secrets). Mic and volume
+				stay on this machine.
 			</p>
 			<p className="font-mono text-[11px] text-muted-foreground">
-				{summarizeFacets(voice.facets)}
+				{summarizeFacets(voice.facets)} ·{" "}
+				{summarizeHardware(voice.hardware)}
 			</p>
 		</div>
 	);
@@ -117,4 +200,9 @@ export function DriveSettingsPanel({
 
 function summarizeFacets(facets: DriveFacetValues): string {
 	return `stt=${facets["providers.sttId"]} tts=${facets["providers.ttsId"]} ceiling=${facets["runtime.egressCeiling"]}`;
+}
+
+function summarizeHardware(hardware: DriveHardwarePrefs): string {
+	const mic = hardware.micDeviceId ? "custom" : "default";
+	return `mic=${mic} vol=${Math.round(hardware.outputVolume * 100)}`;
 }

@@ -29,7 +29,10 @@ export interface SttPort {
 export interface TtsPort {
 	readonly backend: TtsBackend;
 	readonly egress: EgressClass;
-	speak(text: string, opts?: { voiceSlot?: string }): Promise<void>;
+	speak(
+		text: string,
+		opts?: { voiceSlot?: string; volume?: number },
+	): Promise<void>;
 	cancel(): void;
 }
 
@@ -124,7 +127,7 @@ function createBuiltinTtsPort(manifest: DriveProviderManifest): TtsPort {
 	return {
 		backend,
 		egress: manifest.egress,
-		async speak(text) {
+		async speak(text, opts) {
 			if (backend.kind !== "browser-speechSynthesis") {
 				return;
 			}
@@ -133,6 +136,11 @@ function createBuiltinTtsPort(manifest: DriveProviderManifest): TtsPort {
 			}
 			window.speechSynthesis.cancel();
 			utterance = new SpeechSynthesisUtterance(text);
+			const volume =
+				typeof opts?.volume === "number" && Number.isFinite(opts.volume)
+					? Math.min(1, Math.max(0, opts.volume))
+					: 1;
+			utterance.volume = volume;
 			await new Promise<void>((resolve) => {
 				if (!utterance) {
 					resolve();

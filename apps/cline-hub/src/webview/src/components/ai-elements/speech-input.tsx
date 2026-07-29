@@ -74,6 +74,11 @@ export type SpeechInputProps = ComponentProps<typeof Button> & {
 	 * is never constructed under a loopback-only topology.
 	 */
 	forceMode?: SpeechInputMode;
+	/**
+	 * Preferred audioinput deviceId for MediaRecorder capture.
+	 * Web Speech recognition still uses the browser default mic.
+	 */
+	deviceId?: string;
 };
 
 const detectSpeechInputMode = (): SpeechInputMode => {
@@ -98,6 +103,7 @@ export const SpeechInput = ({
 	onAudioRecorded,
 	lang = "en-US",
 	forceMode,
+	deviceId,
 	...props
 }: SpeechInputProps) => {
 	const [isListening, setIsListening] = useState(false);
@@ -110,6 +116,7 @@ export const SpeechInput = ({
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const streamRef = useRef<MediaStream | null>(null);
 	const audioChunksRef = useRef<Blob[]>([]);
+	const deviceIdRef = useRef(deviceId);
 	const onTranscriptionChangeRef = useRef<
 		SpeechInputProps["onTranscriptionChange"]
 	>(onTranscriptionChange);
@@ -119,6 +126,7 @@ export const SpeechInput = ({
 	// Keep refs in sync
 	onTranscriptionChangeRef.current = onTranscriptionChange;
 	onAudioRecordedRef.current = onAudioRecorded;
+	deviceIdRef.current = deviceId;
 
 	// Initialize Speech Recognition when mode is speech-recognition
 	useEffect(() => {
@@ -207,7 +215,11 @@ export const SpeechInput = ({
 		}
 
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const preferredDeviceId = deviceIdRef.current;
+			const audio: MediaTrackConstraints | boolean = preferredDeviceId
+				? { deviceId: { ideal: preferredDeviceId } }
+				: true;
+			const stream = await navigator.mediaDevices.getUserMedia({ audio });
 			streamRef.current = stream;
 			const mediaRecorder = new MediaRecorder(stream);
 			audioChunksRef.current = [];

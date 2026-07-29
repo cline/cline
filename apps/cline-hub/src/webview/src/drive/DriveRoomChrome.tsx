@@ -6,6 +6,7 @@ import {
 import { DriveMicBar } from "./voice/DriveMicBar";
 import { DriveSettingsPanel } from "./voice/DriveSettingsPanel";
 import {
+	applyHardwarePrefsPatch,
 	applyVoiceFacetPatch,
 	applyVoiceProfile,
 	type UseDriveSessionResult,
@@ -49,6 +50,11 @@ export function DriveRoomChrome({
 							settingsOpen: false,
 						}))
 					}
+					onHardwareChange={(patch) => {
+						setDriveVoice((current) =>
+							applyHardwarePrefsPatch(current, patch),
+						);
+					}}
 					onProfileChange={(profile) => {
 						setDriveVoice((current) =>
 							applyVoiceProfile(current, profile),
@@ -129,6 +135,7 @@ export function DriveVoiceBar({
 				caption={voiceCaption}
 				disabled={disabled || sending}
 				forceMode={driveVoiceResolved.forceMode}
+				micDeviceId={driveVoice.hardware.micDeviceId}
 				muted={drive.muted}
 				onCaptionChange={setVoiceCaption}
 				onSttError={onSttError}

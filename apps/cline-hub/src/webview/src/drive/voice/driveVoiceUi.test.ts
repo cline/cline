@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyHardwarePrefsPatch,
 	applyVoiceProfile,
 	createDefaultDriveVoiceUi,
 	resolveDriveVoiceTopology,
@@ -8,6 +9,10 @@ import {
 describe("driveVoiceUi", () => {
 	it("defaults to cloud pack with webSpeech forceMode", () => {
 		const voice = createDefaultDriveVoiceUi("cloud");
+		expect(voice.hardware).toEqual({
+			micDeviceId: undefined,
+			outputVolume: 1,
+		});
 		const resolved = resolveDriveVoiceTopology({
 			voice,
 			providerId: "anthropic",
@@ -34,5 +39,17 @@ describe("driveVoiceUi", () => {
 		}
 		expect(resolved.forceMode).toBe("media-recorder");
 		expect(resolved.topology.stt.kind).toBe("local-worker");
+	});
+
+	it("preserves hardware prefs across profile switches", () => {
+		const withMic = applyHardwarePrefsPatch(
+			createDefaultDriveVoiceUi("cloud"),
+			{ micDeviceId: "mic-a", outputVolume: 0.4 },
+		);
+		const local = applyVoiceProfile(withMic, "local");
+		expect(local.hardware).toEqual({
+			micDeviceId: "mic-a",
+			outputVolume: 0.4,
+		});
 	});
 });

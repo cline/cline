@@ -353,12 +353,17 @@ export const MicSelectorValue = ({
 	...props
 }: MicSelectorValueProps) => {
 	const { data, value } = useContext(MicSelectorContext);
-	const currentDevice = data.find((d) => d.deviceId === value);
+	const currentDevice =
+		value && value !== "__default__"
+			? data.find((d) => d.deviceId === value)
+			: undefined;
 
 	if (!currentDevice) {
 		return (
 			<span className={cn("flex-1 text-left", className)} {...props}>
-				Select microphone...
+				{value && value !== "__default__"
+					? "Selected microphone"
+					: "System default"}
 			</span>
 		);
 	}

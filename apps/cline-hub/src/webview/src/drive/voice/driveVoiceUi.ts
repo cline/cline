@@ -10,6 +10,11 @@ import type {
 	ResolvedLlmEgress,
 	RuntimeTopology,
 } from "@cline/shared";
+import {
+	DEFAULT_DRIVE_HARDWARE_PREFS,
+	normalizeDriveHardwarePrefs,
+	type DriveHardwarePrefs,
+} from "./driveHardwarePrefs";
 import { speechInputModeForBackend } from "./speechInputModeForBackend";
 import type { SpeechInputMode } from "./speechInputModeForBackend";
 
@@ -17,6 +22,8 @@ export type DriveVoiceUi = {
 	profile: DeploymentProfile;
 	facets: DriveFacetValues;
 	settingsOpen: boolean;
+	/** Local mic / volume prefs; not facet-backed. */
+	hardware: DriveHardwarePrefs;
 };
 
 export function createDefaultDriveVoiceUi(
@@ -26,6 +33,7 @@ export function createDefaultDriveVoiceUi(
 		profile,
 		facets: defaultFacetValuesFromProfile(profile),
 		settingsOpen: false,
+		hardware: { ...DEFAULT_DRIVE_HARDWARE_PREFS },
 	};
 }
 
@@ -37,6 +45,8 @@ export function applyVoiceProfile(
 		...voice,
 		profile,
 		facets: defaultFacetValuesFromProfile(profile),
+		// Keep machine-local hardware prefs across profile switches.
+		hardware: normalizeDriveHardwarePrefs(voice.hardware),
 	};
 }
 
@@ -48,6 +58,19 @@ export function applyVoiceFacetPatch(
 		...voice,
 		facets: { ...voice.facets, ...patch },
 		profile: patch["runtime.profile"] ?? voice.profile,
+	};
+}
+
+export function applyHardwarePrefsPatch(
+	voice: DriveVoiceUi,
+	patch: Partial<DriveHardwarePrefs>,
+): DriveVoiceUi {
+	return {
+		...voice,
+		hardware: normalizeDriveHardwarePrefs({
+			...voice.hardware,
+			...patch,
+		}),
 	};
 }
 
@@ -99,13 +122,23 @@ export function voiceDefaultsForSmoke(profile: "local" | "cloud"): {
 	if (profile === "local") {
 		const { facets, llm } = localDefaultsWithOllama();
 		return {
-			voice: { profile: "local", facets, settingsOpen: false },
+			voice: {
+				profile: "local",
+				facets,
+				settingsOpen: false,
+				hardware: { ...DEFAULT_DRIVE_HARDWARE_PREFS },
+			},
 			llm,
 		};
 	}
 	const { facets, llm } = cloudDefaultsWithAnthropic();
 	return {
-		voice: { profile: "cloud", facets, settingsOpen: false },
+		voice: {
+			profile: "cloud",
+			facets,
+			settingsOpen: false,
+			hardware: { ...DEFAULT_DRIVE_HARDWARE_PREFS },
+		},
 		llm,
 	};
 }

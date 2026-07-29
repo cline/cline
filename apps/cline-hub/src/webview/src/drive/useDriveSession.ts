@@ -30,12 +30,14 @@ import {
 	type DriveBankSession,
 } from "./bankSession";
 import {
+	applyHardwarePrefsPatch,
 	applyVoiceFacetPatch,
 	applyVoiceProfile,
 	createDefaultDriveVoiceUi,
 	resolveDriveVoiceTopology,
 	type DriveVoiceUi,
 } from "./voice/driveVoiceUi";
+import { normalizeDriveHardwarePrefs } from "./voice/driveHardwarePrefs";
 import { getVsCodeApi, postToHost } from "../vscode";
 
 function readPersistedDriveUi(): DriveUiState {
@@ -79,6 +81,10 @@ function readPersistedDriveVoice(): DriveVoiceUi {
 					...defaults.facets,
 					...state.driveVoice.facets,
 				},
+				hardware: normalizeDriveHardwarePrefs({
+					...defaults.hardware,
+					...state.driveVoice.hardware,
+				}),
 			};
 		}
 	} catch {
@@ -478,4 +484,4 @@ export function useDriveSession(
 }
 
 // Re-export for settings panel wiring without Chat knowing voice helpers.
-export { applyVoiceFacetPatch, applyVoiceProfile };
+export { applyHardwarePrefsPatch, applyVoiceFacetPatch, applyVoiceProfile };

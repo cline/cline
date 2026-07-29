@@ -10,6 +10,7 @@ export function DriveMicBar({
 	disabled,
 	forceMode,
 	caption,
+	micDeviceId,
 	muted,
 	sttBackend,
 	sttConfig,
@@ -20,6 +21,7 @@ export function DriveMicBar({
 	disabled?: boolean;
 	forceMode: SpeechInputMode;
 	caption: string;
+	micDeviceId?: string;
 	muted: boolean;
 	sttBackend: SttBackend;
 	sttConfig?: Record<string, unknown>;
@@ -38,6 +40,7 @@ export function DriveMicBar({
 	return (
 		<div className="flex items-center gap-3 border-t bg-background px-3 py-2">
 			<SpeechInput
+				deviceId={micDeviceId}
 				disabled={disabled}
 				forceMode={forceMode}
 				onAudioRecorded={async (blob) => {
