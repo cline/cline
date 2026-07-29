@@ -37,7 +37,7 @@ export function getModelReasoningControls(
 		budget,
 		toggle,
 		efforts: ACTIVE_REASONING_EFFORTS.filter((value) => advertised.has(value)),
-		supportsOff: toggle || advertised.has("none"),
+		supportsOff: toggle || advertised.has("none") || budget?.min === 0,
 		supportsDefault: advertised.has("default"),
 	};
 }

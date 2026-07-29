@@ -3790,12 +3790,19 @@ describe("sdk-gateway", () => {
 			expected: { effort: "high" },
 		},
 		{
-			name: "drops a zero legacy budget",
+			name: "treats a zero structured budget as disabled",
+			options: {
+				reasoning: { effort: "high", budgetTokens: 0 },
+			},
+			expected: { effort: "none" },
+		},
+		{
+			name: "treats a zero legacy budget as disabled",
 			options: {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: 0,
 			},
-			expected: { effort: "high" },
+			expected: { effort: "none" },
 		},
 		{
 			name: "validates handle defaults before merging requested reasoning",
