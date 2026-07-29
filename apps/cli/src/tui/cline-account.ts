@@ -51,9 +51,16 @@ export function isClineAccountAuthErrorMessage(message: string): boolean {
 
 export function isClineAccountCreditsErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
+	// The Cline API's 402 response carries `code: "insufficient_credits"` and
+	// the message "Not enough credits available". Depending on how much of the
+	// payload survives error extraction, the CLI may see the raw JSON blob or
+	// just the human-readable message, so match both. The
+	// "insufficient balance" pair is an older backend phrasing kept for safety.
 	return (
-		normalized.includes("insufficient balance") &&
-		normalized.includes("cline credits balance")
+		normalized.includes("insufficient_credits") ||
+		normalized.includes("not enough credits") ||
+		(normalized.includes("insufficient balance") &&
+			normalized.includes("cline credits balance"))
 	);
 }
 

@@ -1,6 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+	APP_ICONS,
+	type AppIconId,
+	appIconAssetPath,
+	DEFAULT_APP_ICON,
+	readStoredAppIcon,
+	setStoredAppIcon,
+} from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { resetOnboarding } from "@/lib/onboarding";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -8,16 +20,20 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import {
+	type HubAccent,
 	type HubTheme,
+	readStoredHubAccent,
 	readStoredHubTheme,
 	readSystemHubTheme,
+	setStoredHubAccent,
 	setStoredHubTheme,
 } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizationSectionView, RulesView } from "./extensions-view";
+import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
@@ -33,15 +49,25 @@ import { toSettingsPatch } from "./settings-patch";
 export const SETTINGS_SECTIONS = [
 	"General",
 	"Models",
-	"MCP Servers",
-	"MCP Marketplace",
-	"Customizations",
 	"Channels",
 	"Schedules",
 	"Account",
 ] as const;
 
-export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+// Mirrors the Cline Hub dashboard's Customizations nav group.
+export const CUSTOMIZATION_SECTIONS = [
+	"Plugins",
+	"Skills",
+	"MCP",
+	"Hooks",
+	"Rules",
+	"Agents",
+	"Tools",
+] as const;
+
+export type SettingsSection =
+	| (typeof SETTINGS_SECTIONS)[number]
+	| (typeof CUSTOMIZATION_SECTIONS)[number];
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
@@ -61,9 +87,11 @@ let providerCatalogCache: {
 export function SettingsView({
 	section,
 	onNavigateSection,
+	onOpenSession,
 }: {
 	section: SettingsSection;
 	onNavigateSection: (section: SettingsSection) => void;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
@@ -174,6 +202,10 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+			} finally {
+				// Keep the shared short-lived catalog cache (composer model
+				// selector, onboarding) in sync with the just-saved settings.
+				invalidateProviderCatalogCache();
 			}
 		},
 		[],
@@ -331,6 +363,7 @@ export function SettingsView({
 				models_source_url: payload.modelsSourceUrl,
 				capabilities: payload.capabilities,
 			});
+			invalidateProviderCatalogCache();
 			await loadProviderCatalog();
 			setAddingProvider(false);
 			setSelectedProviderId(payload.providerId);
@@ -400,16 +433,24 @@ export function SettingsView({
 	const content =
 		activeNav === "Models" ? (
 			providerContent
-		) : activeNav === "MCP Servers" ? (
+		) : activeNav === "Plugins" ? (
+			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
+		) : activeNav === "Skills" ? (
+			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
+		) : activeNav === "MCP" ? (
 			<McpServersContent />
-		) : activeNav === "MCP Marketplace" ? (
-			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
-		) : activeNav === "Customizations" ? (
-			<RulesView />
+		) : activeNav === "Hooks" ? (
+			<CustomizationSectionView section="Hooks" />
+		) : activeNav === "Rules" ? (
+			<CustomizationSectionView section="Rules" />
+		) : activeNav === "Agents" ? (
+			<CustomizationSectionView section="Agents" />
+		) : activeNav === "Tools" ? (
+			<CustomizationSectionView section="Tools" />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
-			<RoutineSchedulesContent />
+			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -430,11 +471,35 @@ export function SettingsView({
 	);
 }
 
+/**
+ * Swatches shown in the accent picker. The swatch color is the accent's
+ * light-mode primary (see the [data-cline-accent] blocks in globals.css);
+ * violet reads the live brand token so it always matches the default theme.
+ */
+const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
+	{ id: "violet", label: "Violet", swatch: "var(--brand-violet)" },
+	{ id: "graphite", label: "Graphite", swatch: "oklch(0.27 0.012 248)" },
+	{ id: "cyan", label: "Cyan", swatch: "oklch(0.6 0.12 222)" },
+	{ id: "pink", label: "Pink", swatch: "oklch(0.75 0.1 354)" },
+	{ id: "espresso", label: "Espresso", swatch: "oklch(0.36 0.035 35)" },
+	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
+];
+
 function GeneralSettingsContent() {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [accent, setAccent] = useState<HubAccent>(() => {
+		if (typeof window === "undefined") return "violet";
+		return readStoredHubAccent();
+	});
+	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
+		if (typeof window === "undefined") return DEFAULT_APP_ICON;
+		return readStoredAppIcon();
+	});
+	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -517,6 +582,37 @@ function GeneralSettingsContent() {
 		setTheme(setStoredHubTheme(nextTheme));
 	};
 
+	const updateAccent = (nextAccent: HubAccent) => {
+		setAccent(setStoredHubAccent(nextAccent));
+	};
+
+	const updateAppIcon = async (nextIcon: AppIconId) => {
+		const requestId = ++appIconRequestRef.current;
+		const previousIcon = appIcon;
+		setAppIcon(nextIcon);
+		setAppIconError(null);
+		try {
+			await setStoredAppIcon(nextIcon);
+		} catch (error) {
+			// A newer selection supersedes this request; rolling back now
+			// would clobber it.
+			if (appIconRequestRef.current !== requestId) {
+				return;
+			}
+			setAppIcon(previousIcon);
+			setAppIconError(error instanceof Error ? error.message : String(error));
+			// Storage was written before the native call failed; roll it back
+			// so the persisted choice matches what the dock actually shows.
+			await setStoredAppIcon(previousIcon).catch(() => {});
+		}
+	};
+
+	// resetOnboarding dispatches ONBOARDING_RESET_EVENT, which the app shell
+	// listens for to re-enter the first-run flow immediately.
+	const replayOnboarding = () => {
+		resetOnboarding();
+	};
+
 	return (
 		<PageFrame>
 			<PageHeader
@@ -542,19 +638,99 @@ function GeneralSettingsContent() {
 				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div>
 						<p className="text-[17px] font-semibold text-foreground">
-							Auto update
+							Accent color
 						</p>
 						<p className="mt-1 text-[15px] text-muted-foreground">
-							Automatically install Cline CLI updates on startup.
+							Tint buttons, links, and highlights across the app.
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2.5">
+						{ACCENT_OPTIONS.map((option) => (
+							<button
+								aria-label={option.label}
+								aria-pressed={accent === option.id}
+								className={cn(
+									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110",
+									accent === option.id &&
+										"ring-2 ring-ring ring-offset-2 ring-offset-background",
+								)}
+								key={option.id}
+								onClick={() => updateAccent(option.id)}
+								style={{ backgroundColor: option.swatch }}
+								title={option.label}
+								type="button"
+							/>
+						))}
+					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							App icon
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Pick the icon Cline shows in the Dock.
+						</p>
+						{appIconError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to change app icon: {appIconError}
+							</p>
+						) : null}
+					</div>
+					<div className="flex shrink-0 items-start gap-4">
+						{APP_ICONS.map((icon) => (
+							<button
+								aria-label={icon.label}
+								aria-pressed={appIcon === icon.id}
+								className="group flex flex-col items-center gap-1.5"
+								key={icon.id}
+								onClick={() => void updateAppIcon(icon.id)}
+								type="button"
+							>
+								<img
+									alt=""
+									className={cn(
+										"size-14 rounded-2xl transition-transform group-hover:scale-105",
+										appIcon === icon.id &&
+											"ring-2 ring-ring ring-offset-2 ring-offset-background",
+									)}
+									draggable={false}
+									height={112}
+									src={appIconAssetPath(icon.id)}
+									width={112}
+								/>
+								<span
+									className={cn(
+										"text-xs",
+										appIcon === icon.id
+											? "font-medium text-foreground"
+											: "text-muted-foreground",
+									)}
+								>
+									{icon.label}
+								</span>
+							</button>
+						))}
+					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Keep CLI up to date
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Automatically update the cline terminal command, which shares your
+							sessions and settings with this app. The app itself updates
+							separately.
 						</p>
 						{autoUpdateError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update auto update setting: {autoUpdateError}
+								Failed to update CLI auto-update setting: {autoUpdateError}
 							</p>
 						) : null}
 					</div>
 					<Switch
-						aria-label="Auto update"
+						aria-label="Keep CLI up to date"
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
@@ -580,6 +756,26 @@ function GeneralSettingsContent() {
 						disabled={telemetryLoading || telemetrySaving}
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							New user experience
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Replay the first-run experience new users see when they open Cline
+							for the first time.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={replayOnboarding}
+						type="button"
+						variant="outline"
+					>
+						<RotateCcw className="size-3.5" />
+						Replay
+					</Button>
 				</div>
 			</section>
 		</PageFrame>

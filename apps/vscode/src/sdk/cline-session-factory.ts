@@ -17,10 +17,11 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
+	isProviderApiLine,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
@@ -29,6 +30,7 @@ import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -36,10 +38,8 @@ import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -607,6 +607,10 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
+		// The OpenAI Compatible provider may be stored under its SDK spelling
+		// (settings written through the SDK settings store) instead of the
+		// extension's legacy "openai" id; both use the same legacy state field.
+		"openai-compatible": "openAiBaseUrl",
 		ollama: "ollamaBaseUrl",
 		lmstudio: "lmStudioBaseUrl",
 		gemini: "geminiBaseUrl",
@@ -619,7 +623,81 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 
 	const field = baseUrlMap[providerId]
 	if (field) {
-		return normalizeSdkBaseUrl(providerId, config[field])
+		const fromState = normalizeSdkBaseUrl(providerId, config[field])
+		if (fromState) {
+			return fromState
+		}
+	}
+
+	// SDK-backed providers save their base URL in providers.json instead of
+	// legacy ApiConfiguration fields. Fall back to that store (mirroring
+	// resolveApiKey) so ProviderConfig consumers that don't re-resolve settings
+	// themselves — e.g. the compaction summarizer's createHandlerAsync — still
+	// reach the configured endpoint instead of the provider default.
+	try {
+		const manager = getProviderSettingsManager()
+		const settingsBaseUrl = manager.getProviderSettings(providerSettingsProviderId(providerId))?.baseUrl
+		const normalized = normalizeSdkBaseUrl(providerId, settingsBaseUrl)
+		if (normalized) {
+			return normalized
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} base URL from providers.json`)
+	}
+
+	return undefined
+}
+
+/**
+ * Resolve the regional API line ("china" | "international") for providers with
+ * regional endpoints (Qwen, Moonshot, Z AI, MiniMax and their coding
+ * variants). Resolution order:
+ *
+ * 1. The provider's own legacy StateManager field (mirroring resolveBaseUrl).
+ * 2. The provider's own providers.json `apiLine` (SDK-store fallback).
+ * 3. For coding variants without their own legacy field or stored line, the
+ *    base provider's legacy field (qwen-code shares Qwen's DashScope region,
+ *    zai-coding-plan shares Z AI's account region) — so a variant-specific
+ *    providers.json setting still wins over the shared field.
+ *
+ * The SDK gateway maps the line to the provider's regional base URL when no
+ * explicit base URL is configured.
+ */
+export function resolveApiLine(providerId: string, config: ApiConfiguration): ProviderApiLine | undefined {
+	const apiLineMap: Record<string, keyof ApiConfiguration> = {
+		qwen: "qwenApiLine",
+		moonshot: "moonshotApiLine",
+		zai: "zaiApiLine",
+		minimax: "minimaxApiLine",
+	}
+	const sharedApiLineMap: Record<string, keyof ApiConfiguration> = {
+		"qwen-code": "qwenApiLine",
+		"zai-coding-plan": "zaiApiLine",
+	}
+
+	const field = apiLineMap[providerId]
+	if (field) {
+		const fromState = config[field]
+		if (isProviderApiLine(fromState)) {
+			return fromState
+		}
+	}
+
+	try {
+		const settingsApiLine = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.apiLine
+		if (isProviderApiLine(settingsApiLine)) {
+			return settingsApiLine
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	const sharedField = sharedApiLineMap[providerId]
+	if (sharedField) {
+		const fromSharedState = config[sharedField]
+		if (isProviderApiLine(fromSharedState)) {
+			return fromSharedState
+		}
 	}
 
 	return undefined
@@ -653,6 +731,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let apiLine: ProviderApiLine | undefined
 	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
@@ -666,9 +745,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		const stateManager = StateManager.get()
 		apiConfig = stateManager.getApiConfiguration()
 
-		// Resolve the provider for the current mode
+		// Resolve the provider for the current mode. State written by older
+		// builds or other hosts may carry SDK catalog spellings (e.g.
+		// `openai-compatible`); fold them back to the legacy spelling the
+		// provider-keyed maps below are keyed by.
 		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
+		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
 			// Resolve API key
@@ -679,6 +761,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
+
+			// Resolve the regional API line (Qwen/Moonshot/Z AI/MiniMax). The
+			// SDK gateway routes to the line's regional endpoint when no
+			// explicit base URL is set.
+			apiLine = resolveApiLine(providerId, apiConfig)
 
 			// Resolve Bedrock region + AWS authentication options from the legacy
 			// ApiConfiguration (StateManager is the VSCode source of truth, not
@@ -717,14 +804,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings({
-				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+				isClinePassEnabled: true,
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
-				providerId = lastUsed.provider
+				// providers.json stores SDK provider ids (e.g. `openai-compatible`);
+				// normalize to the legacy spelling used across this factory.
+				providerId = toLegacyApiProvider(lastUsed.provider)
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
+				apiLine = isProviderApiLine(lastUsed.apiLine) ? lastUsed.apiLine : undefined
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
 			}
 		} catch (error) {
@@ -846,6 +936,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		fetch,
 	}
@@ -856,6 +947,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey,
 		baseUrl,
 		providerConfig,
+		// Also expose the catalog at the top level: manual compaction
+		// (sdk-compaction.ts) budgets against config.knownModels[modelId] and
+		// otherwise falls back to a conservative 64k input budget.
+		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		cwd,
 		workspaceRoot,
 		systemPrompt,

@@ -681,6 +681,14 @@ export interface AgentConfig {
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/**
+	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
+	 * access token that expired mid-run). Hosts refresh credentials and push
+	 * the new key into the runtime via `updateConnection`; returning `true`
+	 * makes the runtime retry the failed run once with the refreshed
+	 * connection.
+	 */
+	onAuthError?: () => Promise<boolean>;
 	/** Optional provider model catalog overrides */
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */

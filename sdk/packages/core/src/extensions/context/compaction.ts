@@ -80,6 +80,25 @@ export interface ContextCompactionPrepareTurnOptions {
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
 
+function isCompactionCancellation(
+	error: unknown,
+	abortSignal: AbortSignal,
+): boolean {
+	if (abortSignal.aborted) {
+		return true;
+	}
+	return (
+		error instanceof Error &&
+		(error.name === "AbortError" || error.name === "AgentRuntimeAbortError")
+	);
+}
+
+function describeCompactionError(error: unknown): Record<string, unknown> {
+	return error instanceof Error
+		? { errorName: error.name, errorMessage: error.message }
+		: { errorMessage: String(error) };
+}
+
 function safeJsonSize(value: unknown): number {
 	try {
 		return JSON.stringify(value).length;
@@ -255,7 +274,7 @@ export function createContextCompactionPrepareTurn(
 			modelId: config.modelId,
 		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
-	const strategy = userCompaction?.strategy ?? "basic";
+	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 	const mode = options.mode ?? "auto";
 	const telemetryStrategy: TelemetryCompactionStrategy = userCompaction?.compact
@@ -382,18 +401,41 @@ export function createContextCompactionPrepareTurn(
 		const beforeMessageCount = context.messages.length;
 		const startedAt = Date.now();
 
-		const result = userCompaction?.compact
-			? await userCompaction.compact(compactionContext)
-			: await runBuiltinStrategy({
-					context: compactionContext,
-					providerConfig: {
-						...providerConfig,
-						abortSignal: context.abortSignal,
+		const builtinOptions = {
+			context: compactionContext,
+			providerConfig: {
+				...providerConfig,
+				abortSignal: context.abortSignal,
+			},
+			compaction: userCompaction,
+			estimateMessageTokens,
+			logger: config.logger,
+		};
+		let executedStrategy = telemetryStrategy;
+		let result: CoreCompactionResult | undefined;
+		if (userCompaction?.compact) {
+			result = await userCompaction.compact(compactionContext);
+		} else {
+			try {
+				result = await runBuiltinStrategy(builtinOptions);
+			} catch (error) {
+				if (
+					strategy !== "agentic" ||
+					isCompactionCancellation(error, context.abortSignal)
+				) {
+					throw error;
+				}
+				config.logger?.log(
+					"Agentic compaction failed; falling back to basic compaction",
+					{
+						severity: "warn",
+						...describeCompactionError(error),
 					},
-					compaction: userCompaction,
-					estimateMessageTokens,
-					logger: config.logger,
-				});
+				);
+				executedStrategy = "basic";
+				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+			}
+		}
 
 		const durationMs = Date.now() - startedAt;
 		// Telemetry identity: surface the agent/conversation passed into the
@@ -415,7 +457,7 @@ export function createContextCompactionPrepareTurn(
 			const afterRequestTokens = requestOverheadTokens + afterMessageTokens;
 			config.logger?.log("Context compaction completed", {
 				severity: "info",
-				strategy: strategy,
+				strategy: executedStrategy,
 				maxInputTokens,
 				messageInputTokens,
 				apiInputTokens: apiMessageTokens,
@@ -447,7 +489,7 @@ export function createContextCompactionPrepareTurn(
 			);
 			captureCompactionExecuted(config.telemetry, {
 				ulid: telemetryUlid,
-				strategy: telemetryStrategy,
+				strategy: executedStrategy,
 				mode,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
@@ -471,7 +513,7 @@ export function createContextCompactionPrepareTurn(
 			) {
 				captureCompactionBudgetEmergency(config.telemetry, {
 					ulid: telemetryUlid,
-					strategy: telemetryStrategy,
+					strategy: executedStrategy,
 					mode,
 					policyIntent: result.budget.policyIntent,
 					actionCount: result.budget.actionCount,
@@ -503,7 +545,7 @@ export function createContextCompactionPrepareTurn(
 			);
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
-				strategy: telemetryStrategy,
+				strategy: executedStrategy,
 				mode,
 				reason: "no_result",
 				tokensBefore: requestInputTokens,

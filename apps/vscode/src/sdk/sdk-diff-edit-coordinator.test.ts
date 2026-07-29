@@ -11,12 +11,24 @@ class FakeEditPreview extends EditPreview {
 	opened: EditPreviewContent | undefined
 	closed = 0
 	failOpen = false
+	hangOpen = false
+	private releaseOpen: (() => void) | undefined
 
 	override async open(content: EditPreviewContent): Promise<void> {
 		if (this.failOpen) {
 			throw new Error("fake open failure")
 		}
+		if (this.hangOpen) {
+			await new Promise<void>((resolve) => {
+				this.releaseOpen = resolve
+			})
+		}
 		this.opened = content
+	}
+
+	/** Lets a hung open() (hangOpen = true) finally settle. */
+	finishOpen(): void {
+		this.releaseOpen?.()
 	}
 
 	override async close(): Promise<void> {
@@ -360,6 +372,51 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews[0].closed).toBe(1)
 	})
 
+	it("does not block openForApproval on a hung preview open, and closes the late tab once it settles", async () => {
+		coordinator = makeCoordinator({ previewOpenTimeoutMs: 30 })
+		previewTweak = (preview) => {
+			preview.hangOpen = true
+		}
+		await writeFile("a.ts", "old content")
+		const input = { path: "a.ts", old_text: "old", new_text: "new" }
+
+		// A wedged vscode.diff must not block the approval ask indefinitely.
+		await coordinator.openForApproval("tc1", "editor", input)
+		expect(previews).toHaveLength(1)
+		expect(previews[0].opened).toBeUndefined() // still hung
+
+		// The timed-out open never registered a session, so the executor treats this as
+		// auto-approve; that preview open hangs too and is also bounded by the timeout.
+		const result = await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+		expect(result).toBe("fallback editor result")
+		expect(fallbackEditor).toHaveBeenCalledOnce()
+
+		// When the hung opens finally settle, their tabs are closed instead of lingering.
+		previews[0].finishOpen()
+		previews[1].finishOpen()
+		await sleep(0)
+		expect(previews[0].closed).toBe(1)
+		expect(previews[1].closed).toBe(1)
+	})
+
+	it("still applies auto-approved edits when the preview open hangs past the timeout", async () => {
+		coordinator = makeCoordinator({ previewOpenTimeoutMs: 30 })
+		previewTweak = (preview) => {
+			preview.hangOpen = true
+		}
+		await writeFile("a.ts", "old content")
+		const input = { path: "a.ts", old_text: "old", new_text: "new" }
+
+		const result = await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+
+		expect(result).toBe("fallback editor result")
+		expect(fallbackEditor).toHaveBeenCalledOnce()
+
+		previews[0].finishOpen()
+		await sleep(0)
+		expect(previews[0].closed).toBe(1)
+	})
+
 	it("still applies auto-approved edits when the preview fails to open, and closes the partial preview", async () => {
 		previewTweak = (preview) => {
 			preview.failOpen = true
@@ -454,13 +511,35 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(callOrder).toEqual(["close", "apply"])
 	})
 
-	it("applies patches without preview sessions directly", async () => {
+	it("shows a brief preview around auto-approved patches", async () => {
+		await writeFile("patched.ts", "line one\nline two\n")
+		const patch = ["*** Begin Patch", "*** Update File: patched.ts", "@@", "-line one", "+line ONE", "*** End Patch"].join(
+			"\n",
+		)
+
+		const result = await coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc9"))
+
+		expect(result).toBe("fallback apply_patch result")
+		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
+		expect(previews).toHaveLength(1)
+		expect(previews[0].opened).toMatchObject({
+			absolutePath: path.join(tempDir, "patched.ts"),
+			leftContent: "line one\nline two\n",
+			rightContent: "line ONE\nline two\n",
+		})
+		expect(previews[0].closed).toBe(1)
+	})
+
+	it("applies auto-approved patches without a preview when background edit is enabled", async () => {
+		backgroundEdit = true
 		const result = await coordinator.executeApplyPatchTool(
 			{ input: "*** Begin Patch\n*** End Patch" },
 			tempDir,
 			makeContext("tc9"),
 		)
+
 		expect(result).toBe("fallback apply_patch result")
 		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
+		expect(previews).toHaveLength(0)
 	})
 })

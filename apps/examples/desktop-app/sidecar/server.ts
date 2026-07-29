@@ -2,6 +2,7 @@ import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -143,7 +144,7 @@ export function startServer(
 }
 
 export function createFetchHandler(
-	_ctx: SidecarContext,
+	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
 	return async (req: Request, server: SidecarServer) => {
@@ -199,11 +200,7 @@ export function createFetchHandler(
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
-						process.stderr.write(
-							`sidecar shutdown failed: ${
-								error instanceof Error ? error.message : String(error)
-							}\n`,
-						);
+						ctx.logger?.error?.("Desktop sidecar shutdown failed", { error });
 					})
 					.finally(() => process.exit(0));
 			});
@@ -241,7 +238,9 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				return;
 			}
 			try {
-				const result = await handleCommand(ctx, request.command, request.args);
+				const result = await handleCommand(ctx, request.command, request.args, {
+					connection: ws,
+				});
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -250,6 +249,10 @@ function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
+			// OAuth logins are interactive: if the connection that started one
+			// goes away (webview reload, transport drop), cancel it so the
+			// abandoned browser flow can never persist credentials later.
+			cancelProviderOAuthLoginsForOwner(ws);
 		},
 	};
 }

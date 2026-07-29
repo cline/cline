@@ -300,16 +300,25 @@ export function findLatestSummaryIndex(
 	return -1;
 }
 
+/**
+ * A cut boundary is safe when starting the preserved tail there cannot
+ * orphan half of a tool_use/tool_result pair. Typed user turns qualify,
+ * and so do assistant messages: an assistant's tool_use keeps its results
+ * in the user message that follows it, so both halves stay on the same
+ * side of the cut. A tool_result-only user message is never safe — its
+ * matching tool_use sits in the preceding assistant message and would be
+ * folded into the summary, leaving an orphaned tool_result the provider
+ * rejects.
+ */
+function isSafeCutBoundary(message: MessageWithMetadata): boolean {
+	return message.role === "assistant" || isTurnStartMessage(message);
+}
+
 export function findCutIndex(
 	messages: MessageWithMetadata[],
 	preserveRecentTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
-	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	if (lastTurnStartIndex <= 0) {
-		return 0;
-	}
-
 	let total = 0;
 	let candidate = messages.length;
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -324,14 +333,17 @@ export function findCutIndex(
 		return 0;
 	}
 
-	// Snap to a turn-start boundary so the cut never splits a
-	// tool_use/tool_result pair (or any other intra-turn block).
-	// Everything before the cut gets summarized; everything from
-	// the cut forward is preserved. Both halves of any pair must
-	// land on the same side or the provider will see an orphaned
-	// tool_result (or tool_use) and reject the request.
-	let cut = Math.min(candidate, lastTurnStartIndex);
-	while (cut > 0 && !isTurnStartMessage(messages[cut])) {
+	// Never summarize away the latest typed user prompt: when one exists
+	// past index 0, the cut stays at or before it so that whole turn
+	// survives verbatim. Transcripts without a later typed turn (a single
+	// task followed by one long tool loop, or a projection that starts
+	// with a compaction summary) still cut at the token-budget candidate.
+	const lastTurnStartIndex = findLastTurnStartIndex(messages);
+	let cut =
+		lastTurnStartIndex > 0
+			? Math.min(candidate, lastTurnStartIndex)
+			: candidate;
+	while (cut > 0 && !isSafeCutBoundary(messages[cut])) {
 		cut -= 1;
 	}
 	return cut;
@@ -420,6 +432,190 @@ export function extractFileOps(
 		}
 	}
 	return { readFiles, modifiedFiles };
+}
+
+/** Commands longer than this are truncated in dropped-work summaries. */
+export const COMMAND_SUMMARY_CHAR_LIMIT = 100;
+
+/**
+ * Compact record of the tool work performed inside a span of dropped
+ * messages: which files were read and edited (with line ranges when
+ * known) and which commands ran.
+ */
+export interface ToolActivitySummary {
+	readFiles: string[];
+	editedFiles: string[];
+	commands: string[];
+}
+
+export function hasToolActivity(summary: ToolActivitySummary): boolean {
+	return (
+		summary.readFiles.length > 0 ||
+		summary.editedFiles.length > 0 ||
+		summary.commands.length > 0
+	);
+}
+
+function pushUniqueEntry(list: string[], value: string): void {
+	const trimmed = value.trim();
+	if (trimmed && !list.includes(trimmed)) {
+		list.push(trimmed);
+	}
+}
+
+function truncateCommandForSummary(command: string): string {
+	if (command.length <= COMMAND_SUMMARY_CHAR_LIMIT) {
+		return command;
+	}
+	return `${command.slice(0, COMMAND_SUMMARY_CHAR_LIMIT)}...`;
+}
+
+function formatReadFileEntry(
+	record: Record<string, unknown>,
+): string | undefined {
+	const path = typeof record.path === "string" ? record.path.trim() : "";
+	if (!path) {
+		return undefined;
+	}
+	const start = record.start_line;
+	const end = record.end_line;
+	if (typeof start === "number" && typeof end === "number") {
+		return `${path}:${start}-${end}`;
+	}
+	return path;
+}
+
+/**
+ * Pull the edited line range out of an editor tool result. Editor results
+ * embed a numbered diff (`-467: ...` / `+467: ...`), usually inside a
+ * JSON-encoded payload's `result` field; the range is the min/max line
+ * number seen. Returns undefined when no diff line numbers are found.
+ */
+function extractDiffLineRange(
+	content: ToolResultContent["content"],
+): { start: number; end: number } | undefined {
+	let text =
+		typeof content === "string"
+			? content
+			: content
+					.map((block) =>
+						block.type === "text"
+							? block.text
+							: block.type === "file"
+								? block.content
+								: "",
+					)
+					.join("\n");
+	try {
+		const parsed = JSON.parse(text) as { result?: unknown };
+		if (parsed && typeof parsed.result === "string") {
+			text = parsed.result;
+		}
+	} catch {
+		// Not JSON-encoded; scan the raw text.
+	}
+	let start = Number.POSITIVE_INFINITY;
+	let end = Number.NEGATIVE_INFINITY;
+	for (const match of text.matchAll(/(?:^|\n|\\n)[-+](\d+): /g)) {
+		const line = Number(match[1]);
+		if (!Number.isFinite(line)) {
+			continue;
+		}
+		start = Math.min(start, line);
+		end = Math.max(end, line);
+	}
+	return start <= end ? { start, end } : undefined;
+}
+
+/**
+ * Summarize the tool work inside a span of messages that compaction is
+ * dropping. Read ranges come from read_files inputs; edited ranges come
+ * from the numbered diff in the matching editor result when present.
+ */
+export function summarizeToolActivity(
+	messages: MessageWithMetadata[],
+): ToolActivitySummary {
+	const readFiles: string[] = [];
+	const editedFiles: string[] = [];
+	const commands: string[] = [];
+	const editorPathsByToolUseId = new Map<string, string>();
+	for (const message of messages) {
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "tool_use") {
+				const input = (block.input ?? {}) as Record<string, unknown>;
+				if (block.name === "read_files") {
+					if (Array.isArray(input.files)) {
+						for (const file of input.files) {
+							if (file && typeof file === "object") {
+								const entry = formatReadFileEntry(
+									file as Record<string, unknown>,
+								);
+								if (entry) {
+									pushUniqueEntry(readFiles, entry);
+								}
+							}
+						}
+					} else {
+						for (const path of collectPaths(input)) {
+							pushUniqueEntry(readFiles, path);
+						}
+					}
+					continue;
+				}
+				if (block.name === "editor" || block.name === "apply_patch") {
+					const path = collectPaths(input)[0];
+					if (path) {
+						editorPathsByToolUseId.set(block.id, path);
+					}
+					continue;
+				}
+				if (block.name === "run_commands") {
+					const commandList = Array.isArray(input.commands)
+						? input.commands
+						: [];
+					for (const command of commandList) {
+						if (typeof command === "string" && command.trim()) {
+							pushUniqueEntry(
+								commands,
+								truncateCommandForSummary(command.trim()),
+							);
+						}
+					}
+				}
+				continue;
+			}
+			if (block.type === "tool_result") {
+				const path = editorPathsByToolUseId.get(block.tool_use_id);
+				if (!path) {
+					continue;
+				}
+				const range = extractDiffLineRange(block.content);
+				pushUniqueEntry(
+					editedFiles,
+					range ? `${path}:${range.start}-${range.end}` : path,
+				);
+				editorPathsByToolUseId.delete(block.tool_use_id);
+			}
+		}
+	}
+	// Editor calls whose results fell outside the span still count as edits.
+	for (const path of editorPathsByToolUseId.values()) {
+		pushUniqueEntry(editedFiles, path);
+	}
+	return { readFiles, editedFiles, commands };
+}
+
+export function formatToolActivitySummary(
+	summary: ToolActivitySummary,
+): string {
+	return [
+		`Files read:\n${summary.readFiles.join("\n")}`,
+		`Files edited:\n${summary.editedFiles.join("\n")}`,
+		`Commands ran:\n${summary.commands.join("\n")}`,
+	].join("\n\n");
 }
 
 export function renderFilesSection(fileOps: FileOperationSummary): string {
@@ -528,7 +724,12 @@ export function buildSummaryMessage(options: {
 }): MessageWithMetadata {
 	return {
 		role: "user",
-		content: `Context summary:\n\n${options.summary}`,
+		content: [
+			{
+				type: "text",
+				text: `Context summary:\n\n${options.summary}`,
+			},
+		],
 		metadata: {
 			kind: "compaction_summary",
 			summary: options.summary,

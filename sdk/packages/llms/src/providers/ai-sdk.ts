@@ -15,7 +15,7 @@ import {
 	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { jsonSchema, NoSuchToolError, streamText } from "ai";
+import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { extractErrorMessage } from "./format";
 import {
@@ -52,6 +52,18 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+export function buildAiSdkStreamConfig(
+	request: GatewayStreamRequest,
+	_context: GatewayProviderContext,
+): Partial<CallSettings> {
+	return {
+		...(request.maxTokens !== undefined
+			? { maxOutputTokens: request.maxTokens }
+			: {}),
+		temperature: request.temperature,
+	};
+}
 
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
@@ -352,10 +364,15 @@ function toAiSdkMessages(
 			}
 		}
 
+		// A message left empty only because its reasoning was dropped is
+		// omitted entirely instead of forwarded as an empty turn.
+		const emptiedByDroppedReasoning = !includeReasoning && skippedReasoning;
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
-		} else if (!includeReasoning && skippedReasoning) {
-		} else if (message.role === "user" || message.role === "assistant") {
+		} else if (
+			!emptiedByDroppedReasoning &&
+			(message.role === "user" || message.role === "assistant")
+		) {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
 	}
@@ -1178,6 +1195,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					kind,
 				) as never;
+				const requestConfig = provider.buildStreamConfig
+					? provider.buildStreamConfig(request, context)
+					: buildAiSdkStreamConfig(request, context);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -1186,8 +1206,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						...(useSystemOption ? { system: systemPrompt } : {}),
 						tools,
 						providerOptions,
-						maxOutputTokens: request.maxTokens,
-						temperature: request.temperature,
+						...requestConfig,
 					},
 				});
 				stream = streamText({
@@ -1195,16 +1214,13 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
-					temperature: request.temperature,
-					...(request.maxTokens !== undefined
-						? { maxOutputTokens: request.maxTokens }
-						: {}),
 					abortSignal: request.signal,
 					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
 					providerOptions,
+					...requestConfig,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
 						capturedError.current = msg;

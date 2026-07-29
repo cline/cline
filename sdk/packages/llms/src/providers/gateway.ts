@@ -15,9 +15,11 @@ import { estimateRequestInputTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";
+import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
 
+export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
 
 function mergeRequestMetadata(
@@ -115,26 +117,41 @@ class GatewayModelAdapter implements AgentModel {
 	}
 }
 
-function isPositiveFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
 export function resolveGatewayRequestMaxTokens(input: {
 	requestedMaxTokens?: number;
 	model: Pick<GatewayModelDefinition, "contextWindow" | "maxOutputTokens">;
 	estimatedInputTokens: number;
+	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
+	reasoningBudgetTokens?: number;
 	onContextOverflow?: (details: {
 		contextWindow: number;
 		estimatedInputTokens: number;
 		reserveTokens: number;
 	}) => void;
 }): number | undefined {
-	if (!isPositiveFiniteNumber(input.requestedMaxTokens)) {
-		return undefined;
+	const caps: number[] = [];
+	if (isPositiveFiniteNumber(input.requestedMaxTokens)) {
+		caps.push(Math.floor(input.requestedMaxTokens));
+	} else {
+		// Providers like Anthropic require max_tokens to exceed the thinking
+		// budget, so an explicit reasoning budget lifts the synthesized default
+		// (still clamped by model max output and remaining context below).
+		const reasoningFloor = isPositiveFiniteNumber(input.reasoningBudgetTokens)
+			? Math.floor(input.reasoningBudgetTokens) +
+				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
+			: 0;
+		const defaultMaxOutputTokens = Math.max(
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+			reasoningFloor,
+		);
+		if (
+			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
+			isPositiveFiniteNumber(input.model.contextWindow)
+		) {
+			caps.push(defaultMaxOutputTokens);
+		}
 	}
-
-	const caps: number[] = [Math.floor(input.requestedMaxTokens)];
 
 	if (isPositiveFiniteNumber(input.model.maxOutputTokens)) {
 		caps.push(Math.floor(input.model.maxOutputTokens));
@@ -234,30 +251,31 @@ export class DefaultGateway implements Gateway {
 			request.providerId,
 		);
 		const provider = await providerRecord.createProvider(providerRecord.config);
-		const maxTokens = isPositiveFiniteNumber(request.maxTokens)
-			? resolveGatewayRequestMaxTokens({
-					requestedMaxTokens: request.maxTokens,
-					model: resolved.model,
-					estimatedInputTokens: estimateRequestInputTokens(request),
-					onContextOverflow: (details) => {
-						this.logger?.log(
-							"Estimated prompt tokens exceed model context window",
-							{
-								severity: "warn",
-								providerId: resolved.provider.id,
-								modelId: resolved.model.id,
-								...details,
-							},
-						);
+		const maxTokens = resolveGatewayRequestMaxTokens({
+			requestedMaxTokens: request.maxTokens,
+			model: resolved.model,
+			estimatedInputTokens: estimateRequestInputTokens(request),
+			reasoningBudgetTokens: request.reasoning?.budgetTokens,
+			onContextOverflow: (details) => {
+				this.logger?.log(
+					"Estimated prompt tokens exceed model context window",
+					{
+						severity: "warn",
+						providerId: resolved.provider.id,
+						modelId: resolved.model.id,
+						...details,
 					},
-				})
-			: undefined;
+				);
+			},
+		});
 		const stream = await provider.stream(
 			{
 				...request,
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
 				maxTokens,
+				defaultedMaxTokens:
+					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
 			},
 			{
 				provider: resolved.provider,

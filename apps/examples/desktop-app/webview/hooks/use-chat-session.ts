@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
@@ -46,11 +49,16 @@ import type {
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
+	registerHostHomeDirectory,
 } from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
 const MAX_MESSAGES = 800;
+
+// How long streamed text/reasoning deltas are buffered before a React commit.
+// ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
+const STREAM_FLUSH_INTERVAL_MS = 48;
 
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
@@ -124,9 +132,7 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function chunkCreatedAt(payload: AgentChunkEvent): number {
-	const ts = payload.ts || Date.now();
-	const index = payload.index ?? 0;
-	return ts * 1000 + index;
+	return payload.ts || Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {
@@ -234,6 +240,7 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
@@ -244,6 +251,7 @@ export function useChatSession() {
 		null,
 	);
 	const hydrationRequestIdRef = useRef(0);
+	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
@@ -263,6 +271,19 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		promptsInQueueRef.current = promptsInQueue;
+	}, [promptsInQueue]);
+
+	const setWorkspacePath = useCallback((workspacePath: string): void => {
+		workspaceSelectionRequestRef.current += 1;
+		const normalized = workspacePath.trim();
+		setConfig((previous) => ({
+			...previous,
+			workspaceRoot: normalized,
+			cwd: normalized,
+		}));
+	}, []);
 
 	// ---- Shared state reset helpers ----
 
@@ -310,6 +331,8 @@ export function useChatSession() {
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
 		return await desktopClient.invoke<{
 			sessionId?: string;
+			cwd?: string;
+			workspaceRoot?: string;
 			result?: ChatApiResult;
 			ok?: boolean;
 			queued?: boolean;
@@ -468,13 +491,87 @@ export function useChatSession() {
 		[],
 	);
 
+	// ---- Stream coalescing ----
+	//
+	// Text/reasoning deltas can arrive per-token, and a React commit per token
+	// re-renders the whole conversation for every word. Deltas are buffered in
+	// refs and flushed on a short timer, so streaming costs at most ~20 commits
+	// per second regardless of token rate while still feeling live.
+
+	const pendingStreamTextRef = useRef(new Map<string, string>());
+	const pendingStreamReasoningRef = useRef(
+		new Map<string, { text: string; redacted: boolean }>(),
+	);
+	const pendingStreamTranscriptRef = useRef("");
+	const streamFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	const flushPendingStream = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			clearTimeout(streamFlushTimerRef.current);
+			streamFlushTimerRef.current = null;
+		}
+		const texts = pendingStreamTextRef.current;
+		if (texts.size > 0) {
+			pendingStreamTextRef.current = new Map();
+			for (const [id, chunk] of texts) {
+				appendMessageContent(id, chunk);
+			}
+		}
+		const reasonings = pendingStreamReasoningRef.current;
+		if (reasonings.size > 0) {
+			pendingStreamReasoningRef.current = new Map();
+			for (const [id, entry] of reasonings) {
+				appendMessageReasoning(id, entry.text, entry.redacted);
+			}
+		}
+		const transcript = pendingStreamTranscriptRef.current;
+		if (transcript) {
+			pendingStreamTranscriptRef.current = "";
+			setRawTranscript((prev) => `${prev}${transcript}`);
+		}
+	}, [appendMessageContent, appendMessageReasoning]);
+
+	const schedulePendingStreamFlush = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			return;
+		}
+		streamFlushTimerRef.current = setTimeout(() => {
+			streamFlushTimerRef.current = null;
+			flushPendingStream();
+		}, STREAM_FLUSH_INTERVAL_MS);
+	}, [flushPendingStream]);
+
+	const discardPendingStream = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			clearTimeout(streamFlushTimerRef.current);
+			streamFlushTimerRef.current = null;
+		}
+		pendingStreamTextRef.current = new Map();
+		pendingStreamReasoningRef.current = new Map();
+		pendingStreamTranscriptRef.current = "";
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			if (streamFlushTimerRef.current !== null) {
+				clearTimeout(streamFlushTimerRef.current);
+			}
+		};
+	}, []);
+
 	// ---- Process context ----
 
 	const applyProcessContext = useCallback(async () => {
+		const requestId = workspaceSelectionRequestRef.current;
 		try {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
 			);
+			if (ctx.homeDir) {
+				registerHostHomeDirectory(ctx.homeDir);
+			}
 			const rememberedWorkspace =
 				readWorkspaceSelectionFromWindow().lastWorkspace;
 			const validation = rememberedWorkspace
@@ -484,6 +581,9 @@ export function useChatSession() {
 						})
 						.catch(() => ({ valid: false }))
 				: { valid: false };
+			if (requestId !== workspaceSelectionRequestRef.current) {
+				return;
+			}
 			setConfig((prev) => {
 				const currentWorkspace = (prev.workspaceRoot || prev.cwd || "").trim();
 				const selectionChangedWhileLoading = Boolean(
@@ -665,60 +765,7 @@ export function useChatSession() {
 				return;
 			}
 
-			if (payload.stream === "chat_queued_prompt_start") {
-				let parsed: { prompt?: string; attachmentCount?: number } = {};
-				try {
-					parsed = JSON.parse(payload.chunk) as {
-						prompt?: string;
-						attachmentCount?: number;
-					};
-				} catch {
-					parsed = { prompt: payload.chunk };
-				}
-				const prompt = parsed.prompt?.trim() ?? "";
-				const attachmentCount =
-					typeof parsed.attachmentCount === "number"
-						? parsed.attachmentCount
-						: 0;
-				const userLabel =
-					attachmentCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
-						: prompt;
-				activeAssistantMessageIdRef.current = null;
-				setActiveAssistantMessageId(null);
-				clearLiveToolRefs();
-				setStatus("running");
-				if (userLabel) {
-					setMessages((prev) => {
-						const lastVisible = [...prev]
-							.reverse()
-							.find(
-								(message) =>
-									message.sessionId === listeningSessionId &&
-									message.role !== "status",
-							);
-						if (
-							lastVisible?.role === "user" &&
-							lastVisible.content === userLabel
-						) {
-							return prev;
-						}
-						return sliceMessages([
-							...prev,
-							{
-								id: makeId("user"),
-								sessionId: listeningSessionId,
-								role: "user",
-								content: userLabel,
-								createdAt: chunkCreatedAt(payload),
-							},
-						]);
-					});
-				}
-				return;
-			}
-
-			// --- Text stream ---
+			// --- Text stream (buffered) ---
 			if (payload.stream === "chat_text") {
 				let assistantId = activeAssistantMessageIdRef.current;
 				if (!assistantId) {
@@ -733,8 +780,13 @@ export function useChatSession() {
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
 				}
-				appendMessageContent(assistantId, payload.chunk);
-				setRawTranscript((prev) => `${prev}${payload.chunk}`);
+				const pending = pendingStreamTextRef.current;
+				pending.set(
+					assistantId,
+					(pending.get(assistantId) ?? "") + payload.chunk,
+				);
+				pendingStreamTranscriptRef.current += payload.chunk;
+				schedulePendingStreamFlush();
 				return;
 			}
 
@@ -758,11 +810,83 @@ export function useChatSession() {
 				} catch {
 					parsed = { text: payload.chunk };
 				}
-				appendMessageReasoning(
-					assistantId,
-					parsed.text ?? "",
-					parsed.redacted === true,
+				if (parsed.text || parsed.redacted === true) {
+					const pending = pendingStreamReasoningRef.current;
+					const existing = pending.get(assistantId);
+					pending.set(assistantId, {
+						text: `${existing?.text ?? ""}${parsed.text ?? ""}`,
+						redacted: (existing?.redacted ?? false) || parsed.redacted === true,
+					});
+					schedulePendingStreamFlush();
+				}
+				return;
+			}
+
+			// Any non-delta event (tool calls, prompt starts, done markers) must
+			// observe fully applied text, so drain the buffers first.
+			flushPendingStream();
+
+			if (payload.stream === "chat_queued_prompt_start") {
+				let parsed: {
+					prompt?: string;
+					attachmentCount?: number;
+					userImages?: string[];
+				} = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as {
+						promptId?: string;
+						prompt?: string;
+						attachmentCount?: number;
+						userImages?: string[];
+					};
+				} catch {
+					parsed = { prompt: payload.chunk };
+				}
+				const prompt = parsed.prompt?.trim() ?? "";
+				const attachmentCount =
+					typeof parsed.attachmentCount === "number"
+						? parsed.attachmentCount
+						: 0;
+				const userImages = Array.isArray(parsed.userImages)
+					? parsed.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: [];
+				const attachedFileCount = Math.max(
+					0,
+					attachmentCount - userImages.length,
 				);
+				const userLabel =
+					attachedFileCount > 0
+						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
+						: prompt;
+				const promptId = parsed.promptId?.trim();
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
+				clearLiveToolRefs();
+				setStatus("running");
+				if (userLabel || userImages.length > 0) {
+					setMessages((prev) => {
+						const userMessageId = promptId
+							? `queued_user_${promptId}`
+							: makeId("user");
+						if (prev.some((message) => message.id === userMessageId)) {
+							return prev;
+						}
+						const images = toChatMessageImages(userImages, userMessageId);
+						return sliceMessages([
+							...prev,
+							{
+								id: userMessageId,
+								sessionId: listeningSessionId,
+								role: "user",
+								content: userLabel,
+								images: images.length > 0 ? images : undefined,
+								createdAt: chunkCreatedAt(payload),
+							},
+						]);
+					});
+				}
 				return;
 			}
 
@@ -780,6 +904,31 @@ export function useChatSession() {
 
 			if (payload.stream === "chat_done") {
 				clearLiveToolRefs();
+				// Prompts that the runtime consumed from the queue (for example the
+				// first prompt of a fresh session, which is queued while the
+				// interactive loop is still starting) never resolve through the
+				// send() RPC, so this stream event is the only turn-completion
+				// signal. Without it the composer stays on "Agent is working..."
+				// forever.
+				let doneReason = "";
+				try {
+					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					doneReason = parsed.reason?.trim() ?? "";
+				} catch {
+					// Missing reason still means the turn ended.
+				}
+				setStatus(
+					doneReason === "aborted"
+						? "cancelled"
+						: doneReason === "error"
+							? "failed"
+							: // Prompts still waiting in the queue mean the session is
+								// only between turns, not done: keep the composer in the
+								// busy state until the queue drains.
+								promptsInQueueRef.current.length > 0
+								? "running"
+								: "completed",
+				);
 				return;
 			}
 
@@ -856,9 +1005,9 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
-			appendMessageContent,
-			appendMessageReasoning,
 			clearLiveToolRefs,
+			flushPendingStream,
+			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 		],
 	);
@@ -953,6 +1102,13 @@ export function useChatSession() {
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
+			const workspaceRoot =
+				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
+			const cwd =
+				payload.cwd?.trim() || validatedConfig.cwd?.trim() || workspaceRoot;
+			if (!workspaceRoot || !cwd) {
+				throw new Error("Missing resolved workspace from server");
+			}
 			setSessionId(id);
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
@@ -960,7 +1116,12 @@ export function useChatSession() {
 			if (!options.preserveStatus) {
 				setStatus("idle");
 			}
-			setConfig(validatedConfig);
+			workspaceSelectionRequestRef.current += 1;
+			setConfig({
+				...validatedConfig,
+				cwd,
+				workspaceRoot,
+			});
 			setHydratedHistorySessionId(null);
 			return id;
 		},
@@ -983,6 +1144,7 @@ export function useChatSession() {
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
+			discardPendingStream();
 			setMessages([]);
 			setRawTranscript("");
 			resetCounters();
@@ -1006,6 +1168,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			clearAbortFallbackTimeout,
+			discardPendingStream,
 			resetCounters,
 			setErrorState,
 			startSession,
@@ -1068,9 +1231,12 @@ export function useChatSession() {
 				(attachments) => ({ ok: true as const, attachments }),
 				(error: unknown) => ({ ok: false as const, error }),
 			);
+			const attachedFileCount = attachedFiles.filter(
+				(file) => !file.type.startsWith("image/"),
+			).length;
 			const userLabel =
-				attachedFiles.length > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
+				attachedFileCount > 0
+					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
 					: trimmed;
 			const shouldQueue =
 				Boolean(activeSessionId) &&
@@ -1080,11 +1246,12 @@ export function useChatSession() {
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
+			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
-			if (!shouldQueue) {
+			if (optimisticUserMessageId) {
 				addMessage({
-					id: makeId("user"),
+					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
 					role: "user",
 					content: userLabel,
@@ -1183,6 +1350,23 @@ export function useChatSession() {
 				const hasAttachments =
 					serializedAttachments.userImages.length > 0 ||
 					serializedAttachments.userFiles.length > 0;
+				if (
+					optimisticUserMessageId &&
+					serializedAttachments.userImages.length > 0
+				) {
+					const images = toChatMessageImages(
+						serializedAttachments.userImages,
+						optimisticUserMessageId,
+					);
+					if (images.length > 0) {
+						setMessages((prev) =>
+							updateMessageById(prev, optimisticUserMessageId, (message) => ({
+								...message,
+								images,
+							})),
+						);
+					}
+				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					setStatus("starting");
@@ -1221,8 +1405,8 @@ export function useChatSession() {
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
-				const resolvedAssistantText =
-					assistantText || fallbackAssistantTurn.text;
+				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
+				const resolvedAssistantText = rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1565,6 +1749,7 @@ export function useChatSession() {
 		setIsHydratingSession(false);
 		abortedRef.current = false;
 		clearAbortFallbackTimeout();
+		discardPendingStream();
 		setMessages([]);
 		setRawTranscript("");
 		setError(null);
@@ -1592,6 +1777,7 @@ export function useChatSession() {
 	}, [
 		sessionId,
 		clearAbortFallbackTimeout,
+		discardPendingStream,
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
@@ -1625,6 +1811,7 @@ export function useChatSession() {
 			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
+			discardPendingStream();
 
 			const applyHydratedMessages = (
 				msgs: ChatMessage[],
@@ -1741,6 +1928,7 @@ export function useChatSession() {
 		[
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
+			discardPendingStream,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
@@ -1877,6 +2065,7 @@ export function useChatSession() {
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,
+		setWorkspacePath,
 		start,
 		hydrateSession,
 		sendPrompt,
