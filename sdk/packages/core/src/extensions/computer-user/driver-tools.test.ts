@@ -147,17 +147,19 @@ describe("computer-user driver tools", () => {
 	});
 
 	it("interrupt distinguishes running from not_running", async () => {
-		const { byName } = makeHarness();
+		const { byName, coordinator, pendingSends } = makeHarness();
 		const idle = (await byName
 			.get("computer_user_interrupt")
 			?.execute({}, ctx)) as { status: string };
 		expect(idle.status).toBe("not_running");
 
 		await byName.get("computer_user_start")?.execute({ task: "task" }, ctx);
-		const active = (await byName
+		const activePromise = byName
 			.get("computer_user_interrupt")
-			?.execute({ reason: "wrong window" }, ctx)) as { status: string };
-		expect(active.status).toBe("interrupting");
+			?.execute({ reason: "wrong window" }, ctx) as Promise<{ status: string }>;
+		pendingSends[0]?.resolve(makeResult({ finishReason: "aborted" }));
+		await expect(activePromise).resolves.toMatchObject({ status: "stopped" });
+		expect(coordinator.getState().kind).toBe("idle");
 	});
 
 	it("start surfaces the busy error as a thrown error, not success", async () => {
