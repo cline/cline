@@ -1122,7 +1122,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1602,9 +1602,9 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28 text-[11px]")}
+				{renderProviderSelect("max-w-28 text-xs")}
 				<span className="text-muted-foreground/50">/</span>
-				{renderModelSelect("max-w-52 text-[11px]")}
+				{renderModelSelect("max-w-52 text-xs")}
 			</div>
 		</div>
 	);

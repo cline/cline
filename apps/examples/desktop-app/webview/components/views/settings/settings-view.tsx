@@ -619,7 +619,7 @@ function GeneralSettingsContent() {
 				description="Manage desktop preferences for this browser and CLI environment."
 				title="Settings"
 			/>
-			<section className="max-w-[86rem]">
+			<section className="max-w-344">
 				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div>
 						<p className="text-[17px] font-semibold text-foreground">

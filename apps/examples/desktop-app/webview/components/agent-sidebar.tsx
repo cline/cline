@@ -555,7 +555,7 @@ export function AgentSidebar({
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
 				<div
 					className={cn(
-						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-[4.75rem]",
+						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-19",
 						isCollapsed && "px-0",
 					)}
 					data-tauri-drag-region
@@ -592,7 +592,7 @@ export function AgentSidebar({
 
 				<div
 					className={cn(
-						"flex h-10 shrink-0 items-center justify-between px-3",
+						"flex h-10 shrink-0 items-center justify-between pl-3 pr-2",
 						isCollapsed && "px-1.5",
 					)}
 				>
@@ -699,7 +699,7 @@ export function AgentSidebar({
 					</div>
 				) : (
 					<>
-						<div className="mt-5 shrink-0 px-3">
+						<div className="mt-5 shrink-0 pl-5 pr-2">
 							<div className="flex h-8 items-center justify-between gap-2">
 								<button
 									className={cn(
@@ -711,7 +711,7 @@ export function AgentSidebar({
 								>
 									{sortMode === "time" ? "Sessions" : "Projects"}
 								</button>
-								<div className="flex shrink-0 items-center gap-0.5">
+								<div className="flex shrink-0 items-center gap-0">
 									<Button
 										aria-label="Search sessions"
 										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
@@ -856,7 +856,7 @@ export function AgentSidebar({
 
 				<div
 					className={cn(
-						"shrink-0 border-t border-sidebar-border/70 py-3",
+						"shrink-0 border-t border-sidebar-border/70 py-2",
 						isCollapsed ? "px-1.5" : "px-2",
 					)}
 				>
@@ -865,7 +865,7 @@ export function AgentSidebar({
 							<button
 								aria-label="Account settings"
 								className={cn(
-									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									"flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 									view === "settings" &&
 										settingsSection === "Account" &&
 										"bg-sidebar-accent text-sidebar-accent-foreground",
@@ -874,10 +874,10 @@ export function AgentSidebar({
 								title={user.email || undefined}
 								type="button"
 							>
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+								<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
 									{accountInitial}
 								</span>
-								<span className="flex min-w-0 flex-col leading-tight">
+								<span className="flex min-w-0 flex-col gap-0.5 leading-tight">
 									<span className="truncate text-sm font-medium">
 										{accountName}
 									</span>
