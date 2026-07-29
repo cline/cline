@@ -9,6 +9,8 @@ import { clearVoiceCaptionDraft } from "./voice/voiceCaptionState";
 import { Roster } from "./Roster";
 import { applyTranscriptFocus } from "./rosterHelpers";
 import {
+	advanceSampleScript,
+	attachSampleHoldScript,
 	enqueueSampleArchitectureShow,
 	presentSampleArchitectureShow,
 	tickShowDirector,
@@ -110,6 +112,12 @@ export function DriveRoomChrome({
 					}}
 					onTickShowDirector={() => {
 						tickShowDirector(drive.roomId);
+					}}
+					onAttachSampleScript={() => {
+						attachSampleHoldScript(drive.roomId);
+					}}
+					onAdvanceSampleScript={() => {
+						advanceSampleScript(drive.roomId);
 					}}
 					presentSampleDisabled={disabled || !drive.active}
 					providerId={providerId}

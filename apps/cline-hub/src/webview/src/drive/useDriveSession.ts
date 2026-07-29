@@ -279,6 +279,7 @@ export function useDriveSession(
 				title?: string;
 				caption?: string;
 				uri?: string;
+				say?: string;
 				ownerParticipantId?: string;
 				snapshot?: RoomSnapshot;
 				auditHandle?: string;
@@ -312,6 +313,24 @@ export function useDriveSession(
 					uri: message.uri,
 					ownerParticipantId: message.ownerParticipantId,
 				});
+				return;
+			}
+			if (message.type === "drive_script_beat") {
+				const say =
+					typeof message.say === "string" ? message.say.trim() : "";
+				if (say) {
+					setPresentedShow((current) =>
+						current
+							? {
+									...current,
+									caption: say,
+								}
+							: {
+									showItemId: message.showItemId ?? "script-beat",
+									caption: say,
+								},
+					);
+				}
 				return;
 			}
 			if (message.type === "call_error") {

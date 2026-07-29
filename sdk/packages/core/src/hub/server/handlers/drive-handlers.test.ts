@@ -265,4 +265,74 @@ describe("handleDriveCommand", () => {
 			published.some((event) => event.event === "drive.show.presented"),
 		).toBe(true);
 	});
+
+	it("attach sample hold script then advance updates say while keeping show", () => {
+		const { ctx, published } = createCtx();
+		const showItem = {
+			id: "show-hold",
+			ownerParticipantId: "drive:partner",
+			title: "Hold",
+			intent: "Explain",
+			artifactKind: "diagram.architecture" as const,
+			mediaClass: "still" as const,
+			caption: "diagram",
+			produce: {
+				tool: "render_mermaid",
+				args: { mermaidSource: "graph TD; A-->B;" },
+			},
+			priority: 10,
+			status: "ready" as const,
+			scoreReasons: [],
+		};
+		const attach = handleDriveCommand(
+			ctx,
+			envelope("drive.script.attach", {
+				roomId: "r-script",
+				showItems: [showItem],
+				script: {
+					scriptId: "s1",
+					ownerParticipantId: "drive:partner",
+					title: "Hold script",
+					stickyShowIds: ["show-hold"],
+					beats: [
+						{
+							beatId: "b1",
+							say: "First say",
+							showItemId: "show-hold",
+							sticky: { mode: "hold" },
+							advance: "on_human",
+						},
+						{
+							beatId: "b2",
+							say: "Second say",
+							showItemId: "show-hold",
+							sticky: { mode: "hold" },
+							advance: "on_human",
+						},
+					],
+				},
+			}),
+		);
+		expect(attach.ok).toBe(true);
+		expect(attach.payload?.beatId).toBe("b1");
+		const advance = handleDriveCommand(
+			ctx,
+			envelope("drive.script.advance", { roomId: "r-script" }),
+		);
+		expect(advance.ok).toBe(true);
+		expect(advance.payload?.beatId).toBe("b2");
+		expect(advance.payload?.say).toBe("Second say");
+		const room = advance.payload?.room as {
+			director: { activeShowId: string; activeBeatId: string };
+		};
+		expect(room.director.activeShowId).toBe("show-hold");
+		expect(room.director.activeBeatId).toBe("b2");
+		const beats = published.filter((event) => event.event === "drive.script.beat");
+		expect(beats.length).toBeGreaterThanOrEqual(2);
+		expect(beats.at(-1)?.payload).toMatchObject({
+			beatId: "b2",
+			say: "Second say",
+			showItemId: "show-hold",
+		});
+	});
 });

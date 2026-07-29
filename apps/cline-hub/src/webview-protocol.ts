@@ -284,6 +284,8 @@ export type WebviewInboundMessage =
 				| "drive.show.present"
 				| "drive.show.enqueue"
 				| "drive.show.tick"
+				| "drive.script.attach"
+				| "drive.script.advance"
 				| "drive.fork.list"
 				| "drive.fork.audit.get"
 				| "drive.fork.retain.set";
@@ -530,6 +532,14 @@ export type WebviewOutboundMessage =
 			title?: string;
 			status?: string;
 			priority?: number;
+	  }
+	| {
+			type: "drive_script_beat";
+			beatId: string | null;
+			say: string;
+			showItemId: string | null;
+			stickyShowIds: string[];
+			activeScriptId: string | null;
 	  }
 	| {
 			type: "drive_spotlight_changed";

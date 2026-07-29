@@ -79,3 +79,58 @@ export function tickShowDirector(roomId?: string | null): void {
 		},
 	});
 }
+
+const SAMPLE_SCRIPT_SHOW_A = "show-sample-script-a";
+const SAMPLE_SCRIPT_SHOW_B = "show-sample-script-b";
+
+/** Two-beat hold script for Sample / dev (same sticky URI, changing say). */
+export function attachSampleHoldScript(roomId?: string | null): void {
+	const showA = buildSampleArchitectureShowItem({
+		id: SAMPLE_SCRIPT_SHOW_A,
+		priority: 20,
+	});
+	const showB = buildSampleArchitectureShowItem({
+		id: SAMPLE_SCRIPT_SHOW_B,
+		priority: 10,
+	});
+	postToHost({
+		type: "driveCommand",
+		command: "drive.script.attach",
+		payload: {
+			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
+			showItems: [showA, showB],
+			script: {
+				scriptId: "sample-hold-script",
+				ownerParticipantId: DRIVE_PARTICIPANT_PARTNER,
+				title: "Sample hold script",
+				stickyShowIds: [SAMPLE_SCRIPT_SHOW_A],
+				beats: [
+					{
+						beatId: "beat-1",
+						say: "Beat 1 — here is the architecture overview.",
+						showItemId: SAMPLE_SCRIPT_SHOW_A,
+						sticky: { mode: "hold" },
+						advance: "on_human",
+					},
+					{
+						beatId: "beat-2",
+						say: "Beat 2 — still on the same sticky diagram.",
+						showItemId: SAMPLE_SCRIPT_SHOW_A,
+						sticky: { mode: "hold" },
+						advance: "on_human",
+					},
+				],
+			},
+		},
+	});
+}
+
+export function advanceSampleScript(roomId?: string | null): void {
+	postToHost({
+		type: "driveCommand",
+		command: "drive.script.advance",
+		payload: {
+			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
+		},
+	});
+}

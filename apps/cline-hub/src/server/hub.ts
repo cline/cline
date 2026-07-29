@@ -245,6 +245,20 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 					typeof payload.priority === "number" ? payload.priority : undefined,
 			});
 		},
+		onDriveScriptBeat(payload) {
+			ctx.broadcast({
+				type: "drive_script_beat",
+				beatId: asString(payload.beatId) ?? null,
+				say: asString(payload.say) ?? "",
+				showItemId: asString(payload.showItemId) ?? null,
+				stickyShowIds: Array.isArray(payload.stickyShowIds)
+					? payload.stickyShowIds.filter(
+							(id): id is string => typeof id === "string",
+						)
+					: [],
+				activeScriptId: asString(payload.activeScriptId) ?? null,
+			});
+		},
 		onDriveSpotlightChanged(payload) {
 			ctx.broadcast({
 				type: "drive_spotlight_changed",

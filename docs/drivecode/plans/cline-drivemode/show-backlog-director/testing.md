@@ -37,7 +37,11 @@ Slices **1 + 2 + 3** with fixture seed (no planner):
 3. Tick ranks/presents → StickyStagePane.
 4. Attach 2-beat script → advance → sticky holds, caption changes.
 
-## Slice 2 live smoke (Enqueue + tick)
+## Slice 3 live smoke (Script hold)
+
+1. Join call (Stage auto-opens) → Settings → Sample / dev.
+2. **Attach sample script** → sticky shows diagram with Beat 1 caption.
+3. **Next script beat** → same diagram URI, caption becomes Beat 2.
 
 1. Join call → Stage on → open Settings → Sample / dev.
 2. Click **Enqueue sample diagram** (sticky should not change yet).

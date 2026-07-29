@@ -1,4 +1,5 @@
 import {
+	advanceScriptBeat,
 	normalizeEnqueuedShowStatus,
 	pickNextShowToPresent,
 	setParticipantDeafened,
@@ -6,7 +7,11 @@ import {
 	setSpotlight,
 } from "@cline/drive";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
-import { type ShowBacklogItem, ShowBacklogItemSchema } from "@cline/shared";
+import {
+	DirectorScriptSchema,
+	type ShowBacklogItem,
+	ShowBacklogItemSchema,
+} from "@cline/shared";
 import {
 	getDriveRoomStore,
 	resetDriveRoomStoreForTests,
@@ -45,6 +50,10 @@ type ShowExtraEvent =
 	  }
 	| {
 			event: "drive.show.planned";
+			payload: Record<string, unknown>;
+	  }
+	| {
+			event: "drive.script.beat";
 			payload: Record<string, unknown>;
 	  };
 
@@ -164,6 +173,10 @@ export function handleDriveCommand(
 			return handleShowEnqueue(ctx, envelope);
 		case "drive.show.tick":
 			return handleShowTick(ctx, envelope);
+		case "drive.script.attach":
+			return handleScriptAttach(ctx, envelope);
+		case "drive.script.advance":
+			return handleScriptAdvance(ctx, envelope);
 		default:
 			return errorReply(envelope, "not_implemented", "Unknown drive command");
 	}
@@ -392,6 +405,181 @@ function handleShowTick(
 		},
 	});
 	return okReply(envelope, { room: next, presented: tick.presented });
+}
+
+function publishBeat(
+	ctx: HubTransportContext,
+	room: DriveLiveRoom,
+	beatId: string | null,
+	say: string,
+	showItemId: string | null,
+): void {
+	publishRoom(ctx, room, {
+		event: "drive.script.beat",
+		payload: {
+			beatId,
+			say,
+			showItemId,
+			stickyShowIds: room.director.stickyShowIds,
+			activeScriptId: room.director.activeScript?.scriptId ?? null,
+		},
+	});
+}
+
+function presentDirectorActiveShow(
+	room: DriveLiveRoom,
+): { room: DriveLiveRoom; presented: ShowBacklogItem | null } {
+	const showId = room.director.activeShowId;
+	if (!showId) {
+		return { room, presented: null };
+	}
+	const item = room.director.showBacklog.find((entry) => entry.id === showId);
+	if (!item) {
+		return { room, presented: null };
+	}
+	const next = applyPresentedShow(room, item);
+	const presented =
+		next.director.showBacklog.find((entry) => entry.id === showId) ?? null;
+	return { room: next, presented };
+}
+
+function handleScriptAttach(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const roomId = readString(envelope.payload, "roomId") ?? "default";
+	const parsedScript = DirectorScriptSchema.safeParse(envelope.payload?.script);
+	if (!parsedScript.success) {
+		return errorReply(
+			envelope,
+			"invalid_payload",
+			"script must be a valid DirectorScript",
+		);
+	}
+	const script = parsedScript.data;
+	const extraShows = Array.isArray(envelope.payload?.showItems)
+		? envelope.payload.showItems
+				.map((entry) => ShowBacklogItemSchema.safeParse(entry))
+				.filter((entry) => entry.success)
+				.map((entry) => entry.data)
+		: [];
+
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
+	let showBacklog = [...room.director.showBacklog];
+	for (const show of extraShows) {
+		showBacklog = [
+			{ ...show, status: normalizeEnqueuedShowStatus(show.status) },
+			...showBacklog.filter((item) => item.id !== show.id),
+		];
+	}
+
+	const seeded = advanceScriptBeat({
+		state: {
+			...room.director,
+			showBacklog,
+			activeScript: script,
+			activeBeatId: null,
+			activeShowId: null,
+			stickyShowIds: [],
+		},
+		script,
+	});
+	let next = store.setLive({
+		...room,
+		director: seeded,
+		spotlightParticipantId:
+			room.spotlightParticipantId ?? seeded.spotlightParticipantId,
+	});
+	const presented = presentDirectorActiveShow(next);
+	next = store.setLive(presented.room);
+	const beat = script.beats.find((entry) => entry.beatId === seeded.activeBeatId);
+	if (presented.presented) {
+		publishRoom(ctx, next, {
+			event: "drive.show.presented",
+			payload: {
+				showItemId: presented.presented.id,
+				ownerParticipantId: presented.presented.ownerParticipantId,
+				uri: presented.presented.uri,
+				caption: beat?.say ?? presented.presented.caption,
+				title: presented.presented.title,
+			},
+		});
+	} else {
+		publishRoom(ctx, next);
+	}
+	publishBeat(
+		ctx,
+		next,
+		seeded.activeBeatId,
+		beat?.say ?? "",
+		seeded.activeShowId,
+	);
+	return okReply(envelope, { room: next, beatId: seeded.activeBeatId });
+}
+
+function handleScriptAdvance(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const roomId = readString(envelope.payload, "roomId") ?? "default";
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
+	const script = room.director.activeScript;
+	if (!script) {
+		return errorReply(
+			envelope,
+			"no_active_script",
+			"No active DirectorScript on this room",
+		);
+	}
+	const previousShowId = room.director.activeShowId;
+	const advanced = advanceScriptBeat({
+		state: room.director,
+		script,
+	});
+	let next = store.setLive({
+		...room,
+		director: advanced,
+	});
+	const beat = script.beats.find(
+		(entry) => entry.beatId === advanced.activeBeatId,
+	);
+	const showChanged = advanced.activeShowId !== previousShowId;
+	if (showChanged && advanced.activeShowId) {
+		const presented = presentDirectorActiveShow(next);
+		next = store.setLive(presented.room);
+		if (presented.presented) {
+			publishRoom(ctx, next, {
+				event: "drive.show.presented",
+				payload: {
+					showItemId: presented.presented.id,
+					ownerParticipantId: presented.presented.ownerParticipantId,
+					uri: presented.presented.uri,
+					caption: beat?.say ?? presented.presented.caption,
+					title: presented.presented.title,
+				},
+			});
+		} else {
+			publishRoom(ctx, next);
+		}
+	} else {
+		publishRoom(ctx, next);
+	}
+	publishBeat(
+		ctx,
+		next,
+		advanced.activeBeatId,
+		beat?.say ?? "",
+		advanced.activeShowId,
+	);
+	return okReply(envelope, {
+		room: next,
+		beatId: advanced.activeBeatId,
+		say: beat?.say ?? "",
+	});
 }
 
 /** @internal test helper — clears collaboration store (single live Map). */

@@ -36,9 +36,9 @@ Attach an active `DirectorScript` to the room director; advance beats with `adva
 
 ## Acceptance
 
-- [ ] Two-beat script: beat1 diagram + say A → advance → same URI (hold) + say B.
-- [ ] Replace beat tears down sticky to new show id.
-- [ ] `bun -F @cline/drive test` and core handler tests green.
+- [x] Two-beat script: beat1 diagram + say A → advance → same URI (hold) + say B.
+- [x] Replace beat tears down sticky to new show id.
+- [x] `bun -F @cline/drive test` and core handler tests green.
 
 ## Risks
 

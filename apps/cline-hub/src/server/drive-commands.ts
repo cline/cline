@@ -9,6 +9,8 @@ type DriveWebviewCommand =
 	| "drive.show.present"
 	| "drive.show.enqueue"
 	| "drive.show.tick"
+	| "drive.script.attach"
+	| "drive.script.advance"
 	| "drive.fork.list"
 	| "drive.fork.audit.get"
 	| "drive.fork.retain.set";

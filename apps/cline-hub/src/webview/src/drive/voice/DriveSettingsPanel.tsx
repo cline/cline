@@ -31,6 +31,8 @@ export function DriveSettingsPanel({
 	onPresentSampleDiagram,
 	onEnqueueSampleDiagram,
 	onTickShowDirector,
+	onAttachSampleScript,
+	onAdvanceSampleScript,
 	presentSampleDisabled,
 }: {
 	providerId: string;
@@ -47,6 +49,8 @@ export function DriveSettingsPanel({
 	onEnqueueSampleDiagram?: () => void;
 	/** Sample / dev — rank + present top backlog item. */
 	onTickShowDirector?: () => void;
+	onAttachSampleScript?: () => void;
+	onAdvanceSampleScript?: () => void;
 	presentSampleDisabled?: boolean;
 }) {
 	const llm = resolveLlmEgressForUi({
@@ -274,6 +278,30 @@ export function DriveSettingsPanel({
 							variant="outline"
 						>
 							Tick show director
+						</Button>
+					) : null}
+					{onAttachSampleScript ? (
+						<Button
+							data-testid="drive-attach-sample-script"
+							disabled={presentSampleDisabled}
+							onClick={onAttachSampleScript}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Attach sample script
+						</Button>
+					) : null}
+					{onAdvanceSampleScript ? (
+						<Button
+							data-testid="drive-advance-sample-script"
+							disabled={presentSampleDisabled}
+							onClick={onAdvanceSampleScript}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Next script beat
 						</Button>
 					) : null}
 				</div>

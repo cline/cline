@@ -441,6 +441,8 @@ export class HubServerTransport implements NativeHubTransport {
 			case "drive.show.present":
 			case "drive.show.enqueue":
 			case "drive.show.tick":
+			case "drive.script.attach":
+			case "drive.script.advance":
 				return handleDriveCommand(this.ctx, envelope);
 			case "drive.fork.claim":
 			case "drive.fork.promote":

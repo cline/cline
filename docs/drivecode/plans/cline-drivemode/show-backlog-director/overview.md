@@ -133,7 +133,7 @@ That is **slices 1 + 2 + 3** with a fixture seed (no planner yet).
 |---|---|
 | 1 Present trigger | **Done** (sample Settings control + title plumb + tests + smoke doc) |
 | 2 Enqueue + rank tick | **Done** (enqueue/tick commands, pickNextShow, Settings Sample/dev controls) |
-| 3 Script runner | Not started |
+| 3 Script runner | **Done** (attach/advance + beat event + Sample/dev Next beat; hold tested) |
 | 4 Do↔Show link | Not started |
 | 5 Planner policy | Not started |
 | 6 Extra producers | Not started |
