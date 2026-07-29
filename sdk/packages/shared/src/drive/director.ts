@@ -142,6 +142,12 @@ export const StageDirectorStateSchema = z
 		stickyShowIds: z.array(z.string()),
 		spotlightParticipantId: z.string().min(1).nullable(),
 		lastPresentedAt: z.string().datetime().nullable(),
+		/** Hub show planner: off disables; heuristic is default when unset. */
+		showPlannerMode: z.enum(["off", "heuristic"]).optional(),
+		/** When true (default), work events may tick show director after enqueue. */
+		tickOnWork: z.boolean().optional(),
+		showPlannerCooldownMs: z.number().int().nonnegative().optional(),
+		showPlannerLastAtByTemplate: z.record(z.string(), z.string()).optional(),
 	})
 	.strict();
 export type StageDirectorState = z.infer<typeof StageDirectorStateSchema>;

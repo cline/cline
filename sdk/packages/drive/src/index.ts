@@ -200,6 +200,16 @@ export {
 	type ChatForkClaimIntent,
 } from "./director/chatForkLifecycle.js";
 export {
+	DEFAULT_SHOW_PLANNER_COOLDOWN_MS,
+	planShowIntents,
+	workCategoryFromKind,
+	type PlanShowIntentsInput,
+	type PlanShowIntentsResult,
+	type PlanShowSignal,
+	type PlanShowWorkCategory,
+	type ShowPlannerMode,
+} from "./director/planShowIntents.js";
+export {
 	getShowTemplate,
 	mediaClassForArtifactKind,
 	SHOW_TEMPLATE_KIT,
