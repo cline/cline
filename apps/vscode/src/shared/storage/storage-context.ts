@@ -80,6 +80,26 @@ function hashString(str: string): string {
 }
 
 /**
+ * Resolve the Cline data directory from the environment:
+ * CLINE_DATA_DIR (trimmed) > CLINE_DIR + "/data" > ~/.cline/data.
+ *
+ * Single source of truth shared by createStorageContext and the SDK adapter's
+ * legacy-state-reader, matching the SDK's own resolveClineDataDir. Every
+ * reader/writer of globalState.json, secrets.json, and providers.json must
+ * resolve through the same rules — diverging resolvers split provider state
+ * across directories, so requests can run on a provider the settings never
+ * show (ENG-2332).
+ */
+export function resolveDataDirFromEnv(): string {
+	const envDataDir = process.env.CLINE_DATA_DIR?.trim()
+	if (envDataDir) {
+		return envDataDir
+	}
+	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
+	return path.join(clineDir, SETTINGS_SUBFOLDER)
+}
+
+/**
  * Creates a StorageContext backed by JSON files on disk.
  *
  * All path computation is contained here — callers should not
@@ -94,14 +114,7 @@ function hashString(str: string): string {
  * @returns A StorageContext ready for use by StateManager
  */
 export function createStorageContext(opts: StorageContextOptions = {}): StorageContext {
-	const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	// CLINE_DATA_DIR must win over CLINE_DIR-derived paths, matching the SDK's
-	// resolveClineDataDir and the legacy reader's resolveDataDir. Diverging here
-	// splits globalState.json/secrets.json and providers.json across different
-	// directories, so requests can run on a provider the settings never show.
-	const dataDir = opts.clineDir
-		? path.join(opts.clineDir, SETTINGS_SUBFOLDER)
-		: process.env.CLINE_DATA_DIR?.trim() || path.join(clineDir, SETTINGS_SUBFOLDER)
+	const dataDir = opts.clineDir ? path.join(opts.clineDir, SETTINGS_SUBFOLDER) : resolveDataDirFromEnv()
 
 	// Resolve workspace storage directory
 	let workspaceDir: string

@@ -7,12 +7,12 @@
 // All reads are non-throwing — missing or corrupt files return defaults.
 
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
+import { resolveDataDirFromEnv } from "@shared/storage/storage-context"
 import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
 
 // ---------------------------------------------------------------------------
@@ -24,13 +24,9 @@ import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
  * Priority: CLINE_DATA_DIR env > CLINE_DIR env + "/data" > ~/.cline/data
  */
 export function resolveDataDir(override?: string): string {
-	if (override) return override
-	// Trim to match createStorageContext and the SDK's resolveClineDataDir, so
-	// a whitespace-padded CLINE_DATA_DIR cannot split the two stores again.
-	const envDataDir = process.env.CLINE_DATA_DIR?.trim()
-	if (envDataDir) return envDataDir
-	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	return path.join(clineDir, "data")
+	// Delegates to the same resolver createStorageContext uses so the two
+	// stores can never drift apart again (ENG-2332).
+	return override || resolveDataDirFromEnv()
 }
 
 /** Path to globalState.json */
