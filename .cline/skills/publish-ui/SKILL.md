@@ -163,6 +163,11 @@ version before generating the nightly version. For example, a checked-in
 to npm under the `nightly` dist-tag; they do not create Git tags, GitHub
 releases, or Slack announcements.
 
+Scheduled runs skip publishing when `main` has no commits in the last 24 hours,
+so identical code is not republished nightly. Manual dispatches are never
+skipped by this check. To force a nightly after a quiet day, dispatch the
+workflow manually or wait for the next commit to `main`.
+
 To verify the latest nightly:
 
 ```sh
