@@ -486,6 +486,7 @@ export type HubCommandName =
 	| "call_raise_hand"
 	| "call_rename_participant"
 	| "call_set_stage"
+	| "call_set_address"
 	| "call_set_mode"
 	| "call_record_work"
 	| "call_get_room"

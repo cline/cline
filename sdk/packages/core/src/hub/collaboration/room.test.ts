@@ -188,6 +188,19 @@ describe("DriveRoomStore", () => {
 		store.unlinkSession("sess_1");
 		expect(store.getRoomIdForSession("sess_1")).toBeUndefined();
 	});
+
+	it("setAddress commits control.address onto the snapshot", () => {
+		const store = new DriveRoomStore();
+		store.create("room_addr");
+		store.setAddress({
+			roomId: "room_addr",
+			addressSet: { mode: "agents", agentIds: ["adam"] },
+		});
+		expect(store.getOrThrow("room_addr").addressSet).toEqual({
+			mode: "agents",
+			agentIds: ["adam"],
+		});
+	});
 });
 
 describe("joinCall", () => {

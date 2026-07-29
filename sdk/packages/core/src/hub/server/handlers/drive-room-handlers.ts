@@ -10,6 +10,7 @@ import type {
 	StageSharer,
 } from "@cline/shared";
 import {
+	AddressSetSchema,
 	DriveSubModeSchema,
 	ParticipantSchema,
 	StageSharerSchema,
@@ -100,6 +101,10 @@ const CallSetStagePayloadSchema = RoomIdSchema.extend({
 		.strict()
 		.nullable()
 		.optional(),
+}).strict();
+
+const CallSetAddressPayloadSchema = RoomIdSchema.extend({
+	addressSet: AddressSetSchema,
 }).strict();
 
 const CallSetModePayloadSchema = RoomIdSchema.extend({
@@ -404,6 +409,27 @@ export function handleDriveRoomCommand(
 					roomId: payload.roomId,
 					sharer: payload.sharer as StageSharer | null,
 					pin: payload.pin,
+				});
+				publishRoomEvent(
+					ctx,
+					payload.roomId,
+					committed.snapshot,
+					committed.event,
+					committed.seq,
+				);
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
+			}
+			case "call_set_address": {
+				const payload = CallSetAddressPayloadSchema.parse(
+					envelope.payload ?? {},
+				);
+				store.create(payload.roomId);
+				const committed = store.setAddress({
+					roomId: payload.roomId,
+					addressSet: payload.addressSet,
 				});
 				publishRoomEvent(
 					ctx,

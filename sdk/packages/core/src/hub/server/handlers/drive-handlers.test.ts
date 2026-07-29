@@ -1,5 +1,6 @@
 import type { HubCommandEnvelope, HubEventEnvelope } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getDriveRoomStore } from "../../collaboration";
 import type { HubTransportContext } from "./context";
 import {
 	__resetDriveRoomsForTests,
@@ -347,6 +348,64 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
+	it("blocks script say when the speaker is muted", () => {
+		const { ctx, published } = createCtx();
+		handleDriveCommand(
+			ctx,
+			envelope("drive.participant.mute.set", {
+				roomId: "r-mute-say",
+				participantId: "drive:partner",
+				muted: true,
+			}),
+		);
+		const attach = handleDriveCommand(
+			ctx,
+			envelope("drive.script.attach", {
+				roomId: "r-mute-say",
+				showItems: [
+					{
+						id: "show-mute",
+						ownerParticipantId: "drive:partner",
+						title: "Mute",
+						intent: "Explain",
+						artifactKind: "diagram.architecture",
+						mediaClass: "still",
+						caption: "diagram",
+						produce: {
+							tool: "render_mermaid",
+							args: { mermaidSource: "graph TD; A-->B;" },
+						},
+						priority: 10,
+						status: "ready",
+						scoreReasons: [],
+					},
+				],
+				script: {
+					scriptId: "s-mute",
+					ownerParticipantId: "drive:partner",
+					title: "Muted script",
+					stickyShowIds: ["show-mute"],
+					beats: [
+						{
+							beatId: "b1",
+							say: "Should not speak",
+							showItemId: "show-mute",
+							sticky: { mode: "hold" },
+							advance: "on_human",
+						},
+					],
+				},
+			}),
+		);
+		expect(attach.ok).toBe(true);
+		const beats = published.filter((event) => event.event === "drive.script.beat");
+		expect(beats.at(-1)?.payload).toMatchObject({
+			beatId: "b1",
+			say: "",
+			deliveryBlocked: "sender_muted",
+		});
+	});
+
 	it("enqueues a Do backlog item onto the room director", () => {
 		const { ctx, published } = createCtx();
 		const reply = handleDriveCommand(
@@ -498,5 +557,60 @@ describe("handleDriveCommand", () => {
 		);
 		expect(tick.ok).toBe(true);
 		expect(tick.payload?.presented).toBeNull();
+	});
+
+	it("show tick prefers addressed owner when priorities tie", () => {
+		const { ctx } = createCtx();
+		getDriveRoomStore().create("r-addr");
+		getDriveRoomStore().setAddress({
+			roomId: "r-addr",
+			addressSet: { mode: "agents", agentIds: ["agent-b"] },
+		});
+		const baseShow = {
+			title: "Tie",
+			intent: "x",
+			artifactKind: "doc.plan" as const,
+			mediaClass: "document" as const,
+			caption: "c",
+			produce: {
+				tool: "render_plan_card",
+				templateId: "doc.plan",
+				args: {},
+			},
+			priority: 10,
+			status: "ready" as const,
+			scoreReasons: [] as string[],
+		};
+		handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", {
+				roomId: "r-addr",
+				showItem: {
+					...baseShow,
+					id: "show-a",
+					ownerParticipantId: "agent-a",
+				},
+			}),
+		);
+		handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", {
+				roomId: "r-addr",
+				showItem: {
+					...baseShow,
+					id: "show-b",
+					ownerParticipantId: "agent-b",
+				},
+			}),
+		);
+		const tick = handleDriveCommand(
+			ctx,
+			envelope("drive.show.tick", { roomId: "r-addr" }),
+		);
+		expect(tick.ok).toBe(true);
+		const room = tick.payload?.room as {
+			director: { activeShowId: string };
+		};
+		expect(room.director.activeShowId).toBe("show-b");
 	});
 });

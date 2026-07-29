@@ -1,5 +1,6 @@
 import {
 	advanceScriptBeat,
+	assertDeliveryAllowed,
 	DEFAULT_SHOW_PLANNER_COOLDOWN_MS,
 	normalizeEnqueuedShowStatus,
 	pickNextShowToPresent,
@@ -10,6 +11,7 @@ import {
 	workCategoryFromKind,
 } from "@cline/drive";
 import type {
+	AddressSet,
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 	StageSharer,
@@ -276,10 +278,20 @@ function applyPresentedShow(
  * Rank planned/ready shows and present the winner (materialize + activeShowId).
  * No-op when backlog has nothing presentable.
  */
+export function addressedParticipantIdsFromAddressSet(
+	addressSet: AddressSet | undefined | null,
+): Set<string> {
+	if (!addressSet || addressSet.mode !== "agents") {
+		return new Set();
+	}
+	return new Set(addressSet.agentIds);
+}
+
 export function runShowDirectorTick(input: {
 	room: DriveLiveRoom;
 	preferShowId?: string | null;
 	demoCapture?: boolean;
+	addressedParticipantIds?: ReadonlySet<string>;
 }): { room: DriveLiveRoom; presented: ShowBacklogItem | null } {
 	const snapshot = getDriveRoomStore().get(input.room.roomId);
 	/** Prefer stage.sharer (authoritative) over live spotlight (S1.3). */
@@ -287,9 +299,13 @@ export function runShowDirectorTick(input: {
 		snapshot?.stage.sharer?.participantId ??
 		input.room.director.spotlightParticipantId ??
 		input.room.spotlightParticipantId;
+	const addressedParticipantIds =
+		input.addressedParticipantIds ??
+		addressedParticipantIdsFromAddressSet(snapshot?.addressSet);
 	const ranked = pickNextShowToPresent({
 		items: input.room.director.showBacklog,
 		spotlightParticipantId,
+		addressedParticipantIds,
 		preferShowId: input.preferShowId,
 	});
 	if (!ranked) {
@@ -831,6 +847,34 @@ function publishBeat(
 	say: string,
 	showItemId: string | null,
 ): void {
+	const speakerId =
+		room.director.activeScript?.ownerParticipantId ??
+		room.spotlightParticipantId ??
+		"system";
+	if (say.trim().length > 0) {
+		const delivery = assertDeliveryAllowed({
+			senderId: speakerId,
+			receiverId: speakerId,
+			flags: room.participantAudio,
+			channel: "room",
+			requireSpeak: true,
+		});
+		if (!delivery.ok) {
+			publishRoom(ctx, room, {
+				event: "drive.script.beat",
+				payload: {
+					beatId,
+					say: "",
+					showItemId,
+					stickyShowIds: room.director.stickyShowIds,
+					activeScriptId: room.director.activeScript?.scriptId ?? null,
+					deliveryBlocked: delivery.code,
+					deliveryMessage: delivery.message,
+				},
+			});
+			return;
+		}
+	}
 	publishRoom(ctx, room, {
 		event: "drive.script.beat",
 		payload: {

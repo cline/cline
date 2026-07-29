@@ -96,10 +96,13 @@ export function createClineDriveHost(
 					return result.snapshot;
 				}
 				case "setAddress": {
-					// Address is applied via control.address when event exists; for now
-					// return current snapshot of the only room if present.
 					const roomId = firstRoomId(store);
-					return store.getOrThrow(roomId);
+					const result = store.setAddress({
+						roomId,
+						addressSet: op.addressSet,
+					});
+					emit(result.event);
+					return result.snapshot;
 				}
 				case "setStage": {
 					const roomId = firstRoomId(store);

@@ -9,6 +9,7 @@
 
 import { createEmptyRoomSnapshot, reduceRoom } from "@cline/drive";
 import type {
+	AddressSet,
 	DriveEvent,
 	DriveRoomLiveState,
 	DriveSubMode,
@@ -350,6 +351,24 @@ export class DriveRoomStore {
 			track: "control",
 			sharer: input.sharer,
 			...(input.pin !== undefined ? { pin: input.pin } : {}),
+		});
+	}
+
+	setAddress(input: {
+		roomId: string;
+		addressSet: AddressSet;
+		actorId?: string;
+		at?: string;
+	}): RoomCommitResult {
+		return this.commit({
+			schemaVersion: 1,
+			id: newEventId("address"),
+			roomId: input.roomId,
+			at: input.at ?? nowIso(),
+			actorId: input.actorId,
+			type: "control.address",
+			track: "control",
+			addressSet: input.addressSet,
 		});
 	}
 
