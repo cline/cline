@@ -256,21 +256,16 @@ export class DriveRoomStore {
 			snapshot.participants.length > 0
 				? snapshot.participants.map((p) => p.id)
 				: live.seatedParticipantIds;
+		/** Stage sharer is the authority for who presents (S1 converge). */
+		const sharerId = snapshot.stage.sharer?.participantId ?? null;
 		this.setLive({
 			...live,
 			seatedParticipantIds,
 			participantAudio: [...byId.values()],
-			spotlightParticipantId:
-				live.spotlightParticipantId ??
-				snapshot.stage.sharer?.participantId ??
-				null,
+			spotlightParticipantId: sharerId,
 			director: {
 				...live.director,
-				spotlightParticipantId:
-					live.director.spotlightParticipantId ??
-					live.spotlightParticipantId ??
-					snapshot.stage.sharer?.participantId ??
-					null,
+				spotlightParticipantId: sharerId,
 			},
 		});
 	}

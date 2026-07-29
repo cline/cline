@@ -79,6 +79,17 @@ describe("handleDriveCommand", () => {
 		expect(
 			published.some((event) => event.event === "drive.spotlight.changed"),
 		).toBe(true);
+		const room = reply.payload?.room as {
+			spotlightParticipantId: string;
+		};
+		expect(room.spotlightParticipantId).toBe("agent-1");
+		const snapshot = reply.payload?.snapshot as {
+			stage: { sharer: { participantId: string; kind: string } | null };
+		};
+		expect(snapshot.stage.sharer).toEqual({
+			kind: "agent",
+			participantId: "agent-1",
+		});
 	});
 
 	it("toggles mute independently of deafen", () => {

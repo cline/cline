@@ -784,15 +784,14 @@ export function useDriveSession(
 				});
 			},
 			onToggleSpotlight: () => {
-				// Hub is authoritative; wait for drive_room_changed.
+				const nextId = toggleDriveSpotlightId(drive.spotlightParticipantId);
+				const kind = isDriveHumanId(nextId) ? "human" : "agent";
+				// call_set_stage is authoritative; live spotlight syncs from sharer.
 				postToHost({
-					type: "driveCommand",
-					command: "drive.spotlight.set",
-					payload: {
-						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
-						participantId: toggleDriveSpotlightId(drive.spotlightParticipantId),
-						reason: "human",
-					},
+					type: "call_set_stage",
+					roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
+					sharer: { kind, participantId: nextId },
+					pin: null,
 				});
 			},
 			onToggleWorkers: toggleWorkersPanel,

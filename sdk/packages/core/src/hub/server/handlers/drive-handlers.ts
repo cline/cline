@@ -6,11 +6,14 @@ import {
 	planShowIntents,
 	setParticipantDeafened,
 	setParticipantMuted,
-	setSpotlight,
 	type ShowPlannerMode,
 	workCategoryFromKind,
 } from "@cline/drive";
-import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import type {
+	HubCommandEnvelope,
+	HubReplyEnvelope,
+	StageSharer,
+} from "@cline/shared";
 import {
 	DirectorScriptSchema,
 	DoBacklogItemSchema,
@@ -278,11 +281,15 @@ export function runShowDirectorTick(input: {
 	preferShowId?: string | null;
 	demoCapture?: boolean;
 }): { room: DriveLiveRoom; presented: ShowBacklogItem | null } {
+	const snapshot = getDriveRoomStore().get(input.room.roomId);
+	/** Prefer stage.sharer (authoritative) over live spotlight (S1.3). */
+	const spotlightParticipantId =
+		snapshot?.stage.sharer?.participantId ??
+		input.room.director.spotlightParticipantId ??
+		input.room.spotlightParticipantId;
 	const ranked = pickNextShowToPresent({
 		items: input.room.director.showBacklog,
-		spotlightParticipantId:
-			input.room.director.spotlightParticipantId ??
-			input.room.spotlightParticipantId,
+		spotlightParticipantId,
 		preferShowId: input.preferShowId,
 	});
 	if (!ranked) {
@@ -495,30 +502,67 @@ function handleSpotlightSet(
 	}
 	const store = getDriveRoomStore();
 	store.create(roomId);
-	const room = store.getOrCreateLive(roomId);
-	const seated = new Set(room.seatedParticipantIds);
+	const snapshot = store.get(roomId);
+	const live = store.getOrCreateLive(roomId);
+	const seated = new Set(
+		snapshot?.participants.map((p) => p.id) ?? live.seatedParticipantIds,
+	);
 	if (seated.size === 0) {
 		seated.add(participantId);
+	} else if (!seated.has(participantId)) {
+		return errorReply(
+			envelope,
+			"not_seated",
+			`Participant ${participantId} is not seated`,
+		);
 	}
-	const result = setSpotlight({ participantId, seatedIds: seated });
-	if (!result.ok) {
-		return errorReply(envelope, result.code, result.message);
-	}
-	const from = room.spotlightParticipantId;
-	const next = store.setLive({
-		...room,
-		spotlightParticipantId: result.spotlightParticipantId,
-		seatedParticipantIds: [...seated],
-		director: {
-			...room.director,
-			spotlightParticipantId: result.spotlightParticipantId,
-		},
+
+	const fromSnapshot = snapshot?.participants.find((p) => p.id === participantId);
+	const kind: StageSharer["kind"] =
+		fromSnapshot?.kind === "human" ||
+		participantId === "drive:human" ||
+		participantId === "human" ||
+		participantId === "you"
+			? "human"
+			: "agent";
+	const sharer: StageSharer = { kind, participantId };
+	const from = live.spotlightParticipantId;
+
+	const committed = store.setStage({
+		roomId,
+		sharer,
+		pin: null,
+		actorId: participantId,
 	});
+	const next = store.getOrCreateLive(roomId);
 	publishRoom(ctx, next, {
 		event: "drive.spotlight.changed",
-		payload: { from, to: result.spotlightParticipantId, reason },
+		payload: {
+			from,
+			to: next.spotlightParticipantId,
+			reason,
+			via: "call_set_stage",
+		},
 	});
-	return okReply(envelope, { room: next });
+	ctx.publish(
+		ctx.buildEvent("room.event", {
+			roomId,
+			seq: committed.seq,
+			event: committed.event,
+		}),
+	);
+	ctx.publish(
+		ctx.buildEvent("room.snapshot", {
+			roomId,
+			snapshot: committed.snapshot,
+			seq: committed.seq,
+		}),
+	);
+	return okReply(envelope, {
+		room: next,
+		snapshot: committed.snapshot,
+		seq: committed.seq,
+	});
 }
 
 function handleMuteSet(
