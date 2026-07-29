@@ -35,6 +35,9 @@ export type TrackedSession = {
 	provider?: string;
 	model?: string;
 	source?: string;
+	/** Hidden from default session chrome when true (ChatFork / subagent). */
+	isSubagent?: boolean;
+	chatFork?: boolean;
 	createdAt: number;
 	updatedAt: number;
 	createdByClientId?: string;

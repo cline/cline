@@ -8,7 +8,7 @@ Mode-first integration. [ARD-0007](ard/ARD-0007-drive-as-cline-mode.md), [PRD 8]
 
 Repo-level continuation brief. [HANDOFF-drivecode.md](../HANDOFF-drivecode.md).
 
-**Session handoff.** [HANDOFF.md](HANDOFF.md) — start here if you are picking this work up cold.  
+**Session handoff.** [HANDOFF.md](HANDOFF.md) — start here if you are picking this work up cold.
 **PR 24 (U4 AI SDK 7) handoff.** [HANDOFF-pr24-u4.md](HANDOFF-pr24-u4.md) — remaining work to land the AI SDK major.
 
 ## Documents
@@ -93,6 +93,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-STAGE](features/DRV-STAGE.md) | The Call Stage (agent work projection) | 2 | MVP |
 | [DRV-SHARE](features/DRV-SHARE.md) | Bidirectional stage share (human \| agent) | 2 | MVP |
 | [DRV-TRANSCRIPT](features/DRV-TRANSCRIPT.md) | Room transcript vs per-agent focus | 2 | MVP |
+| [DRV-CHAT-FORK](features/DRV-CHAT-FORK.md) | Invisible auditable worker forks + PromotePacket | 2+ | Landed |
 | [DRV-ADDRESS](features/DRV-ADDRESS.md) | Address set (one / many / everyone / pack) | 2 | MVP |
 | [DRV-ROSTER-PACK](features/DRV-ROSTER-PACK.md) | Curated roster presets, added in one action | 2 | MVP |
 | [DRV-AGENT-GRAPH](features/DRV-AGENT-GRAPH.md) | Per-agent portfolio knowledge graph | 2 | MVP |

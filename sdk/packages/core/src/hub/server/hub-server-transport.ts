@@ -52,6 +52,8 @@ import {
 } from "./handlers/context";
 import { handleDriveConfigCommand } from "./handlers/drive-config-handlers";
 import { handleDriveCommand } from "./handlers/drive-handlers";
+import { handleDriveForkCommand } from "./handlers/drive-fork-handlers";
+import { handleDriveForkTickCommand } from "./handlers/drive-fork-tick";
 import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
 import {
 	handleRunAbort,
@@ -436,6 +438,15 @@ export class HubServerTransport implements NativeHubTransport {
 			case "drive.participant.deafen.set":
 			case "drive.show.present":
 				return handleDriveCommand(this.ctx, envelope);
+			case "drive.fork.claim":
+			case "drive.fork.promote":
+			case "drive.fork.cancel":
+			case "drive.fork.list":
+			case "drive.fork.audit.get":
+			case "drive.fork.retain.set":
+				return await handleDriveForkCommand(this.ctx, envelope);
+			case "drive.fork.tick":
+				return await handleDriveForkTickCommand(this.ctx, envelope);
 			case "drive_config_get":
 			case "drive_config_put":
 				return handleDriveConfigCommand(this.ctx, envelope);

@@ -22,14 +22,23 @@ export function DriveRoomChrome({
 	disabled: boolean;
 	providerId: string;
 }) {
-	const { drive, driveVoice, setDriveVoice, driveJoinNote, stripHandlers } =
-		session;
+	const {
+		drive,
+		driveVoice,
+		setDriveVoice,
+		driveJoinNote,
+		stripHandlers,
+		chatForks,
+		workersPanelOpen,
+	} = session;
 
 	return (
 		<>
 			<DriveCallStrip
 				disabled={disabled}
 				drive={drive}
+				workerCount={chatForks.length}
+				workersOpen={workersPanelOpen}
 				{...stripHandlers}
 			/>
 			{drive.active && driveVoice.settingsOpen ? (

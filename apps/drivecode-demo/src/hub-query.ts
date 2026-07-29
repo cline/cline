@@ -3,6 +3,8 @@ export type DrivecodeDemoHubBootstrap = {
 	useDemoTeamsAdapter: boolean;
 	/** `?demoShareScreen=1` — mount simulated share-screen Spotlight demo */
 	useShareScreenSpotlightDemo: boolean;
+	/** `?demoChatFork=1` — mount ChatFork claim→show→promote demo */
+	useChatForkDemo: boolean;
 	/** `?statusMode=` — initial Status Hub mode */
 	initialStatusMode?: "board" | "changelog" | "dependency-map";
 };
@@ -32,6 +34,7 @@ export function readDrivecodeDemoHubBootstrap(
 	return {
 		useDemoTeamsAdapter: params.get("demoPlans") === "1",
 		useShareScreenSpotlightDemo: params.get("demoShareScreen") === "1",
+		useChatForkDemo: params.get("demoChatFork") === "1",
 		initialStatusMode:
 			mode === "board" || mode === "changelog" || mode === "dependency-map"
 				? mode

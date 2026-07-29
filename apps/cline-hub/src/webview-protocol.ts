@@ -114,6 +114,9 @@ export type WebviewSessionSummary = {
 	inputTokens?: number;
 	outputTokens?: number;
 	totalCost?: number;
+	/** Filter from default Chat / history lists when set. */
+	isSubagent?: boolean;
+	chatFork?: boolean;
 };
 
 export type WebviewConnectedClient = {
@@ -276,7 +279,10 @@ export type WebviewInboundMessage =
 				| "drive.spotlight.set"
 				| "drive.participant.mute.set"
 				| "drive.participant.deafen.set"
-				| "drive.show.present";
+				| "drive.show.present"
+				| "drive.fork.list"
+				| "drive.fork.audit.get"
+				| "drive.fork.retain.set";
 			payload?: Record<string, unknown>;
 	  }
 	| {
@@ -450,8 +456,16 @@ export type WebviewOutboundMessage =
 						ownerParticipantId: string;
 					}>;
 				};
+				chatForks?: import("@cline/shared").ChatForkRecord[];
 				version: number;
 			};
+	  }
+	| {
+			type: "drive_fork_audit";
+			auditHandle: string;
+			messages: unknown[];
+			summaryOnly: boolean;
+			fork?: import("@cline/shared").ChatForkRecord;
 	  }
 	| {
 			type: "drive_show_presented";

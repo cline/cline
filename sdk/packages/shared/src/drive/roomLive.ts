@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ChatForkRecordSchema } from "./chatFork";
 import {
 	ParticipantAudioFlagsSchema,
 	StageDirectorStateSchema,
@@ -11,6 +12,7 @@ export const DriveRoomLiveStateSchema = z
 		participantAudio: z.array(ParticipantAudioFlagsSchema),
 		director: StageDirectorStateSchema,
 		seatedParticipantIds: z.array(z.string().min(1)),
+		chatForks: z.array(ChatForkRecordSchema),
 		version: z.number().int().nonnegative(),
 	})
 	.strict();
@@ -38,6 +40,7 @@ export function createEmptyDriveRoomLiveState(
 			lastPresentedAt: null,
 		},
 		seatedParticipantIds: [],
+		chatForks: [],
 		version: 0,
 	};
 }

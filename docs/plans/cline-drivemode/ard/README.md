@@ -2,7 +2,7 @@
 
 **ARD** = Architecture Decision Record (same artifact family as ADR in cursor-drive and harrison-site).
 
-**Status board.** [ARD-0000-status-board.md](ARD-0000-status-board.md) — Accepted / Recommended / Proposed / Open in one place.  
+**Status board.** [ARD-0000-status-board.md](ARD-0000-status-board.md) — Accepted / Recommended / Proposed / Open in one place.
 **Leadership defaults.** Treat ARD-0001…0004 as **Recommended** pending Harrison `accept all` | `change: …`.
 
 | ID | Title | Status | Features |
@@ -19,6 +19,7 @@
 | [ARD-0010](ARD-0010-provider-harness-byok.md) | Drive provider harness (BYOK) with OOTB packs | Accepted | [DRV-PLATFORM-CONFIG](../features/DRV-PLATFORM-CONFIG.md), [DRV-MIC](../features/DRV-MIC.md), [DRV-TTS](../features/DRV-TTS.md) |
 | [ARD-0011](ARD-0011-demo-share-track.md) | Demo share track (Cursor-like proof on stage) | Proposed | [DRV-DEMO-SHARE](../features/DRV-DEMO-SHARE.md), [DRV-SHARE](../features/DRV-SHARE.md), [DRV-STAGE](../features/DRV-STAGE.md) |
 | [ARD-0012](ARD-0012-agent-router.md) | Agent router for multi-agent rooms | Proposed | [DRV-AGENT-ROUTER](../features/DRV-AGENT-ROUTER.md), [DRV-ADDRESS](../features/DRV-ADDRESS.md) |
+| [ARD-0014](ARD-0014-chat-fork-lifecycle.md) | Chat-fork lifecycle (invisible auditable workers) | Accepted | [DRV-CHAT-FORK](../features/DRV-CHAT-FORK.md), [DRV-TRANSCRIPT](../features/DRV-TRANSCRIPT.md), [DRV-PARALLEL-WAVES](../features/DRV-PARALLEL-WAVES.md) |
 
 Product requirements: [../prd/prd-driveagent-portfolio.md](../prd/prd-driveagent-portfolio.md), [../prd/prd-pip-partner.md](../prd/prd-pip-partner.md), [../prd/prd-drive-as-cline-mode.md](../prd/prd-drive-as-cline-mode.md), [../prd/prd-task-bank-drive-loop.md](../prd/prd-task-bank-drive-loop.md).
 
@@ -30,7 +31,7 @@ Note: ARD-0005 is reserved for Status Hub work landing from the agent-host-proto
 | [ARD-0004](ARD-0004-gated-learn-privacy.md) | Gated learn; no transcript dump into agent knowledge | Recommended | [DRV-AGENT-GRAPH](../features/DRV-AGENT-GRAPH.md), [DRV-PRIVACY](../features/DRV-PRIVACY.md) |
 | [ARD-0005](ARD-0005-status-hub.md) | Status Hub: SQLite append-only status log in the Cline SDK | Accepted | — (SDK-scope; Drive is first consumer) |
 
-Product requirements: [../prd/prd-driveagent-portfolio.md](../prd/prd-driveagent-portfolio.md).  
+Product requirements: [../prd/prd-driveagent-portfolio.md](../prd/prd-driveagent-portfolio.md).
 Success metrics: [../prd/prd-success-metrics.md](../prd/prd-success-metrics.md).
 
 Example home: [../examples/driveagent-pair-partner/](../examples/driveagent-pair-partner/).
