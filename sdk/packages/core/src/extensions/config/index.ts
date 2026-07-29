@@ -2,6 +2,11 @@ export type {
 	AvailableRuntimeCommand,
 	RuntimeCommandKind,
 } from "./runtime-commands";
+export {
+	isSkillAllowed,
+	normalizeSkillToken,
+	toAllowedSkillSet,
+} from "./skill-allowlist";
 // Skill frontmatter mutation is intentionally not exported from this barrel.
 export type {
 	UnifiedConfigDefinition,

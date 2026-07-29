@@ -1,5 +1,6 @@
 import { truncateSplit } from "@cline/shared";
 import type { BuiltinSkill } from "./builtin-skills";
+import { isSkillAllowed, toAllowedSkillSet } from "./skill-allowlist";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
@@ -69,13 +70,24 @@ function listCommandsForKind(
 export function listAvailableRuntimeCommandsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
+	allowedSkillNames?: ReadonlyArray<string>,
 ): AvailableRuntimeCommand[] {
+	// The session skill allowlist governs every surface a skill can reach,
+	// including built-ins: an explicit empty allowlist disables all skills.
+	// Workflows are not skills and are never filtered by it.
+	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const byName = new Map<string, AvailableRuntimeCommand>();
 	for (const command of [
 		...builtinSkillCommands(builtinSkills),
 		...listCommandsForKind(watcher, "workflow"),
 		...listCommandsForKind(watcher, "skill"),
 	]) {
+		if (
+			command.kind === "skill" &&
+			!isSkillAllowed(command.id, command.name, allowedSkills)
+		) {
+			continue;
+		}
 		const normalizedName = command.name.trim().toLowerCase();
 		if (!byName.has(normalizedName)) {
 			byName.set(normalizedName, command);
@@ -88,6 +100,7 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
 	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
+	allowedSkillNames?: ReadonlyArray<string>,
 ): string {
 	if (!input.startsWith("/") || input.length < 2) {
 		return input;
@@ -105,6 +118,7 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	const matched = listAvailableRuntimeCommandsFromWatcher(
 		watcher,
 		builtinSkills,
+		allowedSkillNames,
 	).find((command) => command.name === name);
 	return matched ? `${matched.instructions}${remainder}` : input;
 }

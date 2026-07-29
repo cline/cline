@@ -263,6 +263,19 @@ describe("hub client runtime capabilities", () => {
 		);
 		expect(service?.hasConfiguredSkills()).toBe(true);
 		expect(service?.hasConfiguredSkills([])).toBe(false);
+		expect(service?.resolveRuntimeSlashCommand("/cline-settings")).toBe(
+			"Use /resolved/cline/settings.json.",
+		);
+		// The skill allowlist gates skill commands but never workflows.
+		expect(service?.resolveRuntimeSlashCommand("/cline-settings", [])).toBe(
+			"/cline-settings",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/ship now", [])).toBe(
+			"Ship it carefully. now",
+		);
+		expect(
+			service?.listRuntimeCommands([]).map((command) => command.name),
+		).toEqual(["ship"]);
 		expect(
 			await service?.createSkillsExecutor?.()("cline-settings", undefined, {
 				agentId: "agent-1",

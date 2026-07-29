@@ -39,8 +39,13 @@ export interface UserInstructionConfigService {
 	listRecords<TConfig extends UserInstructionConfig = UserInstructionConfig>(
 		type: UserInstructionConfigType,
 	): UserInstructionConfigRecord<TConfig>[];
-	listRuntimeCommands(): AvailableRuntimeCommand[];
-	resolveRuntimeSlashCommand(input: string): string;
+	listRuntimeCommands(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): AvailableRuntimeCommand[];
+	resolveRuntimeSlashCommand(
+		input: string,
+		allowedSkillNames?: ReadonlyArray<string>,
+	): string;
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean;
 	createSkillsExecutor?(
 		allowedSkillNames?: ReadonlyArray<string>,
@@ -67,7 +72,14 @@ class DefaultUserInstructionConfigService
 	}
 
 	private builtinSkills(): BuiltinSkill[] {
-		return listBuiltinSkills(this.workspacePath);
+		// Report the directories this watcher actually scans (including
+		// explicit overrides and per-type roots), not re-derived defaults.
+		return listBuiltinSkills({
+			workspacePath: this.workspacePath,
+			ruleDirectories: this.watcher.getConfiguredDirectories("rule"),
+			skillDirectories: this.watcher.getConfiguredDirectories("skill"),
+			workflowDirectories: this.watcher.getConfiguredDirectories("workflow"),
+		});
 	}
 
 	start(): Promise<void> {
@@ -105,18 +117,25 @@ class DefaultUserInstructionConfigService
 		);
 	}
 
-	listRuntimeCommands(): AvailableRuntimeCommand[] {
+	listRuntimeCommands(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): AvailableRuntimeCommand[] {
 		return listAvailableRuntimeCommandsFromWatcher(
 			this.watcher,
 			this.builtinSkills(),
+			allowedSkillNames,
 		);
 	}
 
-	resolveRuntimeSlashCommand(input: string): string {
+	resolveRuntimeSlashCommand(
+		input: string,
+		allowedSkillNames?: ReadonlyArray<string>,
+	): string {
 		return resolveRuntimeSlashCommandFromWatcher(
 			input,
 			this.watcher,
 			this.builtinSkills(),
+			allowedSkillNames,
 		);
 	}
 

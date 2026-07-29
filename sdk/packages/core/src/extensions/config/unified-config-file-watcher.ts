@@ -207,6 +207,16 @@ export class UnifiedConfigFileWatcher<
 		});
 	}
 
+	/**
+	 * The configured base scan roots for a type, exactly as passed at
+	 * construction (explicit `directories` overrides included). Reporting
+	 * surfaces use this so they describe the directories this watcher
+	 * actually reads, not re-derived defaults.
+	 */
+	getConfiguredDirectories(type: TType): ReadonlyArray<string> {
+		return this.definitionsByType.get(type)?.directories ?? [];
+	}
+
 	getSnapshot(type: TType): Map<string, UnifiedConfigRecord<TType, TItem>> {
 		const records = this.recordsByType.get(type);
 		return new Map(

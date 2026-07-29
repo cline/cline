@@ -2,7 +2,7 @@ import {
 	resolveAgentConfigSearchPaths,
 	resolveClineDataDir,
 	resolveClineDir,
-	resolveConnectorSettingsPath,
+	resolveConnectorsDbPath,
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
@@ -21,11 +21,34 @@ export interface BuiltinSkill {
 	skill: SkillConfig;
 }
 
+/**
+ * Runtime locations the settings skill reports. The watcher-backed types
+ * (rules/skills/workflows) carry the directories the running watcher
+ * actually scans — which may differ per type (e.g. skills rooted at the
+ * workspace root while rules and workflows are rooted at the session cwd)
+ * and may be explicit `directories` overrides. `workspacePath` feeds the
+ * resolver-derived sections (hooks/plugins/agents) that have no watcher.
+ */
+export interface BuiltinSkillContext {
+	workspacePath?: string;
+	ruleDirectories?: ReadonlyArray<string>;
+	skillDirectories?: ReadonlyArray<string>;
+	workflowDirectories?: ReadonlyArray<string>;
+}
+
 function formatPaths(paths: ReadonlyArray<string>): string {
 	return paths.map((path) => `- \`${path}\``).join("\n");
 }
 
-function createSettingsInstructions(workspacePath?: string): string {
+function createSettingsInstructions(context: BuiltinSkillContext): string {
+	const workspacePath = context.workspacePath;
+	const ruleDirectories =
+		context.ruleDirectories ?? resolveRulesConfigSearchPaths(workspacePath);
+	const skillDirectories =
+		context.skillDirectories ?? resolveSkillsConfigSearchPaths(workspacePath);
+	const workflowDirectories =
+		context.workflowDirectories ??
+		resolveWorkflowsConfigSearchPaths(workspacePath);
 	return `Use these resolved locations when answering questions about Cline configuration. These values come from the same path resolvers as the running Cline core; do not substitute remembered paths from older conversations or documentation.
 
 ## Active shared files
@@ -35,24 +58,24 @@ function createSettingsInstructions(workspacePath?: string): string {
 - Provider credentials and model configuration: \`${resolveProviderSettingsPath()}\`
 - Global behavioral settings: \`${resolveGlobalSettingsPath()}\`
 - MCP server configuration: \`${resolveMcpSettingsPath()}\`
-- Connector configuration: \`${resolveConnectorSettingsPath()}\`
+- Connector configuration and credentials (SQLite database): \`${resolveConnectorsDbPath()}\`
 - Sessions: \`${resolveSessionDataDir()}\`
 - Agent team state: \`${resolveTeamDataDir()}\`
 
-The provider and MCP files can contain credentials or tokens. Do not print their contents, commit them, or copy secrets into chat unless the user explicitly requests a safe, redacted inspection.
+The provider and MCP files and the connector database can contain credentials or tokens. Do not print their contents, commit them, or copy secrets into chat unless the user explicitly requests a safe, redacted inspection. Connector configuration lives only in the database above; an older \`connectors/settings.json\` file is a one-time migration source that the runtime imports and renames, so editing it has no effect.
 
 ## Configuration search locations
 
 Cline merges configuration from several locations. The following are search locations, not aliases for one active file. More specific workspace entries can coexist with global entries.
 
 ### Rules
-${formatPaths(resolveRulesConfigSearchPaths(workspacePath))}
+${formatPaths(ruleDirectories)}
 
 ### Skills
-${formatPaths(resolveSkillsConfigSearchPaths(workspacePath))}
+${formatPaths(skillDirectories)}
 
 ### Workflows
-${formatPaths(resolveWorkflowsConfigSearchPaths(workspacePath))}
+${formatPaths(workflowDirectories)}
 
 ### Hooks
 ${formatPaths(resolveHooksConfigSearchPaths(workspacePath))}
@@ -72,7 +95,9 @@ ${formatPaths(resolveAgentConfigSearchPaths(workspacePath))}
 - Environment overrides may change these locations between processes. Invoke this skill again in the process whose configuration you are diagnosing.`;
 }
 
-export function listBuiltinSkills(workspacePath?: string): BuiltinSkill[] {
+export function listBuiltinSkills(
+	context: BuiltinSkillContext = {},
+): BuiltinSkill[] {
 	return [
 		{
 			id: "cline-settings",
@@ -81,7 +106,7 @@ export function listBuiltinSkills(workspacePath?: string): BuiltinSkill[] {
 				description:
 					"Locate Cline settings, configuration files, and search directories using the current runtime paths.",
 				get instructions() {
-					return createSettingsInstructions(workspacePath);
+					return createSettingsInstructions(context);
 				},
 				frontmatter: {},
 			},

@@ -40,6 +40,11 @@ import type {
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
+import {
+	isSkillAllowed,
+	normalizeSkillToken,
+	toAllowedSkillSet,
+} from "../../extensions/config";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -232,37 +237,20 @@ function asToolUpdate(payload: Record<string, unknown>): unknown {
 	return Object.hasOwn(payload, "update") ? payload.update : payload;
 }
 
-function normalizeSkillToken(token: string): string {
-	return token.trim().replace(/^\/+/, "").toLowerCase();
-}
-
-function toAllowedSkillSet(
+/**
+ * Snapshot runtime commands filtered by the session skill allowlist: an
+ * explicit empty allowlist disables all skill commands including built-ins.
+ * Workflows are not skills and are never filtered by it.
+ */
+function allowedRuntimeCommands(
+	snapshot: UserInstructionSnapshot,
 	allowedSkillNames?: ReadonlyArray<string>,
-): Set<string> | undefined {
-	if (allowedSkillNames === undefined) return undefined;
-	const normalized = allowedSkillNames.map(normalizeSkillToken).filter(Boolean);
-	return new Set(normalized);
-}
-
-function isSkillAllowed(
-	skillId: string,
-	skillName: string,
-	allowedSkills?: Set<string>,
-): boolean {
-	if (!allowedSkills) return true;
-	const normalizedId = normalizeSkillToken(skillId);
-	const normalizedName = normalizeSkillToken(skillName);
-	const bareId = normalizedId.includes(":")
-		? (normalizedId.split(":").at(-1) ?? normalizedId)
-		: normalizedId;
-	const bareName = normalizedName.includes(":")
-		? (normalizedName.split(":").at(-1) ?? normalizedName)
-		: normalizedName;
-	return (
-		allowedSkills.has(normalizedId) ||
-		allowedSkills.has(normalizedName) ||
-		allowedSkills.has(bareId) ||
-		allowedSkills.has(bareName)
+): AvailableRuntimeCommand[] {
+	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
+	return snapshot.runtimeCommands.filter(
+		(command) =>
+			command.kind !== "skill" ||
+			isSkillAllowed(command.id, command.name, allowedSkills),
 	);
 }
 
@@ -387,13 +375,14 @@ function createUserInstructionServiceProxy(
 		>(
 			type: UserInstructionConfigType,
 		) => [...snapshot.records[type]] as UserInstructionConfigRecord<TConfig>[],
-		listRuntimeCommands: () => [...snapshot.runtimeCommands],
-		resolveRuntimeSlashCommand: (input) => {
+		listRuntimeCommands: (allowedSkillNames) =>
+			allowedRuntimeCommands(snapshot, allowedSkillNames),
+		resolveRuntimeSlashCommand: (input, allowedSkillNames) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
 			const name = match?.[1];
 			if (!name) return input;
-			const command = snapshot.runtimeCommands.find(
+			const command = allowedRuntimeCommands(snapshot, allowedSkillNames).find(
 				(item) => item.name === name,
 			);
 			return command
@@ -439,7 +428,10 @@ function createUserInstructionServiceProxy(
 						) as AgentTool,
 					);
 				}
-				for (const command of snapshot.runtimeCommands.filter(
+				for (const command of allowedRuntimeCommands(
+					snapshot,
+					options.allowedSkillNames,
+				).filter(
 					(command) =>
 						(command.kind === "skill" && options.includeSkills) ||
 						(command.kind === "workflow" && options.includeWorkflows),

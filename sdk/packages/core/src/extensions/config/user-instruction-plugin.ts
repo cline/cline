@@ -7,6 +7,11 @@ import {
 } from "../tools";
 import type { BuiltinSkill } from "./builtin-skills";
 import { listAvailableRuntimeCommandsFromWatcher } from "./runtime-commands";
+import {
+	isSkillAllowed,
+	normalizeSkillToken,
+	toAllowedSkillSet,
+} from "./skill-allowlist";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
@@ -32,46 +37,6 @@ export interface CreateUserInstructionPluginOptions {
 	registerSkillsTool?: boolean;
 	allowedSkillNames?: ReadonlyArray<string>;
 	builtinSkills?: ReadonlyArray<BuiltinSkill>;
-}
-
-function normalizeSkillToken(token: string): string {
-	return token.trim().replace(/^\/+/, "").toLowerCase();
-}
-
-function toAllowedSkillSet(
-	allowedSkillNames?: ReadonlyArray<string>,
-): Set<string> | undefined {
-	if (allowedSkillNames === undefined) {
-		return undefined;
-	}
-	const normalized = allowedSkillNames
-		.map(normalizeSkillToken)
-		.filter((token) => token.length > 0);
-	return new Set(normalized);
-}
-
-function isSkillAllowed(
-	skillId: string,
-	skillName: string,
-	allowedSkills?: Set<string>,
-): boolean {
-	if (!allowedSkills) {
-		return true;
-	}
-	const normalizedId = normalizeSkillToken(skillId);
-	const normalizedName = normalizeSkillToken(skillName);
-	const bareId = normalizedId.includes(":")
-		? (normalizedId.split(":").at(-1) ?? normalizedId)
-		: normalizedId;
-	const bareName = normalizedName.includes(":")
-		? (normalizedName.split(":").at(-1) ?? normalizedName)
-		: normalizedName;
-	return (
-		allowedSkills.has(normalizedId) ||
-		allowedSkills.has(normalizedName) ||
-		allowedSkills.has(bareId) ||
-		allowedSkills.has(bareName)
-	);
 }
 
 export function getConfiguredSkillsFromWatcher(
@@ -298,6 +263,7 @@ export function createUserInstructionPlugin(
 			for (const command of listAvailableRuntimeCommandsFromWatcher(
 				options.watcher,
 				options.builtinSkills,
+				options.allowedSkillNames,
 			).filter(
 				(command) =>
 					(command.kind === "skill" && options.includeSkills) ||
