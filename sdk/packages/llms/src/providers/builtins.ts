@@ -485,6 +485,7 @@ function modelInfoToGateway(
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
 		capabilities: [...capabilities],
+		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }

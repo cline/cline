@@ -12,6 +12,7 @@ import {
 	type AgentMessage,
 	type AgentModelEvent,
 	estimateRequestInputTokens,
+	type GatewayModelHandleOptions,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -122,6 +123,14 @@ async function collect(
 	return events;
 }
 
+function mockSuccessfulStream(): void {
+	streamTextSpy.mockReturnValue({
+		fullStream: makeStreamParts([
+			{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+		]),
+	});
+}
+
 const baseMessages: AgentMessage[] = [
 	{
 		id: "user_1",
@@ -130,6 +139,57 @@ const baseMessages: AgentMessage[] = [
 		createdAt: Date.now(),
 	},
 ];
+
+async function captureReasoningOptions({
+	providerId,
+	options,
+	defaults,
+}: {
+	providerId: "cline" | "openrouter";
+	options: Record<string, unknown>;
+	defaults?: GatewayModelHandleOptions;
+}): Promise<unknown> {
+	mockSuccessfulStream();
+	const isCline = providerId === "cline";
+	const modelId = isCline ? "anthropic/claude-sonnet-4.6" : "openai/gpt-5.4";
+	const gateway = createGateway({
+		providerConfigs: [
+			isCline
+				? {
+						providerId: "cline",
+						apiKey: "cline-key",
+						models: [
+							{
+								id: modelId,
+								name: "Claude Sonnet 4.6",
+								metadata: { family: "claude-sonnet" },
+							},
+						],
+					}
+				: {
+						providerId: "openrouter",
+						apiKey: "openrouter-key",
+					},
+		],
+	});
+	const model = gateway.createAgentModel({ providerId, modelId }, defaults);
+
+	await collect(
+		await model.stream({
+			messages: baseMessages,
+			tools: [],
+			options,
+		}),
+	);
+
+	const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+		| {
+				providerOptions?: Record<string, { reasoning?: unknown }>;
+		  }
+		| undefined;
+	return call?.providerOptions?.[providerId]?.reasoning;
+}
+
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
 const originalCaptureProviderRequest =
 	process.env.CLINE_CAPTURE_PROVIDER_REQUEST;
@@ -2385,7 +2445,6 @@ describe("sdk-gateway", () => {
 					"openai-codex": expect.objectContaining({
 						store: false,
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
@@ -2403,6 +2462,9 @@ describe("sdk-gateway", () => {
 		expect(call?.providerOptions?.openai).not.toHaveProperty("truncation");
 		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
 			"truncation",
+		);
+		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
+			"reasoningSummary",
 		);
 		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
 	});
@@ -3355,7 +3417,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("passes reasoning summary through for non-anthropic openai-compatible reasoning models", async () => {
+	it("passes only canonical effort options for non-anthropic openai-compatible reasoning models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -3396,7 +3458,6 @@ describe("sdk-gateway", () => {
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 					cline: expect.objectContaining({
 						reasoning: expect.objectContaining({
@@ -3404,11 +3465,19 @@ describe("sdk-gateway", () => {
 							effort: "high",
 						}),
 						reasoningEffort: "high",
-						reasoningSummary: "auto",
 					}),
 				}),
 			}),
 		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					providerOptions?: Record<string, Record<string, unknown>>;
+			  }
+			| undefined;
+		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
+			"reasoningSummary",
+		);
+		expect(call?.providerOptions?.cline).not.toHaveProperty("reasoningSummary");
 	});
 
 	it("passes native Z.AI thinking enabled and disabled provider options for GLM", async () => {
@@ -3678,6 +3747,104 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it.each([
+		{
+			name: "drops an unsupported legacy effort",
+			options: { reasoningEffort: "unsupported" },
+			expected: undefined,
+		},
+		{
+			name: "drops an unsupported structured effort",
+			options: { reasoning: { effort: "unsupported" } },
+			expected: undefined,
+		},
+		{
+			name: "falls back from an invalid structured effort to the legacy effort",
+			options: {
+				reasoning: { effort: "unsupported" },
+				reasoningEffort: "high",
+			},
+			expected: { effort: "high" },
+		},
+		{
+			name: "preserves structured enabled while filling an invalid effort",
+			options: {
+				reasoning: { enabled: true, effort: "unsupported" },
+				reasoningEffort: "high",
+			},
+			expected: { effort: "high" },
+		},
+		{
+			name: "drops a non-finite legacy budget",
+			options: {
+				reasoning: { effort: "high" },
+				thinkingBudgetTokens: Number.POSITIVE_INFINITY,
+			},
+			expected: { effort: "high" },
+		},
+		{
+			name: "drops a fractional structured budget",
+			options: { reasoning: { effort: "high", budgetTokens: 0.5 } },
+			expected: { effort: "high" },
+		},
+		{
+			name: "drops a zero legacy budget",
+			options: {
+				reasoning: { effort: "high" },
+				thinkingBudgetTokens: 0,
+			},
+			expected: { effort: "high" },
+		},
+		{
+			name: "validates handle defaults before merging requested reasoning",
+			defaults: {
+				reasoning: {
+					effort: "unsupported",
+					budgetTokens: Number.POSITIVE_INFINITY,
+				},
+			} as unknown as GatewayModelHandleOptions,
+			options: { reasoning: { effort: "high" } },
+			expected: { effort: "high" },
+		},
+	])("$name", async ({ options, defaults, expected }) => {
+		expect(
+			await captureReasoningOptions({
+				providerId: "openrouter",
+				options,
+				defaults,
+			}),
+		).toEqual(expected);
+	});
+
+	it.each([
+		{
+			name: "does not inherit active reasoning through a structured disable",
+			defaults: {
+				reasoning: { effort: "high", budgetTokens: 4096 },
+			},
+			options: {
+				reasoning: { enabled: false },
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 8192,
+			},
+		},
+		{
+			name: "lets a legacy disable override structured reasoning",
+			options: {
+				reasoning: { effort: "high" },
+				thinking: false,
+			},
+		},
+	])("$name", async ({ options, defaults }) => {
+		expect(
+			await captureReasoningOptions({
+				providerId: "cline",
+				options,
+				defaults,
+			}),
+		).toEqual({ enabled: false });
 	});
 
 	it("adapts Anthropic and Gemini providers", async () => {
