@@ -47,9 +47,9 @@ export function Roster({
 
 	return (
 		<>
-			<div
+			<fieldset
 				aria-label="Call roster"
-				className="flex flex-wrap items-center gap-1.5 border-b border-amber-500/20 bg-amber-500/5 px-4 py-1.5"
+				className="m-0 flex flex-wrap items-center gap-1.5 border-0 border-b border-amber-500/20 bg-amber-500/5 px-4 py-1.5"
 			>
 				<span className="mr-1 text-[10px] font-medium uppercase tracking-wide text-amber-800/80 dark:text-amber-200/80">
 					On call
@@ -121,7 +121,7 @@ export function Roster({
 						</button>
 					);
 				})}
-			</div>
+			</fieldset>
 
 			<ParticipantSheet
 				drive={drive}
