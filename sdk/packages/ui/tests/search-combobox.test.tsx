@@ -69,6 +69,7 @@ describe("SearchCombobox", () => {
 	});
 
 	it("renders loading and disabled states", async () => {
+		const onValueChange = vi.fn();
 		const render = (disabled = false, loading = false) =>
 			root.render(
 				<SearchCombobox
@@ -76,17 +77,23 @@ describe("SearchCombobox", () => {
 					disabled={disabled}
 					loading={loading}
 					loadingText="Loading models…"
-					onValueChange={vi.fn()}
+					onValueChange={onValueChange}
 					options={options}
 				/>,
 			);
 
 		await act(async () => render());
 		await act(async () => container.querySelector("button")?.click());
-		await act(async () => render(false, true));
-		expect(container.textContent).toContain("Loading models…");
+		await act(async () => render(true));
+		const optionButtons = container.querySelectorAll<HTMLButtonElement>(
+			".cline-ui-search-combobox__option",
+		);
+		expect(optionButtons[1]?.disabled).toBe(true);
+		await act(async () => optionButtons[1]?.click());
+		expect(onValueChange).not.toHaveBeenCalled();
 
 		await act(async () => render(true, true));
+		expect(container.textContent).toContain("Loading models…");
 		expect(container.querySelector("button")?.disabled).toBe(true);
 	});
 });

@@ -71,6 +71,7 @@ export function SearchCombobox({
 	}, [options, search]);
 
 	const handleSelect = (option: SearchComboboxOption) => {
+		if (disabled) return;
 		if (option.value !== value) onValueChange(option.value);
 		setOpen(false);
 	};
@@ -144,6 +145,7 @@ export function SearchCombobox({
 								<button
 									aria-pressed={option.value === value}
 									className="cline-ui-search-combobox__option"
+									disabled={disabled}
 									key={option.value}
 									onClick={() => handleSelect(option)}
 									type="button"
