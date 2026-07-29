@@ -163,6 +163,7 @@ const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
 const OPENAI_COMPATIBLE_PROVIDER_ID =
 	LlmsModels.BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
 const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
+
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
 	dataDir?: string;
