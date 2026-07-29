@@ -246,6 +246,53 @@ describe("handleDriveForkCommand", () => {
 		]);
 	});
 
+	it("optionally ticks the show director after promote creates shows", async () => {
+		const { ctx, published } = createCtx();
+		const claim = await handleDriveForkCommand(
+			ctx,
+			envelope("drive.fork.claim", {
+				roomId: "r-tick-show",
+				parentSessionId: "sess-main",
+				assigneeParticipantId: "agent-1",
+				doItem: {
+					...doItem,
+					id: "do-tick",
+					linkedShowTemplateIds: ["doc.plan"],
+				},
+				workspace: { mode: "shared_readonly" },
+			}),
+		);
+		const fork = claim.payload?.fork as { workerSessionId: string };
+		const promote = await handleDriveForkCommand(
+			ctx,
+			envelope("drive.fork.promote", {
+				roomId: "r-tick-show",
+				tickShow: true,
+				promote: {
+					workerSessionId: fork.workerSessionId,
+					doItemId: "do-tick",
+					status: "done",
+					summary: "Plan card ready",
+					decisions: [],
+					showItemIds: [],
+					eventRefs: [],
+					auditHandle: fork.workerSessionId,
+					retainForAudit: true,
+				},
+			}),
+		);
+		expect(promote.ok).toBe(true);
+		expect(promote.payload?.presentedShowId).toBe("show_doc.plan_do-tick");
+		const room = promote.payload?.room as {
+			director: { activeShowId: string | null; showBacklog: Array<{ status: string }> };
+		};
+		expect(room.director.activeShowId).toBe("show_doc.plan_do-tick");
+		expect(room.director.showBacklog[0]?.status).toBe("showing");
+		expect(
+			published.some((event) => event.event === "drive.show.presented"),
+		).toBe(true);
+	});
+
 	it("cancels via promote cancelled", async () => {
 		const { ctx } = createCtx();
 		const claim = await handleDriveForkCommand(

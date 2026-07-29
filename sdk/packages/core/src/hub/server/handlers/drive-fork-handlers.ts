@@ -29,6 +29,7 @@ import {
 	resetDriveRoomStoreForTests,
 } from "../../collaboration";
 import { errorReply, type HubTransportContext, okReply } from "./context";
+import { runShowDirectorTick } from "./drive-handlers";
 
 function readString(
 	payload: Record<string, unknown> | undefined,
@@ -324,7 +325,30 @@ async function handleForkPromote(
 		director: applied.state,
 	});
 
-	publishRoom(ctx, next, {
+	const tickShow = readBoolean(envelope.payload, "tickShow") === true;
+	let presentedRoom = next;
+	let presentedShowId: string | null = null;
+	if (tickShow && applied.createdShowItemIds.length > 0) {
+		const tick = runShowDirectorTick({
+			room: next,
+			preferShowId: applied.createdShowItemIds[0],
+		});
+		presentedRoom = store.setLive(tick.room);
+		presentedShowId = tick.presented?.id ?? null;
+		if (tick.presented) {
+			ctx.publish(
+				ctx.buildEvent("drive.show.presented", {
+					showItemId: tick.presented.id,
+					ownerParticipantId: tick.presented.ownerParticipantId,
+					uri: tick.presented.uri,
+					caption: tick.presented.caption,
+					title: tick.presented.title,
+				}),
+			);
+		}
+	}
+
+	publishRoom(ctx, presentedRoom, {
 		event: "drive.fork.promoted",
 		payload: {
 			roomId,
@@ -334,6 +358,7 @@ async function handleForkPromote(
 			lifecycle,
 			mainContextInjection: applied.mainContextInjection,
 			createdShowItemIds: applied.createdShowItemIds,
+			presentedShowId,
 		},
 	});
 	if (lifecycle === "dropped") {
@@ -346,10 +371,11 @@ async function handleForkPromote(
 	}
 
 	return okReply(envelope, {
-		room: next,
+		room: presentedRoom,
 		fork: updated,
 		mainContextInjection: applied.mainContextInjection,
 		createdShowItemIds: applied.createdShowItemIds,
+		presentedShowId,
 	});
 }
 
