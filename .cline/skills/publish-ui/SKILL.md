@@ -1,6 +1,6 @@
 ---
 name: publish-ui
-description: Prepare, validate, and publish standalone @cline/ui npm releases. Use when bumping the UI package version, publishing latest or next through ui-publish.yml, checking UI release readiness, or completing the one-time npm trusted-publishing bootstrap.
+description: Prepare, validate, and publish standalone @cline/ui npm releases. Use when bumping the UI package version, publishing latest, next, or nightly through ui-publish.yml, checking UI release readiness, or completing the one-time npm trusted-publishing bootstrap.
 ---
 
 # Publish UI
@@ -15,13 +15,17 @@ Release `@cline/ui` independently from the Cline SDK runtime packages.
   version/publish scripts. It is still a public npm package because
   `private: false` and `publishConfig.access: public` control npm publication.
 - `latest` is the production channel. `next` is an opt-in preview channel.
+  `nightly` is the automated daily channel.
 - Use prerelease versions such as `0.2.0-next.0` for `next`; do not publish a
   version intended for `latest` under the preview tag because npm versions
   cannot be republished.
-- There is no UI Git tag, GitHub release, schedule, or Slack announcement.
-- The workflow runs only by manual dispatch. Every release attempt runs the UI
-  quality checks before publishing and requires `confirm_publish=publish` from
-  `main`.
+- There is no UI Git tag, GitHub release, or Slack announcement.
+- The workflow runs nightly at 03:00 UTC and supports manual dispatch. Scheduled
+  runs publish `<base-version>-nightly.<unix-timestamp>` with the `nightly`
+  dist-tag without committing a version bump. Manual releases require
+  `confirm_publish=publish` from `main`.
+- Every scheduled and manual release attempt runs the UI quality checks before
+  publishing.
 - The publish job and npm trust relationship use the protected `Publish`
   environment.
 - Every npm publication needs a new semver version; npm versions are immutable.
@@ -149,6 +153,21 @@ npm trust github @cline/ui \
 ```sh
 npm view @cline/ui dist-tags versions --json
 npm trust list @cline/ui
+```
+
+## Nightly releases
+
+The scheduled workflow strips any prerelease suffix from the checked-in package
+version before generating the nightly version. For example, a checked-in
+`0.2.0-next.0` becomes `0.2.0-nightly.<unix-timestamp>`. Nightlies publish only
+to npm under the `nightly` dist-tag; they do not create Git tags, GitHub
+releases, or Slack announcements.
+
+To verify the latest nightly:
+
+```sh
+npm view @cline/ui dist-tags.nightly
+npm view @cline/ui@nightly version
 ```
 
 ## Final report
