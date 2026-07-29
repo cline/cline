@@ -11,7 +11,6 @@ import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
-	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	retainCheckpointRefs,
 	type SessionHistoryRecord,
@@ -65,7 +64,6 @@ import {
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
 import {
-	findCheckpointRunCountForMessage,
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
@@ -94,6 +92,7 @@ import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
 	findSdkUserMessageIndexByText,
+	getSdkCheckpointRunCount,
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
@@ -1358,7 +1357,7 @@ export class Controller {
 		const userOrdinal = clineMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-		const checkpointRunOrdinal = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const isCheckpointRunMessage = getCheckpointRunCountForMessage(clineMessages, targetIndex) !== undefined
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
@@ -1394,17 +1393,7 @@ export class Controller {
 				sessionRecord?.workspaceRoot?.trim() ||
 				historyItem?.cwdOnTaskInitialization?.trim() ||
 				fallbackCwd
-			const nextCheckpointMessage = clineMessages.find(
-				(_message, index) => index > targetIndex && getCheckpointRunCountForMessage(clineMessages, index) !== undefined,
-			)
-			const checkpointRunCount =
-				checkpointRunOrdinal === undefined
-					? undefined
-					: (findCheckpointRunCountForMessage(
-							readSessionCheckpointHistory(sessionRecord),
-							targetMessage.ts,
-							nextCheckpointMessage?.ts,
-						) ?? checkpointRunOrdinal)
+			const checkpointRunCount = isCheckpointRunMessage ? getSdkCheckpointRunCount(sdkMessages, sdkTargetIndex) : undefined
 			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
 			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
@@ -1413,7 +1402,10 @@ export class Controller {
 			}
 
 			const resolvedPrompt = await this.resolveContextMentions(editedText)
-			let restoredCheckpointMetadata =
+			// Carry the checkpoint history up to the edited message into the
+			// forked session so its refs stay reachable and later Reset Code
+			// operations on the fork keep working.
+			const restoredCheckpointMetadata =
 				checkpointRunCount === undefined ? undefined : createRestoredCheckpointMetadata(sessionRecord, checkpointRunCount)
 
 			if (input.restoreWorkspace) {
@@ -1423,7 +1415,7 @@ export class Controller {
 				if (checkpointRunCount === undefined) {
 					throw new Error("Workspace restore is only available for messages that started an agent run")
 				}
-				const restored = await sessionHost.restore({
+				await sessionHost.restore({
 					sessionId: sourceSessionId,
 					checkpointRunCount,
 					cwd,
@@ -1433,7 +1425,6 @@ export class Controller {
 						omitCheckpointMessageFromSession: true,
 					},
 				})
-				restoredCheckpointMetadata = createRestoredCheckpointMetadata(sessionRecord, restored.checkpoint.runCount)
 			}
 
 			const startInput = {

@@ -1,4 +1,3 @@
-import type { CheckpointEntry } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 
 export function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
@@ -43,16 +42,6 @@ export function getCheckpointRunCountForMessage(messages: ClineMessage[], target
 		}
 	}
 	return runCount
-}
-
-export function findCheckpointRunCountForMessage(
-	history: readonly CheckpointEntry[],
-	messageTs: number,
-	nextMessageTs?: number,
-): number | undefined {
-	return history
-		.filter((entry) => entry.createdAt >= messageTs && (nextMessageTs === undefined || entry.createdAt < nextMessageTs))
-		.sort((left, right) => left.createdAt - right.createdAt || left.runCount - right.runCount)[0]?.runCount
 }
 
 export function findVisibleCheckpointUserMessageByRun(

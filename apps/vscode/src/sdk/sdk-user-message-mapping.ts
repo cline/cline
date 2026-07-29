@@ -4,6 +4,35 @@ import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 export type SdkUserMessage = {
 	role?: unknown
 	content?: unknown
+	metadata?: unknown
+}
+
+function isRecoveryNotice(message: SdkUserMessage): boolean {
+	return (
+		!!message.metadata &&
+		typeof message.metadata === "object" &&
+		(message.metadata as { kind?: unknown }).kind === "recovery_notice"
+	)
+}
+
+/**
+ * Checkpoint run count for the SDK message at targetIndex. Core's checkpoint
+ * hook advances its run counter once per root model call, and every model
+ * call is preceded by exactly one user-role message (the user's send or a
+ * tool result), so a message's run number is the count of user-role messages
+ * up to and including it — the same enumeration core's restore planner and
+ * the CLI checkpoint picker use (recovery notices excluded on both sides).
+ */
+export function getSdkCheckpointRunCount(sdkMessages: SdkUserMessage[], targetIndex: number): number {
+	let runCount = 0
+	for (let index = 0; index <= targetIndex && index < sdkMessages.length; index += 1) {
+		const message = sdkMessages[index]
+		if (message.role !== "user" || isRecoveryNotice(message)) {
+			continue
+		}
+		runCount += 1
+	}
+	return runCount
 }
 
 export function extractSdkUserText(message: SdkUserMessage): string {

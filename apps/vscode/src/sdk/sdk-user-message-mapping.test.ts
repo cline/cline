@@ -4,6 +4,7 @@ import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
 	findSdkUserMessageIndexByText,
+	getSdkCheckpointRunCount,
 	isSyntheticUserPrompt,
 } from "./sdk-user-message-mapping"
 
@@ -162,6 +163,37 @@ describe("findSdkUserMessageIndexByText", () => {
 		]
 
 		expect(findSdkUserMessageIndexByText(messages, "repeat")).toBe(-1)
+	})
+})
+
+describe("getSdkCheckpointRunCount", () => {
+	it("counts tool results as runs, matching core's checkpoint numbering", () => {
+		// Turn 1 uses three tools (runs 1-4), so the second user send is run 5 —
+		// mirrors a real session where checkpoint history held runCounts 1 and 5.
+		const messages = [
+			{ role: "user", content: "first send" },
+			{ role: "assistant", content: "reading" },
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1" }] },
+			{ role: "assistant", content: "editing" },
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t2" }] },
+			{ role: "assistant", content: "verifying" },
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t3" }] },
+			{ role: "assistant", content: "done" },
+			{ role: "user", content: "second send" },
+		]
+
+		expect(getSdkCheckpointRunCount(messages, 0)).toBe(1)
+		expect(getSdkCheckpointRunCount(messages, 8)).toBe(5)
+	})
+
+	it("skips recovery notices, matching core's seeded run counting", () => {
+		const messages = [
+			{ role: "user", content: "first send" },
+			{ role: "user", content: "recovered", metadata: { kind: "recovery_notice" } },
+			{ role: "user", content: "second send" },
+		]
+
+		expect(getSdkCheckpointRunCount(messages, 2)).toBe(2)
 	})
 })
 
