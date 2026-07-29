@@ -97,6 +97,9 @@ describe("WelcomeScreen", () => {
 		});
 
 		expect(
+			container.querySelectorAll(".cline-ui-agent-aurora__star"),
+		).toHaveLength(32);
+		expect(
 			container.querySelector(".cline-ui-agent-hero-heading"),
 		).not.toBeNull();
 		await clickButton("project-1");
