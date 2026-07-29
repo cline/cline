@@ -175,6 +175,10 @@ function toGatewayConfiguredModel(
 			pricing: model.pricing,
 			status: model.status,
 			releaseDate: model.releaseDate,
+			// Carry the wire-format selector so provider modules can apply
+			// format-specific request shaping (e.g. the OpenAI-compatible R1
+			// message transform) from `context.model.metadata`.
+			apiFormat: model.apiFormat,
 		},
 	};
 }
