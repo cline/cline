@@ -473,6 +473,18 @@ export class SdkTaskHistory {
 		return clineMessages
 	}
 
+	/**
+	 * The persisted session status ("completed" | "cancelled" | "failed" | ...).
+	 * Persisted messages cannot distinguish a completed conversation from one
+	 * interrupted mid-stream (both just end with assistant text), so reopening a
+	 * task from History uses this status to decide between the Resume Task and
+	 * Start New Task affordances.
+	 */
+	async getSessionStatus(taskId: string): Promise<SessionHistoryRecord["status"] | undefined> {
+		const sdkRecord = await this.getSdkRecord(taskId).catch(() => undefined)
+		return sdkRecord?.status
+	}
+
 	async isLegacyTask(taskId: string): Promise<boolean> {
 		const sdkRecord = await this.getSdkRecord(taskId)
 		if (sdkRecord) {

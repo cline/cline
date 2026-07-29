@@ -53,6 +53,20 @@ afterEach(() => {
 })
 
 describe("createVscodeRunCommandsTool", () => {
+	it("uses the VS Code terminal when the execution mode is omitted", async () => {
+		const process = createFakeTerminalProcess({ lines: ["terminal-default-ok"] })
+		const getTerminalManager = vi.fn(() => createFakeTerminalManager(process))
+		const tool = createVscodeRunCommandsTool({ cwd: "/workspace", getTerminalManager })
+
+		const results = await tool.execute(
+			{ commands: ["printf 'terminal-default-ok\\n'"] },
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 1 },
+		)
+
+		expect(getTerminalManager).toHaveBeenCalledOnce()
+		expect(results).toEqual([expect.objectContaining({ result: "terminal-default-ok", success: true })])
+	})
+
 	it("constructs a cmd tool from the stock array-valued Command Prompt profile", () => {
 		Object.defineProperty(process, "platform", { value: "win32" })
 		process.env.windir = "C:\\Windows"
