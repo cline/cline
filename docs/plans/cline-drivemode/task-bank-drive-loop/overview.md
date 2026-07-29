@@ -25,6 +25,19 @@ Excluded: Focus Chain bridge, `team_task`, fuzzy matching, CLI parity, media.
 
 Verification: [testing.md](testing.md).
 
+## Implementation status
+
+Reconciled against `main`: phases 1 (domain docs), 3 (bank store), 6
+(archive lifecycle), and 7 (plan editor UX) are evidenced complete. Phases 2
+(shared lifecycle-event tests), 4 (mutation-policy enforcement), 5 (complete
+event/cursor wiring), and 8 (native mode-overlay wiring and durable Hub bank
+ownership) are partial.
+
+The Hub still seeds an in-memory demo bank. Remaining work must close the
+lifecycle-event test matrix, enforce loop policy at the mutation boundary,
+emit and consume the complete bank lifecycle, replace demo seeding with the
+Hub writer, and wire the canonical mode pill.
+
 ## Implementation guidance
 
 - Run **how** before hub turn-loop changes.

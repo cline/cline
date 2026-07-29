@@ -22,12 +22,14 @@ Measure Drive compute/memory cost, then optimize via architecture (cache, batch,
 - Voice stack **memoized by topology fingerprint** (`createVoiceStack`)
 - Director **spotlight hysteresis** via sticky show ids (hold policy)
 
-### Adaptive guardrails milestone (draft)
+### Adaptive guardrails milestone (complete)
 
-The first long-horizon guardrail milestone is being delivered incrementally on
-`feature/adaptive-performance-guardrails`.
+The first long-horizon guardrail milestone landed on `main` in
+[PR #32](https://github.com/hhalperin/cline-drivecode/pull/32). Operational
+defaults and overload behavior are documented in
+[`sdk/packages/core/RESOURCE_GUARDRAILS.md`](../../../sdk/packages/core/RESOURCE_GUARDRAILS.md).
 
-Implemented in the current draft:
+Implemented:
 
 - A versioned, validated resource-policy contract in `@cline/shared`.
 - Hardware-derived core policy resolution with finite hard limits, environment
@@ -40,14 +42,16 @@ Implemented in the current draft:
   team-wide parallelism.
 - Physical team-run cancellation that holds scheduler capacity until the
   underlying execution settles and rejects late terminal-state overwrites.
-
-Still required before the milestone is complete:
-
 - Lightweight agent streaming snapshots that do not clone full transcripts.
 - Bounded WebSocket delivery, coalescing, slow-consumer handling, and inbound
   payload limits.
 - Wiring all queue and transport limits to the resolved resource policy.
 - Long-transcript, slow-client, and session-churn soak fixtures.
+
+Deterministic coverage exercises 20,000 retained transcript messages across
+2,000 deltas, 25,000 replaceable snapshots behind a slow client, and 200 socket
+lifecycles with 20 session subscriptions each. These are retained-state and
+payload-boundary tests, not machine-dependent wall-clock benchmarks.
 
 The monitor is deliberately observe-only at this stage. Dynamic concurrency
 changes require measured baselines and hysteresis; deploying an uncalibrated
@@ -57,11 +61,10 @@ feedback loop could make throughput less predictable rather than safer.
 
 Resource values resolve in this order:
 
-1. Finite hard safety limit.
-2. Explicit SDK override.
-3. Validated environment override.
-4. Hardware-derived default.
-5. Built-in fallback.
+1. Explicit SDK override.
+2. Validated environment override.
+3. Hardware-derived or built-in default.
+4. Finite hard clamp applied to the selected value.
 
 Power users can raise normal defaults, but no queue, concurrency value, or
 memory budget may resolve to infinity. Durable conversation data is not deleted
@@ -70,10 +73,13 @@ work instead.
 
 ## Next optimizations (ordered)
 
-1. Coalesce `drive.room.changed` broadcasts (16–50ms)
-2. Blob/object URL LRU + revoke on sticky replace
-3. Chat transcript window / virtualization if message growth dominates
-4. Optional worker for heavy SVG if hub CPU blocks sessions
+First fill the five baseline probes above. Then, only where measurements justify
+the change:
+
+1. Coalesce `drive.room.changed` broadcasts (16–50ms).
+2. Add a blob/object URL LRU and revoke URLs on sticky replacement.
+3. Window or virtualize the Chat transcript if message growth dominates.
+4. Move heavy SVG work to an optional worker if Hub CPU blocks sessions.
 
 ## Principles
 
