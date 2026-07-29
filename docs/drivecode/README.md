@@ -308,6 +308,7 @@ and every client. Surfaces render "Spotlight"; the protocol says `stage`.
 | Concern | Path |
 |---|---|
 | Status schemas (`StatusUpdate`, `StatusQuery`, `StatusPage`) | `sdk/packages/shared/src/status/` |
+| Dependency map model + plan/board demo fixtures | `sdk/packages/shared/src/status/dependency-map.ts`, `plan-tasks-fixture.ts`, `status-board-demo.ts` |
 | Status store, service, guidance | `sdk/packages/core/src/status/` |
 | Status hub handlers | `sdk/packages/core/src/hub/server/handlers/status-handlers.ts` |
 | `report_status` schema / definition / executor | `sdk/packages/core/src/extensions/tools/` |
@@ -315,6 +316,7 @@ and every client. Surfaces render "Spotlight"; the protocol says `stage`.
 | Room state and `call_*` ops | `sdk/packages/core/src/hub/collaboration/` |
 | Spotlight UI, call chrome | `apps/cline-hub/src/webview/src/drive/` |
 | Status Hub view (Board / Changelog / Dependency map) | `apps/cline-hub/src/webview/src/components/views/status-view.tsx`, `dependency-map.tsx` |
+| TUI Status Hub (`/status`) | `apps/cli/src/tui/views/status-view.tsx`, `apps/cli/src/tui/status/load-status-snapshot.ts` |
 | Drive tab home | `apps/cline-hub/src/webview/src/components/views/drive-view.tsx` |
 | Cline brand tokens | `apps/cline-hub/src/webview/src/index.css` |
 

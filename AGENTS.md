@@ -23,6 +23,7 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
   - `CLINE_DEMO_STATUS_PLANS=1` — use board + plan-fixture map when hub data is empty
   - `CLINE_DEMO_STATUS_LENS=dependency-map` — open on the map lens
   - `CLINE_DEMO_OPEN_STATUS=1` — auto-open the Status dialog (screenshot helper)
+  - `CLINE_DISABLE_CLINE_PASS_NOTICE=1` — suppress the ClinePass promo dialog during screenshots
 - Shared dep-map + fixtures live in `@cline/shared` (`sdk/packages/shared/src/status/`). Rebuild with `bun run build:sdk` after edits.
 - Product screenshots: `docs/assets/drivecode/` (`tui-drive-*.png`, `tui-status-*.png`, hub `status-*.png`, `drive-*.png`).
 

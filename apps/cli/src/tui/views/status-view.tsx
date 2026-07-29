@@ -76,29 +76,26 @@ function StatusHubContent({
 		let cancelled = false;
 		(async () => {
 			try {
+				if (demoPlans) {
+					if (cancelled) return;
+					setUpdates(STATUS_BOARD_DEMO_UPDATES);
+					setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
+					setSummary(null);
+					setError(null);
+					return;
+				}
 				const snap = await loadTuiStatusSnapshot();
 				if (cancelled) return;
-				const nextUpdates =
-					snap.updates.length > 0
-						? snap.updates
-						: demoPlans
-							? STATUS_BOARD_DEMO_UPDATES
-							: [];
-				const nextTeams =
-					snap.teams.length > 0
-						? snap.teams
-						: demoPlans
-							? PLAN_DEPENDENCY_DEMO_TEAMS
-							: [];
-				setUpdates(nextUpdates);
+				setUpdates(snap.updates);
 				setSummary(snap.summary);
-				setTeams(nextTeams);
+				setTeams(snap.teams);
 				setError(null);
 			} catch (err) {
 				if (cancelled) return;
 				if (demoPlans) {
 					setUpdates(STATUS_BOARD_DEMO_UPDATES);
 					setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
+					setSummary(null);
 					setError(null);
 				} else {
 					setError(err instanceof Error ? err.message : String(err));
@@ -143,11 +140,25 @@ function StatusHubContent({
 		[boardRows],
 	);
 
-	const maxVisible = Math.max(6, height - 10);
+	const maxVisible = Math.min(
+		14,
+		Math.max(8, Math.min(height - 14, 18)),
+	);
+	// Dialog is narrower than the full terminal; truncate for the content column.
+	const titleWidth = Math.max(28, Math.min(width - 24, 88));
 
 	useEffect(() => {
-		setSelected(0);
-	}, [lens]);
+		if (lens !== "dependency-map" || graph.nodes.length === 0) {
+			setSelected(0);
+			return;
+		}
+		const interesting = graph.nodes.findIndex(
+			(node) =>
+				node.status === "blocked" ||
+				(node.dependsOnKeys.length > 0 && node.dependentKeys.length > 0),
+		);
+		setSelected(interesting >= 0 ? interesting : 0);
+	}, [graph.nodes, lens]);
 
 	useEffect(() => {
 		handlerRef.current = (key) => {
@@ -186,11 +197,23 @@ function StatusHubContent({
 		registerKeyHandler?.((key) => handlerRef.current(key));
 	}, [registerKeyHandler]);
 
-	const titleWidth = Math.max(24, width - 18);
 	const selectedNode =
 		lens === "dependency-map" ? graph.nodes[selected] : undefined;
 	const selectedBoardRowIndex =
 		lens === "board" ? selectableBoardIndexes[selected] : undefined;
+
+	const mapWindowStart = useMemo(() => {
+		if (graph.nodes.length <= maxVisible) return 0;
+		const mid = Math.floor(maxVisible / 2);
+		return Math.max(
+			0,
+			Math.min(selected - mid, graph.nodes.length - maxVisible),
+		);
+	}, [graph.nodes.length, maxVisible, selected]);
+	const visibleMapNodes = graph.nodes.slice(
+		mapWindowStart,
+		mapWindowStart + maxVisible,
+	);
 
 	return (
 		<box flexDirection="column" width="100%" paddingLeft={1} paddingRight={1}>
@@ -269,19 +292,21 @@ function StatusHubContent({
 							<text fg={palette.muted}>
 								{graph.nodes.length} tasks · {graph.counts.blocked} blocked ·{" "}
 								{graph.nodes.filter((n) => n.isReady).length} ready
+								{graph.nodes.length > maxVisible
+									? ` · showing ${mapWindowStart + 1}–${mapWindowStart + visibleMapNodes.length}`
+									: ""}
 							</text>
-							{graph.nodes.slice(0, maxVisible).map((node, index) => {
+							{visibleMapNodes.map((node, offset) => {
+								const index = mapWindowStart + offset;
 								const active = index === selected;
-								const suffix = [
-									node.status.replace("_", " "),
-									`L${node.layer}`,
+								const flags = [
 									node.isReady ? "ready" : "",
 									node.isWaiting ? "waiting" : "",
 									node.inCycle ? "cycle" : "",
 								]
 									.filter(Boolean)
-									.join(" · ");
-								const line = `${node.title} · ${suffix}`;
+									.join(" ");
+								const line = `${node.id}  ${node.status.replace("_", " ")}  L${node.layer}${flags ? `  ${flags}` : ""}  ${node.title}`;
 								return (
 									<text
 										key={node.key}
@@ -296,18 +321,20 @@ function StatusHubContent({
 							})}
 							{selectedNode ? (
 								<box marginTop={1} flexDirection="column">
-									<text fg={palette.act}>{selectedNode.title}</text>
+									<text fg={palette.act}>
+										{selectedNode.id} · {selectedNode.title}
+									</text>
 									<text fg={palette.muted}>
 										Blocked by:{" "}
 										{selectedNode.dependsOnKeys.length
 											? selectedNode.dependsOnKeys
 													.map(
 														(key) =>
-															graph.nodes.find((n) => n.key === key)?.title ??
+															graph.nodes.find((n) => n.key === key)?.id ??
 															key,
 													)
 													.join(", ")
-											: "Nothing"}
+											: "—"}
 									</text>
 									<text fg={palette.muted}>
 										Unblocks:{" "}
@@ -315,11 +342,11 @@ function StatusHubContent({
 											? selectedNode.dependentKeys
 													.map(
 														(key) =>
-															graph.nodes.find((n) => n.key === key)?.title ??
+															graph.nodes.find((n) => n.key === key)?.id ??
 															key,
 													)
 													.join(", ")
-											: "Nothing"}
+											: "—"}
 									</text>
 								</box>
 							) : null}

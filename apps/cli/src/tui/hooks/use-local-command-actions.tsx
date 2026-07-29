@@ -35,7 +35,7 @@ export function useLocalCommandActions(input: {
 }) {
 	const dialog = useDialog();
 	const session = useSession();
-	const { height: termHeight } = useTerminalDimensions();
+	const { width: termWidth, height: termHeight } = useTerminalDimensions();
 	const {
 		slashCommandRegistry,
 		canForkSession,
@@ -116,13 +116,18 @@ export function useLocalCommandActions(input: {
 	}, [dialog, refocusTextarea, termHeight]);
 
 	const openStatus = useCallback(async () => {
+		const dialogWidth = Math.min(
+			100,
+			Math.max(72, Math.floor(termWidth * 0.78)),
+			Math.max(64, termWidth - 6),
+		);
 		await dialog.choice<void>({
 			size: "large",
-			style: { maxHeight: termHeight - 2 },
+			style: { width: dialogWidth, maxHeight: termHeight - 2 },
 			content: (ctx: ChoiceContext<void>) => <StatusDialogContent {...ctx} />,
 		});
 		refocusTextarea();
-	}, [dialog, refocusTextarea, termHeight]);
+	}, [dialog, refocusTextarea, termHeight, termWidth]);
 
 	// Docs / screenshots: open Status Hub as soon as the TUI is ready.
 	useEffect(() => {
