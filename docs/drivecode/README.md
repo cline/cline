@@ -215,13 +215,14 @@ Opening the map requests a snapshot, and a `team.progress` event requests a
 fresh one. The snapshot is intentionally live-only today, so the empty state
 means no active team tasks are available—not that no historical tasks exist.
 
-For docs and demos, `/status?demoPlans=1` loads the shared Drive plan fixture
-(`@cline/shared` → `sdk/packages/shared/src/status/plan-tasks-fixture.ts`): the
-current `docs/plans/cline-drivemode` feature set with TASK-GRAPH dependency
-edges. That fixture is presentation-only; it does not write team runtime state.
-The interactive CLI exposes the same Board and Dependency map via `/status`
-(`apps/cli/src/tui/views/status-view.tsx`); use `CLINE_DEMO_STATUS_PLANS=1` when
-the hub has no live rows.
+For docs and demos, compose a demo **teams adapter** at the hub App edge
+(`@cline/drivecode-demo` → `DrivePlansDemoTeamsSource`, activated by
+`readDrivecodeDemoHubBootstrap()` when `?demoPlans=1`). The Status view only
+depends on the `StatusTeamsSource` port — it does not import fixtures. The
+fixture content mirrors `docs/plans/cline-drivemode` with TASK-GRAPH edges and
+does not write team runtime state. The interactive CLI composes the same idea
+via `StatusSnapshotSource` + `DrivePlansDemoStatusSnapshotSource` when
+`CLINE_DEMO_STATUS_PLANS=1`.
 
 #### Accessibility and keyboard behavior
 
@@ -308,7 +309,8 @@ and every client. Surfaces render "Spotlight"; the protocol says `stage`.
 | Concern | Path |
 |---|---|
 | Status schemas (`StatusUpdate`, `StatusQuery`, `StatusPage`) | `sdk/packages/shared/src/status/` |
-| Dependency map model + plan/board demo fixtures | `sdk/packages/shared/src/status/dependency-map.ts`, `plan-tasks-fixture.ts`, `status-board-demo.ts` |
+| Dependency map model | `sdk/packages/shared/src/status/dependency-map.ts` |
+| Status Hub demo adapters + fixtures | `apps/drivecode-demo/` (`@cline/drivecode-demo`) |
 | Status store, service, guidance | `sdk/packages/core/src/status/` |
 | Status hub handlers | `sdk/packages/core/src/hub/server/handlers/status-handlers.ts` |
 | `report_status` schema / definition / executor | `sdk/packages/core/src/extensions/tools/` |
@@ -316,7 +318,8 @@ and every client. Surfaces render "Spotlight"; the protocol says `stage`.
 | Room state and `call_*` ops | `sdk/packages/core/src/hub/collaboration/` |
 | Spotlight UI, call chrome | `apps/cline-hub/src/webview/src/drive/` |
 | Status Hub view (Board / Changelog / Dependency map) | `apps/cline-hub/src/webview/src/components/views/status-view.tsx`, `dependency-map.tsx` |
-| TUI Status Hub (`/status`) | `apps/cli/src/tui/views/status-view.tsx`, `apps/cli/src/tui/status/load-status-snapshot.ts` |
+| TUI Status Hub port + hub adapter | `apps/cli/src/tui/status/` |
+| TUI Status Hub (`/status`) | `apps/cli/src/tui/views/status-view.tsx` |
 | Drive tab home | `apps/cline-hub/src/webview/src/components/views/drive-view.tsx` |
 | Cline brand tokens | `apps/cline-hub/src/webview/src/index.css` |
 

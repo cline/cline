@@ -649,7 +649,7 @@ function App(props: TuiProps) {
 			demo.useDemoStatusAdapter
 				? {
 						fallback: new DrivePlansDemoStatusSnapshotSource(),
-						banner: "Demo data · board rows · plan tasks",
+						banner: "Demo adapter",
 					}
 				: undefined,
 		);
@@ -1005,6 +1005,7 @@ export function Root(
 		}),
 		[props.terminalBackground, props.terminalForeground],
 	);
+	const demoCli = useMemo(() => readDrivecodeDemoCliBootstrap(), []);
 	return (
 		<TerminalColorsContext value={terminalColors}>
 			<DialogProvider size="medium">
@@ -1012,6 +1013,7 @@ export function Root(
 					config={props.config}
 					initialEntries={initialEntries}
 					initialUsage={initialUsage}
+					initialDriveActive={demoCli.driveActiveOnStart}
 					onRunningChange={props.onRunningChange}
 					onAutoApproveChange={props.onAutoApproveChange}
 					onCompactionModeChange={props.onCompactionModeChange}

@@ -222,7 +222,10 @@ function StatusHubContent({
 					{summary.total} live
 				</text>
 			) : banner ? (
-				<text fg={palette.muted}>{banner}</text>
+				<text fg={palette.muted}>
+					{banner} · {updates.length} board rows · {graph.nodes.length} plan
+					tasks
+				</text>
 			) : (
 				<text fg={palette.muted}>Live hub status</text>
 			)}

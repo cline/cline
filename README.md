@@ -107,10 +107,10 @@ sub-mode (`plan` / `agent` / `ask` / `debug`).
 
 **Status Hub in the TUI.** `/status` (or **Opt+T** / the command palette) opens
 the same Status Hub surface in a dialog: **Board** and **Dependency map**,
-switched with Tab. Live data comes from the hub (`status.board`,
-`status.summary`, `status.tasks_snapshot`). For docs demos,
-`CLINE_DEMO_STATUS_PLANS=1` fills empty boards and maps with the Drive plan
-fixture; `CLINE_DEMO_STATUS_LENS=dependency-map` opens on the map.
+switched with Tab. Live data comes from a `StatusSnapshotSource` (hub ops).
+Docs demos compose a separate adapter from `@cline/drivecode-demo` at the CLI
+root when `CLINE_DEMO_STATUS_PLANS=1` (optional lens / auto-open via
+`CLINE_DEMO_STATUS_LENS` / `CLINE_DEMO_OPEN_STATUS`).
 
 ![TUI Status Hub — board](docs/assets/drivecode/tui-status-board.png)
 

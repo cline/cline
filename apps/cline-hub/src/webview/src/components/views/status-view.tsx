@@ -103,7 +103,7 @@ function StatTile({
 }
 
 export function StatusView(props: {
-	teamsSource?: StatusTeamsSource;
+	teamsSource: StatusTeamsSource;
 	initialMode?: StatusViewMode;
 }) {
 	const { teamsSource, initialMode = "board" } = props;
@@ -176,21 +176,14 @@ export function StatusView(props: {
 	}, []);
 
 	const requestTasks = useCallback(() => {
-		if (teamsSource) {
-			const requestId = `status-tasks-adapter-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-			tasksRequestRef.current = requestId;
-			setTasksLoading(true);
-			void teamsSource.loadTeams().then((next) => {
-				if (tasksRequestRef.current !== requestId) return;
-				setTeams(next);
-				setTasksLoading(false);
-			});
-			return;
-		}
-		const requestId = `status-tasks-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		const requestId = `status-tasks-adapter-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 		tasksRequestRef.current = requestId;
 		setTasksLoading(true);
-		postToHost({ type: "status_tasks_snapshot", requestId });
+		void teamsSource.loadTeams().then((next) => {
+			if (tasksRequestRef.current !== requestId) return;
+			setTeams(next);
+			setTasksLoading(false);
+		});
 	}, [teamsSource]);
 
 	useEffect(() => {
@@ -226,21 +219,11 @@ export function StatusView(props: {
 			}
 
 			if (message.type === "status_tasks_snapshot_result") {
-				// Adapter-backed loads resolve via Promise; ignore host snapshots.
-				if (teamsSource) return;
-				if (message.requestId !== tasksRequestRef.current) return;
-				setTeams(
-					Array.isArray(message.teams)
-						? (message.teams as TeamRuntimeState[])
-						: [],
-				);
-				setTasksLoading(false);
+				// Teams load through StatusTeamsSource adapters only.
 				return;
 			}
 
 			if (message.type === "team_progress") {
-				// Demo adapters are static — skip live team progress refreshes.
-				if (teamsSource) return;
 				if (mode === "dependency-map") requestTasks();
 				return;
 			}

@@ -17,15 +17,14 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 
 ### Drive / Status Hub (product surfaces)
 - **Hub UI:** `bun run --cwd apps/cline-hub dev` → open the printed dashboard URL → Connect. Drive tab, Spotlight (in-call), Status Hub (`/status`), Drive Settings.
-- **Status Hub demo query params:** `/status?demoPlans=1` loads the Drive plan fixture as the dependency map; add `&statusMode=dependency-map` to open that lens.
-- **TUI Drive:** `Ctrl+Shift+D` toggles Drive call chrome on the status bar. `CLINE_DEMO_DRIVE=1` starts with Drive already on.
-- **TUI Status Hub:** `/status` or Opt+T opens Board + Dependency map (Tab switches). Loads hub ops `status.board` / `status.summary` / `status.tasks_snapshot`. Demo envs:
-  - `CLINE_DEMO_STATUS_PLANS=1` — use board + plan-fixture map when hub data is empty
-  - `CLINE_DEMO_STATUS_LENS=dependency-map` — open on the map lens
-  - `CLINE_DEMO_OPEN_STATUS=1` — auto-open the Status dialog (screenshot helper)
-  - `CLINE_DISABLE_CLINE_PASS_NOTICE=1` — suppress the ClinePass promo dialog during screenshots
-- Shared dep-map + fixtures live in `@cline/shared` (`sdk/packages/shared/src/status/`). Rebuild with `bun run build:sdk` after edits.
+- **Status data ports:** product views depend on ports only (`StatusSnapshotSource` in CLI, `StatusTeamsSource` in hub). Live hub adapters implement them; demos are separate adapters in `@cline/drivecode-demo`, wired only at composition roots (`apps/cli/src/tui/root.tsx`, hub `App.tsx`).
+- **Demo bootstrap (edge only):** `readDrivecodeDemoCliBootstrap()` / `readDrivecodeDemoHubBootstrap()` parse env/query. Views do not read `CLINE_DEMO_*` or `?demoPlans`.
+  - CLI: `CLINE_DEMO_STATUS_PLANS=1` → compose `DrivePlansDemoStatusSnapshotSource` as fallback behind the hub adapter; `CLINE_DEMO_STATUS_LENS`; `CLINE_DEMO_OPEN_STATUS=1`; `CLINE_DEMO_DRIVE=1`
+  - Hub: `?demoPlans=1` → `DrivePlansDemoTeamsSource`; `?statusMode=dependency-map`
+  - Screenshots: also `CLINE_DISABLE_CLINE_PASS_NOTICE=1`
+- Domain graph logic stays in `@cline/shared` (`buildDependencyMap`). Rebuild with `bun run build:sdk` after shared edits.
 - Product screenshots: `docs/assets/drivecode/` (`tui-drive-*.png`, `tui-status-*.png`, hub `status-*.png`, `drive-*.png`).
+- Demo package docs: `apps/drivecode-demo/README.md`.
 
 ### Build / Lint / test
 - SDK packages (`@cline/shared|llms|agents|core|sdk`) resolve each other through compiled `dist/` (their `exports` point only at `dist/`, with no `development` source condition). You **must** run `bun run build:sdk` after changing SDK dependencies/source before running the CLI or SDK tests, otherwise imports fail with missing `@cline/*` / missing `dist/` errors. Running processes do **not** hot-reload SDK source changes — rebuild and restart.\

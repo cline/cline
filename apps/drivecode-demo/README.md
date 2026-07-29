@@ -5,11 +5,9 @@ Status Hub **demo fixtures** and a **demo adapter** that implement the same
 
 ## Not a plugin system
 
-Demos are normal adapters composed at CLI / hub entrypoints. Product views
-(`status-view`, etc.) should depend only on the port and snapshot shapes — not
-on this package. Wire `DrivePlansDemoStatusSnapshotSource` (and the CLI/hub
-bootstrap helpers) at composition roots when env vars or query params request
-demo mode.
+Demos are normal **adapters** that implement the same ports as the live hub
+adapters (`StatusSnapshotSource` / teams source). Compose them at CLI / hub
+entrypoints. Product views depend only on the port — not on this package.
 
 ## Usage
 
