@@ -126,13 +126,6 @@ export class StreamableHttpReconnectHandler {
 		while (this.attempts <= this.config.maxAttempts) {
 			try {
 				await this.callbacks.connectToServer()
-				Logger.log(`StreamableHTTP reconnect succeeded for "${this.serverName}"`)
-				this.attempts = 0
-				// connectToServer() loads fresh lists but doesn't publish them;
-				// without this, the webview keeps showing "connecting" and
-				// consumers keep the pre-reconnect capabilities.
-				await this.callbacks.notifyWebviewOfServerChanges()
-				return
 			} catch (reconnectError) {
 				Logger.error(`StreamableHTTP reconnect failed for "${this.serverName}":`, reconnectError)
 				if (this.attempts < this.config.maxAttempts) {
@@ -143,10 +136,24 @@ export class StreamableHttpReconnectHandler {
 							`for "${this.serverName}" in ${retryDelay / 1000}s...`,
 					)
 					await this.callbacks.delay(retryDelay)
-				} else {
-					break
+					continue
 				}
+				break
 			}
+
+			Logger.log(`StreamableHTTP reconnect succeeded for "${this.serverName}"`)
+			this.attempts = 0
+			// connectToServer() loads fresh lists but doesn't publish them;
+			// without this, the webview keeps showing "connecting" and
+			// consumers keep the pre-reconnect capabilities. Kept outside the
+			// connect try/catch: a publication failure must not be treated as
+			// a transport failure and restart the already-live connection.
+			try {
+				await this.callbacks.notifyWebviewOfServerChanges()
+			} catch (notifyError) {
+				Logger.error(`Failed to publish server state after reconnect for "${this.serverName}":`, notifyError)
+			}
+			return
 		}
 
 		// All retry attempts exhausted during the connect loop.

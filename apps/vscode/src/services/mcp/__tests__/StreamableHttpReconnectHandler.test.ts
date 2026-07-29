@@ -129,6 +129,22 @@ describe("StreamableHttpReconnectHandler", () => {
 		cbs.stubs.notifyWebviewOfServerChanges.lastCall.calledAfter(cbs.stubs.connectToServer.lastCall).should.be.true()
 	})
 
+	it("should not restart a live connection when post-reconnect publication fails", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// First call publishes "connecting" fine; the post-reconnect publish fails
+		cbs.stubs.notifyWebviewOfServerChanges.onSecondCall().rejects(new Error("settings read failed"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// The reconnect succeeded, so a publication failure must not tear the
+		// connection down again or count as another attempt
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+		cbs.stubs.deleteConnection.calledOnce.should.be.true()
+		handler.attemptCount.should.equal(0)
+	})
+
 	it("should use the configured delay for each attempt", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
