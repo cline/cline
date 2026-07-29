@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { type FSWatcher, statSync, watch } from "node:fs";
+import { type FSWatcher, watch } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 export interface UnifiedConfigFileContext<TType extends string = string> {
 	type: TType;
@@ -81,12 +81,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 }
 
 function isMissingDirectoryError(error: unknown): boolean {
-	return (
-		isErrnoException(error) &&
-		// ENOTDIR: a path component is a file, not a directory (e.g. a legacy
-		// `.clinerules` FILE at the workspace root). Treat like missing.
-		(error.code === "ENOENT" || error.code === "ENOTDIR")
-	);
+	return isErrnoException(error) && error.code === "ENOENT";
 }
 
 function isInaccessibleDirectoryError(error: unknown): boolean {
@@ -94,14 +89,6 @@ function isInaccessibleDirectoryError(error: unknown): boolean {
 		isErrnoException(error) &&
 		(error.code === "EACCES" || error.code === "EPERM")
 	);
-}
-
-function isWatchableDirectory(path: string): boolean {
-	try {
-		return statSync(path).isDirectory();
-	} catch {
-		return false;
-	}
 }
 
 export class UnifiedConfigFileWatcher<
@@ -121,10 +108,6 @@ export class UnifiedConfigFileWatcher<
 		Map<string, InternalRecord<TType, TItem>>
 	>();
 	private readonly watchersByDirectory = new Map<string, FSWatcher>();
-	// Desired paths currently watched via their PARENT directory because the
-	// path itself is missing or is a file (e.g. a `.clinerules` file). The
-	// parent watch notices the path being created, replaced, or deleted.
-	private readonly fallbackWatchedDirectories = new Set<string>();
 	private readonly baseTypesByDirectory = new Map<string, Set<TType>>();
 	private watchedTypesByDirectory = new Map<string, Set<TType>>();
 	private readonly discoveredDirectoriesByType = new Map<TType, Set<string>>();
@@ -203,21 +186,13 @@ export class UnifiedConfigFileWatcher<
 			watcher.close();
 		}
 		this.watchersByDirectory.clear();
-		this.fallbackWatchedDirectories.clear();
 		this.watchedTypesByDirectory = new Map();
 	}
 
 	async refreshAll(): Promise<void> {
 		await this.enqueueRefresh(async () => {
 			for (const definition of this.definitions) {
-				// Isolate definition failures so one broken type (e.g. an
-				// unreadable skills path) cannot starve the others of their
-				// initial scan.
-				try {
-					await this.refreshTypeInternal(definition);
-				} catch (error) {
-					this.emit({ kind: "error", type: definition.type, error });
-				}
+				await this.refreshTypeInternal(definition);
 			}
 		});
 	}
@@ -285,95 +260,58 @@ export class UnifiedConfigFileWatcher<
 			}
 			watcher.close();
 			this.watchersByDirectory.delete(directoryPath);
-			this.fallbackWatchedDirectories.delete(directoryPath);
 		}
 
 		this.watchedTypesByDirectory = desiredTypesByDirectory;
 
 		for (const directoryPath of desiredTypesByDirectory.keys()) {
 			if (this.watchersByDirectory.has(directoryPath)) {
-				// Upgrade a parent-fallback watch to a direct watch once the
-				// desired path exists as a directory, so changes INSIDE it
-				// (not just its creation) are observed.
+				continue;
+			}
+
+			try {
+				const watcher = watch(directoryPath, () => {
+					const types = this.watchedTypesByDirectory.get(directoryPath);
+					if (!types) {
+						return;
+					}
+					for (const type of types) {
+						this.pendingTypes.add(type);
+					}
+					this.scheduleFlush();
+				});
+				this.watchersByDirectory.set(directoryPath, watcher);
+				watcher.on("error", (error) => {
+					const types = this.watchedTypesByDirectory.get(directoryPath);
+					if (!types) {
+						return;
+					}
+					for (const type of types) {
+						this.emit({
+							kind: "error",
+							type,
+							error,
+							filePath: directoryPath,
+						});
+					}
+				});
+			} catch (error) {
 				if (
-					this.fallbackWatchedDirectories.has(directoryPath) &&
-					isWatchableDirectory(directoryPath)
+					!isMissingDirectoryError(error) &&
+					!isInaccessibleDirectoryError(error)
 				) {
-					this.watchersByDirectory.get(directoryPath)?.close();
-					this.watchersByDirectory.delete(directoryPath);
-					this.fallbackWatchedDirectories.delete(directoryPath);
-				} else {
-					continue;
-				}
-			}
-
-			this.attachDirectoryWatcher(directoryPath, desiredTypesByDirectory);
-		}
-	}
-
-	/**
-	 * Watch `directoryPath` for changes, registering the watcher under that
-	 * path. When the path is missing or is a FILE (e.g. a workspace-root
-	 * `.clinerules` file or `AGENTS.md`), watch the PARENT directory instead:
-	 * a direct file watch goes dead when editors replace the file via rename,
-	 * and a missing path cannot be watched at all — the parent watch observes
-	 * creation, replacement, and deletion of the entry itself.
-	 */
-	private attachDirectoryWatcher(
-		directoryPath: string,
-		desiredTypesByDirectory: Map<string, Set<TType>>,
-	): void {
-		const onEvent = () => {
-			const types = this.watchedTypesByDirectory.get(directoryPath);
-			if (!types) {
-				return;
-			}
-			for (const type of types) {
-				this.pendingTypes.add(type);
-			}
-			this.scheduleFlush();
-		};
-
-		const target = isWatchableDirectory(directoryPath)
-			? directoryPath
-			: dirname(directoryPath);
-
-		try {
-			const watcher = watch(target, onEvent);
-			this.watchersByDirectory.set(directoryPath, watcher);
-			if (target !== directoryPath) {
-				this.fallbackWatchedDirectories.add(directoryPath);
-			}
-			watcher.on("error", (error) => {
-				const types = this.watchedTypesByDirectory.get(directoryPath);
-				if (!types) {
-					return;
-				}
-				for (const type of types) {
-					this.emit({
-						kind: "error",
-						type,
-						error,
-						filePath: directoryPath,
-					});
-				}
-			});
-		} catch (error) {
-			if (
-				!isMissingDirectoryError(error) &&
-				!isInaccessibleDirectoryError(error)
-			) {
-				const types = desiredTypesByDirectory.get(directoryPath);
-				if (!types) {
-					return;
-				}
-				for (const type of types) {
-					this.emit({
-						kind: "error",
-						type,
-						error,
-						filePath: directoryPath,
-					});
+					const types = desiredTypesByDirectory.get(directoryPath);
+					if (!types) {
+						continue;
+					}
+					for (const type of types) {
+						this.emit({
+							kind: "error",
+							type,
+							error,
+							filePath: directoryPath,
+						});
+					}
 				}
 			}
 		}
@@ -393,11 +331,7 @@ export class UnifiedConfigFileWatcher<
 					if (!definition) {
 						continue;
 					}
-					try {
-						await this.refreshTypeInternal(definition);
-					} catch (error) {
-						this.emit({ kind: "error", type, error });
-					}
+					await this.refreshTypeInternal(definition);
 				}
 			});
 		}, this.debounceMs);
