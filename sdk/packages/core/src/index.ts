@@ -6,13 +6,18 @@
 
 export * as Llms from "@cline/llms";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -448,6 +453,7 @@ export type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionUsageSummary,
+	StartSessionConfig,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
@@ -461,6 +467,11 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
@@ -481,13 +492,26 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export { listActiveConnectors } from "./services/connectors/active-connectors";
+export {
+	disableConnectorAutostart,
+	getPersistedConnectorConnection,
+	persistConnectorConnection,
+	type ReconnectAttempt,
+	type ReconnectPersistedConnectorsOptions,
+	type ReconnectTarget,
+	reconnectPersistedConnectors,
+	removePersistedConnectorConnection,
+} from "./services/connectors/connector-autostart";
 export {
 	FeatureFlagsService,
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 export type {
+	GlobalCompactionMode,
 	GlobalCompactionStrategy,
+	GlobalPlanActMode,
 	GlobalSettings,
 } from "./services/global-settings";
 export {
@@ -499,15 +523,21 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
@@ -768,12 +798,14 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageImage,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
 	ChatSessionConfigSchema,
@@ -932,6 +964,7 @@ export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
+	ClineCoreStartConfig,
 	CoreAgentMode,
 	CoreCheckpointConfig,
 	CoreCheckpointContext,

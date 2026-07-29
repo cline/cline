@@ -15,7 +15,12 @@ import {
 	PROCESS_HOT_TIMEOUT_NORMAL,
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
-import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
+import type {
+	ITerminalProcess,
+	TerminalCompletionDetails,
+	TerminalProcessEvents,
+	UnobservedTerminalCommand,
+} from "@/integrations/terminal/types"
 import type { MarkerlessCompletionCause } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
@@ -37,7 +42,7 @@ type StreamReadOutcome = { kind: "data"; data: string } | { kind: "streamEnd" } 
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted when shell integration is not available
+ * - 'unobserved_command': Emitted when command completion cannot be observed
  */
 export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	waitForShellIntegration = true
@@ -50,10 +55,16 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	private exitCode: number | null | undefined = undefined
 	private signal: NodeJS.Signals | null = null
 	private terminalClosedMidCommand = false
+	private unobservedCommand: UnobservedTerminalCommand | undefined
+	private ownership: "managed" | "continued" | "detached" = "managed"
+	private activeCloseDisposable: vscode.Disposable | undefined
+	private activeEndEventDisposable: vscode.Disposable | undefined
+	private activeIterator: AsyncIterator<string> | undefined
 
 	async run(terminal: vscode.Terminal, command: string) {
 		this.exitCode = undefined
 		this.signal = null
+		this.unobservedCommand = undefined
 
 		// The pty may already be dead (exitStatus is set when the shell process
 		// terminates). executeCommand()/sendText() on a dead terminal never
@@ -120,6 +131,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					resolveExitCode.resolve(e.exitCode)
 				}
 			})
+			this.activeEndEventDisposable = endEventDisposable
 
 			// Track terminal closure so a dying pty can't leave the read loop
 			// blocked forever — the read() stream does not necessarily end when
@@ -135,6 +147,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					resolveTerminalClosed()
 				}
 			})
+			this.activeCloseDisposable = closeDisposable
 
 			// The stream is pulled manually (rather than with for-await) so each
 			// read can be raced against the markerless-completion timers and
@@ -142,6 +155,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// is kept and reused on the next iteration — iterator.next() must
 			// not be called again while a previous read is still pending.
 			const iterator = stream[Symbol.asyncIterator]()
+			this.activeIterator = iterator
 			let pendingRead: Promise<IteratorResult<string>> | undefined
 			const readNext = async (idleTimeoutMs: number | undefined): Promise<StreamReadOutcome> => {
 				pendingRead ??= iterator.next()
@@ -322,6 +336,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			closeDisposable.dispose()
+			this.activeCloseDisposable = undefined
 			// Release the stream iterator. On the markerless/terminal-closed
 			// paths a read is still pending; return() lets a well-behaved
 			// iterator clean up instead of holding the stream open. Not
@@ -332,6 +347,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			} catch {
 				// The iterator does not support early termination.
 			}
+			this.activeIterator = undefined
 			this.emitRemainingBufferIfListening()
 
 			// Await the exit code from onDidEndTerminalShellExecution.
@@ -352,6 +368,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				}),
 			])
 			endEventDisposable.dispose()
+			this.activeEndEventDisposable = undefined
 
 			if (exitCodeEventTimedOut) {
 				// A lost exit code silently reports the command as successful to the
@@ -451,15 +468,15 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				)
 			}
 
-			this.emit("completed", this.getCompletionDetails())
-			this.emit("continue")
 			// A terminal whose shell isn't emitting completion markers (e.g. it
 			// is inside an ssh session) must not be reused for later commands:
-			// this event makes the manager evict it from the reuse pool, exactly
-			// like a terminal that never had shell integration.
+			// tell the manager to evict it without conflating this path with the
+			// sendText fallback, which has different cleanup semantics.
 			if (completedWithoutMarkers) {
-				this.emit("no_shell_integration")
+				this.markCommandUnobserved("markerlessShellIntegration")
 			}
+			this.emit("completed", this.getCompletionDetails())
+			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION, "vscode")
@@ -483,9 +500,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
+			this.markCommandUnobserved("sendText")
 			this.emit("completed", this.getCompletionDetails())
 			this.emit("continue")
-			this.emit("no_shell_integration")
 		}
 	}
 
@@ -516,6 +533,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	}
 
 	continue() {
+		if (this.ownership === "managed") {
+			this.ownership = "continued"
+		}
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
@@ -531,12 +551,32 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	 * terminal stays busy and is not eligible for reuse until then.
 	 */
 	detach() {
+		this.ownership = "detached"
 		// Flush any partial line (no trailing newline yet) so it reaches
 		// listeners before the awaited promise resolves; otherwise it would be
 		// dropped from both the partial output and the log capture if the
 		// command exits without further newline-terminated output.
 		this.emitRemainingBufferIfListening()
 		this.emit("continue")
+	}
+
+	releaseActiveExecutionResources(): void {
+		this.activeCloseDisposable?.dispose()
+		this.activeCloseDisposable = undefined
+		this.activeEndEventDisposable?.dispose()
+		this.activeEndEventDisposable = undefined
+		try {
+			this.activeIterator?.return?.()?.catch?.(() => {})
+		} catch {
+			// The iterator does not support early termination.
+		}
+		this.activeIterator = undefined
+	}
+
+	private markCommandUnobserved(source: UnobservedTerminalCommand["source"]): void {
+		const command = { source, ownership: this.ownership }
+		this.unobservedCommand = command
+		this.emit("unobserved_command", command)
 	}
 
 	/**
@@ -565,6 +605,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			exitCode: this.exitCode,
 			signal: this.signal,
 			terminalClosed: this.terminalClosedMidCommand,
+			unobservedCommand: this.unobservedCommand,
 		}
 	}
 

@@ -61,10 +61,7 @@ function resolveClaudeExecutable(): string | undefined {
 	const executableName = process.platform === "win32" ? "claude.exe" : "claude";
 	// Anchor on the real executable location first so resolution works from
 	// compiled binaries; fall back to this module's location for plain node.
-	const anchors = [
-		join(dirname(process.execPath), "noop.js"),
-		import.meta.url,
-	];
+	const anchors = [join(dirname(process.execPath), "noop.js"), import.meta.url];
 	for (const anchor of anchors) {
 		for (const suffix of suffixes) {
 			try {
@@ -361,6 +358,14 @@ export async function createSapAiCoreProviderModule(
 		!Array.isArray(options.defaultSettings)
 			? { defaultSettings: options.defaultSettings }
 			: {}),
+		requestConfig: {
+			headers: { "ai-client-type": "Cline" },
+			// Standard cline axios settings mirroring `getAxiosSettings()`
+			adapter: "fetch",
+			...(config.fetch ? { fetch: config.fetch } : {}),
+			maxBodyLength: Number.POSITIVE_INFINITY,
+			maxContentLength: Number.POSITIVE_INFINITY,
+		},
 	});
 	return {
 		model: (modelId) =>

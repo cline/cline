@@ -1,4 +1,6 @@
-import { fstatSync } from "node:fs";
+import { fstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	CliMigrationNotice,
@@ -18,6 +20,7 @@ vi.mock("node:fs", async () => {
 const originalArgv = [...process.argv];
 const originalStdinIsTTY = process.stdin.isTTY;
 const originalStdoutIsTTY = process.stdout.isTTY;
+const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const mockState = vi.hoisted(() => ({
 	runAgentImports: 0,
 	runInteractiveImports: 0,
@@ -60,6 +63,13 @@ const kanbanMocks = vi.hoisted(() => ({
 }));
 const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
+}));
+const connectMocks = vi.hoisted(() => ({
+	formatAdapterList: vi.fn(() => ""),
+	runConnectAdapter: vi.fn(async () => 0),
+	runRestartConnector: vi.fn(async () => 0),
+	runStopAllConnectors: vi.fn(async () => 0),
+	runStopConnector: vi.fn(async () => 0),
 }));
 const migrationNoticeMocks = vi.hoisted(() => ({
 	getClineCliMigrationNotice: vi.fn<
@@ -198,6 +208,7 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
+vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
@@ -208,8 +219,17 @@ vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
 
 describe("runCli lightweight command dispatch", () => {
+	let globalSettingsRoot: string | undefined;
+
 	beforeEach(() => {
 		process.exitCode = undefined;
+		// Startup now reads persisted general settings; point the resolver at a
+		// fresh temp file so the developer's real settings cannot leak in.
+		globalSettingsRoot = mkdtempSync(join(tmpdir(), "cline-cli-main-test-"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			globalSettingsRoot,
+			"global-settings.json",
+		);
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 		mockState.runAgentCalls = 0;
@@ -273,6 +293,16 @@ describe("runCli lightweight command dispatch", () => {
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		connectMocks.formatAdapterList.mockReset();
+		connectMocks.formatAdapterList.mockReturnValue("");
+		connectMocks.runConnectAdapter.mockReset();
+		connectMocks.runConnectAdapter.mockResolvedValue(0);
+		connectMocks.runRestartConnector.mockReset();
+		connectMocks.runRestartConnector.mockResolvedValue(0);
+		connectMocks.runStopAllConnectors.mockReset();
+		connectMocks.runStopAllConnectors.mockResolvedValue(0);
+		connectMocks.runStopConnector.mockReset();
+		connectMocks.runStopConnector.mockResolvedValue(0);
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReset();
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(undefined);
 		migrationNoticeMocks.markClineCliMigrationNoticeShown.mockReset();
@@ -298,6 +328,16 @@ describe("runCli lightweight command dispatch", () => {
 
 	afterEach(() => {
 		process.exitCode = undefined;
+
+		if (originalGlobalSettingsPath === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+		}
+		if (globalSettingsRoot) {
+			rmSync(globalSettingsRoot, { recursive: true, force: true });
+			globalSettingsRoot = undefined;
+		}
 
 		process.argv = [...originalArgv];
 		Object.defineProperty(process.stdin, "isTTY", {
@@ -333,6 +373,55 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
+	}, 30_000);
+
+	it("routes connector restart arguments through the restart lifecycle", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			undefined,
+		);
+		expect(connectMocks.runConnectAdapter).not.toHaveBeenCalled();
+		expect(connectMocks.runStopConnector).not.toHaveBeenCalled();
+	});
+
+	it("routes a targeted connector restart to one instance", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart-instance",
+			"cline_bot",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			"cline_bot",
+		);
 	});
 
 	it("does not load runtime modules for root update", async () => {
@@ -848,6 +937,172 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	describe("persisted general settings at startup", () => {
+		function writePersistedSettings(settings: Record<string, unknown>) {
+			const path = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			if (!path) {
+				throw new Error("CLINE_GLOBAL_SETTINGS_PATH is not set");
+			}
+			writeFileSync(path, JSON.stringify(settings));
+		}
+
+		it("restores the persisted plan mode when no mode flag is provided", async () => {
+			writePersistedSettings({ planActMode: "plan" });
+			promptMocks.resolveSystemPrompt.mockClear();
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "plan" }),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "plan" }),
+			);
+		});
+
+		it("prefers an explicit --act flag over the persisted plan mode", async () => {
+			writePersistedSettings({ planActMode: "plan" });
+			promptMocks.resolveSystemPrompt.mockClear();
+			process.argv = ["bun", "src/index.ts", "--act"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "act" }),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "act" }),
+			);
+		});
+
+		it("restores the persisted auto-approve setting as a runtime policy", async () => {
+			writePersistedSettings({ toolAutoApprove: false });
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					defaultToolAutoApprove: true,
+					toolPolicies: {
+						"*": { autoApprove: false },
+					},
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("prefers an explicit --auto-approve flag over the persisted setting", async () => {
+			writePersistedSettings({ toolAutoApprove: false });
+			process.argv = ["bun", "src/index.ts", "--auto-approve", "true"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					toolPolicies: {
+						"*": { autoApprove: true },
+					},
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("restores disabled compaction across restarts", async () => {
+			writePersistedSettings({
+				compactionEnabled: false,
+				compactionStrategy: "basic",
+			});
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: false },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("restores the persisted compaction strategy across restarts", async () => {
+			writePersistedSettings({
+				compactionEnabled: true,
+				compactionStrategy: "basic",
+			});
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "basic" },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("prefers an explicit --compaction flag over the persisted mode", async () => {
+			writePersistedSettings({ compactionEnabled: false });
+			process.argv = ["bun", "src/index.ts", "--compaction", "agentic"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "agentic" },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("applies persisted settings to single-prompt runs as well", async () => {
+			writePersistedSettings({
+				compactionEnabled: true,
+				compactionStrategy: "basic",
+				planActMode: "plan",
+			});
+			forcePromptModeInput();
+			process.argv = ["bun", "src/index.ts", "say hello"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"say hello",
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "basic" },
+					mode: "plan",
+				}),
+				expect.anything(),
+			);
+		});
+	});
+
 	it("forces chat view when resuming a session", async () => {
 		process.argv = ["bun", "src/index.ts", "--id", "sess_123"];
 
@@ -1302,7 +1557,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 				thinking: true,
 				reasoningEffort: "medium",
@@ -1389,7 +1643,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables truncation compaction by default for prompt runs", async () => {
+	it("uses Core's agentic compaction default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
@@ -1404,7 +1658,6 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 			}),
 			expect.anything(),

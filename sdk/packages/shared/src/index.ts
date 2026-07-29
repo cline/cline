@@ -30,10 +30,12 @@ export type {
 	ConnectorSecurityFieldDef,
 } from "./connectors/platforms";
 export {
+	buildConnectorConnectArgs,
 	CONNECTOR_CATALOG,
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,
 	listConnectorCatalog,
+	mergeConnectorConnectArgs,
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type {
@@ -274,6 +276,7 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
@@ -425,13 +428,18 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export type { ConnectorCliLaunchSpec } from "./runtime/hub-daemon-env";
 export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
+	readConnectorCliLaunchSpec,
+	setConnectorCliLaunchSpec,
 } from "./runtime/hub-daemon-env";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
+	CaptureTaskLifecycleEventInput,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -448,8 +456,14 @@ export {
 	buildSdkErrorProperties,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureTaskLifecycleEvent,
 	normalizeSdkError,
 	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {
@@ -488,6 +502,11 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";

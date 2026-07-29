@@ -257,10 +257,10 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
 | `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
-| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `basic`; use `agentic` for LLM compaction or `off` to disable. |
+| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `agentic`; use `basic` for local truncation or `off` to disable. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
-| `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline` (enables sandbox mode automatically) |
+| `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline/data` (enables sandbox mode automatically) |
 | `--auto-approve [true\|false]` | Set tool auto-approval for all tools |
 | `--kanban` | Run the external `kanban` app |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |

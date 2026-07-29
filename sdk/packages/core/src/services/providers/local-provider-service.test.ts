@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -320,6 +321,12 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 									reasoning: true,
 									limit: { context: 256_000, input: 200_000, output: 32_000 },
 								},
+								"vendor/live-free-model": {
+									name: "Live Free Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 512_000, input: 400_000, output: 64_000 },
+								},
 							},
 						},
 					}),
@@ -338,6 +345,7 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 							name: "vendor/live-pass-model",
 						},
 					],
+					free: [{ id: "cline-free/live-free-model" }],
 				}),
 				{
 					status: 200,
@@ -350,12 +358,24 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		const { models } = await getLocalProviderModels("cline-pass");
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(models.map((model) => model.id)).toEqual([
-			"cline-pass/live-pass-model",
-		]);
-		expect(models[0]).toMatchObject({
+		expect(models.map((model) => model.id)).toEqual(
+			expect.arrayContaining([
+				"cline-pass/live-pass-model",
+				"cline-free/live-free-model",
+			]),
+		);
+		expect(
+			models.find((model) => model.id === "cline-pass/live-pass-model"),
+		).toMatchObject({
 			id: "cline-pass/live-pass-model",
 			name: "Live Pass Model",
+			supportsReasoning: true,
+		});
+		expect(
+			models.find((model) => model.id === "cline-free/live-free-model"),
+		).toMatchObject({
+			id: "cline-free/live-free-model",
+			name: "Live Free Model (free)",
 			supportsReasoning: true,
 		});
 	});
@@ -883,7 +903,7 @@ describe("models.json model overlays", () => {
 			expect(provider).toMatchObject({
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
-				defaultModelId: "anthropic/claude-sonnet-4.6",
+				defaultModelId: CLINE_DEFAULT_MODEL_ID,
 			});
 
 			const { models } = await getLocalProviderModels("cline");

@@ -1,10 +1,17 @@
 "use client";
 
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import { Check, FolderCode, GitBranch, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -19,17 +26,6 @@ function formatWorkspacePath(path: string): string {
 	return path;
 }
 
-function normalizeWorkspacePath(path: string): string {
-	const normalized = path.trim().replace(/[\\/]+$/, "");
-	if (!normalized) {
-		return "";
-	}
-	if (/^[A-Za-z]:/.test(normalized)) {
-		return normalized.toLowerCase();
-	}
-	return normalized;
-}
-
 export function WorkspaceSelector({
 	currentBranch,
 	workspaceRoot,
@@ -40,6 +36,7 @@ export function WorkspaceSelector({
 	onSwitchWorkspace,
 	onPickWorkspaceDirectory,
 	onCreateGitBranch,
+	disabled = false,
 }: {
 	currentBranch: string;
 	workspaceRoot: string;
@@ -50,6 +47,7 @@ export function WorkspaceSelector({
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory?: (initialPath?: string) => Promise<string | null>;
 	onCreateGitBranch?: (branchName: string) => Promise<boolean>;
+	disabled?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -64,9 +62,12 @@ export function WorkspaceSelector({
 	const [newBranchName, setNewBranchName] = useState("");
 
 	const workspaceName = useMemo(() => {
+		if (isChatWorkspacePath(workspaceRoot)) {
+			return "Chat";
+		}
 		const trimmed = workspaceRoot.trim().replace(/[\\/]+$/, "");
 		if (!trimmed) {
-			return "workspace";
+			return "Chat";
 		}
 		const parts = trimmed.split(/[\\/]/);
 		return parts[parts.length - 1] || "workspace";
@@ -77,6 +78,9 @@ export function WorkspaceSelector({
 	);
 
 	const openMenu = async () => {
+		if (disabled) {
+			return;
+		}
 		setOpen(true);
 		setSearch("");
 		setShowWorkspacePathInput(false);
@@ -181,35 +185,70 @@ export function WorkspaceSelector({
 		b.toLowerCase().includes(search.toLowerCase()),
 	);
 
-	const filteredWorkspaces = workspaces.filter((w) =>
+	// The catalog excludes non-project paths (home, Desktop, ~/.cline), but an
+	// explicitly opened workspace must stay visible while it is active.
+	const availableWorkspaces = useMemo(() => {
+		const byNormalizedPath = new Map<string, string>();
+		const register = (path: string) => {
+			const trimmed = path.trim();
+			if (trimmed)
+				byNormalizedPath.set(normalizeWorkspacePath(trimmed), trimmed);
+		};
+		if (!isChatWorkspacePath(workspaceRoot)) register(workspaceRoot);
+		for (const path of workspaces) register(path);
+		return [...byNormalizedPath.values()];
+	}, [workspaceRoot, workspaces]);
+
+	const filteredWorkspaces = availableWorkspaces.filter((w) =>
 		w.toLowerCase().includes(search.toLowerCase()),
 	);
 
 	return (
-		<div className="relative">
-			<Button
-				variant="ghost"
-				className="flex items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors"
-				disabled={switching}
-				id="git-branch-btn"
-				onClick={() => {
-					if (open) {
-						setOpen(false);
-						setSearch("");
-						setShowCreateBranch(false);
-						setNewBranchName("");
-						return;
-					}
-					void openMenu();
-				}}
-			>
-				<GitBranch className="size-3" />
-				<span className="max-w-20 truncate">{workspaceName}</span>
-				<span className="text-muted-foreground/60">/</span>
-				<span className="max-w-20 truncate">{currentBranch}</span>
-			</Button>
+		<div className="relative min-w-0 max-w-full">
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						className={cn(
+							"inline-flex max-w-full",
+							(disabled || switching) && "[&>button]:pointer-events-none",
+						)}
+					>
+						<Button
+							variant="ghost"
+							aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
+							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							disabled={disabled || switching}
+							id="git-branch-btn"
+							onClick={() => {
+								if (open) {
+									setOpen(false);
+									setSearch("");
+									setShowCreateBranch(false);
+									setNewBranchName("");
+									return;
+								}
+								void openMenu();
+							}}
+						>
+							<GitBranch className="size-3" />
+							<span className="max-w-20 shrink-0 truncate max-[560px]:sr-only">
+								{workspaceName}
+							</span>
+							<span className="shrink-0 text-muted-foreground/60 max-[560px]:sr-only">
+								/
+							</span>
+							<span className="min-w-0 truncate max-[560px]:sr-only">
+								{currentBranch}
+							</span>
+						</Button>
+					</span>
+				</TooltipTrigger>
+				<TooltipContent align="end" side="top" sideOffset={6}>
+					{workspaceRoot || workspaceName} / {currentBranch}
+				</TooltipContent>
+			</Tooltip>
 
-			{open && (
+			{open && !disabled && (
 				<>
 					<Button
 						variant="ghost"

@@ -5,8 +5,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatSession } from "./use-chat-session";
 
-const { invokeMock } = vi.hoisted(() => ({
+const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
+	subscribeMock: vi.fn(() => () => undefined),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -14,7 +15,7 @@ vi.mock("@/lib/desktop-client", () => ({
 		getTransportError: vi.fn(() => null),
 		getTransportState: vi.fn(() => "connected"),
 		invoke: invokeMock,
-		subscribe: vi.fn(() => () => undefined),
+		subscribe: subscribeMock,
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
 }));
@@ -37,6 +38,7 @@ beforeEach(async () => {
 	document.body.appendChild(container);
 	root = createRoot(container);
 	invokeMock.mockReset();
+	subscribeMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
 			return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
@@ -53,6 +55,133 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
+		let startedSessionId = "";
+		await act(async () => {
+			current.setWorkspacePath("");
+		});
+		invokeMock.mockClear();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; config?: Record<string, unknown> }
+					| undefined;
+				if (request?.action === "start") {
+					const sessionId = String(
+						request.config?.sessionId ?? "session-pathless",
+					);
+					startedSessionId = sessionId;
+					const workspacePath = "/home/host/.cline/data/workspaces/chat";
+					return {
+						sessionId,
+						cwd: workspacePath,
+						workspaceRoot: workspacePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Start the task"));
+
+		expect(current.error).toBeNull();
+		expect(startedSessionId).toMatch(/^session_/);
+		const expectedWorkspacePath = "/home/host/.cline/data/workspaces/chat";
+		expect(current.config).toMatchObject({
+			cwd: expectedWorkspacePath,
+			workspaceRoot: expectedWorkspacePath,
+		});
+		expect(invokeMock).toHaveBeenCalledWith("chat_session_command", {
+			request: expect.objectContaining({
+				action: "start",
+				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
+			}),
+		});
+	});
+
+	it("preserves server validation errors", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			}
+			if (command === "chat_session_command") {
+				throw new Error(
+					'[{"origin":"string","code":"too_small","path":["workspaces","/","hint"],"message":"Too small: expected string to have >=1 characters"}]',
+				);
+			}
+			return [];
+		});
+
+		await act(async () => current.start(current.config));
+
+		const expected =
+			'[{"origin":"string","code":"too_small","path":["workspaces","/","hint"],"message":"Too small: expected string to have >=1 characters"}]';
+		expect(current.error).toBe(expected);
+		expect(current.messages.at(-1)?.content).toBe(expected);
+	});
+
+	it.each([
+		{
+			finishReason: "completed",
+			expected:
+				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
+		},
+		{
+			finishReason: "error",
+			expected:
+				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
+		},
+	])("handles schema-like assistant text for $finishReason responses", async ({
+		finishReason,
+		expected,
+	}) => {
+		const schemaLikeText =
+			'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]';
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-test",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: schemaLikeText, finishReason },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Explain this validation error"));
+
+		expect(
+			current.messages.findLast((message) => message.role === "assistant")
+				?.content,
+		).toBe(expected);
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
@@ -203,6 +332,387 @@ describe("useChatSession", () => {
 			userImages: [],
 			userFiles: [{ name: "notes.txt", content: "hello" }],
 		});
+	});
+
+	it("adds an attached image to the optimistic user message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "Done", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+		const attachment = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+			type: "image/png",
+		});
+
+		await act(async () => {
+			await current.sendPrompt("Describe this", [attachment]);
+		});
+
+		expect(current.messages.find((message) => message.role === "user")).toEqual(
+			expect.objectContaining({
+				content: "Describe this",
+				images: [
+					expect.objectContaining({
+						mediaType: "image/png",
+						data: "AQID",
+					}),
+				],
+			}),
+		);
+	});
+
+	it("keeps distinct image previews for queued prompts with identical text", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "Done", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,AQID"],
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,BAUG"],
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "Describe this",
+					attachmentCount: 1,
+					userImages: ["data:image/png;base64,BAUG"],
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const queuedMessages = current.messages.filter(
+			(message) =>
+				message.id === "queued_user_queued-prompt-1" ||
+				message.id === "queued_user_queued-prompt-2",
+		);
+		expect(queuedMessages).toHaveLength(2);
+		expect(queuedMessages.map((message) => message.content)).toEqual([
+			"Describe this",
+			"Describe this",
+		]);
+		expect(queuedMessages.map((message) => message.images?.[0]?.data)).toEqual([
+			"AQID",
+			"BAUG",
+		]);
+	});
+
+	it("keeps live stream timestamps in milliseconds", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("Think about this");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const userMessage = current.messages.find(
+			(message) => message.role === "user",
+		);
+		expect(chatEventHandler).toBeDefined();
+		expect(userMessage).toBeDefined();
+		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) + 5_000;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_reasoning",
+				chunk: JSON.stringify({ text: "Considering the request." }),
+				ts: thinkingTimestamp,
+				index: 42,
+			});
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "assistant")
+				?.createdAt,
+		).toBe(thinkingTimestamp);
+	});
+
+	it("returns to a completed status when a queued turn finishes via chat_done", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						// The runtime queued the prompt (e.g. the interactive loop was
+						// still starting), so the RPC resolves without a turn result.
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		// Runtime consumes the queued prompt: the UI flips to running.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.status).toBe("running");
+
+		// The turn ends: chat_done is the only completion signal for queued
+		// turns, so it must clear the busy status.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed", text: "pong" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("completed");
+	});
+
+	it("stays running on chat_done while more prompts wait in the queue", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const queueStateHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "prompts_in_queue_state",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+		expect(queueStateHandler).toBeDefined();
+
+		// A second prompt is waiting in the queue when the first turn ends.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [{ id: "queued-2", prompt: "Second prompt", steer: false }],
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("running");
+
+		// Once the queue drains, the next chat_done releases the composer.
+		await act(async () => {
+			queueStateHandler?.({
+				sessionId: current.sessionId,
+				items: [],
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-2",
+					prompt: "Second prompt",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+		expect(current.status).toBe("completed");
+	});
+
+	it("marks a queued turn as failed when chat_done reports an error", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {
@@ -500,11 +1010,7 @@ describe("useChatSession", () => {
 		root = createRoot(container);
 		await act(async () => root.render(<HookHarness />));
 		await act(async () => {
-			current.setConfig((previous) => ({
-				...previous,
-				workspaceRoot: "/workspace/selected",
-				cwd: "/workspace/selected",
-			}));
+			current.setWorkspacePath("/workspace/selected");
 		});
 
 		await act(async () => {
@@ -516,5 +1022,37 @@ describe("useChatSession", () => {
 		});
 		expect(current.config.workspaceRoot).toBe("/workspace/selected");
 		expect(current.config.cwd).toBe("/workspace/selected");
+	});
+
+	it("preserves a chat selection while process context is loading", async () => {
+		await act(async () => root.unmount());
+		let resolveContext:
+			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| undefined;
+		const contextResponse = new Promise<{
+			cwd: string;
+			workspaceRoot: string;
+		}>((resolve) => {
+			resolveContext = resolve;
+		});
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") return await contextResponse;
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+		await act(async () => {
+			current.setWorkspacePath("");
+		});
+
+		await act(async () => {
+			resolveContext?.({
+				cwd: "/workspace/default",
+				workspaceRoot: "/workspace/default",
+			});
+			await contextResponse;
+		});
+		expect(current.config.workspaceRoot).toBe("");
+		expect(current.config.cwd).toBe("");
 	});
 });

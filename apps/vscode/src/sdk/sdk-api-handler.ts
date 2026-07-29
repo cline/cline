@@ -66,7 +66,6 @@ export function buildSdkProviderConfig(
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
 		// configuration (see .clinerules/network.md).
 		fetch,
-		onRetryAttempt: configuration.onRetryAttempt,
 		// Bedrock needs its region + structured AWS auth options forwarded to the
 		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
 		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),

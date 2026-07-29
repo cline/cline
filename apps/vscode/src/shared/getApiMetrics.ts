@@ -77,18 +77,49 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
  * This is used for context window progress display - it shows how much of the
  * context window is used in the current/most recent request, not cumulative totals.
  *
+ * A completed compaction divider that postdates the last request shrinks that
+ * request's total by the compaction's tokensAfter/tokensBefore ratio, so the
+ * context-window bar drops immediately instead of waiting for the next request
+ * to run. The ratio is used rather than tokensAfter itself because the
+ * compaction counters are the SDK's estimate (chars/4-class), a different
+ * scale from the provider-reported usage that normally drives this value —
+ * substituting the estimate would make the bar visibly re-snap when the next
+ * request's real usage lands. Both counters come from the same estimator, so
+ * their ratio is scale-free. Multiple compactions since the last request
+ * compound.
+ *
  * @param messages - An array of ClineMessage objects to process.
- * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, or 0 if none found.
+ * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, scaled down by any completed compactions that happened after it, or 0 if none found.
  */
 export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
+	let shrinkFraction: number | undefined
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i]
-		if (msg.type === "say" && msg.say === "api_req_started" && msg.text) {
+		if (msg.type !== "say" || !msg.text) {
+			continue
+		}
+		if (msg.say === "compaction") {
+			try {
+				const { status, tokensBefore, tokensAfter } = JSON.parse(msg.text)
+				if (
+					status === "completed" &&
+					typeof tokensBefore === "number" &&
+					typeof tokensAfter === "number" &&
+					tokensBefore > 0 &&
+					tokensAfter > 0
+				) {
+					shrinkFraction = (shrinkFraction ?? 1) * Math.min(1, tokensAfter / tokensBefore)
+				}
+			} catch {
+				// Ignore JSON parse errors, continue searching
+			}
+		}
+		if (msg.say === "api_req_started") {
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				const total = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				if (total > 0) {
-					return total
+					return shrinkFraction === undefined ? total : Math.ceil(total * shrinkFraction)
 				}
 			} catch {
 				// Ignore JSON parse errors, continue searching

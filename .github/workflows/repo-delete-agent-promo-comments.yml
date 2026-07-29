@@ -1,0 +1,60 @@
+# Some coding-agent GitHub Apps advertise themselves by auto-commenting on every
+# new PR ("<Tool> Agent can help with this pull request. Just @<tool> ..."). The
+# app needs pull_requests:write for its real job (pushing branches, opening PRs),
+# and GitHub offers no per-behavior control over an installed App, so the ad
+# cannot be disabled at the source. This deletes those promo comments as they
+# appear. Genuine agent output comments (work results, reviews) don't match the
+# promo pattern and are left alone.
+#
+# No checkout, API-calls-only — comment text is only ever handled as data inside
+# the script, never interpolated into the workflow definition.
+name: repo-delete-agent-promo-comments
+on:
+    issue_comment:
+        types: [created]
+
+jobs:
+    delete:
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        # Prefilter so a runner only spins up for bot comments that look like the
+        # ad; the script re-verifies before deleting.
+        if: >-
+            github.event.issue.pull_request &&
+            endsWith(github.event.comment.user.login, '[bot]') &&
+            contains(github.event.comment.body, 'can help with this pull request')
+        # Comment deletion goes through the issues API, but GitHub gates the
+        # endpoint by where the comment lives: issue comments need `issues`,
+        # PR-conversation comments need `pull-requests`. The prefilter restricts
+        # this job to PR comments, so pull-requests is the one that matters;
+        # issues is kept in case the prefilter is ever widened.
+        permissions:
+            issues: write
+            pull-requests: write
+        steps:
+            # Pinned to a commit SHA (not the mutable v7 tag) because this job holds
+            # write permissions and fires on attacker-postable events.
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              with:
+                  script: |
+                      const comment = context.payload.comment
+
+                      // Belt and suspenders on top of the job-level prefilter: only
+                      // delete when the author is a real GitHub App bot AND the body
+                      // matches the self-promotion shape ("... can help with this
+                      // pull request. Just @<handle> ..."). A human quoting the ad
+                      // text is not a Bot; a bot posting real work output doesn't
+                      // match the promo shape.
+                      const isBot = comment.user.type === "Bot"
+                      const isPromo = /\bcan help with this pull request\b[\s\S]*@\w/i.test(comment.body || "")
+
+                      if (!isBot || !isPromo) {
+                          core.info("not an agent promo comment, leaving it alone")
+                          return
+                      }
+
+                      await github.rest.issues.deleteComment({
+                          ...context.repo,
+                          comment_id: comment.id,
+                      })
+                      core.info(`deleted promo comment ${comment.id} by ${comment.user.login} on #${context.payload.issue.number}`)
