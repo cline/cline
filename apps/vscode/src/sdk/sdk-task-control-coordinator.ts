@@ -1,4 +1,5 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -17,6 +18,13 @@ export interface SdkTaskControlCoordinatorOptions {
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
 	/**
+	 * Sets the authoritative turn phase. showTaskWithId must derive the phase
+	 * from the reopened conversation (resumable/completed) — leaving the
+	 * previous task's phase in place hides the Resume button for interrupted
+	 * sessions opened from History (and can leak stale buttons in general).
+	 */
+	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
+	/**
 	 * Raise the cancel fence SYNCHRONOUSLY before aborting the SDK session: bump the epoch so any
 	 * straggler events the SDK emits after the abort request carry the old epoch (and are dropped
 	 * by the webview), and mark the active turn cancelled so the session-event coordinator
@@ -26,6 +34,14 @@ export interface SdkTaskControlCoordinatorOptions {
 }
 
 export class SdkTaskControlCoordinator {
+	/**
+	 * Generation counter for task-view mutations (showTaskWithId / clearTask).
+	 * showTaskWithId awaits several reads before installing the task proxy; a
+	 * request that loses the race to a newer mutation abandons installation at
+	 * the next fence check so the user's latest selection always wins.
+	 */
+	private taskViewGeneration = 0
+
 	constructor(private readonly options: SdkTaskControlCoordinatorOptions) {}
 
 	async cancelTask(): Promise<void> {
@@ -72,6 +88,9 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async clearTask(): Promise<void> {
+		// Supersede any in-flight showTaskWithId so it cannot re-install a task
+		// after the user cleared the view (e.g. clicked New Task).
+		this.taskViewGeneration++
 		this.options.interactions.clearPending("Task cleared")
 
 		await this.options.sessions.endActiveSession("clearTask")
@@ -88,17 +107,64 @@ export class SdkTaskControlCoordinator {
 		this.options.resetMessageTranslator()
 	}
 
-	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
-		try {
-			if (!options.skipHistoryLookup) {
-				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
-				if (!historyItem) {
-					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-					return
-				}
+	/**
+	 * Opens a task from History. The view generation is allocated synchronously
+	 * on entry — BEFORE any asynchronous work, including the history lookup —
+	 * so the newest user selection always holds the newest generation and every
+	 * older in-flight request self-abandons at its next fence check. (The
+	 * lookup used to live in SdkController before the generation was taken; a
+	 * stalled preflight could then re-enter with a NEWER generation than a
+	 * later selection and replace it.)
+	 *
+	 * Returns the task's HistoryItem, or undefined when the task is unknown.
+	 * A superseded call still returns the item (the lookup succeeded); it just
+	 * skips mutating the task view.
+	 */
+	async showTaskWithId(taskId: string): Promise<HistoryItem | undefined> {
+		const generation = ++this.taskViewGeneration
+		const isSuperseded = (): boolean => {
+			if (generation === this.taskViewGeneration) {
+				return false
 			}
+			Logger.debug(`[SdkController] showTaskWithId superseded by a newer selection; skipping: ${taskId}`)
+			return true
+		}
 
-			await this.options.sessions.endActiveSession("showTaskWithId")
+		let historyItem: HistoryItem | undefined
+		try {
+			historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+		} catch (error) {
+			Logger.error(`[SdkController] Failed to look up task in history: ${taskId}`, error)
+			return undefined
+		}
+		if (!historyItem) {
+			Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+			return undefined
+		}
+
+		// FENCE: before stopping the active session. A superseded request must
+		// not stop a session that a newer selection just started or resumed.
+		if (isSuperseded()) {
+			return historyItem
+		}
+
+		try {
+			// When reopening the task that is currently active, wait for its stop to
+			// land so the persisted session status read below reflects how the last
+			// turn actually ended (completed vs cancelled) instead of a transient
+			// non-terminal status.
+			const activeSession = this.options.sessions.getActiveSession()
+			await this.options.sessions.endActiveSession("showTaskWithId", {
+				awaitStop: activeSession?.sessionId === taskId,
+			})
+
+			// FENCE: everything below mutates the shared task view (clearing the
+			// current task, installing the new proxy, setting the turn phase). If a
+			// newer showTaskWithId/clearTask started while this call awaited I/O,
+			// bail out so the stale request cannot clobber the newer selection.
+			if (isSuperseded()) {
+				return historyItem
+			}
 
 			const currentTask = this.options.getTask()
 			if (currentTask) {
@@ -110,12 +176,16 @@ export class SdkTaskControlCoordinator {
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
 			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
+			const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			if (isSuperseded()) {
+				return historyItem
+			}
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = isLegacyTask
 				? this.appendLegacyTaskWarningAndResumeMessage(messages)
 				: messages.length > 0
-					? this.appendFreshResumeMessage(messages)
+					? this.appendFreshResumeMessage(messages, sessionStatus)
 					: []
 
 			const task = createTaskProxy(
@@ -127,6 +197,19 @@ export class SdkTaskControlCoordinator {
 				task.messageStateHandler.addMessages(cleanedMessages)
 			}
 			this.options.setTask(task)
+
+			// Derive the turn phase from the appended resume ask. The webview
+			// renders footer buttons from the authoritative TurnState, so without
+			// this the phase left over from the previous context (often "idle")
+			// hides the Resume button for interrupted/failed sessions.
+			const lastMessage = cleanedMessages.at(-1)
+			if (lastMessage?.type === "ask" && lastMessage.ask === "resume_completed_task") {
+				this.options.setTurnPhase("completed", lastMessage.ts)
+			} else if (lastMessage?.type === "ask" && lastMessage.ask === "resume_task") {
+				this.options.setTurnPhase("resumable", lastMessage.ts)
+			} else {
+				this.options.setTurnPhase("idle")
+			}
 
 			if (cleanedMessages.length > 0) {
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
@@ -142,13 +225,20 @@ export class SdkTaskControlCoordinator {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)
 		}
+		return historyItem
 	}
 
-	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {
-		const lastRelevantMessage = [...messages]
-			.reverse()
-			.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-		const resumeAsk = lastRelevantMessage?.ask === "completion_result" ? "resume_completed_task" : "resume_task"
+	private appendFreshResumeMessage(messages: ClineMessage[], sessionStatus?: string): ClineMessage[] {
+		// The persisted session status is the only reliable completion signal:
+		// SDK conversations do not record a completion tool call in the
+		// transcript (a completed turn and a turn interrupted mid-stream both
+		// end with plain assistant text), and history rendering appends a
+		// synthetic trailing ask:"completion_result" either way, so the message
+		// tail cannot be used. When the status is unknown (e.g. a transient
+		// read failure), default to the Resume affordance: resuming a completed
+		// task is harmless, while hiding Resume on an interrupted one is the
+		// data-loss illusion this exists to prevent.
+		const resumeAsk = sessionStatus === "completed" ? "resume_completed_task" : "resume_task"
 		const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
 		cleanedMessages.push({
 			ts: Date.now(),

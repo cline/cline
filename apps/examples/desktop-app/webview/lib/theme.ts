@@ -2,21 +2,70 @@ export const HUB_THEME_STORAGE_KEY = "cline-hub-theme";
 
 export type HubTheme = "light" | "dark";
 
+export const DEFAULT_HUB_THEME: HubTheme = "dark";
+
+/**
+ * Runs from the document head before the webview paints. Keep this
+ * self-contained: the browser executes it before the client bundle loads.
+ */
+export const HUB_THEME_BOOTSTRAP_SCRIPT = `(() => {
+	const root = document.documentElement;
+	let theme;
+
+	try {
+		const stored = window.localStorage.getItem(${JSON.stringify(HUB_THEME_STORAGE_KEY)});
+		if (stored === "light" || stored === "dark") {
+			theme = stored;
+		}
+	} catch {}
+
+	if (!theme) {
+		try {
+			if (typeof window.matchMedia === "function") {
+				if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+					theme = "light";
+				} else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+					theme = "dark";
+				}
+			}
+		} catch {}
+	}
+
+	if (!theme) {
+		theme = ${JSON.stringify(DEFAULT_HUB_THEME)};
+	}
+	root.classList.toggle("dark", theme === "dark");
+	root.dataset.clineHubTheme = theme;
+})();`;
+
 export function readStoredHubTheme(): HubTheme | null {
-	const stored = window.localStorage.getItem(HUB_THEME_STORAGE_KEY);
-	return stored === "light" || stored === "dark" ? stored : null;
+	try {
+		const stored = window.localStorage.getItem(HUB_THEME_STORAGE_KEY);
+		return stored === "light" || stored === "dark" ? stored : null;
+	} catch {
+		return null;
+	}
 }
 
 export function readSystemHubTheme(): HubTheme {
 	const kind = document.body.dataset.vscodeThemeKind;
-	if (kind) {
-		return kind === "vscode-dark" || kind === "vscode-high-contrast"
-			? "dark"
-			: "light";
+	if (kind === "vscode-dark" || kind === "vscode-high-contrast") {
+		return "dark";
 	}
-	return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-		? "dark"
-		: "light";
+	if (kind === "vscode-light" || kind === "vscode-high-contrast-light") {
+		return "light";
+	}
+	try {
+		if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+			return "dark";
+		}
+		if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+			return "light";
+		}
+	} catch {
+		// Use the app default when the host cannot expose its color scheme.
+	}
+	return DEFAULT_HUB_THEME;
 }
 
 export function applyHubTheme(theme: HubTheme): HubTheme {
@@ -30,7 +79,11 @@ export function syncHubTheme(): HubTheme {
 }
 
 export function setStoredHubTheme(theme: HubTheme): HubTheme {
-	window.localStorage.setItem(HUB_THEME_STORAGE_KEY, theme);
+	try {
+		window.localStorage.setItem(HUB_THEME_STORAGE_KEY, theme);
+	} catch {
+		// Applying still works for this session when persistence is unavailable.
+	}
 	return applyHubTheme(theme);
 }
 

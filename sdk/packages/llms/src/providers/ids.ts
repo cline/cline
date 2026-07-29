@@ -73,7 +73,8 @@ export enum BUILT_IN_PROVIDER {
  *
  * Keep this map as the single source of truth for alias handling.
  */
-export type GeneratedBuiltInProviderId = (typeof GENERATED_PROVIDER_IDS)[number];
+export type GeneratedBuiltInProviderId =
+	(typeof GENERATED_PROVIDER_IDS)[number];
 
 export type BuiltInProviderId = BUILT_IN_PROVIDER | GeneratedBuiltInProviderId;
 

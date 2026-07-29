@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -8,11 +9,50 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{Manager, RunEvent, State};
+use tauri::{
+    menu::{MenuBuilder, MenuItem},
+    tray::TrayIconBuilder,
+    Emitter, Manager, RunEvent, State, WindowEvent,
+};
 use tauri_plugin_updater::UpdaterExt;
 
 const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
+const MAIN_WINDOW_LABEL: &str = "main";
+const TRAY_ICON_ID: &str = "cline-code";
+const TRAY_OPEN_MENU_ID: &str = "tray-open";
+const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
+const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
+const TRAY_QUIT_MENU_ID: &str = "tray-quit";
+const DESKTOP_MENU_ACTION_PENDING_EVENT: &str = "desktop-menu-action-pending";
+
+#[derive(Default)]
+struct DesktopMenuActionState {
+    pending: Mutex<VecDeque<String>>,
+}
+
+impl DesktopMenuActionState {
+    fn enqueue(&self, action: &str) {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push_back(action.to_string());
+    }
+
+    fn drain(&self) -> Vec<String> {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drain(..)
+            .collect()
+    }
+}
+
+struct TrayMenuState {
+    status: MenuItem<tauri::Wry>,
+    hub_healthy: Mutex<bool>,
+    running_sessions: MenuItem<tauri::Wry>,
+}
 
 #[derive(Clone)]
 struct AppContext {
@@ -72,19 +112,53 @@ impl UpdateState {
     }
 }
 
+fn tray_status_text(update_status: &UpdateStatus, hub_healthy: bool) -> &'static str {
+    match update_status.state.as_str() {
+        "checking" => "Status: Checking for Updates",
+        "downloading" => "Status: Downloading Update",
+        "ready" => "Status: Update Available",
+        "error" => "Status: Update Check Failed",
+        _ if hub_healthy => "Status: Healthy",
+        _ => "Status: Hub Disconnected",
+    }
+}
+
+fn refresh_tray_status(app: &tauri::AppHandle, update_state: &UpdateState) {
+    let tray_menu = app.state::<TrayMenuState>();
+    let hub_healthy = tray_menu
+        .hub_healthy
+        .lock()
+        .map(|healthy| *healthy)
+        .unwrap_or(false);
+    let _ = tray_menu
+        .status
+        .set_text(tray_status_text(&update_state.snapshot(), hub_healthy));
+}
+
+fn set_update_status(
+    app: &tauri::AppHandle,
+    update_state: &UpdateState,
+    state: &str,
+    version: Option<String>,
+    error: Option<String>,
+) {
+    update_state.set(state, version, error);
+    refresh_tray_status(app, update_state);
+}
+
 async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
     // An update that already finished downloading only needs a restart; keep
     // reporting "ready" instead of flipping back to transient states unless a
     // newer version shows up.
     let ready_version = state.ready_version();
     if ready_version.is_none() {
-        state.set("checking", None, None);
+        set_update_status(app, state, "checking", None, None);
     }
 
     let updater = match app.updater() {
         Ok(updater) => updater,
         Err(error) => {
-            state.set("error", None, Some(error.to_string()));
+            set_update_status(app, state, "error", None, Some(error.to_string()));
             return;
         }
     };
@@ -95,20 +169,22 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
             if ready_version.as_deref() == Some(version.as_str()) {
                 return;
             }
-            state.set("downloading", Some(version.clone()), None);
+            set_update_status(app, state, "downloading", Some(version.clone()), None);
             match update.download_and_install(|_, _| {}, || {}).await {
-                Ok(()) => state.set("ready", Some(version), None),
-                Err(error) => state.set("error", Some(version), Some(error.to_string())),
+                Ok(()) => set_update_status(app, state, "ready", Some(version), None),
+                Err(error) => {
+                    set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+                }
             }
         }
         Ok(None) => {
             if ready_version.is_none() {
-                state.set("idle", None, None);
+                set_update_status(app, state, "idle", None, None);
             }
         }
         Err(error) => {
             if ready_version.is_none() {
-                state.set("error", None, Some(error.to_string()));
+                set_update_status(app, state, "error", None, Some(error.to_string()));
             }
         }
     }
@@ -691,6 +767,105 @@ fn open_mcp_settings_file() -> Result<String, String> {
     Ok(settings_path.to_string_lossy().to_string())
 }
 
+fn show_main_window(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
+    show_main_window(app);
+    app.state::<DesktopMenuActionState>().enqueue(action);
+    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_MENU_ACTION_PENDING_EVENT, ()) {
+        // The action remains queued and will be picked up by the webview's
+        // initial drain after its event listener is registered.
+        eprintln!("[desktop-menu] failed to signal pending {action}: {error}");
+    }
+}
+
+fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
+    let status = MenuItem::new(app, "Status: Healthy", false, None::<&str>)?;
+    let running_sessions = MenuItem::new(app, "0 sessions running", false, None::<&str>)?;
+    let menu = MenuBuilder::new(app)
+        .text(
+            TRAY_OPEN_MENU_ID,
+            format!("Cline Code v{}", app.package_info().version),
+        )
+        .item(&status)
+        .separator()
+        .text(TRAY_NEW_SESSION_MENU_ID, "New Session")
+        .item(&running_sessions)
+        .separator()
+        .text(TRAY_SETTINGS_MENU_ID, "Settings")
+        .separator()
+        .text(TRAY_QUIT_MENU_ID, "Quit")
+        .build()?;
+
+    // This is the same glyph used by webview/components/cline-logo.tsx,
+    // rasterized without a background. Template mode lets macOS tint it for
+    // the current menu-bar appearance.
+    #[cfg(target_os = "macos")]
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray/cline-template.png"))?;
+    #[cfg(not(target_os = "macos"))]
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .ok_or_else(|| tauri::Error::InvalidIcon(std::io::Error::other("missing app icon")))?;
+
+    let tray = TrayIconBuilder::with_id(TRAY_ICON_ID)
+        .icon(icon)
+        .menu(&menu)
+        .tooltip("Cline Code");
+    #[cfg(target_os = "macos")]
+    let tray = tray.icon_as_template(true);
+
+    tray.on_menu_event(|app, event| match event.id().as_ref() {
+        TRAY_OPEN_MENU_ID => show_main_window(app),
+        TRAY_NEW_SESSION_MENU_ID => queue_desktop_menu_action(app, "new-session"),
+        TRAY_SETTINGS_MENU_ID => queue_desktop_menu_action(app, "open-settings"),
+        TRAY_QUIT_MENU_ID => app.exit(0),
+        _ => {}
+    })
+    .build(app)?;
+    app.manage(TrayMenuState {
+        status,
+        hub_healthy: Mutex::new(true),
+        running_sessions,
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn drain_desktop_menu_actions(action_state: State<'_, DesktopMenuActionState>) -> Vec<String> {
+    action_state.drain()
+}
+
+#[tauri::command]
+fn set_tray_status(
+    tray_menu: State<'_, TrayMenuState>,
+    update_state: State<'_, Arc<UpdateState>>,
+    hub_healthy: bool,
+    running_sessions: u32,
+) -> Result<(), String> {
+    if let Ok(mut healthy) = tray_menu.hub_healthy.lock() {
+        *healthy = hub_healthy;
+    }
+    tray_menu
+        .status
+        .set_text(tray_status_text(&update_state.snapshot(), hub_healthy))
+        .map_err(|error| format!("failed updating tray status: {error}"))?;
+    tray_menu
+        .running_sessions
+        .set_text(match running_sessions {
+            1 => "1 session running".to_string(),
+            count => format!("{count} sessions running"),
+        })
+        .map_err(|error| format!("failed updating tray session count: {error}"))
+}
+
 fn main() {
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
@@ -707,7 +882,9 @@ fn main() {
         .manage(desktop_backend)
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
+        .manage(DesktopMenuActionState::default())
         .setup(|app| {
+            setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
             if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
@@ -733,17 +910,32 @@ fn main() {
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == MAIN_WINDOW_LABEL {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             pick_workspace_directory,
             open_mcp_settings_file,
             get_update_status,
             restart_to_apply_update,
-            set_app_icon
+            set_app_icon,
+            drain_desktop_menu_actions,
+            set_tray_status
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
         .run(|app_handle, event| match event {
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
@@ -758,6 +950,47 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn desktop_menu_actions_are_buffered_in_order_until_drained() {
+        let state = DesktopMenuActionState::default();
+        state.enqueue("new-session");
+        state.enqueue("open-settings");
+
+        assert_eq!(state.drain(), vec!["new-session", "open-settings"]);
+        assert!(state.drain().is_empty());
+    }
+
+    #[test]
+    fn tray_status_prioritizes_update_progress_over_hub_health() {
+        let status = |state: &str| UpdateStatus {
+            state: state.to_string(),
+            version: None,
+            error: None,
+        };
+
+        assert_eq!(tray_status_text(&status("idle"), true), "Status: Healthy");
+        assert_eq!(
+            tray_status_text(&status("idle"), false),
+            "Status: Hub Disconnected"
+        );
+        assert_eq!(
+            tray_status_text(&status("checking"), false),
+            "Status: Checking for Updates"
+        );
+        assert_eq!(
+            tray_status_text(&status("downloading"), false),
+            "Status: Downloading Update"
+        );
+        assert_eq!(
+            tray_status_text(&status("ready"), false),
+            "Status: Update Available"
+        );
+        assert_eq!(
+            tray_status_text(&status("error"), false),
+            "Status: Update Check Failed"
+        );
+    }
 
     /// A stand-in sidecar that stays alive without ever publishing a ready
     /// line — the endpoint-pending startup window that used to trigger

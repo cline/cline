@@ -153,9 +153,9 @@ Supported commands:
 | `list_mcp_servers` | Direct file I/O |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
-| `get_git_branch` | `execFileSync("git", ...)` |
-| `list_git_branches` | `execFileSync("git", ...)` |
-| `checkout_git_branch` | `execFileSync("git", ...)` |
+| `get_git_branch` | async `execFile("git", ...)` |
+| `list_git_branches` | async `execFile("git", ...)` |
+| `checkout_git_branch` | async `execFile("git", ...)` |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
