@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { homedir, platform } from "node:os"
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path"
 import {
@@ -476,14 +476,24 @@ function collectPluginLoadErrors(): { errors: Map<string, string>; validatedPath
 	const report = getLatestPluginLoadReport()
 	if (!report) return { errors, validatedPaths }
 
-	for (const pluginPath of report.pluginPaths) {
-		validatedPaths.add(resolve(pluginPath))
+	// A plugin whose entry file changed after the session ran has no current
+	// verdict. Reusing the old one would blame the edit the user just made to
+	// fix it, so treat it as unvalidated until another session loads it.
+	const hasCurrentVerdict = (pluginPath: string): boolean => {
+		try {
+			return statSync(pluginPath).mtimeMs <= report.recordedAt
+		} catch {
+			return false
+		}
 	}
+	for (const pluginPath of [...report.pluginPaths, ...report.failures.map((failure) => failure.pluginPath)]) {
+		if (hasCurrentVerdict(pluginPath)) validatedPaths.add(resolve(pluginPath))
+	}
+
 	const shouldLog = loggedPluginReportAt !== report.recordedAt
 	for (const failure of report.failures) {
 		const key = resolve(failure.pluginPath)
-		validatedPaths.add(key)
-		if (errors.has(key)) continue
+		if (!validatedPaths.has(key) || errors.has(key)) continue
 		if (shouldLog) {
 			Logger.error(
 				`[marketplace] plugin failed to load during ${failure.phase}: ${failure.pluginPath}`,

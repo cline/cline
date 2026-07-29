@@ -31,9 +31,12 @@ mock.module("@cline/core", () => ({
 	uninstallPlugin: async () => ({}),
 }))
 
+let pluginMtimeMs = 0
+
 mock.module("node:fs", () => ({
 	existsSync: () => true,
 	readFileSync: () => "{}",
+	statSync: () => ({ mtimeMs: pluginMtimeMs }),
 }))
 
 mock.module("@core/controller/file/refreshSkills", () => ({
@@ -72,6 +75,7 @@ function report(overrides: Record<string, unknown> = {}) {
 describe("listLocalMarketplaceInstalledEntries plugin diagnostics", () => {
 	beforeEach(() => {
 		workspacePaths = ["/workspace/project"]
+		pluginMtimeMs = 0
 		readGlobalSettingsStub.returns({ disabledPlugins: [DISABLED_PLUGIN] })
 		getLatestPluginLoadReportStub.returns(report())
 	})
@@ -167,6 +171,17 @@ describe("listLocalMarketplaceInstalledEntries plugin diagnostics", () => {
 		assert.equal(message.length <= 401, true)
 		assert.equal(message.startsWith("boom at frame"), true)
 		assert.equal(message.endsWith("…"), true)
+	})
+
+	it("drops a verdict for a plugin edited since the session ran", async () => {
+		const recordedAt = Date.now()
+		getLatestPluginLoadReportStub.returns(report({ recordedAt }))
+		pluginMtimeMs = recordedAt + 1_000
+		const { listLocalMarketplaceInstalledEntries } = await import("../marketplace-helpers")
+
+		const { entries } = await listLocalMarketplaceInstalledEntries(makeController())
+
+		assert.equal(entries.find((entry) => entry.path === BROKEN_PLUGIN)?.error, undefined)
 	})
 
 	it("reports global plugins recorded by a folderless session", async () => {
