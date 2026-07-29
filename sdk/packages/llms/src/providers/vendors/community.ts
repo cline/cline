@@ -61,10 +61,7 @@ function resolveClaudeExecutable(): string | undefined {
 	const executableName = process.platform === "win32" ? "claude.exe" : "claude";
 	// Anchor on the real executable location first so resolution works from
 	// compiled binaries; fall back to this module's location for plain node.
-	const anchors = [
-		join(dirname(process.execPath), "noop.js"),
-		import.meta.url,
-	];
+	const anchors = [join(dirname(process.execPath), "noop.js"), import.meta.url];
 	for (const anchor of anchors) {
 		for (const suffix of suffixes) {
 			try {

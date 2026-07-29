@@ -132,9 +132,7 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function chunkCreatedAt(payload: AgentChunkEvent): number {
-	const ts = payload.ts || Date.now();
-	const index = payload.index ?? 0;
-	return ts * 1000 + index;
+	return payload.ts || Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {

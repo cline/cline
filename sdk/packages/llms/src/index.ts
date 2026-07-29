@@ -84,11 +84,14 @@ export {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitError,
 	isClinePassLimitMessage,
+	isProviderApiLine,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
 	type ProviderUsageCostDisplay,
