@@ -44,6 +44,8 @@
 		"components/agent-quick-actions.tsx",
 		"components/markdown.css",
 		"components/index.ts",
+		"components/search-combobox.css",
+		"components/search-combobox.tsx",
 		"components/session-status.css",
 		"components/session-status.tsx",
 		"dist",
