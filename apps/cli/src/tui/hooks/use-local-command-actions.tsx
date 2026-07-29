@@ -11,6 +11,10 @@ import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
+import type {
+	StatusSnapshotSource,
+	StatusViewBootstrap,
+} from "../status/status-snapshot-source";
 import { HistoryDialogContent } from "../views/history-view";
 import { StatusDialogContent } from "../views/status-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
@@ -32,6 +36,10 @@ export function useLocalCommandActions(input: {
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
+	statusSource: StatusSnapshotSource;
+	statusBootstrap?: StatusViewBootstrap;
+	/** When true, open Status Hub once on mount (set at composition root from demo env). */
+	autoOpenStatus?: boolean;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
@@ -52,6 +60,9 @@ export function useLocalCommandActions(input: {
 		onFork,
 		onUndo,
 		onExit,
+		statusSource,
+		statusBootstrap,
+		autoOpenStatus,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -124,17 +135,30 @@ export function useLocalCommandActions(input: {
 		await dialog.choice<void>({
 			size: "large",
 			style: { width: dialogWidth, maxHeight: termHeight - 2 },
-			content: (ctx: ChoiceContext<void>) => <StatusDialogContent {...ctx} />,
+			content: (ctx: ChoiceContext<void>) => (
+				<StatusDialogContent
+					{...ctx}
+					source={statusSource}
+					bootstrap={statusBootstrap}
+				/>
+			),
 		});
 		refocusTextarea();
-	}, [dialog, refocusTextarea, termHeight, termWidth]);
+	}, [
+		dialog,
+		refocusTextarea,
+		statusBootstrap,
+		statusSource,
+		termHeight,
+		termWidth,
+	]);
 
 	// Docs / screenshots: open Status Hub as soon as the TUI is ready.
 	useEffect(() => {
-		if (process.env.CLINE_DEMO_OPEN_STATUS === "1") {
+		if (autoOpenStatus) {
 			void openStatus();
 		}
-	}, [openStatus]);
+	}, [autoOpenStatus, openStatus]);
 
 	const runCompact = useCallback(async () => {
 		session.setIsRunning(true);

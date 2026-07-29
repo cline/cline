@@ -2,8 +2,6 @@
 
 import {
 	buildDependencyMap,
-	PLAN_DEPENDENCY_DEMO_TEAMS,
-	STATUS_BOARD_DEMO_UPDATES,
 	type StatusState,
 	type StatusSummary,
 	type StatusUpdate,
@@ -14,7 +12,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { palette } from "../palette";
-import { loadTuiStatusSnapshot } from "../status/load-status-snapshot";
+import type {
+	StatusSnapshotSource,
+	StatusViewBootstrap,
+} from "../status/status-snapshot-source";
 
 export type StatusLens = "board" | "dependency-map";
 
@@ -26,10 +27,6 @@ const BOARD_ORDER: StatusState[] = [
 	"done",
 	"cancelled",
 ];
-
-function useDemoPlans(): boolean {
-	return process.env.CLINE_DEMO_STATUS_PLANS === "1";
-}
 
 function stateColor(state: StatusState): string {
 	switch (state) {
@@ -55,13 +52,16 @@ type StatusKeyEvent = {
 function StatusHubContent({
 	onDismiss,
 	registerKeyHandler,
-	initialLens = "board",
+	source,
+	bootstrap,
 }: {
 	onDismiss: () => void;
 	registerKeyHandler?: (handler: (key: StatusKeyEvent | undefined) => void) => void;
-	initialLens?: StatusLens;
+	source: StatusSnapshotSource;
+	bootstrap?: StatusViewBootstrap;
 }) {
-	const demoPlans = useDemoPlans();
+	const initialLens = bootstrap?.initialLens ?? "board";
+	const banner = bootstrap?.banner;
 	const { width, height } = useTerminalDimensions();
 	const [lens, setLens] = useState<StatusLens>(initialLens);
 	const [loading, setLoading] = useState(true);
@@ -76,15 +76,7 @@ function StatusHubContent({
 		let cancelled = false;
 		(async () => {
 			try {
-				if (demoPlans) {
-					if (cancelled) return;
-					setUpdates(STATUS_BOARD_DEMO_UPDATES);
-					setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
-					setSummary(null);
-					setError(null);
-					return;
-				}
-				const snap = await loadTuiStatusSnapshot();
+				const snap = await source.load();
 				if (cancelled) return;
 				setUpdates(snap.updates);
 				setSummary(snap.summary);
@@ -92,14 +84,7 @@ function StatusHubContent({
 				setError(null);
 			} catch (err) {
 				if (cancelled) return;
-				if (demoPlans) {
-					setUpdates(STATUS_BOARD_DEMO_UPDATES);
-					setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
-					setSummary(null);
-					setError(null);
-				} else {
-					setError(err instanceof Error ? err.message : String(err));
-				}
+				setError(err instanceof Error ? err.message : String(err));
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
@@ -107,7 +92,7 @@ function StatusHubContent({
 		return () => {
 			cancelled = true;
 		};
-	}, [demoPlans]);
+	}, [source]);
 
 	const graph = useMemo(() => buildDependencyMap(teams), [teams]);
 
@@ -236,11 +221,8 @@ function StatusHubContent({
 					{summary.byState.running ?? 0} running ·{" "}
 					{summary.total} live
 				</text>
-			) : demoPlans ? (
-				<text fg={palette.muted}>
-					Demo data · {updates.length} board rows · {graph.nodes.length} plan
-					tasks
-				</text>
+			) : banner ? (
+				<text fg={palette.muted}>{banner}</text>
 			) : (
 				<text fg={palette.muted}>Live hub status</text>
 			)}
@@ -362,31 +344,35 @@ function StatusHubContent({
 	);
 }
 
-export function StatusDialogContent(ctx: ChoiceContext<void>) {
+export function StatusDialogContent(
+	props: ChoiceContext<void> & {
+		source: StatusSnapshotSource;
+		bootstrap?: StatusViewBootstrap;
+	},
+) {
+	const { source, bootstrap, resolve, dialogId } = props;
 	const keyHandlerRef = useRef<(key: StatusKeyEvent | undefined) => void>(
 		() => {},
 	);
-	useDialogKeyboard(ctx, (key) => {
+	useDialogKeyboard((key) => {
 		keyHandlerRef.current(key as StatusKeyEvent);
-	});
+	}, dialogId);
 	return (
 		<StatusHubContent
-			onDismiss={() => ctx.resolve(undefined)}
+			onDismiss={() => resolve(undefined)}
 			registerKeyHandler={(handler) => {
 				keyHandlerRef.current = handler;
 			}}
-			initialLens={
-				process.env.CLINE_DEMO_STATUS_LENS === "dependency-map"
-					? "dependency-map"
-					: "board"
-			}
+			source={source}
+			bootstrap={bootstrap}
 		/>
 	);
 }
 
 export function StatusStandaloneContent(props: {
 	onDismiss: () => void;
-	initialLens?: StatusLens;
+	source: StatusSnapshotSource;
+	bootstrap?: StatusViewBootstrap;
 }) {
 	const keyHandlerRef = useRef<(key: StatusKeyEvent | undefined) => void>(
 		() => {},
@@ -400,7 +386,8 @@ export function StatusStandaloneContent(props: {
 			registerKeyHandler={(handler) => {
 				keyHandlerRef.current = handler;
 			}}
-			initialLens={props.initialLens}
+			source={props.source}
+			bootstrap={props.bootstrap}
 		/>
 	);
 }

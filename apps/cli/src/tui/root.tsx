@@ -1,4 +1,8 @@
 import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
+import {
+	DrivePlansDemoStatusSnapshotSource,
+	readDrivecodeDemoCliBootstrap,
+} from "@cline/drivecode-demo";
 import type { Message } from "@cline/shared";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
@@ -54,6 +58,7 @@ import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
+import { createCliStatusSource } from "./status/create-cli-status-source";
 import type { AppView, TuiProps } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
@@ -634,6 +639,32 @@ function App(props: TuiProps) {
 		}
 	}, []);
 
+	const {
+		source: statusSource,
+		bootstrap: statusBootstrap,
+		autoOpenStatus,
+	} = useMemo(() => {
+		const demo = readDrivecodeDemoCliBootstrap();
+		const composed = createCliStatusSource(
+			demo.useDemoStatusAdapter
+				? {
+						fallback: new DrivePlansDemoStatusSnapshotSource(),
+						banner: "Demo data · board rows · plan tasks",
+					}
+				: undefined,
+		);
+		return {
+			source: composed.source,
+			bootstrap: {
+				...composed.bootstrap,
+				...(demo.statusInitialLens
+					? { initialLens: demo.statusInitialLens }
+					: {}),
+			},
+			autoOpenStatus: demo.autoOpenStatus,
+		};
+	}, []);
+
 	const { handleSlashCommand } = useLocalCommandActions({
 		slashCommandRegistry,
 		canForkSession,
@@ -650,6 +681,9 @@ function App(props: TuiProps) {
 		onFork: props.onFork,
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
+		statusSource,
+		statusBootstrap,
+		autoOpenStatus,
 	});
 
 	const runCommandPaletteResult = useCallback(
