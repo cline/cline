@@ -12,21 +12,12 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
-	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-		cliCompatible: true,
-	},
+	// NOTE: legacy's /deep-planning and /newrule are hidden until their prompt
+	// expansions are ported to the SDK runtime — without expansion the literal
+	// command text reaches the model, which silently degrades to plain chat.
 	{
 		name: "smol",
 		description: "Condenses your current context window",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
 		section: "default",
 		cliCompatible: true,
 	},
