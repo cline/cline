@@ -98,6 +98,7 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
+import { expandNewTaskSlashCommand } from "./vscode-new-task-tool"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -207,6 +208,12 @@ export class Controller {
 	// Only used in the `vscodeTerminal` execution mode — `backgroundExec` and the
 	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
 	private _terminalManager?: VscodeTerminalManager
+	/**
+	 * Context summary captured by the `new_task` tool during the current turn
+	 * (the /newtask flow). Emitted as an `ask: "new_task"` message when the
+	 * turn completes, then cleared.
+	 */
+	private pendingNewTaskContext: string | undefined
 
 	// Registry of in-flight foreground (VS Code terminal) command executions.
 	// Owned here — not by the session — so it survives session rebuilds, which
@@ -373,9 +380,17 @@ export class Controller {
 			// this.mode is assigned later in this constructor; the closure only
 			// runs at send time, long after construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
-			onSendComplete: async () => {
+			// Buffered until the turn completes so the emitted ask is the final
+			// message of the turn (the webview enables its button row based on
+			// the last message).
+			onNewTaskContext: (context) => {
+				this.pendingNewTaskContext = context
+			},
+			onSendComplete: async (sessionId) => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
+
+				this.emitPendingNewTaskAsk(sessionId)
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
@@ -850,9 +865,42 @@ export class Controller {
 	 * and honors the user's workflow enable/disable toggles. Returns the input
 	 * unchanged if no known command matches or expansion fails.
 	 */
+	/**
+	 * Emit the `ask: "new_task"` message for a context summary captured by the
+	 * `new_task` tool during the turn that just completed. The webview renders
+	 * the "Start New Task with Context" button, whose handler starts a fresh
+	 * task preloaded with this message's text.
+	 */
+	private emitPendingNewTaskAsk(sessionId: string): void {
+		const context = this.pendingNewTaskContext
+		if (!context) {
+			return
+		}
+		this.pendingNewTaskContext = undefined
+		const askMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "new_task",
+			text: context,
+			partial: false,
+		}
+		this.messages.appendAndEmit([askMessage], { type: "status", payload: { sessionId, status: "idle" } })
+		// The completesRun termination path skips the translator's usual
+		// end-of-turn status handling, so set the authoritative phase here:
+		// the ask is awaiting the user's "Start New Task with Context" click.
+		this.turnStateTracker.set("awaiting_followup", askMessage.ts)
+	}
+
 	private async resolveSlashCommands(text: string): Promise<string> {
 		if (this.isDisposed) {
 			return text
+		}
+		// Built-in /newtask expands to explicit instructions for the custom
+		// new_task tool; it takes precedence over same-named workflow files,
+		// mirroring legacy behavior for built-in commands.
+		const newTask = expandNewTaskSlashCommand(text)
+		if (newTask.expanded) {
+			return newTask.text
 		}
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()

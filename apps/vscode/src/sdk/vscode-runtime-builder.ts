@@ -4,6 +4,7 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { createNewTaskTool } from "./vscode-new-task-tool"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
 interface McpToolDescriptor {
@@ -56,6 +57,11 @@ export interface VscodeExtraToolsOptions {
 	vscodeTerminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/**
+	 * Receives the `new_task` tool's context summary (the `/newtask` flow).
+	 * When provided, the custom `new_task` tool is added to the session.
+	 */
+	onNewTaskContext?: (context: string) => void
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
@@ -100,6 +106,12 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 		Logger.log(
 			`[VscodeRuntimeTools] Added custom run_commands tool (mode=${executionMode}, timeoutMs=${executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : "default"})`,
 		)
+	}
+
+	// Add the `new_task` tool (the /newtask context-handoff flow) when a
+	// context receiver is wired up.
+	if (options?.onNewTaskContext) {
+		tools.push(createNewTaskTool({ onNewTaskContext: options.onNewTaskContext }))
 	}
 
 	Logger.log(`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools`)

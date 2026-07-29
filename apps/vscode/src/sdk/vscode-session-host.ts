@@ -83,6 +83,8 @@ export interface VscodeSessionHostOptions {
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/** Receives the `new_task` tool's context summary (the /newtask flow). */
+	onNewTaskContext?: (context: string) => void
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -145,6 +147,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 						getTerminalManager: options.getTerminalManager,
 						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 						foregroundCommands: options.foregroundCommands,
+						onNewTaskContext: options.onNewTaskContext,
 					})
 					return {
 						...inputWithRemoteConfig,
