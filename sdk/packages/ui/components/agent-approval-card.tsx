@@ -5,14 +5,12 @@ import { type ReactNode, useId } from "react";
 export type AgentApprovalAction = "approve" | "reject";
 
 export interface AgentApprovalCardProps {
-	approveLabel?: string;
 	description?: ReactNode;
 	detail?: ReactNode;
 	error?: ReactNode;
 	meta?: ReactNode;
 	onApprove: () => void;
 	onReject: () => void;
-	rejectLabel?: string;
 	responding?: AgentApprovalAction;
 	title: ReactNode;
 }
@@ -30,14 +28,12 @@ function Spinner() {
 }
 
 export function AgentApprovalCard({
-	approveLabel = "Approve",
 	description,
 	detail,
 	error,
 	meta,
 	onApprove,
 	onReject,
-	rejectLabel = "Reject",
 	responding,
 	title,
 }: AgentApprovalCardProps) {
@@ -82,7 +78,7 @@ export function AgentApprovalCard({
 							Approving...
 						</>
 					) : (
-						approveLabel
+						"Approve"
 					)}
 				</button>
 				<button
@@ -97,7 +93,7 @@ export function AgentApprovalCard({
 							Rejecting...
 						</>
 					) : (
-						rejectLabel
+						"Reject"
 					)}
 				</button>
 			</div>
