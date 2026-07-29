@@ -1,0 +1,55 @@
+# Create the area/* and ci/* labels used by Drive Mode CI routing.
+# Run once after merge: Actions → repo-bootstrap-ci-labels → Run workflow.
+# Idempotent — safe to re-run.
+name: repo-bootstrap-ci-labels
+
+on:
+    workflow_dispatch:
+
+permissions:
+    issues: write
+
+jobs:
+    bootstrap:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              with:
+                  script: |
+                      const labels = [
+                        // Reviewer sugar (auto from paths)
+                        { name: "area/vscode", color: "0E8A16", description: "Touches apps/vscode" },
+                        { name: "area/sdk", color: "0E8A16", description: "Touches sdk/" },
+                        { name: "area/cli", color: "0E8A16", description: "Touches apps/cli" },
+                        { name: "area/hub", color: "0E8A16", description: "Touches apps/cline-hub" },
+                        { name: "area/drive", color: "0E8A16", description: "Touches Drive Mode surfaces" },
+                        { name: "area/docs", color: "0E8A16", description: "Touches docs / markdown" },
+                        { name: "area/ci", color: "0E8A16", description: "Touches .github/workflows" },
+                        // CI overrides (PR template checkboxes)
+                        { name: "ci/drive", color: "E11D48", description: "Force Drive Mode gate" },
+                        { name: "ci/vscode", color: "E11D48", description: "Force VS Code unit/integration" },
+                        { name: "ci/e2e", color: "E11D48", description: "Force Playwright e2e (ubuntu)" },
+                        { name: "ci/e2e-full", color: "E11D48", description: "Force e2e ubuntu+windows+macos" },
+                        { name: "ci/sdk", color: "E11D48", description: "Force SDK / CLI suite" },
+                        { name: "ci/docs", color: "E11D48", description: "Force docs link check" },
+                      ]
+
+                      for (const label of labels) {
+                        try {
+                          await github.rest.issues.createLabel({
+                            ...context.repo,
+                            ...label,
+                          })
+                          core.info(`created ${label.name}`)
+                        } catch (err) {
+                          if (err.status === 422) {
+                            await github.rest.issues.updateLabel({
+                              ...context.repo,
+                              ...label,
+                            })
+                            core.info(`updated ${label.name}`)
+                          } else {
+                            throw err
+                          }
+                        }
+                      }

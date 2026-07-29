@@ -52,6 +52,18 @@ on:
             - "bun.lock"
             - ".github/workflows/ext-vscode-test-e2e.yml"
     workflow_dispatch:
+    workflow_call:
+        inputs:
+            force:
+                description: Force e2e regardless of path filters
+                type: boolean
+                required: false
+                default: false
+            matrix_mode:
+                description: "ubuntu | full — PR default is ubuntu; full runs 3-OS"
+                type: string
+                required: false
+                default: ubuntu
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -66,19 +78,30 @@ jobs:
         runs-on: ubuntu-latest
         name: Detect Changes
         outputs:
-            e2e: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
+            e2e: ${{ steps.force_merge.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
         steps:
-            # Force full coverage only for intentional full runs (manual).
+            # Force full coverage for intentional full runs (manual / label override).
             # Do NOT force on push to main — that made docs merges pay for 3-OS e2e.
             - id: force
               if: github.event_name == 'workflow_dispatch'
               run: echo "run_all=true" >> "$GITHUB_OUTPUT"
 
+            - id: force_call
+              if: github.event_name == 'workflow_call' && inputs.force
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            - id: force_merge
+              run: |
+                  if [ "${{ steps.force.outputs.run_all }}" = "true" ] \
+                    || [ "${{ steps.force_call.outputs.run_all }}" = "true" ]; then
+                    echo "run_all=true" >> "$GITHUB_OUTPUT"
+                  fi
+
             - uses: actions/checkout@v4
-              if: steps.force.outputs.run_all != 'true'
+              if: steps.force_merge.outputs.run_all != 'true'
 
             - uses: dorny/paths-filter@v3
-              if: steps.force.outputs.run_all != 'true'
+              if: steps.force_merge.outputs.run_all != 'true'
               id: filter
               with:
                   filters: |
@@ -114,9 +137,18 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  # PRs: ubuntu + macos (macos covers VS Code .app cache recovery).
-                  # Windows stays main/dispatch-only (~2× ubuntu job-minutes).
-                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                  # Combined policy (#51 label/workflow_call overrides + #52 macOS PR coverage):
+                  # - full / push / dispatch / ci/e2e-full → ubuntu+windows+macos
+                  # - pull_request default → ubuntu+macos (cache recovery coverage; windows stays off PRs)
+                  # - workflow_call matrix_mode=ubuntu → ubuntu only
+                  MODE="${{ github.event_name == 'workflow_call' && inputs.matrix_mode || '' }}"
+                  if [ "$MODE" = "full" ] || [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> "$GITHUB_OUTPUT"
+                  elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ contains(github.event.pull_request.labels.*.name, 'ci/e2e-full') }}" = "true" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> "$GITHUB_OUTPUT"
+                  elif [ "$MODE" = "ubuntu" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"}]' >> "$GITHUB_OUTPUT"
+                  elif [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
                     echo 'matrix=[{"runner":"ubuntu"},{"runner":"macos"}]' >> "$GITHUB_OUTPUT"
                   else
                     echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> "$GITHUB_OUTPUT"
@@ -171,9 +203,10 @@ jobs:
             # downloadAndUnzipVSCode re-fetches instead of trusting COMPLETE alone.
             - name: Validate cached VS Code Electron
               shell: bash
+              # defaults.working-directory is apps/vscode — use a path relative to that.
               run: |
                   set -euo pipefail
-                  ROOT="apps/vscode/.vscode-test"
+                  ROOT=".vscode-test"
                   if [ ! -d "$ROOT" ]; then
                     echo "No VS Code cache directory; download will populate it."
                     exit 0

@@ -1,0 +1,31 @@
+# Apply area/* labels from .github/labeler.yml on PR open/sync.
+# Does not route CI — drive-ci / vscode / sdk path filters own that.
+#
+# Uses pull_request (not pull_request_target) so the workflow file and
+# labeler.yml from the PR branch run before merge. Same-repo PRs can write
+# labels with GITHUB_TOKEN. For fork PRs on upstream, switch to
+# pull_request_target + base-ref checkout (see docs/drivecode/CI.md).
+name: repo-label-prs-area
+
+on:
+    pull_request:
+        types: [opened, reopened, synchronize, ready_for_review]
+
+concurrency:
+    group: label-prs-area-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: write
+
+jobs:
+    label:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/labeler@v5
+              with:
+                  configuration-path: .github/labeler.yml
+                  sync-labels: false

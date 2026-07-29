@@ -6,12 +6,13 @@ or `docs/assets/drivecode/`.
 
 Human-facing product reference: [README.md](README.md).
 Cold-start handoff: [HANDOFF.md](HANDOFF.md).
+CI contract (path filters, gate, labels): [CI.md](CI.md).
 
 ## Layout
 
 | Path | Put here |
 |---|---|
-| `README.md`, `architecture.md`, `native-vs-drivecode.md`, `skills-inventory.md` | Implemented product reference (cite live code) |
+| `README.md`, `architecture.md`, `native-vs-drivecode.md`, `skills-inventory.md`, `CI.md` | Implemented product reference (cite live code / workflows) |
 | `HANDOFF.md` | Repo-level continuation brief |
 | `plans/cline-drivemode/` | Product plans: ARDs, DRV features, PRDs, workflows, task graph |
 | `plans/drivecode-sdk/` | Portable `@cline/drive` harness plan |

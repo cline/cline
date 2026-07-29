@@ -7,6 +7,7 @@ All Drive / drivecode docs live under this folder:
 
 - [AGENTS.md](AGENTS.md) — how to maintain, add, and edit this nest
 - [HANDOFF.md](HANDOFF.md) — repo continuation brief
+- [CI.md](CI.md) — Drive Mode CI contract (path filters, gate, labels)
 - [plans/](plans/) — product plan (`cline-drivemode`) and portable harness plan (`drivecode-sdk`)
 - [design/](design/drive-wireframes/) — wireframes and canvases
 - [assets/](assets/) — product screenshots and logos

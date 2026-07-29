@@ -1,0 +1,41 @@
+# Auto area labels from changed paths. Reviewer sugar only — does not route CI.
+# CI routing is path filters + optional ci/* overrides (see docs/drivecode/CI.md).
+area/vscode:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "apps/vscode/**"
+
+area/sdk:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "sdk/**"
+
+area/cli:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "apps/cli/**"
+
+area/hub:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "apps/cline-hub/**"
+
+area/drive:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "sdk/packages/drive/**"
+                - "apps/drivecode-demo/**"
+                - "docs/drivecode/**"
+
+area/docs:
+    - changed-files:
+          - any-glob-to-any-file:
+                - "docs/**"
+                - "**/*.md"
+                - "**/*.mdx"
+
+area/ci:
+    - changed-files:
+          - any-glob-to-any-file:
+                - ".github/workflows/**"
+                - ".github/labeler.yml"

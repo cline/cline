@@ -55,6 +55,21 @@ We're not looking for exhaustive documentation - just evidence that you've thoug
 -   [ ] 🏃 Workflow Changes
 -   [ ] 🖼️ UI / UX change (visual, layout, interaction, or copy in a user-facing surface)
 
+### CI overrides (usually leave blank)
+
+Path filters already choose Drive / VS Code / SDK / docs suites from the files you touched.
+Only check these if you need a suite paths will miss, or a fuller e2e matrix.
+A bot syncs checked boxes to `ci/*` labels; see `docs/drivecode/CI.md`.
+
+-   [ ] `ci/drive` — force Drive Mode gate (hub + drive kernel + demo + CLI)
+-   [ ] `ci/vscode` — force VS Code unit/integration
+-   [ ] `ci/e2e` — force Playwright e2e (ubuntu)
+-   [ ] `ci/e2e-full` — force e2e on ubuntu + windows + macos
+-   [ ] `ci/sdk` — force SDK / CLI test suite
+-   [ ] `ci/docs` — force docs link check
+
+JetBrains integration: comment `/test-jetbrains` (maintainers only).
+
 ### Pre-flight Checklist
 
 <!-- Put an 'x' in all boxes that apply -->

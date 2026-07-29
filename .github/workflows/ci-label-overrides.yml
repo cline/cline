@@ -1,0 +1,103 @@
+# Pathless companion: wake reusable suites for ci/* overrides.
+# - labeled: human/UI label adds (GITHUB_TOKEN label adds do not emit this).
+# - opened/edited/synchronize/…: checkbox body (bot sync cannot wake via labeled).
+name: ci-label-overrides
+
+on:
+    pull_request:
+        types: [labeled, opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+    # labeled runs isolate by label so parallel manual adds do not cancel each other.
+    # Body-driven runs share one group per PR (cancel superseded checkbox sync).
+    group: ci-label-overrides-${{ github.event.pull_request.number }}-${{ github.event.label.name || 'body' }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    detect:
+        runs-on: ubuntu-latest
+        outputs:
+            drive: ${{ steps.out.outputs.drive }}
+            sdk: ${{ steps.out.outputs.sdk }}
+            docs: ${{ steps.out.outputs.docs }}
+            vscode: ${{ steps.out.outputs.vscode }}
+            e2e: ${{ steps.out.outputs.e2e }}
+            e2e_full: ${{ steps.out.outputs.e2e_full }}
+        steps:
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              id: out
+              with:
+                  script: |
+                      const overrides = [
+                        "ci/drive",
+                        "ci/vscode",
+                        "ci/e2e",
+                        "ci/e2e-full",
+                        "ci/sdk",
+                        "ci/docs",
+                      ]
+                      const keys = {
+                        "ci/drive": "drive",
+                        "ci/vscode": "vscode",
+                        "ci/e2e": "e2e",
+                        "ci/e2e-full": "e2e_full",
+                        "ci/sdk": "sdk",
+                        "ci/docs": "docs",
+                      }
+
+                      const wanted = new Set()
+                      if (context.payload.action === "labeled") {
+                        const name = context.payload.label?.name
+                        if (name && overrides.includes(name)) wanted.add(name)
+                      } else {
+                        // Body is source of truth for checkbox sync (labels lag / GITHUB_TOKEN).
+                        const body = context.payload.pull_request?.body || ""
+                        for (const name of overrides) {
+                          const checked = new RegExp(
+                            String.raw`-\s+\[x\][^\n]*\`${name.replace("/", "\\/")}\``,
+                            "i",
+                          ).test(body)
+                          if (checked) wanted.add(name)
+                        }
+                      }
+
+                      for (const name of overrides) {
+                        core.setOutput(keys[name], wanted.has(name) ? "true" : "false")
+                      }
+                      core.info(`wanted: ${[...wanted].join(", ") || "(none)"}`)
+
+    drive:
+        needs: detect
+        if: needs.detect.outputs.drive == 'true'
+        uses: ./.github/workflows/drive-ci.yml
+        with:
+            force: true
+
+    sdk:
+        needs: detect
+        if: needs.detect.outputs.sdk == 'true'
+        uses: ./.github/workflows/sdk-test.yml
+
+    docs:
+        needs: detect
+        if: needs.detect.outputs.docs == 'true'
+        uses: ./.github/workflows/docs-link-check.yml
+
+    vscode:
+        needs: detect
+        if: needs.detect.outputs.vscode == 'true'
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    e2e:
+        needs: detect
+        if: >
+            needs.detect.outputs.e2e == 'true' ||
+            needs.detect.outputs.e2e_full == 'true'
+        uses: ./.github/workflows/ext-vscode-test-e2e.yml
+        with:
+            matrix_mode: ${{ needs.detect.outputs.e2e_full == 'true' && 'full' || 'ubuntu' }}
+            force: true

@@ -1,0 +1,80 @@
+# Sync CI override checkboxes in the PR body to ci/* labels.
+# Body-only parsing — never executes PR code.
+#
+# pull_request so this PR's workflow runs before merge (same-repo). Upstream
+# fork support: add pull_request_target later (body-only remains safe).
+name: repo-label-prs-ci
+
+on:
+    pull_request:
+        types: [opened, edited, reopened, synchronize, ready_for_review]
+
+concurrency:
+    group: label-prs-ci-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    pull-requests: write
+
+jobs:
+    sync:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              with:
+                  script: |
+                      const { data: pr } = await github.rest.pulls.get({
+                        ...context.repo,
+                        pull_number: context.payload.pull_request.number,
+                      })
+                      const body = pr.body || ""
+
+                      // Checkbox line must mention the label name in backticks.
+                      const overrides = [
+                        "ci/drive",
+                        "ci/vscode",
+                        "ci/e2e",
+                        "ci/e2e-full",
+                        "ci/sdk",
+                        "ci/docs",
+                      ]
+
+                      const current = new Set((pr.labels || []).map((l) => l.name))
+                      const wanted = new Set()
+                      for (const name of overrides) {
+                        const checked = new RegExp(
+                          // Template uses "-   [ ]" (spaces after the dash).
+                          String.raw`-\s+\[x\][^\n]*\`${name.replace("/", "\\/")}\``,
+                          "i",
+                        ).test(body)
+                        if (checked) wanted.add(name)
+                      }
+
+                      const toAdd = [...wanted].filter((n) => !current.has(n))
+                      const toRemove = overrides.filter(
+                        (n) => current.has(n) && !wanted.has(n),
+                      )
+
+                      if (toAdd.length) {
+                        await github.rest.issues.addLabels({
+                          ...context.repo,
+                          issue_number: pr.number,
+                          labels: toAdd,
+                        })
+                        core.info(`added: ${toAdd.join(", ")}`)
+                      }
+                      for (const name of toRemove) {
+                        try {
+                          await github.rest.issues.removeLabel({
+                            ...context.repo,
+                            issue_number: pr.number,
+                            name,
+                          })
+                          core.info(`removed: ${name}`)
+                        } catch (err) {
+                          if (err.status !== 404) throw err
+                        }
+                      }
+                      if (!toAdd.length && !toRemove.length) {
+                        core.info("ci/* labels already match checkboxes")
+                      }

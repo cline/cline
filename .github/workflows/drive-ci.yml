@@ -1,0 +1,296 @@
+# Drive Mode CI — enterprise discovery + gatekeeper pattern.
+#
+# Why this shape (not workflow-level `paths:`):
+# - Workflow-level paths leave required checks "Pending" on unrelated PRs.
+# - Job-level dorny filters skip heavy work; skipped jobs report success.
+# - `drive-ci` gate is the single required check for Drive Mode merges.
+#
+# Path map is the manual equivalent of Nx/Turbo "affected": shared deps are
+# listed on every consumer so sdk/packages/shared changes wake hub/demo/drive.
+name: drive-ci
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+    workflow_dispatch:
+    workflow_call:
+        inputs:
+            force:
+                description: Force all Drive jobs regardless of paths
+                type: boolean
+                required: false
+                default: false
+
+concurrency:
+    group: drive-ci-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    detect-changes:
+        runs-on: ubuntu-latest
+        name: Detect Changes
+        outputs:
+            hub: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.hub == 'true' }}
+            drive: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.drive == 'true' }}
+            demo: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.demo == 'true' }}
+            cli: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.cli == 'true' }}
+        steps:
+            # Force all Drive jobs for dispatch, reusable call with force, or ci/drive label.
+            # Split steps so `inputs.*` is only evaluated on workflow_call.
+            - id: force_dispatch
+              if: github.event_name == 'workflow_dispatch'
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            - id: force_call
+              if: github.event_name == 'workflow_call' && inputs.force
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            # Label may lag checkbox sync on the same opened/synchronize event
+            # (repo-label-prs-ci runs in parallel). Prefer body checkbox + label.
+            - id: force_label
+              if: github.event.pull_request != null
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+                  HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci/drive') }}
+              run: |
+                  if [ "$HAS_LABEL" = "true" ]; then
+                    echo "run_all=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                  if printf '%s\n' "$PR_BODY" | grep -qiE -- '-[[:space:]]+\[x\].*`ci/drive`'; then
+                    echo "run_all=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - id: force
+              run: |
+                  if [ "${{ steps.force_dispatch.outputs.run_all }}" = "true" ] \
+                    || [ "${{ steps.force_call.outputs.run_all }}" = "true" ] \
+                    || [ "${{ steps.force_label.outputs.run_all }}" = "true" ]; then
+                    echo "run_all=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - uses: actions/checkout@v4
+              if: steps.force.outputs.run_all != 'true'
+
+            - uses: dorny/paths-filter@v3
+              if: steps.force.outputs.run_all != 'true'
+              id: filter
+              with:
+                  # Manual affected-deps map (Nx/Turbo equivalent for this graph).
+                  # sdk/packages/shared + bun.lock appear on every consumer.
+                  filters: |
+                      drive:
+                          - 'sdk/packages/drive/**'
+                          - 'sdk/packages/shared/**'
+                          - 'docs/drivecode/plans/cline-drivemode/examples/**'
+                          - 'bun.lock'
+                          - '.github/workflows/drive-ci.yml'
+
+                      hub:
+                          - 'apps/cline-hub/**'
+                          - 'apps/drivecode-demo/**'
+                          - 'sdk/packages/drive/**'
+                          - 'sdk/packages/core/**'
+                          - 'sdk/packages/llms/**'
+                          - 'sdk/packages/shared/**'
+                          - 'bun.lock'
+                          - '.github/workflows/drive-ci.yml'
+
+                      demo:
+                          - 'apps/drivecode-demo/**'
+                          - 'sdk/packages/shared/**'
+                          - 'bun.lock'
+                          - '.github/workflows/drive-ci.yml'
+
+                      cli:
+                          - 'apps/cli/**'
+                          - 'apps/cline-hub/**'
+                          - 'apps/drivecode-demo/**'
+                          - 'sdk/packages/drive/**'
+                          - 'sdk/packages/core/**'
+                          - 'sdk/packages/shared/**'
+                          - 'bun.lock'
+                          - '.github/workflows/drive-ci.yml'
+
+    hub:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.hub == 'true'
+        runs-on: ubuntu-latest
+        name: Hub (@cline/cline-hub)
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-bun-
+
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Typecheck hub
+              run: bun -F @cline/cline-hub typecheck
+
+            - name: Test hub
+              run: bun -F @cline/cline-hub test
+
+            - name: Build hub webview
+              run: bun -F @cline/cline-hub build:webview
+
+    drive:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.drive == 'true'
+        runs-on: ubuntu-latest
+        name: Drive kernel (@cline/drive)
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-bun-
+
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Typecheck drive
+              run: bun -F @cline/drive typecheck
+
+            - name: Test drive
+              run: bun -F @cline/drive test
+
+    demo:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.demo == 'true'
+        runs-on: ubuntu-latest
+        name: Drive demo (@cline/drivecode-demo)
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-bun-
+
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Typecheck demo
+              run: bun -F @cline/drivecode-demo typecheck
+
+            - name: Test demo
+              run: bun -F @cline/drivecode-demo test
+
+    cli:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.cli == 'true'
+        runs-on: ubuntu-latest
+        name: CLI Drive surfaces (@cline/cli)
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-bun-
+
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Build CLI
+              run: bun -F @cline/cli build
+
+            - name: Typecheck CLI
+              run: bun -F @cline/cli typecheck
+
+            - name: Unit test CLI
+              run: bun -F @cline/cli test:unit
+
+    # Single required check for Drive Mode. Always runs; fails if detect-changes
+    # or a needed package job failed/cancelled. Skipped package jobs are fine.
+    drive-ci:
+        needs: [detect-changes, hub, drive, demo, cli]
+        if: always()
+        runs-on: ubuntu-latest
+        name: drive-ci
+        steps:
+            - name: Gate
+              env:
+                  DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+              run: |
+                  if [ "$DETECT_CHANGES_RESULT" != "success" ]; then
+                    echo "detect-changes did not succeed: $DETECT_CHANGES_RESULT"
+                    exit 1
+                  fi
+                  hub="${{ needs.hub.result }}"
+                  drive="${{ needs.drive.result }}"
+                  demo="${{ needs.demo.result }}"
+                  cli="${{ needs.cli.result }}"
+                  echo "hub=$hub drive=$drive demo=$demo cli=$cli"
+                  fail=0
+                  for result in "$hub" "$drive" "$demo" "$cli"; do
+                    if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+                      fail=1
+                    fi
+                  done
+                  if [ "$fail" -ne 0 ]; then
+                    echo "One or more Drive jobs failed or were cancelled"
+                    exit 1
+                  fi
+                  echo "Drive CI gate passed (jobs succeeded or correctly skipped)"
