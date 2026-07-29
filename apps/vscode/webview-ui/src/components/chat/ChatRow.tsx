@@ -319,11 +319,6 @@ export const ChatRowContent = memo(
 							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
 					]
-				case "completion_result":
-					return [
-						<span className="codicon codicon-check text-success mb-[-1.5px]" />,
-						<span className="text-success font-bold">Task Completed</span>,
-					]
 				case "api_req_started":
 					// API request rows no longer render the request payload/cost accordion.
 					// Thinking/reasoning is handled directly in the api_req_started renderer below.
@@ -935,11 +930,13 @@ export const ChatRowContent = memo(
 						return (
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
-								headClassNames={HEADER_CLASSNAMES}
 								quoteButtonState={quoteButtonState}
 								text={text || ""}
 							/>
 						)
+					case "plan_completion_result":
+						// Turn-final plan-mode response inferred at turn end (SDK path)
+						return <PlanCompletionOutputRow text={message.text || ""} />
 					case "shell_integration_warning":
 						return (
 							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
@@ -1032,7 +1029,6 @@ export const ChatRowContent = memo(
 							return (
 								<CompletionOutputRow
 									handleQuoteClick={handleQuoteClick}
-									headClassNames={HEADER_CLASSNAMES}
 									quoteButtonState={quoteButtonState}
 									text={text || ""}
 								/>
@@ -1137,10 +1133,7 @@ export const ChatRowContent = memo(
 						}
 						return (
 							<div>
-								<PlanCompletionOutputRow
-									headClassNames={HEADER_CLASSNAMES}
-									text={response || message.text || ""}
-								/>
+								<PlanCompletionOutputRow text={response || message.text || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={

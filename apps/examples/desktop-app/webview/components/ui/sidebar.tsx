@@ -28,9 +28,9 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-// The collapsed desktop sidebar still owns the macOS title-bar controls when
-// the native title bar overlays the webview.
-const SIDEBAR_WIDTH_ICON = "4.5rem";
+// macOS title-bar controls overlay the webview, so the collapsed rail only
+// needs to reserve enough width for its own controls.
+const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
 const SIDEBAR_MIN_WIDTH = 224;
@@ -215,6 +215,7 @@ function SidebarProvider({
 			<TooltipProvider delayDuration={0}>
 				<div
 					data-slot="sidebar-wrapper"
+					data-state={state}
 					style={
 						{
 							"--sidebar-width": `${desktopWidth}px`,
@@ -357,7 +358,7 @@ function SidebarTrigger({
 			}}
 			{...props}
 		>
-			<PanelLeftIcon />
+			<PanelLeftIcon className="size-3.5" />
 			<span className="sr-only">Toggle Sidebar</span>
 		</Button>
 	);

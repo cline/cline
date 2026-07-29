@@ -724,6 +724,7 @@ function App(props: TuiProps) {
 		addUsageDelta: session.addUsageDelta,
 		onTurnErrorReported: props.onTurnErrorReported,
 		verbose: props.config.verbose ?? false,
+		modelId: props.config.modelId,
 	});
 
 	const promptInput = usePromptInputController({
@@ -733,6 +734,7 @@ function App(props: TuiProps) {
 		onSubmit: props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
+		modelId: props.config.modelId,
 		configVerbose: props.config.verbose ?? false,
 		refreshRepoStatus,
 		setAppView,
