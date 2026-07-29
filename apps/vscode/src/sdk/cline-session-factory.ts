@@ -17,7 +17,7 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo, ProviderApiLine } from "@cline/llms"
+import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,

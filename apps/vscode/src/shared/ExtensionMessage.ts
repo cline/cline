@@ -225,6 +225,7 @@ export type ClineSay =
 	| "text"
 	| "reasoning"
 	| "completion_result"
+	| "plan_completion_result" // turn-final plan-mode response inferred at turn end (SDK path)
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "command"
