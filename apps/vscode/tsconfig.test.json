@@ -49,6 +49,11 @@
 			],
 			"@cline/shared/*": [
 				"./node_modules/@cline/shared/dist/*"
+			],
+			// cheerio exposes `cheerio/slim` only through its `exports` map, which
+			// classic "node" resolution cannot read; map it to the built types.
+			"cheerio/slim": [
+				"./node_modules/cheerio/dist/commonjs/slim.d.ts"
 			]
 		},
 		"types": [
