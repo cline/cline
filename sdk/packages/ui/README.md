@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent Aurora, hero-heading, and session-status React primitives | React 18.3 or 19 |
+| `@cline/ui` | Agent Aurora, hero-heading, quick-action, and session-status React primitives | React 18.3 or 19 |
 | `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
@@ -41,6 +41,8 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 `SessionStatus` uses semantic tone colors by default. Set
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
+
+`AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
