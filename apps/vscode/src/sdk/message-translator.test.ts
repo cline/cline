@@ -1074,6 +1074,133 @@ describe("translateSessionEvent — agent_event done", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — inferred turn-final completion retag
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — inferred turn-final completion", () => {
+	const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+		({
+			type: "agent_event",
+			payload: { sessionId: "session-1", event: event as AgentEvent },
+		}) as CoreSessionEvent
+
+	const endText = (state: MessageTranslatorState, text: string) =>
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "text", text }), state)
+
+	const done = (state: MessageTranslatorState, reason: "completed" | "aborted" | "error" = "completed") =>
+		translateSessionEvent(agentEvent({ type: "done", reason, text: "", iterations: 1 }), state)
+
+	it("retags the turn-final text to plan_completion_result in plan mode", () => {
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const textResult = endText(state, "Here is the plan.")
+
+		const doneResult = done(state)
+
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("does not retag when the turn ends on a tool call after the text", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Switching over now.")
+
+		// e.g. switch_to_act_mode (lifecycle.completesRun) ends the turn after the tool
+		translateSessionEvent(
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "switch_to_act_mode", input: {} }),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "switch_to_act_mode", output: "ok" }),
+			state,
+		)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("does not retag an aborted or errored turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Halfway through...")
+		expect(done(state, "aborted").messages).toHaveLength(0)
+
+		// The abort cleared the candidate — a later stray done must not resurrect it.
+		expect(done(state).messages).toHaveLength(0)
+
+		endText(state, "Almost there...")
+		const errorResult = translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("boom"), recoverable: false }),
+			state,
+		)
+		expect(errorResult.messages.some((m) => m.say === "completion_result")).toBe(false)
+		expect(done(state).messages.filter((m) => m.say === "completion_result")).toHaveLength(0)
+	})
+
+	it("retags only the last finalized text of the turn (text → tool → text)", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Let me check the file first.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				input: { path: "/a.ts" },
+			}),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				output: "contents",
+			}),
+			state,
+		)
+		const finalText = endText(state, "All done — the file looks good.")
+
+		const doneResult = done(state)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: finalText.messages[0].ts,
+			say: "completion_result",
+			text: "All done — the file looks good.",
+		})
+	})
+
+	it("does not retag when the completion tool already rendered the green box", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "attempt_completion",
+				input: { result: "Done!" },
+			}),
+			state,
+		)
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "tool", toolName: "attempt_completion" }), state)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("clearTurnOutcome drops a stale candidate from the previous turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Previous turn's answer.")
+		state.clearTurnOutcome() // new user turn begins
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
 // translateSessionEvent — agent_event (error)
 // ---------------------------------------------------------------------------
 
@@ -1542,8 +1669,9 @@ describe("translateSessionEvent — full streaming flow", () => {
 		expect(endResult.messages[0].partial).toBe(false)
 		expect(endResult.messages[0].text).toBe("Hello world!")
 
-		// 3. Done — without attempt_completion, emits ask:"completion_result"
-		// with empty text (no green rectangle, just enables follow-up input)
+		// 3. Done — the turn ended cleanly on a text response, so the final text row is
+		// retagged in place (same ts) to say:"completion_result" for the green
+		// "Task Completed" box (act mode is the default when no mode source is provided).
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -1559,7 +1687,14 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: endResult.messages[0].ts,
+			type: "say",
+			say: "completion_result",
+			text: "Hello world!",
+			partial: false,
+		})
 		expect(doneResult.turnComplete).toBe(true)
 	})
 
