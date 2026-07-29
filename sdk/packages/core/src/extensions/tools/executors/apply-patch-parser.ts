@@ -323,29 +323,13 @@ function calculateSimilarity(str1: string, str2: string): number {
 		return 1;
 	}
 
-	// Avoid allocating a huge Levenshtein matrix for oversized comparisons,
-	// but still preserve a meaningful similarity score for large near-matches.
+	// Avoid allocating a huge Levenshtein matrix for oversized comparisons.
+	// Exact matches are already handled above. For non-exact oversized inputs,
+	// fail closed: return 0 to prevent incorrect fuzzy matching that could
+	// apply a patch to the wrong location. A missing patch is recoverable;
+	// applying it to the wrong place is not.
 	if (str1.length * str2.length > MAX_FUZZY_MATCH_CELLS) {
-		let prefix = 0;
-		while (
-			prefix < shorter.length &&
-			prefix < longer.length &&
-			shorter[prefix] === longer[prefix]
-		) {
-			prefix++;
-		}
-
-		let suffix = 0;
-		while (
-			suffix < shorter.length - prefix &&
-			suffix < longer.length - prefix &&
-			shorter[shorter.length - 1 - suffix] ===
-				longer[longer.length - 1 - suffix]
-		) {
-			suffix++;
-		}
-
-		return (prefix + suffix) / longer.length;
+		return 0;
 	}
 
 	const editDistance = levenshteinDistance(shorter, longer);

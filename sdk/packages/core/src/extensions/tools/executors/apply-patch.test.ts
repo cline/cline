@@ -198,29 +198,75 @@ describe("createApplyPatchExecutor", () => {
 		expect(result).toContain("Successfully applied patch");
 	});
 
-	it("applies an oversized near match", async () => {
+	it("rejects an oversized near match (fail closed)", async () => {
 		const filePath = path.join(tempDir, "large.txt");
 		const expectedLine = createLargeLine("a");
 		const actualLine = createLargeLine("b");
 		await fs.writeFile(filePath, actualLine, "utf-8");
 
 		const execute = createApplyPatchExecutor();
-		const result = await execute(
-			{
-				input: [
-					"*** Update File: large.txt",
-					"@@",
-					` ${expectedLine}`,
-					"+tail",
-				].join("\n"),
-			},
-			tempDir,
-			{} as never,
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Update File: large.txt",
+						"@@",
+						` ${expectedLine}`,
+						"+tail",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/large\.txt: hunk 1: Could not find matching context/);
+
+		// File content must remain unchanged
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(actualLine);
+	});
+
+	it("rejects a patch when oversized near-match would match the wrong anchor", async () => {
+		const filePath = path.join(tempDir, "large.txt");
+
+		// Two plausible oversized anchors. Each is a large line with a unique
+		// middle character so they are clearly distinguishable.
+		const anchorA = createLargeLine("A");
+		const anchorB = createLargeLine("B");
+
+		// The file contains both anchors.
+		await fs.writeFile(
+			filePath,
+			[anchorA, anchorB].join("\n"),
+			"utf-8",
 		);
 
+		// Create a patch intended for Anchor A, but with edits at both the
+		// beginning and end so it is no longer an exact match. The prefix/suffix
+		// heuristic would previously give a high similarity to both anchors,
+		// risking application to the wrong one.
+		const patchedAnchorA = `ZZZ${anchorA.slice(3, -3)}YYY`;
+
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Update File: large.txt",
+						"@@",
+						` ${patchedAnchorA}`,
+						"+tail",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/large\.txt: hunk 1: Could not find matching context/);
+
+		// File content must remain completely unchanged — the patch must NOT
+		// apply to either anchor.
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
-			`${actualLine}\ntail`,
+			[anchorA, anchorB].join("\n"),
 		);
-		expect(result).toContain("Successfully applied patch");
 	});
 });
