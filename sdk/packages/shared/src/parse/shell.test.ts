@@ -72,8 +72,6 @@ describe("shell helpers", () => {
 		expect(getShellKind("C:\\Windows\\System32\\wsl.exe")).toBe("wsl");
 		expect(getShellKind("/bin/bash")).toBe("posix");
 		expect(getShellKind("/bin/zsh")).toBe("posix");
-		expect(getShellKind("C:\\Program Files\\Git\\bin\\bash.exe")).toBe(
-			"posix",
-		);
+		expect(getShellKind("C:\\Program Files\\Git\\bin\\bash.exe")).toBe("posix");
 	});
 });

@@ -47,6 +47,53 @@ async function renderMessages(
 }
 
 describe("ChatMessages tool disclosures", () => {
+	it.each([
+		["run_commands", "lucide-terminal"],
+		["read_files", "lucide-files"],
+		["search_codebase", "lucide-search-code"],
+		["editor", "lucide-pencil"],
+		["apply_patch", "lucide-pencil"],
+		["ask_question", "lucide-message-circle-question-mark"],
+		["fetch_web_content", "lucide-panels-top-left"],
+		["skills", "lucide-library"],
+		["mcp", "lucide-box"],
+		["plugins", "lucide-blocks"],
+		["submit_and_exit", "lucide-square-arrow-right"],
+		["spawn_agent", "lucide-user"],
+		["spawn-agent", "lucide-user"],
+		["spawn_agent_tool", "lucide-user"],
+		["subagent_subagent", "lucide-user"],
+		["subagent_code_reviewer", "lucide-user"],
+		["team_status", "lucide-users"],
+		["bash", "lucide-terminal"],
+		["file_read", "lucide-files"],
+		["file-read", "lucide-files"],
+		["edit", "lucide-pencil"],
+		["edit_file", "lucide-pencil"],
+		["apply-patch", "lucide-pencil"],
+		["search", "lucide-search-code"],
+		["web-fetch", "lucide-panels-top-left"],
+		["web_fetch", "lucide-panels-top-left"],
+		["unknown_tool", "lucide-wrench"],
+	])("uses the expected icon for %s", async (toolName, iconClass) => {
+		await renderMessages([
+			{
+				id: `tool-icon-${toolName}`,
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName,
+					input: {},
+					result: {},
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const icon = container.querySelector(".cline-chat-tool-icon svg");
+		expect(icon?.classList.contains(iconClass)).toBe(true);
+	});
+
 	it("renders a detail-less tool summary as static text", async () => {
 		await renderMessages([
 			{
@@ -64,6 +111,9 @@ describe("ChatMessages tool disclosures", () => {
 		);
 		expect(summary).toBeDefined();
 		expect(summary?.closest("button")).toBeNull();
+		expect(
+			container.querySelector(".cline-chat-tool")?.classList.contains("my-0"),
+		).toBe(true);
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -249,6 +299,92 @@ describe("ChatMessages tool disclosures", () => {
 			container.querySelector('button[aria-label="Copy assistant message"]'),
 		).toBeNull();
 	});
+
+	it("positions hidden message actions outside the message layout", async () => {
+		await renderMessages(
+			[
+				{
+					id: "user-actions",
+					sessionId: "session-1",
+					role: "user",
+					content: "User message",
+					createdAt: 1,
+				},
+				{
+					id: "assistant-actions",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Assistant message",
+					createdAt: 2,
+				},
+			],
+			{ onForkSession: vi.fn() },
+		);
+
+		const userMessage = container.querySelector(
+			'.cline-chat-message[data-role="user"]',
+		);
+		const userActions = userMessage?.querySelector(
+			":scope > .cline-chat-message-actions",
+		);
+		const assistantMessage = container.querySelector(
+			'.cline-chat-message[data-role="assistant"]',
+		);
+		const assistantActions = assistantMessage?.querySelector(
+			":scope > .cline-chat-message-actions",
+		);
+
+		expect(userMessage?.classList.contains("relative")).toBe(true);
+		expect(userActions?.classList.contains("absolute")).toBe(true);
+		expect(userActions?.classList.contains("right-0")).toBe(true);
+		expect(userActions?.classList.contains("top-full")).toBe(true);
+		expect(userActions?.classList.contains("-translate-y-2")).toBe(true);
+		expect(assistantMessage?.classList.contains("relative")).toBe(true);
+		expect(assistantActions?.classList.contains("absolute")).toBe(true);
+		expect(assistantActions?.classList.contains("left-0")).toBe(true);
+		expect(assistantActions?.classList.contains("top-full")).toBe(true);
+		expect(assistantActions?.classList.contains("-translate-y-2")).toBe(true);
+		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
+		const userAction = userActions?.querySelector(".cline-chat-message-action");
+		expect(userAction?.classList.contains("min-w-0")).toBe(true);
+		expect(userAction?.classList.contains("p-0")).toBe(true);
+		const assistantActionButtons = [
+			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
+				[]),
+		];
+		expect(assistantActionButtons).toHaveLength(2);
+		expect(
+			assistantActionButtons.every(
+				(action) =>
+					action.classList.contains("min-w-0") &&
+					action.classList.contains("p-0"),
+			),
+		).toBe(true);
+		expect(userActions?.querySelector("time")?.getAttribute("datetime")).toBe(
+			new Date(1).toISOString(),
+		);
+		expect(
+			assistantActions?.querySelector("time")?.getAttribute("datetime"),
+		).toBe(new Date(2).toISOString());
+	});
+
+	it("leaves vertical scrolling to the conversation viewport", async () => {
+		await renderMessages([
+			{
+				id: "assistant-scroll",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Assistant message",
+				createdAt: 1,
+			},
+		]);
+
+		const content = container.querySelector(".cline-chat-conversation-content");
+		const messageList = content?.querySelector(":scope > div");
+
+		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
+		expect(messageList?.classList.contains("overflow-x-hidden")).toBe(false);
+	});
 });
 
 describe("ChatMessages image attachments", () => {
@@ -270,8 +406,8 @@ describe("ChatMessages image attachments", () => {
 			'img[alt="Attachment 1"]',
 		);
 		expect(image?.src).toBe("data:image/png;base64,aGVsbG8=");
-		expect(image?.className).toContain("max-h-[225px]");
-		expect(image?.className).toContain("max-w-[225px]");
+		expect(image?.className).toContain("max-h-56.25");
+		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
 	});
 
@@ -309,6 +445,147 @@ describe("ChatMessages image attachments", () => {
 			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 		});
 		expect(container.querySelector('[role="dialog"]')).toBeNull();
+	});
+});
+
+describe("ChatMessages reasoning disclosure", () => {
+	it("shows elapsed thinking time with the border-left disclosure style", async () => {
+		await renderMessages([
+			{
+				id: "user-before-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Solve this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Done",
+				reasoning: "Carefully considered the request.",
+				createdAt: 7_500,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Thought for 7s"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
+		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
+		expect(trigger?.classList.contains("text-sm")).toBe(true);
+		expect(trigger?.classList.contains("text-xs")).toBe(false);
+
+		await act(async () => trigger?.click());
+
+		const content = container.querySelector(".cline-chat-reasoning-content");
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(content?.textContent).toContain("Carefully considered the request.");
+		expect(content?.classList.contains("border-l")).toBe(true);
+		expect(content?.classList.contains("pl-4")).toBe(true);
+		expect(content?.classList.contains("rounded-none")).toBe(true);
+		expect(content?.classList.contains("bg-transparent")).toBe(true);
+	});
+
+	it("combines consecutive assistant reasoning into one disclosure", async () => {
+		await renderMessages([
+			{
+				id: "user-before-combined-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Investigate this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning-first",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "First reasoning segment.",
+				createdAt: 2_000,
+			},
+			{
+				id: "assistant-reasoning-second",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Investigation complete.",
+				reasoning: "Second reasoning segment.",
+				createdAt: 3_000,
+			},
+		]);
+
+		const disclosures = container.querySelectorAll(".cline-chat-reasoning");
+		expect(disclosures).toHaveLength(1);
+		const trigger = disclosures[0]?.querySelector("button");
+		expect(trigger?.textContent).toContain("Thought for 2s");
+
+		await act(async () => trigger?.click());
+
+		const content = disclosures[0]?.querySelector(
+			".cline-chat-reasoning-content",
+		);
+		const contentText = content?.textContent ?? "";
+		expect(contentText).toContain("First reasoning segment.");
+		expect(contentText).toContain("Second reasoning segment.");
+		expect(contentText.indexOf("First reasoning segment.")).toBeLessThan(
+			contentText.indexOf("Second reasoning segment."),
+		);
+		expect(container.textContent).toContain("Investigation complete.");
+	});
+
+	it("keeps reasoning disclosures separate across tool activity", async () => {
+		await renderMessages([
+			{
+				id: "user-before-separated-reasoning",
+				sessionId: "session-1",
+				role: "user",
+				content: "Investigate this",
+				createdAt: 1_000,
+			},
+			{
+				id: "assistant-reasoning-before-tool",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "Reasoning before the tool.",
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-between-reasoning",
+				sessionId: "session-1",
+				role: "tool",
+				content: "not-json",
+				createdAt: 2_500,
+				meta: { toolName: "search" },
+			},
+			{
+				id: "assistant-reasoning-after-tool",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Investigation complete.",
+				reasoning: "Reasoning after the tool.",
+				createdAt: 3_000,
+			},
+		]);
+
+		expect(container.querySelectorAll(".cline-chat-reasoning")).toHaveLength(2);
+	});
+
+	it("falls back to Thinking when there is no previous timestamp", async () => {
+		await renderMessages([
+			{
+				id: "first-reasoning",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				reasoning: "Starting from scratch.",
+				createdAt: 1_000,
+			},
+		]);
+
+		expect(container.textContent).toContain("Thinking");
+		expect(container.textContent).not.toContain("Thought for");
 	});
 });
 

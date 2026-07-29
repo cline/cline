@@ -1,0 +1,202 @@
+import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { isToolGroup } from "../utils/messageUtils"
+
+/**
+ * Grace period before showing the "Thinking..." loader row when its trigger is the tail
+ * message finishing streaming (partial -> false). That signal is ambiguous: mid-turn it means
+ * "waiting on the model's next content block / API request" (loader wanted), but at the end of
+ * a turn it arrives via the fast partial-message stream moments before the `done` event flips
+ * turnState out of "streaming" via a full state post. Showing instantly in that window makes
+ * the loader flash in and out on every turn completion, so hold off briefly — a real wait
+ * outlives the grace period, while the turn-end phase change cancels it.
+ */
+export const THINKING_LOADER_GRACE_MS = 500
+
+export interface ThinkingLoaderInputs {
+	turnState: TurnState | undefined
+	/** Tail of the raw clineMessages array. */
+	lastRawMessage: ClineMessage | undefined
+	groupedMessages: (ClineMessage | ClineMessage[])[]
+	/** Tail of groupedMessages. */
+	lastVisibleRow: ClineMessage | ClineMessage[] | undefined
+	/** Tail message of lastVisibleRow (last element when it is a group). */
+	lastVisibleMessage: ClineMessage | undefined
+	modifiedMessages: ClineMessage[]
+}
+
+/**
+ * Whether the agent is presumed to be working with nothing visibly streaming yet, i.e. the
+ * "Thinking..." loader row should be requested. This is the sole early loading indicator -
+ * RequestStartRow does NOT duplicate it.
+ * Covers: pre-api_req_started (backend processing) AND post-api_req_started (waiting for model).
+ * Hides once reasoning, tools, text, or any other content message appears.
+ */
+export function computeIsWaitingForResponse({
+	turnState,
+	lastRawMessage,
+	groupedMessages,
+	lastVisibleRow,
+	lastVisibleMessage,
+	modifiedMessages,
+}: ThinkingLoaderInputs): boolean {
+	const lastMsg = modifiedMessages[modifiedMessages.length - 1]
+
+	// AUTHORITATIVE PATH: when the backend provides a TurnState, the agent is only "thinking"
+	// while phase === "streaming". Any other phase (awaiting_approval/followup, completed,
+	// error, resumable, idle) is never a thinking state — this is what makes the footer
+	// immune to trailing bookkeeping messages and prevents the stuck-"Thinking" bug (RC1).
+	// During streaming we still suppress the footer loader once a partial content row is
+	// actually rendering, to avoid a duplicate spinner (handled by the legacy sub-logic
+	// below, which only runs in the streaming case).
+	if (turnState) {
+		if (turnState.phase !== "streaming") {
+			return false
+		}
+		// attempt_completion emits a final say("completion_result") a beat before the `done`
+		// event flips the phase to "completed". Treat it as non-waiting so the loader doesn't
+		// flash during that gap (same anti-flicker guard as the legacy path below).
+		if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+			return false
+		}
+		// phase === streaming: show Thinking until a visible content row is streaming.
+		if (groupedMessages.length === 0 || !lastVisibleMessage) {
+			return true
+		}
+		if (lastVisibleRow && isToolGroup(lastVisibleRow)) {
+			return true
+		}
+		return lastVisibleMessage.partial !== true
+	}
+
+	// LEGACY PATH (no TurnState — classic/older state): infer from the message tail.
+	// Never show thinking while waiting on user input (any ask state).
+	// This includes completion_result, tool approvals, followups, and resume asks.
+	if (lastRawMessage?.type === "ask") {
+		return false
+	}
+	// attempt_completion emits a final say("completion_result") before ask("completion_result").
+	// Treat that final completion message as non-waiting to avoid a brief footer flicker.
+	if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+		return false
+	}
+	if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {
+		try {
+			const info = JSON.parse(lastRawMessage.text || "{}")
+			if (info.cancelReason === "user_cancelled") {
+				return false
+			}
+		} catch {
+			// ignore parse errors
+		}
+	}
+
+	// Always show while task has started but no visible rows are rendered yet.
+	if (groupedMessages.length === 0) {
+		return true
+	}
+
+	// Defensive guard for transient states where a grouped row exists
+	// but we still cannot resolve a concrete visible message.
+	if (!lastVisibleMessage) {
+		return true
+	}
+
+	// Always show when the last rendered row is a toolgroup.
+	if (lastVisibleRow && isToolGroup(lastVisibleRow)) {
+		return true
+	}
+
+	// User-requested behavior:
+	// if the last visible row is not actively partial, always show Thinking in the footer.
+	// (some rows like checkpoint_created don't set `partial`, and should be treated as non-partial)
+	if (lastVisibleMessage.partial !== true) {
+		return true
+	}
+
+	if (!lastMsg) {
+		// No messages after the initial task message - new task just started
+		return true
+	}
+	if (lastMsg.say === "user_feedback" || lastMsg.say === "user_feedback_diff") return true
+	if (lastMsg.say === "api_req_started") {
+		try {
+			const info = JSON.parse(lastMsg.text || "{}")
+			// Still in progress (no cost) and nothing has streamed after it yet
+			return info.cost == null
+		} catch {
+			return true
+		}
+	}
+	return false
+}
+
+/**
+ * Debounced visibility for the in-list "Thinking..." loader row.
+ *
+ * Shows immediately for unambiguous triggers (turn start, new message appended, tool group
+ * tail). When the trigger is the current tail message transitioning partial -> non-partial,
+ * showing is delayed by THINKING_LOADER_GRACE_MS: at turn end that transition happens just
+ * before the phase flips out of "streaming", and an instant loader would flash in and out.
+ */
+export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number | undefined, tailIsPartial: boolean): boolean {
+	const [visible, setVisible] = useState(false)
+	const prevTailRef = useRef<{ ts: number | undefined; partial: boolean }>({ ts: undefined, partial: false })
+
+	useEffect(() => {
+		const prevTail = prevTailRef.current
+		prevTailRef.current = { ts: tailTs, partial: tailIsPartial }
+
+		if (!shouldShow) {
+			setVisible(false)
+			return
+		}
+
+		const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
+		if (!tailJustFinishedStreaming) {
+			setVisible(true)
+			return
+		}
+
+		const timer = setTimeout(() => setVisible(true), THINKING_LOADER_GRACE_MS)
+		return () => clearTimeout(timer)
+	}, [shouldShow, tailTs, tailIsPartial])
+
+	return visible
+}
+
+/**
+ * Whether the in-list "Thinking..." loader row should currently be rendered.
+ * Combines the waiting heuristic, the waiting -> reasoning handoff guard, and the
+ * anti-flash debounce for tail-finalization triggers.
+ */
+export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
+	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages } = inputs
+
+	const isWaitingForResponse = useMemo(
+		() =>
+			computeIsWaitingForResponse({
+				turnState,
+				lastRawMessage,
+				groupedMessages,
+				lastVisibleRow,
+				lastVisibleMessage,
+				modifiedMessages,
+			}),
+		[turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages],
+	)
+
+	// During handoff from waiting -> reasoning stream, keep the loader mounted until a real
+	// reasoning row is visible in the grouped list.
+	const handoffToReasoningPending =
+		lastRawMessage?.type === "say" &&
+		lastRawMessage.say === "reasoning" &&
+		lastRawMessage.partial === true &&
+		lastVisibleMessage?.say !== "reasoning"
+
+	return useDebouncedLoaderVisibility(
+		isWaitingForResponse || handoffToReasoningPending,
+		lastVisibleMessage?.ts,
+		lastVisibleMessage?.partial === true,
+	)
+}

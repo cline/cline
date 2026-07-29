@@ -7,12 +7,19 @@ export type SessionHistoryStatus =
 
 export type SessionMetadata = {
 	title?: string;
+	/**
+	 * Favorited sessions. Stored in session metadata rather than desktop-local
+	 * state so every client reading the session sees the same flag.
+	 */
+	pinned?: boolean;
 	git?: {
 		url?: string;
 		branch?: string;
 	};
 	[key: string]: unknown;
 };
+
+export const PINNED_METADATA_KEY = "pinned";
 
 export interface SessionHistoryItem {
 	sessionId: string;
@@ -49,6 +56,10 @@ export function getSessionMetadataTitle(metadata?: SessionMetadata): string {
 		return "";
 	}
 	return typeof metadata.title === "string" ? metadata.title.trim() : "";
+}
+
+export function getSessionMetadataPinned(metadata?: SessionMetadata): boolean {
+	return metadata?.[PINNED_METADATA_KEY] === true;
 }
 
 export function getSessionMetadataGitBranch(

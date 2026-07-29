@@ -7,6 +7,7 @@ import {
 import {
 	buildRunCommandsDescription,
 	createDefaultTools,
+	createEditorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -14,7 +15,7 @@ import {
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function hasSchemaKey(value: unknown, key: string): boolean {
@@ -1941,6 +1942,35 @@ describe("default editor tool", () => {
 			}),
 			process.cwd(),
 			expect.anything(),
+		);
+	});
+
+	it("accepts a stringified insert_line but not a non-numeric one", async () => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+		// Deliberately wrong-typed: this is what an LLM can put on the wire.
+		const inputWith = (insert_line: unknown) =>
+			({
+				path: "/tmp/example.ts",
+				new_text: "after",
+				insert_line,
+			}) as EditFileInput;
+
+		await tool.execute(inputWith("3"), context);
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ insert_line: 3 }),
+			process.cwd(),
+			expect.anything(),
+		);
+
+		// A word such as "end" has no line number to infer, so it must keep failing.
+		await expect(tool.execute(inputWith("end"), context)).rejects.toThrow(
+			/insert_line/,
 		);
 	});
 

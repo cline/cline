@@ -3,7 +3,7 @@ import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
 
 /**
- * App icon variants selectable in Settings. "classic" is the icon bundled
+ * App icon variants selectable in Settings. "midnight" is the icon bundled
  * with the app; the others live in webview/public/app-icons (picker +
  * browser favicon) and src-tauri/icons/dock (runtime dock icon resources).
  */
@@ -16,7 +16,7 @@ export const APP_ICONS = [
 
 export type AppIconId = (typeof APP_ICONS)[number]["id"];
 
-export const DEFAULT_APP_ICON: AppIconId = "classic";
+export const DEFAULT_APP_ICON: AppIconId = "midnight";
 
 export function isAppIconId(value: unknown): value is AppIconId {
 	return APP_ICONS.some((icon) => icon.id === value);
