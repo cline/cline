@@ -49,13 +49,13 @@ export interface ProviderLiveModelsSource {
 const OPENROUTER_SOURCE: ProviderLiveModelsSource = {
 	providerId: "openrouter",
 	url: OPENROUTER_LIVE_MODELS_URL,
-	normalize: (payload) => normalizeOpenRouterLiveModels(payload),
+	normalize: normalizeOpenRouterLiveModels,
 };
 
 const VERCEL_AI_GATEWAY_SOURCE: ProviderLiveModelsSource = {
 	providerId: "vercel-ai-gateway",
 	url: VERCEL_AI_GATEWAY_LIVE_MODELS_URL,
-	normalize: (payload) => normalizeVercelAiGatewayLiveModels(payload),
+	normalize: normalizeVercelAiGatewayLiveModels,
 };
 
 const HUGGINGFACE_SOURCE: ProviderLiveModelsSource = {

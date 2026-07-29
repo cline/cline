@@ -9,6 +9,7 @@
  */
 
 import {
+	enrichModelInfo,
 	includeCapability,
 	isRecord,
 	parsePerTokenPrice,
@@ -82,11 +83,19 @@ function readOptionalPositiveInteger(value: unknown): number | undefined {
  */
 export function normalizeVercelAiGatewayLiveModels(
 	payload: unknown,
+	curatedModels: Record<string, ModelInfo> = {},
 ): Record<string, ModelInfo> {
 	const models: Record<string, ModelInfo> = {};
 	for (const rawModel of readModelListPayload(payload)) {
 		const modelId = readModelId(rawModel);
-		if (!modelId || rawModel.type === "embedding") {
+		// The endpoint also serves image/video generation, embeddings,
+		// reranking, speech, transcription, and realtime-only models. Only
+		// language models are valid in Cline's chat model picker. Older
+		// endpoint versions omitted `type`, so keep missing types compatible.
+		if (
+			!modelId ||
+			(typeof rawModel.type === "string" && rawModel.type !== "language")
+		) {
 			continue;
 		}
 
@@ -102,22 +111,23 @@ export function normalizeVercelAiGatewayLiveModels(
 		const contextWindow = readOptionalPositiveInteger(rawModel.context_window);
 		const thinkingConfig = deriveThinkingConfig(modelId, tags);
 
-		const capabilities: NonNullable<ModelInfo["capabilities"]> = [
-			"tools",
-			// The gateway does not report modality; assume image support like
-			// the legacy host-side handler did.
-			"images",
-		];
+		const capabilities: NonNullable<ModelInfo["capabilities"]> = [];
+		includeCapability(capabilities, "tools", tags.includes("tool-use"));
+		includeCapability(capabilities, "images", tags.includes("vision"));
+		includeCapability(capabilities, "files", tags.includes("file-input"));
 		includeCapability(
 			capabilities,
 			"prompt-cache",
-			Boolean(cacheRead && cacheWrite),
+			cacheRead !== undefined ||
+				cacheWrite !== undefined ||
+				tags.includes("implicit-caching") ||
+				tags.includes("explicit-caching"),
 		);
 		includeCapability(capabilities, "reasoning", thinkingConfig !== undefined);
 
-		models[modelId] = {
+		models[modelId] = enrichModelInfo(curatedModels[modelId], {
 			id: modelId,
-			name: typeof rawModel.name === "string" ? rawModel.name : modelId,
+			name: typeof rawModel.name === "string" ? rawModel.name : undefined,
 			description:
 				typeof rawModel.description === "string"
 					? rawModel.description
@@ -127,14 +137,14 @@ export function normalizeVercelAiGatewayLiveModels(
 			maxInputTokens: contextWindow,
 			capabilities,
 			pricing: {
-				input: parsePerTokenPrice(pricingPayload.input) ?? 0,
-				output: parsePerTokenPrice(pricingPayload.output) ?? 0,
+				input: parsePerTokenPrice(pricingPayload.input),
+				output: parsePerTokenPrice(pricingPayload.output),
 				cacheRead,
 				cacheWrite,
 			},
 			thinkingConfig,
 			temperature: deriveTemperature(modelId),
-		};
+		});
 	}
 	return models;
 }

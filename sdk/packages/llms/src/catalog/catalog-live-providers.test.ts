@@ -64,6 +64,59 @@ describe("normalizeOpenRouterLiveModels", () => {
 		expect(model.metadata?.tiers).toEqual(rawSonnet.tiers);
 	});
 
+	it("enriches sparse live entries without erasing curated facts", () => {
+		const curated: Record<string, ModelInfo> = {
+			"x-ai/grok-4.5": {
+				id: "x-ai/grok-4.5",
+				name: "Grok 4.5",
+				maxTokens: 32_768,
+				contextWindow: 256_000,
+				maxInputTokens: 240_000,
+				capabilities: ["tools", "files", "prompt-cache"],
+				pricing: { input: 2, output: 10, cacheRead: 0.2 },
+				releaseDate: "2026-01-01",
+				family: "grok",
+				metadata: { curatedFact: true },
+			},
+		};
+		const models = normalizeOpenRouterLiveModels(
+			{
+				data: [
+					{
+						id: "x-ai/grok-4.5",
+						name: "xAI: Grok 4.5",
+						description: "Fresh live description",
+						context_length: 300_000,
+						// OpenRouter omits top_provider.max_completion_tokens.
+						pricing: { prompt: "0.000003", completion: "0.000012" },
+						supported_parameters: ["tools", "reasoning"],
+					},
+				],
+			},
+			curated,
+		);
+
+		expect(models["x-ai/grok-4.5"]).toMatchObject({
+			name: "xAI: Grok 4.5",
+			description: "Fresh live description",
+			contextWindow: 300_000,
+			maxInputTokens: 300_000,
+			// Omitted live fact is preserved from the curated catalog.
+			maxTokens: 32_768,
+			releaseDate: "2026-01-01",
+			family: "grok",
+			metadata: { curatedFact: true },
+			pricing: expect.objectContaining({
+				input: 3,
+				output: 12,
+				cacheRead: 0.2,
+			}),
+		});
+		expect(models["x-ai/grok-4.5"].capabilities).toEqual(
+			expect.arrayContaining(["tools", "files", "prompt-cache", "reasoning"]),
+		);
+	});
+
 	it("applies the gpt-5 and kimi-k2 limit workarounds", () => {
 		const models = normalizeOpenRouterLiveModels({
 			data: [
@@ -163,11 +216,18 @@ describe("normalizeVercelAiGatewayLiveModels", () => {
 			data: [
 				{
 					id: "google/gemini-3-pro",
+					type: "language",
 					name: "Gemini 3 Pro",
 					description: "Reasoning model",
 					context_window: 1_048_576,
 					max_tokens: 65_536,
-					tags: ["reasoning"],
+					tags: [
+						"reasoning",
+						"tool-use",
+						"vision",
+						"file-input",
+						"explicit-caching",
+					],
 					pricing: {
 						input: "0.000002",
 						output: "0.000012",
@@ -176,16 +236,44 @@ describe("normalizeVercelAiGatewayLiveModels", () => {
 					},
 				},
 				{ id: "some/embedding-model", type: "embedding" },
+				{ id: "some/image-model", type: "image" },
+				{ id: "some/video-model", type: "video" },
+				{ id: "some/reranker", type: "reranking" },
+				{ id: "some/transcriber", type: "transcription" },
+				{ id: "some/realtime-model", type: "realtime" },
+				{ id: "some/speech-model", type: "speech" },
+				{
+					id: "language-without-tool-or-vision",
+					type: "language",
+					tags: [],
+				},
 			],
 		});
 
 		const model = models["google/gemini-3-pro"];
 		expect(model).toBeDefined();
-		expect(models["some/embedding-model"]).toBeUndefined();
+		for (const modelId of [
+			"some/embedding-model",
+			"some/image-model",
+			"some/video-model",
+			"some/reranker",
+			"some/transcriber",
+			"some/realtime-model",
+			"some/speech-model",
+		]) {
+			expect(models[modelId]).toBeUndefined();
+		}
 		expect(model.pricing).toMatchObject({ input: 2, output: 12 });
 		expect(model.capabilities).toEqual(
-			expect.arrayContaining(["tools", "images", "prompt-cache", "reasoning"]),
+			expect.arrayContaining([
+				"tools",
+				"images",
+				"files",
+				"prompt-cache",
+				"reasoning",
+			]),
 		);
+		expect(models["language-without-tool-or-vision"].capabilities).toEqual([]);
 		expect(model.thinkingConfig).toEqual({
 			maxBudget: 32_767,
 			thinkingLevel: "high",
@@ -243,12 +331,13 @@ describe("normalizeGroqLiveModels", () => {
 			pricing: expect.objectContaining({ input: 0.59, output: 0.79 }),
 			capabilities: expect.arrayContaining(["prompt-cache"]),
 		});
-		// Unknown live model still gets defaults + a generated description.
+		// Unknown live model stays sparse rather than inventing limits/pricing.
 		expect(models["brand-new-model"]).toMatchObject({
 			contextWindow: 200_000,
-			maxTokens: 8_192,
-			description: "Groq model with 200,000 token context window",
+			capabilities: ["tools"],
 		});
+		expect(models["brand-new-model"].maxTokens).toBeUndefined();
+		expect(models["brand-new-model"].description).toBeUndefined();
 	});
 
 	it("degrades to an empty result on malformed payloads", () => {
@@ -303,6 +392,29 @@ describe("normalizeBasetenLiveModels", () => {
 		).toBeGreaterThan(0);
 	});
 
+	it("preserves explicit zero live pricing instead of falling back to curated pricing", () => {
+		const modelId = "free/live-model";
+		const models = normalizeBasetenLiveModels(
+			{
+				data: [
+					{
+						id: modelId,
+						object: "model",
+						pricing: { prompt: "0", completion: 0 },
+					},
+				],
+			},
+			{
+				[modelId]: {
+					id: modelId,
+					pricing: { input: 2, output: 4 },
+				},
+			},
+		);
+
+		expect(models[modelId].pricing).toMatchObject({ input: 0, output: 0 });
+	});
+
 	it("degrades to an empty result on malformed payloads", () => {
 		expect(normalizeBasetenLiveModels({ data: 3 })).toEqual({});
 	});
@@ -325,10 +437,12 @@ describe("normalizeHuggingFaceLiveModels", () => {
 					{
 						id: "meta-llama/Llama-3.3-70B-Instruct",
 						providers: [{ provider: "together" }, { provider: "nebius" }],
+						architecture: { input_modalities: ["text", "image"] },
 					},
 					{
 						id: "brand/new-model",
 						providers: [{ provider: "sambanova" }],
+						architecture: { input_modalities: ["text"] },
 					},
 				],
 			},
@@ -338,13 +452,15 @@ describe("normalizeHuggingFaceLiveModels", () => {
 		expect(models["meta-llama/Llama-3.3-70B-Instruct"]).toMatchObject({
 			contextWindow: 131_072,
 			maxTokens: 4_096,
-			description: "Available on providers: together, nebius",
+			metadata: { availableProviders: ["together", "nebius"] },
+			capabilities: ["images"],
 		});
 		expect(models["brand/new-model"]).toMatchObject({
-			contextWindow: 128_000,
-			maxTokens: 8_192,
-			description: "Available on providers: sambanova",
+			metadata: { availableProviders: ["sambanova"] },
+			capabilities: [],
 		});
+		expect(models["brand/new-model"].contextWindow).toBeUndefined();
+		expect(models["brand/new-model"].maxTokens).toBeUndefined();
 	});
 
 	it("degrades to an empty result on malformed payloads", () => {

@@ -3,23 +3,26 @@
  *
  * The router's `/v1/models` endpoint lists which models are currently
  * routable (and through which upstream providers) but carries almost no
- * metadata, so curated catalog entries are preferred when the id is known
- * and conservative defaults are used otherwise. Layered on top of the
+ * metadata, so its availability data is layered onto richer catalog entries.
+ * Layered on top of the
  * bundled catalog by `@cline/core`'s provider resolution (see
  * catalog-live-openrouter.ts for the consolidation background).
  */
 
-import { readModelId, readModelListPayload } from "./catalog-live-shared";
+import {
+	enrichModelInfo,
+	includeCapability,
+	isRecord,
+	readModelId,
+	readModelListPayload,
+} from "./catalog-live-shared";
 import type { ModelInfo } from "./types";
 
 export const HUGGINGFACE_LIVE_MODELS_URL =
 	"https://router.huggingface.co/v1/models";
 
-const DEFAULT_MAX_TOKENS = 8_192;
-const DEFAULT_CONTEXT_WINDOW = 128_000;
-
-function readProvidersDescription(rawModel: Record<string, unknown>): string {
-	const providers = Array.isArray(rawModel.providers)
+function readProviders(rawModel: Record<string, unknown>): string[] {
+	return Array.isArray(rawModel.providers)
 		? rawModel.providers
 				.map((provider) =>
 					provider &&
@@ -30,7 +33,17 @@ function readProvidersDescription(rawModel: Record<string, unknown>): string {
 				)
 				.filter((value): value is string => Boolean(value))
 		: [];
-	return `Available on providers: ${providers.length > 0 ? providers.join(", ") : "unknown"}`;
+}
+
+function readInputModalities(rawModel: Record<string, unknown>): string[] {
+	if (!isRecord(rawModel.architecture)) {
+		return [];
+	}
+	return Array.isArray(rawModel.architecture.input_modalities)
+		? rawModel.architecture.input_modalities.filter(
+				(value): value is string => typeof value === "string",
+			)
+		: [];
 }
 
 /**
@@ -50,29 +63,24 @@ export function normalizeHuggingFaceLiveModels(
 			continue;
 		}
 
-		const providersDescription = readProvidersDescription(rawModel);
-		const curated = curatedModels[modelId];
-		if (curated) {
-			models[modelId] = {
-				...curated,
-				id: modelId,
-				description: curated.description ?? providersDescription,
-			};
-			continue;
-		}
+		const providers = readProviders(rawModel);
+		const capabilities: NonNullable<ModelInfo["capabilities"]> = [];
+		includeCapability(
+			capabilities,
+			"images",
+			readInputModalities(rawModel).includes("image"),
+		);
 
-		// The router does not report limits or pricing for unknown ids; use
-		// conservative defaults so the model is still usable.
-		models[modelId] = {
+		// The router does not report limits or pricing. Keep those fields
+		// sparse so this availability layer cannot overwrite richer bundled or
+		// models.dev facts. Always emit capabilities (even `[]`) so source-only
+		// text models do not inherit the extension adapter's legacy
+		// supportsImages=true default.
+		models[modelId] = enrichModelInfo(curatedModels[modelId], {
 			id: modelId,
-			name: modelId,
-			description: providersDescription,
-			maxTokens: DEFAULT_MAX_TOKENS,
-			contextWindow: DEFAULT_CONTEXT_WINDOW,
-			maxInputTokens: DEFAULT_CONTEXT_WINDOW,
-			capabilities: ["tools"],
-			pricing: { input: 0, output: 0 },
-		};
+			capabilities,
+			metadata: { availableProviders: providers },
+		});
 	}
 	return models;
 }

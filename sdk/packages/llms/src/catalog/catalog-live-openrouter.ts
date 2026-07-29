@@ -13,6 +13,7 @@
  */
 
 import {
+	enrichModelInfo,
 	includeCapability,
 	isRecord,
 	LIVE_REASONING_PLACEHOLDER_THINKING_BUDGET,
@@ -242,8 +243,8 @@ function toOpenRouterModelInfo(
 
 	const contextWindow = readOptionalPositiveInteger(rawModel.context_length);
 	const pricing: NonNullable<ModelInfo["pricing"]> = {
-		input: parsePerTokenPrice(pricingPayload.prompt) ?? 0,
-		output: parsePerTokenPrice(pricingPayload.completion) ?? 0,
+		input: parsePerTokenPrice(pricingPayload.prompt),
+		output: parsePerTokenPrice(pricingPayload.completion),
 		cacheRead: parsePerTokenPrice(pricingPayload.input_cache_read),
 		cacheWrite: parsePerTokenPrice(pricingPayload.input_cache_write),
 	};
@@ -273,7 +274,7 @@ function toOpenRouterModelInfo(
 
 	const info: ModelInfo = {
 		id: modelId,
-		name: typeof rawModel.name === "string" ? rawModel.name : modelId,
+		name: typeof rawModel.name === "string" ? rawModel.name : undefined,
 		description:
 			typeof rawModel.description === "string"
 				? rawModel.description
@@ -355,6 +356,7 @@ function applyOpenRouterModelOverrides(info: ModelInfo): ModelInfo {
  */
 export function normalizeOpenRouterLiveModels(
 	payload: unknown,
+	curatedModels: Record<string, ModelInfo> = {},
 ): Record<string, ModelInfo> {
 	const models: Record<string, ModelInfo> = {};
 	for (const rawModel of readModelListPayload(payload)) {
@@ -362,8 +364,9 @@ export function normalizeOpenRouterLiveModels(
 		if (!modelId) {
 			continue;
 		}
-		models[modelId] = applyOpenRouterModelOverrides(
-			toOpenRouterModelInfo(rawModel, modelId),
+		models[modelId] = enrichModelInfo(
+			curatedModels[modelId],
+			applyOpenRouterModelOverrides(toOpenRouterModelInfo(rawModel, modelId)),
 		);
 	}
 	return models;

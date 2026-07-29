@@ -15,6 +15,7 @@ export {
 	GROQ_LIVE_MODELS_URL,
 	normalizeGroqLiveModels,
 } from "./catalog/catalog-live-groq";
+export { enrichModelInfo } from "./catalog/catalog-live-shared";
 export type { ProviderLiveModelsSource } from "./catalog/catalog-live-sources";
 export { getProviderLiveModelsSource } from "./catalog/catalog-live-sources";
 export type { ModelIdAliasRule } from "./catalog/model-id-aliases";

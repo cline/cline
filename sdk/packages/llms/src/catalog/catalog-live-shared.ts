@@ -46,6 +46,63 @@ export function includeCapability(
 	}
 }
 
+function mergeDefinedObject<T extends Record<string, unknown>>(
+	base: T | undefined,
+	overlay: T | undefined,
+): T | undefined {
+	if (!base && !overlay) {
+		return undefined;
+	}
+	const result = { ...(base ?? {}) } as T;
+	for (const [key, value] of Object.entries(overlay ?? {})) {
+		if (value !== undefined) {
+			Object.assign(result, { [key]: value });
+		}
+	}
+	return result;
+}
+
+/**
+ * Layer live provider metadata onto a curated model without erasing facts the
+ * live endpoint omitted. Provider `/models` responses are often sparse (for
+ * example, OpenRouter currently omits max output limits on some models), so a
+ * whole-record spread would regress bundled capabilities and limits.
+ *
+ * Live defined scalars win, capabilities are unioned, and nested pricing /
+ * thinking / metadata bags merge by defined key. Explicit zero values are
+ * preserved.
+ */
+export function enrichModelInfo(
+	curated: ModelInfo | undefined,
+	live: ModelInfo,
+): ModelInfo {
+	if (!curated) {
+		return live;
+	}
+
+	const result = { ...curated };
+	for (const [key, value] of Object.entries(live)) {
+		if (value !== undefined) {
+			Object.assign(result, { [key]: value });
+		}
+	}
+
+	const capabilities = [
+		...(curated.capabilities ?? []),
+		...(live.capabilities ?? []),
+	];
+	if (capabilities.length > 0) {
+		result.capabilities = [...new Set(capabilities)];
+	}
+	result.pricing = mergeDefinedObject(curated.pricing, live.pricing);
+	result.thinkingConfig = mergeDefinedObject(
+		curated.thinkingConfig,
+		live.thinkingConfig,
+	);
+	result.metadata = mergeDefinedObject(curated.metadata, live.metadata);
+	return result;
+}
+
 /**
  * Extract the model list from an OpenAI-style `{ data: [...] }` payload
  * (the shape all supported provider `/models` endpoints use). Returns an

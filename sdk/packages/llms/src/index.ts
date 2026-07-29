@@ -13,6 +13,7 @@ export type {
 export {
 	BASETEN_LIVE_MODELS_URL,
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+	enrichModelInfo,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	filterOpenAICodexModels,

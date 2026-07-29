@@ -431,12 +431,61 @@ describe("resolveProviderConfig", () => {
 								context_length: 100_000,
 								pricing: { prompt: "0.000001", completion: "0.000002" },
 							},
+							{
+								// Sparse provider entry for a model newer than the
+								// bundled snapshot; models.dev must enrich it below.
+								id: "vendor/models-dev-only-model",
+								description: "Provider description",
+							},
+							{
+								// Sparse provider entry for a model also present in
+								// both the bundled and models.dev catalogs.
+								id: "qwen/qwen3.7-flash",
+								description: "Fresh provider description",
+							},
 						],
 					}),
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			// models.dev catalog + Cline recommended models: empty
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/models-dev-only-model": {
+									name: "Models.dev Only Model",
+									tool_call: true,
+									reasoning: true,
+									family: "new-family",
+									release_date: "2027-01-01",
+									limit: {
+										context: 300_000,
+										input: 250_000,
+										output: 32_000,
+									},
+									cost: { input: 4, output: 16 },
+								},
+								"qwen/qwen3.7-flash": {
+									name: "Qwen 3.7 Flash (models.dev latest)",
+									tool_call: true,
+									reasoning: true,
+									family: "qwen-latest",
+									release_date: "2027-03-01",
+									limit: {
+										context: 777_000,
+										input: 700_000,
+										output: 77_000,
+									},
+									cost: { input: 7, output: 17 },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			// Cline recommended models: empty
 			return new Response(JSON.stringify({}), {
 				status: 200,
 				headers: { "content-type": "application/json" },
@@ -471,7 +520,29 @@ describe("resolveProviderConfig", () => {
 		expect(
 			resolved?.knownModels?.["vendor/live-only-openrouter-model"]?.name,
 		).toBe("Live Only OpenRouter Model");
-		expect(resolved?.knownModels?.["qwen/qwen3.7-flash"]).toBeDefined();
+		expect(
+			resolved?.knownModels?.["vendor/models-dev-only-model"],
+		).toMatchObject({
+			name: "Models.dev Only Model",
+			description: "Provider description",
+			contextWindow: 300_000,
+			maxInputTokens: 250_000,
+			maxTokens: 32_000,
+			family: "new-family",
+			releaseDate: "2027-01-01",
+			pricing: expect.objectContaining({ input: 4, output: 16 }),
+			capabilities: expect.arrayContaining(["tools", "reasoning"]),
+		});
+		expect(resolved?.knownModels?.["qwen/qwen3.7-flash"]).toMatchObject({
+			name: "Qwen 3.7 Flash (models.dev latest)",
+			description: "Fresh provider description",
+			contextWindow: 777_000,
+			maxInputTokens: 700_000,
+			maxTokens: 77_000,
+			family: "qwen-latest",
+			releaseDate: "2027-03-01",
+			pricing: expect.objectContaining({ input: 7, output: 17 }),
+		});
 		// Stealth models ride the bundled catalog.
 		expect(resolved?.knownModels?.["stealth/giga-potato"]).toBeDefined();
 	});
@@ -491,6 +562,32 @@ describe("resolveProviderConfig", () => {
 
 		expect(resolved?.knownModels?.["qwen/qwen3.7-flash"]).toBeDefined();
 		expect(resolved?.knownModels?.["stealth/giga-potato"]).toBeDefined();
+	});
+
+	it("propagates rich provider live-source failures in strict mode", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://openrouter.ai/api/v1/models") {
+				return new Response("provider unavailable", { status: 503 });
+			}
+			// models.dev and recommended-model requests are independently
+			// best-effort inside fetchLiveProviderModels.
+			return new Response(JSON.stringify({}), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			resolveProviderConfig("openrouter", {
+				loadLatestOnInit: true,
+				failOnError: true,
+				cacheTtlMs: 0,
+				url: "https://models.test/api.json",
+			}),
+		).rejects.toThrow(
+			"failed to fetch live models from https://openrouter.ai/api/v1/models: HTTP 503",
+		);
 	});
 
 	it("loads enriched Groq live models through the private fetcher", async () => {
@@ -535,9 +632,77 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["groq-live-model"]).toMatchObject({
 			contextWindow: 262_144,
 			maxTokens: 32_768,
-			description: "Groq model with 262,144 token context window",
 		});
 		expect(resolved?.knownModels?.["whisper-large-v3"]).toBeUndefined();
+	});
+
+	it("field-merges authenticated provider models over models.dev metadata", async () => {
+		const modelId = "groq-new/sparse-model";
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						groq: {
+							models: {
+								[modelId]: {
+									name: "Fresh Groq Model",
+									tool_call: true,
+									reasoning: true,
+									family: "fresh-family",
+									release_date: "2027-02-01",
+									limit: {
+										context: 262_144,
+										input: 250_000,
+										output: 32_768,
+									},
+									cost: { input: 0.7, output: 0.9 },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url === "https://api.groq.com/openai/v1/models") {
+				return new Response(
+					JSON.stringify({
+						data: [{ id: modelId, object: "model", owned_by: "Groq" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response(JSON.stringify({}), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"groq",
+			{
+				loadLatestOnInit: true,
+				failOnError: true,
+				cacheTtlMs: 0,
+				url: "https://models.test/api.json",
+			},
+			{
+				providerId: "groq",
+				modelId,
+				apiKey: "gsk_test-key",
+			},
+		);
+
+		expect(resolved?.knownModels?.[modelId]).toMatchObject({
+			name: "Fresh Groq Model",
+			contextWindow: 262_144,
+			maxInputTokens: 250_000,
+			maxTokens: 32_768,
+			family: "fresh-family",
+			releaseDate: "2027-02-01",
+			pricing: { input: 0.7, output: 0.9 },
+			capabilities: expect.arrayContaining(["tools", "reasoning"]),
+		});
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
@@ -759,6 +924,11 @@ describe("resolveProviderConfig", () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
+		const openAiModelWithoutUndefinedFields = Object.fromEntries(
+			Object.entries(openAiResolved?.knownModels?.["gpt-5.5"] ?? {}).filter(
+				([, value]) => value !== undefined,
+			),
+		);
 
 		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
 		expect(modelIds).not.toContain("gpt-5.5-pro");
@@ -769,7 +939,7 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
-				...openAiResolved?.knownModels?.["gpt-5.5"],
+				...openAiModelWithoutUndefinedFields,
 				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
 				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,

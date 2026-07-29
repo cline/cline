@@ -18,9 +18,6 @@ import type { ModelInfo } from "./types";
 
 export const GROQ_LIVE_MODELS_URL = "https://api.groq.com/openai/v1/models";
 
-const DEFAULT_MAX_TOKENS = 8_192;
-const DEFAULT_CONTEXT_WINDOW = 8_192;
-
 const NON_CHAT_MODEL_ID_FRAGMENTS = [
 	"whisper",
 	"tts",
@@ -60,21 +57,13 @@ function detectImageSupport(
 	);
 }
 
-function generateModelDescription(
+function readModelDescription(
 	rawModel: Record<string, unknown>,
-	modelId: string,
-	contextWindow: number,
 	curated: ModelInfo | undefined,
-): string {
-	if (curated?.description) {
-		return curated.description;
-	}
-	const ownedBy =
-		typeof rawModel.owned_by === "string" ? rawModel.owned_by : "Unknown";
-	if (modelId.includes("compound")) {
-		return `${ownedBy}'s ${modelId} model with ${contextWindow.toLocaleString()} token context window - Advanced compound architecture`;
-	}
-	return `${ownedBy} model with ${contextWindow.toLocaleString()} token context window`;
+): string | undefined {
+	return typeof rawModel.description === "string"
+		? rawModel.description
+		: curated?.description;
 }
 
 function readOptionalPositiveInteger(value: unknown): number | undefined {
@@ -103,8 +92,7 @@ export function normalizeGroqLiveModels(
 		const curated = curatedModels[modelId];
 		const contextWindow =
 			readOptionalPositiveInteger(rawModel.context_window) ??
-			curated?.contextWindow ??
-			DEFAULT_CONTEXT_WINDOW;
+			curated?.contextWindow;
 
 		const capabilities: NonNullable<ModelInfo["capabilities"]> = ["tools"];
 		includeCapability(
@@ -125,25 +113,19 @@ export function normalizeGroqLiveModels(
 
 		models[modelId] = {
 			id: modelId,
-			name: curated?.name ?? modelId,
-			description: generateModelDescription(
-				rawModel,
-				modelId,
-				contextWindow,
-				curated,
-			),
+			name: curated?.name,
+			description: readModelDescription(rawModel, curated),
 			maxTokens:
 				readOptionalPositiveInteger(rawModel.max_completion_tokens) ??
-				curated?.maxTokens ??
-				DEFAULT_MAX_TOKENS,
+				curated?.maxTokens,
 			contextWindow,
 			maxInputTokens: contextWindow,
 			capabilities,
 			pricing: {
-				input: curated?.pricing?.input ?? 0,
-				output: curated?.pricing?.output ?? 0,
-				cacheRead: curated?.pricing?.cacheRead ?? 0,
-				cacheWrite: curated?.pricing?.cacheWrite ?? 0,
+				input: curated?.pricing?.input,
+				output: curated?.pricing?.output,
+				cacheRead: curated?.pricing?.cacheRead,
+				cacheWrite: curated?.pricing?.cacheWrite,
 			},
 			releaseDate: curated?.releaseDate,
 		};

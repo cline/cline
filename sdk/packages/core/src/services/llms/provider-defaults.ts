@@ -141,10 +141,23 @@ async function loadGeneratedProviderModels(): Promise<
 	return Llms.getGeneratedProviderModels();
 }
 
+function mergeModelCatalogLayers(
+	...layers: Record<string, ModelInfo>[]
+): Record<string, ModelInfo> {
+	const merged: Record<string, ModelInfo> = {};
+	for (const layer of layers) {
+		for (const [modelId, modelInfo] of Object.entries(layer)) {
+			merged[modelId] = Llms.enrichModelInfo(merged[modelId], modelInfo);
+		}
+	}
+	return merged;
+}
+
 async function mergeKnownModels(
 	providerId: string,
 	defaultKnownModels: Record<string, ModelInfo> = {},
-	liveModels: Record<string, ModelInfo> = {},
+	modelsDevLiveModels: Record<string, ModelInfo> = {},
+	providerLiveModels: Record<string, ModelInfo> = {},
 	privateModels: Record<string, ModelInfo> = {},
 	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
@@ -172,53 +185,63 @@ async function mergeKnownModels(
 		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.modelsSourceUrl,
 	);
 	if (hasPublicModelSource) {
-		return Llms.sortModelsByReleaseDate({
-			...publicModels,
-			...userKnownModels,
-		});
+		return Llms.sortModelsByReleaseDate(
+			mergeModelCatalogLayers(publicModels, userKnownModels),
+		);
 	}
 	if (providerId === "openai-codex") {
-		return Llms.sortModelsByReleaseDate({
-			...defaultKnownModels,
-			...Llms.filterOpenAICodexModels(liveModels),
-			...publicModels,
-			...userKnownModels,
-		});
+		return Llms.sortModelsByReleaseDate(
+			mergeModelCatalogLayers(
+				defaultKnownModels,
+				Llms.filterOpenAICodexModels(modelsDevLiveModels),
+				providerLiveModels,
+				publicModels,
+				userKnownModels,
+			),
+		);
 	}
-	if (providerId === "cline-pass" && Object.keys(liveModels).length > 0) {
+	if (
+		providerId === "cline-pass" &&
+		Object.keys(modelsDevLiveModels).length > 0
+	) {
 		// Keep the catalog's intentional order (pass models first, free models
 		// after) instead of re-sorting by release date: the first live model is
 		// the fallback default when the bundled default id rotates out of the
 		// live list, and it must stay a subscription model, not a free one.
-		return {
-			...liveModels,
-			...userKnownModels,
-		};
+		return mergeModelCatalogLayers(
+			modelsDevLiveModels,
+			providerLiveModels,
+			userKnownModels,
+		);
 	}
-	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
-		...generated,
-		...defaultKnownModels,
-		...liveModels,
-		...privateModels,
-		...publicModels,
-	});
+	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate(
+		mergeModelCatalogLayers(
+			generated,
+			defaultKnownModels,
+			modelsDevLiveModels,
+			providerLiveModels,
+			privateModels,
+			publicModels,
+		),
+	);
 
 	if (providerId === "cline") {
 		// Cline recommendations can use Vercel-style ids while the broader
 		// catalog includes OpenRouter aliases for the same models.
-		return Llms.sortModelsByReleaseDate({
-			...Llms.preferCanonicalModelIds(
-				knownModelsWithoutUserOverrides,
-				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+		return Llms.sortModelsByReleaseDate(
+			mergeModelCatalogLayers(
+				Llms.preferCanonicalModelIds(
+					knownModelsWithoutUserOverrides,
+					Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				),
+				userKnownModels,
 			),
-			...userKnownModels,
-		});
+		);
 	}
 
-	return Llms.sortModelsByReleaseDate({
-		...knownModelsWithoutUserOverrides,
-		...userKnownModels,
-	});
+	return Llms.sortModelsByReleaseDate(
+		mergeModelCatalogLayers(knownModelsWithoutUserOverrides, userKnownModels),
+	);
 }
 
 function resolveCatalogModels(
@@ -346,10 +369,7 @@ async function fetchBasetenPrivateModels(
 		throw new Error(`Baseten model refresh failed: HTTP ${response.status}`);
 	}
 
-	return Llms.normalizeBasetenLiveModels(
-		(await response.json()) as unknown,
-		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.baseten?.models,
-	);
+	return Llms.normalizeBasetenLiveModels((await response.json()) as unknown);
 }
 
 async function fetchGroqPrivateModels(
@@ -373,10 +393,7 @@ async function fetchGroqPrivateModels(
 		throw new Error(`Groq model refresh failed: HTTP ${response.status}`);
 	}
 
-	return Llms.normalizeGroqLiveModels(
-		(await response.json()) as unknown,
-		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.groq?.models,
-	);
+	return Llms.normalizeGroqLiveModels((await response.json()) as unknown);
 }
 
 interface HicapModelResponse {
@@ -701,9 +718,7 @@ async function getProviderLiveModels(
 				`failed to fetch live models from ${source.url}: HTTP ${response.status}`,
 			);
 		}
-		const curatedModels =
-			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[source.providerId]?.models;
-		return source.normalize((await response.json()) as unknown, curatedModels);
+		return source.normalize((await response.json()) as unknown);
 	})()
 		.then((data) => {
 			PROVIDER_LIVE_MODELS_CACHE.set(source.url, {
@@ -972,14 +987,20 @@ export async function resolveProviderConfig(
 		// Rich per-provider live sources (OpenRouter & co.) are fresher and
 		// carry more metadata than models.dev, so they win over it — but they
 		// still merge on top of the bundled catalog rather than replacing it,
-		// so a failed fetch degrades gracefully.
-		const providerLiveModels = modelCatalog?.loadLatestOnInit
-			? await getProviderLiveModels(providerId, modelCatalog).catch(() => ({}))
-			: {};
-		const liveModels = {
-			...modelsDevLiveModels,
-			...providerLiveModels,
-		};
+		// so a failed fetch degrades gracefully in non-strict mode.
+		let providerLiveModels: Record<string, ModelInfo> = {};
+		if (modelCatalog?.loadLatestOnInit) {
+			try {
+				providerLiveModels = await getProviderLiveModels(
+					providerId,
+					modelCatalog,
+				);
+			} catch (error) {
+				if (modelCatalog.failOnError) {
+					throw error;
+				}
+			}
+		}
 		const privateModels =
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)
@@ -1011,7 +1032,8 @@ export async function resolveProviderConfig(
 		const knownModels = await mergeKnownModels(
 			providerId,
 			defaults.knownModels,
-			liveModels,
+			modelsDevLiveModels,
+			providerLiveModels,
 			privateModels,
 			publicModels,
 			config?.knownModels,

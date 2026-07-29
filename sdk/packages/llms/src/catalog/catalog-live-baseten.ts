@@ -20,9 +20,6 @@ import type { ModelInfo } from "./types";
 
 export const BASETEN_LIVE_MODELS_URL = "https://inference.baseten.co/v1/models";
 
-const DEFAULT_MAX_TOKENS = 8_192;
-const DEFAULT_CONTEXT_WINDOW = 8_192;
-
 const NON_CHAT_MODEL_ID_FRAGMENTS = ["whisper", "tts", "embedding"];
 
 function isValidChatModel(
@@ -49,9 +46,8 @@ function readSupportedFeatures(
 
 function generateModelDescription(
 	rawModel: Record<string, unknown>,
-	modelId: string,
 	curated: ModelInfo | undefined,
-): string {
+): string | undefined {
 	if (curated?.description) {
 		return curated.description;
 	}
@@ -77,19 +73,7 @@ function generateModelDescription(
 			? `${rawModel.description} (${technicalDetails.join(", ")})`
 			: rawModel.description;
 	}
-
-	const modelName =
-		typeof rawModel.name === "string" && rawModel.name
-			? rawModel.name
-			: modelId;
-	const ownedBy =
-		typeof rawModel.owned_by === "string" && rawModel.owned_by
-			? rawModel.owned_by
-			: "Baseten";
-	if (contextWindow) {
-		return `${ownedBy} ${modelName} with ${contextWindow.toLocaleString()} token context window`;
-	}
-	return `${ownedBy} model: ${modelName}`;
+	return undefined;
 }
 
 function readOptionalPositiveInteger(value: unknown): number | undefined {
@@ -121,8 +105,7 @@ export function normalizeBasetenLiveModels(
 		const pricingPayload = isRecord(rawModel.pricing) ? rawModel.pricing : {};
 		const contextWindow =
 			readOptionalPositiveInteger(rawModel.context_length) ??
-			curated?.contextWindow ??
-			DEFAULT_CONTEXT_WINDOW;
+			curated?.contextWindow;
 
 		// Baseten model APIs do not support image input.
 		const capabilities: NonNullable<ModelInfo["capabilities"]> = ["tools"];
@@ -135,26 +118,22 @@ export function normalizeBasetenLiveModels(
 
 		models[modelId] = {
 			id: modelId,
-			name: curated?.name ?? modelId,
-			description: generateModelDescription(rawModel, modelId, curated),
+			name: typeof rawModel.name === "string" ? rawModel.name : curated?.name,
+			description: generateModelDescription(rawModel, curated),
 			maxTokens:
 				readOptionalPositiveInteger(rawModel.max_completion_tokens) ??
-				curated?.maxTokens ??
-				DEFAULT_MAX_TOKENS,
+				curated?.maxTokens,
 			contextWindow,
 			maxInputTokens: contextWindow,
 			capabilities,
 			pricing: {
 				input:
-					parsePerTokenPrice(pricingPayload.prompt) ||
-					curated?.pricing?.input ||
-					0,
+					parsePerTokenPrice(pricingPayload.prompt) ?? curated?.pricing?.input,
 				output:
-					parsePerTokenPrice(pricingPayload.completion) ||
-					curated?.pricing?.output ||
-					0,
-				cacheRead: curated?.pricing?.cacheRead ?? 0,
-				cacheWrite: curated?.pricing?.cacheWrite ?? 0,
+					parsePerTokenPrice(pricingPayload.completion) ??
+					curated?.pricing?.output,
+				cacheRead: curated?.pricing?.cacheRead,
+				cacheWrite: curated?.pricing?.cacheWrite,
 			},
 			// Placeholder budget so hosts know thinking is configurable.
 			thinkingConfig: supportsReasoning
