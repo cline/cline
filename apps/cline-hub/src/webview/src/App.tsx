@@ -1166,10 +1166,13 @@ function App() {
 	const [recentSessions, setRecentSessions] = useState<WebviewSessionSummary[]>(
 		[],
 	);
+	const [locationSearch, setLocationSearch] = useState(
+		() => (typeof window !== "undefined" ? window.location.search : ""),
+	);
 
 	const demoHub = useMemo(
-		() => readDrivecodeDemoHubBootstrap(window.location.search),
-		[],
+		() => readDrivecodeDemoHubBootstrap(locationSearch),
+		[locationSearch],
 	);
 	const statusTeamsSource = useMemo((): StatusTeamsSource => {
 		if (demoHub.useDemoTeamsAdapter) {
@@ -1192,6 +1195,7 @@ function App() {
 				nextView === "chat" ? readCurrentChatSessionId() : undefined,
 			);
 			setSettingsSection(readCurrentSettingsSection());
+			setLocationSearch(window.location.search);
 		};
 		window.addEventListener("popstate", handlePopState);
 		return () => window.removeEventListener("popstate", handlePopState);
