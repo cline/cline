@@ -4,7 +4,7 @@ import {
 	type Server,
 	type Socket,
 } from "node:net";
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentResult, AgentToolContext } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
@@ -13,9 +13,17 @@ import {
 } from "./computer-user";
 
 const createCliCoreMock = vi.hoisted(() => vi.fn());
+const releaseAbortRejectionShieldMock = vi.hoisted(() => vi.fn());
+const acquireAbortRejectionShieldMock = vi.hoisted(() =>
+	vi.fn(() => releaseAbortRejectionShieldMock),
+);
 
 vi.mock("../../session/session", () => ({
 	createCliCore: createCliCoreMock,
+}));
+
+vi.mock("../active-runtime", () => ({
+	acquireAbortRejectionShield: acquireAbortRejectionShieldMock,
 }));
 
 const toolContext: AgentToolContext = {
@@ -90,12 +98,26 @@ function makeSettings(settings: Record<string, unknown> | undefined) {
 	};
 }
 
+function makeResult(overrides: Partial<AgentResult> = {}): AgentResult {
+	return {
+		text: "done",
+		iterations: 1,
+		finishReason: "completed",
+		messages: [],
+		toolCalls: [],
+		usage: { inputTokens: 1, outputTokens: 1 },
+		...overrides,
+	} as AgentResult;
+}
+
 describe("createInteractiveComputerUser", () => {
 	let server: Server | undefined;
 	let destroyConnections: (() => void) | undefined;
 
 	beforeEach(() => {
 		createCliCoreMock.mockReset();
+		releaseAbortRejectionShieldMock.mockReset();
+		acquireAbortRejectionShieldMock.mockClear();
 	});
 
 	afterEach(async () => {
@@ -231,6 +253,67 @@ describe("createInteractiveComputerUser", () => {
 		expect(start.mock.calls[0]?.[0]?.config).not.toHaveProperty(
 			"thinkingBudgetTokens",
 		);
+		await result?.dispose();
+	});
+
+	it("shields abort rejections until the helper run is quiescent", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		let resolveSend: ((result: AgentResult) => void) | undefined;
+		const send = vi.fn(
+			() =>
+				new Promise<AgentResult>((resolve) => {
+					resolveSend = resolve;
+				}),
+		);
+		const abort = vi.fn(async () => {});
+		createCliCoreMock.mockResolvedValue({
+			start: vi.fn(async () => ({ sessionId: "helper-session" })),
+			send,
+			abort,
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
+			notifyDriver: () => {},
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+			} as NodeJS.ProcessEnv,
+		});
+		const byName = new Map(
+			result?.driverTools.map((tool) => [tool.name, tool]) ?? [],
+		);
+		await byName
+			.get("computer_user_start")
+			?.execute({ task: "inspect the desktop" }, toolContext);
+
+		let stopped = false;
+		const interruption = byName
+			.get("computer_user_interrupt")
+			?.execute({ reason: "no progress" }, toolContext) as Promise<unknown>;
+		const observedInterruption = interruption.then((output) => {
+			stopped = true;
+			return output;
+		});
+
+		await vi.waitFor(() => {
+			expect(abort).toHaveBeenCalledWith(
+				"helper-session",
+				expect.objectContaining({ message: "no progress" }),
+			);
+		});
+		expect(acquireAbortRejectionShieldMock).toHaveBeenCalledTimes(1);
+		expect(releaseAbortRejectionShieldMock).not.toHaveBeenCalled();
+		expect(stopped).toBe(false);
+
+		resolveSend?.(makeResult({ finishReason: "aborted" }));
+		await expect(observedInterruption).resolves.toMatchObject({
+			status: "stopped",
+		});
+		expect(releaseAbortRejectionShieldMock).toHaveBeenCalledTimes(1);
 		await result?.dispose();
 	});
 });

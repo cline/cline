@@ -5,12 +5,13 @@ import type { ComputerUserCoordinator } from "./coordinator";
 
 /**
  * Driver-facing tools for delegating GUI work to the asynchronous computer
- * user. Start, message, and interrupt return without waiting for the helper's
- * turn. Status can return immediately or wait for a bounded change. Results,
- * questions, and warnings also arrive as steer messages injected into the
- * driver's conversation. The tools are separate (rather than one action
- * union) because their approval semantics differ: hosts typically
- * auto-approve status checks while gating start/interrupt.
+ * user. Start and message return without waiting for the helper's turn;
+ * interrupt returns after the active turn is quiescent. Status can return
+ * immediately or wait for a bounded change. Results, questions, and warnings
+ * also arrive as steer messages injected into the driver's conversation. The
+ * tools are separate (rather than one action union) because their approval
+ * semantics differ: hosts typically auto-approve status checks while gating
+ * start/interrupt.
  */
 
 const StartInput = z
@@ -138,7 +139,7 @@ export function createComputerUserDriverTools(
 	const interrupt = createTool({
 		name: "computer_user_interrupt",
 		description:
-			"Stop the computer user's current work immediately. Its session and memory of the task survive; send computer_user_message afterwards to redirect it. An input action already delivered to the computer may still take effect.",
+			"Stop the computer user's current work and wait until it is idle. Its session and memory of the task survive; send computer_user_message afterwards to redirect it. An input action already delivered to the computer may still take effect.",
 		inputSchema: zodToJsonSchema(InterruptInput),
 		retryable: false,
 		execute: async (input: unknown) => {
@@ -146,8 +147,8 @@ export function createComputerUserDriverTools(
 			const { interrupted } = await coordinator.interrupt(parsed.reason);
 			return interrupted
 				? {
-						status: "interrupting",
-						note: "You will be notified here when it has stopped.",
+						status: "stopped",
+						note: "The computer user is idle and can accept a new turn.",
 					}
 				: {
 						status: "not_running",

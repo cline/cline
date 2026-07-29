@@ -10,14 +10,15 @@ import {
 	createComputerUseTool,
 	createJournalEventSink,
 	createTranscriptRecordingHooks,
-	resolveComputerUseTargetFromEnv,
 	type ProviderSettingsManager,
+	resolveComputerUseTargetFromEnv,
 	toProviderConfig,
 } from "@cline/core";
 import type { AgentTool } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createCliCore } from "../../session/session";
 import type { Config } from "../../utils/types";
+import { acquireAbortRejectionShield } from "../active-runtime";
 
 /**
  * CLI host integration for the asynchronous computer user.
@@ -199,6 +200,7 @@ export async function createInteractiveComputerUser(input: {
 	// computer-use backend's loopback socket is reachable — a hub daemon may
 	// run on a different machine from the controlled display.
 	let helperCorePromise: Promise<ClineCore> | undefined;
+	let activeHelperSend: Promise<unknown> | undefined;
 	const getHelperCore = () => {
 		helperCorePromise ??= createCliCore({
 			forceLocalBackend: true,
@@ -219,9 +221,38 @@ export async function createInteractiveComputerUser(input: {
 					config: startInput.config as never,
 					interactive: startInput.interactive,
 				}),
-			send: async (sendInput) => (await getHelperCore()).send(sendInput),
-			abort: async (sessionId, reason) =>
-				(await getHelperCore()).abort(sessionId, reason),
+			send: async (sendInput) => {
+				const send = (await getHelperCore()).send(sendInput);
+				if (sendInput.delivery === "steer") {
+					return await send;
+				}
+				activeHelperSend = send;
+				try {
+					return await send;
+				} finally {
+					if (activeHelperSend === send) {
+						activeHelperSend = undefined;
+					}
+				}
+			},
+			abort: async (sessionId, reason) => {
+				const releaseAbortShield = acquireAbortRejectionShield();
+				try {
+					await (await getHelperCore()).abort(sessionId, reason);
+				} catch (error) {
+					releaseAbortShield();
+					throw error;
+				}
+				const abortedSend = activeHelperSend;
+				if (!abortedSend) {
+					releaseAbortShield();
+					return;
+				}
+				// The coordinator owns waiting for this run to settle. The adapter
+				// only keeps expected provider cancellation rejections shielded for
+				// the same interval, without making disposal wait on host teardown.
+				void abortedSend.finally(releaseAbortShield).catch(() => {});
+			},
 			stop: async (sessionId) => (await getHelperCore()).stop(sessionId),
 		},
 		helperConfig,
