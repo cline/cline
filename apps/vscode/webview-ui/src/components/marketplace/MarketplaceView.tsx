@@ -406,8 +406,6 @@ const MarketplaceStyles = () => (
 			color: var(--vscode-errorForeground);
 			font-size: calc(var(--vscode-font-size) * 0.85);
 			line-height: 1.35;
-			overflow-wrap: anywhere;
-			word-break: break-word;
 		}
 
 		.marketplace-row-error svg {
@@ -415,6 +413,17 @@ const MarketplaceStyles = () => (
 			width: 13px;
 			height: 13px;
 			margin-top: 1px;
+		}
+
+		/* Load failures can carry a full child-process stack; keep the row
+		   readable and leave the rest to the hover title. */
+		.marketplace-row-error span {
+			display: -webkit-box;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			overflow-wrap: anywhere;
+			word-break: break-word;
 		}
 
 		.marketplace-row-meta {
@@ -846,7 +855,7 @@ const LocalEntryLoadError = ({ entries }: { entries: MarketplaceLocalInstalledEn
 	return (
 		<>
 			{messages.map((message) => (
-				<div className="marketplace-row-error" key={message}>
+				<div className="marketplace-row-error" key={message} title={message}>
 					<TriangleAlertIcon aria-hidden />
 					<span>Failed to load: {message}</span>
 				</div>
