@@ -1,4 +1,3 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -93,7 +92,7 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
-	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
 	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
@@ -210,33 +209,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
-		const modelInfo = effectiveClineModels?.[newModelId] ?? {
-			...openAiModelInfoSafeDefaults,
-			name: newModelId,
-		}
-
+		// commitModelSelection is the single writer for providers.json and the
+		// mode-specific legacy state. A concurrent full-config update can be
+		// built from stale webview state and overwrite the committed selection.
 		void commitSelection(currentMode, {
 			providerId: "cline",
 			modelId: newModelId,
 		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
-
-		void handleModeFieldsChange(
-			{
-				clineModelId: {
-					plan: "planModeClineModelId",
-					act: "actModeClineModelId",
-				},
-				clineModelInfo: {
-					plan: "planModeClineModelInfo",
-					act: "actModeClineModelInfo",
-				},
-			},
-			{
-				clineModelId: newModelId,
-				clineModelInfo: modelInfo,
-			},
-			currentMode,
-		)
 	}
 
 	const baseSelection = useDynamicProviderSelection("cline", apiConfiguration, currentMode)

@@ -106,6 +106,7 @@ describe("ClineModelPicker", () => {
 			providerId: "cline",
 			modelId: "cline-next",
 		})
+		expect(mocks.updateApiConfigurationProto).not.toHaveBeenCalled()
 	})
 
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {
