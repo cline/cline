@@ -139,8 +139,17 @@ describe("handleDriveCommand", () => {
 		};
 		expect(room.director.activeShowId).toBe("show-1");
 		expect(room.director.showBacklog[0]?.uri).toMatch(/^data:image\/svg\+xml/);
+		expect(room.director.showBacklog[0]?.title).toBe("Flow");
+		const presented = published.find(
+			(event) => event.event === "drive.show.presented",
+		);
+		expect(presented?.payload).toMatchObject({
+			showItemId: "show-1",
+			title: "Flow",
+			caption: "Flow diagram",
+		});
 		expect(
-			published.some((event) => event.event === "drive.show.presented"),
-		).toBe(true);
+			typeof (presented?.payload as { uri?: string } | undefined)?.uri,
+		).toBe("string");
 	});
 });
