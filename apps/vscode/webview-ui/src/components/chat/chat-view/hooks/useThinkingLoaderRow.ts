@@ -54,9 +54,14 @@ export function computeIsWaitingForResponse({
 			return false
 		}
 		// attempt_completion emits a final say("completion_result") a beat before the `done`
-		// event flips the phase to "completed". Treat it as non-waiting so the loader doesn't
-		// flash during that gap (same anti-flicker guard as the legacy path below).
-		if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+		// event flips the phase to "completed", and the turn-end inferred completion rows
+		// (say completion_result / plan_completion_result) likewise land just before the phase
+		// change. Treat them as non-waiting so the loader doesn't flash during that gap (same
+		// anti-flicker guard as the legacy path below).
+		if (
+			lastRawMessage?.type === "say" &&
+			(lastRawMessage.say === "completion_result" || lastRawMessage.say === "plan_completion_result")
+		) {
 			return false
 		}
 		// phase === streaming: show Thinking until a visible content row is streaming.
@@ -77,7 +82,12 @@ export function computeIsWaitingForResponse({
 	}
 	// attempt_completion emits a final say("completion_result") before ask("completion_result").
 	// Treat that final completion message as non-waiting to avoid a brief footer flicker.
-	if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+	// The turn-end inferred completion rows (say completion_result / plan_completion_result)
+	// are likewise terminal.
+	if (
+		lastRawMessage?.type === "say" &&
+		(lastRawMessage.say === "completion_result" || lastRawMessage.say === "plan_completion_result")
+	) {
 		return false
 	}
 	if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {

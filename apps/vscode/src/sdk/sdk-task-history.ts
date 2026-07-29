@@ -1,7 +1,7 @@
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import { formatDisplayUserInput } from "@cline/shared"
+import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
@@ -129,13 +129,34 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 	}
 }
 
-function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[] {
-	return messages.map((message) => {
+/** SdkMessage plus the plan/act mode recovered from its <user_input mode="..."> wrapper. */
+type SdkDisplayMessage = SdkMessage & { uiMode?: "plan" | "act" | "yolo" }
+
+function parseUserMessageMode(content: SdkMessage["content"]): "plan" | "act" | "yolo" | undefined {
+	if (typeof content === "string") {
+		return parseUserInputMode(content)
+	}
+	for (const block of content) {
+		if (block.type === "text" && typeof block.text === "string") {
+			const mode = parseUserInputMode(block.text)
+			if (mode) {
+				return mode
+			}
+		}
+	}
+	return undefined
+}
+
+function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkDisplayMessage[] {
+	return messages.map((message): SdkDisplayMessage => {
 		if (message.role !== "user") {
 			return message
 		}
+		// Recover the mode BEFORE display sanitization strips the <user_input mode="..."> wrapper;
+		// history rendering uses it to style each turn's inferred completion row.
+		const uiMode = parseUserMessageMode(message.content)
 		if (typeof message.content === "string") {
-			return { ...message, content: formatDisplayUserInput(message.content) }
+			return { ...message, content: formatDisplayUserInput(message.content), uiMode }
 		}
 		if (Array.isArray(message.content)) {
 			return {
@@ -145,6 +166,7 @@ function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[]
 						? { ...block, text: formatDisplayUserInput(block.text) }
 						: block,
 				),
+				uiMode,
 			}
 		}
 		return message
@@ -431,6 +453,19 @@ export class SdkTaskHistory {
 		const clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
+			{
+				// Only retag the transcript's terminal text as an inferred completion when the
+				// session record says its last turn ended cleanly — status "completed", written
+				// by the SDK runtime host's resolveInteractiveStopStatus when the session is
+				// released (task switch, clear, extension dispose). Everything else stays a
+				// plain text row: "failed"/"cancelled" runs ended on a dangling response, and
+				// non-terminal statuses at rest ("idle"/"running"/"pending") mean the process
+				// died without recording an outcome — "idle" in particular is also the state
+				// after an aborted turn (markTurnIdle runs for every finish reason), so it
+				// cannot be trusted as a clean ending. A missing record is likewise an unknown
+				// outcome, so it gets no completion styling either.
+				finalTurnCompleted: sdkRecord?.status === "completed",
+			},
 		)
 		if (sdkRecord && legacyTask) {
 			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)

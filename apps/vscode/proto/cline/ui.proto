@@ -75,6 +75,7 @@ enum ClineSay {
   USE_SUBAGENTS_SAY = 35;
   SUBAGENT_USAGE = 36;
   COMPACTION = 37;
+  PLAN_COMPLETION_RESULT = 38;
 }
 
 // Enum for ClineSayTool tool types
