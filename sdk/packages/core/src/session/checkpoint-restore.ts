@@ -7,7 +7,7 @@ import type {
 } from "../hooks/checkpoint-hooks";
 import { isCheckpointStashMessage } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
-import { isUserRunMessage } from "./user-run-messages";
+import { getUserRunSpan } from "./user-run-messages";
 
 const execFile = promisify(execFileCallback);
 
@@ -78,19 +78,29 @@ export function findCheckpointForRun(
 	}, undefined);
 }
 
-function findUserRunMessageIndex(
+function findUserRunMessage(
 	messages: LlmsProviders.Message[],
 	runCount: number,
-): number {
+): { index: number; span: number } {
 	let userRunCount = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
-		if (!message || !isUserRunMessage(message)) {
+		if (!message) {
 			continue;
 		}
-		userRunCount += 1;
+		const span = getUserRunSpan(message);
+		if (span < 1) {
+			continue;
+		}
+		const firstRunCount = userRunCount + 1;
+		userRunCount += span;
 		if (userRunCount === runCount) {
-			return index;
+			return { index, span };
+		}
+		if (userRunCount > runCount) {
+			throw new Error(
+				`Run ${runCount} is folded into a compacted message spanning runs ${firstRunCount}-${userRunCount}`,
+			);
 		}
 	}
 	throw new Error(`Could not find user message for run ${runCount}`);
@@ -100,7 +110,7 @@ export function trimMessagesToCheckpoint(
 	messages: LlmsProviders.Message[],
 	runCount: number,
 ): LlmsProviders.Message[] {
-	const index = findUserRunMessageIndex(messages, runCount);
+	const { index } = findUserRunMessage(messages, runCount);
 	return messages.slice(0, index + 1);
 }
 
@@ -108,7 +118,12 @@ export function trimMessagesBeforeUserRun(
 	messages: LlmsProviders.Message[],
 	runCount: number,
 ): LlmsProviders.Message[] {
-	const index = findUserRunMessageIndex(messages, runCount);
+	const { index, span } = findUserRunMessage(messages, runCount);
+	if (span !== 1) {
+		throw new Error(
+			`Cannot fork before run ${runCount} because it is folded into a compacted message`,
+		);
+	}
 	return messages.slice(0, index);
 }
 

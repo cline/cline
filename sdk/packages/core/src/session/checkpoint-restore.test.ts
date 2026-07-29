@@ -185,6 +185,7 @@ describe("checkpoint message trimming", () => {
 			metadata: {
 				kind: "compaction",
 				displayRole: "system",
+				userRunSpan: 3,
 			},
 		};
 		const recoveryNotice = {
@@ -202,17 +203,23 @@ describe("checkpoint message trimming", () => {
 			{ role: "user" as const, content: "second visible prompt" },
 		];
 
-		expect(trimMessagesBeforeUserRun(messages, 2)).toEqual([
+		expect(trimMessagesBeforeUserRun(messages, 4)).toEqual([
 			compactedContext,
 			recoveryNotice,
 		]);
-		expect(trimMessagesBeforeUserRun(messages, 3)).toEqual([
+		expect(trimMessagesBeforeUserRun(messages, 5)).toEqual([
 			compactedContext,
 			recoveryNotice,
 			{ role: "user", content: "first visible prompt" },
 			{ role: "assistant", content: "first response" },
 		]);
-		expect(trimMessagesToCheckpoint(messages, 3)).toEqual(messages);
+		expect(trimMessagesToCheckpoint(messages, 5)).toEqual(messages);
+		expect(() => trimMessagesToCheckpoint(messages, 2)).toThrow(
+			"folded into a compacted message spanning runs 1-3",
+		);
+		expect(() => trimMessagesBeforeUserRun(messages, 3)).toThrow(
+			"Cannot fork before run 3",
+		);
 	});
 
 	it("uses the nearest earlier checkpoint when an identical snapshot was deduplicated", () => {

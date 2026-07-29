@@ -388,6 +388,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 2,
+					userRunSpan: 1,
 				},
 			},
 		]);
@@ -496,6 +497,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 4,
+					userRunSpan: 2,
 				},
 			},
 		]);
@@ -697,6 +699,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			reason: "manual_compaction",
 			displayRole: "system",
 			messagesRemoved: 6,
+			userRunSpan: 1,
 			usageBefore: {
 				inputTokens: 600,
 				outputTokens: 30,
@@ -1180,6 +1183,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1208,6 +1213,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1254,6 +1261,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			role: "user",
 			metadata: expect.objectContaining({
 				kind: "compaction_summary",
+				displayRole: "system",
+				userRunSpan: 2,
 				details: {
 					readFiles: [],
 					modifiedFiles: [],
@@ -1786,6 +1795,8 @@ describe("createContextCompactionPrepareTurn", () => {
 				content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
 				metadata: {
 					kind: "compaction_summary",
+					displayRole: "system",
+					userRunSpan: 2,
 					summary: "earlier work",
 					details: { readFiles: [], modifiedFiles: [] },
 					tokensBefore: 100,
@@ -1858,7 +1869,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 		expect(result?.messages[0]).toMatchObject({
 			role: "user",
-			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+			metadata: expect.objectContaining({
+				kind: "compaction_summary",
+				userRunSpan: 2,
+			}),
 		});
 		expect(result?.messages.length).toBeLessThan(messages.length);
 	});

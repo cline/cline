@@ -167,15 +167,21 @@ function buildUserRunCountMap(
 	let lastRunCount = 0;
 
 	for (const message of messages) {
-		if (message.role !== "user") {
+		const userRunSpan =
+			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+		const storedRunCount =
+			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
+		if (storedRunCount !== undefined) {
+			lastRunCount = Math.max(lastRunCount, storedRunCount);
+			if (message.role === "user" && userRunSpan === 1) {
+				runCountByMessage.set(message, storedRunCount);
+			}
 			continue;
 		}
-		const runCount =
-			message.meta?.runCount ??
-			message.meta?.checkpoint?.runCount ??
-			lastRunCount + 1;
-		runCountByMessage.set(message, runCount);
-		lastRunCount = Math.max(lastRunCount, runCount);
+		lastRunCount += userRunSpan;
+		if (message.role === "user" && userRunSpan === 1) {
+			runCountByMessage.set(message, lastRunCount);
+		}
 	}
 
 	return runCountByMessage;
@@ -353,6 +359,10 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const sessionVersioningPending =
+		editingMessageId !== null ||
+		forkingMessageId !== null ||
+		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
@@ -683,7 +693,8 @@ function ChatMessagesImpl({
 											status === "starting" ||
 											status === "running" ||
 											status === "stopping" ||
-											isSessionSwitching
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										editError={editErrors[message.id]}
 										editPending={editingMessageId === message.id}
@@ -701,13 +712,21 @@ function ChatMessagesImpl({
 											status === "starting" ||
 											status === "running" ||
 											status === "stopping" ||
-											isSessionSwitching
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										restoreError={checkpointErrors[message.id]}
 										restorePending={checkpointActions[message.id] === "undoing"}
 										wasCopied={copiedMessageId === message.id}
 										onForkSession={
 											onForkSession ? handleForkSession : undefined
+										}
+										forkDisabled={
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
@@ -1065,6 +1084,7 @@ const MessageBubble = memo(function MessageBubble({
 	restoreError,
 	wasCopied = false,
 	onForkSession,
+	forkDisabled = false,
 	forkPending = false,
 	forkError,
 	isLastAssistantMessage = false,
@@ -1095,6 +1115,7 @@ const MessageBubble = memo(function MessageBubble({
 	restoreError?: string;
 	wasCopied?: boolean;
 	onForkSession?: (messageId: string) => void | Promise<void>;
+	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
 	isLastAssistantMessage?: boolean;
@@ -1117,7 +1138,11 @@ const MessageBubble = memo(function MessageBubble({
 		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
 		isUser &&
-		Boolean(onCopyMessage || checkpoint || (onEditMessage && runCount));
+		Boolean(
+			onCopyMessage ||
+				checkpoint ||
+				(onEditMessage && runCount && displayContent.trim()),
+		);
 	const keepUserActionsVisible =
 		restorePending ||
 		editPending ||
@@ -1209,7 +1234,7 @@ const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
-						{onEditMessage && runCount ? (
+						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
 								className="min-w-0 p-0"
 								disabled={editDisabled || editPending}
@@ -1284,7 +1309,7 @@ const MessageBubble = memo(function MessageBubble({
 					{onForkSession ? (
 						<MessageAction
 							className="min-w-0 p-0"
-							disabled={forkPending}
+							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"

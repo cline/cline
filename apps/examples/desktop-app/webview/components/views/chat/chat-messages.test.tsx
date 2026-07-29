@@ -537,6 +537,99 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("counts folded system-displayed runs before an editable user message", async () => {
+		const onEditMessage = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "compacted-history",
+					sessionId: "session-1",
+					role: "system",
+					content: "Compacted context",
+					createdAt: 1,
+					meta: {
+						messageKind: "compaction",
+						userRunSpan: 3,
+					},
+				},
+				{
+					id: "post-compaction-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "Fourth prompt",
+					createdAt: 2,
+				},
+			],
+			{ onEditMessage },
+		);
+
+		const editButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		await act(async () => editButton?.click());
+
+		expect(onEditMessage).toHaveBeenCalledWith(
+			"post-compaction-user",
+			"Fourth prompt",
+			4,
+		);
+	});
+
+	it("continues from a non-user run anchor in a truncated history", async () => {
+		const onEditMessage = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "truncated-assistant",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Most recent response",
+					createdAt: 1,
+					meta: { runCount: 3 },
+				},
+				{
+					id: "optimistic-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "Next prompt",
+					createdAt: 2,
+				},
+			],
+			{ onEditMessage },
+		);
+
+		const editButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		await act(async () => editButton?.click());
+
+		expect(onEditMessage).toHaveBeenCalledWith(
+			"optimistic-user",
+			"Next prompt",
+			4,
+		);
+	});
+
+	it("does not offer editing for a message that represents multiple runs", async () => {
+		await renderMessages(
+			[
+				{
+					id: "folded-user-runs",
+					sessionId: "session-1",
+					role: "user",
+					content: "Merged prompts",
+					createdAt: 1,
+					meta: { userRunSpan: 2 },
+				},
+			],
+			{ onEditMessage: vi.fn(async () => undefined) },
+		);
+
+		expect(
+			container.querySelector('button[aria-label="Edit user message"]'),
+		).toBeNull();
+	});
+
 	it("leaves vertical scrolling to the conversation viewport", async () => {
 		await renderMessages([
 			{

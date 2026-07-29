@@ -786,6 +786,7 @@ export {
 } from "./session/stores/team-persistence-store";
 export {
 	countUserRunMessages,
+	getUserRunSpan,
 	isUserRunMessage,
 	type MessageDisplayRole,
 	resolveMessageDisplayRole,

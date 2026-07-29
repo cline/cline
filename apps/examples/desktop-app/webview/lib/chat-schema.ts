@@ -72,6 +72,7 @@ export const ChatMessageSchema = z.object({
 			totalCost: z.number().nonnegative().optional(),
 			providerId: z.string().optional(),
 			modelId: z.string().optional(),
+			userRunSpan: z.number().int().nonnegative().optional(),
 			runCount: z.number().int().positive().optional(),
 			checkpoint: z
 				.object({

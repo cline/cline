@@ -40,7 +40,6 @@ import type {
 	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
-import { countUserRunMessages } from "../session/user-run-messages";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
@@ -113,12 +112,6 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
-}
-
-function countSeededRootRuns(
-	messages: ResolvedStartSessionInput["initialMessages"],
-): number {
-	return countUserRunMessages(messages);
 }
 
 function buildProviderConfig(
@@ -410,7 +403,6 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
-					initialRunCount: countSeededRootRuns(input.initialMessages),
 					readSessionMetadata,
 					writeSessionMetadata,
 				})

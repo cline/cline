@@ -137,6 +137,64 @@ describe("readSessionMessages", () => {
 				content: "Second response",
 			}),
 		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+				1,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "assistant",
+				content: "Second response",
+				meta: { runCount: 2 },
+			}),
+		]);
+	});
+
+	it("marks later display segments from one user message as the same run", async () => {
+		const sessionId = `segmented-user-run-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							role: "user",
+							content: [
+								{ type: "text", text: "First segment" },
+								{
+									type: "tool_result",
+									tool_use_id: "orphan-tool",
+									content: "Tool output",
+								},
+								{ type: "text", text: "Second segment" },
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+		)) as Array<Record<string, unknown>>;
+
+		expect(projected).toEqual([
+			expect.objectContaining({
+				role: "user",
+				content: "First segment",
+				meta: { runCount: 1 },
+			}),
+			expect.objectContaining({ role: "tool" }),
+			expect.objectContaining({
+				role: "user",
+				content: "Second segment",
+				meta: { userRunSpan: 0 },
+			}),
+		]);
 	});
 
 	it("preserves absolute run counts across system-displayed compaction messages", async () => {
@@ -152,6 +210,7 @@ describe("readSessionMessages", () => {
 							metadata: {
 								kind: "compaction",
 								displayRole: "system",
+								userRunSpan: 3,
 							},
 						},
 						{ role: "user", content: "First visible prompt" },
@@ -170,17 +229,28 @@ describe("readSessionMessages", () => {
 		expect(projected[0]).toMatchObject({
 			role: "system",
 			content: "Compacted context",
+			meta: { runCount: 3, userRunSpan: 3 },
 		});
-		expect(projected[0]?.meta).not.toHaveProperty("runCount");
 		expect(projected[1]).toMatchObject({
 			role: "user",
 			content: "First visible prompt",
-			meta: { runCount: 2 },
+			meta: { runCount: 4 },
 		});
 		expect(projected[3]).toMatchObject({
 			role: "user",
 			content: "Second visible prompt",
-			meta: { runCount: 3 },
+			meta: { runCount: 5 },
+		});
+
+		const truncated = (await readSessionMessages(
+			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+			2,
+		)) as Array<Record<string, unknown>>;
+		expect(truncated[1]).toMatchObject({
+			role: "user",
+			content: "Second visible prompt",
+			meta: { runCount: 5 },
 		});
 	});
 });

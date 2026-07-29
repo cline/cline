@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger } from "@cline/shared";
+import { countUserRunMessages } from "../session/user-run-messages";
 
 const execFile = promisify(execFileCallback);
 const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
@@ -39,13 +40,6 @@ type CreateCheckpointHooksOptions = {
 		sessionId: string;
 		runCount: number;
 	}) => Promise<CheckpointEntry | undefined> | CheckpointEntry | undefined;
-	/**
-	 * Starting value for the internal run counter. Use this when a session
-	 * is created with initial messages (e.g. after a checkpoint restore) so
-	 * that new checkpoint entries get runCount values that don't collide
-	 * with entries carried over from the source session.
-	 */
-	initialRunCount?: number;
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
@@ -160,8 +154,8 @@ function upsertCheckpointHistory(
 export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
-	let runCount = options.initialRunCount ?? 0;
 	let repoSupported: boolean | undefined;
+	let rootRunMessageStart: number | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
 		if (repoSupported !== undefined) {
@@ -179,7 +173,9 @@ export function createCheckpointHooks(
 		return repoSupported;
 	};
 
-	const createCheckpoint = async (): Promise<CheckpointEntry | undefined> => {
+	const createCheckpoint = async (
+		runCount: number,
+	): Promise<CheckpointEntry | undefined> => {
 		if (options.createCheckpoint) {
 			return await options.createCheckpoint({
 				cwd: options.cwd,
@@ -259,21 +255,27 @@ export function createCheckpointHooks(
 
 	return {
 		beforeRun: async ({ snapshot }) => {
-			if (snapshot.parentAgentId != null) {
-				return undefined;
+			if (snapshot.parentAgentId == null) {
+				rootRunMessageStart = snapshot.messages.length;
 			}
-			runCount += 1;
 			return undefined;
 		},
 		beforeModel: async ({ snapshot }) => {
-			if (
-				snapshot.parentAgentId != null ||
-				snapshot.iteration !== 1 ||
-				runCount < 1
-			) {
+			if (snapshot.parentAgentId != null || snapshot.iteration !== 1) {
 				return undefined;
 			}
-			const entry = await createCheckpoint();
+			const currentRunMessages = snapshot.messages.slice(
+				rootRunMessageStart ?? Math.max(0, snapshot.messages.length - 1),
+			);
+			rootRunMessageStart = undefined;
+			if (countUserRunMessages(currentRunMessages) < 1) {
+				return undefined;
+			}
+			const runCount = countUserRunMessages(snapshot.messages);
+			if (runCount < 1) {
+				return undefined;
+			}
+			const entry = await createCheckpoint(runCount);
 			if (!entry) {
 				return undefined;
 			}
