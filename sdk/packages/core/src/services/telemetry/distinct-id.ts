@@ -6,6 +6,16 @@ import * as nodeMachineId from "node-machine-id";
 
 const GENERATED_DISTINCT_ID_FILE_NAME = "machine-id";
 
+let cachedDeviceId: string | undefined;
+
+export function resolveCoreDeviceId(): string {
+	if (!cachedDeviceId) {
+		cachedDeviceId =
+			getMachineDistinctId() ?? resolveGeneratedFallbackDistinctId();
+	}
+	return cachedDeviceId;
+}
+
 export function resolveCoreDistinctId(explicitDistinctId?: string): string {
 	const normalizedDistinctId = explicitDistinctId?.trim();
 	if (normalizedDistinctId) {
