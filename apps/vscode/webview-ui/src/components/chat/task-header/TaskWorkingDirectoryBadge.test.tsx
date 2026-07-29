@@ -46,13 +46,15 @@ describe("isTaskCwdOutsideWorkspace", () => {
 	})
 
 	describe("case sensitivity is platform-aware", () => {
-		it("treats case-only differences as the same directory on win32 and darwin", () => {
+		it("treats case-only differences as the same directory on win32", () => {
 			expect(isTaskCwdOutsideWorkspace("C:\\Users\\Dev\\Project", roots("c:/users/dev/project"), "win32")).toBe(false)
-			expect(isTaskCwdOutsideWorkspace("/Users/dev/Project", roots("/users/dev/project"), "darwin")).toBe(false)
 		})
 
-		it("treats case-only differences as distinct directories on linux", () => {
+		it("treats case-only differences as distinct directories on linux and darwin", () => {
+			// darwin is strict to match arePathsEqual and to cover
+			// case-sensitive macOS volumes (see normalizeForComparison).
 			expect(isTaskCwdOutsideWorkspace("/repo/App", roots("/repo/app"), "linux")).toBe(true)
+			expect(isTaskCwdOutsideWorkspace("/Users/dev/Project", roots("/users/dev/project"), "darwin")).toBe(true)
 		})
 
 		it("stays strict when the platform is unknown", () => {
