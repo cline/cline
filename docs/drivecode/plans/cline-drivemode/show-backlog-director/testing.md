@@ -37,6 +37,18 @@ Slices **1 + 2 + 3** with fixture seed (no planner):
 3. Tick ranks/presents → StickyStagePane.
 4. Attach 2-beat script → advance → sticky holds, caption changes.
 
+## Slice 1 live smoke (Present trigger)
+
+Prereqs: hub dashboard running (`bun run --cwd apps/cline-hub dev`), open printed URL, Chat view.
+
+1. Join call (header **Join call**).
+2. Stage on (unless auto-stage landed).
+3. Open call-strip **Settings**.
+4. Under **Sample / dev**, click **Present sample diagram**.
+5. Confirm `StickyStagePane` shows title “Architecture overview”, Sample/dev caption, and an SVG (data URI).
+
+No LLM credential required. Control is labeled Sample / dev until the planner lands.
+
 ## Non-gates
 
 - `?demoShareScreen=1` fixture demo.

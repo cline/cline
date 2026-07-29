@@ -14,10 +14,10 @@ The hub present path is ~80% done but unreachable from UI. Without a trigger, en
 
 | ID | Task | Depends on | Owner | Done when |
 |---|---|---|---|---|
-| 1.1 | Add webview affordance that posts `driveCommand` / `drive.show.present` with a fixture mermaid `ShowBacklogItem` (devtools panel or Drive settings “Present sample diagram”) | — | hub webview | Button visible when Drive active; posts valid payload |
-| 1.2 | Ensure `useDriveSession` maps `drive_show_presented` / `drive_room_changed` → `presentedShow` (verify; fix if gaps) | 1.1 | hub webview | StickyStagePane shows title/caption/URI after present |
-| 1.3 | Hub handler regression: present without `uri` + `render_mermaid` still materializes | — | `@cline/core` | Existing `drive-handlers` tests green; add case if missing |
-| 1.4 | Live smoke doc step: Join → Stage on (or auto-stage if S done) → Present sample → sticky shows SVG | 1.1, 1.2, 1.3 | docs / testing.md | Checklist in [testing.md](testing.md) |
+| 1.1 | Add webview affordance that posts `driveCommand` / `drive.show.present` with a fixture mermaid `ShowBacklogItem` (devtools panel or Drive settings “Present sample diagram”) | — | hub webview | **Done** — Settings Sample/dev button |
+| 1.2 | Ensure `useDriveSession` maps `drive_show_presented` / `drive_room_changed` → `presentedShow` (verify; fix if gaps) | 1.1 | hub webview | **Done** — title plumbed on presented event |
+| 1.3 | Hub handler regression: present without `uri` + `render_mermaid` still materializes | — | `@cline/core` | **Done** — drive-handlers test asserts uri + title |
+| 1.4 | Live smoke doc step: Join → Stage on (or auto-stage if S done) → Present sample → sticky shows SVG | 1.1, 1.2, 1.3 | docs / testing.md | **Done** — checklist in testing.md |
 
 ## Non-goals
 
