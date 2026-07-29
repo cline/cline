@@ -339,6 +339,71 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("keeps a mode's pending overrides across a round trip to the other mode", async () => {
+		// The first Act override commit stays unresolved across both mode
+		// switches, so Act's accumulator can never reseed from read-back.
+		const actCommit = deferred<void>()
+		mocks.commitSelection.mockReturnValueOnce(actCommit.promise)
+		mocks.useProviderConfig.mockReturnValue({
+			config: {
+				actSelection: {
+					providerId: "custom-openai",
+					modelId: "custom-model",
+					modelInfo: {
+						contextWindow: 128_000,
+						inputPrice: 0,
+						maxTokens: -1,
+						outputPrice: 0,
+						temperature: 0,
+						tiers: [],
+					},
+					overrides: { inputPrice: 3 },
+				},
+				planSelection: {
+					providerId: "custom-openai",
+					modelId: "plan-model",
+					modelInfo: {
+						contextWindow: 128_000,
+						inputPrice: 0,
+						maxTokens: -1,
+						outputPrice: 0,
+						temperature: 0,
+						tiers: [],
+					},
+					overrides: { outputPrice: 5 },
+				},
+				apiKeyLength: 12,
+				baseUrl: "http://localhost:1234/v1",
+				headers: {},
+				providerId: "custom-openai",
+			},
+			commitSelection: mocks.commitSelection,
+			write: mocks.write,
+		})
+		const view = render(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+
+		fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.25" } })
+
+		view.rerender(<OpenAICompatibleProvider currentMode="plan" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+		view.rerender(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+
+		fireEvent.change(screen.getByLabelText("Output Price / 1M tokens"), { target: { value: "20" } })
+
+		expect(mocks.commitSelection).toHaveBeenLastCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { inputPrice: 3, temperature: 0.25, outputPrice: 20 },
+		})
+
+		await act(async () => {
+			actCommit.resolve(undefined)
+		})
+	})
+
 	it("persists only the edited vision field while preserving existing overrides", async () => {
 		setCommittedSelection({
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
