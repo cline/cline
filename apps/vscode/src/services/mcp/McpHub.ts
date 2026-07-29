@@ -62,6 +62,12 @@ function stableJsonStringify(value: unknown): string {
 		.join(",")}}`
 }
 
+// Debounce window that coalesces a burst of list_changed notifications into
+// one refresh, and the bounded backoff used when that refresh's fetch fails.
+const LIST_CHANGED_DEBOUNCE_MS = 300
+const LIST_CHANGED_MAX_RETRIES = 3
+const LIST_CHANGED_RETRY_BASE_DELAY_MS = 1000
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -917,13 +923,21 @@ export class McpHub {
 	 * emit these in bursts (a toolset change or shutdown can produce a dozen
 	 * notifications/tools/list_changed at once), so refreshes are coalesced
 	 * per server and list kind.
+	 *
+	 * A refresh whose fetch fails is retried with exponential backoff up to
+	 * LIST_CHANGED_MAX_RETRIES times: the notification already consumed the
+	 * server's change signal, so giving up immediately would leave the cached
+	 * list stale until the next notification or reconnect. A fresh
+	 * notification (retryAttempt 0) supersedes any pending retry and resets
+	 * the backoff.
 	 */
-	private scheduleListChangedRefresh(serverName: string, kind: "tools" | "resources" | "prompts"): void {
+	private scheduleListChangedRefresh(serverName: string, kind: "tools" | "resources" | "prompts", retryAttempt = 0): void {
 		const key = `${serverName}:${kind}`
 		const existingTimer = this.listChangedRefreshTimers.get(key)
 		if (existingTimer) {
 			clearTimeout(existingTimer)
 		}
+		const delayMs = retryAttempt === 0 ? LIST_CHANGED_DEBOUNCE_MS : LIST_CHANGED_RETRY_BASE_DELAY_MS * 2 ** (retryAttempt - 1)
 		this.listChangedRefreshTimers.set(
 			key,
 			setTimeout(() => {
@@ -934,6 +948,11 @@ export class McpHub {
 				const previous = this.listChangedRefreshInFlight.get(key) ?? Promise.resolve()
 				const run = previous
 					.then(() => this.refreshChangedList(serverName, kind))
+					.then((outcome) => {
+						if (outcome === "failed" && retryAttempt < LIST_CHANGED_MAX_RETRIES) {
+							this.scheduleListChangedRefresh(serverName, kind, retryAttempt + 1)
+						}
+					})
 					.catch((error) => {
 						Logger.error(`[MCP] Failed to refresh ${kind} for ${serverName} after list_changed notification:`, error)
 					})
@@ -943,16 +962,25 @@ export class McpHub {
 						this.listChangedRefreshInFlight.delete(key)
 					}
 				})
-			}, 300),
+			}, delayMs),
 		)
 	}
 
-	private async refreshChangedList(serverName: string, kind: "tools" | "resources" | "prompts"): Promise<void> {
+	/**
+	 * Refreshes the given cached list. Returns "failed" when a fetch failed
+	 * (the caller retries), "skipped" when the connection is gone or was
+	 * replaced (no retry: a replacement fetched fresh lists at connect time),
+	 * and "refreshed" on success.
+	 */
+	private async refreshChangedList(
+		serverName: string,
+		kind: "tools" | "resources" | "prompts",
+	): Promise<"refreshed" | "failed" | "skipped"> {
 		// Look the connection up fresh: it may have been deleted (or replaced
 		// by a reconnect) while the debounce timer was pending.
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection || connection.server.disabled || !connection.client) {
-			return
+			return "skipped"
 		}
 
 		// A failed fetch returns undefined; keep the previous cached list in
@@ -962,24 +990,28 @@ export class McpHub {
 		let resources: McpResource[] | undefined
 		let resourceTemplates: McpResourceTemplate[] | undefined
 		let prompts: McpPrompt[] | undefined
+		let fetchFailed = false
 		switch (kind) {
 			case "tools":
 				tools = await this.fetchToolsList(serverName)
 				if (tools === undefined) {
-					return
+					return "failed"
 				}
 				break
 			case "resources":
 				resources = await this.fetchResourcesList(serverName)
 				resourceTemplates = await this.fetchResourceTemplatesList(serverName)
 				if (resources === undefined && resourceTemplates === undefined) {
-					return
+					return "failed"
 				}
+				// Half of the pair failed: publish the successful half now and
+				// still retry so the other half doesn't stay stale.
+				fetchFailed = resources === undefined || resourceTemplates === undefined
 				break
 			case "prompts":
 				prompts = await this.fetchPromptsList(serverName)
 				if (prompts === undefined) {
-					return
+					return "failed"
 				}
 				break
 		}
@@ -991,7 +1023,7 @@ export class McpHub {
 		// result to it could overwrite newer data.
 		const current = this.connections.find((conn) => conn.server.name === serverName)
 		if (current !== connection) {
-			return
+			return "skipped"
 		}
 
 		if (tools !== undefined) {
@@ -1010,6 +1042,7 @@ export class McpHub {
 		// Push the refreshed lists to the webview; for tools this also runs
 		// the tool-list change check that notifies the SDK controller.
 		await this.notifyWebviewOfServerChanges()
+		return fetchFailed ? "failed" : "refreshed"
 	}
 
 	async deleteConnection(name: string): Promise<void> {

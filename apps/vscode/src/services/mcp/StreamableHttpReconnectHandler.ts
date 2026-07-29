@@ -128,6 +128,10 @@ export class StreamableHttpReconnectHandler {
 				await this.callbacks.connectToServer()
 				Logger.log(`StreamableHTTP reconnect succeeded for "${this.serverName}"`)
 				this.attempts = 0
+				// connectToServer() loads fresh lists but doesn't publish them;
+				// without this, the webview keeps showing "connecting" and
+				// consumers keep the pre-reconnect capabilities.
+				await this.callbacks.notifyWebviewOfServerChanges()
 				return
 			} catch (reconnectError) {
 				Logger.error(`StreamableHTTP reconnect failed for "${this.serverName}":`, reconnectError)

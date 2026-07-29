@@ -115,6 +115,20 @@ describe("StreamableHttpReconnectHandler", () => {
 		cbs.stubs.notifyWebviewOfServerChanges.called.should.be.true()
 	})
 
+	it("should publish server state after a successful reconnect", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// Once for the "connecting" status, once after connectToServer
+		// succeeded — the second publishes the freshly fetched lists and
+		// "connected" status that connectToServer loads but doesn't send.
+		cbs.stubs.notifyWebviewOfServerChanges.calledTwice.should.be.true()
+		cbs.stubs.notifyWebviewOfServerChanges.lastCall.calledAfter(cbs.stubs.connectToServer.lastCall).should.be.true()
+	})
+
 	it("should use the configured delay for each attempt", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)

@@ -239,4 +239,55 @@ describe("McpHub list_changed notification refresh", () => {
 		replacement.server.tools.should.deepEqual([{ name: "fresh-from-connect" }])
 		notifyWebviewOfServerChanges.called.should.be.false()
 	})
+
+	it("retries a failed refresh with backoff and applies the eventual result", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		connection.server.tools = [{ name: "existing" }]
+		fetchToolsList.onFirstCall().resolves(undefined)
+		fetchToolsList.onSecondCall().resolves([{ name: "tool1" }])
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+		connection.server.tools.should.deepEqual([{ name: "existing" }])
+
+		// First retry fires after the 1s backoff and succeeds
+		await clock.tickAsync(1000)
+		fetchToolsList.calledTwice.should.be.true()
+		connection.server.tools.should.deepEqual([{ name: "tool1" }])
+		notifyWebviewOfServerChanges.calledOnce.should.be.true()
+	})
+
+	it("stops retrying after the retry budget is exhausted", async () => {
+		const { hub, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		fetchToolsList.resolves(undefined)
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+
+		// Initial attempt plus 3 retries at 1s/2s/4s backoff, then nothing more
+		await clock.tickAsync(300)
+		await clock.tickAsync(1000)
+		await clock.tickAsync(2000)
+		await clock.tickAsync(4000)
+		await clock.tickAsync(60000)
+
+		fetchToolsList.callCount.should.equal(4)
+		notifyWebviewOfServerChanges.called.should.be.false()
+	})
+
+	it("lets a fresh notification supersede a pending retry", async () => {
+		const { hub, connection, fetchToolsList } = createMcpHub()
+		fetchToolsList.onFirstCall().resolves(undefined)
+		fetchToolsList.onSecondCall().resolves([{ name: "tool1" }])
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		// New notification arrives while the 1s retry is pending: it replaces
+		// the retry timer and runs on the normal debounce delay instead
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+
+		fetchToolsList.calledTwice.should.be.true()
+		connection.server.tools.should.deepEqual([{ name: "tool1" }])
+	})
 })
