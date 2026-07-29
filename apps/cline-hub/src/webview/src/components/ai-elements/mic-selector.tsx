@@ -49,7 +49,12 @@ const MicSelectorContext = createContext<MicSelectorContextType>({
 	width: 200,
 });
 
-export const useAudioDevices = () => {
+export type AudioDeviceKind = Extract<
+	MediaDeviceKind,
+	"audioinput" | "audiooutput"
+>;
+
+export const useAudioDevices = (kind: AudioDeviceKind = "audioinput") => {
 	const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -61,11 +66,7 @@ export const useAudioDevices = () => {
 			setError(null);
 
 			const deviceList = await navigator.mediaDevices.enumerateDevices();
-			const audioInputs = deviceList.filter(
-				(device) => device.kind === "audioinput",
-			);
-
-			setDevices(audioInputs);
+			setDevices(deviceList.filter((device) => device.kind === kind));
 		} catch (caughtError) {
 			const message =
 				caughtError instanceof Error
@@ -77,7 +78,7 @@ export const useAudioDevices = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [kind]);
 
 	const loadDevicesWithPermission = useCallback(async () => {
 		if (loading) {
@@ -88,6 +89,8 @@ export const useAudioDevices = () => {
 			setLoading(true);
 			setError(null);
 
+			// Mic permission unlocks labeled device names for inputs and often
+			// outputs; output-only pickers still benefit from the label refresh.
 			const tempStream = await navigator.mediaDevices.getUserMedia({
 				audio: true,
 			});
@@ -97,11 +100,7 @@ export const useAudioDevices = () => {
 			}
 
 			const deviceList = await navigator.mediaDevices.enumerateDevices();
-			const audioInputs = deviceList.filter(
-				(device) => device.kind === "audioinput",
-			);
-
-			setDevices(audioInputs);
+			setDevices(deviceList.filter((device) => device.kind === kind));
 			setHasPermission(true);
 		} catch (caughtError) {
 			const message =
@@ -114,7 +113,7 @@ export const useAudioDevices = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, [loading]);
+	}, [kind, loading]);
 
 	useEffect(() => {
 		loadDevicesWithoutPermission();

@@ -11,6 +11,7 @@ describe("driveVoiceUi", () => {
 		const voice = createDefaultDriveVoiceUi("cloud");
 		expect(voice.hardware).toEqual({
 			micDeviceId: undefined,
+			speakerDeviceId: undefined,
 			outputVolume: 1,
 		});
 		const resolved = resolveDriveVoiceTopology({
@@ -44,11 +45,16 @@ describe("driveVoiceUi", () => {
 	it("preserves hardware prefs across profile switches", () => {
 		const withMic = applyHardwarePrefsPatch(
 			createDefaultDriveVoiceUi("cloud"),
-			{ micDeviceId: "mic-a", outputVolume: 0.4 },
+			{
+				micDeviceId: "mic-a",
+				speakerDeviceId: "spk-b",
+				outputVolume: 0.4,
+			},
 		);
 		const local = applyVoiceProfile(withMic, "local");
 		expect(local.hardware).toEqual({
 			micDeviceId: "mic-a",
+			speakerDeviceId: "spk-b",
 			outputVolume: 0.4,
 		});
 	});

@@ -591,7 +591,10 @@ export default function Chat({
 				setDriveJoinNote(ack.text);
 				void createVoiceStack(driveVoiceResolved.topology).tts.speak(
 					ack.text,
-					{ volume: driveVoice.hardware.outputVolume },
+					{
+						volume: driveVoice.hardware.outputVolume,
+						sinkId: driveVoice.hardware.speakerDeviceId,
+					},
 				);
 			}
 
@@ -633,6 +636,7 @@ export default function Chat({
 			autoApproveTools,
 			drive,
 			driveVoice.hardware.outputVolume,
+			driveVoice.hardware.speakerDeviceId,
 			driveVoice.profile,
 			driveVoiceResolved,
 			effectiveReasonLevel,

@@ -9,6 +9,7 @@ import {
 	topologyCacheKey,
 	ttsBackendsEqual,
 } from "@cline/shared";
+import { applyAudioOutputSinkId } from "./driveHardwarePrefs";
 
 export interface SttHandlers {
 	onInterim?(text: string): void;
@@ -26,13 +27,17 @@ export interface SttPort {
 	start(handlers: SttHandlers): SttSession;
 }
 
+export interface TtsSpeakOptions {
+	voiceSlot?: string;
+	volume?: number;
+	/** Preferred audiooutput deviceId (HTMLAudioElement / AudioContext setSinkId). */
+	sinkId?: string;
+}
+
 export interface TtsPort {
 	readonly backend: TtsBackend;
 	readonly egress: EgressClass;
-	speak(
-		text: string,
-		opts?: { voiceSlot?: string; volume?: number },
-	): Promise<void>;
+	speak(text: string, opts?: TtsSpeakOptions): Promise<void>;
 	cancel(): void;
 }
 
@@ -124,6 +129,7 @@ function createBuiltinSttPort(manifest: DriveProviderManifest): SttPort {
 function createBuiltinTtsPort(manifest: DriveProviderManifest): TtsPort {
 	const backend = manifest.backend as TtsBackend;
 	let utterance: SpeechSynthesisUtterance | null = null;
+	let audioContext: AudioContext | null = null;
 	return {
 		backend,
 		egress: manifest.egress,
@@ -135,6 +141,32 @@ function createBuiltinTtsPort(manifest: DriveProviderManifest): TtsPort {
 				return;
 			}
 			window.speechSynthesis.cancel();
+
+			// Best-effort sink routing for Web Audio / future HTML audio backends.
+			// speechSynthesis itself ignores setSinkId (browser limitation).
+			if (opts?.sinkId) {
+				if (!audioContext) {
+					const Ctx =
+						window.AudioContext ||
+						(
+							window as unknown as {
+								webkitAudioContext?: typeof AudioContext;
+							}
+						).webkitAudioContext;
+					if (Ctx) {
+						audioContext = new Ctx();
+					}
+				}
+				if (audioContext) {
+					await applyAudioOutputSinkId(
+						audioContext as {
+							setSinkId?: (sinkId: string) => Promise<void>;
+						},
+						opts.sinkId,
+					);
+				}
+			}
+
 			utterance = new SpeechSynthesisUtterance(text);
 			const volume =
 				typeof opts?.volume === "number" && Number.isFinite(opts.volume)
@@ -158,4 +190,29 @@ function createBuiltinTtsPort(manifest: DriveProviderManifest): TtsPort {
 			utterance = null;
 		},
 	};
+}
+
+/**
+ * Play a remote/local audio URL on the preferred output device.
+ * Used by HTML-audio TTS backends; exported for narration players.
+ */
+export async function playAudioUrlOnSink(input: {
+	url: string;
+	volume?: number;
+	sinkId?: string;
+}): Promise<void> {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const audio = new Audio(input.url);
+	audio.volume =
+		typeof input.volume === "number" && Number.isFinite(input.volume)
+			? Math.min(1, Math.max(0, input.volume))
+			: 1;
+	await applyAudioOutputSinkId(audio, input.sinkId);
+	await new Promise<void>((resolve, reject) => {
+		audio.onended = () => resolve();
+		audio.onerror = () => reject(new Error("audio_playback_failed"));
+		void audio.play().catch(reject);
+	});
 }

@@ -15,6 +15,7 @@ import type { DriveHardwarePrefs } from "./driveHardwarePrefs";
 import { clampOutputVolume } from "./driveHardwarePrefs";
 import type { DriveVoiceUi } from "./driveVoiceUi";
 import { resolveLlmEgressForUi } from "./driveVoiceUi";
+import { SpeakerDeviceSelect } from "./SpeakerDeviceSelect";
 
 const PROFILES: DeploymentProfile[] = ["local", "cloud", "hybrid"];
 
@@ -163,6 +164,20 @@ export function DriveSettingsPanel({
 				</p>
 			</div>
 
+			<div className="space-y-1">
+				<span className="text-xs text-muted-foreground">Speaker</span>
+				<SpeakerDeviceSelect
+					onChange={(speakerDeviceId) =>
+						onHardwareChange({ speakerDeviceId })
+					}
+					value={voice.hardware.speakerDeviceId}
+				/>
+				<p className="text-[11px] text-muted-foreground">
+					Routes HTML audio / Web Audio playback via setSinkId. Browser
+					speechSynthesis still uses the OS default speaker.
+				</p>
+			</div>
+
 			<label className="block space-y-1">
 				<span className="flex items-center justify-between text-xs text-muted-foreground">
 					<span>Partner volume</span>
@@ -187,8 +202,8 @@ export function DriveSettingsPanel({
 
 			<p className="text-xs text-muted-foreground">
 				LLM providers and API keys stay in Cline Auth / provider settings. Drive
-				only stores profile and voice provider ids (no secrets). Mic and volume
-				stay on this machine.
+				only stores profile and voice provider ids (no secrets). Mic, speaker,
+				and volume stay on this machine.
 			</p>
 			<p className="font-mono text-[11px] text-muted-foreground">
 				{summarizeFacets(voice.facets)} ·{" "}
@@ -204,5 +219,6 @@ function summarizeFacets(facets: DriveFacetValues): string {
 
 function summarizeHardware(hardware: DriveHardwarePrefs): string {
 	const mic = hardware.micDeviceId ? "custom" : "default";
-	return `mic=${mic} vol=${Math.round(hardware.outputVolume * 100)}`;
+	const speaker = hardware.speakerDeviceId ? "custom" : "default";
+	return `mic=${mic} speaker=${speaker} vol=${Math.round(hardware.outputVolume * 100)}`;
 }
