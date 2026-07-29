@@ -19,8 +19,14 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
-		name: "smol",
+		name: "compact",
 		description: "Condenses your current context window",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "smol",
+		description: "Alias for /compact",
 		section: "default",
 		cliCompatible: true,
 	},
