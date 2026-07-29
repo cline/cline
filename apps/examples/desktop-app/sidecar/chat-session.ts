@@ -6,7 +6,6 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
-	createRestoredCheckpointMetadata,
 	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -992,23 +991,15 @@ async function handleFork(
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
 			: {};
-	const forkMessages =
+	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(
 					sourceMessages as Message[],
 					forkBeforeRunCount,
 				);
-	const retainedCheckpointMetadata =
-		forkBeforeRunCount === undefined
-			? sourceMetadata?.checkpoint
-			: createRestoredCheckpointMetadata(
-					sourceMetadata ? { metadata: sourceMetadata } : undefined,
-					forkBeforeRunCount - 1,
-				);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
-		checkpoint: retainedCheckpointMetadata,
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
@@ -1020,21 +1011,56 @@ async function handleFork(
 		},
 	};
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
-	const startResult = await manager.start({
+	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig({
 				...forkConfig,
 				systemPrompt,
-				initialMessages: forkMessages,
 			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: forkMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
-	});
-	const newSessionId = startResult.sessionId;
+	};
+	let newSessionId: string;
+	if (forkBeforeRunCount !== undefined) {
+		const cwd =
+			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
+			(typeof forkConfig.workspaceRoot === "string" &&
+				forkConfig.workspaceRoot.trim()) ||
+			"";
+		if (!cwd) {
+			throw new Error("cwd or workspaceRoot is required to edit a message");
+		}
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: forkBeforeRunCount,
+			cwd,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: startInput,
+		});
+		if (!restored.sessionId) {
+			throw new Error("Message edit restore did not return a new session");
+		}
+		newSessionId = restored.sessionId;
+	} else {
+		const started = await manager.start({
+			...startInput,
+			initialMessages: forkMessages as Message[],
+		});
+		newSessionId = started.sessionId;
+	}
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (forkBeforeRunCount !== undefined || read.length > 0) {
+			forkMessages = read;
+		}
+	} catch {}
 	discardAllTrackedAttachments(
 		sourceSessionId,
 		ctx.liveSessions.get(sourceSessionId),
@@ -1051,15 +1077,10 @@ async function handleFork(
 	);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
-	let messages: unknown[] = forkMessages;
-	try {
-		const read = await manager.readMessages(newSessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages,
+		messages: forkMessages,
 	};
 }
 

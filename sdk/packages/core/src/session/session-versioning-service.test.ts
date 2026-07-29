@@ -160,6 +160,55 @@ describe("SessionVersioningService", () => {
 		);
 	});
 
+	it("restores the workspace before starting an editable session fork", async () => {
+		let workspaceRestored = false;
+		const applyWorkspaceCheckpoint = vi.fn(async () => {
+			workspaceRestored = true;
+		});
+		const startSession = vi.fn(
+			async (input: { initialMessages?: unknown[] }) => {
+				expect(workspaceRestored).toBe(true);
+				expect(input.initialMessages).toEqual([
+					{ role: "user", content: "first" },
+					{ role: "assistant", content: "first response" },
+				]);
+				return { sessionId: "edited-session" };
+			},
+		);
+
+		const result = await new SessionVersioningService().restoreCheckpoint({
+			sessionId: "source-session",
+			checkpointRunCount: 2,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: { marker: true },
+			getSession: async () => makeSession(),
+			readMessages: async () => messages,
+			applyWorkspaceCheckpoint,
+			retainCheckpointRefs: async () => undefined,
+			buildStartInput: (context, start) => ({
+				...start,
+				initialMessages: context.initialMessages,
+			}),
+			startSession,
+			getStartedSessionId: (startResult) => startResult.sessionId,
+		});
+
+		expect(applyWorkspaceCheckpoint).toHaveBeenCalledWith(
+			"/workspace/project",
+			expect.objectContaining({ ref: "bbbb", runCount: 2 }),
+		);
+		expect(result.sessionId).toBe("edited-session");
+		expect(result.messages).toEqual([
+			{ role: "user", content: "first" },
+			{ role: "assistant", content: "first response" },
+			{ role: "user", content: "second" },
+		]);
+	});
+
 	it("supports workspace-only restore without starting a new session", async () => {
 		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
 		const result = await new SessionVersioningService().restoreCheckpoint({

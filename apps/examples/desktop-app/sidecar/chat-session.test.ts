@@ -175,7 +175,7 @@ describe("pathless session starts", () => {
 });
 
 describe("session forks", () => {
-	it("forks before the selected user run for message editing", async () => {
+	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
 			{ role: "user" as const, content: "first prompt" },
@@ -185,6 +185,15 @@ describe("session forks", () => {
 		];
 		const expectedMessages = sourceMessages.slice(0, 2);
 		const start = vi.fn(async () => ({ sessionId: "edited-fork" }));
+		const restore = vi.fn(async () => ({
+			sessionId: "edited-fork",
+			messages: sourceMessages.slice(0, 3),
+			checkpoint: {
+				ref: "second",
+				createdAt: 2,
+				runCount: 2,
+			},
+		}));
 		const readMessages = vi.fn(async () => expectedMessages);
 		const ctx = {
 			liveSessions: new Map([
@@ -210,8 +219,8 @@ describe("session forks", () => {
 					status: "completed",
 					provider: "cline",
 					model: "anthropic/claude-sonnet-4.6",
-					cwd: "",
-					workspaceRoot: "",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
 					metadata: {
 						checkpoint: {
 							latest: { ref: "second", createdAt: 2, runCount: 2 },
@@ -223,6 +232,7 @@ describe("session forks", () => {
 					},
 				})),
 				readMessages,
+				restore,
 				start,
 			},
 			streamIndices: new Map(),
@@ -239,21 +249,28 @@ describe("session forks", () => {
 			},
 		})) as { sessionId: string; messages: unknown[] };
 
-		expect(start).toHaveBeenCalledWith(
+		expect(restore).toHaveBeenCalledWith(
 			expect.objectContaining({
-				initialMessages: expectedMessages,
-				sessionMetadata: expect.objectContaining({
-					checkpoint: {
-						latest: { ref: "first", createdAt: 1, runCount: 1 },
-						history: [{ ref: "first", createdAt: 1, runCount: 1 }],
-					},
-					fork: expect.objectContaining({
-						forkedFromSessionId: sourceSessionId,
-						beforeRunCount: 2,
+				sessionId: sourceSessionId,
+				checkpointRunCount: 2,
+				cwd: "/workspace/project",
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: expect.objectContaining({
+					sessionMetadata: expect.objectContaining({
+						fork: expect.objectContaining({
+							forkedFromSessionId: sourceSessionId,
+							beforeRunCount: 2,
+						}),
 					}),
 				}),
 			}),
 		);
+		expect(start).not.toHaveBeenCalled();
+		expect(readMessages).toHaveBeenCalledWith("edited-fork");
 		expect(result).toEqual({
 			sessionId: "edited-fork",
 			forkedFromSessionId: sourceSessionId,
@@ -261,6 +278,65 @@ describe("session forks", () => {
 		});
 		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
 			expectedMessages,
+		);
+	});
+
+	it("keeps a full-history fork on the current workspace without restoring", async () => {
+		const sourceSessionId = `source-full-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+		];
+		const start = vi.fn(async () => ({ sessionId: "full-fork" }));
+		const restore = vi.fn();
+		const readMessages = vi.fn(async () => sourceMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: sourceMessages }),
 		);
 	});
 });

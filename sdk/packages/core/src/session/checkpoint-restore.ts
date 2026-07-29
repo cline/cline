@@ -6,6 +6,7 @@ import type {
 	CheckpointMetadata,
 } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
+import { isUserRunMessage } from "./user-run-messages";
 
 const execFile = promisify(execFileCallback);
 
@@ -83,16 +84,7 @@ function findUserRunMessageIndex(
 	let userRunCount = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
-		if (message?.role !== "user") {
-			continue;
-		}
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object"
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") {
+		if (!message || !isUserRunMessage(message)) {
 			continue;
 		}
 		userRunCount += 1;
@@ -175,12 +167,18 @@ export async function applyCheckpointToWorktree(
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
 		{ windowsHide: true },
 	);
-	await execFile("git", ["-C", cwd, "reset", "--hard"], { windowsHide: true });
+	const restoreBase =
+		checkpoint.kind === "commit" ? checkpoint.ref : `${checkpoint.ref}^1`;
+	await execFile(
+		"git",
+		["-C", cwd, "cat-file", "-e", `${restoreBase}^{commit}`],
+		{ windowsHide: true },
+	);
+	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
+		windowsHide: true,
+	});
 	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
 	if (checkpoint.kind === "commit") {
-		await execFile("git", ["-C", cwd, "reset", "--hard", checkpoint.ref], {
-			windowsHide: true,
-		});
 		return;
 	}
 	await execFile("git", ["-C", cwd, "stash", "apply", checkpoint.ref], {

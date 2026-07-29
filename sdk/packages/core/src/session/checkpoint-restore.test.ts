@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -63,6 +64,34 @@ describe("applyCheckpointToWorktree", () => {
 		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe("keep me\n");
 	});
 
+	it("restores a stash checkpoint on its original base after later commits", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"checkpoint before edited run",
+		]);
+		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
+
+		writeFileSync(join(dir, "tracked.txt"), "discarded later state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded later commit"]);
+		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 2,
+			kind: "stash",
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"checkpoint state\n",
+		);
+		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
 	it("carries checkpoint metadata through the restored run", () => {
 		const metadata = createRestoredCheckpointMetadata(
 			{
@@ -104,6 +133,43 @@ describe("checkpoint message trimming", () => {
 			{ role: "assistant", content: "first response" },
 		]);
 		expect(trimMessagesBeforeUserRun(messages, 1)).toEqual([]);
+	});
+
+	it("preserves absolute run positions across system-displayed compaction messages", () => {
+		const compactedContext = {
+			role: "user" as const,
+			content: "Compacted context",
+			metadata: {
+				kind: "compaction",
+				displayRole: "system",
+			},
+		};
+		const recoveryNotice = {
+			role: "user" as const,
+			content: "Recovered context",
+			metadata: {
+				kind: "recovery_notice",
+			},
+		};
+		const messages = [
+			compactedContext,
+			recoveryNotice,
+			{ role: "user" as const, content: "first visible prompt" },
+			{ role: "assistant" as const, content: "first response" },
+			{ role: "user" as const, content: "second visible prompt" },
+		];
+
+		expect(trimMessagesBeforeUserRun(messages, 2)).toEqual([
+			compactedContext,
+			recoveryNotice,
+		]);
+		expect(trimMessagesBeforeUserRun(messages, 3)).toEqual([
+			compactedContext,
+			recoveryNotice,
+			{ role: "user", content: "first visible prompt" },
+			{ role: "assistant", content: "first response" },
+		]);
+		expect(trimMessagesToCheckpoint(messages, 3)).toEqual(messages);
 	});
 
 	it("uses the nearest earlier checkpoint when an identical snapshot was deduplicated", () => {

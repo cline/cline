@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { isUserRunMessage, resolveMessageDisplayRole } from "@cline/core";
 import { validateImageMedia } from "@cline/shared";
 import {
 	readSessionManifest,
@@ -44,31 +45,6 @@ function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 	return message.metadata && typeof message.metadata === "object"
 		? (message.metadata as JsonRecord)
 		: undefined;
-}
-
-function resolveDisplayRole(
-	role: string,
-	metadata: JsonRecord | undefined,
-): string {
-	const displayRole =
-		typeof metadata?.displayRole === "string"
-			? metadata.displayRole.trim().toLowerCase()
-			: "";
-	if (
-		displayRole === "system" ||
-		displayRole === "status" ||
-		displayRole === "error"
-	) {
-		return displayRole;
-	}
-	return role;
-}
-
-function isUserRunMessage(
-	role: string,
-	metadata: JsonRecord | undefined,
-): boolean {
-	return role === "user" && metadata?.kind !== "recovery_notice";
 }
 
 function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
@@ -359,8 +335,12 @@ export async function readSessionMessages(
 		}
 		const message = rawMessage as JsonRecord;
 		const metadata = readMessageMetadata(message);
-		const role = resolveDisplayRole(normalizeRole(message.role), metadata);
-		if (isUserRunMessage(role, metadata)) {
+		if (
+			isUserRunMessage({
+				role: normalizeRole(message.role),
+				metadata,
+			})
+		) {
 			userRunCount += 1;
 		}
 	}
@@ -377,13 +357,19 @@ export async function readSessionMessages(
 		if (storedMeta) {
 			textMeta = { ...(textMeta ?? {}), ...storedMeta };
 		}
-		const role = resolveDisplayRole(
-			normalizeRole(message.role),
-			readMessageMetadata(message),
-		);
 		const metadata = readMessageMetadata(message);
-		if (isUserRunMessage(role, metadata)) {
+		const userRunMessage = isUserRunMessage({
+			role: normalizeRole(message.role),
+			metadata,
+		});
+		if (userRunMessage) {
 			userRunCount += 1;
+		}
+		const role = resolveMessageDisplayRole({
+			role: normalizeRole(message.role),
+			metadata,
+		});
+		if (userRunMessage && role === "user") {
 			textMeta = {
 				...(textMeta ?? {}),
 				runCount: userRunCount,

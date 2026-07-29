@@ -138,4 +138,49 @@ describe("readSessionMessages", () => {
 			}),
 		]);
 	});
+
+	it("preserves absolute run counts across system-displayed compaction messages", async () => {
+		const sessionId = `compaction-run-count-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							role: "user",
+							content: "Compacted context",
+							metadata: {
+								kind: "compaction",
+								displayRole: "system",
+							},
+						},
+						{ role: "user", content: "First visible prompt" },
+						{ role: "assistant", content: "First response" },
+						{ role: "user", content: "Second visible prompt" },
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+		)) as Array<Record<string, unknown>>;
+
+		expect(projected[0]).toMatchObject({
+			role: "system",
+			content: "Compacted context",
+		});
+		expect(projected[0]?.meta).not.toHaveProperty("runCount");
+		expect(projected[1]).toMatchObject({
+			role: "user",
+			content: "First visible prompt",
+			meta: { runCount: 2 },
+		});
+		expect(projected[3]).toMatchObject({
+			role: "user",
+			content: "Second visible prompt",
+			meta: { runCount: 3 },
+		});
+	});
 });

@@ -40,6 +40,7 @@ import type {
 	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
+import { countUserRunMessages } from "../session/user-run-messages";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
@@ -117,20 +118,7 @@ function hasConfigExtension(
 function countSeededRootRuns(
 	messages: ResolvedStartSessionInput["initialMessages"],
 ): number {
-	let count = 0;
-	for (const message of messages ?? []) {
-		if (message.role !== "user") continue;
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object" &&
-			!Array.isArray(message.metadata)
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") continue;
-		count += 1;
-	}
-	return count;
+	return countUserRunMessages(messages);
 }
 
 function buildProviderConfig(
