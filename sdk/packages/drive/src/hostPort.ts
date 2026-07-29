@@ -18,6 +18,8 @@ export type HostCapabilities = {
 	readonly worktreeIsolation: boolean;
 	readonly voiceIo: boolean;
 	readonly pixelShare: boolean;
+	/** Demo / fixture browser capture for drive_browser_snapshot. Default false. */
+	readonly demoCapture: boolean;
 
 	readonly localOnly: boolean;
 	/** Required — single-writer endpoint (Cline: ws://127.0.0.1:25463). */
@@ -80,6 +82,7 @@ export const CLINE_HOST_CAPABILITIES: HostCapabilities = {
 	worktreeIsolation: false,
 	voiceIo: false,
 	pixelShare: false,
+	demoCapture: false,
 	localOnly: true,
 	writerEndpoint: CLINE_HUB_WRITER_ENDPOINT,
 	remoteBridge: false,

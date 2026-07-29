@@ -418,4 +418,74 @@ describe("handleDriveCommand", () => {
 		expect(room.director.tickOnWork).toBe(false);
 		expect(room.director.showPlannerCooldownMs).toBe(60_000);
 	});
+
+	it("materializes plan_card and walkthrough on tick", () => {
+		const { ctx } = createCtx();
+		handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", {
+				roomId: "r-prod",
+				showItem: {
+					id: "show-plan",
+					ownerParticipantId: "agent-1",
+					title: "Plan",
+					intent: "plan",
+					artifactKind: "doc.plan",
+					mediaClass: "document",
+					caption: "plan",
+					produce: { tool: "render_plan_card", templateId: "doc.plan", args: {} },
+					priority: 30,
+					status: "ready",
+					scoreReasons: [],
+				},
+			}),
+		);
+		const tick = handleDriveCommand(
+			ctx,
+			envelope("drive.show.tick", { roomId: "r-prod" }),
+		);
+		expect(tick.ok).toBe(true);
+		const room = tick.payload?.room as {
+			director: {
+				activeShowId: string;
+				showBacklog: Array<{ uri?: string; status: string }>;
+			};
+		};
+		expect(room.director.activeShowId).toBe("show-plan");
+		expect(room.director.showBacklog[0]?.uri).toMatch(/^data:image\/svg\+xml/);
+		expect(room.director.showBacklog[0]?.status).toBe("showing");
+	});
+
+	it("skips browser snapshot without demoCapture and leaves backlog planned", () => {
+		const { ctx } = createCtx();
+		handleDriveCommand(
+			ctx,
+			envelope("drive.show.enqueue", {
+				roomId: "r-shot",
+				showItem: {
+					id: "show-shot",
+					ownerParticipantId: "agent-1",
+					title: "Shot",
+					intent: "ui",
+					artifactKind: "capture.screenshot",
+					mediaClass: "still",
+					caption: "shot",
+					produce: {
+						tool: "drive_browser_snapshot",
+						templateId: "capture.shot",
+						args: { url: "http://localhost" },
+					},
+					priority: 50,
+					status: "ready",
+					scoreReasons: [],
+				},
+			}),
+		);
+		const tick = handleDriveCommand(
+			ctx,
+			envelope("drive.show.tick", { roomId: "r-shot" }),
+		);
+		expect(tick.ok).toBe(true);
+		expect(tick.payload?.presented).toBeNull();
+	});
 });

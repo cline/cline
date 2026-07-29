@@ -13,7 +13,7 @@ Reactive work cards mirror what the agent already did. Pairing feels live when t
 - [x] DirectorScript can advance with sticky hold while caption/`say` updates.
 - [x] Do enqueue + promote can **create** Show items from templates.
 - [x] Hub planner policy (heuristic) can enqueue Show from work/plan signals with rate limits.
-- [ ] Producers exist for mermaid (done), plan card, code walkthrough; snapshot fail-closed or live.
+- [x] Producers exist for mermaid (done), plan card, code walkthrough; snapshot fail-closed or live.
 - [ ] Spotlight floor and stage sharer converge; Join auto-opens Stage; human pin from roster; single tool→card classifier.
 
 ## Dependencies

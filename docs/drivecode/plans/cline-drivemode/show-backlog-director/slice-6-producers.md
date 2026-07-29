@@ -36,9 +36,9 @@ Implement produce tools named in `SHOW_TEMPLATE_KIT` beyond `render_mermaid`.
 
 ## Acceptance
 
-- [ ] Kit tools mermaid + plan_card + walkthrough each have a producer test.
-- [ ] Snapshot either produces URI or fails closed with explicit capability error.
-- [ ] StickyStagePane renders non-image URIs (text/HTML card) or image SVG.
+- [x] Kit tools mermaid + plan_card + walkthrough each have a producer test.
+- [x] Snapshot either produces URI or fails closed with explicit capability error.
+- [x] StickyStagePane renders non-image URIs (text/HTML card) or image SVG.
 
 ## Risks
 
