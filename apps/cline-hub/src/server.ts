@@ -323,6 +323,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						frame.type === "call_raise_hand" ||
 						frame.type === "call_rename_participant" ||
 						frame.type === "call_set_stage" ||
+						frame.type === "call_set_address" ||
 						frame.type === "call_set_mode" ||
 						frame.type === "call_get_room"
 					) {

@@ -1,11 +1,13 @@
 "use client";
 
 import { buildVoiceAckNarration } from "@cline/drive";
+import type { AddressSet } from "@cline/shared";
 import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import type {
+	WebviewChatAttachments,
 	WebviewDefaults,
 	WebviewOutboundMessage,
 	WebviewProviderModel,
@@ -40,10 +42,17 @@ import {
 	ChatForkAuditPanel,
 	isChatForkSession,
 } from "./drive/ChatForkAuditPanel";
+import { RouteSuggestChip } from "./drive/RouteSuggestChip";
+import {
+	type RouteSuggestion,
+	type RouterUiMode,
+	suggestRouteForUtterance,
+} from "./drive/routeSuggest";
 import { Spotlight } from "./drive/Spotlight";
 import { StickyStagePane } from "./drive/StickyStagePane";
 import {
 	applyBankSnapshot,
+	DRIVE_DEFAULT_ROOM_ID,
 	drivePersonaSystemHint,
 	toNativeMode,
 } from "./drive/types";
@@ -152,6 +161,17 @@ export default function Chat({
 	const [titleEditing, setTitleEditing] = useState(false);
 	const [forking, setForking] = useState(false);
 	const [forkError, setForkError] = useState<string | null>(null);
+	const [routeSuggestion, setRouteSuggestion] = useState<RouteSuggestion | null>(
+		null,
+	);
+	const [pendingRouteSend, setPendingRouteSend] = useState<{
+		prompt: string;
+		attachments?: WebviewChatAttachments;
+		attachmentCount: number;
+		source: "voice" | "text";
+	} | null>(null);
+	/** suggest (default) | auto | manual — auto applies address without a chip (7.4). */
+	const routerMode: RouterUiMode = "suggest";
 	const activeAssistantIdRef = useRef<string | undefined>(undefined);
 	const initialSessionIdRef = useRef<string | undefined>(undefined);
 	const hydratingSessionIdRef = useRef<string | undefined>(undefined);
@@ -593,7 +613,86 @@ export default function Chat({
 		});
 	};
 
-	const sendDrivePrompt = useCallback(
+	const applyAddressSet = useCallback((addressSet: AddressSet) => {
+		postToHost({
+			type: "call_set_address",
+			roomId: DRIVE_DEFAULT_ROOM_ID,
+			addressSet,
+		});
+	}, []);
+
+	const flushComposerSend = useCallback(
+		(input: {
+			prompt: string;
+			attachments?: WebviewChatAttachments;
+			attachmentCount: number;
+		}) => {
+			if (isHydrating) {
+				return;
+			}
+			const assistantMessage = createMessage("assistant", "");
+			activeAssistantIdRef.current = assistantMessage.id;
+			setMessages((current) => [
+				...current,
+				createMessage(
+					"user",
+					buildUserMessageLabel(
+						input.prompt,
+						input.attachments,
+						input.attachmentCount,
+					),
+				),
+				assistantMessage,
+			]);
+			setSending(true);
+			setStatus("Running...");
+			postToHost({
+				type: "send",
+				prompt: input.prompt,
+				attachments: input.attachments,
+				config: {
+					autoApproveTools,
+					enableSpawn,
+					enableTeams,
+					enableTools,
+					maxIterations: parseMaxIterations(maxIterations),
+					model: model || undefined,
+					mode: drive.active ? toNativeMode(drive.subMode) : mode,
+					provider: provider || undefined,
+					reasonLevel: effectiveReasonLevel,
+					systemPrompt: (() => {
+						const driveHint = drivePersonaSystemHint(drive);
+						const base = systemPrompt.trim();
+						if (driveHint && base) {
+							return `${driveHint}\n\n${base}`;
+						}
+						return driveHint || base || undefined;
+					})(),
+				},
+			});
+			if (driveJoinNote) {
+				setDriveJoinNote(null);
+			}
+		},
+		[
+			autoApproveTools,
+			drive,
+			driveJoinNote,
+			effectiveReasonLevel,
+			enableSpawn,
+			enableTeams,
+			enableTools,
+			isHydrating,
+			maxIterations,
+			model,
+			mode,
+			provider,
+			setDriveJoinNote,
+			systemPrompt,
+		],
+	);
+
+	const flushVoiceSend = useCallback(
 		(prompt: string) => {
 			const trimmed = prompt.trim();
 			if (!trimmed || isHydrating) {
@@ -694,6 +793,114 @@ export default function Chat({
 			systemPrompt,
 		],
 	);
+
+	const gateRouteThenFlush = useCallback(
+		(pending: {
+			prompt: string;
+			attachments?: WebviewChatAttachments;
+			attachmentCount: number;
+			source: "voice" | "text";
+		}) => {
+			const flush = () => {
+				if (pending.source === "voice") {
+					flushVoiceSend(pending.prompt);
+					return;
+				}
+				flushComposerSend({
+					prompt: pending.prompt,
+					attachments: pending.attachments,
+					attachmentCount: pending.attachmentCount,
+				});
+			};
+
+			if (!drive.active || routerMode === "manual") {
+				flush();
+				return;
+			}
+
+			const routed = suggestRouteForUtterance({
+				utterance: pending.prompt,
+				participants: drive.participants,
+				mode: routerMode,
+			});
+			if (routed.autoAddressSet) {
+				applyAddressSet(routed.autoAddressSet);
+				flush();
+				return;
+			}
+			if (routed.suggestion) {
+				setRouteSuggestion(routed.suggestion);
+				setPendingRouteSend(pending);
+				return;
+			}
+			flush();
+		},
+		[
+			applyAddressSet,
+			drive.active,
+			drive.participants,
+			flushComposerSend,
+			flushVoiceSend,
+			routerMode,
+		],
+	);
+
+	const sendDrivePrompt = useCallback(
+		(prompt: string) => {
+			gateRouteThenFlush({
+				prompt,
+				attachmentCount: 0,
+				source: "voice",
+			});
+		},
+		[gateRouteThenFlush],
+	);
+
+	const acceptRouteSuggestion = useCallback(() => {
+		if (!routeSuggestion || !pendingRouteSend) {
+			return;
+		}
+		const pending = pendingRouteSend;
+		applyAddressSet({
+			mode: "agents",
+			agentIds: [routeSuggestion.participantId],
+		});
+		setRouteSuggestion(null);
+		setPendingRouteSend(null);
+		if (pending.source === "voice") {
+			flushVoiceSend(pending.prompt);
+			return;
+		}
+		flushComposerSend({
+			prompt: pending.prompt,
+			attachments: pending.attachments,
+			attachmentCount: pending.attachmentCount,
+		});
+	}, [
+		applyAddressSet,
+		flushComposerSend,
+		flushVoiceSend,
+		pendingRouteSend,
+		routeSuggestion,
+	]);
+
+	const skipRouteSuggestion = useCallback(() => {
+		if (!pendingRouteSend) {
+			return;
+		}
+		const pending = pendingRouteSend;
+		setRouteSuggestion(null);
+		setPendingRouteSend(null);
+		if (pending.source === "voice") {
+			flushVoiceSend(pending.prompt);
+			return;
+		}
+		flushComposerSend({
+			prompt: pending.prompt,
+			attachments: pending.attachments,
+			attachmentCount: pending.attachmentCount,
+		});
+	}, [flushComposerSend, flushVoiceSend, pendingRouteSend]);
 
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
@@ -846,6 +1053,13 @@ export default function Chat({
 							sending={sending}
 							session={driveSession}
 						/>
+						{routeSuggestion ? (
+							<RouteSuggestChip
+								onAccept={acceptRouteSuggestion}
+								onDismiss={skipRouteSuggestion}
+								suggestion={routeSuggestion}
+							/>
+						) : null}
 						<Composer
 							autoApproveTools={autoApproveTools}
 							disabled={isHydrating}
@@ -886,48 +1100,12 @@ export default function Chat({
 								setModel("");
 							}}
 							onSend={({ prompt, attachments, attachmentCount }) => {
-								if (isHydrating) {
-									return;
-								}
-								const assistantMessage = createMessage("assistant", "");
-								activeAssistantIdRef.current = assistantMessage.id;
-								setMessages((current) => [
-									...current,
-									createMessage(
-										"user",
-										buildUserMessageLabel(prompt, attachments, attachmentCount),
-									),
-									assistantMessage,
-								]);
-								setSending(true);
-								setStatus("Running...");
-								postToHost({
-									type: "send",
+								gateRouteThenFlush({
 									prompt,
 									attachments,
-									config: {
-										autoApproveTools,
-										enableSpawn,
-										enableTeams,
-										enableTools,
-										maxIterations: parseMaxIterations(maxIterations),
-										model: model || undefined,
-										mode: drive.active ? toNativeMode(drive.subMode) : mode,
-										provider: provider || undefined,
-										reasonLevel: effectiveReasonLevel,
-										systemPrompt: (() => {
-											const driveHint = drivePersonaSystemHint(drive);
-											const base = systemPrompt.trim();
-											if (driveHint && base) {
-												return `${driveHint}\n\n${base}`;
-											}
-											return driveHint || base || undefined;
-										})(),
-									},
+									attachmentCount,
+									source: "text",
 								});
-								if (driveJoinNote) {
-									setDriveJoinNote(null);
-								}
 							}}
 							onSystemPromptChange={setSystemPrompt}
 							onReasonLevelChange={setReasonLevel}

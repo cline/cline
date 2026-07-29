@@ -339,6 +339,14 @@ export type WebviewInboundMessage =
 			} | null;
 	  }
 	| {
+			type: "call_set_address";
+			roomId: string;
+			addressSet:
+				| { mode: "everyone" }
+				| { mode: "agents"; agentIds: string[] }
+				| { mode: "pack"; packId: string };
+	  }
+	| {
 			type: "call_set_mode";
 			roomId: string;
 			subMode: "plan" | "act" | "ask" | "debug";
