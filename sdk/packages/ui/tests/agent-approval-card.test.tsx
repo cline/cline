@@ -42,6 +42,35 @@ describe("AgentApprovalCard", () => {
 
 		expect(onApprove).toHaveBeenCalledOnce();
 		expect(onReject).toHaveBeenCalledOnce();
+		expect(
+			container.querySelector(".cline-ui-agent-approval-card__title")?.tagName,
+		).toBe("DIV");
+	});
+
+	it("renders non-null detail values", async () => {
+		await act(async () =>
+			root.render(
+				<AgentApprovalCard
+					detail=""
+					onApprove={vi.fn()}
+					onReject={vi.fn()}
+					title="Run command"
+				/>,
+			),
+		);
+		expect(container.querySelector("pre")).not.toBeNull();
+
+		await act(async () =>
+			root.render(
+				<AgentApprovalCard
+					detail={0}
+					onApprove={vi.fn()}
+					onReject={vi.fn()}
+					title="Run command"
+				/>,
+			),
+		);
+		expect(container.querySelector("pre")?.textContent).toBe("0");
 	});
 
 	it("disables both decisions while responding", async () => {

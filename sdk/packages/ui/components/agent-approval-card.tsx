@@ -51,9 +51,9 @@ export function AgentApprovalCard({
 			className="cline-ui-agent-approval-card"
 		>
 			<div className="cline-ui-agent-approval-card__header">
-				<h3 className="cline-ui-agent-approval-card__title" id={titleId}>
+				<div className="cline-ui-agent-approval-card__title" id={titleId}>
 					{title}
-				</h3>
+				</div>
 				{meta ? (
 					<div className="cline-ui-agent-approval-card__meta">{meta}</div>
 				) : null}
@@ -63,7 +63,7 @@ export function AgentApprovalCard({
 					{description}
 				</div>
 			) : null}
-			{detail ? (
+			{detail != null ? (
 				<pre className="cline-ui-agent-approval-card__detail">{detail}</pre>
 			) : null}
 			{error ? (
