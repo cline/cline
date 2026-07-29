@@ -236,25 +236,50 @@ describe("ComputerUserCoordinator", () => {
 		expect(coordinator.getState().kind).toBe("running");
 	});
 
-	it("interrupt aborts the run and settles to idle, keeping the session", async () => {
+	it("interrupt waits for the run to settle idle, keeping the session", async () => {
 		const { host, pendingSends, aborts } = makeControllableHost();
 		const { coordinator, driverMessages } = makeCoordinator(host);
 		await coordinator.start("task");
 
-		const { interrupted } = await coordinator.interrupt("changed my mind");
-		expect(interrupted).toBe(true);
+		let returned = false;
+		const interruption = coordinator
+			.interrupt("changed my mind")
+			.then((result) => {
+				returned = true;
+				return result;
+			});
+		await settle();
 		expect(aborts).toHaveLength(1);
 		expect(coordinator.getState().kind).toBe("cancelling");
+		expect(returned).toBe(false);
 
 		// The aborted run settles (hosts surface aborts as rejections).
 		pendingSends[0]?.reject(new Error("aborted"));
-		await settle();
+		await expect(interruption).resolves.toEqual({ interrupted: true });
 
 		expect(coordinator.getState()).toMatchObject({
 			kind: "idle",
 			sessionId: "helper-session",
 		});
-		expect(driverMessages[0]?.prompt).toContain("interrupted");
+		expect(driverMessages).toHaveLength(0);
+
+		const next = await coordinator.message("try a different approach");
+		expect(next.delivered).toBe("new_turn");
+		expect(coordinator.getState().kind).toBe("running");
+	});
+
+	it("keeps the run active when the host cannot interrupt it", async () => {
+		const { host } = makeControllableHost();
+		host.abort = async () => {
+			throw new Error("abort transport failed");
+		};
+		const { coordinator } = makeCoordinator(host);
+		await coordinator.start("task");
+
+		await expect(coordinator.interrupt("stop")).rejects.toThrow(
+			"abort transport failed",
+		);
+		expect(coordinator.getState().kind).toBe("running");
 	});
 
 	it("a question parks the helper at waiting_for_driver and message resumes it", async () => {
@@ -286,9 +311,9 @@ describe("ComputerUserCoordinator", () => {
 		await coordinator.start("first task");
 		const firstSend = pendingSends[0];
 
-		await coordinator.interrupt("stop");
+		const interruption = coordinator.interrupt("stop");
 		firstSend?.reject(new Error("aborted"));
-		await settle();
+		await interruption;
 		expect(coordinator.getState().kind).toBe("idle");
 
 		await coordinator.message("second task");

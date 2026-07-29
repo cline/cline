@@ -1,8 +1,9 @@
 let activeRuntimeAbort: (() => void) | undefined;
 let activeRuntimeCleanup: (() => void) | undefined;
 let abortGraceTimer: ReturnType<typeof setTimeout> | undefined;
-let abortInProgress = false;
+let abortScopeCount = 0;
 let savedRejectionListeners: Array<(...args: unknown[]) => void> | undefined;
+let activeRuntimeAbortRelease: (() => void) | undefined;
 
 export function setActiveRuntimeAbort(abortFn: (() => void) | undefined): void {
 	activeRuntimeAbort = abortFn;
@@ -35,35 +36,61 @@ export function cleanupActiveRuntime(): void {
 // correctly (returns finishReason:"aborted"), but orphan rejections from
 // the streaming layer or hub capability teardown surface as
 // unhandledRejections and would otherwise crash the CLI.
+export function acquireAbortRejectionShield(): () => void {
+	abortScopeCount += 1;
+	if (abortScopeCount === 1) {
+		if (abortGraceTimer) {
+			clearTimeout(abortGraceTimer);
+			abortGraceTimer = undefined;
+		}
+		if (!savedRejectionListeners) {
+			// Temporarily replace all unhandledRejection listeners with a
+			// suppressing handler. AbortController.abort() causes orphan promise
+			// rejections in the LLM streaming layer that reach every registered
+			// listener (including OpenTUI's error overlay). Swapping the listeners
+			// is the only way to prevent them from surfacing to the user.
+			savedRejectionListeners = process.rawListeners(
+				"unhandledRejection",
+			) as Array<(...args: unknown[]) => void>;
+			process.removeAllListeners("unhandledRejection");
+			process.on("unhandledRejection", (_reason, promise) => {
+				promise.catch(() => {});
+			});
+		}
+	}
+
+	let released = false;
+	return () => {
+		if (released) {
+			return;
+		}
+		released = true;
+		releaseAbortRejectionShield();
+	};
+}
+
 export function markAbortInProgress(): void {
-	if (abortInProgress) {
-		return;
-	}
-	abortInProgress = true;
-	if (abortGraceTimer) {
-		clearTimeout(abortGraceTimer);
-		abortGraceTimer = undefined;
-	}
-	// Temporarily replace all unhandledRejection listeners with a
-	// suppressing handler. AbortController.abort() causes orphan promise
-	// rejections in the LLM streaming layer that reach every registered
-	// listener (including OpenTUI's error overlay). Swapping the listeners
-	// is the only way to prevent them from surfacing to the user.
-	savedRejectionListeners = process.rawListeners("unhandledRejection") as Array<
-		(...args: unknown[]) => void
-	>;
-	process.removeAllListeners("unhandledRejection");
-	process.on("unhandledRejection", (_reason, promise) => {
-		promise.catch(() => {});
-	});
+	activeRuntimeAbortRelease ??= acquireAbortRejectionShield();
 }
 
 export function clearAbortInProgress(): void {
+	const release = activeRuntimeAbortRelease;
+	activeRuntimeAbortRelease = undefined;
+	release?.();
+}
+
+function releaseAbortRejectionShield(): void {
+	if (abortScopeCount === 0) {
+		return;
+	}
+	abortScopeCount -= 1;
+	if (abortScopeCount > 0) {
+		return;
+	}
 	if (abortGraceTimer) {
 		clearTimeout(abortGraceTimer);
 	}
 	abortGraceTimer = setTimeout(() => {
-		abortInProgress = false;
 		abortGraceTimer = undefined;
 		if (savedRejectionListeners) {
 			process.removeAllListeners("unhandledRejection");
@@ -76,5 +103,5 @@ export function clearAbortInProgress(): void {
 }
 
 export function isAbortInProgress(): boolean {
-	return abortInProgress;
+	return abortScopeCount > 0 || abortGraceTimer !== undefined;
 }
