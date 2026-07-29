@@ -15,7 +15,7 @@
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Schibsted Grotesk Variable", sans-serif;
 	--font-mono:
-		"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		ui-monospace, "SFMono-Regular", Menlo, "Azeret Mono",  Consolas,
 		"Liberation Mono", monospace;
 	--font-weight-normal: 480;
 	--font-weight-medium: 560;

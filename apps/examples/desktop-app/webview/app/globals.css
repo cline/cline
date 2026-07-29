@@ -1,5 +1,5 @@
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
@@ -7,6 +7,21 @@
 @import "@cline/ui/components/agent-chat.css";
 
 @source "../../node_modules/streamdown/dist";
+
+/* Override @cline/ui token defaults (Schibsted / Azeret). */
+@theme inline {
+	--font-sans: "Inter Variable", sans-serif;
+	--font-mono:
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
+}
+
+:root {
+	--font-sans: "Inter Variable", sans-serif;
+	--font-mono:
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
+}
 
 @layer base {
 	html,
