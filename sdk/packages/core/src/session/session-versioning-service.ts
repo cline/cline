@@ -11,7 +11,7 @@ import {
 	type CheckpointRestorePlan,
 	createCheckpointRestorePlan,
 	createRestoredCheckpointMetadata,
-	trimMessagesBeforeCheckpoint,
+	trimMessagesBeforeUserRun,
 } from "./checkpoint-restore";
 import {
 	type CoreSessionSnapshot,
@@ -186,7 +186,7 @@ export class SessionVersioningService {
 			input.checkpointRunCount,
 		);
 		const initialMessages = input.restore?.omitCheckpointMessageFromSession
-			? trimMessagesBeforeCheckpoint(
+			? trimMessagesBeforeUserRun(
 					sourceMessages ?? [],
 					input.checkpointRunCount,
 				)

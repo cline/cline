@@ -76,7 +76,7 @@ export function findCheckpointForRun(
 	}, undefined);
 }
 
-function findCheckpointMessageIndex(
+function findUserRunMessageIndex(
 	messages: LlmsProviders.Message[],
 	runCount: number,
 ): number {
@@ -100,22 +100,22 @@ function findCheckpointMessageIndex(
 			return index;
 		}
 	}
-	throw new Error(`Could not find user message for checkpoint run ${runCount}`);
+	throw new Error(`Could not find user message for run ${runCount}`);
 }
 
 export function trimMessagesToCheckpoint(
 	messages: LlmsProviders.Message[],
 	runCount: number,
 ): LlmsProviders.Message[] {
-	const index = findCheckpointMessageIndex(messages, runCount);
+	const index = findUserRunMessageIndex(messages, runCount);
 	return messages.slice(0, index + 1);
 }
 
-export function trimMessagesBeforeCheckpoint(
+export function trimMessagesBeforeUserRun(
 	messages: LlmsProviders.Message[],
 	runCount: number,
 ): LlmsProviders.Message[] {
-	const index = findCheckpointMessageIndex(messages, runCount);
+	const index = findUserRunMessageIndex(messages, runCount);
 	return messages.slice(0, index);
 }
 

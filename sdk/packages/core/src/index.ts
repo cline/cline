@@ -748,8 +748,10 @@ export {
 	createCheckpointComparePlan,
 } from "./session/checkpoint-diff";
 export {
+	createRestoredCheckpointMetadata,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
+	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,

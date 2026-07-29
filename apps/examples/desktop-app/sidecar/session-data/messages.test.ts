@@ -46,6 +46,7 @@ describe("readSessionMessages", () => {
 			expect.objectContaining({
 				id: "user-message_text_0",
 				createdAt: userTimestamp,
+				meta: { runCount: 1 },
 			}),
 			expect.objectContaining({
 				id: "assistant-message_text_0",
@@ -99,6 +100,41 @@ describe("readSessionMessages", () => {
 						data: "aGVsbG8=",
 					},
 				],
+			}),
+		]);
+	});
+
+	it("preserves absolute user run counts when older messages are omitted", async () => {
+		const sessionId = `run-count-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{ role: "user", content: "First prompt" },
+						{ role: "assistant", content: "First response" },
+						{ role: "user", content: "Second prompt" },
+						{ role: "assistant", content: "Second response" },
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+				2,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "user",
+				content: "Second prompt",
+				meta: { runCount: 2 },
+			}),
+			expect.objectContaining({
+				role: "assistant",
+				content: "Second response",
 			}),
 		]);
 	});

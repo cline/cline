@@ -13,7 +13,7 @@ import {
 	applyCheckpointToWorktree,
 	createCheckpointRestorePlan,
 	createRestoredCheckpointMetadata,
-	trimMessagesBeforeCheckpoint,
+	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
 
@@ -99,10 +99,11 @@ describe("checkpoint message trimming", () => {
 			{ role: "assistant", content: "first response" },
 			{ role: "user", content: "second" },
 		]);
-		expect(trimMessagesBeforeCheckpoint(messages, 2)).toEqual([
+		expect(trimMessagesBeforeUserRun(messages, 2)).toEqual([
 			{ role: "user", content: "first" },
 			{ role: "assistant", content: "first response" },
 		]);
+		expect(trimMessagesBeforeUserRun(messages, 1)).toEqual([]);
 	});
 
 	it("uses the nearest earlier checkpoint when an identical snapshot was deduplicated", () => {

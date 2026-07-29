@@ -79,6 +79,60 @@
 	font-size: 0.8125rem;
 }
 
+/* Running reasoning/tool titles use their inherited text color as the bright
+ * band, so the same shimmer fits muted thinking text and primary tool text. */
+.cline-chat-streaming-title {
+	display: inline-block;
+	background-image: linear-gradient(
+		90deg,
+		color-mix(in oklab, currentcolor 55%, transparent) 0%,
+		currentcolor 50%,
+		color-mix(in oklab, currentcolor 55%, transparent) 100%
+	);
+	background-position: 200% 0;
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: cline-chat-title-shimmer 2.25s linear infinite;
+}
+
+@keyframes cline-chat-title-shimmer {
+	to {
+		background-position: -200% 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-chat-streaming-title {
+		background: none;
+		-webkit-text-fill-color: currentcolor;
+		animation: none;
+	}
+}
+
+/* Tool panels scroll on both axes, but a horizontal thumb inside a short
+ * disclosure eats a whole detail row. Keep the axis scrollable (wheel, trackpad,
+ * keyboard, drag-select) and hide only its bar; the vertical one stays visible.
+ * `:horizontal` is the one selector that separates the two axes — the standard
+ * `scrollbar-width: none` would take out both. */
+.cline-chat-scroll-x-bare::-webkit-scrollbar:horizontal {
+	display: none;
+}
+
+/* The shared reveal rule is `.cline-chat-message:hover`, so hovering anywhere in
+ * the message pops the action row — including the reasoning disclosure nested in
+ * the message content. The actions act on the message body, so suppress the
+ * reveal while the pointer is inside the thinking panel. `[data-visible]` still
+ * wins, keeping the pending/error states pinned open. */
+.cline-chat-message:has(
+	> .cline-chat-message-content .cline-chat-reasoning:hover
+)
+> .cline-chat-message-actions:not([data-visible="true"]) {
+	pointer-events: none;
+	opacity: 0;
+}
+
 /*
  * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
  * holding a language header row plus an inner bordered body. Collapse it to a

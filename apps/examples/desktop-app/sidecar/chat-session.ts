@@ -6,12 +6,14 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	createRestoredCheckpointMetadata,
 	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
+	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { Message } from "@cline/llms";
 import { buildClineSystemPrompt } from "@cline/shared";
@@ -932,6 +934,13 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	const forkBeforeRunCount = request.forkBeforeRunCount;
+	if (
+		forkBeforeRunCount !== undefined &&
+		(!Number.isInteger(forkBeforeRunCount) || forkBeforeRunCount < 1)
+	) {
+		throw new Error("forkBeforeRunCount must be a positive integer");
+	}
 	const manager = getSessionManager(ctx);
 	const sourceMessages =
 		readPersistedChatMessages(sourceSessionId) ??
@@ -983,12 +992,30 @@ async function handleFork(
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
 			: {};
+	const forkMessages =
+		forkBeforeRunCount === undefined
+			? sourceMessages
+			: trimMessagesBeforeUserRun(
+					sourceMessages as Message[],
+					forkBeforeRunCount,
+				);
+	const retainedCheckpointMetadata =
+		forkBeforeRunCount === undefined
+			? sourceMetadata?.checkpoint
+			: createRestoredCheckpointMetadata(
+					sourceMetadata ? { metadata: sourceMetadata } : undefined,
+					forkBeforeRunCount - 1,
+				);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
+		checkpoint: retainedCheckpointMetadata,
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
 			source: sourceSession?.source ?? "desktop",
+			...(forkBeforeRunCount !== undefined
+				? { beforeRunCount: forkBeforeRunCount }
+				: {}),
 			...checkpointMetadata,
 		},
 	};
@@ -998,12 +1025,12 @@ async function handleFork(
 			buildCoreSessionConfig({
 				...forkConfig,
 				systemPrompt,
-				initialMessages: sourceMessages,
+				initialMessages: forkMessages,
 			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: sourceMessages as Message[],
+		initialMessages: forkMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	});
@@ -1016,15 +1043,15 @@ async function handleFork(
 	ctx.liveSessions.set(
 		newSessionId,
 		createLiveSession(forkConfig, {
-			messages: sourceMessages,
-			prompt: derivePromptFromMessages(sourceMessages),
+			messages: forkMessages,
+			prompt: derivePromptFromMessages(forkMessages),
 			title: readSessionMetadataTitle(sourceSessionId),
 			status: "idle",
 		}),
 	);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
-	let messages: unknown[] = sourceMessages;
+	let messages: unknown[] = forkMessages;
 	try {
 		const read = await manager.readMessages(newSessionId);
 		if (read?.length > 0) messages = read;

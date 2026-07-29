@@ -174,6 +174,97 @@ describe("pathless session starts", () => {
 	});
 });
 
+describe("session forks", () => {
+	it("forks before the selected user run for message editing", async () => {
+		const sourceSessionId = `source-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "edited-fork" }));
+		const readMessages = vi.fn(async () => expectedMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "",
+					workspaceRoot: "",
+					metadata: {
+						checkpoint: {
+							latest: { ref: "second", createdAt: 2, runCount: 2 },
+							history: [
+								{ ref: "first", createdAt: 1, runCount: 1 },
+								{ ref: "second", createdAt: 2, runCount: 2 },
+							],
+						},
+					},
+				})),
+				readMessages,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		})) as { sessionId: string; messages: unknown[] };
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: expectedMessages,
+				sessionMetadata: expect.objectContaining({
+					checkpoint: {
+						latest: { ref: "first", createdAt: 1, runCount: 1 },
+						history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+					},
+					fork: expect.objectContaining({
+						forkedFromSessionId: sourceSessionId,
+						beforeRunCount: 2,
+					}),
+				}),
+			}),
+		);
+		expect(result).toEqual({
+			sessionId: "edited-fork",
+			forkedFromSessionId: sourceSessionId,
+			messages: expectedMessages,
+		});
+		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
+			expectedMessages,
+		);
+	});
+});
+
 describe("first-send connection updates", () => {
 	const baseConfig = {
 		provider: "cline",

@@ -618,6 +618,8 @@ export type ToolActivityTriggerProps = Omit<
 	additions?: number;
 	deletions?: number;
 	disabled?: boolean;
+	/** Show the chevron that hints the row expands. The row stays clickable when hidden. */
+	showDisclosureIcon?: boolean;
 };
 
 export const ToolActivityTrigger = ({
@@ -629,6 +631,7 @@ export const ToolActivityTrigger = ({
 	icon,
 	label,
 	onClick,
+	showDisclosureIcon = true,
 	status = "success",
 	...props
 }: ToolActivityTriggerProps) => {
@@ -650,7 +653,7 @@ export const ToolActivityTrigger = ({
 			{status === "running" || status === "pending" ? (
 				<output aria-label={status} className="cline-chat-tool-progress" />
 			) : null}
-			{expandable ? (
+			{expandable && showDisclosureIcon ? (
 				<ChevronDownIcon className="cline-chat-disclosure-icon" />
 			) : null}
 		</>

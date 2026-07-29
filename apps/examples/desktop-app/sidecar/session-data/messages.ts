@@ -64,6 +64,13 @@ function resolveDisplayRole(
 	return role;
 }
 
+function isUserRunMessage(
+	role: string,
+	metadata: JsonRecord | undefined,
+): boolean {
+	return role === "user" && metadata?.kind !== "recovery_notice";
+}
+
 function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 	const metadata = readMessageMetadata(message);
 	if (!metadata) {
@@ -345,6 +352,18 @@ export async function readSessionMessages(
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
+	for (let idx = 0; idx < start; idx += 1) {
+		const rawMessage = messages[idx];
+		if (!rawMessage || typeof rawMessage !== "object") {
+			continue;
+		}
+		const message = rawMessage as JsonRecord;
+		const metadata = readMessageMetadata(message);
+		const role = resolveDisplayRole(normalizeRole(message.role), metadata);
+		if (isUserRunMessage(role, metadata)) {
+			userRunCount += 1;
+		}
+	}
 
 	for (let idx = start; idx < messages.length; idx += 1) {
 		const rawMessage = messages[idx];
@@ -363,10 +382,12 @@ export async function readSessionMessages(
 			readMessageMetadata(message),
 		);
 		const metadata = readMessageMetadata(message);
-		const isRecoveryNotice =
-			typeof metadata?.kind === "string" && metadata.kind === "recovery_notice";
-		if (role === "user" && !isRecoveryNotice) {
+		if (isUserRunMessage(role, metadata)) {
 			userRunCount += 1;
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 			const checkpoint = checkpointsByRunCount.get(userRunCount);
 			if (checkpoint) {
 				textMeta = {
