@@ -110,7 +110,12 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 		nodeError?.code === "ENOENT" ||
 		nodeError?.code === "EACCES" ||
 		nodeError?.code === "EPERM" ||
-		nodeError?.code === "ELOOP"
+		nodeError?.code === "ELOOP" ||
+		// A search-path component may legitimately be a file instead of a
+		// directory (e.g. a legacy `.clinerules` FILE at the workspace root
+		// makes `<ws>/.clinerules/skills` unreadable). Treat it like a
+		// missing directory instead of failing the whole scan.
+		nodeError?.code === "ENOTDIR"
 	);
 }
 

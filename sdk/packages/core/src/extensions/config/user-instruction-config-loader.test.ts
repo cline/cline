@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -398,6 +398,132 @@ Use the security review checklist.`,
 				skill.item.instructions.includes("security review checklist"),
 			),
 		).toBe(true);
+	});
+
+	it("loads rules when .clinerules is a FILE without failing the skills scan (ENOTDIR)", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-file-"),
+		);
+		tempRoots.push(tempRoot);
+		const originalHomeDir = homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const workspace = join(tempRoot, "workspace");
+		await mkdir(workspace, { recursive: true });
+		// Legacy layout: `.clinerules` is a plain FILE at the workspace root.
+		// The skills search path `<ws>/.clinerules/skills` then hits ENOTDIR,
+		// which previously aborted the whole initial scan (no rules loaded).
+		await writeFile(
+			join(workspace, ".clinerules"),
+			"- Always end responses with RULES-ACK.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: workspace, cwd: workspace },
+			rules: { workspacePath: workspace },
+			workflows: { workspacePath: workspace },
+		});
+
+		try {
+			await watcher.start();
+			const rules = [...watcher.getSnapshot("rule").values()];
+			expect(
+				rules.some(
+					(record) =>
+						record.filePath === join(workspace, ".clinerules") &&
+						record.item.instructions.includes("RULES-ACK"),
+				),
+			).toBe(true);
+			expect(watcher.getSnapshot("skill").size).toBe(0);
+		} finally {
+			watcher.stop();
+			setHomeDir(originalHomeDir);
+		}
+	});
+
+	it("picks up a .clinerules FILE created after the watcher started", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-create-"),
+		);
+		tempRoots.push(tempRoot);
+		const originalHomeDir = homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const workspace = join(tempRoot, "workspace");
+		await mkdir(workspace, { recursive: true });
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: { workspacePath: workspace },
+		});
+		const events: Array<UserInstructionConfigWatcherEvent> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.start();
+			expect(watcher.getSnapshot("rule").size).toBe(0);
+
+			// Created mid-session — the parent-directory fallback watch must
+			// notice it without any manual refresh.
+			await writeFile(
+				join(workspace, ".clinerules"),
+				"- New rule added mid-session.",
+			);
+			await waitForEvent(
+				events,
+				(event) =>
+					event.kind === "upsert" &&
+					event.record.type === "rule" &&
+					event.record.item.instructions.includes("mid-session"),
+			);
+		} finally {
+			unsubscribe();
+			watcher.stop();
+			setHomeDir(originalHomeDir);
+		}
+	});
+
+	it("picks up a .clinerules FILE replaced via rename after the watcher started", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-rename-"),
+		);
+		tempRoots.push(tempRoot);
+		const originalHomeDir = homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const workspace = join(tempRoot, "workspace");
+		await mkdir(workspace, { recursive: true });
+		const rulesPath = join(workspace, ".clinerules");
+		await writeFile(rulesPath, "- Ack line: style-v1.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: { workspacePath: workspace },
+		});
+		const events: Array<UserInstructionConfigWatcherEvent> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.start();
+			expect(
+				[...watcher.getSnapshot("rule").values()].some((record) =>
+					record.item.instructions.includes("style-v1"),
+				),
+			).toBe(true);
+
+			// Editors and tools like `sed -i` replace the file via rename,
+			// which kills a direct file watch. The parent-directory watch
+			// must still observe the change.
+			const tempPath = join(workspace, ".clinerules.tmp");
+			await writeFile(tempPath, "- Ack line: style-v2.");
+			await rename(tempPath, rulesPath);
+			await waitForEvent(
+				events,
+				(event) =>
+					event.kind === "upsert" &&
+					event.record.type === "rule" &&
+					event.record.item.instructions.includes("style-v2"),
+			);
+		} finally {
+			unsubscribe();
+			watcher.stop();
+			setHomeDir(originalHomeDir);
+		}
 	});
 
 	it("lets workspace .cline workflows override legacy .clinerules workflows with the same name", async () => {

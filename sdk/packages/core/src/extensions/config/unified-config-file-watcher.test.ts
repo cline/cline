@@ -113,6 +113,60 @@ describe("UnifiedConfigFileWatcher", () => {
 		}
 	}, 15_000);
 
+	it("still scans later definitions when an earlier definition fails to load", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-unified-config-watcher-isolation-"),
+		);
+		tempRoots.push(tempRoot);
+		const profilesDir = join(tempRoot, "profiles");
+		await mkdir(profilesDir, { recursive: true });
+		await writeFile(
+			join(profilesDir, "reviewer.profile"),
+			"name: Reviewer\n\nReview code carefully.",
+		);
+
+		const watcher = new UnifiedConfigFileWatcher<
+			"broken" | "profile",
+			TestProfileConfig
+		>([
+			{
+				type: "broken" as const,
+				directories: [join(tempRoot, "broken")],
+				discoverFiles: async () => {
+					throw new Error("boom");
+				},
+				parseFile: (context) => parseTestProfileConfig(context.content),
+				resolveId: (config) => config.name.toLowerCase(),
+			},
+			{
+				type: "profile" as const,
+				directories: [profilesDir],
+				includeFile: (fileName) => fileName.endsWith(".profile"),
+				parseFile: (context) => parseTestProfileConfig(context.content),
+				resolveId: (config) => config.name.toLowerCase(),
+			},
+		]);
+
+		const events: Array<
+			UnifiedConfigWatcherEvent<"broken" | "profile", TestProfileConfig>
+		> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.refreshAll();
+			await waitForEvent(
+				events,
+				(event) => event.kind === "upsert" && event.record.id === "reviewer",
+			);
+			await waitForEvent(
+				events,
+				(event) => event.kind === "error" && event.type === "broken",
+			);
+		} finally {
+			unsubscribe();
+		}
+	});
+
 	it("supports one watcher instance for multiple config types", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-unified-config-watcher-"),
