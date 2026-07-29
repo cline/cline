@@ -23,7 +23,7 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
-import type { BuiltinSpec } from "./builtin-types";
+import type { BuiltinSpec, ProviderApiLine } from "./builtin-types";
 import {
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
@@ -34,6 +34,7 @@ import {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
+import { normalizeProviderId } from "./ids";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
@@ -67,7 +68,11 @@ const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
  */
 export const OLLAMA_DEFAULT_CONTEXT_WINDOW = 32768;
 
-export type { BuiltinSpec, ProviderFamily } from "./builtin-types";
+export type {
+	BuiltinSpec,
+	ProviderApiLine,
+	ProviderFamily,
+} from "./builtin-types";
 
 type BuiltinSpecOverride = Pick<BuiltinSpec, "id"> &
 	Partial<Omit<BuiltinSpec, "id">>;
@@ -209,6 +214,11 @@ const OCA_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 		type: "boolean",
 	},
 ];
+
+const QWEN_API_LINE_BASE_URLS: Readonly<Record<ProviderApiLine, string>> = {
+	china: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+	international: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+};
 
 const QWEN_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 	API_KEY_FIELD,
@@ -790,6 +800,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["QWEN_API_KEY"],
 		modelsProviderId: "qwen",
 		defaults: { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+		apiLineBaseUrls: QWEN_API_LINE_BASE_URLS,
 		configFields: QWEN_CONFIG_FIELDS,
 		metadata: QWEN_CACHE_ROUTING_METADATA,
 	},
@@ -802,8 +813,18 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "qwen3-coder-plus",
 		modelsProviderId: "qwen-code",
 		defaults: { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+		apiLineBaseUrls: QWEN_API_LINE_BASE_URLS,
 		configFields: QWEN_CONFIG_FIELDS,
 		metadata: QWEN_CACHE_ROUTING_METADATA,
+	},
+	{
+		// Fully described by models.dev except for the regional endpoint
+		// routing policy (`apiLineBaseUrls`), which is Cline-specific.
+		id: "moonshot",
+		apiLineBaseUrls: {
+			china: "https://api.moonshot.cn/v1",
+			international: "https://api.moonshot.ai/v1",
+		},
 	},
 	{
 		id: "doubao",
@@ -826,6 +847,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai",
 		defaults: { baseUrl: "https://api.z.ai/api/paas/v4" },
+		apiLineBaseUrls: {
+			china: "https://open.bigmodel.cn/api/paas/v4",
+			international: "https://api.z.ai/api/paas/v4",
+		},
 		metadata: GLM_THINKING_ROUTING_METADATA,
 	},
 	{
@@ -838,6 +863,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
+		apiLineBaseUrls: {
+			china: "https://open.bigmodel.cn/api/coding/paas/v4",
+			international: "https://api.z.ai/api/coding/paas/v4",
+		},
 		metadata: GLM_THINKING_ROUTING_METADATA,
 	},
 	{
@@ -1055,6 +1084,10 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		modelsProviderId: "minimax",
 		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
+		apiLineBaseUrls: {
+			china: "https://api.minimaxi.com/anthropic/v1",
+			international: "https://api.minimax.io/anthropic/v1",
+		},
 		metadata: MINIMAX_THINKING_ROUTING_METADATA,
 	},
 	{
@@ -1096,6 +1129,37 @@ export const BUILTIN_SPECS: BuiltinSpec[] = mergeBuiltinSpecs(
 	GENERATED_PROVIDER_SPECS,
 	BUILTIN_SPEC_OVERRIDES,
 );
+
+const API_LINE_BASE_URLS_BY_PROVIDER_ID: ReadonlyMap<
+	string,
+	Readonly<Partial<Record<ProviderApiLine, string>>>
+> = new Map(
+	BUILTIN_SPECS.flatMap((spec) =>
+		spec.apiLineBaseUrls ? [[spec.id, spec.apiLineBaseUrls] as const] : [],
+	),
+);
+
+export function isProviderApiLine(value: unknown): value is ProviderApiLine {
+	return value === "china" || value === "international";
+}
+
+/**
+ * Resolve the regional base URL for a provider's selected API line (e.g.
+ * Qwen/Moonshot/Z.AI/MiniMax "china" vs "international" endpoints). Returns
+ * undefined when the provider has no regional endpoints or the api line is
+ * not a recognized value. Callers must let an explicit user-configured base
+ * URL win over this resolution.
+ */
+export function resolveProviderApiLineBaseUrl(
+	providerId: string,
+	apiLine: unknown,
+): string | undefined {
+	if (!isProviderApiLine(apiLine)) {
+		return undefined;
+	}
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
+		?.[apiLine];
+}
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {
 	if (spec.modelsFactory) {

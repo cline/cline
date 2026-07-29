@@ -339,6 +339,16 @@ export interface RuntimeHost {
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	/**
+	 * Like {@link readSessionMessages}, but prefers the resident session's
+	 * in-memory conversation over the persisted transcript. Disk persistence
+	 * happens at assistant-message/turn boundaries (and abort() does not
+	 * flush), so this is the accurate read for callers that need the
+	 * conversation of an in-flight or just-aborted turn — e.g. rebuilding a
+	 * session for a mode switch. Optional: hosts without live-session access
+	 * (e.g. hub clients) fall back to the persisted transcript.
+	 */
+	readLiveSessionMessages?(sessionId: string): Promise<LlmsProviders.Message[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
