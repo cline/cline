@@ -36,6 +36,8 @@
 		"components.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
+		"components/agent-hero-heading.css",
+		"components/agent-hero-heading.tsx",
 		"components/markdown.css",
 		"components/index.ts",
 		"components/session-status.css",

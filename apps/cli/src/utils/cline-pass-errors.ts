@@ -157,7 +157,9 @@ export function isClineFreePromotionEndedErrorMessage(
 				? error
 				: "";
 	if (
-		message.toLowerCase().includes(CLINE_FREE_PROMOTION_ENDED_HEADER.toLowerCase())
+		message
+			.toLowerCase()
+			.includes(CLINE_FREE_PROMOTION_ENDED_HEADER.toLowerCase())
 	) {
 		return true;
 	}
@@ -179,7 +181,9 @@ export function isClineFreeModelLimitErrorMessage(error: unknown): boolean {
 	}
 	return (
 		typeof error === "string" &&
-		(error.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_HEADER.toLowerCase()) ||
+		(error
+			.toLowerCase()
+			.includes(CLINE_FREE_MODEL_LIMIT_HEADER.toLowerCase()) ||
 			isClineFreeModelLimitMessage(error))
 	);
 }
