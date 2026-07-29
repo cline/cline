@@ -96,13 +96,16 @@ describe("ClineModelPicker", () => {
 		})
 	})
 
-	it("commits Cline model selections through provider config so providers.json is updated", async () => {
-		render(<ClineModelPicker currentMode="act" />)
+	it.each([
+		"plan",
+		"act",
+	] as const)("commits Cline %s model selections through provider config without a second config write", async (currentMode) => {
+		render(<ClineModelPicker currentMode={currentMode} />)
 
 		fireEvent.click(await screen.findByText("cline-next"))
 
 		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1))
-		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+		expect(mocks.commitSelection).toHaveBeenCalledWith(currentMode, {
 			providerId: "cline",
 			modelId: "cline-next",
 		})

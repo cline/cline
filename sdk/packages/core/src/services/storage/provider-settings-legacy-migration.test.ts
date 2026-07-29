@@ -289,58 +289,6 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
-	it.each([
-		{
-			providerId: "cline",
-			extraState: {},
-			secrets: { clineApiKey: "cline-key" },
-			staleModel: "anthropic/claude-sonnet-5",
-		},
-		{
-			providerId: "lmstudio",
-			extraState: { lmStudioBaseUrl: "http://localhost:1234" },
-			secrets: {},
-			staleModel: "x-ai/grok-4.20",
-		},
-		{
-			providerId: "requesty",
-			extraState: {},
-			secrets: { requestyApiKey: "requesty-key" },
-			staleModel: "mistral-medium-2604",
-		},
-	])("does not migrate the shared model $staleModel into $providerId when its dedicated slot is empty", ({
-		providerId,
-		extraState,
-		secrets,
-		staleModel,
-	}) => {
-		const tempDir = mkdtempSync(
-			path.join(os.tmpdir(), "core-legacy-provider-"),
-		);
-		tempDirs.push(tempDir);
-		const manager = new ProviderSettingsManager({
-			filePath: path.join(tempDir, "provider-settings.json"),
-		});
-
-		writeFileSync(
-			path.join(tempDir, "globalState.json"),
-			JSON.stringify({
-				mode: "act",
-				actModeApiProvider: providerId,
-				actModeApiModelId: staleModel,
-				...extraState,
-			}),
-		);
-		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify(secrets));
-
-		migrateLegacyProviderSettings({
-			providerSettingsManager: manager,
-			dataDir: tempDir,
-		});
-
-		expect(manager.getProviderSettings(providerId)?.model).not.toBe(staleModel);
-	});
-
 	it("resolves aliased legacy provider ids without duplicating entries or losing the mode's model", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),

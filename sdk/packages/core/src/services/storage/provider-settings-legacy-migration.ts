@@ -163,12 +163,6 @@ const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
 const OPENAI_COMPATIBLE_PROVIDER_ID =
 	LlmsModels.BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
 const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
-const PROVIDERS_WITH_AUTHORITATIVE_DEDICATED_MODEL_ID = new Set([
-	"cline",
-	"lmstudio",
-	"requesty",
-]);
-
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
 	dataDir?: string;
@@ -348,14 +342,7 @@ function resolveModelForProvider(
 					: undefined,
 			)
 		: undefined;
-	// These providers never stored their selection in *ModeApiModelId. Treat
-	// their dedicated slot as authoritative even when empty; falling through
-	// would copy the previously active provider's model (for example xAI -> LM
-	// Studio or Mistral -> Requesty).
-	return providerModelKey &&
-		PROVIDERS_WITH_AUTHORITATIVE_DEDICATED_MODEL_ID.has(providerId)
-		? providerModel
-		: (providerModel ?? fallbackModel);
+	return providerModel ?? fallbackModel;
 }
 
 function resolveReasoning(
