@@ -1,4 +1,7 @@
-import type { ClineSubscriptionPlan } from "@cline/core";
+import {
+	type ClineSubscriptionPlan,
+	extractClineFreeModelLimitResetTime,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -8,6 +11,8 @@ import {
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
+	isClineFreeModelLimitErrorMessage,
+	isClineFreePromotionEndedErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
@@ -25,9 +30,11 @@ import {
 	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
+import { formatCompactionDividerLabel } from "../utils/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
+	buildReadFilesKeys,
 	parseApplyPatchInput,
 	parseAskQuestionInput,
 	parseEditorInput,
@@ -128,12 +135,13 @@ function formatToolParams(
 		case "read_files": {
 			const info = parseReadFilesInput(rawInput);
 			if (!info?.files.length) return fallback;
+			const keys = buildReadFilesKeys(info.files);
 			return info.files.map((f, i) => {
 				const sl = f.startLine != null ? String(f.startLine) : "undefined";
 				const el = f.endLine != null ? String(f.endLine) : "undefined";
 				const sep = i > 0 ? "; " : "";
 				return (
-					<span key={f.path}>
+					<span key={keys[i]}>
 						{sep}
 						{shortenPath(f.path)}
 						<span fg="gray">
@@ -421,6 +429,38 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	);
 }
 
+function CompactionDividerRow(props: {
+	entry: Extract<ChatEntry, { kind: "compaction" }>;
+}) {
+	const { entry } = props;
+	const { width: terminalWidth } = useTerminalDimensions();
+	const inProgress = entry.status === "started";
+	const labelColor = inProgress
+		? "cyan"
+		: entry.status === "failed"
+			? "red"
+			: entry.status === "cancelled" || entry.status === "skipped"
+				? "gray"
+				: "cyan";
+	const label = `✻ ${formatCompactionDividerLabel(entry)} ✻`;
+	// Fill the remaining line with a plain rule instead of a flexGrow bordered
+	// box: a single fixed-content text row keeps the renderer's diffing stable.
+	const ruleWidth = Math.max(2, Math.min(40, terminalWidth - label.length - 8));
+	return (
+		<box flexDirection="row">
+			{inProgress ? (
+				<box width={2}>
+					<spinner name="dots" color={labelColor} />
+				</box>
+			) : (
+				<text fg="gray" content="── " />
+			)}
+			<text fg={labelColor} selectable content={label} />
+			<text fg="gray" content={` ${"─".repeat(ruleWidth)}`} />
+		</box>
+	);
+}
+
 function ClinePassLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
@@ -446,14 +486,6 @@ function ClinePassLimitErrorView(props: {
 					content="Switch to Cline usage-based billing and retry with the Cline provider."
 				/>
 				<box flexDirection="row">
-					<text fg="gray">Interactive CLI: </text>
-					<text
-						fg={props.defaultFg}
-						selectable
-						content="type /model, press tab to change provider, choose Cline, then retry."
-					/>
-				</box>
-				<box flexDirection="row">
 					<text fg="gray">Headless CLI: </text>
 					<text fg={props.defaultFg} selectable content="rerun with " />
 					<code
@@ -464,6 +496,71 @@ function ClinePassLimitErrorView(props: {
 					/>
 					<text fg={props.defaultFg} selectable content="." />
 				</box>
+			</box>
+		</box>
+	);
+}
+
+function ClineFreeModelLimitErrorView(props: {
+	message: string;
+	defaultFg?: string;
+}) {
+	const resetTime = extractClineFreeModelLimitResetTime(props.message);
+
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">Daily free model limit reached</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="You've reached today's free usage limit for this model."
+				/>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content={
+						resetTime
+							? `Try again in ${resetTime} or select another model.`
+							: "Try again later or select another model."
+					}
+				/>
+				<text fg="gray">Open the model selector with /model.</text>
+			</box>
+		</box>
+	);
+}
+
+function ClineFreePromotionEndedErrorView(props: { defaultFg?: string }) {
+	return (
+		<box flexDirection="row">
+			<text fg={palette.act} content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={palette.act}
+				paddingX={1}
+			>
+				<text fg="red">Free model promotion ended</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="The free promotion for this model has ended and it is no longer available."
+				/>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="Select another model to continue."
+				/>
+				<text fg="gray">Open the model selector with /model.</text>
 			</box>
 		</box>
 	);
@@ -593,6 +690,17 @@ export function ChatEntryView(props: {
 					/>
 				);
 			}
+			if (isClineFreeModelLimitErrorMessage(entry.text)) {
+				return (
+					<ClineFreeModelLimitErrorView
+						defaultFg={defaultFg}
+						message={entry.text}
+					/>
+				);
+			}
+			if (isClineFreePromotionEndedErrorMessage(entry.text)) {
+				return <ClineFreePromotionEndedErrorView defaultFg={defaultFg} />;
+			}
 			return (
 				<box flexDirection="row">
 					<text fg="red" content="* " />
@@ -615,6 +723,9 @@ export function ChatEntryView(props: {
 					<text fg="gray" selectable content={entry.text} />
 				</box>
 			);
+
+		case "compaction":
+			return <CompactionDividerRow entry={entry} />;
 
 		case "done": {
 			const parts: string[] = [];

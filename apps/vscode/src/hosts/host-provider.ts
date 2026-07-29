@@ -1,8 +1,6 @@
 import { WebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { EditPreview } from "@/integrations/editor/EditPreview"
-import { ITerminalManager } from "@/integrations/terminal/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
  * Singleton class that manages host-specific providers for dependency injection.
@@ -13,18 +11,16 @@ import { HostBridgeClientProvider } from "./host-provider-types"
  * implementations in a platform-agnostic way.
  *
  * Usage:
- * - Initialize once: HostProvider.initialize(webviewCreator, diffCreator, hostBridge)
+ * - Initialize once: HostProvider.initialize(webviewCreator, editPreviewCreator, hostBridge)
  * - Access HostBridge services: HostProvider.window.showMessage()
- * - Access Host Provider factories: HostProvider.get().createDiffViewProvider()
+ * - Access Host Provider factories: HostProvider.get().createEditPreview()
  */
 export class HostProvider {
 	private static instance: HostProvider | null = null
 
 	createWebviewProvider: WebviewProviderCreator
-	createDiffViewProvider: DiffViewProviderCreator
 	createEditPreview: EditPreviewCreator
 	createCommentReviewController: CommentReviewControllerCreator
-	createTerminalManager: TerminalManagerCreator
 	hostBridge: HostBridgeClientProvider
 
 	// Logs to a user-visible output channel.
@@ -52,10 +48,8 @@ export class HostProvider {
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
-		createDiffViewProvider: DiffViewProviderCreator,
 		createEditPreview: EditPreviewCreator,
 		createCommentReviewController: CommentReviewControllerCreator,
-		createTerminalManager: TerminalManagerCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUrl: (path: string, preferredPort?: number) => Promise<string>,
@@ -64,10 +58,8 @@ export class HostProvider {
 		globalStorageFsPath: string,
 	) {
 		this.createWebviewProvider = createWebviewProvider
-		this.createDiffViewProvider = createDiffViewProvider
 		this.createEditPreview = createEditPreview
 		this.createCommentReviewController = createCommentReviewController
-		this.createTerminalManager = createTerminalManager
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
 		this.getCallbackUrl = getCallbackUrl
@@ -78,10 +70,8 @@ export class HostProvider {
 
 	public static initialize(
 		webviewProviderCreator: WebviewProviderCreator,
-		diffViewProviderCreator: DiffViewProviderCreator,
 		editPreviewCreator: EditPreviewCreator,
 		commentReviewControllerCreator: CommentReviewControllerCreator,
-		terminalManagerCreator: TerminalManagerCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUrl: (path: string, preferredPort?: number) => Promise<string>,
@@ -94,10 +84,8 @@ export class HostProvider {
 		}
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
-			diffViewProviderCreator,
 			editPreviewCreator,
 			commentReviewControllerCreator,
-			terminalManagerCreator,
 			hostBridgeProvider,
 			logToChannel,
 			getCallbackUrl,
@@ -153,11 +141,6 @@ export class HostProvider {
 export type WebviewProviderCreator = () => WebviewProvider
 
 /**
- * A function that creates DiffViewProvider instances
- */
-export type DiffViewProviderCreator = () => DiffViewProvider
-
-/**
  * A function that creates EditPreview instances (read-only virtual diff previews)
  */
 export type EditPreviewCreator = () => EditPreview
@@ -168,9 +151,3 @@ export type EditPreviewCreator = () => EditPreview
 export type CommentReviewControllerCreator = () => CommentReviewController
 
 export type LogToChannel = (message: string) => void
-
-/**
- * A function that creates TerminalManager instances
- * Returns the platform-appropriate terminal manager (VSCode TerminalManager or StandaloneTerminalManager)
- */
-export type TerminalManagerCreator = () => ITerminalManager

@@ -79,6 +79,7 @@ describe("SdkModeCoordinator", () => {
 			mode: "plan",
 		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
+			expectedSession: activeSession,
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "modeChange",
@@ -614,6 +615,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resolveContextMentions: vi.fn(async (text: string) => text),
 		onAutoContinueStarting: vi.fn(),
 		onAutoContinueFailed: vi.fn(),
+		rebuilds: {
+			runExclusive: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkModeCoordinatorOptions & {
 		stateManager: StateManager & {
 			getGlobalSettingsKey: ReturnType<typeof vi.fn>

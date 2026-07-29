@@ -5,7 +5,9 @@ import {
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
 import {
+	buildRunCommandsDescription,
 	createDefaultTools,
+	createEditorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -13,7 +15,7 @@ import {
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function hasSchemaKey(value: unknown, key: string): boolean {
@@ -477,6 +479,71 @@ describe("default apply_patch tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+});
+
+describe("run_commands tool description", () => {
+	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
+		const description = buildRunCommandsDescription("powershell", true);
+		expect(description).toContain("Commands run through PowerShell");
+		expect(description).toContain("use ';' to sequence commands");
+		expect(description).toContain("in Windows environment");
+	});
+
+	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
+		const description = buildRunCommandsDescription("cmd", true);
+		expect(description).toContain("Commands run through cmd.exe");
+		expect(description).toContain("use '&&' to sequence commands");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("describes WSL bash with the /mnt working-directory mapping", () => {
+		const description = buildRunCommandsDescription("wsl", true);
+		expect(description).toContain("bash in WSL");
+		expect(description).toContain("/mnt/<drive>");
+		expect(description).not.toContain("PowerShell");
+	});
+
+	it("notes the Windows host for POSIX shells on Windows only", () => {
+		const onWindows = buildRunCommandsDescription("posix", true);
+		expect(onWindows).toContain("POSIX (bash-compatible) shell on Windows");
+		expect(onWindows).not.toContain("PowerShell");
+
+		const onUnix = buildRunCommandsDescription("posix", false);
+		expect(onUnix).not.toContain("Windows");
+		expect(onUnix).toContain("grep/head/tail");
+	});
+
+	it("derives the createShellTool description from config.shell", () => {
+		const posixTool = createShellTool(async () => "ok", {
+			shell: "/bin/bash",
+		});
+		expect(posixTool.description).toContain(
+			"Run non-interactive shell commands",
+		);
+		expect(posixTool.description).not.toContain("PowerShell");
+
+		const cmdTool = createShellTool(async () => "ok", {
+			shell: "C:\\Windows\\System32\\cmd.exe",
+		});
+		expect(cmdTool.description).toContain("Commands run through cmd.exe");
+	});
+
+	it("re-derives the description on each read when config.shell is a provider", () => {
+		let shell = "/bin/bash";
+		const tool = createShellTool(async () => "ok", {
+			shell: () => shell,
+		});
+		expect(tool.description).not.toContain("PowerShell");
+
+		shell = "powershell.exe";
+		expect(tool.description).toContain("Commands run through PowerShell");
+
+		// The property must survive the shallow copy the runtime performs when
+		// building AgentToolDefinitions for a model request.
+		shell = "cmd.exe";
+		const definition = { ...tool };
+		expect(definition.description).toContain("Commands run through cmd.exe");
 	});
 });
 
@@ -1676,7 +1743,7 @@ describe("zod schema conversion", () => {
 					path: {
 						type: "string",
 						description:
-							"The absolute file path of a text file to read content from",
+							"The absolute path of a text file to read content from",
 					},
 					start_line: {
 						anyOf: [{ type: "integer" }, { type: "null" }],
@@ -1875,6 +1942,35 @@ describe("default editor tool", () => {
 			}),
 			process.cwd(),
 			expect.anything(),
+		);
+	});
+
+	it("accepts a stringified insert_line but not a non-numeric one", async () => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+		// Deliberately wrong-typed: this is what an LLM can put on the wire.
+		const inputWith = (insert_line: unknown) =>
+			({
+				path: "/tmp/example.ts",
+				new_text: "after",
+				insert_line,
+			}) as EditFileInput;
+
+		await tool.execute(inputWith("3"), context);
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ insert_line: 3 }),
+			process.cwd(),
+			expect.anything(),
+		);
+
+		// A word such as "end" has no line number to infer, so it must keep failing.
+		await expect(tool.execute(inputWith("end"), context)).rejects.toThrow(
+			/insert_line/,
 		);
 	});
 

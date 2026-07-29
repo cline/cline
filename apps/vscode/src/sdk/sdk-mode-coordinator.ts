@@ -9,6 +9,7 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -53,6 +54,7 @@ export interface SdkModeCoordinatorOptions {
 	 * instead of showing a phantom run.
 	 */
 	onAutoContinueFailed: () => void
+	rebuilds: Pick<SdkSessionRebuildScheduler, "runExclusive">
 }
 
 export class SdkModeCoordinator {
@@ -205,7 +207,7 @@ export class SdkModeCoordinator {
 			source?: "ui" | "tool"
 		} = {},
 	): Promise<boolean> {
-		const operation = this.performRebuildSessionForMode(newMode, options)
+		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
 		// Expose the full rebuild (teardown, replacement, continuation send) to
 		// waitForPendingRebuild. Errors are handled inside; the barrier only
 		// tracks completion.
@@ -276,6 +278,7 @@ export class SdkModeCoordinator {
 				mode: newMode,
 			})
 			const rebuildResult = await this.options.sessions.replaceActiveSession({
+				expectedSession: activeSession,
 				startInput,
 				initialMessages: initialMessages as InitialMessages,
 				disposeReason: "modeChange",

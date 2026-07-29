@@ -92,6 +92,7 @@
 											"provider-config/openai",
 											"provider-config/openai-compatible",
 											"provider-config/openrouter",
+											"provider-config/poolside",
 											"provider-config/zai",
 											"provider-config/other-30-plus-providers"
 										]
@@ -767,7 +768,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/acp-editor-integrations"
+			"destination": "/cli/cli-reference"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",

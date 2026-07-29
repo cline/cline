@@ -124,15 +124,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
-			controller.stateManager.setGlobalState(
-				"vscodeTerminalExecutionMode",
-				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
-			)
-		}
-
-		// Update max consecutive mistakes
-		if (request.maxConsecutiveMistakes !== undefined) {
-			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
+			const previousMode = controller.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
+			const nextMode = request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal"
+			controller.stateManager.setGlobalState("vscodeTerminalExecutionMode", nextMode)
+			controller.handleTerminalExecutionModeChanged(previousMode, nextMode)
 		}
 
 		if (request.hooksEnabled !== undefined) {
@@ -188,12 +183,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			setCompactionStrategyGlobally(strategy)
 		}
 
-		// Update custom prompt choice
-		if (request.customPrompt !== undefined) {
-			const value = request.customPrompt === "compact" ? "compact" : undefined
-			controller.stateManager.setGlobalState("customPrompt", value)
-		}
-
 		// Update browser settings
 		if (request.browserSettings !== undefined) {
 			// Get current browser settings to preserve fields not in the request
@@ -239,7 +228,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("defaultTerminalProfile", request.defaultTerminalProfile)
 			// Update the live terminal manager so new terminals use the new profile.
 			// Existing terminals are left open — they're keyed by effective shell
-			// and reused when compatible, or skipped when not.
+			// and reused when compatible, or skipped when not. No session rebuild
+			// is needed: the run_commands tool re-reads the profile each time a
+			// model request is built, so the description and execution both pick
+			// up the new shell at the next request boundary.
 			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
 		}
 

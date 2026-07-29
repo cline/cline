@@ -8,6 +8,9 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
+	getDefaultShell,
+	getShellKind,
+	type ShellKind,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
@@ -396,14 +399,63 @@ const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
 
 /**
+ * Build the run_commands tool description for the shell that will actually
+ * execute the commands. The shell kind decides the syntax guidance (quoting,
+ * sequencing, heredocs), and isWindows adds environment context for POSIX
+ * shells running on a Windows host (e.g. Git Bash).
+ */
+export function buildRunCommandsDescription(
+	shellKind: ShellKind,
+	isWindows: boolean,
+): string {
+	if (shellKind === "powershell" || shellKind === "cmd") {
+		const shellName = shellKind === "powershell" ? "PowerShell" : "cmd.exe";
+		const sequencingOperator = shellKind === "powershell" ? "';'" : "'&&'";
+		return (
+			"Run non-interactive shell commands from the root of the workspace in Windows environment. " +
+			RUN_COMMANDS_SHARED_INSTRUCTIONS +
+			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
+			`Commands run through ${shellName}; quote paths and arguments for ${shellName} and use ${sequencingOperator} to sequence commands. ` +
+			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
+		);
+	}
+
+	const environmentNote =
+		shellKind === "wsl"
+			? "Commands run through bash in WSL (wsl.exe); the Windows working directory is mounted under /mnt/<drive>. "
+			: isWindows
+				? "Commands run through a POSIX (bash-compatible) shell on Windows. "
+				: "";
+	return (
+		"Run non-interactive shell commands from the root of the workspace. " +
+		RUN_COMMANDS_SHARED_INSTRUCTIONS +
+		environmentNote +
+		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
+		`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
+		"For long-running commands, run them in background and redirect output to a tmp file that you can read from later."
+	);
+}
+
+/**
  * Create the run_commands shell tool for the current platform.
  *
  * This preserves the SDK's platform-specific prompting/schema choices while
- * exposing a single generic shell-tool factory for host integrations.
+ * exposing a single generic shell-tool factory for host integrations. Pass
+ * config.shell (matching the executor's shell) so the syntax guidance in the
+ * tool description matches the shell that actually runs the commands.
+ *
+ * config.shell may be a provider function instead of a string. The runtime
+ * reads `description` when building each model request, so a provider is
+ * consulted at that boundary: a shell change made while the model is
+ * generating does not affect the request in flight, and the next request
+ * names the new shell. The provider must return the shell the executor will
+ * use for tool calls issued by that next request.
  */
 export function createShellTool(
 	executor: ShellExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> & {
+		shell?: string | (() => string);
+	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const timeoutSource =
@@ -412,19 +464,17 @@ export function createShellTool(
 			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 	const isWindows = process.platform === "win32";
+	const configShell = config.shell;
+	const resolveShell =
+		typeof configShell === "function"
+			? configShell
+			: () => configShell ?? getDefaultShell(process.platform);
+	const describe = () =>
+		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
 
-	return createTool<unknown, ToolOperationResult[]>({
+	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
-		description: isWindows
-			? "Run non-interactive shell commands from the root of the workspace in Windows environment. " +
-				RUN_COMMANDS_SHARED_INSTRUCTIONS +
-				`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-				"Commands run through PowerShell; quote paths and arguments for PowerShell and use ';' to sequence commands. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
-			: "Run non-interactive shell commands from the root of the workspace. " +
-				RUN_COMMANDS_SHARED_INSTRUCTIONS +
-				"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
-				`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
-				"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
+		description: describe(),
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false,
@@ -443,6 +493,17 @@ export function createShellTool(
 			});
 		},
 	});
+
+	if (typeof configShell === "function") {
+		// The runtime rebuilds tool definitions from this property for every
+		// model request, so a getter re-derives the description at exactly the
+		// send-to-model boundary. AgentTool consumers only read `description`.
+		Object.defineProperty(tool, "description", {
+			get: describe,
+			enumerable: true,
+		});
+	}
+	return tool;
 }
 
 /**

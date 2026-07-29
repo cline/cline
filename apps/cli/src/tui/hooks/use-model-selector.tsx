@@ -93,7 +93,9 @@ async function fetchOpenAiCompatibleModelIds(
 ): Promise<string[]> {
 	try {
 		const manager = new ProviderSettingsManager();
-		const config = manager.getProviderConfig(providerId, { includeKnownModels: false });
+		const config = manager.getProviderConfig(providerId, {
+			includeKnownModels: false,
+		});
 		const baseUrl = config?.baseUrl?.trim().replace(/\/+$/, "");
 		if (!baseUrl || !URL.canParse(baseUrl)) return [];
 

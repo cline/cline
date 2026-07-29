@@ -107,6 +107,46 @@ describe("createHubDaemonTelemetry", () => {
 		expect(providerSettingsManagerConstructions.count).toBe(1);
 	});
 
+	it("attaches persisted organization context to the identity", () => {
+		mockGetProviderSettings.mockReturnValue({
+			auth: {
+				accountId: "usr-123",
+				organizationId: "org-1",
+				organizationName: "Acme",
+				memberId: "member-9",
+			},
+		});
+		createHubDaemonTelemetry();
+		expect(mockIdentifyAccount).toHaveBeenCalledExactlyOnceWith(
+			mockTelemetryService,
+			{
+				id: "usr-123",
+				provider: "cline",
+				organizationId: "org-1",
+				organizationName: "Acme",
+				memberId: "member-9",
+			},
+		);
+	});
+
+	it("re-identifies when the active organization changes for the same account", () => {
+		mockGetProviderSettings.mockReturnValue({
+			auth: { accountId: "usr-123", organizationId: "org-1" },
+		});
+		createHubDaemonTelemetry();
+		expect(mockIdentifyAccount).toHaveBeenCalledTimes(1);
+
+		mockGetProviderSettings.mockReturnValue({
+			auth: { accountId: "usr-123", organizationId: "org-2" },
+		});
+		vi.advanceTimersByTime(5 * 60 * 1000);
+		expect(mockIdentifyAccount).toHaveBeenCalledTimes(2);
+		expect(mockIdentifyAccount).toHaveBeenLastCalledWith(
+			mockTelemetryService,
+			expect.objectContaining({ id: "usr-123", organizationId: "org-2" }),
+		);
+	});
+
 	it("survives provider settings read failures", () => {
 		mockGetProviderSettings.mockImplementation(() => {
 			throw new Error("corrupt settings");

@@ -3,9 +3,9 @@ import { getShell, getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
-	TerminalInfo as ITerminalInfo,
-	ITerminalManager,
-	TerminalProcessResultPromise as ITerminalProcessResultPromise,
+	getUnobservedTerminalCommandDisposition,
+	type TerminalInfo as ITerminalInfo,
+	type TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
@@ -13,6 +13,8 @@ import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 const CWD_COMMAND_TIMEOUT_MS = 5000
 const CWD_STATE_TIMEOUT_MS = 1000
+
+type CwdChangeResult = "observed" | "unobserved"
 
 /*
 TerminalManager:
@@ -71,41 +73,12 @@ Resources:
 - https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
-/*
-The new shellIntegration API gives us access to terminal command execution output handling.
-However, we don't update our VSCode type definitions or engine requirements to maintain compatibility
-with older VSCode versions. Users on older versions will automatically fall back to using sendText
-for terminal command execution.
-Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
-This approach allows us to leverage advanced features when available while ensuring broad compatibility.
-*/
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
-	interface Window {
-		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
-			thisArgs?: any,
-			disposables?: vscode.Disposable[],
-		) => vscode.Disposable
-	}
-}
-
-export class VscodeTerminalManager implements ITerminalManager {
+export class VscodeTerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
-	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
 
 	/**
@@ -120,18 +93,13 @@ export class VscodeTerminalManager implements ITerminalManager {
 	}
 
 	constructor() {
-		let disposable: vscode.Disposable | undefined
-		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
-				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
-				e?.execution?.read()
-			})
-		} catch (_error) {
-			// Logger.error("Error setting up onDidEndTerminalShellExecution", error)
-		}
-		if (disposable) {
-			this.disposables.push(disposable)
-		}
+		// onDidStartTerminalShellExecution has been stable API since VS Code 1.93,
+		// below our minimum supported version (see package.json engines.vscode).
+		const startDisposable = vscode.window.onDidStartTerminalShellExecution((e) => {
+			// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
+			e.execution.read()
+		})
+		this.disposables.push(startDisposable)
 
 		// Add a listener for terminal state changes to detect CWD updates
 		try {
@@ -141,7 +109,8 @@ export class VscodeTerminalManager implements ITerminalManager {
 					// Check if CWD has been updated to match the expected path
 					if (this.isCwdMatchingExpected(terminalInfo)) {
 						const resolver = terminalInfo.cwdResolved.resolve
-						terminalInfo.pendingCwdChange = undefined
+						// Keep the target until the acquisition's finally block so the
+						// caller can confirm the resolved state before handing off.
 						terminalInfo.cwdResolved = undefined
 						resolver()
 					}
@@ -184,7 +153,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 	// VS Code shell integration sometimes finishes the internal `cd` command without
 	// reporting completion through the execution stream. Timeout this setup step so
 	// the user's actual command is still sent instead of leaving the chat stuck.
-	private async runCwdChangeCommand(terminalInfo: TerminalInfo, cwd: string): Promise<boolean> {
+	private async runCwdChangeCommand(terminalInfo: TerminalInfo, cwd: string): Promise<CwdChangeResult> {
 		const command = `cd "${cwd}"`
 		const shellIntegration = terminalInfo.terminal.shellIntegration
 
@@ -194,7 +163,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 				`[TerminalManager] Shell integration executeCommand is unavailable while changing terminal ${terminalInfo.id} cwd. Proceeding after ${CWD_COMMAND_TIMEOUT_MS}ms.`,
 			)
 			await new Promise((resolve) => setTimeout(resolve, CWD_COMMAND_TIMEOUT_MS))
-			return true
+			return "unobserved"
 		}
 
 		let timeout: NodeJS.Timeout | undefined
@@ -216,14 +185,21 @@ export class VscodeTerminalManager implements ITerminalManager {
 			])
 		} catch (error) {
 			Logger.warn(`[TerminalManager] Failed to observe terminal ${terminalInfo.id} cwd command completion`, error)
-			return true
+			throw error
 		} finally {
 			if (timeout) {
 				clearTimeout(timeout)
 			}
 		}
 
-		return didTimeOut
+		return didTimeOut ? "unobserved" : "observed"
+	}
+
+	private runTerminalProcess(process: VscodeTerminalProcess, terminal: vscode.Terminal, command: string): void {
+		void process.run(terminal, command).catch((error) => {
+			process.releaseActiveExecutionResources()
+			process.emit("error", error instanceof Error ? error : new Error(String(error)))
+		})
 	}
 
 	runCommand(terminalInfo: ITerminalInfo, command: string): ITerminalProcessResultPromise {
@@ -233,6 +209,12 @@ export class VscodeTerminalManager implements ITerminalManager {
 		Logger.log(`[TerminalManager] Running command on terminal ${vscodeTerminalInfo.id}: "${command}"`)
 		Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} busy state before: ${vscodeTerminalInfo.busy}`)
 
+		try {
+			vscodeTerminalInfo.terminal.show()
+		} catch (error) {
+			vscodeTerminalInfo.busy = false
+			throw error
+		}
 		vscodeTerminalInfo.busy = true
 		vscodeTerminalInfo.lastCommand = command
 		const process = new VscodeTerminalProcess()
@@ -242,14 +224,23 @@ export class VscodeTerminalManager implements ITerminalManager {
 			Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} completed, setting busy to false`)
 			vscodeTerminalInfo.busy = false
 		})
+		process.once("error", () => {
+			// A stream/API failure does not prove the launched command stopped.
+			// Evict the terminal from Cline reuse without disposing potentially
+			// active user work.
+			this.evictTerminal(vscodeTerminalInfo)
+		})
 
-		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
-		process.once("no_shell_integration", () => {
-			Logger.log(`no_shell_integration received for terminal ${vscodeTerminalInfo.id}`)
-			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
-			TerminalRegistry.removeTerminal(vscodeTerminalInfo.id)
-			this.terminalIds.delete(vscodeTerminalInfo.id)
-			this.processes.delete(vscodeTerminalInfo.id)
+		process.once("unobserved_command", (outcome) => {
+			Logger.log(`unobserved_command (${outcome.source}) received for terminal ${vscodeTerminalInfo.id}`)
+			this.evictTerminal(vscodeTerminalInfo)
+			// Markerless streams (for example, an SSH session) and commands Cline no
+			// longer owns remain open. Ordinary managed sendText fallbacks are
+			// reclaimed at the next acquisition, after this tool result can report
+			// that their completion is indeterminate.
+			if (getUnobservedTerminalCommandDisposition(outcome) === "disposeBeforeNextTerminalAcquisition") {
+				TerminalRegistry.queueTerminalForCleanup(vscodeTerminalInfo)
+			}
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {
@@ -265,7 +256,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (vscodeTerminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(vscodeTerminalInfo.terminal, command)
+			this.runTerminalProcess(process, vscodeTerminalInfo.terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			Logger.log(
@@ -289,7 +280,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						existingProcess.run(vscodeTerminalInfo.terminal, command)
+						this.runTerminalProcess(existingProcess, vscodeTerminalInfo.terminal, command)
 					}
 				})
 		}
@@ -297,10 +288,30 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return mergePromise(process, promise)
 	}
 
-	async getOrCreateTerminal(cwd: string): Promise<ITerminalInfo> {
+	/**
+	 * A pre-start cancellation takes effect immediately for the tool result. The
+	 * in-flight acquisition still owns its exact reservation until it settles;
+	 * release that reservation here without starting or disposing the terminal.
+	 */
+	releaseTerminalReservation(terminalInfo: ITerminalInfo): void {
+		const vscodeTerminalInfo = terminalInfo as unknown as TerminalInfo
+		vscodeTerminalInfo.busy = false
+	}
+
+	/**
+	 * @param profileId Terminal profile to create/match the terminal with.
+	 * Defaults to the current setting; callers that captured the profile
+	 * earlier (e.g. when the model request was built) pass it here so a
+	 * settings change does not switch shells under an in-flight tool call.
+	 * The returned terminal is reserved until runCommand() takes ownership.
+	 */
+	async getOrCreateTerminal(cwd: string, profileId: string = this.defaultTerminalProfile): Promise<ITerminalInfo> {
+		// A fallback terminal becomes cleanup-eligible when its unobserved-command
+		// outcome is emitted. Dispose the snapshot of eligible terminals before
+		// selecting a terminal for this acquisition.
+		TerminalRegistry.disposeTerminalsPendingCleanup()
 		const terminals = TerminalRegistry.getAllTerminals()
-		const expectedShellPath =
-			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+		const expectedShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
 		// Resolve effective shell for comparison (so "default" and "zsh" match on macOS)
 		const effectiveExpected = VscodeTerminalManager.effectiveShellPath(expectedShellPath)
 
@@ -328,6 +339,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 		})
 		if (matchingTerminal) {
 			Logger.log(`[TerminalManager] Found matching terminal ${matchingTerminal.id} in correct cwd`)
+			// Reserve synchronously before returning so parallel acquisitions cannot
+			// select this terminal before runCommand() marks it busy.
+			matchingTerminal.busy = true
 			this.terminalIds.add(matchingTerminal.id)
 			// Cast to ITerminalInfo for interface compatibility
 			return matchingTerminal as unknown as ITerminalInfo
@@ -340,42 +354,78 @@ export class VscodeTerminalManager implements ITerminalManager {
 			)
 			if (availableTerminal) {
 				availableTerminal.busy = true
-
-				// Set up promise and tracking for CWD change
-				const cwdPromise = new Promise<void>((resolve, reject) => {
-					availableTerminal.pendingCwdChange = cwd
-					availableTerminal.cwdResolved = { resolve, reject }
-				})
-
+				let didHandOffReservation = false
 				try {
-					const didCwdCommandTimeOut = await this.runCwdChangeCommand(availableTerminal, cwd)
+					// Set up promise and tracking for CWD change after reserving the
+					// terminal so parallel acquisitions cannot select it.
+					const cwdPromise = new Promise<void>((resolve, reject) => {
+						availableTerminal.pendingCwdChange = cwd
+						availableTerminal.cwdResolved = { resolve, reject }
+					})
+					// Showing the reused terminal gives VS Code a chance to initialize shell integration.
+					// runCommand() below waits up to shellIntegrationTimeout for executeCommand before falling back.
+					availableTerminal.terminal.show()
+
+					let cwdChangeResult: CwdChangeResult | undefined
+					try {
+						cwdChangeResult = await this.runCwdChangeCommand(availableTerminal, cwd)
+					} catch (error) {
+						// The user's command has not started. The failed setup command may
+						// still change this terminal later, so evict it and continue with a
+						// fresh terminal rooted at the requested cwd.
+						Logger.warn(
+							`[TerminalManager] Failed to prepare terminal ${availableTerminal.id} for "${cwd}"; creating a new terminal`,
+							error,
+						)
+						this.evictTerminal(availableTerminal)
+					}
 
 					// Add a small delay to ensure terminal is ready after cd
-					if (!didCwdCommandTimeOut) {
+					if (cwdChangeResult === "observed") {
 						await new Promise((resolve) => setTimeout(resolve, 100))
 					}
 
 					// Either resolve immediately if CWD already updated or wait for event/timeout
-					if (this.isCwdMatchingExpected(availableTerminal)) {
+					const isCwdConfirmed = this.isCwdMatchingExpected(availableTerminal)
+					if (isCwdConfirmed) {
 						if (availableTerminal.cwdResolved) {
 							availableTerminal.cwdResolved.resolve()
 						}
-					} else if (!didCwdCommandTimeOut) {
+					} else if (cwdChangeResult === "observed") {
 						await Promise.race([cwdPromise, new Promise((resolve) => setTimeout(resolve, CWD_STATE_TIMEOUT_MS))])
 					}
+
+					if (cwdChangeResult !== undefined && availableTerminal.terminal.exitStatus !== undefined) {
+						TerminalRegistry.removeTerminal(availableTerminal.id)
+						throw new Error("The terminal's shell process exited while preparing to run the command.")
+					}
+
+					if (cwdChangeResult !== undefined && this.isCwdMatchingExpected(availableTerminal)) {
+						this.terminalIds.add(availableTerminal.id)
+						didHandOffReservation = true
+						return availableTerminal as unknown as ITerminalInfo
+					}
+
+					// Never run a command in a terminal whose working directory could
+					// not be confirmed. The setup command may still take effect later,
+					// so evict this terminal and create a fresh one at the requested cwd.
+					Logger.warn(
+						`[TerminalManager] Could not confirm terminal ${availableTerminal.id} changed to "${cwd}"; creating a new terminal`,
+					)
+					this.evictTerminal(availableTerminal)
 				} finally {
 					availableTerminal.pendingCwdChange = undefined
 					availableTerminal.cwdResolved = undefined
-					availableTerminal.busy = false
+					if (!didHandOffReservation) {
+						availableTerminal.busy = false
+					}
 				}
-				this.terminalIds.add(availableTerminal.id)
-				// Cast to ITerminalInfo for interface compatibility
-				return availableTerminal as unknown as ITerminalInfo
 			}
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
+		newTerminalInfo.busy = true
 		this.terminalIds.add(newTerminalInfo.id)
 		// Cast to ITerminalInfo for interface compatibility
 		return newTerminalInfo as unknown as ITerminalInfo
@@ -419,17 +469,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.terminalReuseEnabled = enabled
 	}
 
-	public processOutput(outputLines: string[], overrideLimit?: number): string {
-		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
-		return outputLines.join("\n").trim()
-	}
-
 	setDefaultTerminalProfile(profileId: string): void {
 		// Just update the profile setting. We don't close existing terminals —
 		// they stay open and are reusable if the user switches back. New
@@ -439,55 +478,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.defaultTerminalProfile = profileId
 	}
 
-	/**
-	 * Filters terminals based on a provided criteria function
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean
-	 * @returns Array of terminals that match the criteria
-	 */
-	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
-		const terminals = TerminalRegistry.getAllTerminals()
-		return terminals.filter(filterFn)
-	}
-
-	/**
-	 * Closes terminals that match the provided criteria
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
-	 * @param force If true, closes even busy terminals (with warning)
-	 * @returns Number of terminals closed
-	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
-		const terminalsToClose = this.filterTerminals(filterFn)
-		let closedCount = 0
-
-		for (const terminalInfo of terminalsToClose) {
-			// Skip busy terminals unless force is true
-			if (terminalInfo.busy && !force) {
-				continue
-			}
-
-			// Remove from our tracking
-			if (this.terminalIds.has(terminalInfo.id)) {
-				this.terminalIds.delete(terminalInfo.id)
-			}
-			this.processes.delete(terminalInfo.id)
-
-			// Dispose the actual terminal
-			terminalInfo.terminal.dispose()
-
-			// Remove from registry
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-
-			closedCount++
-		}
-
-		return closedCount
-	}
-
-	/**
-	 * Forces closure of all terminals (including busy ones)
-	 * @returns Number of terminals closed
-	 */
-	closeAllTerminals(): number {
-		return this.closeTerminals(() => true, true)
+	private evictTerminal(terminalInfo: TerminalInfo): void {
+		this.terminalIds.delete(terminalInfo.id)
+		this.processes.delete(terminalInfo.id)
+		TerminalRegistry.removeTerminal(terminalInfo.id)
 	}
 }

@@ -1,8 +1,6 @@
 import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
-import { getFeatureFlagsService } from "@/services/feature-flags"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { getProviderSettingsManager } from "../provider-migration"
 import type {
 	CatalogError,
@@ -192,9 +190,8 @@ function toProviderListing(provider: ProviderListItem): ProviderListing {
 
 async function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
 	const manager = getProviderSettingsManager()
-	const featureFlags = getFeatureFlagsService()
 	const { providers } = await listLocalProviders(manager, {
-		isClinePassEnabled: featureFlags.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+		isClinePassEnabled: true,
 	})
 	return providers.map(toProviderListing)
 }

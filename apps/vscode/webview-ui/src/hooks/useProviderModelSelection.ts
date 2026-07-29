@@ -6,6 +6,14 @@ import { useCallback } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import type { ProviderModelSelection } from "./useProviderConfig"
 
+type ProviderModelSelectionInput =
+	| (Omit<ProviderModelSelection, "providerId"> & { modelInfo?: ModelInfo })
+	| (ProviderModelSelection & { modelInfo?: ModelInfo })
+
+interface DisplayProviderModelSelection extends ProviderModelSelection {
+	modelInfo: ModelInfo
+}
+
 interface UseProviderModelSelectionOptions {
 	models: Record<string, ModelInfo>
 	defaultModelId?: string
@@ -36,17 +44,18 @@ export function useProviderModelSelection(
 			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
 			fallbackModelInfo)
 
-	const selectedModel: ProviderModelSelection = {
+	const selectedModel: DisplayProviderModelSelection = {
 		providerId,
 		modelId: selectedModelId,
 		modelInfo: selectedModelInfo,
 	}
 
 	const commitModelSelection = useCallback(
-		(selection: Omit<ProviderModelSelection, "providerId"> | ProviderModelSelection) => {
+		(selection: ProviderModelSelectionInput) => {
 			return commitSelection(currentMode, {
-				...selection,
 				providerId,
+				modelId: selection.modelId,
+				...(selection.overrides !== undefined ? { overrides: selection.overrides } : {}),
 			})
 		},
 		[commitSelection, currentMode, providerId],

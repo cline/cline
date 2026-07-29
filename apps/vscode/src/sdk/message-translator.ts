@@ -20,7 +20,8 @@
 // - SDK "agent_event" content_end → ClineMessage with partial=false
 // - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
 // - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage say="completion_result" (final)
-// - SDK "agent_event" done → ClineMessage ask="completion_result" (always; must be last message)
+// - SDK "agent_event" done (reason "completed", turn ended on text) → retags that final
+//   say="text" row in place to say="completion_result" (act) / say="plan_completion_result" (plan)
 // - SDK "agent_event" error → ClineMessage say="error"
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
@@ -33,6 +34,7 @@ import type {
 	ClineApiReqInfo,
 	ClineAskUseMcpServer,
 	ClineAskUseSubagents,
+	ClineCompactionInfo,
 	ClineMessage,
 	ClineSay,
 	ClineSaySubagentStatus,
@@ -124,6 +126,14 @@ export class MessageTranslatorState {
 	private streamingToolName: string | undefined
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
+	/**
+	 * The in-flight compaction divider's ts, so the "completed"/"skipped" notice
+	 * (or a turn error/abort) updates the same row in place. Deliberately NOT
+	 * cleared by the per-iteration `reset()`: the started/completed notices both
+	 * fire inside prepareTurn, before the next `iteration_start`, but an error
+	 * or abort mid-compaction must still be able to finalize the open row.
+	 */
+	private openCompactionTs: number | undefined
 	/** Tool calls rejected by the user; they should not render as red tool failures. */
 	private deniedToolApprovalsByCallId = new Map<string, { toolName: string; reason: string }>()
 	/**
@@ -135,6 +145,7 @@ export class MessageTranslatorState {
 	constructor(
 		minter: MessageIdMinter = new MessageIdMinter(),
 		private readonly getActiveProviderId?: () => string | undefined,
+		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
 	) {
 		this.minter = minter
 	}
@@ -142,6 +153,15 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/**
+	 * Plan/act mode governing the current turn, used to style the inferred turn-final
+	 * response (plan → yellow plan box, act/yolo → green completion box).
+	 * Defaults to act when the host doesn't supply a mode source.
+	 */
+	currentUiMode(): "plan" | "act" {
+		return this.getUiMode?.() === "plan" ? "plan" : "act"
 	}
 
 	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
@@ -152,6 +172,19 @@ export class MessageTranslatorState {
 	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
 	nextTs(): number {
 		return this.minter.nextId()
+	}
+
+	/** Mint and remember the ts of an in-flight compaction divider. */
+	beginCompaction(): number {
+		this.openCompactionTs = this.nextTs()
+		return this.openCompactionTs
+	}
+
+	/** Take (and clear) the in-flight compaction divider's ts, if any. */
+	takeOpenCompactionTs(): number | undefined {
+		const ts = this.openCompactionTs
+		this.openCompactionTs = undefined
+		return ts
 	}
 
 	/** Get and increment for streaming text */
@@ -288,6 +321,54 @@ export class MessageTranslatorState {
 		return this.attemptCompletionSeen
 	}
 
+	/** Whether a provider/agent error surfaced in this turn (ask:"api_req_failed" emitted) */
+	private errorSeen = false
+
+	/** Mark that this turn surfaced an error */
+	setErrorSeen(): void {
+		this.errorSeen = true
+	}
+
+	/** Check if this turn surfaced an error — drives the "error" turn phase (Retry / New Task) */
+	wasErrorSeen(): boolean {
+		return this.errorSeen
+	}
+
+	// -----------------------------------------------------------------------
+	// Turn-final text tracking — the SDK agent usually ends a turn with a plain
+	// text response instead of a completion tool. When a turn ends cleanly with
+	// text as its last content, that text row is retagged in place (same ts) to
+	// say:"completion_result" (act) or say:"plan_completion_result" (plan) so
+	// the webview shows the legacy-style completion feedback box.
+	// -----------------------------------------------------------------------
+
+	/** ts of the last finalized (non-partial, non-empty) text message of the current turn */
+	private turnFinalTextTs: number | undefined
+	/** Text of the message tracked by turnFinalTextTs */
+	private turnFinalText = ""
+
+	/** Remember the most recent finalized text as the candidate turn-final response. */
+	recordTurnFinalText(ts: number, text: string): void {
+		this.turnFinalTextTs = ts
+		this.turnFinalText = text
+	}
+
+	/** Forget the candidate turn-final text (tool activity means the turn didn't end on it). */
+	clearTurnFinalText(): void {
+		this.turnFinalTextTs = undefined
+		this.turnFinalText = ""
+	}
+
+	/** Take (and clear) the candidate turn-final text, if any. */
+	takeTurnFinalText(): { ts: number; text: string } | undefined {
+		if (this.turnFinalTextTs === undefined) {
+			return undefined
+		}
+		const result = { ts: this.turnFinalTextTs, text: this.turnFinalText }
+		this.clearTurnFinalText()
+		return result
+	}
+
 	// -----------------------------------------------------------------------
 	// spawn_agent tracking — aggregates parallel spawn_agent tool calls into
 	// the rich SubagentStatusRow UI (use_subagents + subagent messages).
@@ -409,12 +490,15 @@ export class MessageTranslatorState {
 	}
 
 	/**
-	 * Clear turn-outcome signals (`attemptCompletionSeen`). Called at a new user turn / task
-	 * boundary so each turn's phase is computed fresh; it is intentionally separate from the
-	 * per-iteration `reset()` so the completion signal persists across the iterations of one turn.
+	 * Clear turn-outcome signals (`attemptCompletionSeen`, the turn-final text candidate).
+	 * Called at a new user turn / task boundary so each turn's phase is computed fresh; it is
+	 * intentionally separate from the per-iteration `reset()` so the completion signal persists
+	 * across the iterations of one turn.
 	 */
 	clearTurnOutcome(): void {
 		this.attemptCompletionSeen = false
+		this.errorSeen = false
+		this.clearTurnFinalText()
 	}
 }
 
@@ -486,7 +570,11 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 				getStringField(parsedInput, "content")
 			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
 			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
-			const isEdit = toolName === "replace_in_file" || !!oldText
+			// `insert_line` inserts into an existing file (the SDK editor executor requires
+			// the file to already exist), so it is an edit — not a new-file creation. Without
+			// this the card mislabels a prepend/insert as "Cline wants to create a new file".
+			const insertLine = getNumberField(parsedInput, "insert_line")
+			const isEdit = toolName === "replace_in_file" || !!oldText || insertLine != null
 
 			// When the SDK provides both old and new text, build a search/replace
 			// diff in the format DiffEditRow expects. ChatRow passes `content` to
@@ -649,8 +737,9 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
 
 /**
  * Whether a tool name is the agent's completion tool — the one that declares the task done and
- * drives the green "Task Completed" box plus the `completed` turn phase. Two names are accepted:
- * the VSCode extra tool `attempt_completion` and the SDK's built-in `submit_and_exit`
+ * drives the green completion box plus the `completed` turn phase. Two names are accepted:
+ * the legacy VSCode extra tool `attempt_completion` (no longer registered for new sessions,
+ * but still present in persisted transcripts) and the SDK's built-in `submit_and_exit`
  * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
  */
 function isCompletionTool(toolName: string): boolean {
@@ -923,6 +1012,83 @@ export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts
 /**
  * Translate an SDK AgentEvent into ClineMessage(s).
  */
+/**
+ * Extract a compaction divider payload from a status notice's metadata.
+ * Mirrors the CLI's parseCompactionNoticeMetadata
+ * (apps/cli/src/tui/utils/compaction-status.ts). Returns undefined for
+ * non-compaction status notices.
+ */
+export function parseCompactionNoticeMetadata(metadata: Record<string, unknown> | undefined): ClineCompactionInfo | undefined {
+	if (!metadata || (metadata.phase !== "started" && metadata.phase !== "completed" && metadata.phase !== "skipped")) {
+		return undefined
+	}
+	const kind = metadata.kind ?? metadata.reason
+	if (kind !== "auto_compaction" && kind !== "manual_compaction") {
+		return undefined
+	}
+	const mode = kind === "manual_compaction" ? "manual" : "auto"
+	if (metadata.phase === "started") {
+		return { status: "started", mode }
+	}
+	if (metadata.phase === "skipped") {
+		return { status: "skipped", mode }
+	}
+	return {
+		status: "completed",
+		mode,
+		tokensBefore: asFiniteNumber(metadata.tokensBefore),
+		tokensAfter: asFiniteNumber(metadata.tokensAfter),
+		messagesBefore: asFiniteNumber(metadata.messagesBefore),
+		messagesAfter: asFiniteNumber(metadata.messagesAfter),
+	}
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * Status notices that are internal diagnostics with no user-facing copy — their
+ * `message` is a slug, not prose. Only these are suppressed; an unlisted status
+ * notice renders as an info row so it doesn't vanish silently. Keep in sync
+ * with the `emitStatusNotice` call sites in
+ * sdk/packages/core/src/extensions/context/compaction.ts (the compaction phase
+ * slugs are handled above via parseCompactionNoticeMetadata instead).
+ */
+const INTERNAL_STATUS_NOTICES = new Set(["compaction-budget-adjusted"])
+
+/** Build the say:"compaction" divider message for a compaction status payload. */
+export function buildCompactionMessage(info: ClineCompactionInfo, ts: number): ClineMessage {
+	return {
+		ts,
+		type: "say",
+		say: "compaction",
+		text: JSON.stringify(info),
+		partial: false,
+	}
+}
+
+/**
+ * Finalize a dangling "started" compaction divider when the turn ends without
+ * the completed/skipped notice (mid-compaction abort or error).
+ *
+ * This covers auto compaction (driven by turn events). Manual compaction runs
+ * outside a turn, so SdkCompactionCoordinator.runCompaction finalizes its own
+ * dangling divider in its catch block — if the terminal-state rules change
+ * here, change them there too.
+ */
+function finalizeDanglingCompaction(
+	state: MessageTranslatorState,
+	messages: ClineMessage[],
+	status: "cancelled" | "failed",
+): void {
+	const ts = state.takeOpenCompactionTs()
+	if (ts === undefined) {
+		return
+	}
+	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
+}
+
 function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
 	const messages: ClineMessage[] = []
 
@@ -966,6 +1132,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					const toolName = event.toolName ?? "unknown"
 					const input = event.input
 
+					// Tool activity after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
+
 					if (state.isToolApprovalDenied(event.toolCallId)) {
 						break
 					}
@@ -987,7 +1157,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// The completion tool (attempt_completion / submit_and_exit) is handled specially:
-					// it drives the green "Task Completed" rectangle. We emit say:"completion_result"
+					// it drives the green completion box. We emit say:"completion_result"
 					// here (partial) and finalize it at content_end. Recording attemptCompletionSeen
 					// makes the turn end in the "completed" phase ("Start New Task") rather than
 					// "awaiting_followup".
@@ -1129,13 +1299,19 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			switch (event.contentType) {
 				case "text": {
 					const ts = state.clearStreamingText()
+					const finalText = event.text ?? ""
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.text ?? "",
+						text: finalText,
 						partial: false,
 					})
+					// Candidate for the turn-final response: if the turn ends cleanly with
+					// this text as its last content, `done` retags it as a completion row.
+					if (finalText.trim()) {
+						state.recordTurnFinalText(ts, finalText)
+					}
 					break
 				}
 				case "reasoning": {
@@ -1153,6 +1329,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					// A completed tool call after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
 
 					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
 						state.clearStreamingTool()
@@ -1235,14 +1415,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// Completion tool (attempt_completion / submit_and_exit) → finalize the green
-					// "Task Completed" rectangle. The partial say:"completion_result" was emitted at
+					// completion box. The partial say:"completion_result" was emitted at
 					// content_start; here we emit the non-partial version.
 					if (isCompletionTool(toolName)) {
 						const storedInput = state.getStreamingToolInput()
 						const ts = state.clearStreamingTool()
 						const resultText = getCompletionResultText(storedInput)
 						// Finalize the say:"completion_result" (non-partial)
-						// This renders the green "Task Completed" rectangle.
+						// This renders the green completion box.
 						messages.push({
 							ts,
 							type: "say",
@@ -1401,7 +1581,28 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "notice": {
-			// Agent notices are informational
+			// Status notices carry structured runtime progress. Compaction ones
+			// become a live divider row that is updated in place from "started" to
+			// its terminal state; the known-internal ones are diagnostics with no
+			// user-facing copy, so drop them explicitly. Any other status notice
+			// falls through to the info row below so a future one surfaces (as its
+			// raw slug) instead of silently vanishing.
+			if (event.noticeType === "status") {
+				const compaction = parseCompactionNoticeMetadata(event.metadata)
+				if (compaction) {
+					const ts =
+						compaction.status === "started"
+							? state.beginCompaction()
+							: (state.takeOpenCompactionTs() ?? state.nextTs())
+					messages.push(buildCompactionMessage(compaction, ts))
+					break
+				}
+				if (INTERNAL_STATUS_NOTICES.has(event.message ?? "")) {
+					break
+				}
+			}
+
+			// Non-status agent notices (and unrecognized status notices) are informational
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -1435,18 +1636,54 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. This emits no transcript message — it only signals
-			// turnComplete to the caller. UI mode comes from the authoritative TurnState the
+			// Agent turn is complete. Footer/buttons come from the authoritative TurnState the
 			// session-event coordinator sets on turn end (completed when the completion tool was
-			// used this turn, otherwise awaiting_followup), and the green "Task Completed" box
-			// comes from the say:"completion_result" emitted at the completion tool's content_end.
+			// used this turn, otherwise awaiting_followup) — never from the message tail.
+			// A compaction divider still open here means the turn was aborted mid-compaction.
+			finalizeDanglingCompaction(state, messages, "cancelled")
+
+			// A turn can terminate with done(reason:"error") without a separate
+			// "error" event — record the error outcome here too so turn end still
+			// resolves to the "error" phase (Retry / Start New Task).
+			if (event.reason === "error") {
+				state.setErrorSeen()
+			}
+
+			// Inferred completion feedback: the SDK agent normally ends a turn with a plain
+			// text response rather than a completion tool. When the turn ended cleanly and its
+			// last content was text, retag that text row in place (same ts → upserted by the
+			// message store / webview reducer) so the user gets the legacy-style "done" visual:
+			// green box in act mode, yellow plan box in plan mode. Turns
+			// that ended via the completion tool already rendered their green box at the tool's
+			// content_end; aborted/errored turns keep their plain text.
+			if (event.reason === "completed" && !state.wasAttemptCompletionSeen()) {
+				const finalText = state.takeTurnFinalText()
+				if (finalText) {
+					messages.push({
+						ts: finalText.ts,
+						type: "say",
+						say: state.currentUiMode() === "plan" ? "plan_completion_result" : "completion_result",
+						text: finalText.text,
+						partial: false,
+					})
+				}
+			} else {
+				state.clearTurnFinalText()
+			}
 			break
 		}
 
 		case "error": {
+			finalizeDanglingCompaction(state, messages, "failed")
+			// An errored turn didn't end on its text response — no completion retag.
+			state.clearTurnFinalText()
 			if (state.isSuppressedToolApprovalDenial(event.error)) {
 				break
 			}
+
+			// Record the error outcome so turn end resolves to the "error" phase
+			// (footer shows Retry / Start New Task) instead of awaiting_followup.
+			state.setErrorSeen()
 
 			// Serialize the error message for the webview's ErrorRow to parse.
 			// The webview uses ClineError.parse() on the `api_req_failed` text to
@@ -1681,6 +1918,12 @@ type SdkMessageWithMetrics = SdkMessage & {
 		cacheWriteTokens?: number
 		cost?: number
 	}
+	/**
+	 * Plan/act mode recovered from the persisted <user_input mode="..."> wrapper before display
+	 * sanitization strips it (see sanitizeSdkUserMessagesForDisplay in sdk-task-history.ts).
+	 * Only meaningful on user messages; governs the turn that follows.
+	 */
+	uiMode?: "plan" | "act" | "yolo"
 }
 
 function textContentBlocksToText(content: SdkMessage["content"]): string {
@@ -1787,16 +2030,35 @@ function finalizePersistedToolUse(
 	)
 }
 
+export interface SdkMessagesToClineMessagesOptions {
+	/**
+	 * Whether the transcript's LAST agent turn ended cleanly (per the session record's status).
+	 * Only that final turn is ever retagged into the inferred completion row — persisted
+	 * transcripts carry no per-turn outcome, so earlier turns always render as plain text —
+	 * and the terminal text of a session that failed, was cancelled, or died mid-run must not
+	 * be retagged either, or a reopened broken task would render its dangling response as a
+	 * green/plan "done" box. Defaults to true.
+	 */
+	finalTurnCompleted?: boolean
+}
+
 /**
  * Convert SDK-persisted LLM messages back into the ClineMessage format used by
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], minter?: MessageIdMinter): ClineMessage[] {
+export function sdkMessagesToClineMessages(
+	messages: SdkMessageWithMetrics[],
+	minter?: MessageIdMinter,
+	options?: SdkMessagesToClineMessagesOptions,
+): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
+	// Plan/act mode of the turn currently being replayed, recovered from each user message's
+	// persisted <user_input mode="..."> wrapper (stamped as `uiMode` before sanitization).
+	let currentMode: "plan" | "act" | "yolo" | undefined
 	// Use the process-wide minter when provided so regenerated history ids are globally unique
 	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
-	const state = new MessageTranslatorState(minter)
+	const state = new MessageTranslatorState(minter, undefined, () => currentMode)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
@@ -1804,6 +2066,34 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state))
 		}
 		pendingToolUses.clear()
+	}
+
+	// Add or update by ts — the synthesized turn-end `done` below retags an already-emitted
+	// text row in place (same ts), mirroring the live path's upsert-by-ts message store.
+	const upsertClineMessages = (updates: ClineMessage[]) => {
+		for (const update of updates) {
+			const existingIndex = clineMessages.findIndex((m) => m.ts === update.ts)
+			if (existingIndex !== -1) {
+				clineMessages[existingIndex] = update
+			} else {
+				clineMessages.push(update)
+			}
+		}
+	}
+
+	// Close out the transcript's FINAL agent turn by replaying the same `done` translation as
+	// the live path, so a final turn that ended on a text response gets the inferred completion
+	// retag (green box in act mode, yellow plan box in plan mode) when rehydrated from SDK
+	// history. Only the final turn is eligible: persisted transcripts carry no per-turn
+	// outcome, so an earlier turn that the user cancelled mid-response and then followed up on
+	// is indistinguishable from one that ended cleanly — retagging it would present an
+	// interrupted response as a deliberate turn end. The final turn's outcome IS known (the
+	// caller gates it on the session record's status via `finalTurnCompleted`).
+	const endFinalTurn = () => {
+		upsertClineMessages(
+			agentEventToMessages({ type: "done", reason: "completed", text: "", iterations: 0 } as AgentEvent, state),
+		)
+		state.clearTurnOutcome()
 	}
 
 	for (const message of messages) {
@@ -1852,6 +2142,10 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 						}
 						break
 					case "tool_use":
+						// Tool activity after a text block means that text wasn't the
+						// turn-final response (also covers dangling tool_use blocks whose
+						// results never arrived — an aborted turn must not retag).
+						state.clearTurnFinalText()
 						pendingToolUses.set(block.id, block)
 						break
 				}
@@ -1863,6 +2157,11 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
+				// Visible user text marks a turn boundary: drop the preceding turn's outcome
+				// signals (its text is NOT retagged — see endFinalTurn) and pick up the mode
+				// of the NEW turn from this message's wrapper.
+				state.clearTurnOutcome()
+				currentMode = message.uiMode ?? currentMode
 				clineMessages.push({
 					ts: state.nextTs(),
 					type: "say",
@@ -1876,6 +2175,8 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
+			state.clearTurnOutcome()
+			currentMode = message.uiMode ?? currentMode
 			clineMessages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -1898,6 +2199,14 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 			pendingToolUses.delete(block.tool_use_id)
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}
+	}
+
+	// Close out the transcript's final agent turn so its terminal text (if the turn ended on
+	// text) gets the inferred completion retag. Skipped when the session record says the last
+	// run failed, was cancelled, or died mid-turn: its terminal text is a dangling partial
+	// response, not a completion, and must stay a plain text row.
+	if (options?.finalTurnCompleted !== false) {
+		endFinalTurn()
 	}
 
 	// Always emit ask:"completion_result"

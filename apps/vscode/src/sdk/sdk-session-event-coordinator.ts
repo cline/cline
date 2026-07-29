@@ -8,10 +8,7 @@ import { isClineManagedProvider } from "@/shared/utils/cline"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
-import type { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
-import type { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import type { TaskProxy } from "./task-proxy"
@@ -26,9 +23,6 @@ export interface SdkSessionEventCoordinatorOptions {
 	messageTranslatorState: MessageTranslatorState
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
-	mcpTools: SdkMcpCoordinator
-	providerChanges?: Pick<SdkProviderChangeCoordinator, "handleTurnComplete">
-	mode: SdkModeCoordinator
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
@@ -114,6 +108,10 @@ export class SdkSessionEventCoordinator {
 				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
 				if (!activeSession.isRunning) {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
+					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
+					// offer error recovery (Retry / Start New Task), not the followup state.
+					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
 					this.options.setTurnPhase?.("completed")
 				} else {
@@ -121,17 +119,6 @@ export class SdkSessionEventCoordinator {
 				}
 
 				this.options.sessions.setRunning(false)
-				this.options.mcpTools.checkDeferredRestart()
-
-				if (this.options.providerChanges) {
-					this.options.providerChanges.handleTurnComplete(this.options.mode).catch((err) => {
-						Logger.error("[SdkController] Failed to process deferred provider restart:", err)
-					})
-				} else if (this.options.mode.hasPendingModeChange()) {
-					this.options.mode.applyPendingModeChange().catch((err) => {
-						Logger.error("[SdkController] applyPendingModeChange failed:", err)
-					})
-				}
 			}
 
 			if (result.usage && activeSession.startResult) {

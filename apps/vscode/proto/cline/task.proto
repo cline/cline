@@ -16,6 +16,9 @@ service TaskService {
   rpc cancelQueuedPrompt(StringRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
+  // Detaches the running foreground terminal command ("Proceed While Running"):
+  // the agent receives the partial output and a log file path for the rest.
+  rpc proceedWhileRunningCommand(EmptyRequest) returns (Empty);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
   // Gets the total size of all tasks

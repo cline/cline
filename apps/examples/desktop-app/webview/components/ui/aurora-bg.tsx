@@ -9,86 +9,133 @@ interface Star {
 	delay: string;
 	duration: string;
 	opacity: number;
+	color: string;
 }
 
-// Big blurred gradient blobs that slowly drift/rotate to fake an aurora.
-// Each entry is [positionClasses, gradient, animationDuration, animationDelay].
-const BLOBS: Array<[string, string, string, string]> = [
-	[
-		"left-[-20%] bottom-[-40%] w-[70%] h-[80%]",
-		"radial-gradient(ellipse at center, oklch(0.55 0.2 278 / 0.55), transparent 70%)",
-		"16s",
-		"0s",
-	],
-	[
-		"left-[25%] bottom-[-50%] w-[60%] h-[90%]",
-		"radial-gradient(ellipse at center, oklch(0.65 0.19 200 / 0.4), transparent 70%)",
-		"22s",
-		"-6s",
-	],
-	[
-		"right-[-15%] bottom-[-40%] w-[65%] h-[85%]",
-		"radial-gradient(ellipse at center, oklch(0.6 0.18 310 / 0.5), transparent 70%)",
-		"19s",
-		"-12s",
-	],
-	[
-		"left-[10%] bottom-[-30%] w-[80%] h-[60%]",
-		"radial-gradient(ellipse at center, oklch(0.75 0.13 340 / 0.35), transparent 70%)",
-		"26s",
-		"-3s",
-	],
-];
+// Big soft gradient blobs that slowly drift to fake an aurora. Softness is
+// baked into the gradient stops (no `filter: blur`) so the layers rasterize
+// once and every animation frame is compositor-only work.
+const BLOBS = [
+	{
+		id: "periwinkle-left",
+		position: "left-[-20%] bottom-[-40%] w-[70%] h-[80%]",
+		gradient:
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-periwinkle) 64%, transparent), color-mix(in oklab, var(--brand-periwinkle) 30%, transparent) 42%, transparent 70%)",
+		duration: "11s",
+		delay: "0s",
+		reverse: false,
+	},
+	{
+		id: "violet-right",
+		position: "right-[-15%] bottom-[-40%] w-[65%] h-[85%]",
+		gradient:
+			"radial-gradient(ellipse at center, color-mix(in oklab, var(--brand-violet) 58%, transparent), color-mix(in oklab, var(--brand-violet) 27%, transparent) 42%, transparent 70%)",
+		duration: "12.5s",
+		delay: "-12s",
+		reverse: true,
+	},
+] as const;
+
+function seededUnit(index: number, salt: number): number {
+	let value =
+		Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b);
+	value ^= value >>> 16;
+	value = Math.imul(value, 0x7feb352d);
+	value ^= value >>> 15;
+	value = Math.imul(value, 0x846ca68b);
+	value ^= value >>> 16;
+	return (value >>> 0) / 0x1_0000_0000;
+}
 
 /**
- * A decorative aurora background built entirely from CSS: blurred gradient
+ * A decorative aurora background built entirely from CSS: soft gradient
  * blobs drifting on keyframe animations, plus twinkling star dots. No canvas,
  * no WebGL, no per-frame JS. Absolutely positioned to fill its nearest
  * positioned parent; pointer events pass through.
  *
+ * Performance contract: no `filter: blur` anywhere (soft edges come from
+ * gradient falloff + static masks) and animations only touch `opacity` and
+ * `transform`, so the whole effect stays on the compositor. Blurring these
+ * full-viewport layers used to force a main-thread re-raster every frame and
+ * dragged the entire app below 10fps on modest hardware.
+ *
  * Keyframes (`aurora-drift`, `aurora-twinkle`) live in app/globals.css.
  */
-export function AuroraBackground({ starCount = 90 }: { starCount?: number }) {
-	// Random star field, generated once per mount.
+export function AuroraBackground({ starCount = 32 }: { starCount?: number }) {
+	// The field is deterministic so server and browser markup always agree.
 	const stars = useMemo<Star[]>(
 		() =>
-			Array.from({ length: starCount }, () => {
+			Array.from({ length: starCount }, (_, index) => {
 				// Squared skew biases stars toward the bottom, where the glow lives.
-				const r = Math.random();
+				const r = seededUnit(index, 1);
+				const sizeRoll = seededUnit(index, 3);
 				return {
-					left: `${Math.random() * 100}%`,
+					left: `${seededUnit(index, 2) * 100}%`,
 					top: `${100 - (1 - r * r) * 45}%`,
-					size: Math.random() < 0.15 ? 3 : Math.random() < 0.5 ? 2 : 1,
-					delay: `${Math.random() * 4}s`,
-					duration: `${1.5 + Math.random() * 3.5}s`,
-					opacity: 0.3 + Math.random() * 0.6,
+					size: sizeRoll < 0.14 ? 4 : sizeRoll < 0.52 ? 3 : 2,
+					delay: `${seededUnit(index, 4) * -5}s`,
+					duration: `${3.5 + seededUnit(index, 5) * 3.5}s`,
+					opacity: 0.35 + seededUnit(index, 6) * 0.6,
+					color:
+						seededUnit(index, 7) > 0.78
+							? "var(--brand-cyan)"
+							: "color-mix(in oklab, white 92%, var(--brand-lilac))",
 				};
 			}),
 		[starCount],
 	);
 
 	return (
-		<div className="pointer-events-none absolute inset-0 overflow-hidden">
-			{BLOBS.map(([position, gradient, duration, delay], idx) => (
+		<div
+			aria-hidden="true"
+			className="pointer-events-none absolute inset-0 overflow-hidden"
+		>
+			<div
+				className="aurora-horizon aurora-soft-band absolute inset-x-[-8%] bottom-[-3%] h-[40%] opacity-60"
+				style={{
+					background:
+						"linear-gradient(90deg, color-mix(in oklab, var(--brand-lilac) 58%, transparent), color-mix(in oklab, var(--brand-magenta) 62%, transparent) 42%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 78%, color-mix(in oklab, var(--brand-cyan) 58%, transparent))",
+				}}
+			/>
+			<div
+				className="aurora-current aurora-soft-band absolute bottom-[3%] left-[-45%] h-[30%] w-[125%] opacity-50"
+				style={{
+					animationDelay: "-2s",
+					animationDuration: "9s",
+					background:
+						"linear-gradient(105deg, transparent 12%, color-mix(in oklab, var(--brand-magenta) 66%, transparent) 38%, color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 58%, transparent 82%)",
+				}}
+			/>
+			<div
+				className="aurora-current aurora-current-reverse aurora-soft-band absolute bottom-[-5%] right-[-42%] h-[34%] w-[120%] opacity-45"
+				style={{
+					animationDelay: "-6s",
+					animationDuration: "12s",
+					background:
+						"linear-gradient(75deg, transparent 10%, color-mix(in oklab, var(--brand-cyan) 62%, transparent) 42%, color-mix(in oklab, var(--brand-violet) 70%, transparent) 64%, transparent 88%)",
+				}}
+			/>
+			{BLOBS.map((blob) => (
 				<div
-					key={`blob${idx}`}
-					className={`absolute blur-3xl animate-[aurora-drift_linear_infinite] ${position}`}
+					key={blob.id}
+					className={`aurora-motion absolute ${blob.reverse ? "aurora-motion-reverse" : ""} ${blob.position}`}
 					style={{
-						background: gradient,
-						animationDuration: duration,
-						animationDelay: delay,
+						background: blob.gradient,
+						animationDuration: blob.duration,
+						animationDelay: blob.delay,
 					}}
 				/>
 			))}
-			{stars.map((s, idx) => (
+			{stars.map((s) => (
 				<span
-					key={`star${idx}`}
-					className="absolute rounded-none bg-[#b8f3ee] animate-[aurora-twinkle_ease-in-out_infinite]"
+					key={`${s.left}-${s.top}`}
+					className="aurora-star absolute rounded-[1px]"
 					style={{
 						left: s.left,
 						top: s.top,
 						width: s.size,
 						height: s.size,
+						background: s.color,
 						opacity: s.opacity,
 						animationDelay: s.delay,
 						animationDuration: s.duration,

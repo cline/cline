@@ -1,4 +1,5 @@
 import {
+	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
 } from "@cline/shared";
@@ -12,7 +13,6 @@ import {
 import { getValidOpenAICodexCredentials, loginOpenAICodex } from "./codex";
 import { getValidOcaCredentials, loginOcaOAuth } from "./oca";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
-import { decodeJwtPayload } from "./utils";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
 
@@ -144,7 +144,10 @@ function saveOAuthCredentials(input: {
 			([, value]) => value !== undefined,
 		),
 	);
-	const metadata = { ...(input.settings?.auth?.metadata ?? {}), ...incomingMetadata };
+	const metadata = {
+		...(input.settings?.auth?.metadata ?? {}),
+		...incomingMetadata,
+	};
 	if (Object.keys(metadata).length > 0) {
 		auth.metadata = metadata;
 	}

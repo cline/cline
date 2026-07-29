@@ -8,10 +8,11 @@ import type {
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
-import { ITerminalManager } from "@/integrations/terminal"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -20,6 +21,7 @@ type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHos
 type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
 type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
 type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
+type ReadFileExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["readFileExecutor"]>
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
@@ -29,9 +31,13 @@ export interface SdkSessionLifecycleOptions {
 	editorExecutor?: EditorExecutorHandler
 	/** Custom `apply_patch` executor (reverts the diff preview, then applies via the SDK default). */
 	applyPatchExecutor?: ApplyPatchExecutorHandler
+	/** Custom `read_files` executor (resolves relative paths against the workspace root). */
+	readFileExecutor?: ReadFileExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
+	/** Registry of in-flight foreground executions for "Proceed While Running". */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
@@ -46,6 +52,7 @@ export interface SdkSessionLifecycleOptions {
 	 * message. Consumed exactly once; null when no switch is pending.
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
+	onDidBecomeIdle?: () => void
 }
 
 export class SdkSessionLifecycle {
@@ -70,8 +77,13 @@ export class SdkSessionLifecycle {
 	}
 
 	setRunning(isRunning: boolean): void {
-		if (this.activeSession) {
-			this.activeSession.isRunning = isRunning
+		const activeSession = this.activeSession
+		if (!activeSession || activeSession.isRunning === isRunning) {
+			return
+		}
+		activeSession.isRunning = isRunning
+		if (!isRunning) {
+			this.options.onDidBecomeIdle?.()
 		}
 	}
 
@@ -104,6 +116,19 @@ export class SdkSessionLifecycle {
 		return activeSession
 	}
 
+	/**
+	 * Resolves once any in-flight stop for `sessionId` has settled. Callers that
+	 * start a session outside startNewSession (e.g. on an isolated host) must
+	 * wait here first, or the old session's late cleanup tears down the new one.
+	 */
+	async waitForPendingStop(sessionId: string): Promise<void> {
+		const pendingStop = this.pendingStops.get(sessionId)
+		if (pendingStop) {
+			Logger.log(`[SdkController] Waiting for session ${sessionId} to stop before restarting it`)
+			await pendingStop
+		}
+	}
+
 	async updateActiveSessionModel(modelId: string): Promise<boolean> {
 		const activeSession = this.activeSession
 		if (!activeSession?.sdkHost.updateSessionModel) {
@@ -124,10 +149,8 @@ export class SdkSessionLifecycle {
 		// Same-id starts must wait for the previous session's stop to finish;
 		// see pendingStops. A fresh id cannot conflict, so it never waits.
 		const requestedSessionId = startInput.config?.sessionId?.trim()
-		const pendingStop = requestedSessionId ? this.pendingStops.get(requestedSessionId) : undefined
-		if (pendingStop) {
-			Logger.log(`[SdkController] Waiting for session ${requestedSessionId} to stop before restarting it`)
-			await pendingStop
+		if (requestedSessionId) {
+			await this.waitForPendingStop(requestedSessionId)
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
@@ -157,6 +180,7 @@ export class SdkSessionLifecycle {
 	}
 
 	async replaceActiveSession(options: {
+		expectedSession: ActiveSession
 		startInput: Parameters<VscodeSessionHost["start"]>[0]
 		initialMessages?: Parameters<VscodeSessionHost["start"]>[0]["initialMessages"]
 		disposeReason: string
@@ -169,7 +193,7 @@ export class SdkSessionLifecycle {
 		| undefined
 	> {
 		const oldSession = this.activeSession
-		if (!oldSession) {
+		if (!oldSession || oldSession !== options.expectedSession || oldSession.isRunning) {
 			return undefined
 		}
 
@@ -314,7 +338,9 @@ export class SdkSessionLifecycle {
 				askQuestion: this.options.askQuestion,
 				editorExecutor: this.options.editorExecutor,
 				applyPatchExecutor: this.options.applyPatchExecutor,
+				readFileExecutor: this.options.readFileExecutor,
 				getTerminalManager: this.options.getTerminalManager,
+				foregroundCommands: this.options.foregroundCommands,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
 			})

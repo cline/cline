@@ -120,6 +120,8 @@ export interface TokenConfig {
 	maxInputTokens?: number;
 	/** Maximum output tokens (overrides model default) */
 	maxOutputTokens?: number;
+	/** Sampling temperature (overrides model default) */
+	temperature?: number;
 }
 
 /**
@@ -307,14 +309,6 @@ export interface ProviderConfig
 
 	/** Task/session ID for telemetry */
 	taskId?: string;
-
-	/** Retry callback */
-	onRetryAttempt?: (
-		attempt: number,
-		maxRetries: number,
-		delay: number,
-		error: unknown,
-	) => void;
 
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;

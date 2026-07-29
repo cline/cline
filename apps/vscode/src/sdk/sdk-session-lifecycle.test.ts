@@ -165,6 +165,19 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("notifies idle listeners only on a running-to-idle transition", async () => {
+		const onDidBecomeIdle = vi.fn()
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeIdle })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.setRunning(false)
+		lifecycle.setRunning(false)
+
+		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
+	})
+
 	it("calls the send-start hook before sending to the SDK host", async () => {
 		const onSendStart = vi.fn()
 		const send = vi.fn().mockResolvedValue(undefined)
@@ -234,12 +247,15 @@ describe("SdkSessionLifecycle", () => {
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle({ onSendComplete })
 		await lifecycle.startNewSession({} as StartInput)
+		const expectedSession = lifecycle.getActiveSession()!
 
 		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "plan-session", "make a plan")
+		lifecycle.setRunning(false)
 
 		// A mode-change rebuild replaces the session, reusing the SAME sessionId,
 		// and starts an auto-continued turn on it.
 		await lifecycle.replaceActiveSession({
+			expectedSession,
 			startInput: { config: {} } as unknown as StartInput,
 			disposeReason: "modeChange",
 		})
@@ -272,10 +288,13 @@ describe("SdkSessionLifecycle", () => {
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle({ onSendError })
 		await lifecycle.startNewSession({} as StartInput)
+		const expectedSession = lifecycle.getActiveSession()!
 
 		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "plan-session", "make a plan")
+		lifecycle.setRunning(false)
 
 		await lifecycle.replaceActiveSession({
+			expectedSession,
 			startInput: { config: {} } as unknown as StartInput,
 			disposeReason: "modeChange",
 		})
@@ -304,8 +323,11 @@ describe("SdkSessionLifecycle", () => {
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle()
 		await lifecycle.startNewSession({} as StartInput)
+		lifecycle.setRunning(false)
+		const expectedSession = lifecycle.getActiveSession()!
 
 		const replacePromise = lifecycle.replaceActiveSession({
+			expectedSession,
 			startInput: { config: { sessionId: "plan-session" } } as unknown as StartInput,
 			disposeReason: "modeChange",
 		})
@@ -338,9 +360,12 @@ describe("SdkSessionLifecycle", () => {
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle()
 		await lifecycle.startNewSession({ config: { sessionId: "task-session" } } as unknown as StartInput)
+		lifecycle.setRunning(false)
+		const expectedSession = lifecycle.getActiveSession()!
 
 		const initialMessages = [{ role: "user", content: "compacted summary" }]
 		const replacePromise = lifecycle.replaceActiveSession({
+			expectedSession,
 			startInput: {
 				config: { sessionId: "task-session" },
 				prompt: undefined,
@@ -426,8 +451,11 @@ describe("SdkSessionLifecycle", () => {
 		const lifecycle = makeLifecycle()
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
+		lifecycle.setRunning(false)
+		const expectedSession = lifecycle.getActiveSession()!
 
 		const result = await lifecycle.replaceActiveSession({
+			expectedSession,
 			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 			startInput: { config: {} } as any,
 			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
@@ -448,6 +476,23 @@ describe("SdkSessionLifecycle", () => {
 		})
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("new-session")
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
+	it("does not replace a session that started running", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+		const expectedSession = lifecycle.getActiveSession()!
+
+		const result = await lifecycle.replaceActiveSession({
+			expectedSession,
+			startInput: {} as StartInput,
+			disposeReason: "test",
+		})
+
+		expect(result).toBeUndefined()
+		expect(sdkHost.stop).not.toHaveBeenCalled()
 	})
 
 	it("adopts the restored session and stops the source session", async () => {
