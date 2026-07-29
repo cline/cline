@@ -9,6 +9,7 @@ import {
 	installMcpServer,
 	installPlugin,
 	isMarketplaceSkillInstalled,
+	listPluginToolsWithDiagnostics,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
 	type MarketplacePrimitiveType,
@@ -36,6 +37,7 @@ import {
 	ToggleMarketplaceLocalInstalledEntryRequest,
 } from "@shared/proto/cline/marketplace"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 type MarketplaceType = "mcp" | "skill" | "plugin"
@@ -442,26 +444,53 @@ function getPluginDisplayName(filePath: string, searchRoot: string): string {
 	return basename(filePath, extname(filePath))
 }
 
-async function listPluginLocalEntries(): Promise<MarketplaceLocalInstalledEntry[]> {
-	const workspacePath = HostProvider.isInitialized() ? (await HostProvider.workspace.getWorkspacePaths({})).paths[0] : undefined
+/**
+ * Load every enabled plugin the same way a session does and index the resulting
+ * failures by plugin path. Without this the Installed list only proves a file
+ * exists on disk, so a plugin that never loads still renders as healthy.
+ */
+async function collectPluginLoadErrors(controller: Controller, workspacePath: string | undefined): Promise<Map<string, string>> {
+	const errors = new Map<string, string>()
+	if (!workspacePath) return errors
+	try {
+		const { providerId, modelId } = getActiveProviderAndModel(controller)
+		const { failures } = await listPluginToolsWithDiagnostics({
+			workspacePath,
+			cwd: workspacePath,
+			providerId,
+			modelId,
+		})
+		for (const failure of failures) {
+			const key = resolve(failure.pluginPath)
+			if (!errors.has(key)) errors.set(key, failure.message)
+		}
+	} catch (error) {
+		// Diagnostics are advisory. A probe that blows up must not stop the
+		// Installed list from rendering.
+		Logger.error("[marketplace] failed to collect plugin load diagnostics", error instanceof Error ? error : undefined)
+	}
+	return errors
+}
+
+async function listPluginLocalEntries(controller: Controller): Promise<MarketplaceLocalInstalledEntry[]> {
+	const workspacePath = await getWorkspacePath()
 	const roots = resolvePluginConfigSearchPaths(workspacePath).filter((directory) => existsSync(directory))
 	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? [])
-	const entries: MarketplaceLocalInstalledEntry[] = []
-	for (const root of roots) {
-		for (const pluginPath of discoverPluginModulePaths(root)) {
-			entries.push(
-				MarketplaceLocalInstalledEntry.create({
-					id: pluginPath,
-					type: "plugin",
-					name: getPluginDisplayName(pluginPath, root),
-					path: pluginPath,
-					source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
-					enabled: !disabledPlugins.has(pluginPath),
-				}),
-			)
-		}
-	}
-	return entries
+	const discovered = roots.flatMap((root) => discoverPluginModulePaths(root).map((pluginPath) => ({ pluginPath, root })))
+	const hasEnabledPlugin = discovered.some(({ pluginPath }) => !disabledPlugins.has(pluginPath))
+	const loadErrors = hasEnabledPlugin ? await collectPluginLoadErrors(controller, workspacePath) : new Map<string, string>()
+	return discovered.map(({ pluginPath, root }) => {
+		const enabled = !disabledPlugins.has(pluginPath)
+		return MarketplaceLocalInstalledEntry.create({
+			id: pluginPath,
+			type: "plugin",
+			name: getPluginDisplayName(pluginPath, root),
+			path: pluginPath,
+			source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
+			enabled,
+			error: enabled ? loadErrors.get(resolve(pluginPath)) : undefined,
+		})
+	})
 }
 
 export async function listLocalMarketplaceInstalledEntries(controller: Controller): Promise<MarketplaceLocalInstalledEntries> {
@@ -499,7 +528,7 @@ export async function listLocalMarketplaceInstalledEntries(controller: Controlle
 			}),
 		),
 	]
-	const pluginEntries = await listPluginLocalEntries()
+	const pluginEntries = await listPluginLocalEntries(controller)
 	return MarketplaceLocalInstalledEntries.create({ entries: [...mcpEntries, ...skillEntries, ...pluginEntries] })
 }
 

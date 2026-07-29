@@ -17,6 +17,7 @@ import {
 	PuzzleIcon,
 	SparklesIcon,
 	Trash2Icon,
+	TriangleAlertIcon,
 } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 import { Switch } from "@/components/ui/switch"
@@ -395,6 +396,25 @@ const MarketplaceStyles = () => (
 			overflow-wrap: anywhere;
 			word-break: break-word;
 			white-space: normal;
+		}
+
+		.marketplace-row-error {
+			margin-top: 4px;
+			display: flex;
+			gap: 5px;
+			align-items: flex-start;
+			color: var(--vscode-errorForeground);
+			font-size: calc(var(--vscode-font-size) * 0.85);
+			line-height: 1.35;
+			overflow-wrap: anywhere;
+			word-break: break-word;
+		}
+
+		.marketplace-row-error svg {
+			flex: none;
+			width: 13px;
+			height: 13px;
+			margin-top: 1px;
 		}
 
 		.marketplace-row-meta {
@@ -820,6 +840,21 @@ const McpManagementPanel = ({
 	)
 }
 
+const LocalEntryLoadError = ({ entries }: { entries: MarketplaceLocalInstalledEntry[] }) => {
+	const messages = [...new Set(entries.map((entry) => entry.error?.trim()).filter((message): message is string => !!message))]
+	if (messages.length === 0) return null
+	return (
+		<>
+			{messages.map((message) => (
+				<div className="marketplace-row-error" key={message}>
+					<TriangleAlertIcon aria-hidden />
+					<span>Failed to load: {message}</span>
+				</div>
+			))}
+		</>
+	)
+}
+
 const LocalInstalledRow = ({
 	entry,
 	onUninstall,
@@ -842,6 +877,7 @@ const LocalInstalledRow = ({
 					<span className="marketplace-row-name">{entry.name || entry.id}</span>
 				</div>
 				{entry.description && <div className="marketplace-row-description">{entry.description}</div>}
+				<LocalEntryLoadError entries={[entry]} />
 				<div className="marketplace-row-meta">
 					{origin && <span className="marketplace-pill">{origin}</span>}
 					{entry.path && <span className="marketplace-path">{entry.path}</span>}
@@ -902,6 +938,7 @@ const InstalledMarketplaceRow = ({
 				{(entry.description || entry.tagline) && (
 					<div className="marketplace-row-description">{entry.description || entry.tagline}</div>
 				)}
+				<LocalEntryLoadError entries={matchedLocalEntries} />
 				<div className="marketplace-row-meta">
 					<span className="marketplace-pill">Marketplace</span>
 					{matchedLocalEntries.map((localEntry) => {

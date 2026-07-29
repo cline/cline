@@ -78,6 +78,9 @@ message MarketplaceLocalInstalledEntry {
   optional string path = 5;
   optional string source = 6;
   bool enabled = 7;
+  // Populated when the entry is installed but failed to load, so the UI can
+  // explain why it contributes nothing instead of showing it as healthy.
+  optional string error = 8;
 }
 
 message MarketplaceLocalInstalledEntries {
