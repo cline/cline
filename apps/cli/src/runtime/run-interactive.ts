@@ -2,6 +2,9 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	setCompactionModeGlobally,
+	setPlanActModeGlobally,
+	setToolAutoApproveGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { formatModeSwitchNotice } from "@cline/shared";
@@ -712,15 +715,20 @@ export async function runInteractive(
 		onTurnErrorReported: () => {},
 		onAutoApproveChange: (enabled) => {
 			setInteractiveAutoApprove(enabled);
+			setToolAutoApproveGlobally(enabled);
 			void refreshInteractiveSessionPolicies();
 		},
 		onCompactionModeChange: async (mode) => {
 			await sessionRuntime.ensureReady();
 			applyCliCompactionMode(config, mode);
+			setCompactionModeGlobally(mode);
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onModeChange: async (mode) => {
 			if (!isInteractiveMode(mode)) return;
+			// Persist the user's choice immediately, even when the switch is
+			// deferred until the current turn aborts, so it survives restarts.
+			setPlanActModeGlobally(mode);
 			if (isRunning) {
 				pendingModeChange.current = mode;
 				pendingModeChange.source = "ui";
