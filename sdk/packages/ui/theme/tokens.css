@@ -16,9 +16,9 @@
 	--brand-cyan: oklch(0.87 0.07 210);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
-	--font-sans: "Schibsted Grotesk Variable", sans-serif;
+	--font-sans: "Inter Variable", sans-serif;
 	--font-mono:
-		ui-monospace, "SFMono-Regular", Menlo, "Azeret Mono",  Consolas,
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
 		"Liberation Mono", monospace;
 	--font-weight-normal: 480;
 	--font-weight-medium: 560;

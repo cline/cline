@@ -734,9 +734,14 @@
     "sdk/packages/ui": {
       "name": "@cline/ui",
       "version": "0.2.0-next.0",
+      "dependencies": {
+        "@radix-ui/react-slot": "1.2.4",
+        "class-variance-authority": "^0.7.1",
+        "tailwind-merge": "^3.3.1",
+      },
       "devDependencies": {
-        "@fontsource-variable/schibsted-grotesk": "^5.2.8",
-        "@fontsource/azeret-mono": "^5.2.9",
+        "@fontsource-variable/geist-mono": "^5.2.7",
+        "@fontsource-variable/inter": "^5.2.8",
         "@storybook/addon-a11y": "^9.1.17",
         "@storybook/addon-docs": "^9.1.17",
         "@storybook/react-vite": "^9.1.6",

@@ -19,6 +19,10 @@
 			"import": "./dist/components/index.js"
 		},
 		"./components.css": "./components.css",
+		"./components/button": {
+			"types": "./dist/components/button.d.ts",
+			"import": "./dist/components/button.js"
+		},
 		"./components/agent-chat": {
 			"types": "./dist/components/agent-chat/index.d.ts",
 			"import": "./dist/components/agent-chat/index.js"
@@ -38,10 +42,12 @@
 		"components/agent-chat/index.tsx",
 		"components/agent-hero-heading.css",
 		"components/agent-hero-heading.tsx",
+		"components/button.tsx",
 		"components/markdown.css",
 		"components/index.ts",
 		"components/session-status.css",
 		"components/session-status.tsx",
+		"components/utils.ts",
 		"dist",
 		"theme",
 		"ADOPTION.md",
@@ -85,8 +91,8 @@
 		}
 	},
 	"devDependencies": {
-		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
-		"@fontsource/azeret-mono": "^5.2.9",
+		"@fontsource-variable/geist-mono": "^5.2.7",
+		"@fontsource-variable/inter": "^5.2.8",
 		"@storybook/addon-a11y": "^9.1.17",
 		"@storybook/addon-docs": "^9.1.17",
 		"@storybook/react-vite": "^9.1.6",
@@ -101,5 +107,10 @@
 		"typescript": "5.9.3",
 		"vite": "^7.1.11",
 		"vitest": "^4.0.18"
+	},
+	"dependencies": {
+		"@radix-ui/react-slot": "1.2.4",
+		"class-variance-authority": "^0.7.1",
+		"tailwind-merge": "^3.3.1"
 	}
 }

@@ -24,6 +24,7 @@ The theme provides:
 
 The first component surface provides:
 
+- A shared shadcn-style `Button` for text and accessible icon actions
 - Sticky agent-conversation structure and a scroll-to-latest affordance
 - User, assistant, system, status, and error message presentation
 - Message actions with accessible labels and focus behavior
@@ -64,6 +65,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
 | Render shared hero heading or session status | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
+| Use the shared Button | `@cline/ui/theme/index.css`, `@cline/ui/components.css`, and `@cline/ui/components/button` | Tailwind v4 | React 18.3 or 19 |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -106,7 +108,7 @@ only the prerequisites for the layer being adopted:
 bun add react@^19 react-dom@^19
 
 # Required for the documented Tailwind-backed theme and Cline fonts
-bun add @fontsource-variable/schibsted-grotesk @fontsource/azeret-mono
+bun add @fontsource-variable/inter @fontsource-variable/geist-mono
 bun add --dev tailwindcss
 ```
 
@@ -135,8 +137,8 @@ from the runtime SDK packages.
 Import fonts and Tailwind before the complete theme:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -159,8 +161,8 @@ Use this when the application wants the shared tokens and utilities but already
 owns document, Markdown, scrollbar, or cursor behavior:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/tokens.css";
 @import "@cline/ui/theme/theme.css";
@@ -196,6 +198,55 @@ For native controls that should follow the selected theme:
   color-scheme: dark;
 }
 ```
+
+## Add the shared Button
+
+Import the component entry after Tailwind and the theme. Besides styling the
+framework-neutral root primitives, `components.css` registers the Button source
+with Tailwind v4:
+
+```css
+@import "tailwindcss";
+@import "@cline/ui/theme/index.css";
+@import "@cline/ui/components.css";
+```
+
+External consumers following this import order do not need their own
+`@source` path into `node_modules`. If an application deliberately omits
+`components.css`, its Tailwind entry must scan
+`@cline/ui/components/button` itself or the Button utilities will not be
+generated.
+
+Import the primitive and use native accessibility attributes:
+
+```tsx
+import { Button, buttonVariants } from "@cline/ui/components/button";
+
+<Button aria-label="Search sessions" size="icon-sm" variant="ghost">
+  <Search />
+</Button>
+```
+
+`Button` also supports text sizes, `asChild`, forwarded refs, native states such
+as `aria-pressed` and `aria-expanded`, deliberate `className` overrides, and
+the existing Cline sidebar variants. Icon-only buttons require an accessible
+name. Apply `rounded-full` with `className`, and compose tooltips outside the
+Button.
+
+For Radix menus, popovers, hover cards, and tooltips, put `asChild` on the
+Radix trigger:
+
+```tsx
+<DropdownMenuTrigger asChild>
+  <Button aria-label="Filter sessions" size="icon-sm" variant="ghost">
+    <Filter />
+  </Button>
+</DropdownMenuTrigger>
+```
+
+Use `buttonVariants` to style a semantic trigger that must remain another
+primitive, such as `SelectTrigger`; do not wrap one interactive element in
+another button.
 
 ## Add the agent-chat components
 
@@ -345,6 +396,7 @@ Open `http://localhost:6006`. The toolbar switches light/dark mode and offers
 representative chat and mobile viewports. Stories cover:
 
 - Theme colors, typography, radii, and controls
+- Button variants, icon sizes, disabled states, and trigger composition
 - Complete and empty conversations
 - User, assistant, and error messages
 - Collapsed, expanded, and streaming reasoning
@@ -435,6 +487,7 @@ erase product boundaries.
 - [ ] Choose tokens-only, Tailwind mappings, or the complete theme.
 - [ ] Load the required font files.
 - [ ] Import files in the documented order.
+- [ ] Import `components.css` when using the Tailwind-backed Button.
 - [ ] Import `agent-chat.css` when using the React primitives.
 - [ ] Install React 18.3 or 19 when using the React primitives.
 - [ ] Map product message/tool models at the package boundary.

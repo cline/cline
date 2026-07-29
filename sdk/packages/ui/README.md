@@ -27,8 +27,9 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent hero-heading and session-status React primitives | React 18.3 or 19 |
-| `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
+| `@cline/ui` | Button, agent hero-heading, and session-status React primitives | React 18.3 or 19 |
+| `@cline/ui/components/button` | Shared shadcn-style `Button`, props, and variants | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui/components.css` | Root primitive styles and Tailwind source registration | Theme tokens; Tailwind v4 for `Button` |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
@@ -46,7 +47,7 @@ for a host-specific status palette.
 welcome heading and respects reduced-motion preferences.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
-dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
+dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
 `tokens.css` is the canonical token source; `scoped-tokens.css` is generated
@@ -59,8 +60,8 @@ public entry point.
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -93,6 +94,50 @@ normal Tailwind utilities inherit Cline defaults without custom adapters.
 
 Brand artwork may use the small extension set (`--primary-emphasis` and the
 `--brand-*` palette). Product controls should prefer semantic variables.
+
+## Button usage
+
+`Button` is the shared action primitive. An icon-only action is a normal
+`Button` with an icon size and a native accessible name:
+
+```tsx
+import { Button } from "@cline/ui/components/button";
+
+<Button aria-label="Search sessions" size="icon-sm" variant="ghost">
+	<Search />
+</Button>;
+```
+
+The package also exports `Button`, `ButtonProps`, and `buttonVariants` from its
+root. It supports the standard shadcn variants, `asChild` composition, text and
+icon sizes, Cline's proven sidebar treatments, native button attributes, refs,
+and `className` overrides. Use `className="rounded-full"` for circular controls
+and keep tooltip behavior in the consuming application's tooltip primitive.
+
+Tailwind-backed consumers should import the shared component entry after
+Tailwind and the theme:
+
+```css
+@import "tailwindcss";
+@import "@cline/ui/theme/index.css";
+@import "@cline/ui/components.css";
+```
+
+`components.css` registers the packaged Button source with Tailwind v4, so
+external consumers do not need to point a separate `@source` rule into
+`node_modules`. Consumers that do not import `components.css` must add an
+equivalent source rule themselves.
+
+Radix triggers keep the normal `asChild` direction so the DOM contains one
+button:
+
+```tsx
+<DropdownMenuTrigger asChild>
+	<Button aria-label="Filter sessions" size="icon-sm" variant="ghost">
+		<Filter />
+	</Button>
+</DropdownMenuTrigger>
+```
 
 ## Agent-chat usage
 
@@ -167,8 +212,8 @@ In the repository's agent sandbox, bind to a forwarded host and unused port:
 bun -F @cline/ui storybook -- --host 0.0.0.0 --port 3490 --exact-port
 ```
 
-The catalog includes the theme foundations and representative agent-chat
-states in light, dark, desktop, and narrow viewports.
+The catalog includes Button variants and composition, theme foundations, and
+representative agent-chat states in light, dark, desktop, and narrow viewports.
 
 Storybook currently runs from a Cline monorepo checkout. It is not hosted or
 included in the npm package; deployment can be added once the catalog and
