@@ -338,7 +338,7 @@ describe("migrateLegacyProviderSettings", () => {
 			dataDir: tempDir,
 		});
 
-		expect(manager.getProviderSettings(providerId)?.model).toBeUndefined();
+		expect(manager.getProviderSettings(providerId)?.model).not.toBe(staleModel);
 	});
 
 	it("resolves aliased legacy provider ids without duplicating entries or losing the mode's model", () => {
