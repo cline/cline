@@ -35,14 +35,15 @@ async function main() {
 		await writeFile(
 			pluginPath,
 			[
-				"import { createTool } from '@cline/sdk'",
+				"import { createTool } from '@cline/core'",
+				"import type { AgentToolContext } from '@cline/sdk'",
 				"export default {",
 				"  name: 'artifact-plugin',",
 				"  manifest: { capabilities: ['tools', 'commands'] },",
 				"  setup(api) {",
 				"    api.registerTool(createTool({",
 				"      name: 'artifact_tool', description: 'artifact tool', inputSchema: { type: 'object' },",
-				"      execute: async () => ({ ok: true }),",
+				"      execute: async (input, context: AgentToolContext) => ({ input, sessionId: context.sessionId }),",
 				"    }))",
 				"    api.registerCommand({ name: 'artifact', description: 'Artifact command', handler: (input) => ({ reply: `ok:${input}` }) })",
 				"  },",
@@ -80,7 +81,10 @@ async function main() {
 			)) as {
 				plugins: Array<{
 					pluginId: string
-					contributions: { commands: Array<{ id: string; name: string }> }
+					contributions: {
+						commands: Array<{ id: string; name: string }>
+						tools: Array<{ id: string; name: string }>
+					}
 				}>
 				failures?: unknown[]
 				warnings?: unknown[]
@@ -89,8 +93,21 @@ async function main() {
 				entry.contributions.commands.some((command) => command.name === "artifact"),
 			)
 			const command = plugin?.contributions.commands.find((entry) => entry.name === "artifact")
-			if (!plugin || !command) {
+			const tool = plugin?.contributions.tools.find((entry) => entry.name === "artifact_tool")
+			if (!plugin || !command || !tool) {
 				throw new Error(`Shipped runtime did not load the artifact command: ${JSON.stringify(initialized)}`)
+			}
+			const toolResult = await call(child, "executeTool", {
+				pluginId: plugin.pluginId,
+				contributionId: tool.id,
+				input: { value: "from-artifact" },
+				context: { sessionId: "artifact-session" },
+			})
+			if (
+				JSON.stringify(toolResult) !==
+				JSON.stringify({ input: { value: "from-artifact" }, sessionId: "artifact-session" })
+			) {
+				throw new Error(`Unexpected artifact tool result: ${JSON.stringify(toolResult)}`)
 			}
 			const result = await call(child, "executeCommand", {
 				pluginId: plugin.pluginId,
