@@ -189,6 +189,7 @@ export { mergeModelOptions } from "./llms/model-options";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
+	type ReasoningEffortValue,
 	resolveEffectiveReasoningEffort,
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,

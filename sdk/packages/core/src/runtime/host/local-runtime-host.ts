@@ -35,6 +35,10 @@ import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
+import {
+	resolveSessionThinkingMetadata,
+	withSessionThinkingMetadata,
+} from "../../services/session-thinking";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	captureAgentCreated,
@@ -237,8 +241,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
-	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
-	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
+	// Serializes all manifest-affecting read-modify-writes per session.
+	private readonly sessionPersistenceQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -525,10 +529,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
-			bootstrap.gitState,
+		// `bootstrap.providerConfig` carries the *effective* reasoning settings —
+		// the session config's choice when it made one, otherwise the persisted
+		// provider settings — so this records the level the session really runs
+		// with rather than only an explicitly passed flag.
+		const initialThinking = resolveSessionThinkingMetadata(
+			bootstrap.providerConfig,
 		);
+		// A read-only resume keeps the stored metadata untouched; the resumed
+		// session records its own thinking level once it actually runs a turn.
+		const initialSessionMetadata = resumedArtifacts
+			? withSessionGitMetadata(
+					resumedArtifacts.manifest.metadata,
+					bootstrap.gitState,
+				)
+			: withSessionThinkingMetadata(
+					withSessionGitMetadata(
+						startInput.sessionMetadata,
+						bootstrap.gitState,
+					),
+					initialThinking,
+				);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build(
 			bootstrap.runtimeBuilderInput,
@@ -772,6 +793,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			config: configWithProvider,
 			sessionMetadata: initialSessionMetadata,
+			thinking: initialThinking,
 			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
 			source,
 			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
@@ -1119,16 +1141,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		return this.enqueueSessionPersistence(sessionId, async () => {
+			const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+				"updateSession",
+				{
+					sessionId,
+					prompt: updates.prompt,
+					metadata: updates.metadata,
+					title: updates.title,
+				},
+			);
+			return { updated: result?.updated === true };
+		});
 	}
 
 	async updateSessionCompactionState(
@@ -1444,15 +1468,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (updates.modelId) manifest.model = updates.modelId;
 			});
 		}
+		// Only when the update actually carries a reasoning field: a plain model
+		// switch leaves `session.config` without the effective level resolved from
+		// provider settings, and re-deriving it here would clobber what start
+		// recorded.
+		if (
+			Object.hasOwn(updates, "reasoningEffort") ||
+			Object.hasOwn(updates, "thinking") ||
+			Object.hasOwn(updates, "thinkingBudgetTokens")
+		) {
+			session.thinking = resolveSessionThinkingMetadata(session.config);
+			await this.refreshActiveSessionThinkingMetadata(session);
+		}
+	}
+
+	private async enqueueSessionPersistence<T>(
+		sessionId: string,
+		persist: () => Promise<T>,
+	): Promise<T> {
+		const tail =
+			this.sessionPersistenceQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(persist);
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.sessionPersistenceQueues.set(sessionId, queued);
+		try {
+			return await next;
+		} finally {
+			if (this.sessionPersistenceQueues.get(sessionId) === queued) {
+				this.sessionPersistenceQueues.delete(sessionId);
+			}
+		}
 	}
 
 	/**
 	 * Serialized read-modify-write for a live session's manifest. Every
-	 * manifest write for an active session MUST go through this helper: it
-	 * re-reads the disk manifest first so disk-only writers (compaction-path
-	 * updates, title/metadata renames) are never reverted by a stale in-memory
-	 * copy, applies the field-level mutation, syncs the in-memory copy, and
-	 * persists — one mutation at a time per session.
+	 * manifest-affecting write for an active session shares the same per-session
+	 * queue so direct manifest mutations and metadata updates cannot commit stale
+	 * snapshots over one another.
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
@@ -1461,9 +1516,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
 		const sessionId = session.sessionId;
-		const tail =
-			this.manifestMutationQueues.get(sessionId) ?? Promise.resolve();
-		const next = tail.then(async () => {
+		return this.enqueueSessionPersistence(sessionId, async () => {
 			const latest =
 				(await this.invokeOptionalValue<SessionManifest>(
 					"readSessionManifest",
@@ -1478,18 +1531,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			return latest;
 		});
-		const queued = next.then(
-			() => undefined,
-			() => undefined,
-		);
-		this.manifestMutationQueues.set(sessionId, queued);
-		try {
-			return await next;
-		} finally {
-			if (this.manifestMutationQueues.get(sessionId) === queued) {
-				this.manifestMutationQueues.delete(sessionId);
-			}
-		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -1692,6 +1733,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.aggregateUsageBySession.set(session.sessionId, aggregateUsage);
 			await this.persistSessionMetadata(session.sessionId, (current) => ({
 				...(current ?? {}),
+				// Recorded per turn rather than only at start so a resumed session,
+				// or one whose level was switched mid-run, reports the level its
+				// latest turn actually used.
+				thinking: session.thinking,
 				totalCost: accumulatedUsage.totalCost,
 				aggregatedAgentsCost: aggregateUsage.totalCost,
 				usage: accumulatedUsage,
@@ -1881,6 +1926,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	/**
+	 * Persist the session's thinking level to `metadata.thinking` (session row
+	 * plus manifest JSON). A metadata write must never break the caller — a
+	 * model/thinking switch has already been applied to the live session by the
+	 * time this runs — so failures are logged and swallowed.
+	 */
+	private async refreshActiveSessionThinkingMetadata(
+		session: ActiveSession,
+	): Promise<void> {
+		try {
+			if (!session.artifacts) return;
+			await this.persistSessionMetadata(session.sessionId, (current) =>
+				withSessionThinkingMetadata(current, session.thinking),
+			);
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to refresh session thinking metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
+	}
+
 	private async markTurnPending(session: ActiveSession): Promise<void> {
 		if (session.status === "pending") return;
 		await this.updateStatus(session, "pending", null);
@@ -1897,30 +1964,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 			current: Record<string, unknown> | undefined,
 		) => Record<string, unknown> | undefined,
 	): Promise<void> {
-		const session = this.sessions.get(sessionId);
-		const currentManifest =
-			(await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				sessionId,
-			)) ?? session?.artifacts?.manifest;
-		const metadata = resolveMetadata(
-			currentManifest?.metadata as Record<string, unknown> | undefined,
-		);
-		if (!session?.artifacts) {
-			return;
-		}
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				metadata,
-			},
-		);
-		if (result?.updated === false) {
-			return;
-		}
-		session.sessionMetadata = metadata;
-		session.artifacts.manifest.metadata = metadata;
+		await this.enqueueSessionPersistence(sessionId, async () => {
+			const session = this.sessions.get(sessionId);
+			const currentManifest =
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				)) ?? session?.artifacts?.manifest;
+			const metadata = resolveMetadata(
+				currentManifest?.metadata as Record<string, unknown> | undefined,
+			);
+			if (!session?.artifacts) {
+				return;
+			}
+			const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+				"updateSession",
+				{
+					sessionId,
+					metadata,
+				},
+			);
+			if (result?.updated === false) {
+				return;
+			}
+			session.sessionMetadata = metadata;
+			session.artifacts.manifest.metadata = metadata;
+		});
 	}
 
 	private async finalizeSingleRun(
