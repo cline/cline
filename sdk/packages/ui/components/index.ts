@@ -1,5 +1,6 @@
 "use client";
 
+export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,
