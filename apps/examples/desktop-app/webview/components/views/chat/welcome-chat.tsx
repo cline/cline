@@ -1,13 +1,13 @@
 "use client";
 
 import {
-	type AgentQuickAction,
+	AgentAurora,
 	AgentHeroHeading,
+	type AgentQuickAction,
 	AgentQuickActions,
 } from "@cline/ui";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
@@ -69,7 +69,7 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AuroraBackground /> : null}
+			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active

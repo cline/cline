@@ -38,10 +38,8 @@ import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -806,7 +804,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings({
-				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+				isClinePassEnabled: true,
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {

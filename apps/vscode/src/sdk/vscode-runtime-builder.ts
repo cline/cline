@@ -87,7 +87,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
 	if (options?.getTerminalManager) {
-		const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
+		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 		tools.push(
 			createVscodeRunCommandsTool({
 				cwd: options.cwd ?? process.cwd(),
