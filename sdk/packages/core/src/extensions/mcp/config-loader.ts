@@ -67,6 +67,7 @@ const nestedRegistrationBodySchema = z.object({
 	disabled: z.boolean().optional(),
 	metadata: metadataSchema.optional(),
 	oauth: oauthStateSchema.optional(),
+	initializeTimeoutMs: z.number().int().min(100).optional(),
 });
 
 const legacyTransportTypeSchema = z
@@ -79,6 +80,7 @@ const legacyRegistrationBaseSchema = z.object({
 	disabled: z.boolean().optional(),
 	metadata: metadataSchema.optional(),
 	oauth: oauthStateSchema.optional(),
+	initializeTimeoutMs: z.number().int().min(100).optional(),
 });
 
 function mapLegacyTransportType(
@@ -122,6 +124,7 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 		disabled: value.disabled,
 		metadata: value.metadata,
 		oauth: value.oauth,
+		initializeTimeoutMs: value.initializeTimeoutMs,
 	}));
 
 const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
@@ -154,6 +157,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				disabled: value.disabled,
 				metadata: value.metadata,
 				oauth: value.oauth,
+				initializeTimeoutMs: value.initializeTimeoutMs,
 			};
 		}
 		return {
@@ -165,6 +169,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 			disabled: value.disabled,
 			metadata: value.metadata,
 			oauth: value.oauth,
+			initializeTimeoutMs: value.initializeTimeoutMs,
 		};
 	});
 
@@ -686,6 +691,7 @@ export function resolveMcpServerRegistrations(
 		disabled: value.disabled,
 		metadata: value.metadata,
 		oauth: value.oauth,
+		initializeTimeoutMs: value.initializeTimeoutMs,
 	}));
 }
 
