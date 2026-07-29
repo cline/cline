@@ -78,14 +78,10 @@ export abstract class WebviewProvider {
 		// The JS file from the React build output
 		const scriptUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.js")
 
-		// The CSS file from the React build output
+		// The CSS file from the React build output. The webview's own index.css
+		// @imports @vscode/codicons, so the codicon @font-face + codicon.ttf are
+		// bundled into these build assets — no separate codicons <link> needed.
 		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
-
-		// The codicon font from the React build output
-		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
-		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
-		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -109,7 +105,6 @@ export abstract class WebviewProvider {
 				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 				<meta name="theme-color" content="#000000">
 				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
-				<link href="${codiconsUrl}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
 					connect-src https://*.posthog.com https://*.cline.bot; 
 					font-src ${this.getCspSource()} data:; 
@@ -122,7 +117,6 @@ export abstract class WebviewProvider {
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
 				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
-				<script src="http://localhost:8097"></script> 
 			</body>
 		</html>
 		`
@@ -162,7 +156,7 @@ export abstract class WebviewProvider {
 	 */
 	protected async getHMRHtmlContent(): Promise<string> {
 		const localPort = await this.getDevServerPort()
-		const localServerUrl = `localhost:${localPort}`
+		const localServerUrl = `127.0.0.1:${localPort}`
 
 		// Check if local dev server is running.
 		try {
@@ -173,7 +167,7 @@ export abstract class WebviewProvider {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message:
-						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'bun run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
 				})
 			}
 
@@ -182,7 +176,6 @@ export abstract class WebviewProvider {
 
 		const nonce = getNonce()
 		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
-		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUrl = `http://${localServerUrl}/${scriptEntrypoint}`
@@ -210,12 +203,10 @@ export abstract class WebviewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
-					${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ""}
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
-					<link href="${codiconsUrl}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>

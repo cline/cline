@@ -145,8 +145,8 @@ Per-provider live assertions are configured in the JSON via `expectations`:
 - `minInputTokens` / `minOutputTokens`: enforce lower bounds.
 - `requireToolCall`: fail unless at least one `tool_calls` chunk is emitted.
 
-In reasoning suites, set `requireReasoningSignal: true` to require either a reasoning chunk or `thoughtsTokenCount > 0` (provider-dependent; can be flaky on some endpoints).
-To check that disabling reasoning actually suppresses reasoning output across models, use `packages/llms/src/tests/live-providers.reasoning-disabled.example.json`; it covers direct and routed provider paths across `cline`, `openai`, `openrouter`, `anthropic`, `gemini`, `vercel-ai-gateway`, `zai`, and `deepseek` where model support exists, with `reasoning.enabled: false` and `requireNoReasoningChunk: true`.
+In reasoning suites, set `requireReasoningSignal: true` to require either a reasoning chunk or provider-reported hidden reasoning tokens (provider-dependent; can be flaky on some endpoints).
+To check that disabling reasoning actually suppresses reasoning output across models, use `packages/llms/src/tests/live-providers.reasoning-disabled.example.json`; it covers direct and routed provider paths across `cline`, `openai`, `openrouter`, `anthropic`, `gemini`, `vercel-ai-gateway`, `zai`, and `deepseek` where model support exists, with `reasoning.enabled: false` and the strongest available no-reasoning expectation for each provider.
 
 Common live failure classes:
 

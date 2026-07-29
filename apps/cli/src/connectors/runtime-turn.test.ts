@@ -67,6 +67,62 @@ describe("createConnectorRuntimeTurnStream", () => {
 		});
 	});
 
+	it("keeps streaming when tool status delivery fails", async () => {
+		let handlers: StreamHandlers | undefined;
+		const log = vi.fn();
+		const statusError = new Error("message_not_found");
+		const client = {
+			streamEvents: (_request: unknown, callbacks: StreamHandlers) => {
+				handlers = callbacks;
+				return () => {};
+			},
+			sendRuntimeSession: async () => {
+				handlers?.onEvent({
+					eventType: "runtime.chat.tool_call_start",
+					payload: { toolName: "run_commands" },
+				});
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				handlers?.onEvent({
+					eventType: "runtime.chat.text_delta",
+					payload: { text: "Final response" },
+				});
+				return {
+					result: {
+						text: "Final response",
+						finishReason: "stop",
+						iterations: 1,
+					},
+				};
+			},
+		};
+
+		const chunks: string[] = [];
+		for await (const chunk of createConnectorRuntimeTurnStream({
+			client: client as never,
+			sessionId: "session-1",
+			request: { config: {} as never, prompt: "hi" },
+			clientId: "client-1",
+			logger: { core: { log } } as unknown as CliLoggerAdapter,
+			transport: "slack",
+			conversationId: "thread-1",
+			onToolStatus: async () => {
+				throw statusError;
+			},
+		})) {
+			chunks.push(chunk);
+		}
+
+		expect(chunks.join("")).toBe("Final response");
+		expect(log).toHaveBeenCalledWith(
+			"Connector tool status delivery failed",
+			expect.objectContaining({
+				severity: "warn",
+				transport: "slack",
+				error: statusError,
+			}),
+		);
+	});
+
 	it("treats queued runtime turns as non-error completion", async () => {
 		const log = vi.fn();
 		const client = {

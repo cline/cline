@@ -45,7 +45,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 3. Install [bun](https://bun.com)
 4. Install the necessary dependencies for the extension and webview-gui:
     ```bash
-    cd apps/vscode && npm run install:all && cd ../..
+    cd apps/vscode && bun run install:all && cd ../..
     cd sdk && bun run build && cd ..
     ```
 5. Generate Protocol Buffer files (required before first build):
@@ -61,8 +61,8 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 2. Push your branch and create a PR on GitHub. Our CI will:
    - Run tests and checks
 3. Testing
-    - Run `cd apps/vscode && npm run test` to run tests locally. 
-    - Before submitting PR, run `npm run format:fix` to format your code
+    - Run `cd apps/vscode && bun run test` to run tests locally. 
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 ### Extension
 
@@ -74,12 +74,12 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 2. **Local Development**
     - cd into the vscode extension, `cd apps/vscode`
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
-    - Run `npm run test` to run tests locally
+    - Run `bun run install:all` to install dependencies
+    - Run `bun run protos` to generate Protocol Buffer files (required before first build)
+    - Run `bun run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
-    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
-    - Before submitting PR, run `npm run format:fix` to format your code
+    - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
@@ -135,8 +135,8 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
+    - Run `bun run lint` to check code style
+    - Run `bun run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
@@ -144,7 +144,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 3. **Testing**
 
     - Add tests for new features
-    - Run `npm test` to ensure all tests pass
+    - Run `bun test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
@@ -154,9 +154,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     
     - **Running E2E tests:**
       ```bash
-      npm run test:e2e        # Build and run all E2E tests
-      npm run e2e             # Run tests without rebuilding
-      npm run test:e2e -- --debug  # Run with interactive debugger
+      bun run test:e2e        # Build and run all E2E tests
+      bun run e2e             # Run tests without rebuilding
+      bun run test:e2e -- --debug  # Run with interactive debugger
       ```
     
     - **Writing E2E tests:**

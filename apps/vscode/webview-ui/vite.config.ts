@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
-import { defineConfig, type Plugin, ViteDevServer } from "vite"
+import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -28,6 +28,14 @@ const writePortToFile = (): Plugin => {
 
 const isDevBuild = process.argv.includes("--dev-build")
 
+// VS Code launch configurations load apps/vscode/.env for the extension host,
+// but pre-launch webview tasks run as separate processes. Load the parent .env
+// here so F5 builds get the same build-time constants in the webview bundle.
+const parentEnv = loadEnv(process.env.NODE_ENV || "development", resolve(__dirname, ".."), "")
+for (const [key, value] of Object.entries(parentEnv)) {
+	process.env[key] ??= value
+}
+
 // Valid platforms, these should the keys in platform-configs.json
 const VALID_PLATFORMS = ["vscode", "standalone"]
 const platform = process.env.PLATFORM || "vscode" // Default to vscode
@@ -39,9 +47,6 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	optimizeDeps: {
-		force: true, // Forces re-optimization
-	},
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
 		environment: "jsdom",
@@ -77,6 +82,11 @@ export default defineConfig({
 	},
 	build: {
 		outDir: "build",
+		// VS Code 1.101 embeds Chromium 134 through Electron 35.5.1, but the same
+		// webview is shipped by the JetBrains plugin, whose IntelliJ Platform 2025.1
+		// minimum runs JBR/JCEF on Chromium 122. Keep the shared bundle at the older
+		// host's floor unless both products raise their minimum runtime.
+		target: "chrome122",
 		reportCompressedSize: false,
 		// Only minify in production build
 		minify: !isDevBuild,
@@ -103,9 +113,13 @@ export default defineConfig({
 		chunkSizeWarningLimit: 100000,
 	},
 	server: {
+		host: "127.0.0.1",
 		port: 25463,
+		fs: {
+			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
+		},
 		hmr: {
-			host: "localhost",
+			host: "127.0.0.1",
 			protocol: "ws",
 		},
 		cors: {
@@ -135,7 +149,15 @@ export default defineConfig({
 		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
+		// Force a single React copy. In the bun workspace, sibling packages pull
+		// react@19 into the shared store; without deduping, transitive webview deps
+		// can resolve a second React instance, which bundles two copies and yields a
+		// null hook dispatcher at runtime ("Cannot read properties of null (reading
+		// 'useRef')"). Pin react/react-dom to webview-ui's own (React 18) copy.
+		dedupe: ["react", "react-dom"],
 		alias: {
+			react: resolve(__dirname, "node_modules/react"),
+			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),
 			"@components": resolve(__dirname, "./src/components"),
 			"@context": resolve(__dirname, "./src/context"),

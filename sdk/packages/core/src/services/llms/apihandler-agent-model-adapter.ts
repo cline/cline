@@ -66,6 +66,7 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 						outputTokens: chunk.outputTokens,
 						cacheReadTokens: chunk.cacheReadTokens,
 						cacheWriteTokens: chunk.cacheWriteTokens,
+						reasoningTokenCount: chunk.thoughtsTokenCount,
 						totalCost: chunk.totalCost,
 					},
 				},

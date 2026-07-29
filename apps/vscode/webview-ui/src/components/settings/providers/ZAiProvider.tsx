@@ -1,13 +1,27 @@
-import { internationalZAiModels, mainlandZAiModels } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
+
+const PROVIDER_ID = "zai"
+
+// VSCodeDropdown's onChange supplies `Event | React.FormEvent<HTMLElement>`,
+// so accept the same union here. We only read `target.value`, which is present
+// on both, so no narrowing of the event itself is required.
+function getEventValue(event: Event | React.FormEvent<HTMLElement>): string {
+	const target = event.target
+	if (target && "value" in target && typeof target.value === "string") {
+		return target.value
+	}
+	return ""
+}
 
 /**
  * Props for the ZAiProvider component
@@ -19,20 +33,54 @@ interface ZAiProviderProps {
 }
 
 /**
- * The Z AI provider configuration component
+ * The Z AI provider configuration component.
+ *
+ * Model catalog and default come from the `@cline/llms` SDK via gRPC.
+ * The SDK consumes `apiLine` from the effective provider config so the
+ * international vs. mainland catalog selection happens upstream — the
+ * webview sees a single catalog per render.
  */
 export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId: legacySelectedModelId,
+		config,
+		commitSelection,
+		fallbackModelInfo: legacySelectedModelInfo,
+	})
+	const selectedEntrypoint = config?.apiLine || apiConfiguration?.zaiApiLine || "international"
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Z AI",
+		write,
+	})
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const handleApiLineChange = (value: string) => {
+		void write({ apiLine: value }).catch((err) => console.error("Failed to update Z AI entrypoint:", err))
+	}
 
-	// Determine which models to use based on API line selection
-	const zaiModels = useMemo(
-		() => (apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels),
-		[apiConfiguration?.zaiApiLine],
-	)
+	const handleModelChange = (modelId: string) => {
+		if (!modelId) {
+			return
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
+		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
+
+		void commitModelSelection({
+			modelId,
+			modelInfo,
+		}).catch((err) => console.error("Failed to commit Z AI model selection:", err))
+	}
 
 	return (
 		<div>
@@ -42,12 +90,12 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				</label>
 				<VSCodeDropdown
 					id="zai-entrypoint"
-					onChange={(e) => handleFieldChange("zaiApiLine", (e.target as any).value)}
+					onChange={(event) => handleApiLineChange(getEventValue(event))}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={apiConfiguration?.zaiApiLine || "international"}>
+					value={selectedEntrypoint}>
 					<VSCodeOption value="international">api.z.ai</VSCodeOption>
 					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
 				</VSCodeDropdown>
@@ -62,11 +110,11 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				. Otherwise, choose api.z.ai.
 			</p>
 			<ApiKeyField
-				initialValue={apiConfiguration?.zaiApiKey || ""}
-				onChange={(value) => handleFieldChange("zaiApiKey", value)}
+				initialValue={savedApiKeyMask || apiConfiguration?.zaiApiKey || ""}
+				onChange={handleApiKeyChange}
 				providerName="Z AI"
 				signupUrl={
-					apiConfiguration?.zaiApiLine === "china"
+					selectedEntrypoint === "china"
 						? "https://open.bigmodel.cn/console/overview"
 						: "https://z.ai/manage-apikey/apikey-list"
 				}
@@ -76,18 +124,17 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				<>
 					<ModelSelector
 						label="Model"
-						models={zaiModels}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						models={models}
+						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

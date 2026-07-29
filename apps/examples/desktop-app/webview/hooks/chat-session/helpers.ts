@@ -1,3 +1,4 @@
+import { createSessionId } from "@cline/shared/browser";
 import type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -12,7 +13,7 @@ type RpcMessageLike = {
 };
 
 export function makeId(prefix: string): string {
-	return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+	return createSessionId(`${prefix}_`);
 }
 
 function stringifyRpcMessageContent(content: unknown): string {
@@ -116,10 +117,13 @@ export function normalizeRuntimeConfig(
 ): ChatSessionConfig {
 	const normalizedWorkspaceRoot = config.workspaceRoot.trim();
 	const normalizedCwd = (config.cwd?.trim() || normalizedWorkspaceRoot).trim();
+	const thinking = config.reasoningEffort ? true : config.thinking;
 	return {
 		...config,
 		workspaceRoot: normalizedWorkspaceRoot,
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
+		thinking,
+		reasoningEffort: thinking === false ? undefined : config.reasoningEffort,
 		enableSpawn: false,
 		enableTeams: false,
 	};

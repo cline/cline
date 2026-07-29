@@ -1,7 +1,11 @@
 import type { MessageWithMetadata } from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
+import { formatModeSwitchNotice, formatUserInputBlock } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { withLatestAssistantTurnMetadata } from "./session-data";
+import {
+	deriveTitleFromPrompt,
+	withLatestAssistantTurnMetadata,
+} from "./session-data";
 import { summarizeUsageFromMessages } from "./usage";
 
 type LegacyStoredMessage = MessageWithMetadata & {
@@ -35,6 +39,25 @@ function createResult(overrides: Partial<AgentResult> = {}): AgentResult {
 		...overrides,
 	};
 }
+
+describe("deriveTitleFromPrompt", () => {
+	it("derives the title from the first line of the prompt", () => {
+		expect(deriveTitleFromPrompt("fix the login bug\nand add tests")).toBe(
+			"fix the login bug",
+		);
+	});
+
+	it("never picks up mode-switch notice text", () => {
+		// A user-initiated plan/act toggle prepends a <mode_notice> element to
+		// the next outbound prompt; titles are display-only and must show the
+		// user's own words, not the runtime-generated notice.
+		const prompt = `${formatModeSwitchNotice("act", "plan")}\nhow should we refactor this?`;
+		expect(deriveTitleFromPrompt(prompt)).toBe("how should we refactor this?");
+		expect(deriveTitleFromPrompt(formatUserInputBlock(prompt, "plan"))).toBe(
+			"how should we refactor this?",
+		);
+	});
+});
 
 describe("withLatestAssistantTurnMetadata", () => {
 	it("normalizes legacy stored provider/model fields into modelInfo", () => {

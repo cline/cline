@@ -34,6 +34,7 @@ export const BaseUrlField = ({
 		setIsEnabled(checked)
 		if (!checked) {
 			setLocalValue("")
+			onChange("")
 		}
 	}
 

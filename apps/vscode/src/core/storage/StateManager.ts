@@ -16,17 +16,11 @@ import {
 	type SettingsKey,
 } from "@shared/storage/state-keys"
 import type { StorageContext } from "@shared/storage/storage-context"
-import chokidar, { FSWatcher } from "chokidar"
+import { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
-import {
-	getTaskHistoryStateFilePath,
-	readTaskHistoryFromState,
-	readTaskSettingsFromStorage,
-	writeTaskHistoryToState,
-	writeTaskSettingsToStorage,
-} from "./disk"
+import { readTaskSettingsFromStorage, writeTaskSettingsToStorage } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateFromStorage } from "./utils/state-helpers"
@@ -78,7 +72,6 @@ export class StateManager {
 	// In-memory model info cache (not persisted to disk)
 	// These are for dynamic providers that fetch models from APIs
 	private modelInfoCache: {
-		clineModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
@@ -90,7 +83,6 @@ export class StateManager {
 		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 	} = {
-		clineModels: null,
 		openRouterModels: null,
 		groqModels: null,
 		basetenModels: null,
@@ -145,9 +137,6 @@ export class StateManager {
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
 			StateManager.instance.populateCache(globalState, secrets, workspaceState)
-
-			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
-			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
 
@@ -246,7 +235,7 @@ export class StateManager {
 		if (!this.pendingTaskState.has(taskId)) {
 			this.pendingTaskState.set(taskId, new Set())
 		}
-		this.pendingTaskState.get(taskId)!.add(key)
+		this.pendingTaskState.get(taskId)?.add(key)
 		this.scheduleDebouncedPersistence()
 	}
 
@@ -266,7 +255,7 @@ export class StateManager {
 			this.pendingTaskState.set(taskId, new Set())
 		}
 		Object.keys(updates).forEach((key) => {
-			this.pendingTaskState.get(taskId)!.add(key as SettingsKey)
+			this.pendingTaskState.get(taskId)?.add(key as SettingsKey)
 		})
 
 		// Schedule debounced persistence
@@ -455,7 +444,6 @@ export class StateManager {
 	 */
 	setModelsCache(
 		provider:
-			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
@@ -474,7 +462,6 @@ export class StateManager {
 
 	getModelsCache(
 		provider:
-			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
@@ -532,56 +519,6 @@ export class StateManager {
 		}
 
 		return cached.data[modelId]
-	}
-
-	/**
-	 * Initialize chokidar watcher for the taskHistory.json file
-	 * Updates in-memory cache on external changes without writing back to disk.
-	 */
-	private async setupTaskHistoryWatcher(): Promise<void> {
-		try {
-			const historyFile = await getTaskHistoryStateFilePath()
-
-			// Close any existing watcher before creating a new one
-			if (this.taskHistoryWatcher) {
-				await this.taskHistoryWatcher.close()
-				this.taskHistoryWatcher = null
-			}
-
-			this.taskHistoryWatcher = chokidar.watch(historyFile, {
-				persistent: true,
-				ignoreInitial: true,
-				atomic: true,
-				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
-			})
-
-			const syncTaskHistoryFromDisk = async () => {
-				try {
-					if (!this.isInitialized) {
-						return
-					}
-					const onDisk = await readTaskHistoryFromState()
-					const cached = this.globalStateCache["taskHistory"]
-					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
-						this.globalStateCache["taskHistory"] = onDisk
-						await this.onSyncExternalChange?.()
-					}
-				} catch (err) {
-					Logger.error("[StateManager] Failed to reload task history on change:", err)
-				}
-			}
-
-			this.taskHistoryWatcher
-				.on("add", () => syncTaskHistoryFromDisk())
-				.on("change", () => syncTaskHistoryFromDisk())
-				.on("unlink", async () => {
-					this.globalStateCache["taskHistory"] = []
-					await this.onSyncExternalChange?.()
-				})
-				.on("error", (error) => Logger.error("[StateManager] TaskHistory watcher error:", error))
-		} catch (err) {
-			Logger.error("[StateManager] Failed to set up taskHistory watcher:", err)
-		}
 	}
 
 	/**
@@ -819,8 +756,6 @@ export class StateManager {
 
 		for (const key of keys) {
 			if (key === "taskHistory") {
-				// Route task history persistence to its own file
-				await writeTaskHistoryToState(this.globalStateCache[key])
 			} else {
 				regularEntries[key] = this.globalStateCache[key]
 			}
@@ -928,7 +863,7 @@ export class StateManager {
 		// Preserve legacy fallback behavior for LiteLLM API key:
 		// if a remoteLiteLlmApiKey is set (via remote config), it should
 		// take precedence over the local liteLlmApiKey.
-		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
+		const remoteLiteLlmApiKey = this.secretsCache.remoteLiteLlmApiKey
 		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
 			secrets.liteLlmApiKey = remoteLiteLlmApiKey
 		}

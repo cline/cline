@@ -12,8 +12,11 @@ import {
 	getShellArgs,
 } from "@cline/shared";
 import { TimeoutError } from "../helpers";
-import type { BashExecutor } from "../types";
-import { MAX_COMMAND_OUTPUT_CHARS } from "./output-limits";
+import type { ShellExecutor } from "../types";
+import {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "./output-limits";
 
 export class CommandExitError extends Error {
 	constructor(
@@ -26,9 +29,9 @@ export class CommandExitError extends Error {
 }
 
 /**
- * Options for the bash executor
+ * Options for the shell executor
  */
-export interface BashExecutorOptions {
+export interface ShellExecutorOptions {
 	/**
 	 * Shell to use for execution
 	 * @default "/bin/bash" on Unix, "powershell" on Windows
@@ -118,21 +121,6 @@ function createRollingCollector(maxChars: number) {
 			};
 		},
 	};
-}
-
-function truncateMiddle(
-	text: string,
-	maxChars: number,
-	totalChars: number,
-): string {
-	const headLimit = Math.ceil(maxChars / 2);
-	const tailLimit = Math.max(1, maxChars - headLimit);
-	return (
-		`${text.slice(0, headLimit)}\n` +
-		`[... output truncated: ${totalChars} chars total. ` +
-		"Refine the command (grep, head, tail) to view the elided middle ...]\n" +
-		text.slice(-tailLimit)
-	);
 }
 
 function spawnAndCollect(
@@ -236,11 +224,10 @@ function spawnAndCollect(
 					? out.totalChars + err.totalChars
 					: out.totalChars;
 				if (dropped || failureOutput.length > maxOutputChars) {
-					failureOutput = truncateMiddle(
-						failureOutput,
-						maxOutputChars,
+					failureOutput = truncateCommandOutput(failureOutput, {
+						maxChars: maxOutputChars,
 						totalChars,
-					);
+					});
 				}
 				const result =
 					failureOutput.length > 0
@@ -256,7 +243,10 @@ function spawnAndCollect(
 					const totalChars = combineOutput
 						? out.totalChars + err.totalChars
 						: out.totalChars;
-					output = truncateMiddle(output, maxOutputChars, totalChars);
+					output = truncateCommandOutput(output, {
+						maxChars: maxOutputChars,
+						totalChars,
+					});
 				}
 				settle(() => resolve(output));
 			}
@@ -272,21 +262,21 @@ function spawnAndCollect(
 }
 
 /**
- * Create a bash executor using Node.js spawn
+ * Create a shell executor using Node.js spawn
  *
  * @example
  * ```typescript
- * const bash = createBashExecutor({
+ * const shell = createShellExecutor({
  *   timeoutMs: 60000, // 1 minute timeout
  *   shell: "/bin/zsh",
  * })
  *
- * const output = await bash("ls -la", "/path/to/project", context)
+ * const output = await shell("ls -la", "/path/to/project", context)
  * ```
  */
-export function createBashExecutor(
-	options: BashExecutorOptions = {},
-): BashExecutor {
+export function createShellExecutor(
+	options: ShellExecutorOptions = {},
+): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,

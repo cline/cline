@@ -15,12 +15,12 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
 import {
-	getCliFeatureFlagsService,
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,
 } from "./utils/feature-flags";
@@ -42,10 +42,17 @@ import {
 	isOAuthProvider,
 	normalizeProviderId,
 } from "./utils/provider-auth";
+import { resolveCliReasoning } from "./utils/reasoning";
+import {
+	resolveStartupCompactionMode,
+	resolveStartupMode,
+	resolveStartupToolAutoApprove,
+} from "./utils/startup-settings";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
+	identifyTelemetryAccount,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
@@ -110,6 +117,23 @@ export function resolveConfigDirArg(argv: string[]): string | undefined {
 		}
 	}
 	return undefined;
+}
+
+function collectOption(value: string, previous: string[] = []): string[] {
+	return [...previous, value];
+}
+
+// Shells strip quote characters before argv reaches us, so a prompt that was
+// typed in quotes is only observable when it remains one argv token with spaces.
+function promptArgLooksQuoted(arg: string | undefined): boolean {
+	return !!arg && /\s/.test(arg);
+}
+
+function writePromptArgError(args: string[]): void {
+	const renderedArgs = args.join(" ");
+	writeErr(
+		`Unknown command or unquoted prompt: ${renderedArgs}\nPrompt text must be passed as a single quoted argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
+	);
 }
 
 export async function runCli(): Promise<void> {
@@ -343,6 +367,11 @@ export async function runCli(): Promise<void> {
 		.description("Connect to an external channel")
 		.argument("[channel]", "Channel to connect Cline CLI to")
 		.option("--stop", "Kill all current channel connections")
+		.option("--restart", "Restart a channel connection")
+		.option(
+			"--restart-instance <id>",
+			"Restart one connector instance (used by daemon recovery)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -353,15 +382,31 @@ export async function runCli(): Promise<void> {
 			const {
 				formatAdapterList,
 				runConnectAdapter,
+				runRestartConnector,
 				runStopAllConnectors,
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop) {
+			if (opts.stop && (opts.restart || opts.restartInstance)) {
+				io.writeErr("connect accepts only one of --stop or --restart");
+				ctx.exitCode = 1;
+			} else if (opts.stop) {
 				if (adapter) {
 					ctx.exitCode = await runStopConnector(adapter, io);
 				} else {
 					ctx.exitCode = await runStopAllConnectors(io);
+				}
+			} else if (opts.restart || opts.restartInstance) {
+				if (!adapter) {
+					io.writeErr("connect --restart requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runRestartConnector(
+						adapter,
+						connectCmd.args.slice(1),
+						io,
+						opts.restartInstance,
+					);
 				}
 			} else if (adapter) {
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
@@ -404,15 +449,24 @@ export async function runCli(): Promise<void> {
 			"--transport <transport>",
 			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
 		)
+		.option("--header <header>", "Remote MCP request header", collectOption, [])
+		.option("--yes", "Install noninteractively without opening the wizard")
+		.option("--json", "Output as JSON")
 		.action(async (name: string, targetArgs: string[]) => {
 			const opts = mcpInstallCmd.opts<{
+				header?: string[];
+				json?: boolean;
 				transport?: string;
+				yes?: boolean;
 			}>();
 			const { runMcpInstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
+				headers: opts.header,
 				targetArgs,
 				transport: opts.transport,
+				json: opts.json === true || program.opts().json === true,
+				yes: opts.yes === true,
 				io,
 			});
 		});
@@ -722,13 +776,6 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
-	if (program.args.length > 1) {
-		writeErr(
-			`Unknown command or extra arguments: ${program.args.join(" ")}\nPrompt text with spaces must be quoted as a single argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
-		);
-		process.exitCode = 1;
-		return;
-	}
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
@@ -815,15 +862,14 @@ export async function runCli(): Promise<void> {
 	if (args.hooksDir?.trim()) {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
 	}
+	if (args.prompt && !args.interactive) {
+		if (program.args.length > 1 || !promptArgLooksQuoted(program.args[0])) {
+			writePromptArgError(program.args);
+			process.exitCode = 1;
+			return;
+		}
+	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = true;
-	const effectiveToolAutoApprove =
-		args.autoApproveOverride ?? defaultToolAutoApprove;
-	const toolPolicies: Record<string, ToolPolicy> = {
-		"*": {
-			autoApprove: effectiveToolAutoApprove,
-		},
-	};
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
 		writeErr(
@@ -900,6 +946,38 @@ export async function runCli(): Promise<void> {
 		runAgent,
 	} = await loadCliRuntimeModules();
 
+	// General settings toggled in the TUI /settings panel persist to the
+	// global settings file; explicit CLI flags take precedence over the
+	// persisted values, which in turn override the built-in defaults.
+	const persistedGlobalSettings = coreServer.readGlobalSettings();
+	const defaultToolAutoApprove = true;
+	const effectiveToolAutoApprove = resolveStartupToolAutoApprove(
+		args,
+		persistedGlobalSettings,
+		defaultToolAutoApprove,
+	);
+	const toolPolicies: Record<string, ToolPolicy> = {
+		"*": {
+			autoApprove: effectiveToolAutoApprove,
+		},
+	};
+	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	const effectiveCompactionMode = resolveStartupCompactionMode(
+		args,
+		persistedGlobalSettings,
+	);
+
+	// Register the SDK early logger as early as possible — before any
+	// provider settings reads — so the full startup sequence is captured.
+	// These components operate before/outside ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	const { createCliLoggerAdapter } = await import("./logging/adapter");
+	const loggerAdapter = createCliLoggerAdapter({
+		runtime: "cli",
+		component: "main",
+	});
+	coreServer.setSdkLogger(loggerAdapter.core);
+
 	const userInstructionService = createUserInstructionConfigService({
 		skills: {
 			workspacePath: workspaceRoot,
@@ -929,14 +1007,32 @@ export async function runCli(): Promise<void> {
 		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+
+		// Apply locally persisted Cline account identity so subsequent events
+		// (task.*, workspace.initialized) carry user_id when available.
+		// Note: user.extension_activated fires anonymously earlier in startup
+		// and cannot be retroactively updated; this is by design for
+		// lightweight subcommand and pre-auth CLI flows. See CLINE-2406.
+		if (provider === "cline") {
+			const savedAuth = selectedProviderSettings?.auth;
+			if (savedAuth?.accountId) {
+				identifyTelemetryAccount({
+					id: savedAuth.accountId,
+					provider: "cline",
+					organizationId: savedAuth.organizationId,
+					organizationName: savedAuth.organizationName,
+					memberId: savedAuth.memberId,
+				});
+			}
+		}
+
 		const persistedApiKey = getPersistedProviderApiKey(
 			provider,
 			selectedProviderSettings,
@@ -998,19 +1094,13 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
-		const persistedReasoning = selectedProviderSettings?.reasoning;
-		const persistedReasoningEffort = persistedReasoning?.effort;
-		const reasoningEffortFromSettings =
-			persistedReasoning?.enabled === false
-				? "none"
-				: persistedReasoningEffort && persistedReasoningEffort !== "none"
-					? persistedReasoningEffort
-					: persistedReasoning?.enabled === true
-						? "medium"
-						: "none";
-		const effectiveReasoningEffort = args.thinkingExplicitlySet
-			? (args.reasoningEffort ?? "none")
-			: (args.reasoningEffort ?? reasoningEffortFromSettings);
+		const resolvedReasoning = resolveCliReasoning({
+			thinking: args.thinking,
+			thinkingExplicitlySet: args.thinkingExplicitlySet,
+			reasoningEffort: args.reasoningEffort,
+			persistedReasoning: selectedProviderSettings?.reasoning,
+		});
+		const cliBuildInfo = getCliBuildInfo();
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1035,24 +1125,21 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? "act",
+				mode: effectiveMode,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(args.compactionMode),
+			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
 			verbose: args.verbose,
-			thinking: effectiveReasoningEffort !== "none",
-			reasoningEffort:
-				effectiveReasoningEffort === "none"
-					? undefined
-					: effectiveReasoningEffort,
+			thinking: resolvedReasoning.thinking,
+			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
+			mode: effectiveMode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			telemetry: getCliTelemetryService(loggerAdapter.core),
@@ -1064,7 +1151,13 @@ export async function runCli(): Promise<void> {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli" },
+				client: {
+					name: "cline-cli",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,
@@ -1165,7 +1258,9 @@ export async function runCli(): Promise<void> {
 			if (!launchConfigView && process.stdin.isTTY && process.stdout.isTTY) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
-				initialNotice = getClineCliMigrationNotice();
+				initialNotice = getClineCliMigrationNotice(undefined, process.env, {
+					activeProviderId: provider,
+				});
 				if (initialNotice) {
 					markInitialNoticeShown = () => {
 						markClineCliMigrationNoticeShown();

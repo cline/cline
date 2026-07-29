@@ -59,12 +59,11 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			email: userInfo?.email,
 			name: userInfo?.displayName,
 		}
+		posthog.identify(distinctId, args)
+
 		if (isTelemetryEnabled && !optedIn) {
 			posthog.opt_in_capturing()
-			posthog.identify(distinctId, args)
 		} else if (!isTelemetryEnabled && !optedOut) {
-			// For feature flags to work, we need to identify the user even when telemetry is disabled
-			posthog.identify(distinctId, args)
 			// Then opt out of capturing other events
 			posthog.opt_out_capturing()
 		}

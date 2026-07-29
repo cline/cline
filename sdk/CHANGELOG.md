@@ -1,5 +1,143 @@
 # Cline SDK Changelog
 
+## 0.0.66
+
+- Support for free Cline models (`cline-free`): free models are labeled "(free)", priced at zero, and hitting the free tier now raises a dedicated limit error that includes the reset time
+- Agentic compaction is now the default context-compaction strategy
+- Fixed agentic compaction silently falling back to basic compaction on OpenAI Compatible providers (the summarizer built its handler without a base URL and hit api.openai.com), and manual compaction budgeting against a 64k fallback instead of the model's real context window
+- Fixed agentic compaction never finding a cut point in tool-heavy transcripts, which produced endless "auto-compaction skipped" while context kept growing — assistant messages are now valid cut boundaries
+- Connector sessions now persist and automatically reconnect after a daemon or hub restart
+- Plan/act mode, tool auto-approve, and compaction mode are now persisted in global settings, with cross-process-safe writes so two hosts no longer clobber each other's changes
+- The built-in provider list is now generated from models.dev, broadening out-of-the-box provider coverage
+- The editor tool preserves a file's existing line endings — CRLF files no longer end up with mixed endings and failing exact-match edits
+- SAP AI Core now sets the metering header and uses the fetch adapter
+- Headless scheduled routines default to auto-approve and no longer ask questions no one can answer
+- Telemetry: task lifecycle events, auth event metadata and request IDs, and correct host identity (`host_plugin_version`, platform) on SDK-pipeline events
+- Removed the never-invoked `onRetryAttempt` callback from `ApiHandlerOptions` and provider config
+- `@cline/ui`: host-safe theme contract and Markdown exports
+- Updated the bundled model catalog
+
+## 0.0.65
+
+- Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size
+- Added Kimi K3 to the bundled ClinePass model fallback
+- Runs now retry once after refreshing expired OAuth credentials
+- Team runs: the spawn tool is no longer exposed to teammate agents
+- Team runs: errored teammate runs now report as failed instead of completed
+- Improved shell-command parsing to fix a Windows shell mismatch
+- New `@cline/ui` agent chat components with Storybook and npm packaging
+- Updated the bundled model catalog
+
+## 0.0.64
+
+- Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models)
+- Frontmatter and user-instruction files that start with a UTF-8 byte order mark (e.g. saved by Windows editors) now parse correctly
+
+## 0.0.63
+
+- The session runtime now emits `task.mistake_limit_reached` telemetry when the consecutive-mistake limit is hit, so every host (CLI, VS Code extension, hub daemon) captures it — including auto-stops when no host prompt is configured
+
+## 0.0.62
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+- Telemetry is no longer attached to hub tool contexts
+
+## 0.0.61
+
+- Context compaction now reports progress status while it runs
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Fixed benign git states being reported as workspace initialization errors
+- Plan/Act mode guidance added to the system prompt, with nudges when switching modes
+- Editor diff view restored for SDK edit tools
+- Model IDs are now suggested from OpenAI-compatible endpoints
+- VS Code terminal reliability improvements (OSC 633 parsing, exit codes, timeout handling)
+- Provider-specific request headers are now centralized in the LLM layer
+- Telemetry now attaches organization context when identifying with cached credentials
+- Added a shared `@cline/ui` theme package
+
+## 0.0.60
+
+- Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials
+- Added the ClinePass usage-limit error so limit-reached responses are surfaced clearly
+- Session id is now preserved when continuing within the same session
+- Fixed infinite loading when initializing a task with an image
+- Hardened compaction budget handling
+- Added telemetry for auth-refresh outcomes and Cline credential lifecycle debug logging
+
+## 0.0.59
+
+- You can now select Cline free models on the ClinePass provider
+- The SDK now recognizes ClinePass rate-limit responses and surfaces them as a typed `ClinePassLimitError` (with `isClinePassLimitMessage` / `extractClinePassLimitMessage` helpers)
+- Removed references to the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- The detached hub daemon process now emits telemetry
+- SDK/CLI telemetry identity attributes now include `user_id`
+- Cline provider requests now send versioned Cline client-identity headers
+- Fixed context compaction so canonical session history is preserved
+- `str_replace` edits now report accurate diffs
+- Fixed a performance issue where listing sessions could hang the extension host
+
+## 0.0.58
+
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected
+
+## 0.0.57
+
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit (up from 4,096), so under-specified models get a usable context budget
+- The default max input-token budget used for context compaction is now 128K
+- Added a shared prompt-format helper in `@cline/shared` and simplified runtime host support
+
+## 0.0.56
+
+- Tool calls from weaker models that use slightly-off argument shapes (e.g. a bare string where an array is expected) or malformed/truncated JSON are now coerced or repaired and executed, instead of being rejected before the tools can handle them
+- Fixed plan/act mode notices being stripped from outbound prompts
+- Added support for surfacing plan/act mode switches to the model
+
+## 0.0.55
+
+- Add Tencent TokenHub as a provider
+- Add a compaction strategy setting so you can choose how context compaction works
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3), where a shallow session could auto-compact immediately and reduce the initial task to just the input wrapper
+- Use a curated default when migrating legacy provider settings
+- Advertise run commands as shell strings
+- Refresh the bundled model catalog with the latest provider models
+
+## 0.0.54
+
+- Improve basic compaction token budgeting so context compaction is more accurate
+- Preserve error detail and fetch error cause information so failures surface clearer messages
+- Preserve failed run error messages instead of dropping them
+- Derive model info in the provider/model runtime path for more reliable provider/model handling
+- Add ClinePass subscription support to the account service
+
+## 0.0.53
+
+- Show when request cost is covered by the user's Cline subscription
+- List ClinePass features in the not-subscribed message
+- Added shared marketplace uninstall support
+- Shared marketplace install logic through core
+- Surfaced plugin-bundled skills
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 0.0.52
+
+- Added checkpoints support to the agent runtime
+- Added SAP AI Core provider support: stabilized provider setup, bundled provider auth, forwarded provider options to the gateway, aligned provider config, kept model filtering in clients, and added OCA legacy reasoning-effort handling
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from being injected into the LiteLLM model list
+- Preserved OpenRouter reasoning-disable semantics and included the session id for OpenRouter prompt caching
+- Updated the ClinePass model list live, restored ClinePass models in onboarding, fixed ClinePass error mapping, and scoped the ClinePass URL to the CLI
+- Threaded proxy/CA-aware fetch into the SDK inference path
+- Persisted Bedrock settings to providers.json
+- Repaired exposed provider auth routing and restored provider-request capture wiring lost in the SDK migration
+- Added a connector configure path and moved the shared connector catalog into the shared package
+- Normalized JSON-like tool inputs by schema and avoided a nullable editor `old_text` schema
+- Batched outdated-read rewrites in `MessageBuilder` to preserve provider prefix caches
+- Prevented an "ERROR: EMPTY CONTENT" message from appearing when an error occurs
+- Added non-interactive command guidance to the agent
+- Published SDK sourcemaps
+- Refreshed the generated model catalog
+
 ## 0.0.51
 
 - Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved

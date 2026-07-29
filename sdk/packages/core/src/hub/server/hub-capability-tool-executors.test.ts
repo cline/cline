@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { handleCapabilityProgress } from "./handlers/capability-handlers";
 import type { HubTransportContext } from "./handlers/context";
 import {
@@ -110,6 +111,58 @@ describe("handleCapabilityProgress", () => {
 });
 
 describe("hub client runtime capabilities", () => {
+	it("omits process-local telemetry from proxied tool contexts", async () => {
+		const telemetry: Record<string, unknown> = {};
+		telemetry.self = telemetry;
+		const request: ClientContributionRequest = vi.fn(
+			async (_sessionId, _capabilityName, payload) => {
+				expect(() => JSON.stringify(payload)).not.toThrow();
+				return { result: "ok" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+				{
+					kind: "tool",
+					name: "switch_to_act_mode",
+					description: "Switch to act mode.",
+					inputSchema: { type: "object" },
+					capabilityName: "custom_tool.switch_to_act_mode",
+				},
+			],
+			requestCapability: request,
+		});
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+			metadata: {
+				modelSupportsImages: true,
+				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+			},
+		};
+
+		await runtime.toolExecutors?.askQuestion?.("Continue?", ["Yes"], context);
+		await runtime.localRuntime.extraTools?.[0]?.execute({}, context);
+
+		expect(request).toHaveBeenCalledTimes(2);
+		for (const [, , payload] of vi.mocked(request).mock.calls) {
+			expect(payload.context).toEqual({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { modelSupportsImages: true },
+			});
+		}
+	});
+
 	it("proxies lifecycle hooks through capability requests", async () => {
 		const request = vi.fn(async () => ({
 			control: { context: "extra context" },

@@ -3,6 +3,7 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import {
+	getModelReasoningControls,
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	resolveModelFamily,
@@ -25,7 +26,16 @@ export function buildOpenAINativeProviderOptions(
 	const isNativeOpenAIClient = ["openai-native", "openai"].includes(
 		request.providerId,
 	);
-	return isNativeOpenAIClient ? { truncation: "auto" } : {};
+	if (!isNativeOpenAIClient) {
+		return {};
+	}
+
+	const reasoningEffort =
+		request.reasoning?.enabled === false ? "none" : request.reasoning?.effort;
+	return {
+		truncation: "auto",
+		...(reasoningEffort ? { reasoningEffort } : {}),
+	};
 }
 
 function buildCompatibleThinkingOptions(options: {
@@ -41,30 +51,14 @@ function buildCompatibleThinkingOptions(options: {
 		return {};
 	}
 
-	const family = resolveModelFamily(context);
 	const anthropicPolicy = resolveAnthropicReasoningRequestPolicy(
 		request,
 		context,
 	);
 	const hasAnthropicReasoningRoute =
 		resolveReasoningRoute(request, context) !== undefined;
-	const hasPromptCacheRoute = shouldApplyPromptCache(request, context);
-	const isAnthropicCompatible = isAnthropicCompatibleModel({
-		modelId: request.modelId,
-		family,
-	});
-	const isQwen = isQwenModel({
-		modelId: request.modelId,
-		family,
-	});
 	if (
-		!hasAnthropicReasoningRoute &&
-		(hasPromptCacheRoute || isQwen || isAnthropicCompatible)
-	) {
-		return {};
-	}
-	if (
-		hasAnthropicReasoningRoute &&
+		!hasAnthropicReasoningRoute ||
 		anthropicPolicy.kind !== "anthropic-adaptive"
 	) {
 		return {};
@@ -74,6 +68,7 @@ function buildCompatibleThinkingOptions(options: {
 
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
+	reasoningOptions?: GatewayProviderContext["model"]["reasoningOptions"];
 	usesAnthropicReasoningRoute: boolean;
 	suppressEffortOptions: boolean;
 	suppressions: ProviderOptionSuppression;
@@ -81,11 +76,20 @@ function buildCompatibleEffortOptions(options: {
 		typeof resolveAnthropicReasoningRequestPolicy
 	>["kind"];
 }): Record<string, unknown> {
-	const effort = options.reasoning?.effort;
+	const controls = getModelReasoningControls(options.reasoningOptions);
+	const rawEffort =
+		options.reasoning?.enabled === false &&
+		controls?.effort?.values.includes("none")
+			? "none"
+			: (options.reasoning?.effort ??
+				(options.reasoning?.enabled === true &&
+				!options.usesAnthropicReasoningRoute &&
+				controls?.supportsDefault
+					? "default"
+					: undefined));
 	if (
 		options.suppressions.genericEffort ||
-		!effort ||
-		options.reasoning?.enabled === false ||
+		!rawEffort ||
 		options.suppressEffortOptions
 	) {
 		return {};
@@ -97,11 +101,7 @@ function buildCompatibleEffortOptions(options: {
 		return {};
 	}
 	return {
-		effort,
-		reasoningEffort: effort,
-		...(options.usesAnthropicReasoningRoute
-			? {}
-			: { reasoningSummary: "auto" }),
+		reasoningEffort: rawEffort,
 	};
 }
 
@@ -128,8 +128,11 @@ export function buildCompatibleProviderOptions(options: {
 		modelId: request.modelId,
 		family,
 	});
+	const hasAdvertisedReasoningControls =
+		context.model.reasoningOptions !== undefined;
 	const suppressCompatibleReasoningOptions =
 		!usesAnthropicReasoningRoute &&
+		!hasAdvertisedReasoningControls &&
 		(hasPromptCacheRoute || isQwen || isAnthropicCompatible);
 	const reasoning = buildAnthropicCompatibleReasoningOptions(request, context);
 	const promptCache = hasPromptCacheRoute ? createEphemeralCacheControl() : {};
@@ -139,6 +142,7 @@ export function buildCompatibleProviderOptions(options: {
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
+			reasoningOptions: context.model.reasoningOptions,
 			usesAnthropicReasoningRoute,
 			suppressEffortOptions: suppressCompatibleReasoningOptions,
 			suppressions,

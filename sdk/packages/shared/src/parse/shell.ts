@@ -12,7 +12,21 @@ export function getDefaultShell(platform: string): string {
 	return platform === "win32" ? "powershell" : "/bin/bash";
 }
 
-export function getShellArgs(shell: string, command: string): string[] {
+/**
+ * Shell families that differ in invocation flags and command syntax.
+ * "wsl" is the wsl.exe launcher (which runs bash in the default distro);
+ * "posix" covers bash/zsh/sh and other `-c`-style shells.
+ */
+export type ShellKind = "powershell" | "cmd" | "wsl" | "posix";
+
+/**
+ * Classify a shell executable (name or full path) into its family.
+ *
+ * This is the single classification used both for building spawn arguments
+ * (getShellArgs) and for shell-specific prompting, so the syntax the model is
+ * told to use always matches the syntax the executor actually accepts.
+ */
+export function getShellKind(shell: string): ShellKind {
 	const shellName = normalizeShellName(shell);
 
 	if (
@@ -21,12 +35,33 @@ export function getShellArgs(shell: string, command: string): string[] {
 		shellName === "pwsh" ||
 		shellName === "pwsh.exe"
 	) {
-		return ["-NoProfile", "-NonInteractive", "-Command", command];
+		return "powershell";
 	}
 
 	if (shellName === "cmd" || shellName === "cmd.exe") {
-		return ["/d", "/s", "/c", command];
+		return "cmd";
 	}
 
-	return ["-c", command];
+	if (shellName === "wsl" || shellName === "wsl.exe") {
+		return "wsl";
+	}
+
+	return "posix";
+}
+
+export function getShellArgs(shell: string, command: string): string[] {
+	switch (getShellKind(shell)) {
+		case "powershell":
+			return ["-NoProfile", "-NonInteractive", "-Command", command];
+		case "cmd":
+			return ["/d", "/s", "/c", command];
+		// wsl.exe is the Windows launcher for the default WSL distro, not a shell
+		// itself. Run the command through the guest's bash so operators like `|`
+		// and `;` are handled by bash rather than treated as wsl.exe arguments.
+		// wsl.exe translates the Windows cwd to its /mnt mount automatically.
+		case "wsl":
+			return ["bash", "-c", command];
+		case "posix":
+			return ["-c", command];
+	}
 }

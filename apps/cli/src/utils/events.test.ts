@@ -1,18 +1,63 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleEvent, handleTeamEvent } from "./events";
+import {
+	handleEvent,
+	handleTeamEvent,
+	resolveStatusNoticeLabel,
+} from "./events";
 import { setCurrentOutputMode } from "./output";
 import type { Config } from "./types";
 
+describe("resolveStatusNoticeLabel", () => {
+	it("maps compaction status reasons to stable labels", () => {
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "auto-compacting",
+				reason: "auto_compaction",
+			} as AgentEvent),
+		).toBe("auto-compacting");
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "manual",
+				reason: "manual_compaction",
+			} as AgentEvent),
+		).toBe("compacting");
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "compaction-budget-adjusted",
+				reason: "compaction_budget_emergency",
+			} as AgentEvent),
+		).toBe("context budget adjusted");
+	});
+});
+
 describe("handleEvent text formatting", () => {
 	let output = "";
+	let errorOutput = "";
 
 	beforeEach(() => {
 		output = "";
+		errorOutput = "";
 		setCurrentOutputMode("text");
 		vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
 			output += String(chunk);
 			return true;
+		});
+		vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+			errorOutput += String(chunk);
+			return true;
+		});
+		vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			errorOutput += `${args.map(String).join(" ")}\n`;
 		});
 	});
 
@@ -158,6 +203,54 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
+	it("formats ClinePass limit agent errors before writing to stderr", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error(
+					"Error: You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.",
+				),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("ClinePass limit reached");
+		expect(errorOutput).toContain("Switch to Cline usage-based billing");
+		expect(errorOutput).toContain("--provider cline");
+	});
+
+	it("formats daily free model limit agent errors before writing to stderr", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error(
+					"Error: Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+				),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("Daily free model limit reached");
+		expect(errorOutput).toContain("select another model");
+		expect(errorOutput).not.toContain("usage-based billing");
+	});
+
+	it("formats removed free model errors using the configured model id", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Error 404: model not found"),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{ modelId: "cline-free/retired-model" } as Config,
+		);
+
+		expect(errorOutput).toContain("Free model promotion ended");
+		expect(errorOutput).toContain("Select another model");
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {

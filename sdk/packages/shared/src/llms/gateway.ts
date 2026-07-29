@@ -6,6 +6,10 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type {
+	ModelReasoningOption,
+	ReasoningEffort,
+} from "./reasoning-options";
 
 export type JsonValue =
 	| string
@@ -33,7 +37,8 @@ export type GatewayModelCapability =
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
-export type GatewayUsageCostDisplay = "show" | "hide";
+export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
+export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
@@ -62,14 +67,29 @@ export interface GatewayProviderRouting {
 	};
 }
 
+export type GatewayStickySessionTransport = "json-body" | "header";
+
+export interface GatewayStickySessionMetadata {
+	/**
+	 * Where the provider expects the sticky-session identifier on the wire.
+	 * `field` is a JSON body property for `json-body`, and an HTTP header name
+	 * for `header`.
+	 */
+	transport: GatewayStickySessionTransport;
+	field: string;
+	metadataKey: string;
+}
+
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
+	stickySession?: GatewayStickySessionMetadata;
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
 		| GatewayProviderRouting
+		| GatewayStickySessionMetadata
 		| readonly ProviderConfigField[]
 		| undefined;
 }
@@ -83,6 +103,7 @@ export interface GatewayModelDefinition {
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	capabilities?: readonly GatewayModelCapability[];
+	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;
 }
 
@@ -150,10 +171,18 @@ export interface GatewayStreamRequest {
 	tools?: readonly AgentToolDefinition[];
 	temperature?: number;
 	maxTokens?: number;
+	/**
+	 * Set by the gateway when `maxTokens` was synthesized from gateway/model
+	 * defaults rather than derived from an explicit caller cap. Providers can
+	 * use this to avoid forwarding synthesized caps to backends that reject
+	 * them, while still honoring explicit caps from any caller — including
+	 * ones that reach the provider without going through the gateway.
+	 */
+	defaultedMaxTokens?: boolean;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: ReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;
@@ -186,7 +215,7 @@ export interface GatewayModelHandleOptions {
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: ReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;

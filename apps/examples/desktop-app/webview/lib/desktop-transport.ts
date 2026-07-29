@@ -25,7 +25,11 @@ export type DesktopTransportMessage =
 	| DesktopTransportResponse
 	| DesktopTransportEvent;
 
-export type DesktopTransportState = "connecting" | "reconnecting" | "connected";
+export type DesktopTransportState =
+	| "connecting"
+	| "reconnecting"
+	| "connected"
+	| "unavailable";
 
 export type DesktopBackendReadyPayload = {
 	endpoint: string;

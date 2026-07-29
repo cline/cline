@@ -20,6 +20,7 @@ import {
 	useTerminalTheme,
 } from "../hooks/use-terminal-background";
 import {
+	getInputRuleColor,
 	getModeAccent,
 	getModeInputBackground,
 	getModeInputForeground,
@@ -50,6 +51,7 @@ export function ChatView(props: {
 	};
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 	transcriptScrollRef?: React.Ref<TranscriptScrollHandle>;
+	loadIndividualSubscriptionPlans?: TuiProps["loadIndividualSubscriptionPlans"];
 	autocomplete?: AutocompleteDropdownProps;
 	queuedPrompts?: QueuedPromptItem[];
 	selectedQueuedPromptId?: string | null;
@@ -75,6 +77,7 @@ export function ChatView(props: {
 	const terminalTheme = useTerminalTheme();
 	const accent = getModeAccent(session.uiMode, terminalTheme);
 	const inputBackground = getModeInputBackground(session.uiMode, terminalBg);
+	const inputRuleColor = getInputRuleColor(terminalBg);
 	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
 	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);
 	const placeholder =
@@ -89,6 +92,7 @@ export function ChatView(props: {
 				ref={props.transcriptScrollRef}
 				entries={session.entries}
 				isStreaming={session.isStreaming}
+				loadIndividualSubscriptionPlans={props.loadIndividualSubscriptionPlans}
 				uiMode={session.uiMode}
 			/>
 
@@ -121,10 +125,10 @@ export function ChatView(props: {
 							/>
 						)}
 
-						<box marginBottom={1}>
+						<box>
 							<InputBar
 								accent={accent}
-								inputBackground={inputBackground}
+								ruleColor={inputRuleColor}
 								inputForeground={inputForeground}
 								inputPlaceholder={inputPlaceholder}
 								placeholder={placeholder}

@@ -15,7 +15,7 @@ import McpDisplayModeDropdown from "./McpDisplayModeDropdown"
 import { buildDisplaySegments, DisplaySegment, processResponseUrls, truncateDataUris, UrlMatch } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response
-export const MAX_URLS = 50
+const MAX_URLS = 50
 
 const ResponseHeader = styled.div`
 	display: flex;

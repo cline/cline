@@ -121,7 +121,7 @@ const result = await Bun.build({
 	},
 	env: "OTEL_*",
 	banner:
-		'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+		'import { createRequire as __clineCreateRequire } from "node:module"; const require = __clineCreateRequire(import.meta.url);',
 });
 
 if (result.logs.length > 0) {

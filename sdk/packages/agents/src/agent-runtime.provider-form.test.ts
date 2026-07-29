@@ -234,4 +234,56 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		await agent.run("again");
 		expect(received).toHaveLength(countAfterRun);
 	});
+
+	it("derives messageModelInfo from providerId/modelId so assistant messages carry model tags", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+		});
+	});
+
+	it("prefers an explicit messageModelInfo over the derived provider/model", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			messageModelInfo: {
+				id: "explicit-model",
+				provider: "explicit-provider",
+				family: "explicit-family",
+			},
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "explicit-model",
+			provider: "explicit-provider",
+			family: "explicit-family",
+		});
+	});
 });

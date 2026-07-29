@@ -1,6 +1,7 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { palette } from "../../palette";
 
 type HelpRow =
 	| { kind: "heading"; id: string; text: string }
@@ -277,7 +278,7 @@ export function HelpDialogContent(props: ChoiceContext<void>) {
 						}
 						return (
 							<box key={row.id} flexDirection="row" paddingX={1}>
-								<text fg="cyan" width={KEY_WIDTH} flexShrink={0}>
+								<text fg={palette.act} width={KEY_WIDTH} flexShrink={0}>
 									{row.key}
 								</text>
 								<text fg="gray">{row.desc}</text>

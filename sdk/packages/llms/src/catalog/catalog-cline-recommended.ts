@@ -9,14 +9,21 @@ export interface ClineRecommendedModelEntry {
 
 export interface ClineRecommendedModelsPayload {
 	clinePass?: ClineRecommendedModelEntry[];
+	free?: ClineRecommendedModelEntry[];
 }
 
 type ModelCapabilities = Pick<
 	ModelInfo,
-	"contextWindow" | "maxInputTokens" | "maxTokens" | "capabilities" | "pricing"
+	| "contextWindow"
+	| "maxInputTokens"
+	| "maxTokens"
+	| "capabilities"
+	| "reasoningOptions"
+	| "pricing"
 >;
 
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
+const CLINE_PROVIDER_ID = "cline";
 
 const CLINE_PASS_MODEL_DEFAULTS = {
 	contextWindow: 128_000,
@@ -45,7 +52,7 @@ function findORModelCapabilities(
 }
 
 // Cline-Pass models have only the model name (and not the lab),
-// so we need to look-up using glm-5.1 instead of cline-pass/glm-5.1
+// so we need to look-up using glm-5.2 instead of cline-pass/glm-5.2
 function buildModelsNameMap(
 	openrouterModels: Record<string, ModelInfo>,
 ): Record<string, ModelInfo> {
@@ -65,11 +72,8 @@ export function normalizeClineRecommendedProviderModels(
 	openRouterModels: Record<string, ModelInfo>,
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
-	if (clinePass.length === 0) {
-		return {};
-	}
-
 	const models: Record<string, ModelInfo> = {};
+	const clineFreeModels: Record<string, ModelInfo> = {};
 	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
 
 	clinePass.forEach((entry) => {
@@ -84,17 +88,54 @@ export function normalizeClineRecommendedProviderModels(
 		};
 	});
 
-	if (Object.keys(models).length === 0) {
-		return {};
-	}
+	// Cline free models are selectable on the ClinePass provider too (same API
+	// underneath; they ride usage billing at $0 instead of the subscription quota).
+	// Unlike pass models their ids are full OpenRouter-style ids or cline-free ids,
+	// so look up capabilities by full id before falling back to the slug map.
+	(payload.free ?? []).forEach((entry) => {
+		const capabilities =
+			openRouterModels?.[entry.id] ??
+			findORModelCapabilities(entry, openRouterModelsByName);
+		const entryName = capabilities.name?.trim() || entry.name?.trim();
+		const name = entry.id.startsWith("cline-free/")
+			? `${entryName} (free)`
+			: entry.name;
 
-	return { [CLINE_PASS_PROVIDER_ID]: models };
+		const modelInfo = {
+			...capabilities,
+			name,
+			id: entry.id,
+			description: entry.description,
+		};
+
+		clineFreeModels[entry.id] = {
+			...modelInfo,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		};
+
+		if (models[entry.id]) {
+			return;
+		}
+
+		models[entry.id] = {
+			...modelInfo,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		};
+	});
+
+	const result: Record<string, Record<string, ModelInfo>> = {};
+	if (Object.keys(clineFreeModels).length > 0) {
+		result[CLINE_PROVIDER_ID] = clineFreeModels;
+	}
+	if (clinePass.length > 0) {
+		result[CLINE_PASS_PROVIDER_ID] = models;
+	}
+	return result;
 }
 
-export async function fetchClineRecommendedProviderModels(
+export async function fetchClineRecommendedModelsPayload(
 	fetcher: typeof fetch = fetch,
-	openRouterModels: Record<string, ModelInfo>,
-): Promise<Record<string, Record<string, ModelInfo>>> {
+): Promise<ClineRecommendedModelsPayload> {
 	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
 	const response = await fetcher(url);
 	if (!response.ok) {
@@ -103,6 +144,13 @@ export async function fetchClineRecommendedProviderModels(
 		);
 	}
 
-	const payload = (await response.json()) as ClineRecommendedModelsPayload;
+	return (await response.json()) as ClineRecommendedModelsPayload;
+}
+
+export async function fetchClineRecommendedProviderModels(
+	fetcher: typeof fetch = fetch,
+	openRouterModels: Record<string, ModelInfo>,
+): Promise<Record<string, Record<string, ModelInfo>>> {
+	const payload = await fetchClineRecommendedModelsPayload(fetcher);
 	return normalizeClineRecommendedProviderModels(payload, openRouterModels);
 }

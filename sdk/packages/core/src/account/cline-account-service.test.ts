@@ -118,6 +118,73 @@ describe("ClineAccountService", () => {
 		});
 	});
 
+	it("fetches available individual subscription plans with auth header", async () => {
+		const plansPayload = [
+			{
+				id: "plan-1",
+				displayName: "ClinePass Monthly",
+				interval: "Monthly",
+				features: { included: ["Major open-weights models"] },
+			},
+		];
+		const fetchImpl = vi.fn(async (input: unknown, init?: RequestInit) => {
+			expect(String(input)).toBe(
+				"https://api.cline.bot/api/v1/plans?type=individual",
+			);
+			expect(init?.headers).toMatchObject({
+				Authorization: "Bearer workos:token-123",
+			});
+			return new Response(
+				JSON.stringify({ success: true, data: plansPayload }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const plans = await service.fetchAvailableSubscriptionPlans({
+			type: "individual",
+		});
+
+		expect(plans).toEqual(plansPayload);
+	});
+
+	it("fetches the current user's subscription plan", async () => {
+		const planPayload = {
+			plan: {
+				id: "plan-1",
+				displayName: "ClinePass Monthly",
+				interval: "Monthly",
+			},
+			planHistoryId: "history-1",
+			subscriptionId: "sub-1",
+			userId: "user-1",
+		};
+		const fetchImpl = vi.fn(async (input: unknown, init?: RequestInit) => {
+			expect(String(input)).toBe("https://api.cline.bot/api/v1/users/me/plan");
+			expect(init?.headers).toMatchObject({
+				Authorization: "Bearer workos:token-123",
+			});
+			return new Response(
+				JSON.stringify({ success: true, data: planPayload }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const plan = await service.fetchCurrentUserPlan();
+		expect(plan).toEqual(planPayload);
+	});
+
 	it("fetches remote config with fallback org selected", async () => {
 		const remoteConfigPayload = {
 			organizationId: "org-fallback",

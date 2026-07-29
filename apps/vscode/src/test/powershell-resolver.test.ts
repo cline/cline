@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import {
-	probeWindowsExecutable,
 	getFallbackWindowsPowerShellPath,
 	getWindowsPowerShellCandidates,
+	probeWindowsExecutable,
 	resetPowerShellResolverCacheForTesting,
-	setPowerShellProbeForTesting,
 	resolveWindowsPowerShellExecutable,
+	setPowerShellProbeForTesting,
 } from "../utils/powershell"
 import { WINDOWS_POWERSHELL_LEGACY_PATH } from "../utils/shell"
 

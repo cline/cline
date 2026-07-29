@@ -1,4 +1,4 @@
-import type { ITelemetryService } from "@cline/shared";
+import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import type { CronServiceOptions } from "../../cron/service/cron-service";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -43,6 +43,11 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Structured logger forwarded to the internally-constructed local runtime.
+	 * Ignored when `sessionHost` is supplied.
+	 */
+	logger?: BasicLogger;
 }
 
 export interface HubWebSocketServer {

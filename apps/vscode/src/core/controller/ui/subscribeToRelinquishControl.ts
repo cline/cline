@@ -1,5 +1,4 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -31,26 +30,4 @@ export async function subscribeToRelinquishControl(
 	if (requestId) {
 		getRequestRegistry().registerRequest(requestId, cleanup, { type: "relinquish_control_subscription" }, responseStream)
 	}
-}
-
-/**
- * Send a relinquish control event to all active subscribers
- */
-export async function sendRelinquishControlEvent(): Promise<void> {
-	// Send the event to all active subscribers
-	const promises = Array.from(activeRelinquishControlSubscriptions).map(async (responseStream) => {
-		try {
-			const event = Empty.create({})
-			await responseStream(
-				event,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending relinquish control event:", error)
-			// Remove the subscription if there was an error
-			activeRelinquishControlSubscriptions.delete(responseStream)
-		}
-	})
-
-	await Promise.all(promises)
 }

@@ -1,13 +1,12 @@
-import { moonshotModels } from "@shared/api"
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 /**
  * Props for the MoonshotProvider component
@@ -25,7 +24,11 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 	const { apiConfiguration } = useExtensionState()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"moonshot",
+		apiConfiguration,
+		currentMode,
+	)
 
 	return (
 		<div>
@@ -84,7 +87,7 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 				<>
 					<ModelSelector
 						label="Model"
-						models={moonshotModels}
+						models={models}
 						onChange={async (e: any) => {
 							const value = e.target.value
 
@@ -105,7 +108,12 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

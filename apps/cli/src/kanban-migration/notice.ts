@@ -2,13 +2,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
-const NOTICE_ID = "cline-cli-tui-default";
-const FORCE_NOTICE_ENV = "CLINE_FORCE_MIGRATION_NOTICE";
-const DISABLE_NOTICE_ENV = "CLINE_DISABLE_MIGRATION_NOTICE";
+const NOTICE_ID = "cline-cli-cline-pass-intro";
+const FORCE_NOTICE_ENV = "CLINE_FORCE_CLINE_PASS_NOTICE";
+const DISABLE_NOTICE_ENV = "CLINE_DISABLE_CLINE_PASS_NOTICE";
 
 export interface CliMigrationNotice {
 	id: string;
 	title: string;
+}
+
+export interface CliMigrationNoticeOptions {
+	activeProviderId?: string;
 }
 
 interface CliNoticeState {
@@ -49,6 +53,19 @@ function readNoticeState(filePath: string): CliNoticeState {
 	return { shown };
 }
 
+function isForceNoticeEnabled(env: NodeJS.ProcessEnv): boolean {
+	return env[FORCE_NOTICE_ENV]?.trim() === "1";
+}
+
+export function shouldSuppressClineCliMigrationNoticeForActiveProvider(
+	activeProviderId: string | undefined,
+	env: NodeJS.ProcessEnv = process.env,
+): boolean {
+	return (
+		activeProviderId?.trim() === "cline-pass" && !isForceNoticeEnabled(env)
+	);
+}
+
 export function resolveCliNoticeStatePath(
 	dataDir = resolveClineDataDir(),
 ): string {
@@ -58,12 +75,21 @@ export function resolveCliNoticeStatePath(
 export function getClineCliMigrationNotice(
 	dataDir = resolveClineDataDir(),
 	env: NodeJS.ProcessEnv = process.env,
+	options: CliMigrationNoticeOptions = {},
 ): CliMigrationNotice | undefined {
 	const noticePath = resolveCliNoticeStatePath(dataDir);
 	const noticeState = readNoticeState(noticePath);
-	const forceNotice = env[FORCE_NOTICE_ENV]?.trim() === "1";
+	const forceNotice = isForceNoticeEnabled(env);
 	const disableNotice = env[DISABLE_NOTICE_ENV]?.trim() === "1";
 	if (disableNotice && !forceNotice) {
+		return undefined;
+	}
+	if (
+		shouldSuppressClineCliMigrationNoticeForActiveProvider(
+			options.activeProviderId,
+			env,
+		)
+	) {
 		return undefined;
 	}
 	if (noticeState.shown[NOTICE_ID] && !forceNotice) {
@@ -71,7 +97,7 @@ export function getClineCliMigrationNotice(
 	}
 	return {
 		id: NOTICE_ID,
-		title: "Welcome to the new Cline CLI",
+		title: "Try ClinePass",
 	};
 }
 

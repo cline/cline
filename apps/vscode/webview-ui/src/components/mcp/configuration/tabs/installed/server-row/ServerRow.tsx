@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
-import { getMcpServerDisplayName } from "@/utils/mcp"
+import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
@@ -46,12 +46,14 @@ const ServerRow = ({
 	server,
 	isExpandable = true,
 	hasTrashIcon = true,
+	marketplaceMetadata,
 }: {
 	server: McpServer
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
+	marketplaceMetadata?: MarketplaceMcpMetadata
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
+	const { autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -93,7 +95,7 @@ const ServerRow = ({
 	const handleTimeoutChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
 		const value = select.value
-		const num = parseInt(value)
+		const num = Number.parseInt(value)
 		setTimeoutValue(value)
 
 		McpServiceClient.updateMcpTimeout({
@@ -218,8 +220,11 @@ const ServerRow = ({
 						})}
 					/>
 				)}
-				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center">
-					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
+				<span className="flex-1 min-w-0 overflow-hidden break-words whitespace-normal">
+					<span className="block font-medium">{marketplaceMetadata?.name || server.name}</span>
+					{marketplaceMetadata?.description && (
+						<span className="block mt-0.5 text-xs text-description">{marketplaceMetadata.description}</span>
+					)}
 				</span>
 				{/* Collapsed view controls */}
 				{!server.error && (
@@ -394,7 +399,11 @@ const ServerRow = ({
 							disabled={server.status === "connecting" || isRestarting || server.disabled}
 							onClick={handleRestart}
 							variant="secondary">
-							{server.status === "connecting" || isRestarting ? "Restarting..." : server.disabled ? "Server Disabled" : "Restart Server"}
+							{server.status === "connecting" || isRestarting
+								? "Restarting..."
+								: server.disabled
+									? "Server Disabled"
+									: "Restart Server"}
 						</Button>
 
 						{!isRemoteManagedServer && (

@@ -3,6 +3,7 @@ import type { OpenConfigOptions } from "./use-config-panel";
 
 export interface LocalSlashCommandActionInput {
 	name: string;
+	isRunning: boolean;
 	openAccount: () => void;
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
@@ -46,7 +47,12 @@ export function runLocalSlashCommandAction(
 		return true;
 	}
 	if (normalized === "compact") {
-		input.runCompact();
+		// Autocomplete can invoke local commands while a turn is running. Keep
+		// /compact handled, but do not let it take ownership of the active turn's
+		// shared running state.
+		if (!input.isRunning) {
+			input.runCompact();
+		}
 		return true;
 	}
 	if (normalized === "fork") {
