@@ -273,18 +273,15 @@ bun run build:sdk          # required first — packages resolve each other thro
 bun run --cwd apps/cline-hub dev
 ```
 
-Open **http://127.0.0.1:8787** and click **Connect**.
+Open the dashboard URL printed in the terminal and click **Connect**. Preferred
+ports are used when free; if they are busy, the next free ports are chosen
+automatically. The hub daemon is the same: clients discover it — you do not
+hardcode a port.
 
 - **Drive** in the sidebar is the home for everything above.
 - **Start a Drive call** opens a room with an agent.
 - **Status Hub** is the Board, Changelog, and Dependency map.
 - In a call, **Drive Settings** chooses local/cloud/hybrid plus STT/TTS providers.
-
-Ports are configurable when 8787 or 5173 are taken:
-
-```bash
-CLINE_HUB_DASHBOARD_PORT=8791 CLINE_HUB_WEBVIEW_DEV_PORT=5175 bun run --cwd apps/cline-hub dev
-```
 
 **CLI (TUI)**
 
@@ -300,12 +297,12 @@ something looks unhealthy.
 ```
  Browser (Drive tab · Spotlight · Status Hub · Drive Settings)
         │  WebSocket
- Cline Hub dashboard
+ Cline Hub dashboard  ── listen port chosen automatically when free
         │  hub ops: call_* · status.* · drive.*
  CLI TUI  ── same hub daemon, same agent core ── bun run cli -i
         │       Drive join/leave: Ctrl+Shift+D (status bar)
         │
- Hub daemon  ── single writer for room state ── ws://127.0.0.1:25463
+ Hub daemon  ── single writer for room state ── discovered (not a fixed port)
         │
  ├── @cline/drive     Drive kernel: sub-modes, narration, topology, BYOK
  ├── @cline/core      sessions, tools, status.db, cron.db, hub

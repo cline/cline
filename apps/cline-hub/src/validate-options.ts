@@ -1,4 +1,8 @@
-import { buildInviteUrl, resolveClineHubServerOptions } from "./options";
+import {
+	buildInviteUrl,
+	rebasePublicUrlForListenPort,
+	resolveClineHubServerOptions,
+} from "./options";
 
 function expectEqual<T>(actual: T, expected: T, label: string): void {
 	if (actual !== expected) {
@@ -20,7 +24,13 @@ function expectThrows(fn: () => unknown, label: string): void {
 const defaults = resolveClineHubServerOptions({});
 expectEqual(defaults.host, "127.0.0.1", "default host");
 expectEqual(defaults.port, 8787, "default port");
+expectEqual(defaults.portExplicit, false, "default port is not explicit");
 expectEqual(defaults.publicUrl, "http://127.0.0.1:8787", "default public URL");
+expectEqual(
+	defaults.publicUrlExplicit,
+	false,
+	"default public URL is not explicit",
+);
 expectEqual(defaults.roomSecret, undefined, "default room secret");
 
 const lan = resolveClineHubServerOptions({
@@ -32,7 +42,9 @@ const lan = resolveClineHubServerOptions({
 });
 expectEqual(lan.host, "0.0.0.0", "LAN host");
 expectEqual(lan.port, 9000, "LAN port");
+expectEqual(lan.portExplicit, true, "LAN port is explicit");
 expectEqual(lan.publicUrl, "https://example.ngrok-free.app", "LAN public URL");
+expectEqual(lan.publicUrlExplicit, true, "LAN public URL is explicit");
 expectEqual(lan.roomSecret, "invite-123", "LAN room secret");
 expectEqual(lan.workspaceRoot, "/tmp/workspace", "workspace root");
 expectEqual(
@@ -69,6 +81,17 @@ expectThrows(
 expectThrows(
 	() => resolveClineHubServerOptions({ PUBLIC_URL: "ftp://example.test" }),
 	"invalid PUBLIC_URL protocol",
+);
+
+expectEqual(
+	rebasePublicUrlForListenPort(defaults, 8791),
+	"http://127.0.0.1:8791",
+	"auto public URL follows listen-port fallback",
+);
+expectEqual(
+	rebasePublicUrlForListenPort(lan, 9001),
+	"https://example.ngrok-free.app",
+	"explicit PUBLIC_URL stays put on listen-port fallback",
 );
 
 console.log("cline-hub option validation passed");

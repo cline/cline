@@ -2,6 +2,12 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 
 ## Cloud Agent Instructions
 
+### Ports
+- Do **not** hardcode hub or dashboard ports in scripts or docs. Preferred defaults exist, but binds fall back to a free port when busy.
+- Hub daemon: clients use discovery (`ensureDetachedHubServer` / hub discovery file). Dev allows port fallback unless `CLINE_HUB_PORT` is set explicitly.
+- Hub dashboard + Vite (`bun run --cwd apps/cline-hub dev`): prefer free defaults; if taken, pick the next free port and print the live URLs. Explicit `CLINE_HUB_DASHBOARD_PORT` / `CLINE_HUB_WEBVIEW_DEV_PORT` fail closed (no silent relocate).
+- Always open / connect to the URL printed at startup, not a memorized port.
+
 ### Cline CLI
 - Run from source: `bun run cli` (interactive: `bun run cli -i`; one-shot: append a prompt). This resolves to `apps/cli` and **auto-spawns the `@cline/cline-hub` daemon** — you do not start the hub separately.
 - Inspect local health with `bun run cli doctor`; `bun run cli version` prints the version.
