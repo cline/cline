@@ -105,6 +105,17 @@ sub-mode (`plan` / `agent` / `ask` / `debug`).
 
 ![TUI with Drive on — partner Adam in agent sub-mode](docs/assets/drivecode/tui-drive-on.png)
 
+**Status Hub in the TUI.** `/status` (or **Opt+T** / the command palette) opens
+the same Status Hub surface in a dialog: **Board** and **Dependency map**,
+switched with Tab. Live data comes from the hub (`status.board`,
+`status.summary`, `status.tasks_snapshot`). For docs demos,
+`CLINE_DEMO_STATUS_PLANS=1` fills empty boards and maps with the Drive plan
+fixture; `CLINE_DEMO_STATUS_LENS=dependency-map` opens on the map.
+
+![TUI Status Hub — board](docs/assets/drivecode/tui-status-board.png)
+
+![TUI Status Hub — dependency map (Drive plans)](docs/assets/drivecode/tui-status-dependency-map.png)
+
 ```bash
 bun run cli -i                                    # interactive TUI
 bun run cli -P anthropic -m claude-sonnet-4-5 "…" # one-shot
@@ -198,6 +209,9 @@ you can see how the map reads with a real plan. In the hub, open
 ![Status Hub dependency map — Drive plans](docs/assets/drivecode/status-dependency-map.png)
 
 ![Selected plan task with blockers and dependents](docs/assets/drivecode/status-dependency-map-selected.png)
+
+The same Board and Dependency map lenses are available in the interactive CLI
+via `/status` — see [CLI (TUI)](#cli-tui).
 
 ### How it works
 
@@ -301,6 +315,7 @@ something looks unhealthy.
         │  hub ops: call_* · status.* · drive.*
  CLI TUI  ── same hub daemon, same agent core ── bun run cli -i
         │       Drive join/leave: Ctrl+Shift+D (status bar)
+        │       Status Hub: /status · Opt+T
         │
  Hub daemon  ── single writer for room state ── discovered (not a fixed port)
         │

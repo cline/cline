@@ -11,6 +11,7 @@ Click-through surfaces for the Drive / Drivecode stack. Hub owns room state via 
 | Hub Chat Drive Spotlight | Shared Spotlight from hub room | `bun -F @cline/cline-hub dev` → open the printed dashboard URL → Connect → Chat → **Join call** |
 | Status Hub Dependency map | Live team tasks, or Drive plan fixture | printed dashboard URL + `/status?demoPlans=1&statusMode=dependency-map` |
 | CLI Drive teaser | Local TUI flags | `bun run cli -i` then `Ctrl+Shift+D` / status-bar Drive control (`CLINE_DEMO_DRIVE=1` starts with Drive on) |
+| CLI Status Hub | Board + dependency map dialog | `CLINE_DEMO_STATUS_PLANS=1 CLINE_DEMO_OPEN_STATUS=1 bun run cli -i` (`CLINE_DEMO_STATUS_LENS=dependency-map` for the map) |
 
 ## Drive Mode share screen (production Join path)
 

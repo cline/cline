@@ -22,6 +22,7 @@ export type LocalSlashCommandName =
 	| "fork"
 	| "undo"
 	| "clear"
+	| "status"
 	| "history"
 	| "quit"
 	| "help";
@@ -96,6 +97,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "Start a new session",
 	},
 	{
+		name: "status",
+		description: "Open Status Hub (board and dependency map)",
+	},
+	{
 		name: "history",
 		description: "View session history",
 	},
@@ -121,6 +126,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"undo",
 	"clear",
 	"team",
+	"status",
 	"history",
 	"help",
 	"quit",

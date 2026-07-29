@@ -10,6 +10,7 @@ export type CommandPaletteAction =
 	| "fork"
 	| "undo"
 	| "clear"
+	| "status"
 	| "history"
 	| "help"
 	| "quit";
@@ -113,6 +114,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+L",
 		description: "Clear the conversation and restart the session",
 		keywords: ["clear", "new", "reset"],
+	},
+	{
+		action: "status",
+		label: "Open Status Hub",
+		shortcut: "Opt+T",
+		description: "Board and dependency map for agent work",
+		keywords: ["status", "board", "dependency", "hub", "blocked"],
 	},
 	{
 		action: "history",

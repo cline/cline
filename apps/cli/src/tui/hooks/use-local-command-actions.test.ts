@@ -21,6 +21,7 @@ function makeActions(
 		clearConversation: vi.fn(async () => {}),
 		openHelp: vi.fn(),
 		openHistory: vi.fn(),
+		openStatus: vi.fn(),
 		exitCline: vi.fn(),
 		...overrides,
 	};
@@ -145,6 +146,19 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(await handledPromise).toBe(true);
 		expect(settled).toBe(true);
+	});
+
+	it("opens Status Hub with status", () => {
+		const openStatus = vi.fn();
+		const actions = makeActions({ openStatus });
+
+		const handled = runLocalSlashCommandAction({
+			name: "status",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(openStatus).toHaveBeenCalledOnce();
 	});
 
 	it("exits Cline with quit", () => {

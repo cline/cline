@@ -1,7 +1,7 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
@@ -12,6 +12,7 @@ import type { AppView, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
+import { StatusDialogContent } from "../views/status-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
 import type { OpenConfigOptions } from "./use-config-panel";
 
@@ -113,6 +114,22 @@ export function useLocalCommandActions(input: {
 		});
 		refocusTextarea();
 	}, [dialog, refocusTextarea, termHeight]);
+
+	const openStatus = useCallback(async () => {
+		await dialog.choice<void>({
+			size: "large",
+			style: { maxHeight: termHeight - 2 },
+			content: (ctx: ChoiceContext<void>) => <StatusDialogContent {...ctx} />,
+		});
+		refocusTextarea();
+	}, [dialog, refocusTextarea, termHeight]);
+
+	// Docs / screenshots: open Status Hub as soon as the TUI is ready.
+	useEffect(() => {
+		if (process.env.CLINE_DEMO_OPEN_STATUS === "1") {
+			void openStatus();
+		}
+	}, [openStatus]);
 
 	const runCompact = useCallback(async () => {
 		session.setIsRunning(true);
@@ -223,6 +240,7 @@ export function useLocalCommandActions(input: {
 				clearConversation: onClearConversation,
 				openHelp,
 				openHistory,
+				openStatus,
 				exitCline: onExit,
 			});
 		},
@@ -235,6 +253,7 @@ export function useLocalCommandActions(input: {
 			openMcpManager,
 			openHelp,
 			openHistory,
+			openStatus,
 			openModelSelector,
 			openSkills,
 			runCompact,

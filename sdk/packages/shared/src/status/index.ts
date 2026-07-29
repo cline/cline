@@ -26,3 +26,13 @@ export {
 	shouldPushToUser,
 	TERMINAL_STATUS_STATES,
 } from "./status";
+export {
+	buildDependencyMap,
+	type DependencyMap,
+	type DependencyNode,
+} from "./dependency-map";
+export {
+	PLAN_DEPENDENCY_DEMO_TEAM,
+	PLAN_DEPENDENCY_DEMO_TEAMS,
+} from "./plan-tasks-fixture";
+export { STATUS_BOARD_DEMO_UPDATES } from "./status-board-demo";

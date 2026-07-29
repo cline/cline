@@ -215,10 +215,13 @@ Opening the map requests a snapshot, and a `team.progress` event requests a
 fresh one. The snapshot is intentionally live-only today, so the empty state
 means no active team tasks are available—not that no historical tasks exist.
 
-For docs and demos, `/status?demoPlans=1` loads
-`plan-tasks-fixture.ts`: the current `docs/plans/cline-drivemode` feature set
-with TASK-GRAPH dependency edges. That fixture is presentation-only; it does
-not write team runtime state.
+For docs and demos, `/status?demoPlans=1` loads the shared Drive plan fixture
+(`@cline/shared` → `sdk/packages/shared/src/status/plan-tasks-fixture.ts`): the
+current `docs/plans/cline-drivemode` feature set with TASK-GRAPH dependency
+edges. That fixture is presentation-only; it does not write team runtime state.
+The interactive CLI exposes the same Board and Dependency map via `/status`
+(`apps/cli/src/tui/views/status-view.tsx`); use `CLINE_DEMO_STATUS_PLANS=1` when
+the hub has no live rows.
 
 #### Accessibility and keyboard behavior
 

@@ -171,6 +171,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-status",
+		key: "/status",
+		desc: "Open Status Hub (board and dependency map)",
+	},
+	{
+		kind: "entry",
 		id: "c-history",
 		key: "/history",
 		desc: "View and resume past sessions",

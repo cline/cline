@@ -1,7 +1,6 @@
-import type { TeamTask } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { buildDependencyMap } from "@cline/shared";
-
+import type { TeamTask } from "../team/types";
+import { buildDependencyMap } from "./dependency-map";
 const task = (
 	id: string,
 	dependsOn: string[] = [],
@@ -16,8 +15,7 @@ const task = (
 	createdBy: "lead",
 	dependsOn,
 });
-
-describe("buildDependencyMap (hub re-export)", () => {
+describe("buildDependencyMap", () => {
 	it("layers chains and fan-in deterministically while identifying ready work", () => {
 		const map = buildDependencyMap([
 			{
@@ -39,5 +37,28 @@ describe("buildDependencyMap (hub re-export)", () => {
 		expect(map.nodes.find((n) => n.id === "web")?.isReady).toBe(true);
 		expect(map.nodes.find((n) => n.id === "api")?.isReady).toBe(true);
 		expect(map.nodes.find((n) => n.id === "deploy")?.isWaiting).toBe(true);
+	});
+	it("reports missing references and direct and indirect cycles", () => {
+		const map = buildDependencyMap([
+			{
+				teamId: "t",
+				tasks: [
+					task("missing", ["nope"]),
+					task("a", ["b"]),
+					task("b", ["c"]),
+					task("c", ["a"]),
+					task("self", ["self"]),
+				],
+			},
+		]);
+		expect(map.missingReferences).toEqual(["t:missing -> nope"]);
+		expect(map.cycles).toHaveLength(2);
+		expect(map.nodes.filter((n) => n.inCycle).map((n) => n.id)).toEqual([
+			"a",
+			"b",
+			"c",
+			"self",
+		]);
+		expect(map.nodes.find((n) => n.id === "missing")?.isWaiting).toBe(true);
 	});
 });
