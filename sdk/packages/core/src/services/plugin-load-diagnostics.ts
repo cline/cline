@@ -26,19 +26,29 @@ export interface PluginLoadReport {
 
 let latestReport: PluginLoadReport | undefined;
 
+function copyReport(report: PluginLoadReport): PluginLoadReport {
+	return {
+		...report,
+		pluginPaths: [...report.pluginPaths],
+		failures: [...report.failures],
+		warnings: [...report.warnings],
+	};
+}
+
 export function recordPluginLoadReport(
 	report: Omit<PluginLoadReport, "recordedAt">,
 ): void {
-	latestReport = { ...report, recordedAt: Date.now() };
+	latestReport = copyReport({ ...report, recordedAt: Date.now() });
 }
 
 /**
  * The last report recorded in this process, or undefined when no session has
  * loaded plugins yet. Callers must treat undefined as "not validated yet"
- * rather than "healthy".
+ * rather than "healthy". The returned report is a copy, so reading it cannot
+ * disturb what a later reader sees.
  */
 export function getLatestPluginLoadReport(): PluginLoadReport | undefined {
-	return latestReport;
+	return latestReport ? copyReport(latestReport) : undefined;
 }
 
 export function clearPluginLoadReport(): void {
