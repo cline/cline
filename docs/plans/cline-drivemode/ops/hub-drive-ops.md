@@ -1,7 +1,7 @@
 # Hub Drive ops catalog
 
-**Purpose.** Canonical list of hub operations and failure modes for Drive rooms, config, and agent homes.  
-**Constraint.** Hub `ws://127.0.0.1:25463` is the single writer. Clients hold read-only projections.  
+**Purpose.** Canonical list of hub operations and failure modes for Drive rooms, config, and agent homes.
+**Constraint.** Hub `ws://127.0.0.1:25463` is the single writer. Clients hold read-only projections.
 **Status.** Planning catalog — shapes may tighten in Phase 0 schemas without changing ownership.
 
 ## Principles
@@ -16,7 +16,8 @@
 
 | Op | Intent | Idempotent | Broadcast (conceptual) |
 |---|---|---|---|
-| `call_join` / `room_join` | Attach human to room; seat pair partner via `joinCall` façade | Yes (re-join) | `CALL_STATE_UPDATE` / participant add |
+| `call_get_room` | Return `snapshot` + `seq`; with `afterSeq`, also gap `events` | Yes | none (reply only) |
+| `call_join` / `room_join` | Attach human to room; seat pair partner via `joinCall` façade; optional `workspaceRoot` for durable log | Yes (re-join) | `room.snapshot` / `room.event` |
 | `call_leave` | Remove human; room persists | Yes | participant remove |
 | `call_end` | End session; handoff narration path | Yes (second end no-op) | room ended + handoff event |
 | `call_mute` | Set human/agent mute flags | Yes | state update |
@@ -75,10 +76,29 @@ See [DRV-GATES](../features/DRV-GATES.md).
 
 ## Snapshot / reconnect
 
-On subscribe/reconnect, hub sends a **room snapshot** (roster, mode, stage pointer, addressSet, focus, recent event window) then live events. Clients rebuild projection via `@cline/drive` reducers — they do not merge ad hoc.
+On subscribe/reconnect (`call_join` / `call_get_room`):
+
+1. Optional `workspaceRoot` attaches the durable JSONL room event log under `.cline/drive/rooms/<roomId>/`.
+2. Hub hydrates `RoomSnapshot` from the log when the room is not already in memory.
+3. Reply includes `snapshot`, monotonic `seq`, and optionally `events` for gap fill when the client sends `afterSeq` (events with `seq > afterSeq`).
+4. Live broadcasts include `seq` on `room.event` / `room.snapshot`.
+
+Clients rebuild projection via `@cline/drive` reducers — they do not merge ad hoc. Cursor field: `afterSeq` on `call_get_room`.
+
+## Host capabilities (enterprise adapters)
+
+`HostCapabilities` on `DriveHostPort` includes placeholders defaulting to false:
+
+| Flag | Meaning |
+|---|---|
+| `remoteBridge` | Remote participant bridge to this hub |
+| `orgConfig` | Org-managed facet / policy overlay |
+| `auditExport` | Audit bundle export from the event log |
+
+See [04-future-multi-user.md](../04-future-multi-user.md) Phase 2 and [ARD-0013](../ard/ARD-0013-state-partition.md).
 
 ## Out of scope here
 
 - WebRTC signaling.
-- Cross-machine rooms.
+- Cross-machine rooms (until `remoteBridge`).
 - Telemetry leaving localhost.

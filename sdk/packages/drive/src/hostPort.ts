@@ -22,6 +22,11 @@ export type HostCapabilities = {
 	readonly localOnly: boolean;
 	/** Required — single-writer endpoint (Cline: ws://127.0.0.1:25463). */
 	readonly writerEndpoint: string;
+
+	/** Enterprise adapters (ARD-0013). Default false until implemented. */
+	readonly remoteBridge: boolean;
+	readonly orgConfig: boolean;
+	readonly auditExport: boolean;
 };
 
 export type RoomOp =
@@ -29,7 +34,11 @@ export type RoomOp =
 	| { type: "join"; participant: RoomSnapshot["participants"][number] }
 	| { type: "leave"; participantId: string }
 	| { type: "setAddress"; addressSet: RoomSnapshot["addressSet"] }
-	| { type: "setStage"; sharer: RoomSnapshot["stage"]["sharer"]; pin?: RoomSnapshot["stage"]["pin"] }
+	| {
+			type: "setStage";
+			sharer: RoomSnapshot["stage"]["sharer"];
+			pin?: RoomSnapshot["stage"]["pin"];
+	  }
 	| { type: "setMode"; subMode: RoomSnapshot["subMode"]; driveActive?: boolean }
 	| { type: "raiseHand"; participantId: string; raised: boolean }
 	| { type: "mute"; participantId: string; muted: boolean };
@@ -68,4 +77,7 @@ export const CLINE_HOST_CAPABILITIES: HostCapabilities = {
 	pixelShare: false,
 	localOnly: true,
 	writerEndpoint: CLINE_HUB_WRITER_ENDPOINT,
+	remoteBridge: false,
+	orgConfig: false,
+	auditExport: false,
 };

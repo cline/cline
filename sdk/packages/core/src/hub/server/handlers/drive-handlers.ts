@@ -4,32 +4,13 @@ import {
 	setSpotlight,
 } from "@cline/drive";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import { type ShowBacklogItem, ShowBacklogItemSchema } from "@cline/shared";
 import {
-	createEmptyDriveRoomLiveState,
-	type DriveRoomLiveState,
-	type ShowBacklogItem,
-	ShowBacklogItemSchema,
-} from "@cline/shared";
+	getDriveRoomStore,
+	resetDriveRoomStoreForTests,
+} from "../../collaboration";
 import { produceMermaidShowArtifact } from "../../drive-producers/produceMermaid";
 import { errorReply, type HubTransportContext, okReply } from "./context";
-
-const rooms = new Map<string, DriveRoomLiveState>();
-
-function getOrCreateRoom(roomId: string): DriveRoomLiveState {
-	const existing = rooms.get(roomId);
-	if (existing) {
-		return existing;
-	}
-	const created = createEmptyDriveRoomLiveState(roomId);
-	rooms.set(roomId, created);
-	return created;
-}
-
-function bump(room: DriveRoomLiveState): DriveRoomLiveState {
-	const next = { ...room, version: room.version + 1 };
-	rooms.set(room.roomId, next);
-	return next;
-}
 
 function readString(
 	payload: Record<string, unknown> | undefined,
@@ -49,7 +30,7 @@ function readBoolean(
 
 function publishRoom(
 	ctx: HubTransportContext,
-	room: DriveRoomLiveState,
+	room: ReturnType<ReturnType<typeof getDriveRoomStore>["getOrCreateLive"]>,
 	extraEvent?: {
 		event: "drive.spotlight.changed" | "drive.show.presented";
 		payload: Record<string, unknown>;
@@ -118,7 +99,9 @@ export function handleDriveCommand(
 
 function handleRoomGet(envelope: HubCommandEnvelope): HubReplyEnvelope {
 	const roomId = readString(envelope.payload, "roomId") ?? "default";
-	const room = getOrCreateRoom(roomId);
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
 	return okReply(envelope, { room });
 }
 
@@ -132,7 +115,9 @@ function handleSpotlightSet(
 	if (!participantId) {
 		return errorReply(envelope, "invalid_payload", "participantId is required");
 	}
-	const room = getOrCreateRoom(roomId);
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
 	const seated = new Set(room.seatedParticipantIds);
 	if (seated.size === 0) {
 		seated.add(participantId);
@@ -142,7 +127,7 @@ function handleSpotlightSet(
 		return errorReply(envelope, result.code, result.message);
 	}
 	const from = room.spotlightParticipantId;
-	const next = bump({
+	const next = store.setLive({
 		...room,
 		spotlightParticipantId: result.spotlightParticipantId,
 		seatedParticipantIds: [...seated],
@@ -187,12 +172,20 @@ function handleAudioFlag(
 			`participantId and ${flag} are required`,
 		);
 	}
-	const room = getOrCreateRoom(roomId);
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	if (
+		flag === "muted" &&
+		store.get(roomId)?.participants.some((p) => p.id === participantId)
+	) {
+		store.mute({ roomId, participantId, muted: value });
+	}
+	const room = store.getOrCreateLive(roomId);
 	const participantAudio =
 		flag === "muted"
 			? setParticipantMuted(room.participantAudio, participantId, value)
 			: setParticipantDeafened(room.participantAudio, participantId, value);
-	const next = bump({ ...room, participantAudio });
+	const next = store.setLive({ ...room, participantAudio });
 	publishRoom(ctx, next);
 	return okReply(envelope, { room: next });
 }
@@ -213,12 +206,14 @@ function handleShowPresent(
 		);
 	}
 	const showItem = materializeShowItem(parsedShow.data);
-	const room = getOrCreateRoom(roomId);
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
 	const showBacklog = [
 		showItem,
 		...room.director.showBacklog.filter((item) => item.id !== showItem.id),
 	];
-	const next = bump({
+	const next = store.setLive({
 		...room,
 		director: {
 			...room.director,
@@ -246,7 +241,7 @@ function handleShowPresent(
 	return okReply(envelope, { room: next });
 }
 
-/** @internal test helper */
+/** @internal test helper — clears collaboration store (single live Map). */
 export function __resetDriveRoomsForTests(): void {
-	rooms.clear();
+	resetDriveRoomStoreForTests();
 }

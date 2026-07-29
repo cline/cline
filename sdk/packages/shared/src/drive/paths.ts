@@ -19,6 +19,41 @@ export function resolveDriveFacetsPath(configParent: string): string {
 	return join(resolveDriveConfigDir(configParent), DRIVE_FACETS_FILE_NAME);
 }
 
+export const DRIVE_ROOMS_DIRECTORY_NAME = "rooms";
+export const DRIVE_ROOM_EVENTS_FILE_NAME = "events.jsonl";
+export const DRIVE_ROOM_META_FILE_NAME = "meta.json";
+
+export function resolveDriveRoomsDir(configParent: string): string {
+	return join(resolveDriveConfigDir(configParent), DRIVE_ROOMS_DIRECTORY_NAME);
+}
+
+export function resolveDriveRoomDir(
+	configParent: string,
+	roomId: string,
+): string {
+	return join(resolveDriveRoomsDir(configParent), roomId);
+}
+
+export function resolveDriveRoomEventsPath(
+	configParent: string,
+	roomId: string,
+): string {
+	return join(
+		resolveDriveRoomDir(configParent, roomId),
+		DRIVE_ROOM_EVENTS_FILE_NAME,
+	);
+}
+
+export function resolveDriveRoomMetaPath(
+	configParent: string,
+	roomId: string,
+): string {
+	return join(
+		resolveDriveRoomDir(configParent, roomId),
+		DRIVE_ROOM_META_FILE_NAME,
+	);
+}
+
 export function resolveDriveProvidersDir(configParent: string): string {
 	return join(
 		resolveDriveConfigDir(configParent),

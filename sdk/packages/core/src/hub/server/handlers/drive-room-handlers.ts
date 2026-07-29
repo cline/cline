@@ -9,20 +9,21 @@ import type {
 	RoomSnapshot,
 	StageSharer,
 } from "@cline/shared";
-import { DriveSubModeSchema, ParticipantSchema, StageSharerSchema } from "@cline/shared";
+import {
+	DriveSubModeSchema,
+	ParticipantSchema,
+	StageSharerSchema,
+} from "@cline/shared";
 import { z } from "zod";
 import {
-	type JoinCallResult,
-	joinCall,
 	getDriveRoomStore,
-	workRecordFromToolEvent,
+	type JoinCallResult,
+	JsonlRoomEventLog,
+	joinCall,
 	type WorkRecordPayload,
+	workRecordFromToolEvent,
 } from "../../collaboration";
-import {
-	type HubTransportContext,
-	errorReply,
-	okReply,
-} from "./context";
+import { errorReply, type HubTransportContext, okReply } from "./context";
 
 const RoomIdSchema = z.object({
 	roomId: z.string().min(1),
@@ -48,6 +49,8 @@ const CallJoinPayloadSchema = z
 		activateDrive: z.boolean().optional(),
 		/** Optional agent session for tool → stage.cards bridge. */
 		sessionId: z.string().min(1).optional(),
+		/** Workspace root for durable room event log (ARD-0013). */
+		workspaceRoot: z.string().min(1).optional(),
 		/** Optional raw participant join without joinCall façade. */
 		participant: ParticipantSchema.optional(),
 	})
@@ -113,7 +116,9 @@ const CallRecordWorkPayloadSchema = z
 		roomId: z.string().min(1).optional(),
 		sessionId: z.string().min(1).optional(),
 		actorId: z.string().min(1).optional(),
-		work: z.union([WorkEditSchema, WorkCommandSchema, WorkTestSchema]).optional(),
+		work: z
+			.union([WorkEditSchema, WorkCommandSchema, WorkTestSchema])
+			.optional(),
 		tool: z
 			.object({
 				toolCallId: z.string().optional(),
@@ -139,6 +144,9 @@ const CallGetRoomPayloadSchema = z
 	.object({
 		roomId: z.string().min(1).optional(),
 		sessionId: z.string().min(1).optional(),
+		/** Reconnect cursor: return events with seq > afterSeq. */
+		afterSeq: z.number().int().nonnegative().optional(),
+		workspaceRoot: z.string().min(1).optional(),
 	})
 	.strict()
 	.refine((value) => Boolean(value.roomId || value.sessionId), {
@@ -150,12 +158,14 @@ function publishRoomEvent(
 	roomId: string,
 	snapshot: RoomSnapshot,
 	event: unknown,
+	seq: number,
 ): void {
 	ctx.publish(
 		ctx.buildEvent("room.event", {
 			roomId,
 			snapshot,
 			event,
+			seq,
 		}),
 	);
 }
@@ -164,17 +174,28 @@ function publishRoomSnapshot(
 	ctx: HubTransportContext,
 	roomId: string,
 	snapshot: RoomSnapshot,
+	seq: number,
 ): void {
 	ctx.publish(
 		ctx.buildEvent("room.snapshot", {
 			roomId,
 			snapshot,
+			seq,
 		}),
 	);
 }
 
-function snapshotPayload(snapshot: RoomSnapshot): Record<string, unknown> {
-	return { roomId: snapshot.roomId, snapshot };
+function snapshotPayload(
+	snapshot: RoomSnapshot,
+	seq: number,
+	gaps: Array<{ seq: number; event: unknown }> = [],
+): Record<string, unknown> {
+	return {
+		roomId: snapshot.roomId,
+		snapshot,
+		seq,
+		...(gaps.length > 0 ? { events: gaps } : {}),
+	};
 }
 
 function resolveRoomId(
@@ -220,6 +241,16 @@ function resolveWorkPayload(payload: {
 	throw new Error("work_or_tool_required");
 }
 
+function ensureEventLog(
+	store: ReturnType<typeof getDriveRoomStore>,
+	workspaceRoot: string | undefined,
+): void {
+	if (!workspaceRoot || store.getEventLog()) {
+		return;
+	}
+	store.attachEventLog(new JsonlRoomEventLog(workspaceRoot));
+}
+
 export function handleDriveRoomCommand(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -229,7 +260,11 @@ export function handleDriveRoomCommand(
 		switch (envelope.command) {
 			case "call_join": {
 				const payload = CallJoinPayloadSchema.parse(envelope.payload ?? {});
-				let result: JoinCallResult | { snapshot: RoomSnapshot };
+				ensureEventLog(store, payload.workspaceRoot);
+				if (!store.get(payload.roomId) && store.getEventLog()) {
+					store.hydrateFromLogSync(payload.roomId);
+				}
+				let result: JoinCallResult | { snapshot: RoomSnapshot; seq: number };
 				if (payload.participant) {
 					store.create(payload.roomId);
 					const committed = store.join({
@@ -237,12 +272,13 @@ export function handleDriveRoomCommand(
 						participant: payload.participant as Participant,
 						sessionId: payload.sessionId,
 					});
-					result = { snapshot: committed.snapshot };
+					result = { snapshot: committed.snapshot, seq: committed.seq };
 					publishRoomEvent(
 						ctx,
 						payload.roomId,
 						committed.snapshot,
 						committed.event,
+						committed.seq,
 					);
 				} else {
 					result = joinCall(
@@ -255,12 +291,14 @@ export function handleDriveRoomCommand(
 						},
 						store,
 					);
-					publishRoomSnapshot(ctx, payload.roomId, result.snapshot);
+					const seq = store.lastSeq(payload.roomId);
+					publishRoomSnapshot(ctx, payload.roomId, result.snapshot, seq);
+					result = { snapshot: result.snapshot, seq };
 				}
 				if (payload.sessionId) {
 					store.linkSession(payload.sessionId, payload.roomId);
 				}
-				return okReply(envelope, snapshotPayload(result.snapshot));
+				return okReply(envelope, snapshotPayload(result.snapshot, result.seq));
 			}
 			case "call_leave": {
 				const payload = CallLeavePayloadSchema.parse(envelope.payload ?? {});
@@ -270,8 +308,12 @@ export function handleDriveRoomCommand(
 					payload.roomId,
 					committed.snapshot,
 					committed.event,
+					committed.seq,
 				);
-				return okReply(envelope, snapshotPayload(committed.snapshot));
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
 			}
 			case "call_mute": {
 				const payload = CallMutePayloadSchema.parse(envelope.payload ?? {});
@@ -281,13 +323,15 @@ export function handleDriveRoomCommand(
 					payload.roomId,
 					committed.snapshot,
 					committed.event,
+					committed.seq,
 				);
-				return okReply(envelope, snapshotPayload(committed.snapshot));
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
 			}
 			case "call_set_stage": {
-				const payload = CallSetStagePayloadSchema.parse(
-					envelope.payload ?? {},
-				);
+				const payload = CallSetStagePayloadSchema.parse(envelope.payload ?? {});
 				const committed = store.setStage({
 					roomId: payload.roomId,
 					sharer: payload.sharer as StageSharer | null,
@@ -298,31 +342,33 @@ export function handleDriveRoomCommand(
 					payload.roomId,
 					committed.snapshot,
 					committed.event,
+					committed.seq,
 				);
-				return okReply(envelope, snapshotPayload(committed.snapshot));
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
 			}
 			case "call_set_mode": {
-				const payload = CallSetModePayloadSchema.parse(
-					envelope.payload ?? {},
-				);
+				const payload = CallSetModePayloadSchema.parse(envelope.payload ?? {});
 				const committed = store.setMode(payload);
 				publishRoomEvent(
 					ctx,
 					payload.roomId,
 					committed.snapshot,
 					committed.event,
+					committed.seq,
 				);
-				return okReply(envelope, snapshotPayload(committed.snapshot));
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
 			}
 			case "call_record_work": {
 				const payload = CallRecordWorkPayloadSchema.parse(
 					envelope.payload ?? {},
 				);
-				const roomId = resolveRoomId(
-					store,
-					payload.roomId,
-					payload.sessionId,
-				);
+				const roomId = resolveRoomId(store, payload.roomId, payload.sessionId);
 				const work = resolveWorkPayload(payload);
 				const committed = store.recordWork({
 					roomId,
@@ -337,20 +383,31 @@ export function handleDriveRoomCommand(
 					roomId,
 					committed.snapshot,
 					committed.event,
+					committed.seq,
 				);
-				return okReply(envelope, snapshotPayload(committed.snapshot));
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
 			}
 			case "call_get_room": {
-				const payload = CallGetRoomPayloadSchema.parse(
-					envelope.payload ?? {},
-				);
-				const roomId = resolveRoomId(
-					store,
-					payload.roomId,
-					payload.sessionId,
-				);
+				const payload = CallGetRoomPayloadSchema.parse(envelope.payload ?? {});
+				ensureEventLog(store, payload.workspaceRoot);
+				const roomId = resolveRoomId(store, payload.roomId, payload.sessionId);
+				if (!store.get(roomId) && store.getEventLog()) {
+					store.hydrateFromLogSync(roomId);
+				}
 				const snapshot = store.getOrThrow(roomId);
-				return okReply(envelope, snapshotPayload(snapshot));
+				const seq = store.lastSeq(roomId);
+				const log = store.getEventLog();
+				const gaps =
+					log && payload.afterSeq !== undefined
+						? log.readSinceSync(roomId, payload.afterSeq).map((r) => ({
+								seq: r.seq,
+								event: r.event,
+							}))
+						: [];
+				return okReply(envelope, snapshotPayload(snapshot, seq, gaps));
 			}
 			default:
 				return errorReply(

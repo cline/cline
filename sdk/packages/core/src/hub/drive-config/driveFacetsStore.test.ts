@@ -1,13 +1,10 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
 import { defaultFacetValuesFromProfile } from "@cline/drive";
 import { BUILTIN_WEB_SPEECH_STT_ID } from "@cline/shared";
-import {
-	loadOrSeedDriveFacets,
-	setDriveFacets,
-} from "./driveFacetsStore";
+import { describe, expect, it } from "vitest";
+import { loadOrSeedDriveFacets, setDriveFacets } from "./driveFacetsStore";
 
 describe("driveFacetsStore", () => {
 	it("seeds cloud defaults when missing", () => {
@@ -51,5 +48,14 @@ describe("driveFacetsStore", () => {
 			"utf8",
 		);
 		expect(raw).not.toMatch(/apiKey|token/i);
+		const parsed = JSON.parse(raw) as {
+			schemaVersion: number;
+			entries: Record<string, unknown>;
+		};
+		expect(parsed.schemaVersion).toBe(1);
+		expect(parsed.entries["providers.sttId"]).toMatchObject({
+			kind: "value",
+			value: BUILTIN_WEB_SPEECH_STT_ID,
+		});
 	});
 });

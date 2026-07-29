@@ -3,7 +3,11 @@
  * pair_partner agent (DRV-ROOM-MVP).
  */
 
-import type { AgentParticipant, HumanParticipant, RoomSnapshot } from "@cline/shared";
+import type {
+	AgentParticipant,
+	HumanParticipant,
+	RoomSnapshot,
+} from "@cline/shared";
 import { type DriveRoomStore, getDriveRoomStore } from "./room";
 
 export type JoinCallInput = {

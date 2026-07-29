@@ -105,9 +105,7 @@ describe("DriveRoomStore", () => {
 		expect(cards.find((c) => c.category === "edit")?.title).toBe(
 			"src/router.ts",
 		);
-		expect(cards.find((c) => c.category === "command")?.title).toBe(
-			"bun test",
-		);
+		expect(cards.find((c) => c.category === "command")?.title).toBe("bun test");
 	});
 
 	it("links sessionId to room for the work bridge", () => {

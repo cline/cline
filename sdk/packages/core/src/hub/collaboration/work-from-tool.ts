@@ -108,9 +108,7 @@ function firstCommandFromInput(input: unknown): string | undefined {
 		);
 	}
 	return (
-		asString(record.command) ??
-		asString(record.cmd) ??
-		asString(record.script)
+		asString(record.command) ?? asString(record.cmd) ?? asString(record.script)
 	);
 }
 
@@ -187,12 +185,9 @@ export function workRecordFromToolEvent(
 	switch (category) {
 		case "edit": {
 			const path =
-				pathFromInput(tool.input) ??
-				pathFromPatch(tool.input) ??
-				name;
+				pathFromInput(tool.input) ?? pathFromPatch(tool.input) ?? name;
 			const detail =
-				stringifyCompact(asRecord(tool.input)?.new_text, 240) ??
-				outputSummary;
+				stringifyCompact(asRecord(tool.input)?.new_text, 240) ?? outputSummary;
 			return {
 				kind: "edit",
 				path,

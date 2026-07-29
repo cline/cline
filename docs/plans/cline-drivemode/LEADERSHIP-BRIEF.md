@@ -1,8 +1,8 @@
 # Leadership brief · Drivecode planning wave
 
-**Role lens.** Software engineering lead + product manager.  
-**Purpose.** Close contradictions, force decisions, freeze Phase 0 entry, and leave implementers a single source of truth.  
-**Date.** 2026-07-25.  
+**Role lens.** Software engineering lead + product manager.
+**Purpose.** Close contradictions, force decisions, freeze Phase 0 entry, and leave implementers a single source of truth.
+**Date.** 2026-07-25.
 **Builds on.** Draft PRs [#1](https://github.com/hhalperin/cline-drivecode/pull/1) / [#2](https://github.com/hhalperin/cline-drivecode/pull/2) and review [#3](https://github.com/hhalperin/cline-drivecode/pull/3).
 
 ## Executive summary
@@ -110,6 +110,10 @@ Human override format (from existing handoffs): `accept all` | `change: <id and 
 | Metric-free “MVP done” debates | prd-success-metrics |
 
 ## How to use this brief
+
+Treat decisions in this document and the ARD board as defaults for Phase 0 unless a later ARD supersedes them. Implementation of the three-lane state partition ([ARD-0013](ard/ARD-0013-state-partition.md)) is the local durability seam: remote rooms, org config, and audit export arrive later as adapters on the same log and `DriveHostPort` — not a rewrite.
+
+For day-to-day sequencing, prefer feature docs under `features/` and the hub ops catalog ([ops/hub-drive-ops.md](ops/hub-drive-ops.md)).
 
 1. Read [ARD-0000-status-board.md](ard/ARD-0000-status-board.md).
 2. Read [SYSTEMS-ANALYSIS.md](SYSTEMS-ANALYSIS.md) for the E2E product/systems map.

@@ -38,6 +38,19 @@ The MVP Drive tab already ships this IA for one workspace and one partner (see [
 - Participant and role fields exist in the roster even when the roster is always two entries.
 - Mute is enforced hub-side, so server-enforced moderation carries into multi-user unchanged.
 - The stage reducer takes an event stream as input, not a session object, so a remote stream is a drop-in.
+- Three-lane state partition ([ARD-0013](ard/ARD-0013-state-partition.md)): durable event log, single live room store, durable facets. Remote/org/audit plug in as adapters — not a second room model.
+
+## Enterprise adapters (stubs — not implemented)
+
+These bind to the local log + `DriveHostPort` without changing `reduceRoom` or `DriveEvent` schemas:
+
+| Adapter | Capability flag | Role |
+|---|---|---|
+| Remote participant bridge | `remoteBridge` | Phase 2: tunnel/LAN clients authenticate at the hub boundary and append the same event schemas |
+| Org-managed config | `orgConfig` | Overlay / provision facets from IdP or admin policy; still hub-written disk |
+| Audit / replay export | `auditExport` | Bundle room (+ bank family) log segments for compliance UI |
+
+All three default `false` on `CLINE_HOST_CAPABILITIES` until implemented. See [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md) and ops [hub-drive-ops.md](ops/hub-drive-ops.md).
 
 ## What the MVP deliberately skips
 

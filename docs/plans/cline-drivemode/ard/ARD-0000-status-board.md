@@ -1,7 +1,7 @@
 # ARD-0000 · Decision status board
 
-**Purpose.** One place to see what is Accepted, Proposed, Recommended-default, or Superseded.  
-**Owner.** Drivecode SE lead / PM.  
+**Purpose.** One place to see what is Accepted, Proposed, Recommended-default, or Superseded.
+**Owner.** Drivecode SE lead / PM.
 **Related.** [LEADERSHIP-BRIEF.md](../LEADERSHIP-BRIEF.md), [HANDOFF.md](../HANDOFF.md), [../HANDOFF-drivecode.md](../../HANDOFF-drivecode.md).
 
 ## Status legend
@@ -23,6 +23,7 @@
 | [ARD-0003](ARD-0003-recruit-and-roster-pack.md) | Recruit ranks; packs stay curated | **Recommended** | Lexical MVP |
 | [ARD-0004](ARD-0004-gated-learn-privacy.md) | Gated learn; no transcript dump | **Recommended** | |
 | [ARD-0005](ARD-0005-status-hub.md) | Status Hub: SQLite status log in the Cline SDK | **Accepted** | SDK-scope, not Drive-only. Implemented: store, service, hub ops, `report_status` tool, dashboard viewer |
+| [ARD-0013](ARD-0013-state-partition.md) | Three-lane state partition (event log / live room / facets) | **Accepted** | Durable log + single live store; remote/org/audit are adapters |
 
 Promotion rule. When Harrison replies `accept all`, flip these four to **Accepted** in this board and in each ARD header.
 
@@ -34,7 +35,7 @@ Promotion rule. When Harrison replies `accept all`, flip these four to **Accepte
 | [DEC-package-location](../decisions/DEC-package-location.md) | `@cline/drive` in monorepo for phase 1 | **Recommended** |
 | [DEC-open-product-forks](../decisions/DEC-open-product-forks.md) | Focus / streams / share / accent / revise | **Recommended** (bundle) |
 
-## Architecture D1–D7
+## Architecture D1–D10
 
 | ID | Title | Status |
 |---|---|---|
@@ -45,6 +46,9 @@ Promotion rule. When Harrison replies `accept all`, flip these four to **Accepte
 | D5 | Hooks are the interception path | Accepted |
 | D6 | Surfaces render typed events | Accepted |
 | D7 | Facet catalog + lanes + hub durable writes | Accepted |
+| D8 | Runtime topology local / cloud / hybrid | Accepted |
+| D9 | Provider harness (BYOK) | Accepted |
+| D10 | Three-lane state partition | Accepted ([ARD-0013](ARD-0013-state-partition.md)) |
 
 SDK amendments (reducer/projection in `@cline/drive`; host port + conformance kit) are **Recommended** and must be reflected in `DRV-KERNEL` ACs before Phase 0 gate.
 

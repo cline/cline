@@ -83,6 +83,16 @@ A Drive session declares a `DeploymentProfile` (`local` | `cloud` | `hybrid`) th
 
 STT and TTS are pluggable via `DriveProviderManifest` + registry. LLM BYOK stays in Cline / `@cline/llms`. Drive Settings are facet-backed selections (`providers.sttId` / `ttsId`), not a second settings bag and not a Drive-owned key vault. Default packs seed facets for Local and Cloud so first run works. Details: [08-provider-harness.md](08-provider-harness.md), [ARD-0010](ard/ARD-0010-provider-harness-byok.md).
 
+### D10. Three-lane state partition
+
+Room and Drive config state are partitioned so local MVP and later enterprise adapters share one model:
+
+1. **Durable event log** — append-only `DriveEvent` (and bank family envelope) keyed by `roomId` + `seq`.
+2. **Ephemeral live room** — one hub-owned `RoomSnapshot` folded from the log; rebuildable on restart; dual live Maps forbidden.
+3. **Durable facets** — `.cline/drive` disk contract; seeds live at room create; never overwrites live mid-call.
+
+Remote multi-human rooms, org-managed config, and audit/replay bind as adapters on the log and `DriveHostPort`. Details: [ARD-0013](ard/ARD-0013-state-partition.md).
+
 ## Alternatives considered
 
 - **A separate Cline Drive product shell.** Rejected. Conflicts with seamless integration; Drive is a mode of Cline ([ARD-0007](ard/ARD-0007-drive-as-cline-mode.md)).
