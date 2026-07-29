@@ -4,11 +4,68 @@ on:
     push:
         branches:
             - main
+        # Workflow-level paths avoid queuing a runner for docs/hub/cli-only changes.
+        # Keep in sync with the dorny filters below (union of vscode + testing_platform).
+        paths:
+            - "apps/vscode/src/**"
+            - "apps/vscode/webview-ui/**"
+            - "apps/vscode/proto/**"
+            - "apps/vscode/tests/**"
+            - "apps/vscode/scripts/**"
+            - "apps/vscode/standalone/**"
+            - "apps/vscode/assets/**"
+            - "apps/vscode/walkthrough/**"
+            - "apps/vscode/testing-platform/**"
+            - "apps/vscode/package.json"
+            - "apps/vscode/webview-ui/package.json"
+            - "apps/vscode/testing-platform/package.json"
+            - "apps/vscode/buf.yaml"
+            - "apps/vscode/tsconfig*.json"
+            - "apps/vscode/biome.jsonc"
+            - "apps/vscode/esbuild.mjs"
+            - "apps/vscode/bunfig.toml"
+            - "apps/vscode/.vscode-test.mjs"
+            - "apps/vscode/.vscodeignore"
+            - "apps/vscode/test-setup.js"
+            - "bun.lock"
+            - "sdk/packages/**"
+            - ".github/workflows/ext-vscode-test.yml"
     workflow_dispatch:
     pull_request:
         branches:
             - main
+        paths:
+            - "apps/vscode/src/**"
+            - "apps/vscode/webview-ui/**"
+            - "apps/vscode/proto/**"
+            - "apps/vscode/tests/**"
+            - "apps/vscode/scripts/**"
+            - "apps/vscode/standalone/**"
+            - "apps/vscode/assets/**"
+            - "apps/vscode/walkthrough/**"
+            - "apps/vscode/testing-platform/**"
+            - "apps/vscode/package.json"
+            - "apps/vscode/webview-ui/package.json"
+            - "apps/vscode/testing-platform/package.json"
+            - "apps/vscode/buf.yaml"
+            - "apps/vscode/tsconfig*.json"
+            - "apps/vscode/biome.jsonc"
+            - "apps/vscode/esbuild.mjs"
+            - "apps/vscode/bunfig.toml"
+            - "apps/vscode/.vscode-test.mjs"
+            - "apps/vscode/.vscodeignore"
+            - "apps/vscode/test-setup.js"
+            - "bun.lock"
+            - "sdk/packages/**"
+            - ".github/workflows/ext-vscode-test.yml"
     workflow_call:
+
+# Cancel superseded PR pushes. Use run_id for non-PR (push / workflow_dispatch /
+# workflow_call) so main CI and publish reusable calls do not share a group and
+# cancel each other — unlike e2e, this workflow is called from publish pipelines.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+    cancel-in-progress: true
 
 # Set default permissions for all jobs
 permissions:
@@ -23,8 +80,10 @@ jobs:
             vscode: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.vscode == 'true' }}
             testing_platform: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.testing_platform == 'true' }}
         steps:
+            # Force full coverage only for intentional full runs (publish / manual).
+            # Do NOT force on push to main — that made docs merges pay for the whole suite.
             - id: force
-              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
               run: echo "run_all=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4

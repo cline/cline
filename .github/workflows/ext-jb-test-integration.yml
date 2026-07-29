@@ -1,14 +1,15 @@
 name: ext-jb-test-integration
 on:
-  pull_request_target:
-    types: [opened, reopened]
+  # Slash-command only. Auto pull_request_target on every open/reopen was ~97%
+  # skipped spin-up upstream (461 runs / ~2d sample, 446 skipped). Opt in with
+  # /test-jetbrains from a MEMBER/OWNER/COLLABORATOR on the PR.
   issue_comment:
     types: [created]
 permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: jetbrains-trigger-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: jetbrains-trigger-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -19,18 +20,14 @@ jobs:
     # using an App token that lives in cline org secrets. On a fork the token
     # step fails outright, so every PR carries a permanently red "Run Tests".
     #
-    # Auto-run only for trusted PR authors. Anyone else needs a maintainer
-    # to opt their PR in by commenting /test-jetbrains.
     # The app token is scoped to the private cline/intellij-plugin repo, so this
     # can only ever work on the upstream repo - forks fail at token generation.
     if: |
       github.repository == 'cline/cline' &&
-      ((github.event_name == 'pull_request_target' &&
-       contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '/test-jetbrains') &&
-       contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)))
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/test-jetbrains') &&
+      contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association)
     steps:
       - name: Generate GitHub App Token
         id: app-token
@@ -41,9 +38,8 @@ jobs:
           owner: cline
           repositories: intellij-plugin
 
-      - name: Get PR details (for issue_comment trigger)
+      - name: Get PR details
         id: pr-details
-        if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -56,8 +52,8 @@ jobs:
       - name: Sanitize untrusted inputs
         id: sanitize
         env:
-          RAW_BRANCH_NAME: ${{ github.event_name == 'pull_request_target' && github.head_ref || steps.pr-details.outputs.head_ref }}
-          RAW_PR_TITLE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.title || steps.pr-details.outputs.title }}
+          RAW_BRANCH_NAME: ${{ steps.pr-details.outputs.head_ref }}
+          RAW_PR_TITLE: ${{ steps.pr-details.outputs.title }}
         run: |
           # Sanitize branch name for JSON
           BRANCH_NAME_JSON=$(jq -n --arg b "$RAW_BRANCH_NAME" '$b')
@@ -71,9 +67,9 @@ jobs:
         env:
           BRANCH_NAME: ${{ steps.sanitize.outputs.branch_name }}
           PR_TITLE: ${{ steps.sanitize.outputs.pr_title }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
-          PR_URL: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.html_url || steps.pr-details.outputs.html_url }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_SHA: ${{ steps.pr-details.outputs.head_sha }}
+          PR_URL: ${{ steps.pr-details.outputs.html_url }}
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
@@ -97,8 +93,8 @@ jobs:
 
       - name: Log trigger details
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_SHA: ${{ steps.pr-details.outputs.head_sha }}
         run: |
           echo "Triggered IntelliJ Plugin integration test for:"
           echo "  PR #$PR_NUMBER"

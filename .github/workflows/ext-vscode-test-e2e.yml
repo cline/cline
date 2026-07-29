@@ -4,8 +4,53 @@ on:
     push:
         branches:
             - main
+        # Workflow-level paths avoid queuing runners for docs/hub/cli-only changes.
+        # Keep in sync with the dorny filter below. Intentionally omits sdk/packages/**
+        # so SDK-only PRs pay sdk-test + ext-vscode-test (unit), not the 3-OS e2e matrix.
+        paths:
+            - "apps/vscode/src/**"
+            - "apps/vscode/webview-ui/**"
+            - "apps/vscode/proto/**"
+            - "apps/vscode/tests/**"
+            - "apps/vscode/scripts/**"
+            - "apps/vscode/standalone/**"
+            - "apps/vscode/assets/**"
+            - "apps/vscode/walkthrough/**"
+            - "apps/vscode/package.json"
+            - "apps/vscode/webview-ui/package.json"
+            - "apps/vscode/buf.yaml"
+            - "apps/vscode/tsconfig*.json"
+            - "apps/vscode/biome.jsonc"
+            - "apps/vscode/esbuild.mjs"
+            - "apps/vscode/bunfig.toml"
+            - "apps/vscode/.vscode-test.mjs"
+            - "apps/vscode/.vscodeignore"
+            - "apps/vscode/playwright*.ts"
+            - "bun.lock"
+            - ".github/workflows/ext-vscode-test-e2e.yml"
     pull_request:
         types: [opened, reopened, synchronize, ready_for_review]
+        paths:
+            - "apps/vscode/src/**"
+            - "apps/vscode/webview-ui/**"
+            - "apps/vscode/proto/**"
+            - "apps/vscode/tests/**"
+            - "apps/vscode/scripts/**"
+            - "apps/vscode/standalone/**"
+            - "apps/vscode/assets/**"
+            - "apps/vscode/walkthrough/**"
+            - "apps/vscode/package.json"
+            - "apps/vscode/webview-ui/package.json"
+            - "apps/vscode/buf.yaml"
+            - "apps/vscode/tsconfig*.json"
+            - "apps/vscode/biome.jsonc"
+            - "apps/vscode/esbuild.mjs"
+            - "apps/vscode/bunfig.toml"
+            - "apps/vscode/.vscode-test.mjs"
+            - "apps/vscode/.vscodeignore"
+            - "apps/vscode/playwright*.ts"
+            - "bun.lock"
+            - ".github/workflows/ext-vscode-test-e2e.yml"
     workflow_dispatch:
 
 concurrency:
@@ -23,8 +68,10 @@ jobs:
         outputs:
             e2e: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
         steps:
+            # Force full coverage only for intentional full runs (manual).
+            # Do NOT force on push to main — that made docs merges pay for 3-OS e2e.
             - id: force
-              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+              if: github.event_name == 'workflow_dispatch'
               run: echo "run_all=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4
@@ -48,8 +95,6 @@ jobs:
                           - 'apps/vscode/webview-ui/package.json'
                           # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).
                           - 'bun.lock'
-                          # SDK source packages are local workspace symlinks (@cline/*), so SDK changes affect the build.
-                          - 'sdk/packages/**'
                           - 'apps/vscode/buf.yaml'
                           - 'apps/vscode/tsconfig*.json'
                           - 'apps/vscode/biome.jsonc'
@@ -69,7 +114,13 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+                  # PRs: ubuntu only (cuts ~2/3 e2e runners). Full 3-OS on main push / dispatch.
+                  # Upstream sample: macos ~45% fail; windows ~2× ubuntu job-minutes.
+                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"}]' >> "$GITHUB_OUTPUT"
+                  else
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> "$GITHUB_OUTPUT"
+                  fi
 
     e2e:
         needs: [detect-changes, matrix_prep]
