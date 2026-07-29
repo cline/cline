@@ -13,6 +13,7 @@ import {
 	attachSampleHoldScript,
 	enqueueSampleArchitectureShow,
 	presentSampleArchitectureShow,
+	setShowPlannerMode,
 	tickShowDirector,
 } from "./sampleShowPresent";
 import {
@@ -118,6 +119,9 @@ export function DriveRoomChrome({
 					}}
 					onAdvanceSampleScript={() => {
 						advanceSampleScript(drive.roomId);
+					}}
+					onSetShowPlannerMode={(mode) => {
+						setShowPlannerMode(mode, drive.roomId);
 					}}
 					presentSampleDisabled={disabled || !drive.active}
 					providerId={providerId}

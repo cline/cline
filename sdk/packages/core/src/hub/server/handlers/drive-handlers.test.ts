@@ -394,4 +394,28 @@ describe("handleDriveCommand", () => {
 			priority: 30,
 		});
 	});
+
+	it("sets show planner knobs on the room director", () => {
+		const { ctx } = createCtx();
+		const reply = handleDriveCommand(
+			ctx,
+			envelope("drive.planner.set", {
+				roomId: "r-plan",
+				showPlannerMode: "off",
+				tickOnWork: false,
+				showPlannerCooldownMs: 60_000,
+			}),
+		);
+		expect(reply.ok).toBe(true);
+		const room = reply.payload?.room as {
+			director: {
+				showPlannerMode: string;
+				tickOnWork: boolean;
+				showPlannerCooldownMs: number;
+			};
+		};
+		expect(room.director.showPlannerMode).toBe("off");
+		expect(room.director.tickOnWork).toBe(false);
+		expect(room.director.showPlannerCooldownMs).toBe(60_000);
+	});
 });

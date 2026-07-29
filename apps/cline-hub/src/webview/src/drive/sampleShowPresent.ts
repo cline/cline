@@ -134,3 +134,17 @@ export function advanceSampleScript(roomId?: string | null): void {
 		},
 	});
 }
+
+export function setShowPlannerMode(
+	mode: "off" | "heuristic",
+	roomId?: string | null,
+): void {
+	postToHost({
+		type: "driveCommand",
+		command: "drive.planner.set",
+		payload: {
+			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
+			showPlannerMode: mode,
+		},
+	});
+}

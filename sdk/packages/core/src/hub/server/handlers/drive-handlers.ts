@@ -1,10 +1,14 @@
 import {
 	advanceScriptBeat,
+	DEFAULT_SHOW_PLANNER_COOLDOWN_MS,
 	normalizeEnqueuedShowStatus,
 	pickNextShowToPresent,
+	planShowIntents,
 	setParticipantDeafened,
 	setParticipantMuted,
 	setSpotlight,
+	type ShowPlannerMode,
+	workCategoryFromKind,
 } from "@cline/drive";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import {
@@ -155,6 +159,136 @@ export function runShowDirectorTick(input: {
 	return { room: next, presented };
 }
 
+/**
+ * Heuristic show planner: enqueue template intents from a work signal.
+ * Optionally ticks the show director when tickOnWork is enabled (default).
+ */
+export function runShowPlannerFromWork(input: {
+	room: DriveLiveRoom;
+	workKind: "edit" | "command" | "test_result";
+	ownerParticipantId: string;
+	nowMs?: number;
+}): {
+	room: DriveLiveRoom;
+	planned: ShowBacklogItem[];
+	reasons: string[];
+	presented: ShowBacklogItem | null;
+} {
+	const mode: ShowPlannerMode =
+		input.room.director.showPlannerMode === "off" ? "off" : "heuristic";
+	const cooldownMs =
+		input.room.director.showPlannerCooldownMs ??
+		DEFAULT_SHOW_PLANNER_COOLDOWN_MS;
+	const nowMs = input.nowMs ?? Date.now();
+	const plannedResult = planShowIntents({
+		signal: {
+			kind: "work",
+			category: workCategoryFromKind(input.workKind),
+		},
+		ownerParticipantId: input.ownerParticipantId,
+		existingShowBacklog: input.room.director.showBacklog,
+		nowMs,
+		lastEnqueuedAtByTemplate:
+			input.room.director.showPlannerLastAtByTemplate ?? {},
+		cooldownMs,
+		mode,
+	});
+	if (plannedResult.items.length === 0) {
+		return {
+			room: input.room,
+			planned: [],
+			reasons: plannedResult.reasons,
+			presented: null,
+		};
+	}
+
+	const enqueuedAt = new Date(nowMs).toISOString();
+	const lastAt = {
+		...(input.room.director.showPlannerLastAtByTemplate ?? {}),
+	};
+	for (const item of plannedResult.items) {
+		const templateId = item.produce.templateId;
+		if (templateId) {
+			lastAt[templateId] = enqueuedAt;
+		}
+	}
+
+	const showBacklog = [
+		...plannedResult.items,
+		...input.room.director.showBacklog.filter(
+			(existing) =>
+				!plannedResult.items.some((item) => item.id === existing.id),
+		),
+	];
+	let room: DriveLiveRoom = {
+		...input.room,
+		director: {
+			...input.room.director,
+			showBacklog,
+			showPlannerLastAtByTemplate: lastAt,
+		},
+	};
+
+	const archItem = plannedResult.items.find(
+		(item) => item.produce.templateId === "arch.overview",
+	);
+	if (archItem && !room.director.activeScript) {
+		const script = {
+			scriptId: `planner_${archItem.id}`,
+			ownerParticipantId: input.ownerParticipantId,
+			title: "Architecture walkthrough",
+			stickyShowIds: [archItem.id],
+			beats: [
+				{
+					beatId: "planner-arch-1",
+					say: "Here is the architecture overview.",
+					showItemId: archItem.id,
+					sticky: { mode: "hold" as const },
+					advance: "on_human" as const,
+				},
+				{
+					beatId: "planner-arch-2",
+					say: "Still on the architecture diagram — advance when ready.",
+					showItemId: archItem.id,
+					sticky: { mode: "hold" as const },
+					advance: "on_human" as const,
+				},
+			],
+		};
+		room = {
+			...room,
+			director: {
+				...room.director,
+				activeScript: script,
+				activeBeatId: "planner-arch-1",
+				activeShowId: archItem.id,
+				stickyShowIds: [
+					archItem.id,
+					...room.director.stickyShowIds.filter((id) => id !== archItem.id),
+				],
+			},
+		};
+	}
+
+	const tickOnWork = input.room.director.tickOnWork !== false;
+	let presented: ShowBacklogItem | null = null;
+	if (tickOnWork) {
+		const tick = runShowDirectorTick({
+			room,
+			preferShowId: plannedResult.items[0]?.id,
+		});
+		room = tick.room;
+		presented = tick.presented;
+	}
+
+	return {
+		room,
+		planned: plannedResult.items,
+		reasons: plannedResult.reasons,
+		presented,
+	};
+}
+
 export function handleDriveCommand(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -176,6 +310,8 @@ export function handleDriveCommand(
 			return handleShowTick(ctx, envelope);
 		case "drive.do.enqueue":
 			return handleDoEnqueue(ctx, envelope);
+		case "drive.planner.set":
+			return handlePlannerSet(ctx, envelope);
 		case "drive.script.attach":
 			return handleScriptAttach(ctx, envelope);
 		case "drive.script.advance":
@@ -416,6 +552,47 @@ function handleDoEnqueue(
 	});
 	publishRoom(ctx, next);
 	return okReply(envelope, { room: next, doItem: enqueued });
+}
+
+function handlePlannerSet(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const roomId = readString(envelope.payload, "roomId") ?? "default";
+	const modeRaw = readString(envelope.payload, "showPlannerMode");
+	const mode =
+		modeRaw === "off" || modeRaw === "heuristic" ? modeRaw : undefined;
+	const tickOnWork = readBoolean(envelope.payload, "tickOnWork");
+	const cooldownRaw = envelope.payload?.showPlannerCooldownMs;
+	const cooldownMs =
+		typeof cooldownRaw === "number" &&
+		Number.isFinite(cooldownRaw) &&
+		cooldownRaw >= 0
+			? Math.floor(cooldownRaw)
+			: undefined;
+	if (mode === undefined && tickOnWork === undefined && cooldownMs === undefined) {
+		return errorReply(
+			envelope,
+			"invalid_payload",
+			"showPlannerMode, tickOnWork, or showPlannerCooldownMs required",
+		);
+	}
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
+	const next = store.setLive({
+		...room,
+		director: {
+			...room.director,
+			...(mode !== undefined ? { showPlannerMode: mode } : {}),
+			...(tickOnWork !== undefined ? { tickOnWork } : {}),
+			...(cooldownMs !== undefined
+				? { showPlannerCooldownMs: cooldownMs }
+				: {}),
+		},
+	});
+	publishRoom(ctx, next);
+	return okReply(envelope, { room: next });
 }
 
 function handleShowTick(

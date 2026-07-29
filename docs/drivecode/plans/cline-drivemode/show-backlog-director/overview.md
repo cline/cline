@@ -135,7 +135,7 @@ That is **slices 1 + 2 + 3** with a fixture seed (no planner yet).
 | 2 Enqueue + rank tick | **Done** (enqueue/tick commands, pickNextShow, Settings Sample/dev controls) |
 | 3 Script runner | **Done** (attach/advance + beat event + Sample/dev Next beat; hold tested) |
 | 4 Do↔Show link | **Done** (`drive.do.enqueue`, promote creates shows from templates, optional `tickShow`, Workers audit lists show ids) |
-| 5 Planner policy | Not started |
+| 5 Planner policy | **Done** (`planShowIntents`, `call_record_work` hook, `drive.planner.set`, Settings Planner on/off, arch script skeleton) |
 | 6 Extra producers | Not started |
 | 7 Router wire | Not started |
 | S Stage chrome | **Partial** — S2 Join auto-opens Stage done; S1/S3/S4 not started |

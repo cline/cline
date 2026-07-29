@@ -33,6 +33,7 @@ export function DriveSettingsPanel({
 	onTickShowDirector,
 	onAttachSampleScript,
 	onAdvanceSampleScript,
+	onSetShowPlannerMode,
 	presentSampleDisabled,
 }: {
 	providerId: string;
@@ -51,6 +52,7 @@ export function DriveSettingsPanel({
 	onTickShowDirector?: () => void;
 	onAttachSampleScript?: () => void;
 	onAdvanceSampleScript?: () => void;
+	onSetShowPlannerMode?: (mode: "off" | "heuristic") => void;
 	presentSampleDisabled?: boolean;
 }) {
 	const llm = resolveLlmEgressForUi({
@@ -303,6 +305,30 @@ export function DriveSettingsPanel({
 						>
 							Next script beat
 						</Button>
+					) : null}
+					{onSetShowPlannerMode ? (
+						<div className="flex flex-wrap gap-2 pt-1">
+							<Button
+								data-testid="drive-planner-heuristic"
+								disabled={presentSampleDisabled}
+								onClick={() => onSetShowPlannerMode("heuristic")}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Planner on
+							</Button>
+							<Button
+								data-testid="drive-planner-off"
+								disabled={presentSampleDisabled}
+								onClick={() => onSetShowPlannerMode("off")}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Planner off
+							</Button>
+						</div>
 					) : null}
 				</div>
 			) : null}

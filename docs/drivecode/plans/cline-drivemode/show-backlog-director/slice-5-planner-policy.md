@@ -38,9 +38,13 @@ A **hub policy** (not a ConfiguredAgent seat yet) continuously enqueues Show (an
 
 ## Acceptance
 
-- [ ] With planner on: Join + act tool completion enqueues at least one show template within cooldown rules.
-- [ ] With planner off: no enqueue from work.
-- [ ] Tick still presents top ranked item; sticky updates without manual present button.
+- [x] With planner on: Join + act tool completion enqueues at least one show template within cooldown rules.
+- [x] With planner off: no enqueue from work.
+- [x] Tick still presents top ranked item; sticky updates without manual present button.
+
+## Non-goal gate (ConfiguredAgent)
+
+**Do not** land a seated ConfiguredAgent “Backlog planner” YAML until this heuristic policy exits and is exercised in Drive rooms. Prefer hub `planShowIntents` + `drive.planner.set` (see overview implementation guidance). Promote to a seated agent only after `teamOpt` / seatCap allow — mirrors share-and-router PLAN default MVP cast.
 
 ## Risks
 

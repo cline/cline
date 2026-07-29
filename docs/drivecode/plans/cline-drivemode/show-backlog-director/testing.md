@@ -37,6 +37,13 @@ Slices **1 + 2 + 3** with fixture seed (no planner):
 3. Tick ranks/presents → StickyStagePane.
 4. Attach 2-beat script → advance → sticky holds, caption changes.
 
+## Slice 5 live smoke (Heuristic planner)
+
+1. Join call → Settings → Sample / dev → **Planner on** (default when unset).
+2. Trigger an edit work card (`call_record_work` / agent write) → sticky may update to walkthrough template; `drive.show.planned` carries `scoreReasons` / planner reason.
+3. Click **Planner off** → further edit work does not enqueue new shows.
+4. Command/bash work should not enqueue (noisy path skipped).
+
 ## Slice 4 live smoke (Do ↔ Show)
 
 1. Enqueue a Do with `linkedShowTemplateIds: ["doc.plan"]` via `drive.do.enqueue` (or claim with that field on the Do).

@@ -8,11 +8,11 @@ Reactive work cards mirror what the agent already did. Pairing feels live when t
 
 ## Acceptance criteria
 
-- [ ] Product path can present a Show item into `StickyStagePane` (not tests-only).
-- [ ] `drive.show.enqueue` + rank tick present top `ShowBacklogItem` via existing `rankShowBacklog`.
-- [ ] DirectorScript can advance with sticky hold while caption/`say` updates.
-- [ ] Do enqueue + promote can **create** Show items from templates.
-- [ ] Hub planner policy (heuristic) can enqueue Show from work/plan signals with rate limits.
+- [x] Product path can present a Show item into `StickyStagePane` (not tests-only).
+- [x] `drive.show.enqueue` + rank tick present top `ShowBacklogItem` via existing `rankShowBacklog`.
+- [x] DirectorScript can advance with sticky hold while caption/`say` updates.
+- [x] Do enqueue + promote can **create** Show items from templates.
+- [x] Hub planner policy (heuristic) can enqueue Show from work/plan signals with rate limits.
 - [ ] Producers exist for mermaid (done), plan card, code walkthrough; snapshot fail-closed or live.
 - [ ] Spotlight floor and stage sharer converge; Join auto-opens Stage; human pin from roster; single tool→card classifier.
 
