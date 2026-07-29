@@ -9,6 +9,7 @@ import {
 	ToggleCursorRuleRequest,
 	ToggleSkillRequest,
 	ToggleWindsurfRuleRequest,
+	ToggleWorkflowRequest,
 } from "@shared/proto/cline/file"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
@@ -32,6 +33,8 @@ const ClineRulesToggleModal: React.FC = () => {
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
 		localAgentsRulesToggles = {},
+		localWorkflowToggles = {},
+		globalWorkflowToggles = {},
 		hooksEnabled,
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
@@ -58,7 +61,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
-	const [currentView, setCurrentView] = useState<"rules" | "hooks" | "skills">("rules")
+	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks" | "skills">("rules")
 
 	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
 	useEffect(() => {
@@ -205,10 +208,20 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
+	const localWorkflows = Object.entries(localWorkflowToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const globalWorkflows = Object.entries(globalWorkflowToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
 	const remoteConfigSettings = useRemoteConfigSettings(isVisible)
 	const remoteRules = remoteConfigSettings.filter((s) => s.type === "rule")
+	const remoteWorkflows = remoteConfigSettings.filter((s) => s.type === "workflow")
 	const remoteSkills = remoteConfigSettings.filter((s) => s.type === "skill")
 	const hasRemoteRules = remoteRules.length > 0
+	const hasRemoteWorkflows = remoteWorkflows.length > 0
 	const hasRemoteSkills = remoteSkills.length > 0
 
 	// Handle toggle rule using gRPC
@@ -286,6 +299,29 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error toggling Agents rule:", error)
+			})
+	}
+
+	// Handle toggle workflow using gRPC
+	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
+		FileServiceClient.toggleWorkflow(
+			ToggleWorkflowRequest.create({
+				workflowPath,
+				enabled,
+				scope: isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL,
+			}),
+		)
+			.then((response) => {
+				if (response.toggles) {
+					if (isGlobal) {
+						setGlobalWorkflowToggles(response.toggles)
+					} else {
+						setLocalWorkflowToggles(response.toggles)
+					}
+				}
+			})
+			.catch((err: Error) => {
+				console.error("Failed to toggle workflow:", err)
 			})
 	}
 
@@ -401,17 +437,24 @@ const ClineRulesToggleModal: React.FC = () => {
 								<TabButton isActive={currentView === "skills"} onClick={() => setCurrentView("skills")}>
 									Skills
 								</TabButton>
+								<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
+									Workflows
+								</TabButton>
 							</div>
 						</div>
 
 						{/* Remote config banner */}
-						{(currentView === "rules" && hasRemoteRules) || (currentView === "skills" && hasRemoteSkills) ? (
+						{(currentView === "rules" && hasRemoteRules) ||
+						(currentView === "workflows" && hasRemoteWorkflows) ||
+						(currentView === "skills" && hasRemoteSkills) ? (
 							<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 								<i className="codicon codicon-lock text-sm" />
 								<span className="text-base">
 									{currentView === "rules"
 										? "Your organization manages some rules"
-										: "Your organization manages some skills"}
+										: currentView === "workflows"
+											? "Your organization manages some workflows"
+											: "Your organization manages some skills"}
 								</span>
 							</div>
 						) : null}
@@ -426,6 +469,17 @@ const ClineRulesToggleModal: React.FC = () => {
 										className="text-xs"
 										href="https://docs.cline.bot/features/cline-rules"
 										style={{ display: "inline", fontSize: "inherit" }}>
+										Docs
+									</VSCodeLink>
+								</p>
+							) : currentView === "workflows" ? (
+								<p>
+									Workflows allow you to define a series of steps to guide Cline through a repetitive set of
+									tasks, such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
+									<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
+									<VSCodeLink
+										className="text-xs inline"
+										href="https://docs.cline.bot/features/slash-commands/workflows">
 										Docs
 									</VSCodeLink>
 								</p>
@@ -527,6 +581,75 @@ const ClineRulesToggleModal: React.FC = () => {
 										showNewRule={true}
 										showNoRules={false}
 										toggleRule={toggleAgentsRule}
+									/>
+								</div>
+							</>
+						) : currentView === "workflows" ? (
+							<>
+								{/* Deprecation warning banner */}
+								<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
+									<i className="codicon codicon-warning text-sm" />
+									<span className="text-base">
+										Workflows are being deprecated. Use skills instead.{" "}
+										<VSCodeLink
+											href="https://docs.cline.bot/customization/skills"
+											style={{ display: "inline", fontSize: "inherit" }}>
+											Learn more
+										</VSCodeLink>
+									</span>
+								</div>
+
+								{/* Enterprise Workflows Section (remote) */}
+								{hasRemoteWorkflows && (
+									<div className="mb-3">
+										<div className="text-sm font-normal mb-2">Enterprise Workflows</div>
+										<div className="flex flex-col gap-0">
+											{remoteWorkflows
+												.sort((a, b) => a.name.localeCompare(b.name))
+												.map((workflow) => {
+													const enabled = workflow.locked || workflow.enabled
+													return (
+														<RuleRow
+															alwaysEnabled={workflow.locked}
+															enabled={enabled}
+															isGlobal={true}
+															isRemote={true}
+															key={workflow.name}
+															rulePath={workflow.name}
+															ruleType="workflow"
+															toggleRule={workflow.toggle}
+														/>
+													)
+												})}
+										</div>
+									</div>
+								)}
+
+								{/* Global Workflows Section */}
+								<div className="mb-3">
+									<div className="text-sm font-normal mb-2">Global Workflows</div>
+									<RulesToggleList
+										isGlobal={true}
+										listGap="small"
+										rules={globalWorkflows}
+										ruleType={"workflow"}
+										showNewRule={true}
+										showNoRules={false}
+										toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
+									/>
+								</div>
+
+								{/* Local Workflows Section */}
+								<div className="-mb-2.5">
+									<div className="text-sm font-normal mb-2">Workspace Workflows</div>
+									<RulesToggleList
+										isGlobal={false}
+										listGap="small"
+										rules={localWorkflows}
+										ruleType={"workflow"}
+										showNewRule={true}
+										showNoRules={false}
+										toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
 									/>
 								</div>
 							</>

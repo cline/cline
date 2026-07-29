@@ -5,7 +5,11 @@ import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 export class SdkSessionHistoryLoader {
 	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
 		try {
-			const sdkMessages = await sessionHost.readMessages(taskId)
+			// Prefer the live in-memory conversation: the persisted transcript
+			// only catches up at turn boundaries, so a rebuild right after
+			// aborting a turn (e.g. a plan/act mode switch mid-approval) would
+			// otherwise read an empty file and drop the task context.
+			const sdkMessages = await (sessionHost.readLiveMessages?.(taskId) ?? sessionHost.readMessages(taskId))
 			if (sdkMessages.length > 0) {
 				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
 				if (sanitizedMessages !== sdkMessages) {
