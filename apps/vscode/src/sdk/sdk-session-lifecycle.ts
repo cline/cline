@@ -53,8 +53,6 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
-	/** Receives the `new_task` tool's context summary (the /newtask flow). */
-	onNewTaskContext?: (context: string) => void
 }
 
 export class SdkSessionLifecycle {
@@ -345,7 +343,6 @@ export class SdkSessionLifecycle {
 				foregroundCommands: this.options.foregroundCommands,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
-				onNewTaskContext: this.options.onNewTaskContext,
 			})
 				.then((sdkHost) => {
 					this.ensureSharedHostSubscription(sdkHost)
