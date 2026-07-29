@@ -110,10 +110,7 @@ export function findSdkUserMessageIndexByOrdinal(sdkMessages: SdkUserMessage[], 
  * message starts a run except recovery notices. Hidden mode/resume prompts
  * therefore still advance the counter even though they have no webview row.
  */
-export function getSdkCheckpointRunCountForMessageIndex(
-	sdkMessages: SdkUserMessage[],
-	targetIndex: number,
-): number | undefined {
+export function getSdkCheckpointRunCountForMessageIndex(sdkMessages: SdkUserMessage[], targetIndex: number): number | undefined {
 	if (sdkMessages[targetIndex]?.role !== "user") {
 		return undefined
 	}
