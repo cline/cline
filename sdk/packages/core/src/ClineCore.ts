@@ -521,6 +521,22 @@ export class ClineCore {
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
 
+	/**
+	 * Reads message history for a session, preferring the live in-memory
+	 * conversation when the session is still resident in this host.
+	 *
+	 * The persisted transcript only catches up at assistant-message/turn
+	 * boundaries, so `readMessages` can miss an in-flight (or just-aborted)
+	 * turn. Use this when the current conversation matters — e.g. seeding a
+	 * replacement session during a plan/act mode switch. Falls back to the
+	 * persisted transcript when the session is not resident or the host does
+	 * not track live sessions.
+	 */
+	readLiveMessages: RuntimeHost["readSessionMessages"] = (sessionId) =>
+		this.host.readLiveSessionMessages
+			? this.host.readLiveSessionMessages(sessionId)
+			: this.host.readSessionMessages(sessionId);
+
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
 			? normalizeClineCoreStartInput(input.start, {

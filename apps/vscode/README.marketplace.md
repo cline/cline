@@ -56,7 +56,7 @@ The extension also keeps track of total tokens and API usage cost for the entire
 
 Cline can execute commands and receive their output to install packages, run build scripts, deploy applications, manage databases, and run tests, all while adapting to your dev environment & toolchain to get the job done right.
 
-By default, commands run in a background process, which works everywhere without extra setup. You can switch to running commands in a visible VS Code terminal instead (Settings → Terminal → Terminal Execution Mode), which uses the [shell integration API introduced in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api) to stream a command's output as it runs and lets you watch or interact with it directly.
+By default, commands run in a visible VS Code terminal, using the [shell integration API introduced in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api) to stream output as commands run and let you watch or interact with them directly. You can switch to running commands in a background process instead (Settings → Terminal → Terminal Execution Mode).
 
 <!-- Transparent pixel to create line break after floating image -->
 

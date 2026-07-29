@@ -43,6 +43,11 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { resolveCliReasoning } from "./utils/reasoning";
+import {
+	resolveStartupCompactionMode,
+	resolveStartupMode,
+	resolveStartupToolAutoApprove,
+} from "./utils/startup-settings";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
@@ -362,6 +367,11 @@ export async function runCli(): Promise<void> {
 		.description("Connect to an external channel")
 		.argument("[channel]", "Channel to connect Cline CLI to")
 		.option("--stop", "Kill all current channel connections")
+		.option("--restart", "Restart a channel connection")
+		.option(
+			"--restart-instance <id>",
+			"Restart one connector instance (used by daemon recovery)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -372,15 +382,31 @@ export async function runCli(): Promise<void> {
 			const {
 				formatAdapterList,
 				runConnectAdapter,
+				runRestartConnector,
 				runStopAllConnectors,
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop) {
+			if (opts.stop && (opts.restart || opts.restartInstance)) {
+				io.writeErr("connect accepts only one of --stop or --restart");
+				ctx.exitCode = 1;
+			} else if (opts.stop) {
 				if (adapter) {
 					ctx.exitCode = await runStopConnector(adapter, io);
 				} else {
 					ctx.exitCode = await runStopAllConnectors(io);
+				}
+			} else if (opts.restart || opts.restartInstance) {
+				if (!adapter) {
+					io.writeErr("connect --restart requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runRestartConnector(
+						adapter,
+						connectCmd.args.slice(1),
+						io,
+						opts.restartInstance,
+					);
 				}
 			} else if (adapter) {
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
@@ -844,14 +870,6 @@ export async function runCli(): Promise<void> {
 		}
 	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = true;
-	const effectiveToolAutoApprove =
-		args.autoApproveOverride ?? defaultToolAutoApprove;
-	const toolPolicies: Record<string, ToolPolicy> = {
-		"*": {
-			autoApprove: effectiveToolAutoApprove,
-		},
-	};
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
 		writeErr(
@@ -927,6 +945,27 @@ export async function runCli(): Promise<void> {
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();
+
+	// General settings toggled in the TUI /settings panel persist to the
+	// global settings file; explicit CLI flags take precedence over the
+	// persisted values, which in turn override the built-in defaults.
+	const persistedGlobalSettings = coreServer.readGlobalSettings();
+	const defaultToolAutoApprove = true;
+	const effectiveToolAutoApprove = resolveStartupToolAutoApprove(
+		args,
+		persistedGlobalSettings,
+		defaultToolAutoApprove,
+	);
+	const toolPolicies: Record<string, ToolPolicy> = {
+		"*": {
+			autoApprove: effectiveToolAutoApprove,
+		},
+	};
+	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	const effectiveCompactionMode = resolveStartupCompactionMode(
+		args,
+		persistedGlobalSettings,
+	);
 
 	// Register the SDK early logger as early as possible — before any
 	// provider settings reads — so the full startup sequence is captured.
@@ -1086,13 +1125,13 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? "act",
+				mode: effectiveMode,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(args.compactionMode),
+			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
@@ -1100,7 +1139,7 @@ export async function runCli(): Promise<void> {
 			thinking: resolvedReasoning.thinking,
 			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
+			mode: effectiveMode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			telemetry: getCliTelemetryService(loggerAdapter.core),

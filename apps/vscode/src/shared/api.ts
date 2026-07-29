@@ -55,7 +55,6 @@ export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
 export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void // Callback function
 }
 
 export type ApiConfiguration = ApiHandlerOptions
@@ -131,7 +130,10 @@ export type BedrockModelId = string
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
-	contextWindow: 200_000,
+	// OpenRouter reports the full 1m extended context window for this model and we pass it
+	// through unchanged (the legacy 200k restriction was dropped). Keep in sync with the SDK
+	// model catalog and refreshOpenRouterModels.ts.
+	contextWindow: 1_000_000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,
