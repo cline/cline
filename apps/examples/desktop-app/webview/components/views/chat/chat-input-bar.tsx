@@ -10,6 +10,7 @@ import {
 	CircleStop,
 	Clock3,
 	Coins,
+	Cpu,
 	Paperclip,
 	Pencil,
 	Trash2,
@@ -965,7 +966,12 @@ export function ChatInputBar({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className="max-h-60 min-h-5 flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
+							className={cn(
+								"max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
+								promptInput.includes("\n")
+									? "overflow-y-auto"
+									: "overflow-y-hidden",
+							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
 								setCursorIndex(
@@ -1094,11 +1100,11 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings and submit */}
-			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground max-[560px]:grid max-[560px]:grid-cols-[auto_auto_minmax(0,1fr)_auto] max-[560px]:items-center">
-				<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-[560px]:contents">
+			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-[560px]:col-start-1 max-[560px]:row-start-1"
+						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -1116,7 +1122,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5 max-[560px]:col-start-2 max-[560px]:row-start-1">
+					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1148,7 +1154,7 @@ export function ChatInputBar({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0 shrink-0 max-[560px]:col-start-3 max-[560px]:col-end-5 max-[560px]:row-start-1">
+					<div className="min-w-0 shrink-0">
 						<ModelSelector
 							isBusy={isBusy}
 							model={model}
@@ -1167,7 +1173,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:col-span-2 max-[560px]:col-start-1 max-[560px]:row-start-2"
+							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
@@ -1176,7 +1182,9 @@ export function ChatInputBar({
 							}
 						>
 							<Brain className="size-3" />
-							<SelectValue>{effortLabel}</SelectValue>
+							<span className="max-[560px]:sr-only">
+								<SelectValue>{effortLabel}</SelectValue>
+							</span>
 						</SelectTrigger>
 						<SelectContent align="start">
 							{EFFORT_LEVELS.map((option) => (
@@ -1197,20 +1205,23 @@ export function ChatInputBar({
 					) : null}
 				</div>
 
-				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 max-[560px]:contents">
-					<div className="hidden max-w-48 overflow-visible max-[720px]:max-w-36 max-[560px]:col-start-3 max-[560px]:row-start-2">
-						<WorkspaceSelector
-							currentBranch={gitBranch}
-							onListGitBranches={onListGitBranches}
-							onRefreshWorkspaces={onRefreshWorkspaces}
-							onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-							onSwitchGitBranch={onSwitchGitBranch}
-							onSwitchWorkspace={onSwitchWorkspace}
-							workspaces={workspaces}
-							workspaceRoot={workspaceRoot}
-						/>
-					</div>
-					<div className="flex shrink-0 items-center gap-2 max-[560px]:col-start-4 max-[560px]:row-start-2">
+				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+					{variant === "conversation" ? (
+						<div className="min-w-0 overflow-visible">
+							<WorkspaceSelector
+								currentBranch={gitBranch}
+								disabled
+								onListGitBranches={onListGitBranches}
+								onRefreshWorkspaces={onRefreshWorkspaces}
+								onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+								onSwitchGitBranch={onSwitchGitBranch}
+								onSwitchWorkspace={onSwitchWorkspace}
+								workspaces={workspaces}
+								workspaceRoot={workspaceRoot}
+							/>
+						</div>
+					) : null}
+					<div className="flex shrink-0 items-center gap-2">
 						{canAbort && (
 							<button
 								aria-label="Stop agent"
@@ -1278,6 +1289,7 @@ const ModelSelector = memo(function ModelSelector({
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1485,47 +1497,115 @@ const ModelSelector = memo(function ModelSelector({
 		reasoningCapabilitySource,
 	]);
 
+	const handleProviderSelect = useCallback(
+		(value: string) => {
+			onProviderChange(value);
+			const rememberedModel = lastSelection.lastModelByProvider[value];
+			const providerModelIds = visibleProviderModels[value] ?? [];
+			if (
+				rememberedModel &&
+				providerModelIds.includes(rememberedModel) &&
+				rememberedModel !== model
+			) {
+				onModelChange(rememberedModel);
+				return;
+			}
+			const firstModel = providerModelIds[0];
+			if (firstModel && firstModel !== model) {
+				onModelChange(firstModel);
+			}
+		},
+		[
+			lastSelection.lastModelByProvider,
+			model,
+			onModelChange,
+			onProviderChange,
+			visibleProviderModels,
+		],
+	);
+	const renderProviderSelect = (triggerClassName: string) => (
+		<SearchableSelect
+			ariaLabel="Provider"
+			disabled={isBusy || providers.length === 0}
+			emptyLabel="No providers found."
+			items={providers}
+			onSelect={handleProviderSelect}
+			placeholder="Provider"
+			searchPlaceholder="Search providers"
+			triggerClassName={triggerClassName}
+			value={resolvedProvider}
+		/>
+	);
+	const renderModelSelect = (
+		triggerClassName: string,
+		closeMobileMenu = false,
+	) => (
+		<SearchableSelect
+			ariaLabel="Model"
+			disabled={isBusy || modelsForProvider.length === 0}
+			emptyLabel="No models found."
+			items={modelsForProvider}
+			onSelect={(value) => {
+				onModelChange(value);
+				if (closeMobileMenu) setMobileOpen(false);
+			}}
+			placeholder="Model"
+			searchPlaceholder="Search models"
+			triggerClassName={triggerClassName}
+			value={resolvedModel}
+		/>
+	);
+
 	return (
-		<div className="flex min-w-0 shrink-0 items-center gap-0.5 text-[11px]">
-			<SearchableSelect
-				ariaLabel="Provider"
+		<div className="relative min-w-0 shrink-0 text-[11px]">
+			<button
+				aria-expanded={mobileOpen}
+				aria-haspopup="dialog"
+				aria-label="Model and provider"
+				className="hidden size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
-				emptyLabel="No providers found."
-				items={providers}
-				onSelect={(value) => {
-					onProviderChange(value);
-					const rememberedModel = lastSelection.lastModelByProvider[value];
-					const providerModelIds = visibleProviderModels[value] ?? [];
-					if (
-						rememberedModel &&
-						providerModelIds.includes(rememberedModel) &&
-						rememberedModel !== model
-					) {
-						onModelChange(rememberedModel);
-						return;
-					}
-					const firstModel = providerModelIds[0];
-					if (firstModel && firstModel !== model) {
-						onModelChange(firstModel);
-					}
-				}}
-				placeholder="Provider"
-				searchPlaceholder="Search providers"
-				triggerClassName="max-w-28 text-[11px]"
-				value={resolvedProvider}
-			/>
-			<span className="text-muted-foreground/50">/</span>
-			<SearchableSelect
-				ariaLabel="Model"
-				disabled={isBusy || modelsForProvider.length === 0}
-				emptyLabel="No models found."
-				items={modelsForProvider}
-				onSelect={(value) => onModelChange(value)}
-				placeholder="Model"
-				searchPlaceholder="Search models"
-				triggerClassName="max-w-52 text-[11px]"
-				value={resolvedModel}
-			/>
+				onClick={() => setMobileOpen((current) => !current)}
+				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				type="button"
+			>
+				<Cpu className="size-3.5" />
+			</button>
+
+			{mobileOpen ? (
+				<>
+					<button
+						aria-label="Close model selector"
+						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						onClick={() => setMobileOpen(false)}
+						type="button"
+					/>
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
+						<div className="space-y-1">
+							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+								Provider
+							</div>
+							{renderProviderSelect(
+								"w-full max-w-none justify-between text-xs",
+							)}
+						</div>
+						<div className="space-y-1">
+							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+								Model
+							</div>
+							{renderModelSelect(
+								"w-full max-w-none justify-between text-xs",
+								true,
+							)}
+						</div>
+					</div>
+				</>
+			) : null}
+
+			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
+				{renderProviderSelect("max-w-28 text-[11px]")}
+				<span className="text-muted-foreground/50">/</span>
+				{renderModelSelect("max-w-52 text-[11px]")}
+			</div>
 		</div>
 	);
 });

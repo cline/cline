@@ -1,5 +1,22 @@
 # Cline SDK Changelog
 
+## 0.0.66
+
+- Support for free Cline models (`cline-free`): free models are labeled "(free)", priced at zero, and hitting the free tier now raises a dedicated limit error that includes the reset time
+- Agentic compaction is now the default context-compaction strategy
+- Fixed agentic compaction silently falling back to basic compaction on OpenAI Compatible providers (the summarizer built its handler without a base URL and hit api.openai.com), and manual compaction budgeting against a 64k fallback instead of the model's real context window
+- Fixed agentic compaction never finding a cut point in tool-heavy transcripts, which produced endless "auto-compaction skipped" while context kept growing — assistant messages are now valid cut boundaries
+- Connector sessions now persist and automatically reconnect after a daemon or hub restart
+- Plan/act mode, tool auto-approve, and compaction mode are now persisted in global settings, with cross-process-safe writes so two hosts no longer clobber each other's changes
+- The built-in provider list is now generated from models.dev, broadening out-of-the-box provider coverage
+- The editor tool preserves a file's existing line endings — CRLF files no longer end up with mixed endings and failing exact-match edits
+- SAP AI Core now sets the metering header and uses the fetch adapter
+- Headless scheduled routines default to auto-approve and no longer ask questions no one can answer
+- Telemetry: task lifecycle events, auth event metadata and request IDs, and correct host identity (`host_plugin_version`, platform) on SDK-pipeline events
+- Removed the never-invoked `onRetryAttempt` callback from `ApiHandlerOptions` and provider config
+- `@cline/ui`: host-safe theme contract and Markdown exports
+- Updated the bundled model catalog
+
 ## 0.0.65
 
 - Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size

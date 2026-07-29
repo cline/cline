@@ -6,6 +6,7 @@ import {
 	APP_ICONS,
 	type AppIconId,
 	appIconAssetPath,
+	DEFAULT_APP_ICON,
 	readStoredAppIcon,
 	setStoredAppIcon,
 } from "@/lib/app-icon";
@@ -494,7 +495,7 @@ function GeneralSettingsContent() {
 		return readStoredHubAccent();
 	});
 	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
-		if (typeof window === "undefined") return "classic";
+		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);
@@ -715,19 +716,21 @@ function GeneralSettingsContent() {
 				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div>
 						<p className="text-[17px] font-semibold text-foreground">
-							Auto update
+							Keep CLI up to date
 						</p>
 						<p className="mt-1 text-[15px] text-muted-foreground">
-							Automatically install Cline CLI updates on startup.
+							Automatically update the cline terminal command, which shares your
+							sessions and settings with this app. The app itself updates
+							separately.
 						</p>
 						{autoUpdateError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update auto update setting: {autoUpdateError}
+								Failed to update CLI auto-update setting: {autoUpdateError}
 							</p>
 						) : null}
 					</div>
 					<Switch
-						aria-label="Auto update"
+						aria-label="Keep CLI up to date"
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
