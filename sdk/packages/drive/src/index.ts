@@ -176,6 +176,24 @@ export {
 	type RankedShow,
 } from "./director/rankBacklogs.js";
 export {
+	IllegalChatForkError,
+	applyPromotePacket,
+	assertForkLegal,
+	buildSeedPacket,
+	type ActiveForkClaim,
+	type ApplyPromotePacketResult,
+	type AssertForkLegalInput,
+	type BuildSeedPacketInput,
+} from "./director/chatForkPolicy.js";
+export {
+	DEFAULT_MAX_CONCURRENT_CHAT_FORKS,
+	activeForkClaimsFromRecords,
+	buildSeedUserMessage,
+	countRunningChatForks,
+	tickChatForks,
+	type ChatForkClaimIntent,
+} from "./director/chatForkLifecycle.js";
+export {
 	getShowTemplate,
 	SHOW_TEMPLATE_KIT,
 	type ShowTemplate,

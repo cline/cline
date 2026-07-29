@@ -287,6 +287,99 @@ Privacy unchanged: metadata in events; media bytes ephemeral unless exported.
 
 ---
 
+## ChatForkLifecycle (invisible auditable workers)
+
+Decision record: [ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md). Feature: [DRV-CHAT-FORK](../features/DRV-CHAT-FORK.md). Related GAP: W-33 one-shot side-question fork (not this loop).
+
+Worker forks are the **execution substrate** for Do items while the director keeps ranking Show. They are invisible by default and auditable on demand. “Merge” is structured promote, never raw transcript concatenation.
+
+```mermaid
+flowchart TB
+  Main["Main room session"] --> Director
+  Director --> DoQ["Do backlog"]
+  Director --> ShowQ["Show backlog"]
+  DoQ -->|"claim → SeedPacket"| Worker["Worker fork"]
+  Worker --> ShowQ
+  Worker -->|"PromotePacket"| Main
+  ShowQ --> Spotlight
+  Audit["Audit focus"] -.->|"on demand"| Worker
+```
+
+### When to fork
+
+| Boundary | Fork? |
+|---|---|
+| Do-item claim | Yes |
+| Wave batch item start | Yes |
+| Review gate needing private scratch | Optional |
+| Director replan / Spotlight rank / mute UI | No |
+
+### SeedPacket / PromotePacket (schemas)
+
+Canonical Zod lives in `@cline/shared` (`drive/chatFork.ts`). Conceptual shape:
+
+```ts
+type SeedPacket = {
+  doItemId: string;
+  title: string;
+  goal: string;
+  parentBriefing: string;           // compact; not full transcript
+  assigneeParticipantId: string;
+  allowedPathPrefixes: string[];    // empty = read-mostly / no edit claim
+  linkedShowTemplateIds: string[];
+  workspace: {
+    mode: "shared_readonly" | "path_disjoint" | "worktree_isolated";
+    cwd?: string;
+    worktreePath?: string;
+  };
+  parentSessionId: string;
+};
+
+type PromotePacket = {
+  workerSessionId: string;
+  doItemId: string;
+  status: "done" | "failed" | "cancelled";
+  summary: string;
+  decisions: string[];
+  showItemIds: string[];
+  eventRefs: string[];
+  auditHandle: string;
+  retainForAudit: boolean;
+};
+
+type ChatForkLifecycleState =
+  | "seeded"
+  | "running"
+  | "promoting"
+  | "archived"
+  | "dropped"
+  | "auditing";
+```
+
+### Pure policy (`@cline/drive`)
+
+- `assertForkLegal` — rejects overlapping path contracts without worktree isolation; rejects fork reasons outside the boundary table.
+- `buildSeedPacket` — builds seed from Do item + parent briefing + workspace mode.
+- `applyPromotePacket` — folds promote into `StageDirectorState` (Do status, keep Show ids); returns main-context injection text. Does not splice worker messages.
+
+### Explicit non-substrates
+
+| Mechanism | Why not |
+|---|---|
+| CLI `/fork` / app `forkSession` | Full-message diverge; becomes active session; no promote-back |
+| Checkpoint `session.restore` | Trim + optional in-place cwd hard-reset |
+| Hub `session.fork` event names | Declared, unimplemented; do not overload without adapter |
+
+### Audit UX
+
+Default: no worker chat tabs. On demand: agent-stream focus + optional retain-for-audit. See [DRV-CHAT-FORK](../features/DRV-CHAT-FORK.md). Spotlight Gaps A/B/C are a parallel presentation track.
+
+### Sequencing
+
+Schemas + pure policy land with this amendment. Hub spawn/cancel/audit listing and UI affordances follow. End-to-end reactive share demos still need Spotlight production wiring.
+
+---
+
 ## Spotlight, per-agent scripts, mute/deafen, A2A
 
 ### Spotlight button (priority focus)
@@ -443,8 +536,8 @@ New center of gravity: **StageDirectorState** (dual backlog) owned as pure polic
 
 | Change | Where | Upstream? |
 |---|---|---|
-| RoutePlan, Show/Do backlog, DirectorScript, Spotlight, mute/deafen schemas | `@cline/shared` | Yes if generally useful |
-| `planRoute`, `rankBacklogs`, `advanceScriptBeat`, spotlight-aware rank | `@cline/drive` | Drive-first; extract if others need |
+| RoutePlan, Show/Do backlog, DirectorScript, Spotlight, mute/deafen, Seed/Promote schemas | `@cline/shared` | Yes if generally useful |
+| `planRoute`, `rankBacklogs`, `advanceScriptBeat`, `assertForkLegal`, `buildSeedPacket`, `applyPromotePacket` | `@cline/drive` | Drive-first; extract if others need |
 | Capture / diagram tools, blob mint, spotlight/mute/deafen/A2A hub ops | `@cline/core` | Prefer upstreamable tools |
 | Show templates + AgentMediaBag | `@cline/shared` (+ `.cline/drive/show-templates/`) | Templates yes if general |
 | Stage UI, sticky pane, spotlight button, mute/deafen toggles | `apps/cline-hub` | App-specific |
@@ -459,11 +552,14 @@ New center of gravity: **StageDirectorState** (dual backlog) owned as pure polic
 | Live WebRTC agent desktop | Rejected for agent path |
 | Single monolithic “share agent” does all | Rejected — mix routing, planning, capture |
 | **Dual backlog + specialized roles on SDK agents** | **Chosen** |
+| Invisible auditable worker forks + PromotePacket | **Chosen** ([ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md)) |
 | Only human-planned demos | Rejected — too slow; planner must continuous-rerank |
 | Replace SDK Team with Drive execution | Rejected — reuse Team where mailbox/outcomes needed |
 | Spotlight = mute | Rejected — orthogonal; mute is speak/hear, spotlight is priority |
 | Only human can change spotlight | Rejected — director may follow presented owner under policy |
 | Separate A2A websocket | Rejected — reuse addressSet + channel tag |
+| CLI `/fork` or checkpoint restore as worker substrate | Rejected — wrong semantics; unsafe shared cwd |
+| Raw transcript merge into main chat | Rejected — memory thrash; use PromotePacket |
 
 ---
 
@@ -578,6 +674,7 @@ License: `bun`/CI grep that new SDK files include Apache-2.0 header where requir
 7. **Per-agent voices** via `voiceSlotId`; shared slots allowed.  
 8. **Router** suggest-default for multi-seat.  
 9. **Upstream** general `@cline/shared` schemas when not Drive-UI-specific.
+10. **Chat forks** invisible+auditable; promote-not-merge; path-disjoint or worktree-isolated for parallel edits ([ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md)).
 
 ---
 
@@ -587,12 +684,14 @@ License: `bun`/CI grep that new SDK files include Apache-2.0 header where requir
 
 **Share.** Dual backlog + explanatory artifacts (stills/animations/demos) + DirectorScript sticky presentation — appear live, not WebRTC.
 
+**Chat forks.** SeedPacket → worker → PromotePacket; audit on demand; never raw merge ([ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md), [DRV-CHAT-FORK](../features/DRV-CHAT-FORK.md)).
+
 **Spotlight.** Prioritizes on-screen, spoken content, and speaker voice; human control + director/router may reassign under policy.
 
 **Per-agent bags.** Each agent keeps discretionary scripts/artifacts; director selects with spotlight bias.
 
 **Mute / deafen / A2A.** Independent speak/hear flags; A2A via addressSet + channel tag; hub-enforced.
 
-**Phases.** Docs → schemas (spotlight/flags/bags) → pure rank/route/delivery asserts → hub ops → templates → strip UI → router/stage UI → optional seats → upstream → gates.
+**Phases.** Docs → schemas (spotlight/flags/bags/chat-fork) → pure rank/route/delivery/fork asserts → hub ops → templates → strip UI → router/stage UI → optional seats → upstream → gates.
 
 Stop for review. Approve to execute (including syncing `docs/plans/cline-drivemode/share-and-router/`).

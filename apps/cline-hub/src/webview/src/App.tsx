@@ -72,6 +72,7 @@ import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
 import { ShareScreenSpotlightDemo } from "./drive/ShareScreenSpotlightDemo";
+import { ChatForkDemo } from "./drive/ChatForkDemo";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -1290,6 +1291,9 @@ function App() {
 			if (demoHub.useShareScreenSpotlightDemo) {
 				return <ShareScreenSpotlightDemo />;
 			}
+			if (demoHub.useChatForkDemo) {
+				return <ChatForkDemo />;
+			}
 			return (
 				<DriveView
 					onOpenCall={() => navigate("chat")}
@@ -1408,6 +1412,7 @@ function App() {
 		);
 	}, [
 		demoHub.initialStatusMode,
+		demoHub.useChatForkDemo,
 		demoHub.useShareScreenSpotlightDemo,
 		statusTeamsSource,
 		hubState,

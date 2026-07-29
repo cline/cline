@@ -410,6 +410,11 @@ export function trackSession(record: unknown): TrackedSession | undefined {
 		provider: asString(raw.provider) ?? asString(metadata.provider),
 		model: asString(raw.model) ?? asString(metadata.model),
 		source: asString(raw.source) ?? asString(metadata.source),
+		isSubagent:
+			raw.isSubagent === true ||
+			metadata.isSubagent === true ||
+			metadata.chatFork === true,
+		chatFork: metadata.chatFork === true,
 		createdAt,
 		updatedAt:
 			asTimestamp(raw.updatedAt) ??
@@ -513,6 +518,8 @@ export function toWebviewSessionSummary(
 		inputTokens: session.inputTokens,
 		outputTokens: session.outputTokens,
 		totalCost: session.totalCost,
+		isSubagent: session.isSubagent,
+		chatFork: session.chatFork,
 	};
 }
 
@@ -522,6 +529,7 @@ export function webviewSessionsPayload(
 	return {
 		type: "sessions",
 		sessions: [...ctx.sessions.values()]
+			.filter((session) => !session.isSubagent && !session.chatFork)
 			.sort((a, b) => b.updatedAt - a.updatedAt)
 			.map(toWebviewSessionSummary),
 	};

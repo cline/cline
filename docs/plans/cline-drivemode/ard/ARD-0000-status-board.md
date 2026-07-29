@@ -24,6 +24,7 @@
 | [ARD-0004](ARD-0004-gated-learn-privacy.md) | Gated learn; no transcript dump | **Recommended** | |
 | [ARD-0005](ARD-0005-status-hub.md) | Status Hub: SQLite status log in the Cline SDK | **Accepted** | SDK-scope, not Drive-only. Implemented: store, service, hub ops, `report_status` tool, dashboard viewer |
 | [ARD-0013](ARD-0013-state-partition.md) | Three-lane state partition (event log / live room / facets) | **Accepted** | Durable log + single live store; remote/org/audit are adapters |
+| [ARD-0014](ARD-0014-chat-fork-lifecycle.md) | Chat-fork lifecycle (invisible auditable workers) | **Accepted** | Hub `drive.fork.*` + PromotePacket; reject CLI/checkpoint fork as worker substrate |
 
 Promotion rule. When Harrison replies `accept all`, flip these four to **Accepted** in this board and in each ARD header.
 

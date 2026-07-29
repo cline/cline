@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapHistoryToWebviewMessages } from "./session-mapping";
+import {
+	mapHistoryToWebviewMessages,
+	trackSession,
+	webviewSessionsPayload,
+} from "./session-mapping";
+import { HubContext } from "./state";
 
 describe("mapHistoryToWebviewMessages", () => {
 	it("hydrates assistant tool uses with following user tool results", () => {
@@ -227,5 +232,37 @@ describe("mapHistoryToWebviewMessages", () => {
 				state: "output-available",
 			},
 		});
+	});
+});
+
+describe("chatFork session filtering", () => {
+	it("tracks chatFork metadata and hides workers from default session list", () => {
+		const main = trackSession({
+			sessionId: "main-1",
+			status: "running",
+			workspaceRoot: "/repo",
+			updatedAt: 2,
+		});
+		const worker = trackSession({
+			sessionId: "worker-1",
+			status: "running",
+			workspaceRoot: "/repo",
+			updatedAt: 3,
+			metadata: { chatFork: true, isSubagent: true },
+		});
+		expect(main?.chatFork).toBe(false);
+		expect(worker?.isSubagent).toBe(true);
+		expect(worker?.chatFork).toBe(true);
+
+		const ctx = new HubContext();
+		if (main) ctx.sessions.set(main.sessionId, main);
+		if (worker) ctx.sessions.set(worker.sessionId, worker);
+		const payload = webviewSessionsPayload(ctx);
+		expect(payload.type).toBe("sessions");
+		if (payload.type === "sessions") {
+			expect(payload.sessions.map((session) => session.sessionId)).toEqual([
+				"main-1",
+			]);
+		}
 	});
 });

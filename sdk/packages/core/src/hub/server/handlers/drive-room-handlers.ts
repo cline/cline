@@ -23,6 +23,7 @@ import {
 	type WorkRecordPayload,
 	workRecordFromToolEvent,
 } from "../../collaboration";
+import { runChatForkDirectorTick } from "./drive-fork-tick";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
 const RoomIdSchema = z.object({
@@ -385,6 +386,12 @@ export function handleDriveRoomCommand(
 					committed.event,
 					committed.seq,
 				);
+				void runChatForkDirectorTick(ctx, {
+					roomId,
+					parentSessionId: payload.sessionId,
+				}).catch(() => {
+					// tick is best-effort; claim failures must not fail work record
+				});
 				return okReply(
 					envelope,
 					snapshotPayload(committed.snapshot, committed.seq),

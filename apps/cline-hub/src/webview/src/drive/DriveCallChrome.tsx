@@ -1,4 +1,4 @@
-import { ApertureIcon, HandIcon, HeadphonesIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon, Settings2Icon, VolumeXIcon } from "lucide-react";
+import { ApertureIcon, HandIcon, HeadphonesIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon, Settings2Icon, UsersIcon, VolumeXIcon } from "lucide-react";
 import type { StageCard } from "@cline/shared";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,8 @@ export function DriveHeaderControls({
 export function DriveCallStrip({
 	drive,
 	disabled,
+	workerCount = 0,
+	workersOpen = false,
 	onMuteToggle,
 	onHandToggle,
 	onSubModeChange,
@@ -82,9 +84,12 @@ export function DriveCallStrip({
 	onToggleSpotlight,
 	onTogglePartnerMute,
 	onTogglePartnerDeafen,
+	onToggleWorkers,
 }: {
 	drive: DriveUiState;
 	disabled?: boolean;
+	workerCount?: number;
+	workersOpen?: boolean;
 	onMuteToggle: () => void;
 	onHandToggle: () => void;
 	onSubModeChange: (mode: DriveSubMode) => void;
@@ -93,6 +98,7 @@ export function DriveCallStrip({
 	onToggleSpotlight?: () => void;
 	onTogglePartnerMute?: () => void;
 	onTogglePartnerDeafen?: () => void;
+	onToggleWorkers?: () => void;
 }) {
 	if (!drive.active) {
 		return null;
@@ -195,6 +201,24 @@ export function DriveCallStrip({
 				>
 					<Settings2Icon className="size-3.5" />
 				</Button>
+				{onToggleWorkers ? (
+					<Button
+						aria-label="Workers audit"
+						disabled={disabled}
+						onClick={() => onToggleWorkers()}
+						size="sm"
+						type="button"
+						variant={workersOpen ? "default" : "ghost"}
+						className="h-7 gap-1 px-2 text-xs"
+						title="Open invisible worker audit pane"
+					>
+						<UsersIcon className="size-3.5" />
+						Workers
+						{workerCount > 0 ? (
+							<span className="rounded bg-background/40 px-1">{workerCount}</span>
+						) : null}
+					</Button>
+				) : null}
 				<Button
 					aria-label={drive.muted ? "Unmute" : "Mute"}
 					disabled={disabled}

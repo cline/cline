@@ -27,6 +27,27 @@ export {
 	parseDriveTask,
 } from "./bank";
 export {
+	type ChatForkLifecycleState,
+	ChatForkLifecycleStateSchema,
+	type ChatForkRecord,
+	ChatForkRecordSchema,
+	type ForkReason,
+	ForkReasonSchema,
+	type PromotePacket,
+	PromotePacketSchema,
+	type PromoteStatus,
+	PromoteStatusSchema,
+	type SeedPacket,
+	SeedPacketSchema,
+	type SeedWorkspace,
+	SeedWorkspaceSchema,
+	type WorkspaceIsolationMode,
+	WorkspaceIsolationModeSchema,
+	parseChatForkRecord,
+	parsePromotePacket,
+	parseSeedPacket,
+} from "./chatFork";
+export {
 	assertNeverBankDriveEventType,
 	assertNoForbiddenBankPayloadKeys,
 	type BankDriveEvent,
