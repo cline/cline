@@ -1,7 +1,9 @@
 /**
  * Map completed agent tool events onto typed Drive work commits.
- * Classification mirrors apps/cline-hub stageReducer (edit|command|test).
+ * Classification uses shared classifyStageToolName (edit|command|test).
  */
+
+import { classifyStageToolName } from "@cline/drive";
 
 export type WorkToolInput = {
 	toolCallId?: string;
@@ -32,27 +34,6 @@ export type WorkRecordPayload =
 			passed: boolean;
 			summary?: string;
 	  };
-
-const EDIT_TOOLS = new Set([
-	"editor",
-	"apply_patch",
-	"write_to_file",
-	"replace_in_file",
-	"edit",
-	"str_replace",
-	"create_file",
-]);
-
-const COMMAND_TOOLS = new Set([
-	"run_commands",
-	"bash",
-	"execute_command",
-	"shell",
-	"run_terminal_cmd",
-]);
-
-const TEST_NAME_RE =
-	/\b(test|tests|vitest|jest|pytest|mocha|playwright|cypress|bun\s+test)\b/i;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -137,42 +118,13 @@ function pathFromPatch(input: unknown): string | undefined {
 	return match?.[1]?.trim();
 }
 
-function looksLikeTestCommand(command: string | undefined): boolean {
-	if (!command) {
-		return false;
-	}
-	return TEST_NAME_RE.test(command);
-}
-
-function classifyToolName(
-	name: string,
-	input: unknown,
-	text?: string,
-): "edit" | "command" | "test" | null {
-	const normalized = name.trim().toLowerCase();
-	if (EDIT_TOOLS.has(normalized)) {
-		return "edit";
-	}
-	if (
-		COMMAND_TOOLS.has(normalized) ||
-		normalized.includes("command") ||
-		normalized === "bash"
-	) {
-		const command = firstCommandFromInput(input) ?? text;
-		return looksLikeTestCommand(command) ? "test" : "command";
-	}
-	if (normalized.includes("test")) {
-		return "test";
-	}
-	return null;
-}
-
 /** Convert a completed/failed tool event into a typed work record, or null. */
 export function workRecordFromToolEvent(
 	tool: WorkToolInput,
 ): WorkRecordPayload | null {
 	const name = tool.toolName ?? "tool";
-	const category = classifyToolName(name, tool.input, tool.text);
+	const commandHint = firstCommandFromInput(tool.input) ?? tool.text;
+	const category = classifyStageToolName(name, commandHint);
 	if (!category) {
 		return null;
 	}

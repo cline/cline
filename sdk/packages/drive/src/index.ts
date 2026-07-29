@@ -200,6 +200,13 @@ export {
 	type ChatForkClaimIntent,
 } from "./director/chatForkLifecycle.js";
 export {
+	classifyStageToolName,
+	looksLikeTestCommand,
+	STAGE_COMMAND_TOOLS,
+	STAGE_EDIT_TOOLS,
+	type StageWorkCategory,
+} from "./work/classifyStageTool.js";
+export {
 	DEFAULT_SHOW_PLANNER_COOLDOWN_MS,
 	planShowIntents,
 	workCategoryFromKind,

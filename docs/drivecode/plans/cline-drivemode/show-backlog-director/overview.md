@@ -138,4 +138,4 @@ That is **slices 1 + 2 + 3** with a fixture seed (no planner yet).
 | 5 Planner policy | **Done** (`planShowIntents`, `call_record_work` hook, `drive.planner.set`, Settings Planner on/off, arch script skeleton) |
 | 6 Extra producers | **Done** (plan_card + walkthrough SVG stubs; browser snapshot fail-closed on `demoCapture`) |
 | 7 Router wire | Not started |
-| S Stage chrome | **Partial** — S2 Join auto-opens Stage done; S1/S3/S4 not started |
+| S Stage chrome | **Partial** — S2 Join auto-stage + S4 classifier collapse done; S1/S3 not started |
