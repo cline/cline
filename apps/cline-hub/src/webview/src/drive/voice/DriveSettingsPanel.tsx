@@ -28,6 +28,8 @@ export function DriveSettingsPanel({
 	onTtsChange,
 	onTtsEnabledChange,
 	onHardwareChange,
+	onPresentSampleDiagram,
+	presentSampleDisabled,
 }: {
 	providerId: string;
 	voice: DriveVoiceUi;
@@ -37,6 +39,9 @@ export function DriveSettingsPanel({
 	onTtsChange: (ttsId: string) => void;
 	onTtsEnabledChange: (enabled: boolean) => void;
 	onHardwareChange: (patch: Partial<DriveHardwarePrefs>) => void;
+	/** Sample / dev — posts drive.show.present (no LLM). */
+	onPresentSampleDiagram?: () => void;
+	presentSampleDisabled?: boolean;
 }) {
 	const llm = resolveLlmEgressForUi({
 		profile: voice.profile,
@@ -220,6 +225,29 @@ export function DriveSettingsPanel({
 				{summarizeFacets(voice.facets)} ·{" "}
 				{summarizeHardware(voice.hardware)}
 			</p>
+
+			{onPresentSampleDiagram ? (
+				<div className="space-y-2 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 p-3">
+					<div className="text-xs font-medium text-amber-800 dark:text-amber-200">
+						Sample / dev
+					</div>
+					<p className="text-[11px] text-muted-foreground">
+						Present a fixture architecture diagram onto the sticky stage. No
+						LLM credential required. Used to smoke drive.show.present until the
+						planner lands.
+					</p>
+					<Button
+						data-testid="drive-present-sample-diagram"
+						disabled={presentSampleDisabled}
+						onClick={onPresentSampleDiagram}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						Present sample diagram
+					</Button>
+				</div>
+			) : null}
 		</div>
 	);
 }
