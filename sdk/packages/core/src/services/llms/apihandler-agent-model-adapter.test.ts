@@ -228,4 +228,34 @@ describe("createAgentModelFromApiHandler", () => {
 			{ type: "finish", reason: "error", error: "no vscode.lm" },
 		]);
 	});
+
+	describe("inline-XML capability channel", () => {
+		it("defaults supportsInlineXmlToolCalls to falsy (fail-closed)", () => {
+			const handler = fakeHandler([]);
+			const model = createAgentModelFromApiHandler(handler);
+			// The runtime reads `supportsInlineXmlToolCalls` off the model and
+			// gates inline-XML recovery on it being `=== true`. Anything else
+			// (undefined, false, null) is treated as off.
+			expect(model.supportsInlineXmlToolCalls).toBeFalsy();
+		});
+
+		it("passes an explicit `true` through to the AgentModel", () => {
+			const handler = fakeHandler([]);
+			const model = createAgentModelFromApiHandler(handler, {
+				supportsInlineXmlToolCalls: true,
+			});
+			expect(model.supportsInlineXmlToolCalls).toBe(true);
+		});
+
+		it("treats non-true capability values as off", () => {
+			const handler = fakeHandler([]);
+			// `as any` simulates a caller passing a non-boolean truthy value
+			// (e.g. from a misconfigured upstream); the adapter must still
+			// fail closed rather than treat it as on.
+			const model = createAgentModelFromApiHandler(handler, {
+				supportsInlineXmlToolCalls: "yes" as unknown as boolean,
+			});
+			expect(model.supportsInlineXmlToolCalls).toBeFalsy();
+		});
+	});
 });

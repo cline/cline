@@ -30,6 +30,12 @@ const MAX_BUFFER_BYTES = 64 * 1024;
 const INVOKE_OPEN_PATTERN = /<\s*invoke\b[^>]*>/gi;
 // `name="..."` attribute extractor (no /g flag — single match per tag).
 const NAME_ATTR_PATTERN = /\bname\s*=\s*"([^"]*)"/i;
+// `<parameter ...>...</parameter>` block tokens. Anchored to the start of
+// the test string passed to `RegExp#exec`; hoisted to module scope so each
+// `parseParameters` call doesn't recompile the patterns.
+const PARAM_SELF_CLOSE_PATTERN = /^<\s*parameter\b[^>]*\/\s*>/i;
+const PARAM_OPEN_PATTERN = /^<\s*parameter\b[^>]*>/i;
+const PARAM_CLOSE_PATTERN = /^<\s*\/\s*parameter\s*>/i;
 
 export type ParsedDelta =
 	| { kind: "text"; text: string }
@@ -197,10 +203,6 @@ function matchFirst(
  */
 function parseParameters(content: string): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
-	const closeParam = /^<\s*\/\s*parameter\s*>/i;
-	const selfCloseParam = /^<\s*parameter\b[^>]*\/\s*>/i;
-	const openParam = /^<\s*parameter\b[^>]*>/i;
-
 	type Open = { start: number; end: number; key: string | null };
 	const opens: Open[] = [];
 	const selfs: Open[] = [];
@@ -214,7 +216,7 @@ function parseParameters(content: string): Record<string, unknown> {
 		}
 		const slice = content.slice(lt);
 		let m: RegExpExecArray | null;
-		if ((m = selfCloseParam.exec(slice))) {
+		if ((m = PARAM_SELF_CLOSE_PATTERN.exec(slice))) {
 			const nameMatch = NAME_ATTR_PATTERN.exec(slice);
 			selfs.push({
 				start: lt,
@@ -222,7 +224,7 @@ function parseParameters(content: string): Record<string, unknown> {
 				key: nameMatch?.[1] ?? null,
 			});
 			i = lt + m[0].length;
-		} else if ((m = openParam.exec(slice))) {
+		} else if ((m = PARAM_OPEN_PATTERN.exec(slice))) {
 			const nameMatch = NAME_ATTR_PATTERN.exec(slice);
 			opens.push({
 				start: lt,
@@ -230,7 +232,7 @@ function parseParameters(content: string): Record<string, unknown> {
 				key: nameMatch?.[1] ?? null,
 			});
 			i = lt + m[0].length;
-		} else if ((m = closeParam.exec(slice))) {
+		} else if ((m = PARAM_CLOSE_PATTERN.exec(slice))) {
 			closes.push({ start: lt, end: lt + m[0].length });
 			i = lt + m[0].length;
 		} else {
@@ -291,9 +293,6 @@ function findCloseTag(
 	openEnd: number,
 ): { start: number; end: number } | null {
 	const closeInvoke = /^<\s*\/\s*invoke\s*>/i;
-	const closeParam = /^<\s*\/\s*parameter\s*>/i;
-	const selfCloseParam = /^<\s*parameter\b[^>]*\/\s*>/i;
-	const openParam = /^<\s*parameter\b[^>]*>/i;
 
 	let paramDepth = 0;
 	let i = openEnd;
@@ -309,14 +308,14 @@ function findCloseTag(
 				return { start: lt, end: lt + m[0].length };
 			}
 			i = lt + m[0].length;
-		} else if ((m = closeParam.exec(slice))) {
+		} else if ((m = PARAM_CLOSE_PATTERN.exec(slice))) {
 			if (paramDepth > 0) {
 				paramDepth--;
 			}
 			i = lt + m[0].length;
-		} else if ((m = selfCloseParam.exec(slice))) {
+		} else if ((m = PARAM_SELF_CLOSE_PATTERN.exec(slice))) {
 			i = lt + m[0].length;
-		} else if ((m = openParam.exec(slice))) {
+		} else if ((m = PARAM_OPEN_PATTERN.exec(slice))) {
 			paramDepth++;
 			i = lt + m[0].length;
 		} else {
