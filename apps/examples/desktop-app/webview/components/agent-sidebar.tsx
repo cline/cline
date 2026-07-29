@@ -865,7 +865,7 @@ export function AgentSidebar({
 							<button
 								aria-label="Account settings"
 								className={cn(
-									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									"flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 									view === "settings" &&
 										settingsSection === "Account" &&
 										"bg-sidebar-accent text-sidebar-accent-foreground",
@@ -874,10 +874,10 @@ export function AgentSidebar({
 								title={user.email || undefined}
 								type="button"
 							>
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+								<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
 									{accountInitial}
 								</span>
-								<span className="flex min-w-0 flex-col leading-tight">
+								<span className="flex min-w-0 flex-col leading-tight gap-0.5">
 									<span className="truncate text-sm font-medium">
 										{accountName}
 									</span>
