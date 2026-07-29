@@ -519,6 +519,7 @@ export type WebviewOutboundMessage =
 			ownerParticipantId: string;
 			uri?: string;
 			caption?: string;
+			title?: string;
 	  }
 	| {
 			type: "drive_spotlight_changed";

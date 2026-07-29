@@ -231,6 +231,7 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				ownerParticipantId: asString(payload.ownerParticipantId) ?? "",
 				uri: asString(payload.uri) ?? undefined,
 				caption: asString(payload.caption) ?? undefined,
+				title: asString(payload.title) ?? undefined,
 			});
 		},
 		onDriveSpotlightChanged(payload) {

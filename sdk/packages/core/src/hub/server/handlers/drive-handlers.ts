@@ -236,6 +236,7 @@ function handleShowPresent(
 			ownerParticipantId: showItem.ownerParticipantId,
 			uri: showItem.uri,
 			caption: showItem.caption,
+			title: showItem.title,
 		},
 	});
 	return okReply(envelope, { room: next });

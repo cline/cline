@@ -276,6 +276,7 @@ export function useDriveSession(
 				text?: string;
 				command?: string;
 				showItemId?: string;
+				title?: string;
 				caption?: string;
 				uri?: string;
 				ownerParticipantId?: string;
@@ -306,6 +307,7 @@ export function useDriveSession(
 			if (message.type === "drive_show_presented" && message.showItemId) {
 				setPresentedShow({
 					showItemId: message.showItemId,
+					title: message.title,
 					caption: message.caption,
 					uri: message.uri,
 					ownerParticipantId: message.ownerParticipantId,
