@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent hero-heading and session-status React primitives | React 18.3 or 19 |
+| `@cline/ui` | Agent approval-card, hero-heading, and session-status React primitives | React 18.3 or 19 |
 | `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
@@ -44,6 +44,9 @@ for a host-specific status palette.
 
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
+
+`AgentApprovalCard` is controlled presentation; the host owns approval state
+and submits its callbacks.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
