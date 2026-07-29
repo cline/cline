@@ -723,6 +723,24 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		};
 	}
 
+	function toolResultMessage(
+		toolUseId: string,
+		name: string,
+		content: ToolResultContent["content"],
+	): Message {
+		return {
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: toolUseId,
+					name,
+					content,
+				},
+			],
+		};
+	}
+
 	function sumStringBytes(value: unknown): number {
 		if (typeof value === "string") {
 			return Buffer.byteLength(value, "utf8");
@@ -1149,6 +1167,221 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain(secondImage);
 		expect(serialized).toContain(
 			"[media omitted: invalid or exceeds size limit]",
+		);
+	});
+
+	it("preserves the newest computer screenshot when older frames exhaust the media budget", () => {
+		const olderScreen = imageData(16);
+		const currentScreen = imageData(16, 2);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(currentScreen, "utf8"),
+			},
+		});
+		const messages: Message[] = [
+			toolUseMessage("computer_1", "computer", { action: "screenshot" }),
+			toolResultMessage("computer_1", "computer", [
+				{ type: "text", text: "first screen" },
+				{ type: "image", data: olderScreen, mediaType: "image/png" },
+			]),
+			toolUseMessage("computer_2", "computer", { action: "screenshot" }),
+			toolResultMessage("computer_2", "computer", [
+				{ type: "text", text: "current screen" },
+				{ type: "image", data: currentScreen, mediaType: "image/png" },
+			]),
+		];
+		const snapshot = structuredClone(messages);
+
+		const first = builder.buildForApi(messages);
+		const second = builder.buildForApi(messages);
+		const serialized = JSON.stringify(first);
+
+		expect(serialized).toContain(currentScreen);
+		expect(serialized).not.toContain(olderScreen);
+		expect(serialized).toContain(
+			"[older computer screenshot omitted; superseded by the current screen]",
+		);
+		expect(serialized).not.toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(second).toEqual(first);
+		expect(messages).toEqual(snapshot);
+	});
+
+	it("projects a long computer session to one current screenshot", () => {
+		const screenshots = Array.from({ length: 20 }, (_, index) =>
+			imageData(420_000, index + 1),
+		);
+		const messages = screenshots.flatMap<Message>((data, index) => [
+			toolUseMessage(`computer_${index}`, "computer", { action: "screenshot" }),
+			toolResultMessage(`computer_${index}`, "computer", [
+				{ type: "image", data, mediaType: "image/png" },
+			]),
+		]);
+		const builder = new MessageBuilder();
+
+		const built = builder.buildForApi(messages);
+		const serialized = JSON.stringify(built);
+		const providerPayload = serializeForAiSdk(built);
+
+		for (const older of screenshots.slice(0, -1)) {
+			expect(serialized).not.toContain(older);
+		}
+		expect(serialized).toContain(screenshots.at(-1));
+		expect(serialized.match(/older computer screenshot omitted/g)).toHaveLength(
+			19,
+		);
+		expect(serialized).not.toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(providerPayload.match(/"type":"image-data"/g)).toHaveLength(1);
+		expect(providerPayload).toContain(screenshots.at(-1));
+	});
+
+	it("reserves the newest computer screenshot before unrelated historical media", () => {
+		const attachment = imageData(16);
+		const currentScreen = imageData(16, 2);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(currentScreen, "utf8"),
+			},
+		});
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [{ type: "image", data: attachment, mediaType: "image/png" }],
+			},
+			toolUseMessage("computer_1", "computer", { action: "screenshot" }),
+			toolResultMessage("computer_1", "computer", [
+				{ type: "text", text: "current screen" },
+				{ type: "image", data: currentScreen, mediaType: "image/png" },
+			]),
+		];
+
+		const serialized = JSON.stringify(builder.buildForApi(messages));
+
+		expect(serialized).toContain(currentScreen);
+		expect(serialized).not.toContain(attachment);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+	});
+
+	it("uses a compacted computer result name to preserve its newest screenshot", () => {
+		const olderScreen = imageData(16);
+		const currentScreen = imageData(16, 2);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(currentScreen, "utf8"),
+			},
+		});
+		const messages: Message[] = [
+			toolResultMessage("compacted_1", "computer", [
+				{ type: "image", data: olderScreen, mediaType: "image/png" },
+			]),
+			structuredToolResultMessage("compacted_2", "computer", [
+				{
+					query: "current screen",
+					result: {
+						type: "image",
+						data: currentScreen,
+						mediaType: "image/png",
+					},
+					success: true,
+				},
+			]),
+		];
+
+		const serialized = JSON.stringify(builder.buildForApi(messages));
+
+		expect(serialized).toContain(currentScreen);
+		expect(serialized).not.toContain(olderScreen);
+		expect(serialized).toContain(
+			"[older computer screenshot omitted; superseded by the current screen]",
+		);
+	});
+
+	it("does not collapse images returned by non-computer tools", () => {
+		const firstImage = imageData(16);
+		const secondImage = imageData(16, 2);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: 256,
+			},
+		});
+		const messages: Message[] = [
+			toolUseMessage("read_1", "read_files", { files: ["/tmp/a.png"] }),
+			toolResultMessage("read_1", "read_files", [
+				{ type: "image", data: firstImage, mediaType: "image/png" },
+			]),
+			toolUseMessage("read_2", "read_files", { files: ["/tmp/b.png"] }),
+			toolResultMessage("read_2", "read_files", [
+				{ type: "image", data: secondImage, mediaType: "image/png" },
+			]),
+		];
+
+		const serialized = JSON.stringify(builder.buildForApi(messages));
+
+		expect(serialized).toContain(firstImage);
+		expect(serialized).toContain(secondImage);
+		expect(serialized).not.toContain("older computer screenshot omitted");
+	});
+
+	it("keeps the newest valid computer screenshot when a later image is invalid", () => {
+		const validScreen = imageData(16);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(validScreen, "utf8"),
+			},
+		});
+		const messages: Message[] = [
+			toolResultMessage("computer_1", "computer", [
+				{ type: "image", data: validScreen, mediaType: "image/png" },
+			]),
+			toolResultMessage("computer_2", "computer", [
+				{ type: "image", data: "not base64!", mediaType: "image/png" },
+			]),
+		];
+
+		const serialized = JSON.stringify(builder.buildForApi(messages));
+
+		expect(serialized).toContain(validScreen);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("older computer screenshot omitted");
+	});
+
+	it("retains only one occurrence when computer results alias the same image object", () => {
+		const data = imageData(16);
+		const shared = { type: "image" as const, data, mediaType: "image/png" };
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(data, "utf8"),
+			},
+		});
+		const messages: Message[] = [
+			toolResultMessage("computer_1", "computer", [shared]),
+			toolResultMessage("computer_2", "computer", [shared]),
+		];
+
+		const serialized = JSON.stringify(builder.buildForApi(messages));
+
+		expect(serialized.match(new RegExp(data, "g"))).toHaveLength(1);
+		expect(serialized).toContain(
+			"[older computer screenshot omitted; superseded by the current screen]",
 		);
 	});
 
