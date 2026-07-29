@@ -57,6 +57,24 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</button>
 	),
+	VSCodeDropdown: ({
+		children,
+		id,
+		onChange,
+		value,
+		"aria-label": ariaLabel,
+	}: {
+		children?: ReactNode
+		id?: string
+		onChange?: ChangeEventHandler<HTMLSelectElement>
+		value?: string
+		"aria-label"?: string
+	}) => (
+		<select aria-label={ariaLabel} id={id} onChange={onChange} value={value}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
 	VSCodeCheckbox: ({
 		checked,
 		children,

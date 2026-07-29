@@ -3,7 +3,7 @@ import { azureOpenAiDefaultApiVersion, type OpenAiCompatibleModelInfo, openAiMod
 import { ApiFormat, OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -15,6 +15,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
@@ -348,31 +349,38 @@ export const OpenAICompatibleProvider = ({
 						gap: 8,
 						marginBottom: 10,
 					}}>
-					<select
-						aria-label="Model ID"
-						id="openai-compatible-model-picker"
-						onChange={(event) => {
-							const modelId = event.target.value
-							if (modelId === "__custom__") {
-								setIsCustomOpenAiModelEntryVisible(true)
-								return
-							}
+					<DropdownContainer className="dropdown-container">
+						<VSCodeDropdown
+							aria-label="Model ID"
+							className="w-full"
+							id="openai-compatible-model-picker"
+							// Force VSCodeDropdown to re-initialize after async
+							// model-list/selection hydration, otherwise it ignores the
+							// value prop for dynamically rendered options.
+							// https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
+							key={`${selectedModelId ?? ""}:${isCustomOpenAiModelEntryVisible}:${availableOpenAiModels.join("\u0000")}`}
+							onChange={(event) => {
+								const modelId = (event.target as HTMLSelectElement).value
+								if (modelId === "__custom__") {
+									setIsCustomOpenAiModelEntryVisible(true)
+									return
+								}
 
-							setIsCustomOpenAiModelEntryVisible(false)
-							handleOpenAiModelSelection(modelId)
-						}}
-						style={{ width: "100%" }}
-						value={selectedModelId && availableOpenAiModels.includes(selectedModelId) ? selectedModelId : ""}>
-						{selectedModelId && !availableOpenAiModels.includes(selectedModelId) && (
-							<option value="">{selectedModelId} (not in current list)</option>
-						)}
-						{availableOpenAiModels.map((modelId) => (
-							<option key={modelId} value={modelId}>
-								{modelId}
-							</option>
-						))}
-						<option value="__custom__">Use custom model ID…</option>
-					</select>
+								setIsCustomOpenAiModelEntryVisible(false)
+								handleOpenAiModelSelection(modelId)
+							}}
+							value={selectedModelId && availableOpenAiModels.includes(selectedModelId) ? selectedModelId : ""}>
+							{selectedModelId && !availableOpenAiModels.includes(selectedModelId) && (
+								<VSCodeOption value="">{selectedModelId} (not in current list)</VSCodeOption>
+							)}
+							{availableOpenAiModels.map((modelId) => (
+								<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+									{modelId}
+								</VSCodeOption>
+							))}
+							<VSCodeOption value="__custom__">Use custom model ID…</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
 
 					{(isCustomOpenAiModelEntryVisible ||
 						(selectedModelId && !availableOpenAiModels.includes(selectedModelId))) && (
