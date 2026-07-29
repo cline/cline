@@ -1,5 +1,7 @@
 # Slice 7 · Router wire (optional)
 
+**Status: Done.**
+
 Back to [overview.md](overview.md). Depends on: [slice-2](slice-2-enqueue-rank-tick.md) (rank already biases addressed owners). Related: [DRV-AGENT-ROUTER](../features/DRV-AGENT-ROUTER.md), [10-agent-router.md](../10-agent-router.md).
 
 ## Goal
@@ -22,8 +24,8 @@ Call pure `planRoute` on human send so `addressSet` / assignee feeds Show rankin
 
 ## Acceptance
 
-- [ ] Suggest chip shows ranked seated agent; accepting updates address set.
-- [ ] Show tick with two owners prefers addressed when priorities tie.
+- [x] Suggest chip shows ranked seated agent; accepting updates address set.
+- [x] Show tick with two owners prefers addressed when priorities tie.
 
 ## Non-goals
 

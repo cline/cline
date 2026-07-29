@@ -64,7 +64,7 @@ Recommend: **S2 + S1 before or with slice 1**; **S4 anytime**; **S3 after S1**, 
 
 ## Acceptance (track)
 
-- [ ] Live spotlight and stage sharer agree after every stage/aperture action.
-- [ ] Join opens Stage without a second click.
-- [ ] Human can pin from roster; agent return clears pin.
-- [ ] One classifier module; no duplicated tool-name sets.
+- [x] Live spotlight and stage sharer agree after every stage/aperture action.
+- [x] Join opens Stage without a second click.
+- [x] Human can pin from roster; agent return clears pin.
+- [x] One classifier module; no duplicated tool-name sets.

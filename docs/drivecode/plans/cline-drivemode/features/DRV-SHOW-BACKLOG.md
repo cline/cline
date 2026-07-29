@@ -14,7 +14,8 @@ Reactive work cards mirror what the agent already did. Pairing feels live when t
 - [x] Do enqueue + promote can **create** Show items from templates.
 - [x] Hub planner policy (heuristic) can enqueue Show from work/plan signals with rate limits.
 - [x] Producers exist for mermaid (done), plan card, code walkthrough; snapshot fail-closed or live.
-- [ ] Spotlight floor and stage sharer converge; Join auto-opens Stage; human pin from roster; single tool→card classifier.
+- [x] Spotlight floor and stage sharer converge; Join auto-opens Stage; human pin from roster; single tool→card classifier.
+- [x] Router suggest on Drive send updates `addressSet`; show tick prefers addressed owners.
 
 ## Dependencies
 
@@ -44,5 +45,5 @@ Reactive work cards mirror what the agent already did. Pairing feels live when t
 ## Risks
 
 - Backlog thrash from planner — cooldowns and category gates.
-- Dual spotlight planes until slice S — rank may disagree with Spotlight header.
+- Dual spotlight planes until slice S — rank may disagree with Spotlight header. **Mitigated:** S1 converges sharer → live spotlight.
 - Treating fixture demos as production gate — use [testing.md](../show-backlog-director/testing.md) live path.

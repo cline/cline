@@ -22,7 +22,7 @@ bun -F @cline/cline-hub test
 | 4 Do↔Show | Enqueue Do → tick → claim → promote creates shows | Workers audit lists new show ids |
 | 5 Planner | Heuristic unit; cooldown unit | Planner on: tool complete enqueues; off: none |
 | 6 Producers | Per-tool materialize tests | Present plan_card + walkthrough |
-| 7 Router | planRoute unit; address bias on tick | Suggest chip → accept → rank prefers owner |
+| 7 Router | planRoute + routeSuggest unit; address bias on tick; muted say blocks | Suggest chip → accept → `call_set_address` → rank prefers owner |
 | S1 Converge | setStage syncs live spotlight | Aperture/roster cannot diverge from sharer |
 | S2 Auto-stage | applyRoomSnapshot sets stageLayout | Join alone shows Spotlight column |
 | S3 Pin | call_set_stage from roster | Human pin dims agent deck; return clears |
