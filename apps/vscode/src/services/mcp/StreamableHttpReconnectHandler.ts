@@ -29,12 +29,20 @@ export interface ReconnectConfig {
 	maxAttempts: number
 	/** Returns the delay in milliseconds for a given attempt (0-based). */
 	getDelayMs: (attempt: number) => number
+	/** How long a successful connection must remain healthy before resetting attempts. */
+	stabilityWindowMs: number
+}
+
+export interface ReconnectState {
+	attempts: number
+	resetTimer?: ReturnType<typeof setTimeout>
 }
 
 /** Default configuration: up to 6 attempts with exponential backoff starting at 2 s. */
 export const DEFAULT_RECONNECT_CONFIG: ReconnectConfig = {
 	maxAttempts: 6,
 	getDelayMs: (attempt: number) => 2000 * 2 ** attempt,
+	stabilityWindowMs: 30_000,
 }
 
 /**
@@ -50,25 +58,54 @@ export const DEFAULT_RECONNECT_CONFIG: ReconnectConfig = {
  * 5. After exhausting retries, mark the server as disconnected.
  */
 export class StreamableHttpReconnectHandler {
-	private attempts = 0
+	private readonly state: ReconnectState
+	private readonly usesSharedState: boolean
 	private readonly serverName: string
 	private readonly config: ReconnectConfig
 	private readonly callbacks: ReconnectCallbacks
 
-	constructor(serverName: string, callbacks: ReconnectCallbacks, config: ReconnectConfig = DEFAULT_RECONNECT_CONFIG) {
+	constructor(
+		serverName: string,
+		callbacks: ReconnectCallbacks,
+		config: ReconnectConfig = DEFAULT_RECONNECT_CONFIG,
+		state?: ReconnectState,
+	) {
 		this.serverName = serverName
 		this.callbacks = callbacks
 		this.config = config
+		this.state = state ?? { attempts: 0 }
+		this.usesSharedState = state !== undefined
 	}
 
 	/** Number of consecutive reconnect attempts so far */
 	get attemptCount(): number {
-		return this.attempts
+		return this.state.attempts
 	}
 
 	/** Reset the attempt counter (e.g. after a successful long-lived connection) */
 	resetAttempts(): void {
-		this.attempts = 0
+		this.clearResetTimer()
+		this.state.attempts = 0
+	}
+
+	private clearResetTimer(): void {
+		if (this.state.resetTimer) {
+			clearTimeout(this.state.resetTimer)
+			this.state.resetTimer = undefined
+		}
+	}
+
+	private markConnectionHealthy(): void {
+		if (!this.usesSharedState) {
+			this.state.attempts = 0
+			return
+		}
+
+		this.clearResetTimer()
+		this.state.resetTimer = setTimeout(() => {
+			this.state.attempts = 0
+			this.state.resetTimer = undefined
+		}, this.config.stabilityWindowMs)
 	}
 
 	/**
@@ -87,7 +124,9 @@ export class StreamableHttpReconnectHandler {
 			return
 		}
 
-		if (this.attempts >= this.config.maxAttempts) {
+		this.clearResetTimer()
+
+		if (this.state.attempts >= this.config.maxAttempts) {
 			// Max retries exhausted
 			Logger.error(
 				`StreamableHTTP max reconnect attempts (${this.config.maxAttempts}) ` +
@@ -102,11 +141,11 @@ export class StreamableHttpReconnectHandler {
 
 		// First attempt: backoff, verify staleness, then delete + connect.
 		// Subsequent attempts (on connectToServer failure) just backoff + connect.
-		const initialDelay = this.config.getDelayMs(this.attempts)
-		this.attempts++
+		const initialDelay = this.config.getDelayMs(this.state.attempts)
+		this.state.attempts++
 		Logger.log(
 			`StreamableHTTP transport error for "${this.serverName}", attempting reconnect ` +
-				`${this.attempts}/${this.config.maxAttempts} in ${initialDelay / 1000}s...`,
+				`${this.state.attempts}/${this.config.maxAttempts} in ${initialDelay / 1000}s...`,
 		)
 
 		connection.server.status = "connecting"
@@ -126,19 +165,19 @@ export class StreamableHttpReconnectHandler {
 		// established, which would silently break the retry chain.
 		await this.callbacks.deleteConnection()
 
-		while (this.attempts <= this.config.maxAttempts) {
+		while (this.state.attempts <= this.config.maxAttempts) {
 			try {
 				await this.callbacks.connectToServer()
 				Logger.log(`StreamableHTTP reconnect succeeded for "${this.serverName}"`)
-				this.attempts = 0
+				this.markConnectionHealthy()
 				return
 			} catch (reconnectError) {
 				Logger.error(`StreamableHTTP reconnect failed for "${this.serverName}":`, reconnectError)
-				if (this.attempts < this.config.maxAttempts) {
-					const retryDelay = this.config.getDelayMs(this.attempts)
-					this.attempts++
+				if (this.state.attempts < this.config.maxAttempts) {
+					const retryDelay = this.config.getDelayMs(this.state.attempts)
+					this.state.attempts++
 					Logger.log(
-						`StreamableHTTP retrying reconnect ${this.attempts}/${this.config.maxAttempts} ` +
+						`StreamableHTTP retrying reconnect ${this.state.attempts}/${this.config.maxAttempts} ` +
 							`for "${this.serverName}" in ${retryDelay / 1000}s...`,
 					)
 					await this.callbacks.delay(retryDelay)
