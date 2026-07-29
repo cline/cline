@@ -1,4 +1,4 @@
-import type { ChatForkRecord, RoomSnapshot } from "@cline/shared";
+import type { ChatForkRecord, RoomSnapshot, ShowBacklogItem } from "@cline/shared";
 import {
 	type Dispatch,
 	type SetStateAction,
@@ -155,6 +155,7 @@ export type UseDriveSessionResult = {
 		ownerParticipantId?: string;
 	} | null;
 	chatForks: ChatForkRecord[];
+	showBacklog: ShowBacklogItem[];
 	workersPanelOpen: boolean;
 	focusedAuditHandle: string | null;
 	auditMessages: unknown[];
@@ -192,6 +193,7 @@ export function useDriveSession(
 		ownerParticipantId?: string;
 	} | null>(null);
 	const [chatForks, setChatForks] = useState<ChatForkRecord[]>([]);
+	const [showBacklog, setShowBacklog] = useState<ShowBacklogItem[]>([]);
 	const [workersPanelOpen, setWorkersPanelOpen] = useState(false);
 	const [focusedAuditHandle, setFocusedAuditHandle] = useState<string | null>(
 		null,
@@ -458,6 +460,9 @@ export function useDriveSession(
 			const room = message.room;
 			if (Array.isArray(room.chatForks)) {
 				setChatForks(room.chatForks);
+			}
+			if (Array.isArray(room.director?.showBacklog)) {
+				setShowBacklog(room.director.showBacklog as ShowBacklogItem[]);
 			}
 			setDrive((current) => {
 				const humanFlags = room.participantAudio?.find((flag) =>
@@ -834,6 +839,7 @@ export function useDriveSession(
 		stripHandlers,
 		presentedShow,
 		chatForks,
+		showBacklog,
 		workersPanelOpen,
 		focusedAuditHandle,
 		auditMessages,

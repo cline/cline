@@ -189,6 +189,7 @@ export default function Chat({
 		toggleStage,
 		presentedShow,
 		chatForks,
+		showBacklog,
 		workersPanelOpen,
 		focusedAuditHandle,
 		auditMessages,
@@ -988,6 +989,7 @@ export default function Chat({
 								onOpenAudit={openForkAudit}
 								onRetain={setForkRetain}
 								open={workersPanelOpen}
+								showBacklog={showBacklog}
 								summaryOnly={auditSummaryOnly}
 							/>
 							<div className="space-y-3 text-xs text-muted-foreground">
