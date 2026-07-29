@@ -47,6 +47,8 @@ export const MESSAGE_BUILDER_LIMIT_ENV = {
 } as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
+const SUPERSEDED_COMPUTER_SCREENSHOT =
+	"[older computer screenshot omitted; superseded by the current screen]";
 const MISSING_TOOL_RESULT_TEXT =
 	"Tool execution was interrupted before a result was produced.";
 const TRUNCATE_MARKER_DEFAULT = (n: number) =>
@@ -72,6 +74,11 @@ interface TruncationCandidate {
 	makeMarker: (removed: number) => string;
 	get(): string;
 	set(value: string): void;
+}
+
+interface ReservedImageMedia {
+	source: unknown;
+	limited: ImageContent | TextContent;
 }
 
 export interface MessageBuilderOptions {
@@ -1331,23 +1338,41 @@ export class MessageBuilder {
 
 	private applyMediaBudget(messages: Message[]): Message[] {
 		const budget = this.resolveMediaBudget();
+		const projection = this.projectSupersededComputerScreenshots(
+			messages,
+			budget,
+		);
 		if (
 			budget.maxImageEncodedBytes === Number.POSITIVE_INFINITY &&
 			budget.maxImageDecodedBytes === Number.POSITIVE_INFINITY &&
 			budget.maxTotalMediaBytes === Number.POSITIVE_INFINITY
 		) {
-			return messages;
+			return projection.messages;
 		}
 
 		const state = createMediaBudgetState();
+		// The current screen becomes effective as one snapshot at the next model
+		// request boundary. Reserve it before historical media so older images can
+		// never consume the bytes required for the state the model must act on.
+		const reserved = projection.latest
+			? {
+					source: projection.latest,
+					limited: this.limitImageContent(projection.latest, budget, state),
+				}
+			: undefined;
 		let changed = false;
-		const next = messages.map((message) => {
+		const next = projection.messages.map((message) => {
 			if (!Array.isArray(message.content)) {
 				return message;
 			}
 			let contentChanged = false;
 			const content = message.content.map((block) => {
-				const out = this.applyMediaBudgetToBlock(block, budget, state);
+				const out = this.applyMediaBudgetToBlock(
+					block,
+					budget,
+					state,
+					reserved,
+				);
 				if (out !== block) {
 					contentChanged = true;
 				}
@@ -1360,7 +1385,118 @@ export class MessageBuilder {
 			return { ...message, content };
 		});
 
+		return changed ? next : projection.messages;
+	}
+
+	private projectSupersededComputerScreenshots(
+		messages: Message[],
+		budget: ResolvedMediaBudget,
+	): {
+		messages: Message[];
+		latest: ImageContent | undefined;
+	} {
+		const screenshots: Array<ImageContent | undefined> = [];
+		this.mapComputerScreenshotOccurrences(messages, (image, occurrence) => {
+			screenshots[occurrence] = this.normalizeComputerScreenshot(image, budget);
+			return image;
+		});
+		let latestOccurrence = -1;
+		for (let index = screenshots.length - 1; index >= 0; index--) {
+			if (screenshots[index]) {
+				latestOccurrence = index;
+				break;
+			}
+		}
+		if (latestOccurrence < 0) {
+			return { messages, latest: undefined };
+		}
+		const latest = screenshots[latestOccurrence];
+		if (!latest) {
+			return { messages, latest: undefined };
+		}
+
+		const projected = this.mapComputerScreenshotOccurrences(
+			messages,
+			(image, occurrence, direct) => {
+				const normalized = screenshots[occurrence];
+				if (!normalized) {
+					return image;
+				}
+				if (occurrence === latestOccurrence) {
+					return latest;
+				}
+				return direct
+					? { type: "text", text: SUPERSEDED_COMPUTER_SCREENSHOT }
+					: SUPERSEDED_COMPUTER_SCREENSHOT;
+			},
+		);
+
+		return { messages: projected, latest };
+	}
+
+	private mapComputerScreenshotOccurrences(
+		messages: Message[],
+		mapImage: (image: unknown, occurrence: number, direct: boolean) => unknown,
+	): Message[] {
+		const cursor = { occurrence: 0 };
+		let changed = false;
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return message;
+			}
+			let contentChanged = false;
+			const content = message.content.map((block) => {
+				if (
+					block.type !== "tool_result" ||
+					this.resolveToolName(block) !== "computer" ||
+					typeof block.content === "string"
+				) {
+					return block;
+				}
+				let blockChanged = false;
+				const content = block.content.map((entry) => {
+					const out = mapToolResultEntryImages(entry, cursor, mapImage);
+					if (out !== entry) {
+						blockChanged = true;
+					}
+					return out as (typeof block.content)[number];
+				});
+				if (!blockChanged) {
+					return block;
+				}
+				contentChanged = true;
+				return { ...block, content: content as ToolResultContent["content"] };
+			});
+			if (!contentChanged) {
+				return message;
+			}
+			changed = true;
+			return { ...message, content };
+		});
+
 		return changed ? next : messages;
+	}
+
+	private normalizeComputerScreenshot(
+		image: unknown,
+		budget: ResolvedMediaBudget,
+	): ImageContent | undefined {
+		if (!isImageContentWithData(image)) {
+			return undefined;
+		}
+		const validation = validateAndReserveImageMedia(
+			image.mediaType,
+			image.data,
+			{
+				maxImageEncodedBytes: budget.maxImageEncodedBytes,
+				maxImageDecodedBytes: budget.maxImageDecodedBytes,
+				maxTotalMediaBytes: budget.maxTotalMediaBytes,
+			},
+			createMediaBudgetState(),
+		);
+		return validation.ok
+			? { ...image, data: validation.base64, mediaType: validation.mediaType }
+			: undefined;
 	}
 
 	private resolveMediaBudget(): ResolvedMediaBudget {
@@ -1371,9 +1507,10 @@ export class MessageBuilder {
 		block: ContentBlock,
 		budget: ResolvedMediaBudget,
 		state: MediaBudgetState,
+		reserved?: ReservedImageMedia,
 	): ContentBlock {
 		if (isImageContentLike(block)) {
-			return this.limitImageContent(block, budget, state);
+			return this.limitImageContentOnce(block, budget, state, reserved);
 		}
 
 		if (block.type !== "tool_result" || typeof block.content === "string") {
@@ -1382,7 +1519,12 @@ export class MessageBuilder {
 
 		let changed = false;
 		const content = block.content.map((entry) => {
-			const out = this.applyMediaBudgetToToolResultEntry(entry, budget, state);
+			const out = this.applyMediaBudgetToToolResultEntry(
+				entry,
+				budget,
+				state,
+				reserved,
+			);
 			if (out !== entry) {
 				changed = true;
 			}
@@ -1398,12 +1540,13 @@ export class MessageBuilder {
 		entry: unknown,
 		budget: ResolvedMediaBudget,
 		state: MediaBudgetState,
+		reserved?: ReservedImageMedia,
 	): unknown {
 		if (isImageContentLike(entry)) {
-			return this.limitImageContent(entry, budget, state);
+			return this.limitImageContentOnce(entry, budget, state, reserved);
 		}
 		if (isStructuredToolResultEntry(entry)) {
-			return this.limitNestedMedia(entry, budget, state);
+			return this.limitNestedMedia(entry, budget, state, reserved);
 		}
 		return entry;
 	}
@@ -1412,16 +1555,22 @@ export class MessageBuilder {
 		value: unknown,
 		budget: ResolvedMediaBudget,
 		state: MediaBudgetState,
+		reserved?: ReservedImageMedia,
 	): unknown {
 		if (isImageContentLike(value)) {
-			const limited = this.limitImageContent(value, budget, state);
+			const limited = this.limitImageContentOnce(
+				value,
+				budget,
+				state,
+				reserved,
+			);
 			return limited.type === "text" ? limited.text : limited;
 		}
 
 		if (Array.isArray(value)) {
 			let changed = false;
 			const next = value.map((item) => {
-				const out = this.limitNestedMedia(item, budget, state);
+				const out = this.limitNestedMedia(item, budget, state, reserved);
 				if (out !== item) {
 					changed = true;
 				}
@@ -1434,7 +1583,7 @@ export class MessageBuilder {
 			let changed = false;
 			const next: Record<string, unknown> = {};
 			for (const [key, item] of Object.entries(value)) {
-				const out = this.limitNestedMedia(item, budget, state);
+				const out = this.limitNestedMedia(item, budget, state, reserved);
 				if (out !== item) {
 					changed = true;
 				}
@@ -1444,6 +1593,18 @@ export class MessageBuilder {
 		}
 
 		return value;
+	}
+
+	private limitImageContentOnce(
+		image: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+		reserved?: ReservedImageMedia,
+	): ImageContent | TextContent {
+		if (reserved && image === reserved.source) {
+			return reserved.limited;
+		}
+		return this.limitImageContent(image, budget, state);
 	}
 
 	private limitImageContent(
@@ -1636,6 +1797,52 @@ function isImageContentWithData(value: unknown): value is ImageContent {
 		typeof (value as { data?: unknown }).data === "string" &&
 		typeof (value as { mediaType?: unknown }).mediaType === "string"
 	);
+}
+
+function mapToolResultEntryImages(
+	value: unknown,
+	cursor: { occurrence: number },
+	mapImage: (image: unknown, occurrence: number, direct: boolean) => unknown,
+): unknown {
+	if (!isImageContentLike(value) && !isStructuredToolResultEntry(value)) {
+		return value;
+	}
+	return mapNestedImageOccurrences(value, cursor, mapImage, true);
+}
+
+function mapNestedImageOccurrences(
+	value: unknown,
+	cursor: { occurrence: number },
+	mapImage: (image: unknown, occurrence: number, direct: boolean) => unknown,
+	direct: boolean,
+): unknown {
+	if (isImageContentLike(value)) {
+		return mapImage(value, cursor.occurrence++, direct);
+	}
+	if (Array.isArray(value)) {
+		let changed = false;
+		const next = value.map((item) => {
+			const out = mapNestedImageOccurrences(item, cursor, mapImage, false);
+			if (out !== item) {
+				changed = true;
+			}
+			return out;
+		});
+		return changed ? next : value;
+	}
+	if (value !== null && typeof value === "object") {
+		let changed = false;
+		const next: Record<string, unknown> = {};
+		for (const [key, item] of Object.entries(value)) {
+			const out = mapNestedImageOccurrences(item, cursor, mapImage, false);
+			if (out !== item) {
+				changed = true;
+			}
+			next[key] = out;
+		}
+		return changed ? next : value;
+	}
+	return value;
 }
 
 function isBinaryContentLike(value: unknown): boolean {
