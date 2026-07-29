@@ -40,9 +40,9 @@ import {
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -54,12 +54,22 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import {
+	subscribeToDesktopMenuActions,
+	watchDesktopTrayStatus,
+} from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
+import {
+	buildSessionAgentActivity,
+	mergeAgentActivity,
+} from "@/lib/session-agents";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
@@ -78,6 +88,8 @@ import {
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
+
+const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
@@ -145,6 +157,8 @@ export default function Home() {
 	useEffect(() => {
 		void syncDesktopWindowTitle();
 	}, []);
+
+	useEffect(() => watchDesktopTrayStatus(), []);
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
@@ -221,6 +235,20 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	useEffect(
+		() =>
+			subscribeToDesktopMenuActions((action) => {
+				switch (action) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+				}
+			}),
+		[handleNewThread, handleViewChange],
+	);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		dispatchApp({ type: "thread-started", threadId });
 	}, []);
@@ -262,11 +290,35 @@ export default function Home() {
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
 	);
+	// A child agent session names its parent, but only the history list knows the
+	// parent's title — resolve it here so the chat header can point back to it.
+	const activeParentSession = useMemo(() => {
+		const parentSessionId =
+			activeThread?.historySession?.parentSessionId?.trim();
+		if (!parentSessionId) {
+			return undefined;
+		}
+		const title = sessionHistory.threads.find(
+			(thread) => thread.id === parentSessionId,
+		)?.title;
+		return { sessionId: parentSessionId, title };
+	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
 
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+				<div
+					aria-hidden={showOnboarding ? true : undefined}
+					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+					// The onboarding overlay is opaque and sits on top of the whole
+					// shell; hiding the shell keeps its aurora + animations from
+					// being composited every frame underneath while it still mounts
+					// and loads (providers, history, transport) in the background.
+					// `inert` additionally keeps the covered controls out of the
+					// keyboard tab order and assistive tech while it is hidden.
+					inert={showOnboarding ? true : undefined}
+					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				>
 					<Sidebar
 						className="border-r border-sidebar-border"
 						collapsible="icon"
@@ -288,7 +340,7 @@ export default function Home() {
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-3 top-3 z-40 md:hidden" />
+						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 						{view === "sessions" ? (
 							<SessionsView
 								activeSessionId={activeHistorySessionId}
@@ -309,6 +361,8 @@ export default function Home() {
 									onDeleteSession={handleDeleteSession}
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
+									onOpenSessionById={handleOpenSessionById}
+									parentSession={activeParentSession}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -342,6 +396,8 @@ function ChatThreadPane({
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
+	onOpenSessionById,
+	parentSession,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -354,6 +410,8 @@ function ChatThreadPane({
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (session: SessionHistoryItem) => void;
+	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -386,7 +444,18 @@ function ChatThreadPane({
 		abort,
 		hydrateSession,
 	} = useChatSession();
-	const [promptInput, setPromptInput] = useState("");
+	// The live composer text lives inside ChatInputBar so typing does not
+	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
+	// pushes external updates (quick actions, undo, resets) via promptDraft.
+	const promptInputRef = useRef("");
+	const [promptDraft, setPromptDraft] = useState({ version: 0, value: "" });
+	const setPromptInput = useCallback((value: string) => {
+		promptInputRef.current = value;
+		setPromptDraft((prev) => ({ version: prev.version + 1, value }));
+	}, []);
+	const handlePromptInputChange = useCallback((value: string) => {
+		promptInputRef.current = value;
+	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 	const dragDepthRef = useRef(0);
@@ -418,6 +487,7 @@ function ChatThreadPane({
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
+	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
 	const workspaceRef = useRef({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
@@ -426,6 +496,7 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
+	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
 
 	useEffect(() => {
 		setWorkspaces((current) => {
@@ -452,13 +523,7 @@ function ChatThreadPane({
 
 		async function loadProviderCredentials() {
 			try {
-				const payload = await desktopClient.invoke<{
-					providers?: Array<{
-						id?: string;
-						apiKey?: string;
-						baseUrl?: string;
-					}>;
-				}>("list_provider_catalog");
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}
@@ -510,9 +575,12 @@ function ChatThreadPane({
 	);
 
 	const refreshGitBranch = useCallback(async () => {
+		const requestId = gitBranchRequestGateRef.current.begin();
 		const cwd = getWorkspaceCwd();
 		if (!cwd) {
-			setGitBranch("no-git");
+			if (gitBranchRequestGateRef.current.commit(requestId)) {
+				setGitBranch("no-git");
+			}
 			return;
 		}
 		try {
@@ -520,12 +588,20 @@ function ChatThreadPane({
 				"get_git_branch",
 				{ cwd },
 			);
+			if (!gitBranchRequestGateRef.current.commit(requestId)) {
+				return;
+			}
 			const branch = payload?.branch?.trim();
 			setGitBranch(branch && branch.length > 0 ? branch : "no-git");
 		} catch {
-			setGitBranch("no-git");
+			// Preserve the latest successful branch through transient failures.
 		}
 	}, [getWorkspaceCwd]);
+
+	const invalidateGitBranch = useCallback(() => {
+		gitBranchRequestGateRef.current.invalidate();
+		setGitBranch("no-git");
+	}, []);
 
 	const listGitBranches = useCallback(async (): Promise<{
 		current: string;
@@ -557,18 +633,18 @@ function ChatThreadPane({
 				return false;
 			}
 			try {
-				const payload = await desktopClient.invoke<{ branch?: string }>(
-					"checkout_git_branch",
-					{ cwd, branch: nextBranch },
-				);
-				const branch = payload?.branch?.trim();
-				setGitBranch(branch && branch.length > 0 ? branch : "no-git");
+				await desktopClient.invoke<{ branch?: string }>("checkout_git_branch", {
+					cwd,
+					branch: nextBranch,
+				});
+				invalidateGitBranch();
+				await refreshGitBranch();
 				return true;
 			} catch {
 				return false;
 			}
 		},
-		[getWorkspaceCwd],
+		[getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -637,43 +713,26 @@ function ChatThreadPane({
 				return false;
 			}
 
+			invalidateGitBranch();
 			setWorkspacePath(nextWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
 			);
-
-			// Fire git branch + workspace list refresh in the background
-			desktopClient
-				.invoke<{ branch?: string }>("get_git_branch", {
-					cwd: nextWorkspace,
-				})
-				.then((payload) => {
-					if (requestId !== workspaceSelectionRequestRef.current) {
-						return;
-					}
-					const branch = payload?.branch?.trim();
-					setGitBranch(branch && branch.length > 0 ? branch : "no-git");
-				})
-				.catch(() => {
-					if (requestId === workspaceSelectionRequestRef.current) {
-						setGitBranch("no-git");
-					}
-				});
 
 			// Refresh the merged history, stored, and current workspace catalog.
 			void refreshWorkspaces(nextWorkspace);
 
 			return true;
 		},
-		[refreshWorkspaces, setWorkspacePath],
+		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
 		workspaceSelectionRequestRef.current += 1;
+		invalidateGitBranch();
 		setWorkspacePath("");
-		setGitBranch("no-git");
 		return true;
-	}, [setWorkspacePath]);
+	}, [invalidateGitBranch, setWorkspacePath]);
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
@@ -698,7 +757,27 @@ function ChatThreadPane({
 
 	useEffect(() => {
 		void refreshGitBranch();
-	}, [refreshGitBranch]);
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+
+		const refreshVisibleBranch = () => {
+			if (document.visibilityState === "visible") {
+				void refreshGitBranch();
+			}
+		};
+		const intervalId = window.setInterval(
+			refreshVisibleBranch,
+			GIT_BRANCH_REFRESH_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisibleBranch);
+		document.addEventListener("visibilitychange", refreshVisibleBranch);
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener("focus", refreshVisibleBranch);
+			document.removeEventListener("visibilitychange", refreshVisibleBranch);
+		};
+	}, [activeWorkspaceCwd, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
@@ -731,7 +810,7 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId]);
+	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -745,19 +824,25 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
-	}, [historySession, hydrateSession]);
+	}, [historySession, hydrateSession, setPromptInput]);
 
-	const handleSend = useCallback(async () => {
-		const trimmed = promptInput.trim();
-		if (!trimmed && pendingAttachments.length === 0) {
-			return;
-		}
-		onThreadStarted?.(threadId);
-		setPromptInput("");
-		const toSend = [...pendingAttachments];
-		setPendingAttachments([]);
-		await sendPrompt(trimmed, toSend);
-	}, [onThreadStarted, pendingAttachments, promptInput, sendPrompt, threadId]);
+	const handleSend = useCallback(
+		async (prompt: string) => {
+			const trimmed = prompt.trim();
+			if (!trimmed && pendingAttachments.length === 0) {
+				return;
+			}
+			onThreadStarted?.(threadId);
+			// Also clear the injected draft: the composer cleared its local copy,
+			// but a stale non-empty draft would repopulate the input if the
+			// composer remounts (e.g. a transport blip re-showing the loader).
+			setPromptInput("");
+			const toSend = [...pendingAttachments];
+			setPendingAttachments([]);
+			await sendPrompt(trimmed, toSend);
+		},
+		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+	);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -779,24 +864,9 @@ function ChatThreadPane({
 		[setConfig],
 	);
 
-	const handleUndoQueuedPrompt = useCallback(
-		async (item: PromptInQueue) => {
-			const removed = await removePromptInQueue(item.id);
-			const prompt = removed?.prompt.trim();
-			if (!prompt) {
-				return;
-			}
-			const attachmentCount =
-				removed?.attachmentCount ?? item.attachmentCount ?? 0;
-			if (attachmentCount > 0) {
-				toast({
-					title: "Queued attachments removed",
-					description: "Reattach files before sending the restored message.",
-				});
-			}
-			setPromptInput((current) =>
-				current.trim().length > 0 ? `${current}\n\n${prompt}` : prompt,
-			);
+	const handleRemoveQueuedPrompt = useCallback(
+		async (promptId: string) => {
+			await removePromptInQueue(promptId);
 		},
 		[removePromptInQueue],
 	);
@@ -817,6 +887,12 @@ function ChatThreadPane({
 			void answerAskQuestion(requestId, answer);
 		},
 		[answerAskQuestion],
+	);
+	const handleRestoreCheckpoint = useCallback(
+		(runCount: number) => {
+			void restoreCheckpoint(runCount);
+		},
+		[restoreCheckpoint],
 	);
 
 	const handleForkSession = useCallback(async () => {
@@ -930,6 +1006,7 @@ function ChatThreadPane({
 		onDeleteSession,
 		reset,
 		threadId,
+		setPromptInput,
 	]);
 
 	const handleAttachFiles = useCallback((files: File[]) => {
@@ -1026,6 +1103,44 @@ function ChatThreadPane({
 		: isHydratingSession;
 	const isWelcomeState =
 		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
+	const isSessionActive =
+		displayedStatus === "starting" ||
+		displayedStatus === "running" ||
+		displayedStatus === "stopping";
+	const derivedAgentActivity = useMemo(
+		() =>
+			buildSessionAgentActivity(displayedMessages, {
+				sessionActive: isSessionActive,
+			}),
+		[displayedMessages, isSessionActive],
+	);
+	// The roster is read for every displayed session, not gated on the tally
+	// above: that tally only sees the newest messages, so gating on it would hide
+	// the agents of exactly the long sessions this is most useful for. Opening the
+	// panel re-reads; polling is what the active check gates.
+	const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+	const {
+		agents,
+		loading: agentsLoading,
+		error: agentsError,
+	} = useSessionAgents({
+		sessionId: displayedSessionId,
+		panelOpen: agentPanelOpen,
+		sessionActive: isSessionActive,
+	});
+	const agentActivity = useMemo(
+		() =>
+			mergeAgentActivity(agents, derivedAgentActivity, {
+				sessionActive: isSessionActive,
+			}),
+		[agents, derivedAgentActivity, isSessionActive],
+	);
+	// A child agent has its own session row, so opening it goes through the same
+	// path as any other session — it is just never listed in the sidebar.
+	const onOpenAgentSession = useCallback(
+		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
+		[onOpenSessionById],
+	);
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -1141,7 +1256,7 @@ function ChatThreadPane({
 					mode: prev.mode === "plan" ? "act" : "plan",
 				}))
 			}
-			onPromptInputChange={setPromptInput}
+			onPromptInputChange={handlePromptInputChange}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={(promptId) => {
 				void steerPromptInQueue(promptId);
@@ -1149,9 +1264,7 @@ function ChatThreadPane({
 			onEditPromptInQueue={(promptId, prompt) => {
 				void updatePromptInQueue(promptId, prompt);
 			}}
-			onUndoPromptInQueue={(item) => {
-				void handleUndoQueuedPrompt(item);
-			}}
+			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={(nextProvider) =>
 				setConfig((prev) => {
 					const selected = providerCredentials[nextProvider];
@@ -1166,12 +1279,12 @@ function ChatThreadPane({
 					};
 				})
 			}
-			onSend={() => void handleSend()}
+			onSend={(prompt) => void handleSend(prompt)}
 			gitBranch={gitBranch}
 			model={config.model}
 			mode={config.mode}
 			promptsInQueue={promptsInQueue}
-			promptInput={promptInput}
+			promptDraft={promptDraft}
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
 			status={status}
@@ -1211,6 +1324,14 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
+							agentActivity={agentActivity}
+							agents={agents}
+							agentsError={agentsError}
+							agentsLoading={agentsLoading}
+							onAgentsOpenChange={setAgentPanelOpen}
+							onOpenAgentSession={onOpenAgentSession}
+							onOpenParentSession={onOpenSessionById}
+							parentSession={hideDeletedSessionUi ? undefined : parentSession}
 							canEditTitle={Boolean(activeSessionForTitle)}
 							canDeleteSession={Boolean(activeSessionToDelete)}
 							deletingSession={deletingSession}
@@ -1247,9 +1368,7 @@ function ChatThreadPane({
 								chatTransportState={chatTransportState}
 								error={displayedError}
 								messages={displayedMessages}
-								onRestoreCheckpoint={(runCount) =>
-									void restoreCheckpoint(runCount)
-								}
+								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}

@@ -10,10 +10,23 @@ import {
 import { join } from "node:path";
 import type { HubSessionClient, HubSessionRow } from "@cline/core";
 import { ensureParentDir, resolveClineDataDir } from "@cline/core";
-import { withResolvedClineBuildEnv } from "@cline/shared";
+import {
+	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	withResolvedClineBuildEnv,
+} from "@cline/shared";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 import { resolveCliLaunchSpec } from "../utils/internal-launch";
+
+export const CLINE_CONNECTOR_DETACHED_CHILD_ENV =
+	"CLINE_CONNECTOR_DETACHED_CHILD";
+
+/**
+ * Internal success from a detached connect when an instance is already running.
+ * `runConnectAdapter` maps this to exit 0 without changing persisted autostart
+ * state.
+ */
+export const CONNECT_ALREADY_RUNNING_EXIT_CODE = 75;
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
@@ -123,6 +136,19 @@ function buildDetachedConnectorCommand(
 	};
 }
 
+function buildDetachedConnectorEnv(
+	childEnvKey: string,
+	env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+	const childEnv = {
+		...withResolvedClineBuildEnv(env),
+		[childEnvKey]: "1",
+		[CLINE_CONNECTOR_DETACHED_CHILD_ENV]: "1",
+	};
+	delete childEnv[CLINE_RUN_AS_HUB_DAEMON_ENV];
+	return childEnv;
+}
+
 export function resolveConnectorDebugLogPath(
 	adapterName: string,
 	instanceKey: string,
@@ -190,10 +216,7 @@ export function spawnDetachedConnector(
 				detachedLogFd === undefined
 					? "ignore"
 					: ["ignore", detachedLogFd, detachedLogFd],
-			env: {
-				...withResolvedClineBuildEnv(process.env),
-				[childEnvKey]: "1",
-			},
+			env: buildDetachedConnectorEnv(childEnvKey),
 			// Prevent a console window from appearing on Windows; detached
 			// processes otherwise allocate a new visible console.
 			windowsHide: true,
@@ -245,6 +268,7 @@ export function spawnDetachedConnector(
 export const __test__ = {
 	buildDetachedConnectorArgs,
 	buildDetachedConnectorCommand,
+	buildDetachedConnectorEnv,
 };
 
 export function readJsonFile<T>(path: string, fallback: T): T {

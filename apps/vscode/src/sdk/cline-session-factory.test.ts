@@ -376,6 +376,159 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
 	})
 
+	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+			openAiApiKey: "compat-key",
+			openAiBaseUrl: "http://127.0.0.1:4141/v1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		// Without the base URL, ProviderConfig consumers that don't re-resolve
+		// settings (e.g. the compaction summarizer) would hit the provider
+		// default endpoint (api.openai.com) instead of the configured one.
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("falls back to the providers.json base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "compat-key",
+				baseUrl: "http://127.0.0.1:4141/v1",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("zai")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai",
+			apiLine: "china",
+		})
+		// No explicit base URL: the SDK gateway resolves the China endpoint
+		// (open.bigmodel.cn) from apiLine; a pre-filled base URL would win
+		// over that resolution.
+		expect(config.baseUrl).toBeUndefined()
+	})
+
+	it("falls back to the providers.json apiLine when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "moonshot") {
+				return undefined
+			}
+			return {
+				provider: "moonshot",
+				apiKey: "moonshot-key",
+				apiLine: "china",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "moonshot",
+			apiLine: "china",
+		})
+	})
+
+	it("inherits the base provider's legacy apiLine for coding variants", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai-coding-plan",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai-coding-plan",
+			apiLine: "china",
+		})
+	})
+
+	it("prefers the coding variant's own providers.json apiLine over the shared legacy field", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "qwen-code") {
+				return undefined
+			}
+			return {
+				provider: "qwen-code",
+				apiKey: "qwen-code-key",
+				apiLine: "international",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen-code",
+			actModeApiModelId: "qwen3-coder-plus",
+			qwenApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "qwen-code",
+			apiLine: "international",
+		})
+	})
+
+	it("omits apiLine for unrecognized values", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen",
+			actModeApiModelId: "qwen-plus-latest",
+			qwenApiKey: "qwen-key",
+			qwenApiLine: "mars",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).not.toHaveProperty("apiLine")
+	})
+
+	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		const providerConfigKnownModels = (config.providerConfig as { knownModels?: Record<string, unknown> }).knownModels
+		expect(providerConfigKnownModels).toBeDefined()
+		expect(config.knownModels).toBe(providerConfigKnownModels)
+	})
+
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
 			provider: "openai-codex",
@@ -509,7 +662,9 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
-		expect(config.knownModels).toBeUndefined()
+		// knownModels is exposed both inside providerConfig (inference) and at
+		// the top level (manual compaction budgets).
+		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)

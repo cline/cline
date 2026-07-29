@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
@@ -59,6 +59,11 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 	}
 }
 
+// Session log appends are chained per session so writes stay ordered, but
+// they run asynchronously: a synchronous write per streamed token would stall
+// the sidecar event loop (and therefore every pending UI command) under load.
+const sessionLogWriteTails = new Map<string, Promise<void>>();
+
 function appendSessionChunk(
 	sessionId: string,
 	stream: string,
@@ -66,9 +71,21 @@ function appendSessionChunk(
 	ts: number,
 ): void {
 	const path = sessionLogPath(sessionId);
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify({ ts, stream, chunk })}\n`, {
-		flag: "a",
+	const line = `${JSON.stringify({ ts, stream, chunk })}\n`;
+	const tail = sessionLogWriteTails.get(sessionId) ?? Promise.resolve();
+	const next = tail
+		.then(async () => {
+			await mkdir(dirname(path), { recursive: true });
+			await appendFile(path, line);
+		})
+		.catch(() => {
+			// Session logs are best-effort diagnostics; never fail the stream.
+		});
+	sessionLogWriteTails.set(sessionId, next);
+	void next.finally(() => {
+		if (sessionLogWriteTails.get(sessionId) === next) {
+			sessionLogWriteTails.delete(sessionId);
+		}
 	});
 }
 

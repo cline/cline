@@ -1,8 +1,9 @@
 /*
- * Default Cline web theme.
+ * Canonical Cline web theme tokens.
  *
  * Keep this file framework-neutral: variable blocks only, with no Tailwind
- * directives, resets, font imports, or app-specific selectors.
+ * directives, resets, font imports, or app-specific selectors. Generate the
+ * scoped entry point with `bun run generate:theme` after making changes.
  */
 
 :root {
@@ -82,6 +83,10 @@
 	--chart-4: oklch(0.78 0.17 80);
 	--chart-5: oklch(0.69 0.18 35);
 	--radius: 0.5rem;
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
 	--sidebar: oklch(0.975 0.005 285);
 	--sidebar-foreground: var(--foreground);
 	--sidebar-primary: var(--primary);

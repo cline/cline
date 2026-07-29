@@ -93,6 +93,24 @@ function sessionIsVisible(title: string): boolean {
 	);
 }
 
+const signedInUser = {
+	id: "user-1",
+	email: "beatrix@cline.bot",
+	displayName: "Beatrix",
+	photoUrl: "",
+	createdAt: "2024-01-01T00:00:00Z",
+	updatedAt: "2024-01-01T00:00:00Z",
+	organizations: [
+		{
+			active: true,
+			memberId: "member-1",
+			name: "Cline Bot Inc",
+			organizationId: "org-1",
+			roles: ["admin"],
+		},
+	],
+};
+
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
@@ -276,23 +294,7 @@ describe("AgentSidebar session organization", () => {
 	});
 
 	it("shows the signed-in account and active organization in the footer", async () => {
-		invoke.mockResolvedValue({
-			id: "user-1",
-			email: "beatrix@cline.bot",
-			displayName: "Beatrix",
-			photoUrl: "",
-			createdAt: "2024-01-01T00:00:00Z",
-			updatedAt: "2024-01-01T00:00:00Z",
-			organizations: [
-				{
-					active: true,
-					memberId: "member-1",
-					name: "Cline Bot Inc",
-					organizationId: "org-1",
-					roles: ["admin"],
-				},
-			],
-		});
+		invoke.mockResolvedValue(signedInUser);
 
 		await act(async () => {
 			root.render(
@@ -319,11 +321,26 @@ describe("AgentSidebar session organization", () => {
 		});
 		expect(container.textContent).not.toContain("Cline Desktop");
 		expect(container.textContent).not.toContain("Local");
+		const accountButton = container.querySelector(
+			'[aria-label="Account settings"]',
+		);
+		const settingsButton = container.querySelector('[aria-label="Settings"]');
+		expect(accountButton?.parentElement).toBe(settingsButton?.parentElement);
+		expect(settingsButton?.textContent).toBe("");
+		const accountName = [
+			...(accountButton?.querySelectorAll("span") ?? []),
+		].find((element) => element.textContent === "Beatrix");
+		const organizationName = [
+			...(accountButton?.querySelectorAll("span") ?? []),
+		].find((element) => element.textContent === "Cline Bot Inc");
+		expect(accountName?.nextElementSibling).toBe(organizationName);
+		expect(accountName?.parentElement?.className).toContain("flex-col");
 	});
 
 	it("opens the Account settings section when the footer account row is clicked", async () => {
 		const setView = vi.fn();
 		const onSettingsSectionChange = vi.fn();
+		invoke.mockResolvedValue(signedInUser);
 
 		await act(async () => {
 			root.render(
@@ -344,10 +361,11 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		const accountButton = container.querySelector(
-			'[aria-label="Account settings"]',
-		);
-		expect(accountButton).not.toBeNull();
+		const accountButton = await vi.waitFor(() => {
+			const button = container.querySelector('[aria-label="Account settings"]');
+			expect(button).not.toBeNull();
+			return button;
+		});
 		await click(accountButton as Element);
 
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
@@ -541,9 +559,61 @@ describe("AgentSidebar session organization", () => {
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
 		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Expand sidebar"]')?.className,
+		).toContain("mt-auto");
 	});
 
-	it("falls back to a signed-out footer without account data", async () => {
+	it("uses a compact overlay-friendly width in collapsed settings", async () => {
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider defaultOpen={false}>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onNewThread={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="Account"
+							view="settings"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const sidebarWrapper = container.querySelector<HTMLElement>(
+			'[data-slot="sidebar-wrapper"]',
+		);
+		expect(sidebarWrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe(
+			"3rem",
+		);
+		expect(sidebarWrapper?.dataset.state).toBe("collapsed");
+		expect(
+			container.querySelector('[aria-label="Settings sections"]'),
+		).not.toBeNull();
+		const leftAlignedButtons = [
+			"Cline home",
+			"General",
+			"Account",
+			"Expand sidebar",
+			"Settings",
+		];
+		for (const label of leftAlignedButtons) {
+			const button = container.querySelector(`[aria-label="${label}"]`);
+			expect(button?.className).not.toContain("mx-auto");
+		}
+		expect(
+			container.querySelector('[aria-label="Expand sidebar"]')?.className,
+		).toContain("mt-auto");
+		expect(
+			container.querySelector('[aria-label="Settings sections"]')?.className,
+		).toContain("items-start");
+	});
+
+	it("shows only the labeled Settings button when signed out", async () => {
 		await act(async () => {
 			root.render(
 				<AccountProvider>
@@ -563,9 +633,14 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		await vi.waitFor(() => {
-			expect(container.textContent).toContain("Cline Desktop");
-		});
-		expect(container.textContent).not.toContain("Local");
+		await vi.waitFor(() =>
+			expect(container.querySelector('[aria-label="Settings"]')).not.toBeNull(),
+		);
+		expect(
+			container.querySelector('[aria-label="Account settings"]'),
+		).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Settings"]')?.textContent,
+		).toContain("Settings");
 	});
 });

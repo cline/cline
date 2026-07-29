@@ -1,8 +1,9 @@
 "use client";
 
+import { AgentHeroHeading } from "@cline/ui";
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
@@ -14,9 +15,6 @@ interface QuickAction {
 	description: string;
 	prompt: string;
 }
-
-const HERO_VERBS = ["build", "create", "fix", "know"] as const;
-const HERO_CYCLE_MS = 2600;
 
 const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 	{
@@ -32,47 +30,6 @@ const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 		prompt: "Check this project for build errors and help me fix any failures.",
 	},
 ];
-
-function HeroHeading() {
-	const [verbIndex, setVerbIndex] = useState(0);
-
-	useEffect(() => {
-		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-		if (media.matches) return;
-		const interval = setInterval(() => {
-			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
-		}, HERO_CYCLE_MS);
-		return () => clearInterval(interval);
-	}, []);
-
-	const verb = HERO_VERBS[verbIndex];
-
-	return (
-		<h1
-			id="hero-header"
-			className="text-balance text-left text-[clamp(2rem,3vw,2.6rem)] font-semibold leading-[1.12] tracking-tight text-foreground"
-		>
-			<span className="sr-only">What would you like to build?</span>
-			<span aria-hidden="true">
-				What would you like to{" "}
-				{/* key remounts the word each cycle so the chars re-trigger their entrance */}
-				<span key={verb}>
-					{verb.split("").map((char, index) => (
-						<span
-							className="hero-word-char"
-							// biome-ignore lint/suspicious/noArrayIndexKey: the word remounts via the parent key each cycle, so char position is a stable, non-reordering identity
-							key={`${verb}-${index}`}
-							style={{ animationDelay: `${index * 45}ms` }}
-						>
-							{char}
-						</span>
-					))}
-				</span>
-				?
-			</span>
-		</h1>
-	);
-}
 
 export function WelcomeScreen({
 	active,
@@ -133,7 +90,7 @@ export function WelcomeScreen({
 				>
 					{active ? (
 						<>
-							<HeroHeading />
+							<AgentHeroHeading />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls

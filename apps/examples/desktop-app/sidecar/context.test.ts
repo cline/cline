@@ -152,9 +152,24 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		await initializeSessionManager(ctx);
+		const session = {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		} satisfies LiveSession;
+		ctx.liveSessions.set("running-session", session);
+		ctx.liveSessions.set("idle-session", {
+			...session,
+			busy: false,
+			status: "idle",
+		});
 
 		await expect(handleCommand(ctx, "get_process_context")).resolves.toEqual(
 			expect.objectContaining({
+				runningSessionCount: 1,
 				hub: {
 					status: "connected",
 					url: "ws://127.0.0.1:25463/hub",

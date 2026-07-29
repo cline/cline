@@ -12,6 +12,7 @@ import {
 	rejectAllPendingApprovals,
 	requestToolApprovalFromWebview,
 } from "./approvals";
+import { configureConnectorCliLaunch } from "./connectors";
 import { workspaceRoot } from "./deps";
 import {
 	formatClientName,
@@ -90,6 +91,7 @@ export async function syncHubClientsAndSessions(
 }
 
 export async function attachHub(ctx: HubContext): Promise<void> {
+	configureConnectorCliLaunch();
 	const hub = await ensureDetachedHubServer(workspaceRoot);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;

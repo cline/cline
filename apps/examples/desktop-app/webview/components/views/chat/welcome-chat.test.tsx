@@ -96,6 +96,9 @@ describe("WelcomeScreen", () => {
 			workspaces,
 		});
 
+		expect(
+			container.querySelector(".cline-ui-agent-hero-heading"),
+		).not.toBeNull();
 		await clickButton("project-1");
 
 		for (let index = 1; index <= workspaces.length; index += 1) {

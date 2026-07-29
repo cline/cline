@@ -855,54 +855,6 @@ export const ShellIntegrationWarning: Story = {
 	},
 }
 
-export const ErrorRetryInProgress: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Process a request"),
-				createMessage(4.7, "say", "text", "Attempting to process your request."),
-				createMessage(
-					4.5,
-					"say",
-					"error_retry",
-					JSON.stringify({ attempt: 2, maxAttempts: 5, delaySeconds: 10, failed: false }),
-				),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows auto-retry in progress with attempt count and delay.",
-			},
-		},
-	},
-}
-
-export const ErrorRetryFailed: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Process a request"),
-				createMessage(4.7, "say", "text", "Attempting to process your request."),
-				createMessage(
-					4.5,
-					"say",
-					"error_retry",
-					JSON.stringify({ attempt: 5, maxAttempts: 5, delaySeconds: 0, failed: true }),
-				),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows auto-retry failed after max attempts with manual intervention required.",
-			},
-		},
-	},
-}
-
 // Diff Edit Stories - New Format
 const createNewFormatMultiFileMessages = () => [
 	createMessage(5, "say", "task", "Help me refactor the authentication module"),
