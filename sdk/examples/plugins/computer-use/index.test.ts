@@ -3,7 +3,9 @@ import {
 	COMPUTER_USE_BROWSER_SERVER_NAME,
 	COMPUTER_USE_DESKTOP_SERVER_NAME,
 	isAllowedPeekabooTool,
+	isAllowedPlaywrightTool,
 	PEEKABOO_ALLOWED_TOOL_NAMES,
+	PLAYWRIGHT_BLOCKED_TOOL_NAMES,
 	PLAYWRIGHT_MCP_ARGS,
 	default as plugin,
 	resolveComputerUseBackend,
@@ -19,6 +21,40 @@ describe("computer-use routing", () => {
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--isolated");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--image-responses");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("vision");
+	});
+});
+
+describe("Playwright tool policy", () => {
+	test("hard-blocks unsafe server-process code execution", () => {
+		for (const name of PLAYWRIGHT_BLOCKED_TOOL_NAMES) {
+			expect(
+				isAllowedPlaywrightTool(`${COMPUTER_USE_BROWSER_SERVER_NAME}__${name}`),
+			).toBe(false);
+		}
+	});
+
+	test("allows bounded browser tools and unrelated providers", () => {
+		expect(
+			isAllowedPlaywrightTool(
+				`${COMPUTER_USE_BROWSER_SERVER_NAME}__browser_click`,
+			),
+		).toBe(true);
+		expect(
+			isAllowedPlaywrightTool("another-server__browser_run_code_unsafe"),
+		).toBe(true);
+	});
+
+	test("enforces the block in the beforeTool safety boundary", () => {
+		const result = plugin.hooks?.beforeTool?.({
+			toolCall: {
+				toolName: `${COMPUTER_USE_BROWSER_SERVER_NAME}__browser_run_code_unsafe`,
+			},
+		} as never);
+
+		expect(result).toEqual({
+			skip: true,
+			reason: expect.stringContaining("execute arbitrary code"),
+		});
 	});
 });
 

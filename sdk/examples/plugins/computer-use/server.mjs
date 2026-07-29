@@ -291,10 +291,81 @@ export function screenshotPointToDesktop(display, point, capture) {
 		);
 	}
 
+	const logicalWidth = Math.max(1, Math.round(display.width));
+	const logicalHeight = Math.max(1, Math.round(display.height));
+	const logicalX = Math.min(
+		logicalWidth - 1,
+		Math.max(0, Math.floor(point.x / scaleX)),
+	);
+	const logicalY = Math.min(
+		logicalHeight - 1,
+		Math.max(0, Math.floor(point.y / scaleY)),
+	);
+
 	return {
-		x: display.x + Math.round(point.x / scaleX),
-		y: display.y + Math.round(point.y / scaleY),
+		x: display.x + logicalX,
+		y: display.y + logicalY,
 	};
+}
+
+export function invalidateSnapshotsForDisplay(snapshotStore, displayId) {
+	let invalidated = 0;
+	for (const [id, snapshot] of snapshotStore) {
+		if (snapshot.display.id === displayId) {
+			snapshotStore.delete(id);
+			invalidated += 1;
+		}
+	}
+	return invalidated;
+}
+
+export function claimSnapshot(snapshotStore, snapshotId) {
+	const snapshot = snapshotStore.get(snapshotId);
+	if (!snapshot) {
+		throw new Error(
+			`Unknown or already-consumed snapshot '${snapshotId}'. Take a new computer_screenshot before acting.`,
+		);
+	}
+	snapshotStore.delete(snapshotId);
+	return snapshot;
+}
+
+export function interpolatePointerPath(start, end, maximumStep = 40) {
+	const safeMaximumStep =
+		Number.isFinite(maximumStep) && maximumStep > 0 ? maximumStep : 40;
+	const distance = Math.hypot(end.x - start.x, end.y - start.y);
+	const steps = Math.max(
+		1,
+		Math.min(60, Math.ceil(distance / safeMaximumStep)),
+	);
+	return Array.from({ length: steps }, (_, index) => {
+		const progress = (index + 1) / steps;
+		return {
+			x: Math.round(start.x + (end.x - start.x) * progress),
+			y: Math.round(start.y + (end.y - start.y) * progress),
+		};
+	});
+}
+
+export function movePointer(robot, point, smooth = false, dragButton) {
+	robot.updateScreenMetrics?.();
+	if (!smooth) {
+		if (dragButton) {
+			robot.dragMouse(point.x, point.y, dragButton);
+		} else {
+			robot.moveMouse(point.x, point.y);
+		}
+		return;
+	}
+
+	const start = robot.getMousePos();
+	for (const step of interpolatePointerPath(start, point)) {
+		if (dragButton) {
+			robot.dragMouse(step.x, step.y, dragButton);
+		} else {
+			robot.moveMouse(step.x, step.y);
+		}
+	}
 }
 
 export function sameDisplayGeometry(left, right) {
@@ -414,6 +485,7 @@ async function captureDisplay(selected) {
 			snapshots.delete(id);
 		}
 	}
+	invalidateSnapshotsForDisplay(snapshots, selected.display.id);
 	const snapshot = {
 		id: randomUUID(),
 		display: selected.display,
@@ -507,15 +579,10 @@ function errorResult(error) {
 
 async function consumeSnapshot(args) {
 	const snapshotId = requiredString(args, "snapshot_id");
-	const snapshot = snapshots.get(snapshotId);
-	if (!snapshot) {
-		throw new Error(
-			`Unknown or already-consumed snapshot '${snapshotId}'. Take a new computer_screenshot before acting.`,
-		);
-	}
+	const snapshot = claimSnapshot(snapshots, snapshotId);
+	invalidateSnapshotsForDisplay(snapshots, snapshot.display.id);
 	const selected = await selectSnapshotDisplay(snapshot);
 	validateSnapshot(snapshot, selected.display);
-	snapshots.delete(snapshotId);
 	return { ...selected, snapshot };
 }
 
@@ -593,11 +660,7 @@ async function callTool(name, rawArgs) {
 			const robot = await loadRobot();
 			const selected = await consumeSnapshot(args);
 			const point = pointFromSnapshot(selected.snapshot, args);
-			if (args.smooth === true) {
-				robot.moveMouseSmooth(point.x, point.y);
-			} else {
-				robot.moveMouse(point.x, point.y);
-			}
+			movePointer(robot, point, args.smooth === true);
 			return postActionResult(selected, selected.snapshot.id, {
 				ok: true,
 				global_logical: point,
@@ -638,10 +701,10 @@ async function callTool(name, rawArgs) {
 				"start_y",
 			);
 			const end = pointFromSnapshot(selected.snapshot, args, "end_x", "end_y");
-			robot.moveMouse(start.x, start.y);
+			movePointer(robot, start);
 			robot.mouseToggle("down", button);
 			try {
-				robot.moveMouseSmooth(end.x, end.y);
+				movePointer(robot, end, true, button);
 			} finally {
 				robot.mouseToggle("up", button);
 			}

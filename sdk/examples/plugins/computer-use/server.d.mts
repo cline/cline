@@ -28,6 +28,13 @@ export interface Snapshot {
 	created_at_ms: number;
 }
 
+export interface PointerRobot {
+	updateScreenMetrics?: () => void;
+	getMousePos: () => Point;
+	moveMouse: (x: number, y: number) => void;
+	dragMouse: (x: number, y: number, button?: string) => void;
+}
+
 export const DEFAULT_SNAPSHOT_TTL_MS: number;
 export const MIN_SNAPSHOT_TTL_MS: number;
 export const MAX_SNAPSHOT_TTL_MS: number;
@@ -61,6 +68,29 @@ export function screenshotPointToDesktop(
 	point: Point,
 	capture?: CaptureGeometry,
 ): Point;
+
+export function invalidateSnapshotsForDisplay(
+	snapshotStore: Map<string, Snapshot>,
+	displayId: string,
+): number;
+
+export function claimSnapshot(
+	snapshotStore: Map<string, Snapshot>,
+	snapshotId: string,
+): Snapshot;
+
+export function interpolatePointerPath(
+	start: Point,
+	end: Point,
+	maximumStep?: number,
+): Point[];
+
+export function movePointer(
+	robot: PointerRobot,
+	point: Point,
+	smooth?: boolean,
+	dragButton?: string,
+): void;
 
 export function sameDisplayGeometry(
 	left: DisplayGeometry,

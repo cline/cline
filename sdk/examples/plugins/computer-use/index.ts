@@ -34,6 +34,9 @@ export const PLAYWRIGHT_MCP_ARGS = [
 	"1280x800",
 	"--block-service-workers",
 ] as const;
+export const PLAYWRIGHT_BLOCKED_TOOL_NAMES = [
+	"browser_run_code_unsafe",
+] as const;
 export const PEEKABOO_ALLOWED_TOOL_NAMES = [
 	"app",
 	"click",
@@ -59,7 +62,13 @@ export const PEEKABOO_ALLOWED_TOOL_NAMES = [
 	"window",
 ] as const;
 
+const computerUseBrowserToolPrefix = `${COMPUTER_USE_BROWSER_SERVER_NAME}__`;
 const computerUseDesktopToolPrefix = `${COMPUTER_USE_DESKTOP_SERVER_NAME}__`;
+const blockedPlaywrightTools = new Set(
+	PLAYWRIGHT_BLOCKED_TOOL_NAMES.map(
+		(name) => `${computerUseBrowserToolPrefix}${name}`,
+	),
+);
 const allowedPeekabooTools = new Set(
 	PEEKABOO_ALLOWED_TOOL_NAMES.map(
 		(name) => `${computerUseDesktopToolPrefix}${name}`,
@@ -95,6 +104,10 @@ export function isAllowedPeekabooTool(toolName: string): boolean {
 		!toolName.startsWith(computerUseDesktopToolPrefix) ||
 		allowedPeekabooTools.has(toolName)
 	);
+}
+
+export function isAllowedPlaywrightTool(toolName: string): boolean {
+	return !blockedPlaywrightTools.has(toolName);
 }
 
 let backend: ComputerUseBackend | undefined;
@@ -192,13 +205,19 @@ const plugin: AgentPlugin = {
 
 	hooks: {
 		beforeTool({ toolCall }) {
-			if (backend !== "peekaboo" || isAllowedPeekabooTool(toolCall.toolName)) {
-				return undefined;
+			if (!isAllowedPlaywrightTool(toolCall.toolName)) {
+				return {
+					skip: true,
+					reason: `${toolCall.toolName} is blocked by the computer-use plugin because it can execute arbitrary code in the Playwright server process. Use the bounded browser interaction tools instead.`,
+				};
 			}
-			return {
-				skip: true,
-				reason: `${toolCall.toolName} is not allowlisted by the computer-use plugin. Use the bounded native UI tools instead.`,
-			};
+			if (backend === "peekaboo" && !isAllowedPeekabooTool(toolCall.toolName)) {
+				return {
+					skip: true,
+					reason: `${toolCall.toolName} is not allowlisted by the computer-use plugin. Use the bounded native UI tools instead.`,
+				};
+			}
+			return undefined;
 		},
 	},
 };
