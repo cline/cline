@@ -204,9 +204,12 @@ Cross-compiles the CLI for all target platforms:
 
 Flags:
 - `--single` -- build only for the current platform (faster for local testing)
+- `--target-os <darwin|linux|win32>` -- build both architectures for one operating system; repeat the flag to select more than one
 - `--install-native-variants` -- allow the script to download all OpenTUI native packages required for cross-platform builds
 - `--skip-install` -- skip re-downloading platform-specific native packages if they're already installed
 - `--skip-sdk-build` -- skip rebuilding SDK packages (if already built)
+
+Darwin binaries are ad-hoc signed and verified after compilation. Building Darwin targets on a non-macOS host fails by default so an invalid binary cannot be published accidentally. Set `CLINE_ALLOW_UNSIGNED_DARWIN_BINARIES=1` only for local cross-builds that will not be published.
 
 ## Publish Script (`script/publish-npm.ts`)
 
