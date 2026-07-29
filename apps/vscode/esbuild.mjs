@@ -68,6 +68,29 @@ const aliasResolverPlugin = {
 	},
 }
 
+/**
+ * VS Code owns the extension host's global fetch implementation, including its
+ * proxy and certificate configuration. Evaluating a bundled copy of undici
+ * installs that copy's Agent in process-wide dispatcher symbols also consumed
+ * by the host fetch. Besides bypassing VS Code's proxy integration, the Agent
+ * can be incompatible with the undici version embedded in Electron.
+ *
+ * Standalone builds intentionally use undici's EnvHttpProxyAgent. VS Code
+ * builds must instead keep userland undici out of the bundle altogether.
+ */
+const forbidBundledUndiciInVscodePlugin = {
+	name: "forbid-bundled-undici-in-vscode",
+	setup(build) {
+		build.onResolve({ filter: /^undici(?:\/.*)?$/ }, (args) => ({
+			errors: [
+				{
+					text: `VS Code bundles must not import "${args.path}"; use the host fetch from @/shared/net`,
+				},
+			],
+		}))
+	},
+}
+
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 
@@ -142,6 +165,7 @@ const baseConfig = {
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		aliasResolverPlugin,
+		...(standalone ? [] : [forbidBundledUndiciInVscodePlugin]),
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 	],

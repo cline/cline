@@ -95,8 +95,6 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
-
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
 let mockFetch: FetchFunction | undefined
@@ -119,6 +117,7 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true") {
+		const { EnvHttpProxyAgent, setGlobalDispatcher, fetch: undiciFetch } = require("undici") as typeof import("undici")
 		// Configure undici with ProxyAgent
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)

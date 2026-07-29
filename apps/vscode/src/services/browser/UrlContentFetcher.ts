@@ -1,4 +1,4 @@
-import * as cheerio from "cheerio"
+import * as cheerio from "cheerio/slim"
 import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
 import { StateManager } from "@/core/storage/StateManager"

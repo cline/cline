@@ -1,5 +1,5 @@
 import axios from "axios"
-import ogs from "open-graph-scraper"
+import * as cheerio from "cheerio/slim"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
@@ -19,51 +19,47 @@ export interface OpenGraphData {
  */
 export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 	try {
-		const options = {
-			url: url,
-			timeout: 5000,
+		const response = await fetch(url, {
 			headers: {
 				"user-agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
 			},
-			onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
-			fetchOptions: {
-				redirect: "follow", // Follow redirects
-			} as any,
-			fetch, // Use configured fetch with proxy support
+			redirect: "follow",
+			signal: AbortSignal.timeout(5000),
+		})
+		if (!response.ok) {
+			throw new Error(`Failed to fetch Open Graph data: ${response.status}`)
 		}
-
-		const { result } = await ogs(options)
-
-		// Use type assertion to avoid TypeScript errors
-		const data = result as any
+		const $ = cheerio.load(await response.text())
+		const metadata = new Map<string, string>()
+		$("meta").each((_index, element) => {
+			const key = ($(element).attr("property") || $(element).attr("name"))?.toLowerCase()
+			const content = $(element).attr("content")
+			if (key && content && !metadata.has(key)) {
+				metadata.set(key, content)
+			}
+		})
+		const get = (...keys: string[]) => keys.map((key) => metadata.get(key)).find(Boolean)
+		const resolvedUrl = response.url || url
 
 		// Handle image URLs
-		let imageUrl = data.ogImage?.[0]?.url || data.twitterImage?.[0]?.url
+		let imageUrl = get("og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src")
 
-		// If the image URL is relative, make it absolute
-		if (imageUrl && (imageUrl.startsWith("/") || imageUrl.startsWith("./"))) {
+		if (imageUrl) {
 			try {
-				// Extract the base URL and make the relative URL absolute
-				const urlObj = new URL(url)
-				const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`
-				imageUrl = new URL(imageUrl, baseUrl).href
+				imageUrl = new URL(imageUrl, resolvedUrl).href
 			} catch (error) {
 				Logger.error(`Error converting relative URL to absolute: ${imageUrl}`, error)
 			}
 		}
 
 		return {
-			title: data.ogTitle || data.twitterTitle || data.dcTitle || data.title || new URL(url).hostname,
+			title: get("og:title", "twitter:title", "dc.title") || $("title").first().text().trim() || new URL(url).hostname,
 			description:
-				data.ogDescription ||
-				data.twitterDescription ||
-				data.dcDescription ||
-				data.description ||
-				"No description available",
+				get("og:description", "twitter:description", "dc.description", "description") || "No description available",
 			image: imageUrl,
-			url: data.ogUrl || url,
-			siteName: data.ogSiteName || new URL(url).hostname,
-			type: data.ogType,
+			url: get("og:url") || resolvedUrl,
+			siteName: get("og:site_name") || new URL(url).hostname,
+			type: get("og:type"),
 		}
 	} catch (_error) {
 		// Return basic information based on the URL
