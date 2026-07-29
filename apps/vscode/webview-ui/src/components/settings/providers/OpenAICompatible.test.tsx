@@ -450,6 +450,93 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("persists unchecking Supports Images as an explicit false override", async () => {
+		setCommittedSelection({ supportsVision: true }, { supportsImages: true })
+		renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+		expect(screen.getByRole("checkbox", { name: "Supports Images" })).toBeChecked()
+
+		fireEvent.click(screen.getByRole("checkbox", { name: "Supports Images" }))
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { supportsVision: false },
+		})
+	})
+
+	it("persists unchecking the R1 checkbox as an explicit false override", async () => {
+		setCommittedSelection({ isR1FormatRequired: true })
+		renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
+
+		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { isR1FormatRequired: false },
+		})
+	})
+
+	// The FAST-based VSCodeCheckbox fires a synthetic `change` whenever React
+	// re-syncs its `checked` property against the DOM. If a re-render during
+	// the commit round-trip painted the stale resolved value, that synthetic
+	// change would re-commit the stale value over the user's edit. These
+	// tests pin the invariant that breaks the loop: while a checkbox commit
+	// is in flight, re-renders keep showing the user's pending value.
+	it("keeps Supports Images rendering the pending uncheck across a stale re-render", async () => {
+		const commit = deferred<void>()
+		mocks.commitSelection.mockReturnValueOnce(commit.promise)
+		setCommittedSelection({ supportsVision: true }, { supportsImages: true })
+		const view = render(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+
+		fireEvent.click(screen.getByRole("checkbox", { name: "Supports Images" }))
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { supportsVision: false },
+		})
+
+		// A state push re-renders with the same stale committed snapshot
+		// (supportsVision still true) while the commit is outstanding.
+		view.rerender(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		expect(screen.getByRole("checkbox", { name: "Supports Images" })).not.toBeChecked()
+
+		await act(async () => {
+			commit.resolve(undefined)
+		})
+	})
+
+	it("keeps the R1 checkbox rendering the pending check across a stale re-render", async () => {
+		const commit = deferred<void>()
+		mocks.commitSelection.mockReturnValueOnce(commit.promise)
+		const view = renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+
+		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { isR1FormatRequired: true },
+		})
+
+		// A state push re-renders with the same stale committed snapshot
+		// (no R1 override) while the commit is outstanding.
+		view.rerender(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
+
+		await act(async () => {
+			commit.resolve(undefined)
+		})
+	})
+
 	it("restores the R1 checkbox from authored override readback", async () => {
 		setCommittedSelection({ isR1FormatRequired: true })
 		renderProvider()
