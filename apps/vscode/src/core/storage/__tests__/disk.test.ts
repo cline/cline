@@ -19,7 +19,7 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import { getAllHooksDirs, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
+import { getAllHooksDirs, getMcpSettingsFilePath, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
 import { StateManager } from "../StateManager"
 
 describe("disk - hooks functionality", () => {
@@ -279,5 +279,56 @@ describe("disk - atomic writes", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+	})
+
+	it("creates private MCP settings without changing a pre-existing parent", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "secure-mcp-settings")
+		const settingsPath = await getMcpSettingsFilePath(settingsDir)
+
+		if (process.platform !== "win32") {
+			const directoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const fileMode = (await fs.stat(settingsPath)).mode & 0o777
+			directoryMode.should.equal(0o700)
+			fileMode.should.equal(0o600)
+
+			await fs.chmod(settingsDir, 0o755)
+			await fs.chmod(settingsPath, 0o644)
+			await getMcpSettingsFilePath(settingsDir)
+			const repairedDirectoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			const repairedMode = (await fs.stat(settingsPath)).mode & 0o777
+			repairedDirectoryMode.should.equal(0o755)
+			repairedMode.should.equal(0o600)
+		}
+	})
+
+	it.skipIf(process.platform === "win32")("repairs the existing Cline-owned settings directory", async () => {
+		const previousDataDir = process.env.CLINE_DATA_DIR
+		const dataDir = path.join(testGlobalStorageDir, "cline-data")
+		const settingsDir = path.join(dataDir, "settings")
+		await fs.mkdir(settingsDir, { recursive: true, mode: 0o755 })
+		await fs.chmod(settingsDir, 0o755)
+		process.env.CLINE_DATA_DIR = dataDir
+
+		try {
+			await getMcpSettingsFilePath(settingsDir)
+			const directoryMode = (await fs.stat(settingsDir)).mode & 0o777
+			directoryMode.should.equal(0o700)
+		} finally {
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir
+			}
+		}
+	})
+
+	it.skipIf(process.platform === "win32")("skips chmod when settings permissions are already private", async () => {
+		const settingsDir = path.join(testGlobalStorageDir, "already-private-mcp-settings")
+		await getMcpSettingsFilePath(settingsDir)
+		const chmod = sandbox.spy(fs, "chmod")
+
+		await getMcpSettingsFilePath(settingsDir)
+
+		chmod.notCalled.should.equal(true)
 	})
 })

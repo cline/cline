@@ -37,6 +37,7 @@ export {
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type { AutomationEventEnvelope } from "./cron";
+export { sanitizeMcpDiagnosticText } from "./security/mcp-diagnostics";
 export type {
 	ClientContext,
 	ClientName,

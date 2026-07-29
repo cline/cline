@@ -1,3 +1,4 @@
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 import type {
 	McpConnectionStatus,
 	McpManager,
@@ -24,6 +25,69 @@ type ManagedServerState = {
 
 function nowMs(): number {
 	return Date.now();
+}
+
+function sanitizeErrorInPlace(error: Error, seen: Set<Error>): boolean {
+	if (seen.has(error)) {
+		return true;
+	}
+	seen.add(error);
+
+	const sanitizedMessage = sanitizeMcpDiagnosticText(error.message);
+	if (error.message !== sanitizedMessage) {
+		try {
+			error.message = sanitizedMessage;
+		} catch {
+			return false;
+		}
+		if (error.message !== sanitizedMessage) {
+			return false;
+		}
+	}
+
+	if (typeof error.stack === "string") {
+		const sanitizedStack = sanitizeMcpDiagnosticText(error.stack);
+		if (error.stack !== sanitizedStack) {
+			try {
+				error.stack = sanitizedStack;
+			} catch {
+				return false;
+			}
+			if (error.stack !== sanitizedStack) {
+				return false;
+			}
+		}
+	}
+
+	if (error.cause instanceof Error) {
+		if (!sanitizeErrorInPlace(error.cause, seen)) {
+			return false;
+		}
+	} else if (typeof error.cause === "string") {
+		const sanitizedCause = sanitizeMcpDiagnosticText(error.cause);
+		if (error.cause !== sanitizedCause) {
+			try {
+				error.cause = sanitizedCause;
+			} catch {
+				return false;
+			}
+			if (error.cause !== sanitizedCause) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+function sanitizeMcpError(error: unknown): Error {
+	if (error instanceof Error) {
+		if (sanitizeErrorInPlace(error, new Set())) {
+			return error;
+		}
+		return new Error(sanitizeMcpDiagnosticText(error.message));
+	}
+	return new Error(sanitizeMcpDiagnosticText(String(error)));
 }
 
 function cloneTools(
@@ -141,27 +205,35 @@ export class InMemoryMcpManager implements McpManager {
 		serverName: string,
 	): Promise<readonly McpToolDescriptor[]> {
 		return this.runExclusive(serverName, async () => {
-			const state = this.requireServer(serverName);
-			const client = await this.ensureConnectedClient(state);
-			const tools = await client.listTools();
-			const cloned = cloneTools(tools);
-			state.toolCache = cloned;
-			state.toolCacheUpdatedAt = nowMs();
-			state.updatedAt = nowMs();
-			return cloned;
+			try {
+				const state = this.requireServer(serverName);
+				const client = await this.ensureConnectedClient(state);
+				const tools = await client.listTools();
+				const cloned = cloneTools(tools);
+				state.toolCache = cloned;
+				state.toolCacheUpdatedAt = nowMs();
+				state.updatedAt = nowMs();
+				return cloned;
+			} catch (error) {
+				throw sanitizeMcpError(error);
+			}
 		});
 	}
 
 	async callTool(request: McpToolCallRequest): Promise<McpToolCallResult> {
 		return this.runExclusive(request.serverName, async () => {
-			const state = this.requireServer(request.serverName);
-			const client = await this.ensureConnectedClient(state);
-			state.updatedAt = nowMs();
-			return client.callTool({
-				name: request.toolName,
-				arguments: request.arguments,
-				context: request.context,
-			});
+			try {
+				const state = this.requireServer(request.serverName);
+				const client = await this.ensureConnectedClient(state);
+				state.updatedAt = nowMs();
+				return await client.callTool({
+					name: request.toolName,
+					arguments: request.arguments,
+					context: request.context,
+				});
+			} catch (error) {
+				throw sanitizeMcpError(error);
+			}
 		});
 	}
 
@@ -205,9 +277,10 @@ export class InMemoryMcpManager implements McpManager {
 			state.updatedAt = nowMs();
 		} catch (error) {
 			state.status = "disconnected";
-			state.lastError = error instanceof Error ? error.message : String(error);
+			const sanitizedError = sanitizeMcpError(error);
+			state.lastError = sanitizedError.message;
 			state.updatedAt = nowMs();
-			throw error;
+			throw sanitizedError;
 		}
 	}
 
@@ -220,6 +293,8 @@ export class InMemoryMcpManager implements McpManager {
 
 		try {
 			await state.client.disconnect();
+		} catch (error) {
+			throw sanitizeMcpError(error);
 		} finally {
 			state.status = "disconnected";
 			state.updatedAt = nowMs();

@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { resolveClineDataDir } from "@cline/shared/storage"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
@@ -131,6 +132,28 @@ export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: bool
 	return agentSkillsDir
 }
 
+async function repairPrivatePermissions(targetPath: string, mode: number): Promise<void> {
+	if (process.platform === "win32") {
+		return
+	}
+	try {
+		if (((await fs.stat(targetPath)).mode & 0o7777) !== mode) {
+			await fs.chmod(targetPath, mode)
+		}
+	} catch (error) {
+		const fsError = error as NodeJS.ErrnoException
+		if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
+			return
+		}
+		const details = fsError?.code ?? (error instanceof Error ? error.message : String(error))
+		Logger.warn(`[mcp-settings] Unable to set permissions ${mode.toString(8)} on ${targetPath}: ${details}`)
+	}
+}
+
+function isClineSettingsDirectory(directoryPath: string): boolean {
+	return path.resolve(directoryPath) === path.resolve(resolveClineDataDir(), "settings")
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
 }
@@ -141,10 +164,20 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  * @returns Path to the MCP settings file
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
+	const createdPath = await fs.mkdir(settingsDirectoryPath, { recursive: true, mode: 0o700 })
+	// A configured settings path may live in a shared directory. Existing
+	// directories are repaired only when they are Cline's own settings directory.
+	if (createdPath !== undefined || isClineSettingsDirectory(settingsDirectoryPath)) {
+		await repairPrivatePermissions(settingsDirectoryPath, 0o700)
+	}
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
 	const tempPath = `${mcpSettingsFilePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
 	try {
-		await fs.writeFile(tempPath, JSON.stringify({ mcpServers: {} }, null, 2), { encoding: "utf8", flag: "wx" })
+		await fs.writeFile(tempPath, JSON.stringify({ mcpServers: {} }, null, 2), {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		})
 		// Hard-linking publishes the fully-written temp file without overwriting an
 		// existing settings file. EEXIST means another process won the create race.
 		await fs.link(tempPath, mcpSettingsFilePath)
@@ -155,6 +188,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	} finally {
 		await fs.unlink(tempPath).catch(() => {})
 	}
+	await repairPrivatePermissions(mcpSettingsFilePath, 0o600)
 	return mcpSettingsFilePath
 }
 

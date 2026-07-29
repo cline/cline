@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -9,11 +11,13 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { BasicLogger } from "@cline/shared";
-import { resolveMcpSettingsPath } from "@cline/shared/storage";
+import { type BasicLogger, sanitizeMcpDiagnosticText } from "@cline/shared";
+import {
+	resolveClineDataDir,
+	resolveMcpSettingsPath,
+} from "@cline/shared/storage";
 import { z } from "zod";
 import type {
 	McpManager,
@@ -232,6 +236,64 @@ export function resolveDefaultMcpSettingsPath(): string {
 	return resolveMcpSettingsPath();
 }
 
+function isClineSettingsDirectory(directoryPath: string): boolean {
+	return resolve(directoryPath) === resolve(resolveClineDataDir(), "settings");
+}
+
+function ensurePrivateSettingsDirectory(directoryPath: string): void {
+	const createdPath = mkdirSync(directoryPath, {
+		recursive: true,
+		mode: 0o700,
+	});
+	// A configured settings path may live in a shared directory. Existing
+	// directories are repaired only when they are Cline's own settings directory.
+	if (createdPath !== undefined || isClineSettingsDirectory(directoryPath)) {
+		hardenExistingSettingsDirectory(directoryPath);
+	}
+}
+
+function warnPermissionRepairFailure(
+	targetPath: string,
+	mode: number,
+	error: unknown,
+): void {
+	const fsError = error as NodeJS.ErrnoException;
+	if (fsError?.code === "ENOENT" || fsError?.code === "ENOTDIR") {
+		return;
+	}
+	const details =
+		fsError?.code ?? (error instanceof Error ? error.message : String(error));
+	process.emitWarning(
+		`Unable to set MCP settings permissions ${mode.toString(8)} on ${targetPath}: ${details}`,
+		{ code: "CLINE_MCP_SETTINGS_PERMISSION_REPAIR_FAILED" },
+	);
+}
+
+function hardenExistingSettingsDirectory(directoryPath: string): void {
+	if (process.platform !== "win32") {
+		try {
+			if ((statSync(directoryPath).mode & 0o7777) !== 0o700) {
+				chmodSync(directoryPath, 0o700);
+			}
+		} catch (error) {
+			warnPermissionRepairFailure(directoryPath, 0o700, error);
+		}
+	}
+}
+
+function hardenExistingSettingsFile(filePath: string): void {
+	if (process.platform === "win32") {
+		return;
+	}
+	try {
+		if ((statSync(filePath).mode & 0o7777) !== 0o600) {
+			chmodSync(filePath, 0o600);
+		}
+	} catch (error) {
+		warnPermissionRepairFailure(filePath, 0o600, error);
+	}
+}
+
 /**
  * Atomically write the MCP settings file using a temp file + rename.
  *
@@ -243,13 +305,18 @@ export function resolveDefaultMcpSettingsPath(): string {
  * always observes either the old or the new complete file.
  */
 function atomicWriteSettingsFile(filePath: string, contents: string): void {
-	mkdirSync(dirname(filePath), { recursive: true });
+	ensurePrivateSettingsDirectory(dirname(filePath));
 	const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random()
 		.toString(36)
 		.slice(2)}`;
 	try {
-		writeFileSync(tempPath, contents, { encoding: "utf8", flag: "wx" });
+		writeFileSync(tempPath, contents, {
+			encoding: "utf8",
+			flag: "wx",
+			mode: 0o600,
+		});
 		renameSync(tempPath, filePath);
+		hardenExistingSettingsFile(filePath);
 	} catch (error) {
 		try {
 			unlinkSync(tempPath);
@@ -298,6 +365,14 @@ interface AcquiredSettingsLock {
 	ownerFile: string;
 }
 
+export function isSettingsLockContentionError(error: unknown): boolean {
+	if (error === null || typeof error !== "object") {
+		return false;
+	}
+	const code = (error as NodeJS.ErrnoException).code;
+	return code === "EEXIST" || code === "ENOTEMPTY";
+}
+
 /**
  * Cross-process lock implemented as a populated directory. Acquisition creates a
  * staging directory, writes a unique owner marker inside it, then renames the
@@ -313,20 +388,32 @@ function tryAcquireSettingsLock(
 	lockDir: string,
 	token: string,
 ): AcquiredSettingsLock | undefined {
-	mkdirSync(dirname(lockDir), { recursive: true });
+	ensurePrivateSettingsDirectory(dirname(lockDir));
 	const stagingDir = `${lockDir}.tmp.${token}`;
 	rmSync(stagingDir, { recursive: true, force: true });
-	mkdirSync(stagingDir, { recursive: true });
-	writeFileSync(join(stagingDir, `owner.${token}`), token, {
-		encoding: "utf8",
-		flag: "wx",
-	});
+	ensurePrivateSettingsDirectory(stagingDir);
+	let attemptedPublication = false;
 	try {
+		writeFileSync(join(stagingDir, `owner.${token}`), token, {
+			encoding: "utf8",
+			flag: "wx",
+		});
+		attemptedPublication = true;
 		renameSync(stagingDir, lockDir);
 		return { lockDir, ownerFile: join(lockDir, `owner.${token}`) };
 	} catch (error) {
-		rmSync(stagingDir, { recursive: true, force: true });
-		if (existsSync(lockDir)) {
+		try {
+			rmSync(stagingDir, { recursive: true, force: true });
+		} catch {
+			// Preserve the original lock-publication error.
+		}
+		// On POSIX, renaming a directory over another populated directory may
+		// report either EEXIST or ENOTEMPTY. The winning writer can release the
+		// lock before existsSync runs, so classify the original error first.
+		if (
+			attemptedPublication &&
+			(isSettingsLockContentionError(error) || existsSync(lockDir))
+		) {
 			return undefined;
 		}
 		throw error;
@@ -551,6 +638,7 @@ function runPureSettingsMutator<T>(
 }
 
 function readJsonObject(filePath: string): Record<string, unknown> {
+	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
@@ -613,6 +701,10 @@ export function loadMcpSettingsFile(
 	options: LoadMcpSettingsOptions = {},
 ): McpSettingsFile {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	if (isClineSettingsDirectory(dirname(filePath))) {
+		hardenExistingSettingsDirectory(dirname(filePath));
+	}
+	hardenExistingSettingsFile(filePath);
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
 	try {
@@ -650,7 +742,9 @@ export function normalizeMcpServerOAuthState(
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
 		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),
-		...(value.lastError ? { lastError: value.lastError } : {}),
+		...(value.lastError
+			? { lastError: sanitizeMcpDiagnosticText(value.lastError) }
+			: {}),
 		...(value.lastAuthenticatedAt
 			? { lastAuthenticatedAt: value.lastAuthenticatedAt }
 			: {}),
@@ -685,7 +779,7 @@ export function resolveMcpServerRegistrations(
 		transport: value.transport,
 		disabled: value.disabled,
 		metadata: value.metadata,
-		oauth: value.oauth,
+		oauth: normalizeMcpServerOAuthState(value.oauth),
 	}));
 }
 
@@ -809,7 +903,9 @@ export function listMcpServerOAuthStatuses(
 					oauthSupported &&
 					typeof accessToken === "string" &&
 					accessToken.trim().length > 0,
-				lastError: registration.oauth?.lastError,
+				lastError: registration.oauth?.lastError
+					? sanitizeMcpDiagnosticText(registration.oauth.lastError)
+					: undefined,
 				lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
 			};
 		})

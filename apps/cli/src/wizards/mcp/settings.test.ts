@@ -1,4 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdtemp,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -90,6 +97,7 @@ describe("MCP wizard settings", () => {
 								tokens: {
 									access_token: "oauth-token",
 								},
+								lastError: "access_token=cli-secret",
 								lastAuthenticatedAt: 123,
 							},
 						},
@@ -101,6 +109,7 @@ describe("MCP wizard settings", () => {
 		);
 
 		expect(loadServers()[0]?.oauth?.tokens?.access_token).toBe("oauth-token");
+		expect(loadServers()[0]?.oauth?.lastError).toBe("access_token=[REDACTED]");
 
 		clearServerOAuth("linear");
 
@@ -113,6 +122,55 @@ describe("MCP wizard settings", () => {
 		};
 		expect(parsed.mcpServers?.linear?.oauth).toBeUndefined();
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"hardens an insecure MCP settings file when loading servers",
+		async () => {
+			const settingsPath = await useTempSettingsPath();
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						local: {
+							transport: { type: "stdio", command: "node" },
+						},
+					},
+				}),
+			);
+			await chmod(settingsPath, 0o644);
+
+			expect(loadServers()).toHaveLength(1);
+			expect((await stat(settingsPath)).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"preserves extension-tolerated settings when SDK validation falls back",
+		async () => {
+			const settingsPath = await useTempSettingsPath();
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						local: {
+							transport: { type: "stdio", command: "node" },
+							metadata: "accepted by the extension",
+							oauth: {
+								tokens: { access_token: "oauth-token" },
+								lastError: { detail: "Authorization: Bearer secret" },
+							},
+						},
+					},
+				}),
+			);
+			await chmod(settingsPath, 0o644);
+
+			const [server] = loadServers();
+			expect(server?.oauth?.tokens?.access_token).toBe("oauth-token");
+			expect(server?.oauth?.lastError).toBeUndefined();
+			expect((await stat(settingsPath)).mode & 0o777).toBe(0o600);
+		},
+	);
 
 	it("does not create an empty server when clearing OAuth for a missing name", async () => {
 		const settingsPath = await useTempSettingsPath();

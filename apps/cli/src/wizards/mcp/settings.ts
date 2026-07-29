@@ -3,8 +3,10 @@ import {
 	type McpServerOAuthState,
 	McpSettingsUpdateSkippedError,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistrations,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
+import { sanitizeMcpDiagnosticText } from "@cline/shared";
 
 export interface McpServerEntry {
 	name: string;
@@ -27,33 +29,63 @@ export function getSettingsPath(): string {
 	return resolveDefaultMcpSettingsPath();
 }
 
+function loadServersWithoutSchemaValidation(path: string): McpServerEntry[] {
+	const raw = readFileSync(path, "utf-8");
+	const parsed = JSON.parse(raw) as {
+		mcpServers?: Record<string, unknown>;
+	};
+	return Object.entries(parsed.mcpServers ?? {}).map(([name, value]) => {
+		const entry = value as Record<string, unknown>;
+		const transport = (entry.transport ?? entry) as McpTransport;
+		const oauthState =
+			entry.oauth &&
+			typeof entry.oauth === "object" &&
+			!Array.isArray(entry.oauth)
+				? (entry.oauth as McpServerOAuthState)
+				: undefined;
+		let oauth: McpServerOAuthState | undefined;
+		if (oauthState) {
+			const { lastError, ...oauthWithoutLastError } = oauthState as Omit<
+				McpServerOAuthState,
+				"lastError"
+			> & { lastError?: unknown };
+			oauth = {
+				...oauthWithoutLastError,
+				...(typeof lastError === "string" && lastError
+					? { lastError: sanitizeMcpDiagnosticText(lastError) }
+					: {}),
+			};
+		}
+		return {
+			name,
+			transport,
+			disabled: entry.disabled === true,
+			oauth,
+		};
+	});
+}
+
 export function loadServers(): McpServerEntry[] {
 	const path = getSettingsPath();
 	if (!existsSync(path)) return [];
 	try {
-		const raw = readFileSync(path, "utf-8");
-		const parsed = JSON.parse(raw) as {
-			mcpServers?: Record<string, unknown>;
-		};
-		const servers = parsed.mcpServers ?? {};
-		return Object.entries(servers).map(([name, value]) => {
-			const entry = value as Record<string, unknown>;
-			const transport = (entry.transport ?? entry) as McpTransport;
-			const oauth =
-				entry.oauth &&
-				typeof entry.oauth === "object" &&
-				!Array.isArray(entry.oauth)
-					? (entry.oauth as McpServerOAuthState)
-					: undefined;
-			return {
-				name,
-				transport,
-				disabled: entry.disabled === true,
-				oauth,
-			};
-		});
+		return resolveMcpServerRegistrations({ filePath: path }).map(
+			(registration) => ({
+				name: registration.name,
+				transport: registration.transport,
+				disabled: registration.disabled === true,
+				oauth: registration.oauth,
+			}),
+		);
 	} catch {
-		return [];
+		try {
+			// The extension historically accepts a few looser legacy shapes than
+			// the SDK schema. Core has already attempted permission repair before
+			// validation, so preserve the CLI's previous tolerant read behavior.
+			return loadServersWithoutSchemaValidation(path);
+		} catch {
+			return [];
+		}
 	}
 }
 
