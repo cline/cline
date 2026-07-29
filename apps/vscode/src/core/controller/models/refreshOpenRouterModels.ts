@@ -151,8 +151,10 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					case "anthropic/claude-sonnet-4.5":
 					case "anthropic/claude-4.5-sonnet":
 					case "anthropic/claude-sonnet-4":
-						// NOTE: we artificially restrict the context window to 200k to keep costs low for users, and have a :1m model variant created below for users that want to use the full 1m.
-						modelInfo.contextWindow = 200_000
+						// NOTE: OpenRouter reports the full 1m extended context window for these models, and we
+						// intentionally pass it through unchanged. The legacy 200k restriction (with :1m opt-in
+						// variants) was dropped: everyone gets the 1m context window now. This keeps the picker
+						// consistent with the SDK model catalog, which the task header and auto-compaction use.
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
@@ -171,13 +173,13 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						break
 					case "anthropic/claude-opus-4.6":
 					case "anthropic/claude-opus-4.7":
-						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
+						// full 1m context window passed through, see NOTE above
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 6.25
 						modelInfo.cacheReadsPrice = 0.5
 						break
 					case "anthropic/claude-fable-5":
-						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
+						// full 1m context window passed through, see NOTE above
 						modelInfo.supportsPromptCache = true
 						modelInfo.inputPrice = 10
 						modelInfo.outputPrice = 50

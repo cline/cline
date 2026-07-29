@@ -1605,6 +1605,8 @@ export class Controller {
 	// ---- Auth callbacks ----
 
 	async handleSignOut(): Promise<void> {
+		const sessionProviderId = this.getSessionProviderId() ?? this.getActiveProviderId()
+		await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
 		clearRemoteConfig()
 		await this.setRemoteConfigCoreIntegration(undefined)

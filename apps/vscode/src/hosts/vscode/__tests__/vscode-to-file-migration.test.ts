@@ -729,4 +729,64 @@ describe("createStorageContext", () => {
 		const ws = ctx.workspaceState.get("wsKey") as any
 		ws.toggle.should.equal(true)
 	})
+
+	// The data dir must resolve like the SDK's resolveClineDataDir and the
+	// legacy reader's resolveDataDir: CLINE_DATA_DIR first. Ignoring it split
+	// globalState.json/secrets.json and providers.json across two directories,
+	// so the two provider stores disagreed about the active provider (ENG-2332).
+	describe("environment-based data dir resolution", () => {
+		const previousClineDir = process.env.CLINE_DIR
+		const previousClineDataDir = process.env.CLINE_DATA_DIR
+
+		afterEach(() => {
+			restoreEnv("CLINE_DIR", previousClineDir)
+			restoreEnv("CLINE_DATA_DIR", previousClineDataDir)
+		})
+
+		function restoreEnv(key: string, value: string | undefined) {
+			if (value === undefined) {
+				delete process.env[key]
+			} else {
+				process.env[key] = value
+			}
+		}
+
+		it("should honor CLINE_DATA_DIR when no clineDir option is given", () => {
+			const isolatedDataDir = path.join(tempDir, "isolated-data")
+			process.env.CLINE_DATA_DIR = isolatedDataDir
+			delete process.env.CLINE_DIR
+
+			const ctx = createStorageContext({ workspacePath: "/test" })
+
+			ctx.dataDir.should.equal(isolatedDataDir)
+			ctx.workspaceStoragePath.startsWith(path.join(isolatedDataDir, "workspaces")).should.be.true()
+		})
+
+		it("should prefer CLINE_DATA_DIR over CLINE_DIR", () => {
+			const isolatedDataDir = path.join(tempDir, "isolated-data")
+			process.env.CLINE_DATA_DIR = isolatedDataDir
+			process.env.CLINE_DIR = path.join(tempDir, "cline-home")
+
+			const ctx = createStorageContext({ workspacePath: "/test" })
+
+			ctx.dataDir.should.equal(isolatedDataDir)
+		})
+
+		it("should let an explicit clineDir option win over CLINE_DATA_DIR", () => {
+			process.env.CLINE_DATA_DIR = path.join(tempDir, "isolated-data")
+
+			const ctx = createStorageContext({ clineDir: tempDir, workspacePath: "/test" })
+
+			ctx.dataDir.should.equal(path.join(tempDir, "data"))
+		})
+
+		it("should trim whitespace-padded env values like the SDK resolvers", () => {
+			delete process.env.CLINE_DATA_DIR
+			process.env.CLINE_DIR = `  ${path.join(tempDir, "cline-home")}  `
+
+			const ctx = createStorageContext({ workspacePath: "/test" })
+
+			ctx.dataDir.should.equal(path.join(tempDir, "cline-home", "data"))
+		})
+	})
 })
