@@ -166,6 +166,15 @@ export function reduceRoom(
 					[event.participantId]: event.raised,
 				},
 			};
+		case "control.rename":
+			return {
+				...base,
+				participants: base.participants.map((p) =>
+					p.id === event.participantId
+						? { ...p, displayName: event.displayName }
+						: p,
+				),
+			};
 		case "control.address":
 			return { ...base, addressSet: event.addressSet };
 		case "work.edit":

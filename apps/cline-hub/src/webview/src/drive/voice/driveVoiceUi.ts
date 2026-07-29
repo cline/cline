@@ -115,6 +115,22 @@ export function resolveDriveVoiceTopology(input: {
 	};
 }
 
+/**
+ * Gate for narration TTS (DRV-TTS): off by default via tts.enabled;
+ * human mute and partner mute both silence playback.
+ */
+export function shouldSpeakDriveTts(input: {
+	facets: DriveFacetValues;
+	muted: boolean;
+	partnerMuted: boolean;
+}): boolean {
+	return (
+		input.facets["tts.enabled"] === true &&
+		!input.muted &&
+		!input.partnerMuted
+	);
+}
+
 export function voiceDefaultsForSmoke(profile: "local" | "cloud"): {
 	voice: DriveVoiceUi;
 	llm: ResolvedLlmEgress;

@@ -26,6 +26,7 @@ export function DriveSettingsPanel({
 	onProfileChange,
 	onSttChange,
 	onTtsChange,
+	onTtsEnabledChange,
 	onHardwareChange,
 }: {
 	providerId: string;
@@ -34,6 +35,7 @@ export function DriveSettingsPanel({
 	onProfileChange: (profile: DeploymentProfile) => void;
 	onSttChange: (sttId: string) => void;
 	onTtsChange: (ttsId: string) => void;
+	onTtsEnabledChange: (enabled: boolean) => void;
 	onHardwareChange: (patch: Partial<DriveHardwarePrefs>) => void;
 }) {
 	const llm = resolveLlmEgressForUi({
@@ -118,6 +120,15 @@ export function DriveSettingsPanel({
 						</option>
 					))}
 				</select>
+			</label>
+
+			<label className="flex items-center gap-2 text-sm">
+				<input
+					checked={voice.facets["tts.enabled"] === true}
+					onChange={(event) => onTtsEnabledChange(event.target.checked)}
+					type="checkbox"
+				/>
+				<span>Speak partner narration (off by default)</span>
 			</label>
 
 			<div className="space-y-1">

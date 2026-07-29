@@ -109,11 +109,11 @@ function createBuiltinSttPort(manifest: DriveProviderManifest): SttPort {
 		egress: manifest.egress,
 		start(handlers) {
 			if (backend.kind === "webSpeech") {
-				// Real Web Speech wiring lands with DRV-MIC. Stub reports unsupported
-				// until the browser adapter is attached by the webview host.
+				// Mic UX uses SpeechInput; SttPort.start stays a cheap redirect stub.
 				handlers.onError({
-					code: "stt_not_wired",
-					message: `STT adapter ${manifest.id} is selected but not wired to the mic yet.`,
+					code: "use_speech_input",
+					message:
+						"Use SpeechInput for webSpeech STT; SttPort.start is a no-op.",
 				});
 			} else {
 				handlers.onError({

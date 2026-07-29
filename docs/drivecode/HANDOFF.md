@@ -1,4 +1,4 @@
-# Drivecode handoff
+﻿# Drivecode handoff
 
 ## Problem
 
@@ -85,7 +85,7 @@ This code does not yet implement hub-owned Drive rooms, reconnect convergence, a
 
 ### Top gaps
 
-- `DRV-GATES` still needs an action taxonomy, expiry rules, and an owner for the approval UI.
+- `DRV-GATES` v1 action taxonomy enums landed (`sdk/packages/shared/src/drive/gates.ts`); still needs expiry rules and an owner for the approval UI.
 - Hub reconnect needs acceptance criteria and degraded-state UX under `DRV-ROOM-MVP`.
 - Revise-not-restart needs a kernel acceptance criterion that preserves useful work after an interruption.
 - Multi-room focus needs a product rule for whether an unfocused room is only a view or remains an active runtime.
@@ -108,12 +108,10 @@ Drive needs a portable domain and policy layer without becoming a second agent r
 
 The implementation must also keep `AgentProfile` separate from agent behavior. Profiles may change display name and visual identity. They must not become a second home for prompts, tools, skills, providers, or model selection.
 
-## Open Decision (needs Harrison)
+## Decision (Accepted 2026-07-29)
 
-**Package location — closed as Recommended.** See [cline-drivemode/decisions/DEC-package-location.md](plans/cline-drivemode/decisions/DEC-package-location.md). Flip to Accepted with `accept all` or override with `change: DEC-package-location …`.
+**Package location — Accepted.** See [cline-drivemode/decisions/DEC-package-location.md](plans/cline-drivemode/decisions/DEC-package-location.md).
 
-**Still needs explicit reply:** Accept ARD-0001 through ARD-0004 (and the leadership DEC bundle) as written, or name one change before phase-0 schema work.
-
-Reply with one of: `accept all` | `change: <id and new default>`.
+**ARD-0000â€¦0013 + DEC bundle â€” Accepted** via human `accept all` (2026-07-29). ARD-0014 (Chat-fork lifecycle) later Accepted on main.
 
 Board: [cline-drivemode/ard/ARD-0000-status-board.md](plans/cline-drivemode/ard/ARD-0000-status-board.md).

@@ -38,7 +38,7 @@ export function DriveMicBar({
 	}
 
 	return (
-		<div className="flex items-center gap-3 border-t bg-background px-3 py-2">
+		<div className="flex items-start gap-3 border-t bg-background px-3 py-2">
 			<SpeechInput
 				deviceId={micDeviceId}
 				disabled={disabled}
@@ -70,8 +70,16 @@ export function DriveMicBar({
 				}}
 			/>
 			<div className="min-w-0 flex-1">
-				{caption ? (
-					<p className="truncate text-xs text-foreground">{caption}</p>
+				{caption.trim() ? (
+					<textarea
+						aria-label="Edit spoken caption before send"
+						className="min-h-[2.5rem] w-full resize-y rounded-md border bg-background px-2 py-1.5 text-xs text-foreground"
+						disabled={disabled}
+						onChange={(event) => onCaptionChange(event.target.value)}
+						placeholder="Edit what you said before sending…"
+						rows={2}
+						value={caption}
+					/>
 				) : (
 					<p className="text-xs text-muted-foreground">
 						Speak a task. Local STT uses a loopback whisper server when

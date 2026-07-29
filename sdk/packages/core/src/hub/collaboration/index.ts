@@ -2,6 +2,11 @@ export {
 	appendBankLogEvent,
 	readBankLogSince,
 } from "./bankEventLog";
+export { createNodeBankFs } from "./nodeBankFs";
+export {
+	openWorkspaceBankStore,
+	type OpenWorkspaceBankStoreOptions,
+} from "./workspaceBankStore";
 export {
 	JsonlRoomEventLog,
 	MemoryRoomEventLog,
@@ -9,6 +14,14 @@ export {
 	type RoomLogRecord,
 } from "./eventLog";
 export { type JoinCallInput, type JoinCallResult, joinCall } from "./join-call";
+export {
+	clearDrivePauseAfterTool,
+	clearDrivePauseAfterToolForSessions,
+	resetDrivePauseAfterToolForTests,
+	setDrivePauseAfterTool,
+	shouldDrivePauseAfterTool,
+	syncDrivePauseAfterToolForRoom,
+} from "./drivePauseAfterTool";
 export {
 	DriveRoomStore,
 	getDriveRoomStore,

@@ -18,6 +18,7 @@ import type {
 	StageSharer,
 } from "@cline/shared";
 import { createEmptyDriveRoomLiveState } from "@cline/shared";
+import { resetDrivePauseAfterToolForTests } from "./drivePauseAfterTool";
 import type { RoomEventLog } from "./eventLog";
 import type { WorkRecordPayload } from "./work-from-tool";
 
@@ -397,6 +398,37 @@ export class DriveRoomStore {
 		});
 	}
 
+	renameParticipant(input: {
+		roomId: string;
+		participantId: string;
+		displayName: string;
+		actorId?: string;
+		at?: string;
+	}): RoomCommitResult {
+		const snapshot = this.getOrThrow(input.roomId);
+		const seated = snapshot.participants.some(
+			(participant) => participant.id === input.participantId,
+		);
+		if (!seated) {
+			throw new Error(`participant_not_found:${input.participantId}`);
+		}
+		const displayName = input.displayName.trim();
+		if (!displayName) {
+			throw new Error("display_name_required");
+		}
+		return this.commit({
+			schemaVersion: 1,
+			id: newEventId("rename"),
+			roomId: input.roomId,
+			at: input.at ?? nowIso(),
+			actorId: input.actorId ?? input.participantId,
+			type: "control.rename",
+			track: "control",
+			participantId: input.participantId,
+			displayName,
+		});
+	}
+
 	recordWork(input: {
 		roomId: string;
 		work: WorkRecordPayload;
@@ -466,4 +498,5 @@ export function getDriveRoomStore(): DriveRoomStore {
 
 export function resetDriveRoomStoreForTests(): void {
 	globalStore = new DriveRoomStore();
+	resetDrivePauseAfterToolForTests();
 }

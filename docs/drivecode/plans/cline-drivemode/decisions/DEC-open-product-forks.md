@@ -1,6 +1,6 @@
 # DEC · Open product forks (bundle)
 
-**Status.** Recommended  
+**Status.** Accepted  
 **Date.** 2026-07-25  
 **Deciders.** Drivecode leadership planning wave  
 **Closes.** Preference forks listed in `DRIVE-TAB.md`, W-07 / W-12 gaps, accent preference, user-share fork

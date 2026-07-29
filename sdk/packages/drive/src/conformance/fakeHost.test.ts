@@ -31,14 +31,38 @@ describe("host port conformance", () => {
 		expect(report.ok).toBe(true);
 	});
 
+	it("Cline defaults do not advertise unwired promptRewrite or worktreeIsolation", () => {
+		expect(CLINE_HOST_CAPABILITIES.promptRewrite).toBe(false);
+		expect(CLINE_HOST_CAPABILITIES.worktreeIsolation).toBe(false);
+		expect(CLINE_HOST_CAPABILITIES.roomOps).toBe(true);
+		expect(CLINE_HOST_CAPABILITIES.durableConfigIo).toBe(true);
+		expect(CLINE_HOST_CAPABILITIES.eventsFirstStage).toBe(true);
+	});
+
 	it("fakeHost fails closed on declared capabilities", async () => {
-		const host = fakeHost(CLINE_HOST_CAPABILITIES);
+		const host = fakeHost({
+			...CLINE_HOST_CAPABILITIES,
+			promptRewrite: true,
+		});
 		await expect(
 			host.commitRoomOp({ type: "leave", participantId: "x" }),
+		).rejects.toBeInstanceOf(FakeHostCapabilityError);
+		await expect(
+			host.applyPromptRewrite({ turnId: "t", rewrite: "x" }),
 		).rejects.toBeInstanceOf(FakeHostCapabilityError);
 
 		const report = await assertFakeHostFailClosed(host);
 		expect(report.ok).toBe(true);
+	});
+
+	it("skips promptRewrite probe when capability is false", async () => {
+		const host = fakeHost(CLINE_HOST_CAPABILITIES);
+		expect(host.capabilities.promptRewrite).toBe(false);
+		const report = await assertFakeHostFailClosed(host);
+		expect(report.ok).toBe(true);
+		expect(report.issues.some((i) => i.message.includes("promptRewrite"))).toBe(
+			false,
+		);
 	});
 
 	it("detects a silent no-op stub", async () => {

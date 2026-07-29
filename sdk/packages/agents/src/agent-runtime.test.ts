@@ -17,7 +17,7 @@ import {
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { AgentRuntime } from "./index";
+import { AgentRuntime, PAUSE_AFTER_TOOL_REASON } from "./index";
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
@@ -1871,6 +1871,84 @@ describe("AgentRuntime", () => {
 		expect(toolMessage?.content[0]).toMatchObject({
 			type: "tool-result",
 			isError: true,
+		});
+	});
+
+	it("pauses after the current tool and skips remaining tools in the batch", async () => {
+		const executed: string[] = [];
+		let pauseAfterFirst = false;
+		const first: AgentTool<{ label: string }, { label: string }> = {
+			name: "first",
+			description: "first tool",
+			inputSchema: { type: "object" },
+			async execute(input) {
+				executed.push("first");
+				pauseAfterFirst = true;
+				return { label: input.label };
+			},
+		};
+		const second: AgentTool<{ label: string }, { label: string }> = {
+			name: "second",
+			description: "second tool",
+			inputSchema: { type: "object" },
+			async execute(input) {
+				executed.push("second");
+				return { label: input.label };
+			},
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_first",
+					toolName: "first",
+					inputText: '{"label":"a"}',
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_second",
+					toolName: "second",
+					inputText: '{"label":"b"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => {
+				throw new Error("model should not be called after pause");
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [first, second],
+			hooks: {
+				shouldPauseAfterTool: () => pauseAfterFirst,
+			},
+		});
+
+		const result = await runtime.run("Pause mid-batch");
+
+		expect(executed).toEqual(["first"]);
+		expect(result.status).toBe("aborted");
+		expect(result.error).toBeUndefined();
+		expect(runtime.snapshot().lastError).toBe(PAUSE_AFTER_TOOL_REASON);
+		expect(model.requests).toHaveLength(1);
+
+		const toolMessages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessages).toHaveLength(2);
+		expect(toolMessages[0]?.content[0]).toMatchObject({
+			type: "tool-result",
+			toolCallId: "call_first",
+			toolName: "first",
+			isError: undefined,
+			output: { label: "a" },
+		});
+		expect(toolMessages[1]?.content[0]).toMatchObject({
+			type: "tool-result",
+			toolCallId: "call_second",
+			toolName: "second",
+			isError: true,
+			output: { error: PAUSE_AFTER_TOOL_REASON },
 		});
 	});
 

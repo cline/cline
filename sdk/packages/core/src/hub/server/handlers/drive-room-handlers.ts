@@ -16,15 +16,24 @@ import {
 } from "@cline/shared";
 import { z } from "zod";
 import {
+	clearDrivePauseAfterToolForSessions,
 	getDriveRoomStore,
 	type JoinCallResult,
 	JsonlRoomEventLog,
 	joinCall,
+	syncDrivePauseAfterToolForRoom,
 	type WorkRecordPayload,
 	workRecordFromToolEvent,
 } from "../../collaboration";
 import { runChatForkDirectorTick } from "./drive-fork-tick";
 import { errorReply, type HubTransportContext, okReply } from "./context";
+
+function linkedSessionIds(
+	store: ReturnType<typeof getDriveRoomStore>,
+	roomId: string,
+): string[] {
+	return [...(store.roomToSessions.get(roomId) ?? [])];
+}
 
 const RoomIdSchema = z.object({
 	roomId: z.string().min(1),
@@ -65,6 +74,16 @@ const CallLeavePayloadSchema = RoomIdSchema.extend({
 const CallMutePayloadSchema = RoomIdSchema.extend({
 	participantId: z.string().min(1),
 	muted: z.boolean(),
+}).strict();
+
+const CallRaiseHandPayloadSchema = RoomIdSchema.extend({
+	participantId: z.string().min(1),
+	raised: z.boolean(),
+}).strict();
+
+const CallRenameParticipantPayloadSchema = RoomIdSchema.extend({
+	participantId: z.string().min(1),
+	displayName: z.string().min(1),
 }).strict();
 
 const CallSetStagePayloadSchema = RoomIdSchema.extend({
@@ -303,7 +322,14 @@ export function handleDriveRoomCommand(
 			}
 			case "call_leave": {
 				const payload = CallLeavePayloadSchema.parse(envelope.payload ?? {});
+				const sessionIds = linkedSessionIds(store, payload.roomId);
 				const committed = store.leave(payload);
+				const remaining = store.get(payload.roomId);
+				if (!remaining || sessionIds.length === 0) {
+					clearDrivePauseAfterToolForSessions(sessionIds);
+				} else {
+					syncDrivePauseAfterToolForRoom(committed.snapshot, sessionIds);
+				}
 				publishRoomEvent(
 					ctx,
 					payload.roomId,
@@ -319,6 +345,44 @@ export function handleDriveRoomCommand(
 			case "call_mute": {
 				const payload = CallMutePayloadSchema.parse(envelope.payload ?? {});
 				const committed = store.mute(payload);
+				publishRoomEvent(
+					ctx,
+					payload.roomId,
+					committed.snapshot,
+					committed.event,
+					committed.seq,
+				);
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
+			}
+			case "call_raise_hand": {
+				const payload = CallRaiseHandPayloadSchema.parse(
+					envelope.payload ?? {},
+				);
+				const committed = store.raiseHand(payload);
+				syncDrivePauseAfterToolForRoom(
+					committed.snapshot,
+					linkedSessionIds(store, payload.roomId),
+				);
+				publishRoomEvent(
+					ctx,
+					payload.roomId,
+					committed.snapshot,
+					committed.event,
+					committed.seq,
+				);
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
+			}
+			case "call_rename_participant": {
+				const payload = CallRenameParticipantPayloadSchema.parse(
+					envelope.payload ?? {},
+				);
+				const committed = store.renameParticipant(payload);
 				publishRoomEvent(
 					ctx,
 					payload.roomId,

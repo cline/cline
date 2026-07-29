@@ -1,6 +1,6 @@
 # DEC · Package location for drivecode / `@cline/drive`
 
-**Status.** Recommended  
+**Status.** Accepted  
 **Date.** 2026-07-25  
 **Deciders.** Drivecode leadership planning wave  
 **Closes.** Open Decision in `docs/drivecode/HANDOFF.md`  

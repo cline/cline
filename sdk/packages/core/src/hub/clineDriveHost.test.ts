@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runHostConformance } from "@cline/drive";
+import { CLINE_HOST_CAPABILITIES, runHostConformance } from "@cline/drive";
 import { afterEach, describe, expect, it } from "vitest";
 import { createClineDriveHost } from "./clineDriveHost";
 import { DriveRoomStore } from "./collaboration";
@@ -29,8 +29,44 @@ describe("createClineDriveHost", () => {
 			remoteBridge: false,
 			orgConfig: false,
 			auditExport: false,
+			promptRewrite: false,
+			worktreeIsolation: false,
 		});
 		expect(report.ok).toBe(true);
+	});
+
+	it("advertises only implemented capabilities by default", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-drive-host-"));
+		dirs.push(dir);
+		const host = createClineDriveHost({
+			configParent: dir,
+			store: new DriveRoomStore(),
+		});
+		expect(host.capabilities).toMatchObject({
+			...CLINE_HOST_CAPABILITIES,
+			promptRewrite: false,
+			worktreeIsolation: false,
+		});
+		await expect(
+			host.applyPromptRewrite({ turnId: "t1", rewrite: "x" }),
+		).rejects.toThrow(/promptRewrite not advertised/);
+	});
+
+	it("advertises promptRewrite only when rewrite fn is wired", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-drive-host-"));
+		dirs.push(dir);
+		const seen: string[] = [];
+		const host = createClineDriveHost({
+			configParent: dir,
+			store: new DriveRoomStore(),
+			promptRewriteFn: async (decision) => {
+				seen.push(decision.rewrite);
+			},
+		});
+		expect(host.capabilities.promptRewrite).toBe(true);
+		expect(host.capabilities.worktreeIsolation).toBe(false);
+		await host.applyPromptRewrite({ turnId: "t1", rewrite: "rewritten" });
+		expect(seen).toEqual(["rewritten"]);
 	});
 
 	it("commits join through the store + log", async () => {

@@ -33,6 +33,10 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import {
+	resetDrivePauseAfterToolForTests,
+	setDrivePauseAfterTool,
+} from "../../hub/collaboration/drivePauseAfterTool";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
@@ -647,6 +651,46 @@ describe("SessionRuntime message preparation", () => {
 			{ type: "text", text: "original" },
 		]);
 		expect(configs).toHaveLength(0);
+	});
+
+	it("createRuntimeHooks ORs drive pause-after-tool with config hooks", async () => {
+		resetDrivePauseAfterToolForTests();
+		try {
+			const session = new SessionRuntime(
+				makeAgentConfig({
+					sessionId: "sess_orch_pause",
+					hooks: {
+						shouldPauseAfterTool: () => false,
+					},
+				}),
+			);
+			const hooks = (
+				session as unknown as {
+					createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+				}
+			).createRuntimeHooks();
+			expect(await hooks?.shouldPauseAfterTool?.()).toBe(false);
+
+			setDrivePauseAfterTool("sess_orch_pause", true);
+			expect(await hooks?.shouldPauseAfterTool?.()).toBe(true);
+
+			const withConfigTrue = new SessionRuntime(
+				makeAgentConfig({
+					sessionId: "sess_orch_other",
+					hooks: {
+						shouldPauseAfterTool: () => true,
+					},
+				}),
+			);
+			const hooksTrue = (
+				withConfigTrue as unknown as {
+					createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+				}
+			).createRuntimeHooks();
+			expect(await hooksTrue?.shouldPauseAfterTool?.()).toBe(true);
+		} finally {
+			resetDrivePauseAfterToolForTests();
+		}
 	});
 
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {

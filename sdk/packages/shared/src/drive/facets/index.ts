@@ -4,6 +4,7 @@ export {
 } from "./merge";
 export {
 	AgentAppearanceSchema,
+	AgentProfileSchema,
 	DRIVE_FACET_FORBIDDEN_PROMPT_KEYS,
 	DriveDefaultsSubModeSchema,
 	DriveFacetDiskFileSchema,
@@ -13,6 +14,7 @@ export {
 	migrateDriveFacetDiskFile,
 	parseDriveFacetDiskFile,
 	type AgentAppearance,
+	type AgentProfile,
 	type DriveDefaultsSubMode,
 	type DriveFacetDiskFile,
 	type DriveFacetDiskSnapshot,

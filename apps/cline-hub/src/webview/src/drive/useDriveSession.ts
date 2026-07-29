@@ -7,15 +7,19 @@ import {
 	type Dispatch,
 	type SetStateAction,
 } from "react";
-import type { ChatForkRecord } from "@cline/shared";
+import type { ChatForkRecord, RoomSnapshot } from "@cline/shared";
 import {
 	applyBankSnapshot,
+	applyRoomSnapshot,
 	applySubModeIntent,
 	clearPostureOverride,
 	DEFAULT_DRIVE_UI,
+	DRIVE_DEFAULT_ROOM_ID,
 	DRIVE_PARTICIPANT_HUMAN,
 	DRIVE_PARTICIPANT_PARTNER,
+	fromSharedDriveSubMode,
 	toNativeMode,
+	toSharedDriveSubMode,
 	type DriveUiState,
 } from "./types";
 import {
@@ -26,7 +30,7 @@ import {
 import {
 	createDriveBankSession,
 	listPlanTasks,
-	seedDemoBank,
+	seedBankForJoin,
 	type DriveBankSession,
 } from "./bankSession";
 import {
@@ -35,8 +39,11 @@ import {
 	applyVoiceProfile,
 	createDefaultDriveVoiceUi,
 	resolveDriveVoiceTopology,
+	shouldSpeakDriveTts,
 	type DriveVoiceUi,
 } from "./voice/driveVoiceUi";
+import { buildDrivePersistPayload } from "./voice/voiceCaptionState";
+import { createVoiceStack } from "./voice/createVoiceStack";
 import { normalizeDriveHardwarePrefs } from "./voice/driveHardwarePrefs";
 import { getVsCodeApi, postToHost } from "../vscode";
 
@@ -59,6 +66,21 @@ function readPersistedDriveUi(): DriveUiState {
 					state.driveUi.partnerMuted ?? DEFAULT_DRIVE_UI.partnerMuted,
 				partnerDeafened:
 					state.driveUi.partnerDeafened ?? DEFAULT_DRIVE_UI.partnerDeafened,
+				stageCards: state.driveUi.stageCards ?? DEFAULT_DRIVE_UI.stageCards,
+				stagePin:
+					state.driveUi.stagePin === undefined
+						? DEFAULT_DRIVE_UI.stagePin
+						: state.driveUi.stagePin,
+				participants:
+					state.driveUi.participants ?? DEFAULT_DRIVE_UI.participants,
+				focusedParticipantId:
+					state.driveUi.focusedParticipantId ??
+					DEFAULT_DRIVE_UI.focusedParticipantId,
+				addressFollowsFocusParticipantId:
+					state.driveUi.addressFollowsFocusParticipantId ??
+					DEFAULT_DRIVE_UI.addressFollowsFocusParticipantId,
+				partnerNameInk:
+					state.driveUi.partnerNameInk ?? DEFAULT_DRIVE_UI.partnerNameInk,
 			};
 		}
 	} catch {
@@ -100,6 +122,10 @@ export type UseDriveSessionArgs = {
 	onModeChange: (mode: "act" | "plan") => void;
 	onAbort: () => void;
 	onStatus: (text: string) => void;
+	/** Link call_join to the active chat session when available. */
+	sessionId?: string | null;
+	/** Workspace root for hub durable bank seed (drive_bank_seed). */
+	workspaceRoot?: string;
 };
 
 export type UseDriveSessionResult = {
@@ -117,6 +143,8 @@ export type UseDriveSessionResult = {
 	>;
 	bankSessionRef: React.RefObject<DriveBankSession>;
 	driveVoiceResolved: ReturnType<typeof resolveDriveVoiceTopology>;
+	/** Workspace root for durable bank / agent-home hub ops. */
+	workspaceRoot?: string;
 	toggleDrive: () => void;
 	toggleStage: () => void;
 	presentedShow: {
@@ -174,6 +202,17 @@ export function useDriveSession(
 	const [planEditorTasks, setPlanEditorTasks] = useState<
 		Array<{ id: string; title: string }>
 	>([]);
+	/** True between call_join and the first successful room_snapshot. */
+	const pendingJoinRef = useRef(false);
+	/** Mirrors drive.active synchronously for leave/snapshot races. */
+	const driveActiveRef = useRef(false);
+	const sessionIdRef = useRef(args.sessionId);
+	const workspaceRootRef = useRef(args.workspaceRoot);
+	const onModeChangeRef = useRef(args.onModeChange);
+	sessionIdRef.current = args.sessionId;
+	workspaceRootRef.current = args.workspaceRoot;
+	onModeChangeRef.current = args.onModeChange;
+	driveActiveRef.current = drive.active;
 
 	useEffect(() => {
 		try {
@@ -182,20 +221,49 @@ export function useDriveSession(
 				return;
 			}
 			const state = (api.getState() as Record<string, unknown>) ?? {};
-			api.setState({ ...state, driveUi: drive, driveVoice });
+			api.setState(
+				buildDrivePersistPayload({
+					existing: state,
+					driveUi: drive,
+					driveVoice,
+				}),
+			);
 		} catch {
 			// ignore
 		}
 	}, [drive, driveVoice]);
 
+	const seedBankAfterJoin = useCallback(async (partnerName: string) => {
+		const { snapshot } = await seedBankForJoin(
+			bankSessionRef.current,
+			workspaceRootRef.current,
+		);
+		const tasks = snapshot.activePlanId
+			? await listPlanTasks(bankSessionRef.current, snapshot.activePlanId)
+			: [];
+		setPlanEditorTasks(tasks);
+		setDrive((current) => {
+			// Only seed bank chrome after a real hub join (demo must stay false).
+			if (!current.active || current.roomId == null) {
+				return current;
+			}
+			return applyBankSnapshot(current, snapshot);
+		});
+		setDriveJoinNote(
+			`On the call. I am ${partnerName}. Share what you want to work on and I will drive.`,
+		);
+	}, []);
+
 	useEffect(() => {
 		const onMessage = (event: MessageEvent) => {
 			const message = event.data as {
 				type?: string;
+				text?: string;
 				showItemId?: string;
 				caption?: string;
 				uri?: string;
 				ownerParticipantId?: string;
+				snapshot?: RoomSnapshot;
 				auditHandle?: string;
 				messages?: unknown[];
 				summaryOnly?: boolean;
@@ -228,6 +296,26 @@ export function useDriveSession(
 				});
 				return;
 			}
+			if (message.type === "call_error") {
+				pendingJoinRef.current = false;
+				setDriveJoinNote(
+					message.text?.trim()
+						? `Could not join Drive: ${message.text}`
+						: "Could not join Drive.",
+				);
+				setDrive((current) => {
+					if (current.roomId != null && current.active) {
+						return current;
+					}
+					return {
+						...current,
+						active: false,
+						roomId: null,
+						demo: true,
+					};
+				});
+				return;
+			}
 			if (message.type === "drive_fork_audit") {
 				setFocusedAuditHandle(message.auditHandle ?? null);
 				setAuditMessages(
@@ -235,6 +323,44 @@ export function useDriveSession(
 				);
 				setAuditSummaryOnly(message.summaryOnly === true);
 				setWorkersPanelOpen(true);
+				return;
+			}
+			if (
+				(message.type === "room_snapshot" || message.type === "drive_event") &&
+				message.snapshot
+			) {
+				const snapshot = message.snapshot;
+				const humanSeated = snapshot.participants.some(
+					(participant) =>
+						participant.kind === "human" &&
+						participant.id === DRIVE_PARTICIPANT_HUMAN,
+				);
+				const wasPendingJoin = pendingJoinRef.current;
+				const wasActive = driveActiveRef.current;
+				// Leave/cancel: ignore late snapshots until a new join is requested.
+				if (!wasPendingJoin && !wasActive) {
+					return;
+				}
+				if (wasPendingJoin && snapshot.driveActive && humanSeated) {
+					pendingJoinRef.current = false;
+					driveActiveRef.current = true;
+				} else if (wasPendingJoin && !humanSeated) {
+					pendingJoinRef.current = false;
+					return;
+				}
+				setDrive((current) => applyRoomSnapshot(current, snapshot));
+				// Hub broadcasts to all peers — only sync chat mode when seated.
+				if (humanSeated) {
+					onModeChangeRef.current(
+						toNativeMode(fromSharedDriveSubMode(snapshot.subMode)),
+					);
+				}
+				if (wasPendingJoin && snapshot.driveActive && humanSeated) {
+					const partner =
+						snapshot.participants.find((p) => p.kind === "agent")
+							?.displayName ?? "partner";
+					void seedBankAfterJoin(partner);
+				}
 				return;
 			}
 			if (message.type !== "drive_room_changed" || !message.room) {
@@ -277,7 +403,7 @@ export function useDriveSession(
 		};
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, []);
+	}, [seedBankAfterJoin]);
 
 	const driveVoiceResolved = useMemo(
 		() =>
@@ -288,45 +414,138 @@ export function useDriveSession(
 		[driveVoice, args.providerId],
 	);
 
+	/** Mute (human or partner) immediately cancels in-flight TTS (DRV-TTS). */
+	useEffect(() => {
+		if (!drive.muted && !drive.partnerMuted) {
+			return;
+		}
+		if (!driveVoiceResolved.ok) {
+			return;
+		}
+		createVoiceStack(driveVoiceResolved.topology).tts.cancel();
+	}, [drive.muted, drive.partnerMuted, driveVoiceResolved]);
+
+	/** Speak partner join note once when TTS is enabled and unmuted. */
+	const spokenJoinNoteRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!driveJoinNote || !drive.active) {
+			return;
+		}
+		// Only the post-join greeting — ack / error banners stay display-only here.
+		if (!driveJoinNote.startsWith("On the call.")) {
+			return;
+		}
+		if (spokenJoinNoteRef.current === driveJoinNote) {
+			return;
+		}
+		if (!driveVoiceResolved.ok) {
+			return;
+		}
+		if (
+			!shouldSpeakDriveTts({
+				facets: driveVoice.facets,
+				muted: drive.muted,
+				partnerMuted: drive.partnerMuted,
+			})
+		) {
+			return;
+		}
+		spokenJoinNoteRef.current = driveJoinNote;
+		void createVoiceStack(driveVoiceResolved.topology).tts.speak(driveJoinNote, {
+			volume: driveVoice.hardware.outputVolume,
+			sinkId: driveVoice.hardware.speakerDeviceId,
+		});
+	}, [
+		drive.active,
+		drive.muted,
+		drive.partnerMuted,
+		driveJoinNote,
+		driveVoice.facets,
+		driveVoice.hardware.outputVolume,
+		driveVoice.hardware.speakerDeviceId,
+		driveVoiceResolved,
+	]);
+
+	useEffect(() => {
+		if (!drive.active) {
+			spokenJoinNoteRef.current = null;
+		}
+	}, [drive.active]);
+
 	const toggleDrive = useCallback(() => {
-		void (async () => {
-			const current = drive;
-			const nextActive = !current.active;
-			if (nextActive) {
-				const snapshot = await seedDemoBank(bankSessionRef.current);
-				const tasks = snapshot.activePlanId
-					? await listPlanTasks(
-							bankSessionRef.current,
-							snapshot.activePlanId,
-						)
-					: [];
-				setPlanEditorTasks(tasks);
-				setDriveJoinNote(
-					`On the call. I am ${current.partnerName}. Share what you want to work on and I will drive.`,
-				);
-				const next = applyBankSnapshot(
-					{ ...current, active: true },
-					snapshot,
-				);
-				setDrive(next);
-				args.onModeChange(toNativeMode(next.subMode));
-				return;
-			}
+		const current = drive;
+		// Leave (or cancel an in-flight join) — do not treat pending join as off→on.
+		if (current.active || pendingJoinRef.current) {
+			pendingJoinRef.current = false;
+			driveActiveRef.current = false;
+			const leaveRoomId = current.roomId ?? DRIVE_DEFAULT_ROOM_ID;
+			postToHost({
+				type: "call_leave",
+				roomId: leaveRoomId,
+				participantId: DRIVE_PARTICIPANT_HUMAN,
+			});
 			setDriveJoinNote(null);
 			setPlanEditorTasks([]);
 			setDrive({
 				...DEFAULT_DRIVE_UI,
 				partnerName: current.partnerName,
+				partnerNameInk: current.partnerNameInk,
 			});
 			args.onModeChange("act");
-		})();
+			return;
+		}
+		pendingJoinRef.current = true;
+		setDriveJoinNote("Joining Drive call…");
+		const joinPayload: {
+			type: "call_join";
+			roomId: string;
+			human: { id: string; displayName: string };
+			agent: { id: string; displayName: string };
+			activateDrive: boolean;
+			sessionId?: string;
+		} = {
+			type: "call_join",
+			roomId: current.roomId ?? DRIVE_DEFAULT_ROOM_ID,
+			human: {
+				id: DRIVE_PARTICIPANT_HUMAN,
+				displayName: "You",
+			},
+			agent: {
+				id: DRIVE_PARTICIPANT_PARTNER,
+				displayName: current.partnerName,
+			},
+			activateDrive: true,
+		};
+		const sessionId = sessionIdRef.current;
+		if (sessionId) {
+			joinPayload.sessionId = sessionId;
+		}
+		postToHost(joinPayload);
 	}, [args, drive]);
 
 	const toggleStage = useCallback(() => {
-		setDrive((current) => ({
-			...current,
-			stageLayout: !current.stageLayout,
-		}));
+		setDrive((current) => {
+			const stageLayout = !current.stageLayout;
+			if (stageLayout && current.roomId) {
+				const payload: {
+					type: "call_get_room";
+					roomId: string;
+					sessionId?: string;
+				} = {
+					type: "call_get_room",
+					roomId: current.roomId,
+				};
+				const sessionId = sessionIdRef.current;
+				if (sessionId) {
+					payload.sessionId = sessionId;
+				}
+				postToHost(payload);
+			}
+			return {
+				...current,
+				stageLayout,
+			};
+		});
 	}, []);
 
 	const toggleWorkersPanel = useCallback(() => {
@@ -378,22 +597,42 @@ export function useDriveSession(
 				});
 			},
 			onHandToggle: () => {
-				setDrive((current) => {
-					const handRaised = !current.handRaised;
-					if (handRaised && args.sending) {
-						args.onAbort();
-						args.onStatus("Drive hand-raise: abort requested...");
-					}
-					return { ...current, handRaised };
-				});
+				const raised = !drive.handRaised;
+				// First raise = signal only (pause-after-tool comes later).
+				// Second toggle while already raised + sending = hard-cancel escape.
+				if (drive.handRaised && args.sending) {
+					args.onAbort();
+					args.onStatus("Drive hand-raise: abort requested...");
+				}
+				if (drive.roomId) {
+					postToHost({
+						type: "call_raise_hand",
+						roomId: drive.roomId,
+						participantId: DRIVE_PARTICIPANT_HUMAN,
+						raised,
+					});
+					// Prefer hub snapshot for handRaised (applyRoomSnapshot).
+					return;
+				}
+				setDrive((current) => ({ ...current, handRaised: raised }));
 			},
 			onMuteToggle: () => {
-				// Hub is authoritative; wait for drive_room_changed.
+				if (drive.roomId) {
+					postToHost({
+						type: "call_mute",
+						roomId: drive.roomId,
+						participantId: DRIVE_PARTICIPANT_HUMAN,
+						muted: !drive.muted,
+					});
+					// Prefer hub snapshot for muted (applyRoomSnapshot).
+					return;
+				}
+				// Demo / pre-join: legacy mute path.
 				postToHost({
 					type: "driveCommand",
 					command: "drive.participant.mute.set",
 					payload: {
-						roomId: "default",
+						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
 						participantId: DRIVE_PARTICIPANT_HUMAN,
 						muted: !drive.muted,
 					},
@@ -411,19 +650,28 @@ export function useDriveSession(
 					type: "driveCommand",
 					command: "drive.participant.deafen.set",
 					payload: {
-						roomId: "default",
+						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
 						participantId: DRIVE_PARTICIPANT_PARTNER,
 						deafened: !drive.partnerDeafened,
 					},
 				});
 			},
 			onTogglePartnerMute: () => {
-				// Hub is authoritative; wait for drive_room_changed.
+				// call_mute accepts any participantId (human or agent).
+				if (drive.roomId) {
+					postToHost({
+						type: "call_mute",
+						roomId: drive.roomId,
+						participantId: DRIVE_PARTICIPANT_PARTNER,
+						muted: !drive.partnerMuted,
+					});
+					return;
+				}
 				postToHost({
 					type: "driveCommand",
 					command: "drive.participant.mute.set",
 					payload: {
-						roomId: "default",
+						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
 						participantId: DRIVE_PARTICIPANT_PARTNER,
 						muted: !drive.partnerMuted,
 					},
@@ -435,7 +683,7 @@ export function useDriveSession(
 					type: "driveCommand",
 					command: "drive.spotlight.set",
 					payload: {
-						roomId: "default",
+						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
 						participantId: toggleDriveSpotlightId(
 							drive.spotlightParticipantId,
 						),
@@ -448,6 +696,14 @@ export function useDriveSession(
 				setDrive((current) => {
 					const next = applySubModeIntent(current, subMode);
 					args.onModeChange(toNativeMode(next.subMode));
+					if (current.roomId) {
+						postToHost({
+							type: "call_set_mode",
+							roomId: current.roomId,
+							subMode: toSharedDriveSubMode(subMode),
+							driveActive: true,
+						});
+					}
 					return next;
 				});
 			},
@@ -468,6 +724,7 @@ export function useDriveSession(
 		setPlanEditorTasks,
 		bankSessionRef,
 		driveVoiceResolved,
+		workspaceRoot: args.workspaceRoot,
 		toggleDrive,
 		toggleStage,
 		stripHandlers,

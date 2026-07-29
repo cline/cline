@@ -1,4 +1,4 @@
-# Share-screen canvas — companion
+﻿# Share-screen canvas — companion
 
 Explains the interactive canvas at
 [`docs/drivecode/design/drive-wireframes/share-screen-canvas.html`](../../../design/drive-wireframes/share-screen-canvas.html).
@@ -80,42 +80,42 @@ The highest-leverage share-screen work. All three live in the hub webview; the h
 
 ### Layer 2 · Product documentation
 
-- [`docs/drivecode/README.md`](../../../drivecode/README.md) — authoritative product+code map; `StageState = {sharer, pin, cards}`; hub ops; "Not implemented" list.
+- [`docs/drivecode/README.md`](../../../README.md) — authoritative product+code map; `StageState = {sharer, pin, cards}`; hub ops; "Not implemented" list.
 - [`docs/drivecode/design/drive-wireframes/DEMO.md`](../../../design/drive-wireframes/DEMO.md) — runnable demo runbook for the production Join / share-handoff path.
-- [`docs/drivecode/architecture.md`](../../../drivecode/architecture.md) — architecture diagrams behind the drivecode reference.
+- [`docs/drivecode/architecture.md`](../../../architecture.md) — architecture diagrams behind the drivecode reference.
 - [`docs/drivecode/design/drive-wireframes/overview-canvas.html`](../../../design/drive-wireframes/overview-canvas.html) — the self-contained HTML canvas whose style this canvas mirrors.
 - [`docs/drivecode/design/drive-wireframes/CLINE-BRAND-TOKENS.md`](../../../design/drive-wireframes/CLINE-BRAND-TOKENS.md) — measured Cline brand tokens (dark bg, purple `#9F58FA`, DM Sans / Schibsted / Space Grotesk).
 - [`docs/drivecode/design/drive-wireframes/DRIVE-TAB.md`](../../../design/drive-wireframes/DRIVE-TAB.md) — Drive tab decision record + throwaway prototype notes.
-- [`apps/drivecode-demo/README.md`](../../../../apps/drivecode-demo/README.md) — `CLINE_DEMO_*` / `?demoPlans` flag reference; demo adapters at composition roots only.
+- [`apps/drivecode-demo/README.md`](../../../../../apps/drivecode-demo/README.md) — `CLINE_DEMO_*` / `?demoPlans` flag reference; demo adapters at composition roots only.
 
 ### Layer 3 · Code & current status
 
-- [`sdk/packages/shared/src/drive/room.ts`](../../../../sdk/packages/shared/src/drive/room.ts) — **locked** share-screen shapes: `StageState`, `StageSharer`, `StagePin`, `StageCard`.
-- [`sdk/packages/shared/src/hub.ts`](../../../../sdk/packages/shared/src/hub.ts) — **locked** wire command names (`call_join`, `call_set_stage`, `call_record_work`, `drive.spotlight.set`, …).
-- [`sdk/packages/shared/src/drive/share.ts`](../../../../sdk/packages/shared/src/drive/share.ts) — `ShareMode` (`structured|demo|pixel`) and `DemoArtifactRef` schemas.
-- [`sdk/packages/shared/src/drive/director.ts`](../../../../sdk/packages/shared/src/drive/director.ts) — `ShowBacklogItem`, `DirectorScript`, `StageDirectorState`, `AgentMediaBag` schemas.
-- [`sdk/packages/shared/src/drive/roomLive.ts`](../../../../sdk/packages/shared/src/drive/roomLive.ts) — `DriveRoomLiveState` (spotlight id, mute/deafen, director snapshot).
-- [`sdk/packages/shared/src/drive/events.ts`](../../../../sdk/packages/shared/src/drive/events.ts) — drive events including `conversation.narration`.
-- [`sdk/packages/drive/src/reduceRoom.ts`](../../../../sdk/packages/drive/src/reduceRoom.ts) — pure room fold + `projectStage()`, the portable kernel.
-- [`sdk/packages/drive/src/director/rankBacklogs.ts`](../../../../sdk/packages/drive/src/director/rankBacklogs.ts) — `rankShowBacklog` / `advanceScriptBeat` spotlight-aware ranking.
-- [`sdk/packages/drive/src/room/participantControls.ts`](../../../../sdk/packages/drive/src/room/participantControls.ts) — `setSpotlight()` and mute/deafen policy helpers.
-- [`sdk/packages/core/src/hub/collaboration/room.ts`](../../../../sdk/packages/core/src/hub/collaboration/room.ts) — `DriveRoomStore`: in-memory rooms, session↔room link, stage mutations.
-- [`sdk/packages/core/src/hub/collaboration/work-from-tool.ts`](../../../../sdk/packages/core/src/hub/collaboration/work-from-tool.ts) — tool events → work records → stage cards.
-- [`sdk/packages/core/src/hub/server/handlers/drive-room-handlers.ts`](../../../../sdk/packages/core/src/hub/server/handlers/drive-room-handlers.ts) — hub handlers for `call_join`, `call_set_stage`, `call_record_work`, mute, mode (receive side ready).
-- [`sdk/packages/core/src/hub/server/handlers/drive-handlers.ts`](../../../../sdk/packages/core/src/hub/server/handlers/drive-handlers.ts) — `drive.spotlight.set`, mute/deafen, `drive.show.present`, mermaid producer.
-- [`apps/cline-hub/src/server/drive-calls.ts`](../../../../apps/cline-hub/src/server/drive-calls.ts) — relays `call_*` frames from the webview protocol to the hub.
-- [`apps/cline-hub/src/webview-protocol.ts`](../../../../apps/cline-hub/src/webview-protocol.ts) — declares the `call_join` / `call_set_stage` / `call_get_room` webview frames.
-- [`apps/cline-hub/src/server/agent-events.ts`](../../../../apps/cline-hub/src/server/agent-events.ts) — bridges completed agent tools → `call_record_work`.
-- [`apps/cline-hub/src/webview/src/drive/stageReducer.ts`](../../../../apps/cline-hub/src/webview/src/drive/stageReducer.ts) — `projectStageCardsFromToolEvents` / `projectStageFromMessages` offline projection.
-- [`apps/cline-hub/src/webview/src/drive/Spotlight.tsx`](../../../../apps/cline-hub/src/webview/src/drive/Spotlight.tsx) — **Gap B**: canonical events-first Spotlight surface, built but not mounted.
-- [`apps/cline-hub/src/webview/src/drive/Spotlight.branch.test.ts`](../../../../apps/cline-hub/src/webview/src/drive/Spotlight.branch.test.ts) — passing branch test for the canonical Spotlight.
-- [`apps/cline-hub/src/webview/src/drive/StickyStagePane.tsx`](../../../../apps/cline-hub/src/webview/src/drive/StickyStagePane.tsx) — the local Drive layer Chat renders today.
-- [`apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx`](../../../../apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx) — Chat Join / stage-on-off / call strip chrome.
-- [`apps/cline-hub/src/webview/src/drive/useDriveSession.ts`](../../../../apps/cline-hub/src/webview/src/drive/useDriveSession.ts) — local session state (bank + fixture + persisted UI); never posts `call_join`.
-- [`apps/cline-hub/src/webview/src/drive/demoFixture.ts`](../../../../apps/cline-hub/src/webview/src/drive/demoFixture.ts) — `DRIVE_DEMO_FIXTURE` offline demo cards.
-- [`apps/cline-hub/src/webview/src/Chat.tsx`](../../../../apps/cline-hub/src/webview/src/Chat.tsx) — **Gap A**: main in-call surface; Join does not post `call_join`; imports `StickyStagePane`, not `Spotlight`.
-- [`apps/cline-hub/src/webview/src/drive/pinDefaults.ts`](../../../../apps/cline-hub/src/webview/src/drive/pinDefaults.ts) — **Gap C**: `buildHumanPinDefaults`; pin never wired to `call_set_stage`.
-- [`apps/cline-hub/src/webview/src/components/views/drive-view.tsx`](../../../../apps/cline-hub/src/webview/src/components/views/drive-view.tsx) — shipped Drive sidebar tab home.
+- [`sdk/packages/shared/src/drive/room.ts`](../../../../../sdk/packages/shared/src/drive/room.ts) — **locked** share-screen shapes: `StageState`, `StageSharer`, `StagePin`, `StageCard`.
+- [`sdk/packages/shared/src/hub.ts`](../../../../../sdk/packages/shared/src/hub.ts) — **locked** wire command names (`call_join`, `call_set_stage`, `call_record_work`, `drive.spotlight.set`, …).
+- [`sdk/packages/shared/src/drive/share.ts`](../../../../../sdk/packages/shared/src/drive/share.ts) — `ShareMode` (`structured|demo|pixel`) and `DemoArtifactRef` schemas.
+- [`sdk/packages/shared/src/drive/director.ts`](../../../../../sdk/packages/shared/src/drive/director.ts) — `ShowBacklogItem`, `DirectorScript`, `StageDirectorState`, `AgentMediaBag` schemas.
+- [`sdk/packages/shared/src/drive/roomLive.ts`](../../../../../sdk/packages/shared/src/drive/roomLive.ts) — `DriveRoomLiveState` (spotlight id, mute/deafen, director snapshot).
+- [`sdk/packages/shared/src/drive/events.ts`](../../../../../sdk/packages/shared/src/drive/events.ts) — drive events including `conversation.narration`.
+- [`sdk/packages/drive/src/reduceRoom.ts`](../../../../../sdk/packages/drive/src/reduceRoom.ts) — pure room fold + `projectStage()`, the portable kernel.
+- [`sdk/packages/drive/src/director/rankBacklogs.ts`](../../../../../sdk/packages/drive/src/director/rankBacklogs.ts) — `rankShowBacklog` / `advanceScriptBeat` spotlight-aware ranking.
+- [`sdk/packages/drive/src/room/participantControls.ts`](../../../../../sdk/packages/drive/src/room/participantControls.ts) — `setSpotlight()` and mute/deafen policy helpers.
+- [`sdk/packages/core/src/hub/collaboration/room.ts`](../../../../../sdk/packages/core/src/hub/collaboration/room.ts) — `DriveRoomStore`: in-memory rooms, session↔room link, stage mutations.
+- [`sdk/packages/core/src/hub/collaboration/work-from-tool.ts`](../../../../../sdk/packages/core/src/hub/collaboration/work-from-tool.ts) — tool events → work records → stage cards.
+- [`sdk/packages/core/src/hub/server/handlers/drive-room-handlers.ts`](../../../../../sdk/packages/core/src/hub/server/handlers/drive-room-handlers.ts) — hub handlers for `call_join`, `call_set_stage`, `call_record_work`, mute, mode (receive side ready).
+- [`sdk/packages/core/src/hub/server/handlers/drive-handlers.ts`](../../../../../sdk/packages/core/src/hub/server/handlers/drive-handlers.ts) — `drive.spotlight.set`, mute/deafen, `drive.show.present`, mermaid producer.
+- [`apps/cline-hub/src/server/drive-calls.ts`](../../../../../apps/cline-hub/src/server/drive-calls.ts) — relays `call_*` frames from the webview protocol to the hub.
+- [`apps/cline-hub/src/webview-protocol.ts`](../../../../../apps/cline-hub/src/webview-protocol.ts) — declares the `call_join` / `call_set_stage` / `call_get_room` webview frames.
+- [`apps/cline-hub/src/server/agent-events.ts`](../../../../../apps/cline-hub/src/server/agent-events.ts) — bridges completed agent tools → `call_record_work`.
+- [`apps/cline-hub/src/webview/src/drive/stageReducer.ts`](../../../../../apps/cline-hub/src/webview/src/drive/stageReducer.ts) — `projectStageCardsFromToolEvents` / `projectStageFromMessages` offline projection.
+- [`apps/cline-hub/src/webview/src/drive/Spotlight.tsx`](../../../../../apps/cline-hub/src/webview/src/drive/Spotlight.tsx) — **Gap B**: canonical events-first Spotlight surface, built but not mounted.
+- [`apps/cline-hub/src/webview/src/drive/Spotlight.branch.test.ts`](../../../../../apps/cline-hub/src/webview/src/drive/Spotlight.branch.test.ts) — passing branch test for the canonical Spotlight.
+- [`apps/cline-hub/src/webview/src/drive/StickyStagePane.tsx`](../../../../../apps/cline-hub/src/webview/src/drive/StickyStagePane.tsx) — the local Drive layer Chat renders today.
+- [`apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx`](../../../../../apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx) — Chat Join / stage-on-off / call strip chrome.
+- [`apps/cline-hub/src/webview/src/drive/useDriveSession.ts`](../../../../../apps/cline-hub/src/webview/src/drive/useDriveSession.ts) — local session state (bank + fixture + persisted UI); never posts `call_join`.
+- [`apps/cline-hub/src/webview/src/drive/demoFixture.ts`](../../../../../apps/cline-hub/src/webview/src/drive/demoFixture.ts) — `DRIVE_DEMO_FIXTURE` offline demo cards.
+- [`apps/cline-hub/src/webview/src/Chat.tsx`](../../../../../apps/cline-hub/src/webview/src/Chat.tsx) — **Gap A**: main in-call surface; Join does not post `call_join`; imports `StickyStagePane`, not `Spotlight`.
+- [`apps/cline-hub/src/webview/src/drive/pinDefaults.ts`](../../../../../apps/cline-hub/src/webview/src/drive/pinDefaults.ts) — **Gap C**: `buildHumanPinDefaults`; pin never wired to `call_set_stage`.
+- [`apps/cline-hub/src/webview/src/components/views/drive-view.tsx`](../../../../../apps/cline-hub/src/webview/src/components/views/drive-view.tsx) — shipped Drive sidebar tab home.
 
 ## Style
 

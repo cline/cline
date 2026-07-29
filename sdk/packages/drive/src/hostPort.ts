@@ -65,14 +65,19 @@ export type DriveHostPort = {
 	applyPromptRewrite(decision: PromptRewriteDecision): Promise<void>;
 };
 
+/**
+ * Default Cline host capability matrix — advertise only what works today.
+ * - promptRewrite: false until a rewrite fn is wired (see createClineDriveHost).
+ * - worktreeIsolation: false until Phase 4 isolation lands.
+ */
 export const CLINE_HOST_CAPABILITIES: HostCapabilities = {
 	harnessId: "cline",
 	schemaVersion: 1,
 	roomOps: true,
 	eventsFirstStage: true,
 	durableConfigIo: true,
-	promptRewrite: true,
-	worktreeIsolation: true,
+	promptRewrite: false,
+	worktreeIsolation: false,
 	voiceIo: false,
 	pixelShare: false,
 	localOnly: true,

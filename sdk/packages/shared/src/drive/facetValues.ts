@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AgentRefSchema, type AgentRef } from "./agentRef";
 import {
 	DeploymentProfileSchema,
 	EgressClassSchema,
@@ -24,21 +25,12 @@ export const DriveFacetIdSchema = z.enum([
 ]);
 export type DriveFacetId = z.infer<typeof DriveFacetIdSchema>;
 
-export const PairAgentRefSchema = z.discriminatedUnion("kind", [
-	z
-		.object({
-			kind: z.literal("configured"),
-			name: z.string().min(1),
-		})
-		.strict(),
-	z
-		.object({
-			kind: z.literal("builtin"),
-			id: z.literal("pair_partner"),
-		})
-		.strict(),
-]);
-export type PairAgentRef = z.infer<typeof PairAgentRefSchema>;
+/**
+ * Pair-agent facet accepts the locked AgentRef union (driveagent + builtin
+ * primary; configured migration-only).
+ */
+export const PairAgentRefSchema = AgentRefSchema;
+export type PairAgentRef = AgentRef;
 
 export const ProviderConfigSchema = z
 	.record(z.string(), z.unknown())

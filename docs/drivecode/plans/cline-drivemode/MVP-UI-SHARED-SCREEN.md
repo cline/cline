@@ -31,8 +31,8 @@ flowchart LR
 
 **Have**
 
-- Chat Join / Stage on/off / call strip ([`DriveCallChrome.tsx`](../../../apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx))
-- Local demo fixture cards ([`demoFixture.ts`](../../../apps/cline-hub/src/webview/src/drive/demoFixture.ts)), labeled non-hub
+- Chat Join / Stage on/off / call strip ([`DriveCallChrome.tsx`](../../../../apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx))
+- Local demo fixture cards ([`demoFixture.ts`](../../../../apps/cline-hub/src/webview/src/drive/demoFixture.ts)), labeled non-hub
 - Schemas: `StageState`, `StageCard`, sharer in `@cline/shared`
 - Kernel: `reduceRoom` / `projectStage` in `@cline/drive`
 - HTML Drive-tab prototype for IA validation

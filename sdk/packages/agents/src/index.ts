@@ -55,4 +55,5 @@ export {
 	AgentRuntimeAbortError,
 	createAgent,
 	createAgentRuntime,
+	PAUSE_AFTER_TOOL_REASON,
 } from "./agent-runtime";

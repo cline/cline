@@ -80,6 +80,13 @@ export const ControlRaiseHandEventSchema = DriveEventBaseSchema.extend({
 	raised: z.boolean(),
 }).strict();
 
+export const ControlRenameEventSchema = DriveEventBaseSchema.extend({
+	type: z.literal("control.rename"),
+	track: z.literal("control"),
+	participantId: z.string().min(1),
+	displayName: z.string().min(1),
+}).strict();
+
 export const ControlAddressEventSchema = DriveEventBaseSchema.extend({
 	type: z.literal("control.address"),
 	track: z.literal("control"),
@@ -176,6 +183,7 @@ export const DriveEventSchema = z.discriminatedUnion("type", [
 	ControlStageEventSchema,
 	ControlModeEventSchema,
 	ControlRaiseHandEventSchema,
+	ControlRenameEventSchema,
 	ControlAddressEventSchema,
 	ConversationMessageEventSchema,
 	ConversationNarrationEventSchema,

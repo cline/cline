@@ -46,6 +46,9 @@ import { nanoid } from "nanoid";
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
+/** Abort reason when `shouldPauseAfterTool` fires mid-batch (Drive raise-hand). */
+export const PAUSE_AFTER_TOOL_REASON = "Paused after tool";
+
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
 // sdk-re's shared package does not expose it yet. Inlining here keeps
@@ -234,6 +237,9 @@ interface HookBag {
 	afterModel: NonNullable<AgentRuntimeHooks["afterModel"]>[];
 	beforeTool: NonNullable<AgentRuntimeHooks["beforeTool"]>[];
 	afterTool: NonNullable<AgentRuntimeHooks["afterTool"]>[];
+	shouldPauseAfterTool: NonNullable<
+		AgentRuntimeHooks["shouldPauseAfterTool"]
+	>[];
 	onEvent: NonNullable<AgentRuntimeHooks["onEvent"]>[];
 }
 
@@ -407,6 +413,7 @@ export class AgentRuntime {
 		afterModel: [],
 		beforeTool: [],
 		afterTool: [],
+		shouldPauseAfterTool: [],
 		onEvent: [],
 	};
 	private readonly state = {
@@ -421,6 +428,8 @@ export class AgentRuntime {
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
 	};
+	/** Set when shouldPauseAfterTool fires; cleared when the run aborts. */
+	private pauseAfterToolReason?: string;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private readonly telemetryProviderId?: string;
@@ -568,6 +577,9 @@ export class AgentRuntime {
 		if (hooks.afterModel) this.hooks.afterModel.push(hooks.afterModel);
 		if (hooks.beforeTool) this.hooks.beforeTool.push(hooks.beforeTool);
 		if (hooks.afterTool) this.hooks.afterTool.push(hooks.afterTool);
+		if (hooks.shouldPauseAfterTool) {
+			this.hooks.shouldPauseAfterTool.push(hooks.shouldPauseAfterTool);
+		}
 		if (hooks.onEvent) this.hooks.onEvent.push(hooks.onEvent);
 	}
 
@@ -736,6 +748,11 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 					toolCallCount: toolCalls.length,
 				});
+				if (this.pauseAfterToolReason) {
+					const reason = this.pauseAfterToolReason;
+					this.pauseAfterToolReason = undefined;
+					throw new ControlledStopError(reason);
+				}
 				const terminalToolMessage = this.findCompletingToolMessage(
 					toolCalls,
 					toolMessages,
@@ -806,6 +823,7 @@ export class AgentRuntime {
 			}
 			return result;
 		} finally {
+			this.pauseAfterToolReason = undefined;
 			this.abortController = undefined;
 		}
 	}
@@ -1314,16 +1332,54 @@ export class AgentRuntime {
 		}
 
 		if (this.config.toolExecution === "parallel") {
-			return Promise.all(
+			const results = await Promise.all(
 				prepared.map((execution) => this.executePreparedTool(execution)),
 			);
+			if (await this.checkShouldPauseAfterTool()) {
+				this.pauseAfterToolReason = PAUSE_AFTER_TOOL_REASON;
+			}
+			return results;
 		}
 
 		const results: AgentMessage[] = [];
-		for (const execution of prepared) {
+		for (let index = 0; index < prepared.length; index += 1) {
+			const execution = prepared[index];
+			if (!execution) {
+				continue;
+			}
 			results.push(await this.executePreparedTool(execution));
+			if (await this.checkShouldPauseAfterTool()) {
+				this.pauseAfterToolReason = PAUSE_AFTER_TOOL_REASON;
+				for (
+					let skipIndex = index + 1;
+					skipIndex < prepared.length;
+					skipIndex += 1
+				) {
+					const remaining = prepared[skipIndex];
+					if (!remaining) {
+						continue;
+					}
+					results.push(
+						await this.executePreparedTool({
+							...remaining,
+							skipReason:
+								remaining.skipReason ?? PAUSE_AFTER_TOOL_REASON,
+						}),
+					);
+				}
+				break;
+			}
 		}
 		return results;
+	}
+
+	private async checkShouldPauseAfterTool(): Promise<boolean> {
+		for (const hook of this.hooks.shouldPauseAfterTool) {
+			if (await hook()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private findCompletingToolMessage(

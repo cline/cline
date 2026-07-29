@@ -22,8 +22,11 @@ import {
 	webviewDistDir,
 } from "./server/deps";
 import { handleDesktopCommand } from "./server/desktop-commands";
+import { handleDriveAgentHomeWebviewCommand } from "./server/drive-agent-home";
+import { handleDriveBankWebviewCommand } from "./server/drive-bank";
 import { handleCallCommand } from "./server/drive-calls";
 import { handleDriveWebviewCommand } from "./server/drive-commands";
+import { rejectVoiceSendIfMuted } from "./server/drive-mute-gate";
 import {
 	createJsonResponse,
 	isWebviewRoute,
@@ -282,6 +285,12 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							});
 							return;
 						}
+						if (frame.source === "voice") {
+							const blocked = await rejectVoiceSendIfMuted(ctx, peer);
+							if (blocked) {
+								return;
+							}
+						}
 						peer.sending = true;
 						try {
 							await sendMessage(
@@ -311,11 +320,22 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						frame.type === "call_join" ||
 						frame.type === "call_leave" ||
 						frame.type === "call_mute" ||
+						frame.type === "call_raise_hand" ||
+						frame.type === "call_rename_participant" ||
 						frame.type === "call_set_stage" ||
 						frame.type === "call_set_mode" ||
 						frame.type === "call_get_room"
 					) {
 						await handleCallCommand(ctx, peer, frame);
+					} else if (
+						frame.type === "drive_bank_get" ||
+						frame.type === "drive_bank_seed" ||
+						frame.type === "drive_bank_create_task" ||
+						frame.type === "drive_bank_edit_plan_tasks"
+					) {
+						await handleDriveBankWebviewCommand(ctx, peer, frame);
+					} else if (frame.type === "drive_agent_home_get") {
+						await handleDriveAgentHomeWebviewCommand(ctx, peer, frame);
 					} else if (
 						frame.type === "status_query" ||
 						frame.type === "status_board" ||

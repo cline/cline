@@ -37,7 +37,7 @@ Out of scope for the next “continue implementation” slice unless Harrison sa
 | [`05-workflows.md`](05-workflows.md) | 39 workflows (incl. W-37 sheet, W-38 recruit, W-39 gated learn) |
 | [`TASK-GRAPH.md`](TASK-GRAPH.md) | Phases 0–5 gates |
 | [`prd/prd-driveagent-portfolio.md`](prd/prd-driveagent-portfolio.md) | **PRD 6** portfolio / graph / recruit |
-| [`ard/`](ard/) | **ARD-0001…0004** (all Status: Proposed) |
+| [`ard/`](ard/) | **ARD-0000…0013** (all Status: Accepted; ARD-0014 (Chat-fork lifecycle) later Accepted on main) |
 | [`features/DRV-*.md`](features/) | Feature specs including `DRV-PARTICIPANT-SHEET`, `DRV-DRIVEAGENT-HOME`, `DRV-AGENT-GRAPH`, `DRV-RECRUIT` |
 | [`examples/driveagent-pair-partner/`](examples/driveagent-pair-partner/) | Example home + BRIEF.md + sample graph |
 | [`docs/drivecode/plans/drivecode-sdk/`](../drivecode-sdk/) | Meta-harness discovery vs Omnigent (sibling plan set) |
@@ -66,7 +66,7 @@ Out of scope for the next “continue implementation” slice unless Harrison sa
 - Canvas: `C:\Users\harri\.cursor\projects\c-Users-harri-Documents-dev-profiles-ai-secretagent-active-cursor-drive\canvases\cline-drivecode-overview.canvas.tsx` (Architecture, Workflows, Platform/Config, Drive-tab demos).
 - Sibling prior art: `ai-secretagent/active/{cursor-drive,claude-drive,briefs}`; personal graph pattern: `hhalperin/active/harrison-site`.
 
-### Key decisions already locked in docs (Proposed ARDs)
+### Key decisions already locked in docs (Accepted ARDs)
 
 1. **ARD-0001** — `.driveagent/<slug>/` is the agent home; compile into host runtime; not `.claude/`.
 2. **ARD-0002** — Canonical knowledge YAML; derived `.derived/graph.json`.
@@ -79,19 +79,17 @@ Roster click = **Transcript | Profile** (W-37). Address-follows-focus only on Tr
 
 **Overlay vs home.** Platform config forbade putting prompts in Drive facets. Driveagent homes reintroduce a full agent definition on disk. The compile bridge into Cline must stay the only runtime path, or you get two registries again. Next implementers should land schemas + compile tests before any profile UI that edits prompts in-sheet.
 
-## Open Decision (needs Harrison)
+## Decision (Accepted 2026-07-29)
 
-**Accept ARD-0001 through ARD-0004 as written (including lexical-only recruit MVP and propose/accept learn), plus the leadership DEC bundle, or change one default before phase-0 schema work starts?**
+**Accepted.** Human `accept all` for ARD-0000…0013 and the leadership DEC bundle. ARD-0014 (Chat-fork lifecycle) later Accepted on main.
 
-Reply with one of: `accept all` | `change: <id and new default>`.
+Board: [ard/ARD-0000-status-board.md](ard/ARD-0000-status-board.md), [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
 
-Defaults and board: [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md), [ard/ARD-0000-status-board.md](ard/ARD-0000-status-board.md), [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+Agent SoT and package location are **Accepted** (compile-from-`.driveagent/`; `@cline/drive` in monorepo).
 
-Agent SoT and package location are **Recommended closed** (compile-from-`.driveagent/`; `@cline/drive` in monorepo). Overturn only via `change: …`.
+## Suggested next slices
 
-## Suggested next slices (after the decision)
-
-1. Clear [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md).
+1. Clear remaining [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) items (TASK-GRAPH phase placement).
 2. Phase 0: `@cline/shared` Drive event + home/graph schemas; no-prompt assertion tests; `@cline/drive` scaffold + host port stub.
 3. Phase 1: hub ops stub + Drive tab shell (replace webview-local-only state) + participant sheet chooser + gates feed-card MVP.
 4. Wire example `examples/driveagent-pair-partner/` into a fixture test for compile.

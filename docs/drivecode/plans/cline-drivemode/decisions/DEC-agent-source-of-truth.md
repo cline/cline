@@ -1,6 +1,6 @@
 # DEC · Agent source of truth
 
-**Status.** Recommended  
+**Status.** Accepted  
 **Date.** 2026-07-25  
 **Deciders.** Drivecode leadership planning wave  
 **Supersedes.** Literal reading of `00-vision.md` MVP non-goal “no Drive-owned agent definition format”  

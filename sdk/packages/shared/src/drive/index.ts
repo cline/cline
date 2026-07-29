@@ -11,6 +11,14 @@ export {
 	parseAddressSet,
 } from "./address";
 export {
+	assertNeverAgentRef,
+	type AgentRef,
+	AgentRefSchema,
+	type DriveagentSlug,
+	DriveagentSlugSchema,
+	parseAgentRef,
+} from "./agentRef";
+export {
 	type BankSnapshot,
 	BankSnapshotSchema,
 	DRIVE_BANK_ROOT,
@@ -98,6 +106,7 @@ export {
 	ControlModeEventSchema,
 	ControlMuteEventSchema,
 	ControlRaiseHandEventSchema,
+	ControlRenameEventSchema,
 	ControlStageEventSchema,
 	ConversationMessageEventSchema,
 	ConversationNarrationEventSchema,
@@ -117,8 +126,22 @@ export {
 	WorkPlanStepEventSchema,
 	WorkTestResultEventSchema,
 } from "./events";
+export {
+	assertNeverGateActionClass,
+	DEFAULT_UNKNOWN_GATE_CLASS,
+	defaultDispositionForGateClass,
+	DRIVE_GATE_TAXONOMY_SCHEMA_VERSION,
+	GATE_ACTION_CLASSES,
+	GATE_CLASS_DEFAULT_DISPOSITION,
+	type GateActionClass,
+	GateActionClassSchema,
+	type GateDisposition,
+	GateDispositionSchema,
+	parseGateActionClass,
+} from "./gates";
 export type {
 	AgentAppearance,
+	AgentProfile,
 	ConflictRule,
 	DriveDefaultsSubMode,
 	DriveFacetDiskFile,
@@ -136,6 +159,7 @@ export type {
 } from "./facets";
 export * from "./facets";
 export {
+	AgentProfileSchema,
 	DRIVE_FACET_SCHEMA_VERSION,
 	parseDriveFacetDiskFile,
 } from "./facets";
@@ -149,6 +173,7 @@ export {
 	ProviderConfigSchema,
 	parseDriveFacetValues,
 } from "./facetValues";
+export * from "./home";
 export {
 	type DriveLogEnvelope,
 	DriveLogEnvelopeSchema,

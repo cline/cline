@@ -5,6 +5,9 @@ import {
 } from "./DriveCallChrome";
 import { DriveMicBar } from "./voice/DriveMicBar";
 import { DriveSettingsPanel } from "./voice/DriveSettingsPanel";
+import { clearVoiceCaptionDraft } from "./voice/voiceCaptionState";
+import { Roster } from "./Roster";
+import { applyTranscriptFocus } from "./rosterHelpers";
 import {
 	applyHardwarePrefsPatch,
 	applyVoiceFacetPatch,
@@ -25,6 +28,7 @@ export function DriveRoomChrome({
 }) {
 	const {
 		drive,
+		setDrive,
 		driveVoice,
 		setDriveVoice,
 		driveJoinNote,
@@ -42,6 +46,18 @@ export function DriveRoomChrome({
 				workersOpen={workersPanelOpen}
 				{...stripHandlers}
 			/>
+			{drive.active ? (
+				<Roster
+					drive={drive}
+					onDriveChange={setDrive}
+					onTranscriptFocus={(participantId) => {
+						setDrive((current) =>
+							applyTranscriptFocus(current, participantId),
+						);
+					}}
+					workspaceRoot={session.workspaceRoot}
+				/>
+			) : null}
 			{drive.active && driveVoice.settingsOpen ? (
 				<DriveSettingsPanel
 					onClose={() =>
@@ -71,6 +87,13 @@ export function DriveRoomChrome({
 						setDriveVoice((current) =>
 							applyVoiceFacetPatch(current, {
 								"providers.ttsId": ttsId,
+							}),
+						);
+					}}
+					onTtsEnabledChange={(enabled) => {
+						setDriveVoice((current) =>
+							applyVoiceFacetPatch(current, {
+								"tts.enabled": enabled,
 							}),
 						);
 					}}
@@ -145,11 +168,11 @@ export function DriveVoiceBar({
 				sttBackend={driveVoiceResolved.topology.stt}
 				sttConfig={driveVoice.facets["providers.sttConfig"]}
 			/>
-			{voiceCaption.trim() ? (
+			{voiceCaption.trim() && !drive.muted ? (
 				<div className="flex items-center justify-end gap-2 border-t bg-background px-3 py-2">
 					<Button
 						disabled={disabled || sending}
-						onClick={() => setVoiceCaption("")}
+						onClick={() => setVoiceCaption(clearVoiceCaptionDraft())}
 						size="sm"
 						type="button"
 						variant="ghost"

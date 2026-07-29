@@ -29,21 +29,29 @@ import {
 	PendingApprovalsPanel,
 } from "./components/PendingApprovalsPanel";
 import { PlanEditor, removeTask } from "./components/PlanEditor";
-import { listPlanTasks } from "./drive/bankSession";
-import { DriveHeaderControls, DriveStagePanel } from "./drive/DriveCallChrome";
+import {
+	listPlanTasks,
+	mutateBankCreateTask,
+	mutateBankEditPlanTasks,
+} from "./drive/bankSession";
+import { DriveHeaderControls } from "./drive/DriveCallChrome";
 import { DriveRoomChrome, DriveVoiceBar } from "./drive/DriveRoomChrome";
 import {
 	ChatForkAuditPanel,
 	isChatForkSession,
 } from "./drive/ChatForkAuditPanel";
+import { Spotlight } from "./drive/Spotlight";
 import { StickyStagePane } from "./drive/StickyStagePane";
 import {
 	applyBankSnapshot,
 	drivePersonaSystemHint,
 	toNativeMode,
 } from "./drive/types";
+import { isDriveHumanId } from "./drive/participantIds";
 import { useDriveSession } from "./drive/useDriveSession";
 import { createVoiceStack } from "./drive/voice/createVoiceStack";
+import { shouldSpeakDriveTts } from "./drive/voice/driveVoiceUi";
+import { clearVoiceCaptionAfterSend } from "./drive/voice/voiceCaptionState";
 import { getVsCodeApi, postToHost } from "./vscode";
 
 type ProviderOption = Extract<
@@ -164,6 +172,8 @@ export default function Chat({
 			postToHost({ type: "abort" });
 		},
 		onStatus: setStatus,
+		sessionId: sessionId ?? null,
+		workspaceRoot: defaults.workspaceRoot,
 	});
 	const {
 		drive,
@@ -564,17 +574,6 @@ export default function Chat({
 		});
 	};
 
-	const latestToolLabel = useMemo(() => {
-		for (let i = messages.length - 1; i >= 0; i -= 1) {
-			const events = messages[i]?.toolEvents;
-			if (events && events.length > 0) {
-				const last = events[events.length - 1];
-				return `${last.name} · ${last.state}`;
-			}
-		}
-		return drive.active ? "waiting for partner activity" : "idle";
-	}, [messages, drive.active]);
-
 	const sendDrivePrompt = useCallback(
 		(prompt: string) => {
 			const trimmed = prompt.trim();
@@ -582,9 +581,23 @@ export default function Chat({
 				return;
 			}
 
-			if (driveVoice.profile === "local" && driveVoiceResolved.ok) {
+			if (drive.muted) {
+				setStatus(
+					"Mic is muted. Unmute on the call strip before sending spoken input.",
+				);
+				return;
+			}
+
+			if (
+				driveVoiceResolved.ok &&
+				shouldSpeakDriveTts({
+					facets: driveVoice.facets,
+					muted: drive.muted,
+					partnerMuted: drive.partnerMuted,
+				})
+			) {
 				const ack = buildVoiceAckNarration({
-					profile: "local",
+					profile: driveVoice.profile === "local" ? "local" : "cloud",
 					partnerName: drive.partnerName,
 					utterance: trimmed,
 				});
@@ -596,6 +609,13 @@ export default function Chat({
 						sinkId: driveVoice.hardware.speakerDeviceId,
 					},
 				);
+			} else if (driveVoice.profile === "local") {
+				const ack = buildVoiceAckNarration({
+					profile: "local",
+					partnerName: drive.partnerName,
+					utterance: trimmed,
+				});
+				setDriveJoinNote(ack.text);
 			}
 
 			const assistantMessage = createMessage("assistant", "");
@@ -610,6 +630,7 @@ export default function Chat({
 			postToHost({
 				type: "send",
 				prompt: trimmed,
+				source: "voice",
 				config: {
 					autoApproveTools,
 					enableSpawn,
@@ -630,11 +651,12 @@ export default function Chat({
 					})(),
 				},
 			});
-			setVoiceCaption("");
+			setVoiceCaption(clearVoiceCaptionAfterSend());
 		},
 		[
 			autoApproveTools,
 			drive,
+			driveVoice.facets,
 			driveVoice.hardware.outputVolume,
 			driveVoice.hardware.speakerDeviceId,
 			driveVoice.profile,
@@ -645,8 +667,8 @@ export default function Chat({
 			enableTools,
 			isHydrating,
 			maxIterations,
-			mode,
 			model,
+			mode,
 			provider,
 			setDriveJoinNote,
 			setVoiceCaption,
@@ -900,7 +922,25 @@ export default function Chat({
 						/>
 					</div>
 					{drive.active && drive.stageLayout ? (
-						<DriveStagePanel
+						<Spotlight
+							cards={drive.stageCards}
+							className="min-h-0 flex-1"
+							demo={drive.demo}
+							emptyHint={
+								drive.demo
+									? "Demo mode — join Drive to project live hub stage cards."
+									: "Waiting for partner tool activity on this session."
+							}
+							humanPin={
+								drive.stageSharer === "you" && drive.stagePin
+									? {
+											kind: drive.stagePin.kind,
+											label: drive.stagePin.label,
+											ref: drive.stagePin.ref,
+										}
+									: null
+							}
+							humanSharing={drive.stageSharer === "you"}
 							nextLabel={
 								drive.bankSnapshot.nextTitle ??
 								drive.bankSnapshot.nextTaskId ??
@@ -911,7 +951,12 @@ export default function Chat({
 								drive.bankSnapshot.nowTaskId ??
 								(sending ? "partner working" : "idle")
 							}
-							sharingLabel={latestToolLabel}
+							sharerLabel={
+								drive.stageSharer === "you" ||
+								isDriveHumanId(drive.spotlightParticipantId)
+									? "You"
+									: drive.partnerName
+							}
 						>
 							<StickyStagePane
 								caption={presentedShow?.caption}
@@ -945,20 +990,16 @@ export default function Chat({
 											if (!planId) {
 												return;
 											}
-											await bankSessionRef.current.store.createTask({
-												id: task.id,
-												title: task.title,
-												body: "",
-											});
-											const ids = [
-												...planEditorTasks.map((item) => item.id),
-												task.id,
-											];
-											await bankSessionRef.current.store.editPlanTaskIds(
-												planId,
-												ids,
+											const { snapshot } = await mutateBankCreateTask(
+												bankSessionRef.current,
+												defaults.workspaceRoot,
+												{
+													id: task.id,
+													title: task.title,
+													body: "",
+													planId,
+												},
 											);
-											const snapshot = await bankSessionRef.current.refresh();
 											setPlanEditorTasks(
 												await listPlanTasks(bankSessionRef.current, planId),
 											);
@@ -977,11 +1018,11 @@ export default function Chat({
 												planEditorTasks.map((item) => item.id),
 												taskId,
 											);
-											await bankSessionRef.current.store.editPlanTaskIds(
-												planId,
-												ids,
+											const { snapshot } = await mutateBankEditPlanTasks(
+												bankSessionRef.current,
+												defaults.workspaceRoot,
+												{ planId, taskIds: ids },
 											);
-											const snapshot = await bankSessionRef.current.refresh();
 											setPlanEditorTasks(
 												await listPlanTasks(bankSessionRef.current, planId),
 											);
@@ -996,11 +1037,11 @@ export default function Chat({
 											if (!planId) {
 												return;
 											}
-											await bankSessionRef.current.store.editPlanTaskIds(
-												planId,
-												taskIds,
+											const { snapshot } = await mutateBankEditPlanTasks(
+												bankSessionRef.current,
+												defaults.workspaceRoot,
+												{ planId, taskIds },
 											);
-											const snapshot = await bankSessionRef.current.refresh();
 											setPlanEditorTasks(
 												await listPlanTasks(bankSessionRef.current, planId),
 											);
@@ -1010,11 +1051,8 @@ export default function Chat({
 										})();
 									}}
 								/>
-								<pre className="overflow-auto rounded-md border bg-background p-2 font-mono text-[11px]">
-									{latestToolLabel}
-								</pre>
 							</div>
-						</DriveStagePanel>
+						</Spotlight>
 					) : null}
 				</div>
 			</div>

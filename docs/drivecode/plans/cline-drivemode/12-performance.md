@@ -27,7 +27,7 @@ Measure Drive compute/memory cost, then optimize via architecture (cache, batch,
 The first long-horizon guardrail milestone landed on `main` in
 [PR #32](https://github.com/hhalperin/cline-drivecode/pull/32). Operational
 defaults and overload behavior are documented in
-[`sdk/packages/core/RESOURCE_GUARDRAILS.md`](../../../sdk/packages/core/RESOURCE_GUARDRAILS.md).
+[`sdk/packages/core/RESOURCE_GUARDRAILS.md`](../../../../sdk/packages/core/RESOURCE_GUARDRAILS.md).
 
 Implemented:
 

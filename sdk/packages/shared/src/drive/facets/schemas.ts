@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { AgentRefSchema } from "../agentRef";
 import { DriveSubModeSchema } from "../room";
 import {
 	DRIVE_FACET_SCHEMA_VERSION,
@@ -52,6 +53,21 @@ export const AgentAppearanceSchema = z
 	})
 	.strict();
 export type AgentAppearance = z.infer<typeof AgentAppearanceSchema>;
+
+/**
+ * Appearance-only AgentProfile overlay (DEC-agent-SoT / DRV-AGENT-PROFILE).
+ * Definition fields live in `.driveagent/<slug>/`, never here.
+ */
+export const AgentProfileSchema = z
+	.object({
+		id: z.string().min(1),
+		ref: AgentRefSchema,
+		displayName: z.string().min(1).optional(),
+		nameInk: InkRefSchema,
+		bodyInk: InkRefSchema,
+	})
+	.strict();
+export type AgentProfile = z.infer<typeof AgentProfileSchema>;
 
 export const DriveDefaultsSubModeSchema = DriveSubModeSchema;
 export type DriveDefaultsSubMode = z.infer<typeof DriveDefaultsSubModeSchema>;

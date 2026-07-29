@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	classifyInterrupt,
 	decideReviseOrRestart,
+	expectsPauseAfterTool,
 } from "./interruptPolicy";
 
 describe("classifyInterrupt", () => {
@@ -58,6 +59,27 @@ describe("classifyInterrupt", () => {
 			action: "hard-cancel",
 			revise: "restart",
 		});
+	});
+});
+
+describe("expectsPauseAfterTool", () => {
+	it("is true for stop while a turn is in flight", () => {
+		expect(
+			expectsPauseAfterTool({ intent: "stop", turnInFlight: true }),
+		).toBe(true);
+	});
+
+	it("is false for hard-cancel or idle stop", () => {
+		expect(
+			expectsPauseAfterTool({
+				intent: "stop",
+				turnInFlight: true,
+				hardCancel: true,
+			}),
+		).toBe(false);
+		expect(
+			expectsPauseAfterTool({ intent: "stop", turnInFlight: false }),
+		).toBe(false);
 	});
 });
 

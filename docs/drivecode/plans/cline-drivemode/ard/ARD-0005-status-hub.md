@@ -36,7 +36,7 @@ Multi-agent systems need to answer two questions cheaply and constantly:
 
 Today the SDK has no answer. Progress exists only as **transient hub events** —
 `run.heartbeat`, `team.progress`, `iteration.started`, `session.updated`
-([`hub.ts:517`](../../../../sdk/packages/shared/src/hub.ts)) — broadcast over
+([`hub.ts:517`](../../../../../sdk/packages/shared/src/hub.ts)) — broadcast over
 WebSocket and never persisted. A client that was not connected when an event
 fired cannot recover it, and there is no way to query across agents at all.
 `sessions.db` stores a single `status` column per session, which is lifecycle
@@ -80,11 +80,11 @@ external orchestrator), still gets a subject. Nothing has to exist first.
 ### D3. Dedicated `status.db`, mirroring the cron precedent
 
 `~/.cline/db/status.db`, its own file, its own schema owned by `@cline/core` —
-the same call [`cron-schema.ts`](../../../../sdk/packages/core/src/cron/store/cron-schema.ts)
+the same call [`cron-schema.ts`](../../../../../sdk/packages/core/src/cron/store/cron-schema.ts)
 already makes, and for the same reason: status lifecycle should not be coupled
 to session storage, and a hot append path should not contend on the sessions DB.
 WAL, `busy_timeout = 5000`, and the shared `withSqliteBusyRetry` wrapper come
-free from [`@cline/shared/db`](../../../../sdk/packages/shared/src/db/sqlite-db.ts).
+free from [`@cline/shared/db`](../../../../../sdk/packages/shared/src/db/sqlite-db.ts).
 
 ### D4. Append-only log with exactly one current row per subject
 
@@ -161,7 +161,7 @@ table over `headline` and `detail`. **Measured, FTS5 is not portable here:**
 | `bun:sqlite` (Bun 1.3.13) | **available** | `CREATE VIRTUAL TABLE … USING fts5` succeeds, `MATCH` returns rows |
 | `node:sqlite` (Node 22.14.0) | **missing** | `SqliteError: no such module: fts5` |
 
-[`loadSqliteDb`](../../../../sdk/packages/shared/src/db/sqlite-db.ts) selects
+[`loadSqliteDb`](../../../../../sdk/packages/shared/src/db/sqlite-db.ts) selects
 `bun:sqlite` when `globalThis.Bun` exists and `node:sqlite` otherwise — so the
 **published `@cline/sdk` consumer on Node gets the runtime without FTS5.** FTS5
 is therefore the exception, not the rule, and cannot be the primary design.

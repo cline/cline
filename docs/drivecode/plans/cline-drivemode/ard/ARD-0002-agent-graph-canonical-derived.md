@@ -2,7 +2,7 @@
 
 ## Status
 
-Recommended
+Accepted
 
 ## Metadata
 

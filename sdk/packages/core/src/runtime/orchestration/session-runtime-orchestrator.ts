@@ -49,6 +49,7 @@ import {
 	type ToolCallRecord,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
+import { shouldDrivePauseAfterTool } from "../../hub/collaboration/drivePauseAfterTool";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
@@ -231,6 +232,14 @@ function mergeRuntimeHooks(
 				}
 			}
 			return aggregate;
+		},
+		shouldPauseAfterTool: async () => {
+			for (const hook of hooks) {
+				if (await hook.shouldPauseAfterTool?.()) {
+					return true;
+				}
+			}
+			return false;
 		},
 		onEvent: async (event) => {
 			for (const hook of hooks) {
@@ -967,6 +976,14 @@ export class SessionRuntime {
 			...this.contributionRegistry
 				.getValidatedExtensions()
 				.map((extension) => extension.hooks),
+			{
+				shouldPauseAfterTool: () => {
+					const sessionId = this.config.sessionId;
+					return sessionId
+						? shouldDrivePauseAfterTool(sessionId)
+						: false;
+				},
+			},
 		]);
 		return {
 			...hooks,

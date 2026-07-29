@@ -21,6 +21,8 @@ export async function handleCallCommand(
 			| "call_join"
 			| "call_leave"
 			| "call_mute"
+			| "call_raise_hand"
+			| "call_rename_participant"
 			| "call_set_stage"
 			| "call_set_mode"
 			| "call_get_room";

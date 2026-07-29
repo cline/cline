@@ -53,8 +53,14 @@ export function createClineDriveHost(
 		}
 	};
 
+	const promptRewriteWired = options.promptRewriteFn != null;
+	const capabilities = {
+		...CLINE_HOST_CAPABILITIES,
+		promptRewrite: promptRewriteWired,
+	};
+
 	return {
-		capabilities: CLINE_HOST_CAPABILITIES,
+		capabilities,
 		async resolveKnownAgents() {
 			return [];
 		},
@@ -157,11 +163,12 @@ export function createClineDriveHost(
 			};
 		},
 		async applyPromptRewrite(decision: PromptRewriteDecision) {
-			if (options.promptRewriteFn) {
-				await options.promptRewriteFn(decision);
-				return;
+			if (!promptRewriteWired || !options.promptRewriteFn) {
+				throw new Error(
+					"promptRewrite not advertised on ClineDriveHost (wire promptRewriteFn to enable)",
+				);
 			}
-			throw new Error("promptRewrite not wired on ClineDriveHost");
+			await options.promptRewriteFn(decision);
 		},
 	};
 }

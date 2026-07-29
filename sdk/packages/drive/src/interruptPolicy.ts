@@ -4,6 +4,11 @@
  * Maps stop | clarify | redirect | fresh against turn state into
  * pause-after-tool | hard-cancel | queue-steer, with revise-not-restart
  * as the default mid-turn correction policy.
+ *
+ * Hosts honour `pause-after-tool` by wiring
+ * `AgentRuntimeHooks.shouldPauseAfterTool` (see `@cline/agents`) so the
+ * in-flight turn finishes the current tool, skips remaining tools, and
+ * aborts with a revise-friendly transcript.
  */
 
 export type InterruptIntent = "stop" | "clarify" | "redirect" | "fresh";
@@ -101,6 +106,18 @@ export function classifyInterrupt(
 			return _exhaustive;
 		}
 	}
+}
+
+/**
+ * True when the interrupt classification expects the agent loop to finish
+ * the current tool then stop (Drive raise-hand / stop while turn in flight).
+ *
+ * Wire the result to `AgentRuntimeHooks.shouldPauseAfterTool`:
+ * `() => expectsPauseAfterTool({ intent: "stop", turnInFlight: true })`
+ * once a raise-hand flag is set on the linked session.
+ */
+export function expectsPauseAfterTool(input: InterruptInput): boolean {
+	return classifyInterrupt(input).action === "pause-after-tool";
 }
 
 /**

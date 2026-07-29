@@ -57,5 +57,5 @@ Reactive share screen is a dual-backlog planning problem (Do + Show), not WebRTC
 
 - [share-and-router/PLAN.md](../share-and-router/PLAN.md) · ChatForkLifecycle section
 - [DRV-CHAT-FORK](../features/DRV-CHAT-FORK.md)
-- [sdk/packages/shared/src/drive/chatFork.ts](../../../../sdk/packages/shared/src/drive/chatFork.ts)
-- [sdk/packages/drive/src/director/chatForkPolicy.ts](../../../../sdk/packages/drive/src/director/chatForkPolicy.ts)
+- [sdk/packages/shared/src/drive/chatFork.ts](../../../../../sdk/packages/shared/src/drive/chatFork.ts)
+- [sdk/packages/drive/src/director/chatForkPolicy.ts](../../../../../sdk/packages/drive/src/director/chatForkPolicy.ts)

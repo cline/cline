@@ -16,7 +16,7 @@ Repo-level continuation brief. [HANDOFF.md](../../HANDOFF.md).
 | File | What it holds |
 |---|---|
 
-| [../../drivecode/native-vs-drivecode.md](../../drivecode/native-vs-drivecode.md) | Native Cline vs Drivecode value matrix with maturity labels |
+| [../../native-vs-drivecode.md](../../native-vs-drivecode.md) | Native Cline vs Drivecode value matrix with maturity labels |
 | [00-vision.md](00-vision.md) | Drive mode inside Cline; Chat default work surface; staged delivery |
 | [01-architecture.md](01-architecture.md) | Kernel `@cline/drive`, hub `:25463` single writer, room-first, **Drive mode** primary activation, Chat default surface, events-first stage, D1–D9 |
 | [02-research-streaming.md](02-research-streaming.md) | Call-architecture research synthesis (Discord, Zoom, Meet, Teams, Webex, Huddles, Twitch) with adopted anti-patterns |

@@ -1,4 +1,5 @@
 import {
+	cloudDefaultsWithAnthropic,
 	localDefaultsWithOllama,
 	resolveTopologyFromFacets,
 } from "@cline/drive";
@@ -31,5 +32,24 @@ describe("createVoiceStack", () => {
 		const first = createVoiceStack(resolved.topology);
 		const second = createVoiceStack({ ...resolved.topology });
 		expect(second).toBe(first);
+	});
+
+	it("webSpeech SttPort.start redirects callers to SpeechInput", () => {
+		const { facets, llm } = cloudDefaultsWithAnthropic();
+		const resolved = resolveTopologyFromFacets({ facets, llm });
+		expect(resolved.ok).toBe(true);
+		if (!resolved.ok) {
+			return;
+		}
+		expect(resolved.topology.stt.kind).toBe("webSpeech");
+		const stack = createVoiceStack(resolved.topology);
+		let code = "";
+		stack.stt.start({
+			onFinal() {},
+			onError(error) {
+				code = error.code;
+			},
+		});
+		expect(code).toBe("use_speech_input");
 	});
 });

@@ -4,6 +4,7 @@ import {
 	applyVoiceProfile,
 	createDefaultDriveVoiceUi,
 	resolveDriveVoiceTopology,
+	shouldSpeakDriveTts,
 } from "./driveVoiceUi";
 
 describe("driveVoiceUi", () => {
@@ -40,6 +41,43 @@ describe("driveVoiceUi", () => {
 		}
 		expect(resolved.forceMode).toBe("media-recorder");
 		expect(resolved.topology.stt.kind).toBe("local-worker");
+	});
+
+	it("shouldSpeakDriveTts defaults off and respects mute gates", () => {
+		const voice = createDefaultDriveVoiceUi("cloud");
+		expect(
+			shouldSpeakDriveTts({
+				facets: voice.facets,
+				muted: false,
+				partnerMuted: false,
+			}),
+		).toBe(false);
+
+		const enabled = {
+			...voice.facets,
+			"tts.enabled": true,
+		};
+		expect(
+			shouldSpeakDriveTts({
+				facets: enabled,
+				muted: false,
+				partnerMuted: false,
+			}),
+		).toBe(true);
+		expect(
+			shouldSpeakDriveTts({
+				facets: enabled,
+				muted: true,
+				partnerMuted: false,
+			}),
+		).toBe(false);
+		expect(
+			shouldSpeakDriveTts({
+				facets: enabled,
+				muted: false,
+				partnerMuted: true,
+			}),
+		).toBe(false);
 	});
 
 	it("preserves hardware prefs across profile switches", () => {

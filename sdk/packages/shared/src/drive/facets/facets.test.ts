@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	AgentAppearanceSchema,
+	AgentProfileSchema,
 	DRIVE_FACET_FORBIDDEN_PROMPT_KEYS,
 	emptyFacetDiskSnapshot,
 	mergeFacetScopes,
@@ -106,6 +107,11 @@ describe("mergeFacetScopes", () => {
 	});
 });
 
+const appearanceBase = {
+	nameInk: { kind: "token" as const, token: "foreground" as const },
+	bodyInk: { kind: "token" as const, token: "muted" as const },
+};
+
 describe("AgentAppearanceSchema privacy", () => {
 	it("accepts ink-only appearance", () => {
 		const value = AgentAppearanceSchema.parse({
@@ -119,8 +125,7 @@ describe("AgentAppearanceSchema privacy", () => {
 	it("rejects prompt / tool / model fields (DEC-agent-SoT)", () => {
 		for (const key of DRIVE_FACET_FORBIDDEN_PROMPT_KEYS) {
 			const result = AgentAppearanceSchema.safeParse({
-				nameInk: { kind: "token", token: "foreground" },
-				bodyInk: { kind: "token", token: "muted" },
+				...appearanceBase,
 				[key]: "should-not-persist",
 			});
 			expect(result.success).toBe(false);
@@ -134,6 +139,92 @@ describe("AgentAppearanceSchema privacy", () => {
 				bodyInk: { kind: "token", token: "muted" },
 			}),
 		).toBe(true);
+	});
+});
+
+describe("AgentProfileSchema no-prompt invariant", () => {
+	const profileBase = {
+		id: "partner",
+		ref: { kind: "driveagent" as const, slug: "pair-partner" },
+		...appearanceBase,
+	};
+
+	it("accepts appearance-only profile with AgentRef", () => {
+		const profile = AgentProfileSchema.parse({
+			...profileBase,
+			displayName: "Partner",
+		});
+		expect(profile.ref).toEqual({
+			kind: "driveagent",
+			slug: "pair-partner",
+		});
+	});
+
+	it("rejects systemPrompt, tools, skills, providerId, modelId", () => {
+		for (const key of [
+			"systemPrompt",
+			"tools",
+			"skills",
+			"providerId",
+			"modelId",
+		] as const) {
+			const result = AgentProfileSchema.safeParse({
+				...profileBase,
+				[key]: key === "tools" || key === "skills" ? [] : "nope",
+			});
+			expect(result.success).toBe(false);
+		}
+	});
+
+	it("rejects every DRIVE_FACET_FORBIDDEN_PROMPT_KEYS entry", () => {
+		for (const key of DRIVE_FACET_FORBIDDEN_PROMPT_KEYS) {
+			const result = AgentProfileSchema.safeParse({
+				...profileBase,
+				[key]: "should-not-persist",
+			});
+			expect(result.success).toBe(false);
+		}
+	});
+});
+
+describe("facet document no-prompt invariant", () => {
+	it("rejects forbidden keys nested in agent.appearance map values via profile schema", () => {
+		const disk = parseDriveFacetDiskFile({
+			schemaVersion: 1,
+			entries: {
+				"agent.appearance": {
+					kind: "map",
+					entries: {
+						partner: {
+							kind: "value",
+							value: {
+								...appearanceBase,
+								displayName: "Partner",
+							},
+						},
+					},
+				},
+			},
+		});
+		const appearance = disk.entries["agent.appearance"];
+		expect(appearance?.kind).toBe("map");
+		if (appearance?.kind !== "map") {
+			return;
+		}
+		const entry = appearance.entries.partner;
+		expect(entry?.kind).toBe("value");
+		if (entry?.kind !== "value") {
+			return;
+		}
+		expect(AgentAppearanceSchema.safeParse(entry.value).success).toBe(true);
+		for (const key of DRIVE_FACET_FORBIDDEN_PROMPT_KEYS) {
+			expect(
+				AgentAppearanceSchema.safeParse({
+					...(entry.value as object),
+					[key]: "nope",
+				}).success,
+			).toBe(false);
+		}
 	});
 });
 

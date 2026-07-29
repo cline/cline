@@ -1,6 +1,12 @@
 /** Drive Layer UI state for hub Chat (wireframe A → B staging). */
 
-import type { BankSnapshot } from "@cline/shared";
+import type {
+	BankSnapshot,
+	Participant,
+	RoomSnapshot,
+	StageCard,
+	StagePin,
+} from "@cline/shared";
 import {
 	allowWorkspaceMutation,
 	resolveDriveLoop,
@@ -20,6 +26,11 @@ export type DriveUiState = {
 	/** Explicit Ask/Debug override; null means bank-derived Plan/Agent. */
 	postureOverride: DrivePostureOverride | null;
 	partnerName: string;
+	/**
+	 * Local nameInk palette index (0–7) for the pair partner roster byline.
+	 * Durable hub facet upsert is TODO when drive_config_upsert_profile lands.
+	 */
+	partnerNameInk: number | null;
 	/** Human mic mute (DRV-MIC). */
 	muted: boolean;
 	handRaised: boolean;
@@ -44,13 +55,35 @@ export type DriveUiState = {
 	 * Authority is hub call_set_stage — not this field alone.
 	 */
 	stageSharer: DriveStageSharerLocal;
+	/** Hub stage.cards projected for Spotlight (last-event-wins work deck). */
+	stageCards: StageCard[];
+	/** Hub stage.pin projected for human share Spotlight. */
+	stagePin: StagePin | null;
 	/** Hub room id when Join has attached a call. */
 	roomId: string | null;
+	/**
+	 * Hub roster projection (DRV-ROSTER). Read-only copy from room_snapshot.
+	 * Empty until a snapshot arrives — UI may synthesize human+partner.
+	 */
+	participants: Participant[];
+	/**
+	 * Participant whose transcript stream is focused (DRV-PARTICIPANT-SHEET /
+	 * DRV-TRANSCRIPT). Null = room / everyone thread.
+	 */
+	focusedParticipantId: string | null;
+	/**
+	 * Stub for DRV-ADDRESS: set when Transcript is chosen on an agent;
+	 * cleared (everyone) when focusing self. Profile does not touch this.
+	 */
+	addressFollowsFocusParticipantId: string | null;
 };
 
 /** Stable ids until hub roster provides real participant UUIDs. */
 export const DRIVE_PARTICIPANT_HUMAN = "drive:human";
 export const DRIVE_PARTICIPANT_PARTNER = "drive:partner";
+
+/** Stable Chat Drive room id (matches legacy driveCommand roomId default). */
+export const DRIVE_DEFAULT_ROOM_ID = "default";
 
 export const EMPTY_BANK_SNAPSHOT: BankSnapshot = {
 	activePlanId: null,
@@ -67,6 +100,7 @@ export const DEFAULT_DRIVE_UI: DriveUiState = {
 	subMode: "plan",
 	postureOverride: null,
 	partnerName: "Adam",
+	partnerNameInk: null,
 	muted: false,
 	handRaised: false,
 	bankSnapshot: EMPTY_BANK_SNAPSHOT,
@@ -75,7 +109,12 @@ export const DEFAULT_DRIVE_UI: DriveUiState = {
 	partnerDeafened: false,
 	demo: true,
 	stageSharer: "agent",
+	stageCards: [],
+	stagePin: null,
 	roomId: null,
+	participants: [],
+	focusedParticipantId: null,
+	addressFollowsFocusParticipantId: null,
 };
 
 /** Map Drive sub-mode onto native Cline plan|act for send config. */
@@ -152,6 +191,70 @@ export function applyBankSnapshot(
 	return syncDrivePostureFromBank({ ...state, bankSnapshot: snapshot });
 }
 
+/**
+ * Project a hub-owned RoomSnapshot into Drive chrome state.
+ * Hub is the single writer — callers must not invent room authority locally.
+ * Chat Drive `active` means the local human is seated; leave removes the seat
+ * while the room (and driveActive) may persist for drop-in rejoin.
+ */
+export function applyRoomSnapshot(
+	drive: DriveUiState,
+	snapshot: RoomSnapshot,
+): DriveUiState {
+	const human = snapshot.participants.find(
+		(participant) => participant.kind === "human",
+	);
+	const agent = snapshot.participants.find(
+		(participant) => participant.kind === "agent",
+	);
+	const humanSeated = snapshot.participants.some(
+		(participant) =>
+			participant.kind === "human" &&
+			participant.id === DRIVE_PARTICIPANT_HUMAN,
+	);
+	const sharer = snapshot.stage.sharer;
+	let stageSharer = drive.stageSharer;
+	if (sharer?.kind === "human") {
+		stageSharer = "you";
+	} else if (sharer?.kind === "agent") {
+		stageSharer = "agent";
+	}
+
+	const muteMap = snapshot.muteByParticipantId;
+	const humanId = human?.id ?? DRIVE_PARTICIPANT_HUMAN;
+	const agentId = agent?.id ?? DRIVE_PARTICIPANT_PARTNER;
+	const muted =
+		typeof muteMap[humanId] === "boolean" ? muteMap[humanId] : drive.muted;
+	const partnerMuted =
+		typeof muteMap[agentId] === "boolean"
+			? muteMap[agentId]
+			: drive.partnerMuted;
+
+	const raisedMap = snapshot.raisedHandByParticipantId;
+	const handRaised =
+		typeof raisedMap[humanId] === "boolean"
+			? raisedMap[humanId]
+			: drive.handRaised;
+
+	return {
+		...drive,
+		active: Boolean(snapshot.driveActive && humanSeated),
+		roomId: humanSeated ? snapshot.roomId : null,
+		partnerName: agent?.displayName ?? drive.partnerName,
+		stageSharer,
+		spotlightParticipantId:
+			sharer?.participantId ?? drive.spotlightParticipantId,
+		stageCards: [...snapshot.stage.cards],
+		stagePin: snapshot.stage.pin,
+		muted,
+		partnerMuted,
+		handRaised,
+		subMode: fromSharedDriveSubMode(snapshot.subMode),
+		demo: false,
+		participants: [...snapshot.participants],
+	};
+}
+
 export function applySubModeIntent(
 	state: DriveUiState,
 	subMode: DriveSubMode,
@@ -187,6 +290,72 @@ export function canMutateWorkspace(state: DriveUiState): boolean {
 		override: state.postureOverride,
 	});
 	return allowWorkspaceMutation(loop).allowed;
+}
+
+/**
+ * Optimistic partner rename in Drive chrome (Overview Save).
+ * Hub `call_rename_participant` remains the room authority when roomId is set.
+ */
+export function applyPartnerDisplayName(
+	state: DriveUiState,
+	displayName: string,
+	participantId?: string,
+): DriveUiState {
+	const name = displayName.trim();
+	if (!name) {
+		return state;
+	}
+	return {
+		...state,
+		partnerName: name,
+		participants: state.participants.map((participant) => {
+			if (participant.kind !== "agent") {
+				return participant;
+			}
+			if (participantId && participant.id !== participantId) {
+				return participant;
+			}
+			return { ...participant, displayName: name };
+		}),
+	};
+}
+
+/** Local-only nameInk palette index for the pair partner (0–7). */
+export function applyPartnerNameInk(
+	state: DriveUiState,
+	index: number | null,
+): DriveUiState {
+	if (index === null) {
+		return { ...state, partnerNameInk: null };
+	}
+	if (!Number.isInteger(index) || index < 0 || index > 7) {
+		return state;
+	}
+	return { ...state, partnerNameInk: index };
+}
+
+/** CSS color for a palette nameInk index (appearance overlay — not a theme token). */
+export function nameInkPaletteColor(index: number): string | undefined {
+	switch (index) {
+		case 0:
+			return "#0f766e";
+		case 1:
+			return "#1d4ed8";
+		case 2:
+			return "#b45309";
+		case 3:
+			return "#be123c";
+		case 4:
+			return "#047857";
+		case 5:
+			return "#4338ca";
+		case 6:
+			return "#0e7490";
+		case 7:
+			return "#854d0e";
+		default:
+			return undefined;
+	}
 }
 
 export function drivePersonaSystemHint(state: DriveUiState): string {

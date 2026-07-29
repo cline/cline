@@ -244,6 +244,8 @@ export type WebviewInboundMessage =
 			prompt: string;
 			config?: WebviewConfig;
 			attachments?: WebviewChatAttachments;
+			/** Voice/caption confirm path — mute-gated hub-side (DRV-MIC). */
+			source?: "voice" | "text";
 	  }
 	| { type: "abort" }
 	| { type: "reset" }
@@ -306,6 +308,18 @@ export type WebviewInboundMessage =
 			muted: boolean;
 	  }
 	| {
+			type: "call_raise_hand";
+			roomId: string;
+			participantId: string;
+			raised: boolean;
+	  }
+	| {
+			type: "call_rename_participant";
+			roomId: string;
+			participantId: string;
+			displayName: string;
+	  }
+	| {
 			type: "call_set_stage";
 			roomId: string;
 			sharer: {
@@ -328,6 +342,38 @@ export type WebviewInboundMessage =
 			type: "call_get_room";
 			roomId?: string;
 			sessionId?: string;
+	  }
+	| {
+			type: "drive_bank_get";
+			workspaceRoot: string;
+			requestId?: string;
+	  }
+	| {
+			type: "drive_bank_seed";
+			workspaceRoot: string;
+			requestId?: string;
+	  }
+	| {
+			type: "drive_bank_create_task";
+			workspaceRoot: string;
+			requestId?: string;
+			id: string;
+			title: string;
+			body?: string;
+			planId?: string;
+	  }
+	| {
+			type: "drive_bank_edit_plan_tasks";
+			workspaceRoot: string;
+			requestId?: string;
+			planId: string;
+			taskIds: string[];
+	  }
+	| {
+			type: "drive_agent_home_get";
+			workspaceRoot: string;
+			slug: string;
+			requestId?: string;
 	  }
 	| {
 			/** Paged changelog across every agent. */
@@ -364,7 +410,7 @@ export type WebviewInboundMessage =
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
-	| { type: "error"; text: string }
+	| { type: "error"; text: string; code?: string }
 	| {
 			type: "desktopCommandResult";
 			id: string;
@@ -492,6 +538,50 @@ export type WebviewOutboundMessage =
 			snapshot: import("@cline/shared").RoomSnapshot;
 	  }
 	| { type: "call_error"; text: string; code?: string }
+	| {
+			type: "drive_bank_snapshot";
+			snapshot: import("@cline/shared").BankSnapshot;
+			requestId?: string;
+	  }
+	| {
+			type: "drive_bank_error";
+			text: string;
+			code?: string;
+			requestId?: string;
+	  }
+	| {
+			type: "drive_agent_home";
+			requestId?: string;
+			/** Sanitized home projection — no systemPrompt / promptPath. */
+			home: {
+				slug: string;
+				agent: {
+					name: string;
+					description: string;
+					tools?: string[];
+					skills?: string[];
+					editable?: boolean;
+				};
+				permissions: {
+					presetIntent: "readonly" | "standard" | "full";
+					approvalHooks: string[];
+					notes?: string;
+				};
+			};
+			compiled: {
+				name: string;
+				slug: string;
+				description: string;
+				tools?: string[];
+				skills?: string[];
+			};
+	  }
+	| {
+			type: "drive_agent_home_error";
+			text: string;
+			code?: string;
+			requestId?: string;
+	  }
 	| {
 			type: "status_page";
 			requestId: string;

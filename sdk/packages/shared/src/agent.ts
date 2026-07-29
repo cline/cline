@@ -347,7 +347,7 @@ export interface AgentRunLifecycleContext {
 // =============================================================================
 
 /**
- * 7-callback hook bag consumed by `AgentRuntime`.
+ * Hook bag consumed by `AgentRuntime`.
  */
 export interface AgentRuntimeHooks {
 	beforeRun?: (
@@ -377,6 +377,15 @@ export interface AgentRuntimeHooks {
 		| AgentAfterToolResult
 		| undefined
 		| Promise<AgentAfterToolResult | undefined>;
+	/**
+	 * Drive / interrupt pause-after-tool check.
+	 *
+	 * Consulted after each tool completes (sequential) or after the parallel
+	 * batch finishes. When any registered check returns true, remaining tools
+	 * in the batch are skipped with a clear pause reason, completed tool
+	 * results are kept, and the run ends as `aborted`.
+	 */
+	shouldPauseAfterTool?: () => boolean | Promise<boolean>;
 	onEvent?: (event: AgentRuntimeEvent) => void | Promise<void>;
 }
 

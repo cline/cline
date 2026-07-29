@@ -50,10 +50,12 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import { handleDriveBankCommand } from "./handlers/drive-bank-handlers";
 import { handleDriveConfigCommand } from "./handlers/drive-config-handlers";
 import { handleDriveCommand } from "./handlers/drive-handlers";
 import { handleDriveForkCommand } from "./handlers/drive-fork-handlers";
 import { handleDriveForkTickCommand } from "./handlers/drive-fork-tick";
+import { handleDriveHomeCommand } from "./handlers/drive-home-handlers";
 import { handleDriveRoomCommand } from "./handlers/drive-room-handlers";
 import {
 	handleRunAbort,
@@ -450,9 +452,18 @@ export class HubServerTransport implements NativeHubTransport {
 			case "drive_config_get":
 			case "drive_config_put":
 				return handleDriveConfigCommand(this.ctx, envelope);
+			case "drive_bank_get":
+			case "drive_bank_seed":
+			case "drive_bank_create_task":
+			case "drive_bank_edit_plan_tasks":
+				return await handleDriveBankCommand(this.ctx, envelope);
+			case "drive_agent_home_get":
+				return await handleDriveHomeCommand(this.ctx, envelope);
 			case "call_join":
 			case "call_leave":
 			case "call_mute":
+			case "call_raise_hand":
+			case "call_rename_participant":
 			case "call_set_stage":
 			case "call_set_mode":
 			case "call_record_work":

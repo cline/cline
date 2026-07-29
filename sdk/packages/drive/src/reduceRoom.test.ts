@@ -61,6 +61,37 @@ describe("reduceRoom", () => {
 		expect(projectStage(room).cards[0]?.title).toBe("Schemas");
 	});
 
+	it("renames a seated participant displayName", () => {
+		let room = createEmptyRoomSnapshot({ roomId: "room_1", createdAt: at });
+		room = reduceRoom(room, {
+			schemaVersion: 1,
+			id: "e1",
+			roomId: "room_1",
+			at,
+			type: "control.join",
+			track: "control",
+			participant: {
+				id: "adam",
+				kind: "agent",
+				displayName: "Adam",
+				role: "partner",
+				status: "idle",
+				seatSources: [],
+			},
+		});
+		room = reduceRoom(room, {
+			schemaVersion: 1,
+			id: "e2",
+			roomId: "room_1",
+			at,
+			type: "control.rename",
+			track: "control",
+			participantId: "adam",
+			displayName: "Nova",
+		});
+		expect(projectRoster(room)[0]?.displayName).toBe("Nova");
+	});
+
 	it("ignores events for other rooms", () => {
 		const room = createEmptyRoomSnapshot({
 			roomId: "room_1",
