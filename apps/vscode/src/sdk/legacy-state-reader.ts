@@ -12,8 +12,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
-import { resolveDataDirFromEnv } from "@shared/storage/storage-context"
 import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
+import { resolveDataDirFromEnv } from "@shared/storage/storage-context"
 
 // ---------------------------------------------------------------------------
 // Path resolution
