@@ -1,7 +1,7 @@
 /**
  * Status Hub — the changelog for every agent.
  *
- * Two genuinely different lenses over one log:
+ * Three lenses over one operational surface:
  *
  * **Board** answers "where is everything, and what needs me?" It shows one row
  * per subject (the current status), ordered by attention (blocked, then failed,
@@ -11,8 +11,12 @@
  * **Changelog** answers "what happened?" It is a flat chronological feed of
  * every update including superseded ones, showing state transitions.
  *
- * Both page server-side with a keyset cursor, so opening this view never pulls
- * the whole log.
+ * **Dependency map** answers "what blocks what?" It projects active team tasks
+ * (`status.tasks_snapshot`) into a layered graph. Pass `?demoPlans=1` to load
+ * the Drive plan fixture from `plan-tasks-fixture.ts` (docs / demos).
+ *
+ * Board and Changelog page server-side with a keyset cursor, so opening this
+ * view never pulls the whole log.
  */
 
 import type {
@@ -30,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { postToHost } from "../../vscode";
 import { PageEmptyState, PageFrame, PageHeader } from "./page-layout";
 import { DependencyMap } from "./dependency-map";
+import { PLAN_DEPENDENCY_DEMO_TEAMS } from "./plan-tasks-fixture";
 import {
 	hasActiveFilters,
 	matchesStatusFilters,
@@ -38,6 +43,25 @@ import {
 import { relativeTime, STATE_STYLES, StatusRow } from "./status-row";
 
 const PAGE_LIMIT = 50;
+
+export type StatusViewMode = "board" | "changelog" | "dependency-map";
+
+function statusViewSearchParams(): URLSearchParams {
+	if (typeof window === "undefined") return new URLSearchParams();
+	return new URLSearchParams(window.location.search);
+}
+
+function initialStatusMode(): StatusViewMode {
+	const raw = statusViewSearchParams().get("statusMode")?.trim();
+	if (raw === "board" || raw === "changelog" || raw === "dependency-map") {
+		return raw;
+	}
+	return "board";
+}
+
+function readPlanDependencyDemo(): boolean {
+	return statusViewSearchParams().get("demoPlans") === "1";
+}
 
 /** Board section order — what needs a human first. */
 const BOARD_SECTIONS: ReadonlyArray<{ state: StatusState; blurb: string }> = [
@@ -57,8 +81,6 @@ const TILE_STATES: readonly StatusState[] = [
 	"queued",
 	"done",
 ];
-
-export type StatusViewMode = "board" | "changelog" | "dependency-map";
 
 function StatTile({
 	label,
@@ -97,7 +119,8 @@ function StatTile({
 }
 
 export function StatusView() {
-	const [mode, setMode] = useState<StatusViewMode>("board");
+	const planDemo = readPlanDependencyDemo();
+	const [mode, setMode] = useState<StatusViewMode>(initialStatusMode);
 	const [updates, setUpdates] = useState<StatusUpdate[]>([]);
 	const [summary, setSummary] = useState<StatusSummary | null>(null);
 	const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -108,7 +131,9 @@ export function StatusView() {
 	const [agentFilter, setAgentFilter] = useState<string | null>(null);
 	const [searchDraft, setSearchDraft] = useState("");
 	const [search, setSearch] = useState("");
-	const [teams, setTeams] = useState<TeamRuntimeState[]>([]);
+	const [teams, setTeams] = useState<TeamRuntimeState[]>(() =>
+		planDemo ? PLAN_DEPENDENCY_DEMO_TEAMS : [],
+	);
 	const [tasksLoading, setTasksLoading] = useState(false);
 	const tasksRequestRef = useRef<string | null>(null);
 
@@ -166,11 +191,16 @@ export function StatusView() {
 	}, []);
 
 	const requestTasks = useCallback(() => {
+		if (planDemo) {
+			setTeams(PLAN_DEPENDENCY_DEMO_TEAMS);
+			setTasksLoading(false);
+			return;
+		}
 		const requestId = `status-tasks-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 		tasksRequestRef.current = requestId;
 		setTasksLoading(true);
 		postToHost({ type: "status_tasks_snapshot", requestId });
-	}, []);
+	}, [planDemo]);
 
 	useEffect(() => {
 		request(null, true);

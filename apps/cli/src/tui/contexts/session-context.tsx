@@ -211,7 +211,10 @@ export function SessionProvider(props: {
 		_setAutoApproveAll(next);
 	}, [onAutoApproveChange]);
 
-	const [driveActive, setDriveActive] = useState(false);
+	/** Docs / demos: `CLINE_DEMO_DRIVE=1` starts the TUI already in a Drive call. */
+	const [driveActive, setDriveActive] = useState(
+		process.env.CLINE_DEMO_DRIVE === "1",
+	);
 	const [driveSubMode, setDriveSubMode] = useState<
 		"plan" | "agent" | "ask" | "debug"
 	>("agent");

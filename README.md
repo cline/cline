@@ -97,6 +97,14 @@ the hub daemon, so you are not managing a second process.
 
 ![Provider setup in the TUI](docs/assets/drivecode/tui-auth.png)
 
+**Drive mode in the TUI.** `Ctrl+Shift+D` (or click the status-bar Drive line)
+joins or leaves the call. When Drive is on, the bar shows the partner and
+sub-mode (`plan` / `agent` / `ask` / `debug`).
+
+![TUI with Drive off](docs/assets/drivecode/tui-drive-off.png)
+
+![TUI with Drive on — partner Adam in agent sub-mode](docs/assets/drivecode/tui-drive-on.png)
+
 ```bash
 bun run cli -i                                    # interactive TUI
 bun run cli -P anthropic -m claude-sonnet-4-5 "…" # one-shot
@@ -179,6 +187,17 @@ loads active multi-agent team tasks from the hub (`status.tasks_snapshot`), lays
 them out by dependency layer, and flags cycles or missing references. Select a
 task to see what blocks it and what it unblocks. The map stays empty until a
 team session with tasks is live.
+
+The screenshot below uses the current Drive plan set
+([`docs/plans/cline-drivemode/`](docs/plans/cline-drivemode/)) as the task
+graph — each `DRV-*` feature is a node, edges follow the
+[TASK-GRAPH](docs/plans/cline-drivemode/TASK-GRAPH.md) dependency sketch — so
+you can see how the map reads with a real plan. In the hub, open
+`/status?demoPlans=1&statusMode=dependency-map` for the same fixture.
+
+![Status Hub dependency map — Drive plans](docs/assets/drivecode/status-dependency-map.png)
+
+![Selected plan task with blockers and dependents](docs/assets/drivecode/status-dependency-map-selected.png)
 
 ### How it works
 
@@ -284,6 +303,7 @@ something looks unhealthy.
  Cline Hub dashboard
         │  hub ops: call_* · status.* · drive.*
  CLI TUI  ── same hub daemon, same agent core ── bun run cli -i
+        │       Drive join/leave: Ctrl+Shift+D (status bar)
         │
  Hub daemon  ── single writer for room state ── ws://127.0.0.1:25463
         │
