@@ -3,7 +3,8 @@ import type { TeamRuntimeState, TeamTask } from "@cline/shared";
 /**
  * Demo team snapshot: Drive plan features from
  * `docs/plans/cline-drivemode/` with TASK-GRAPH dependency edges.
- * Used for docs screenshots and `?demoPlans=1` in the Status Hub.
+ * Used for docs screenshots and demos; hub wires via
+ * `DrivePlansDemoTeamsSource` when `?demoPlans=1`.
  */
 const now = new Date("2026-07-29T12:00:00.000Z");
 
@@ -87,6 +88,4 @@ export const PLAN_DEPENDENCY_DEMO_TEAM: TeamRuntimeState = {
 	outcomeFragments: [],
 };
 
-export const PLAN_DEPENDENCY_DEMO_TEAMS: TeamRuntimeState[] = [
-	PLAN_DEPENDENCY_DEMO_TEAM,
-];
+export const PLAN_DEPENDENCY_DEMO_TEAMS: TeamRuntimeState[] = [PLAN_DEPENDENCY_DEMO_TEAM];

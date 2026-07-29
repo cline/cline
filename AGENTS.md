@@ -2,11 +2,29 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 
 ## Cloud Agent Instructions
 
+### Ports
+- Do **not** hardcode hub or dashboard ports in scripts or docs. Preferred defaults exist, but binds fall back to a free port when busy.
+- Hub daemon: clients use discovery (`ensureDetachedHubServer` / hub discovery file). Dev allows port fallback unless `CLINE_HUB_PORT` is set explicitly.
+- Hub dashboard + Vite (`bun run --cwd apps/cline-hub dev`): prefer free defaults; if taken, pick the next free port and print the live URLs. Explicit `CLINE_HUB_DASHBOARD_PORT` / `CLINE_HUB_WEBVIEW_DEV_PORT` fail closed (no silent relocate).
+- Always open / connect to the URL printed at startup, not a memorized port.
+
 ### Cline CLI
 - Run from source: `bun run cli` (interactive: `bun run cli -i`; one-shot: append a prompt). This resolves to `apps/cli` and **auto-spawns the `@cline/cline-hub` daemon** — you do not start the hub separately.
 - Inspect local health with `bun run cli doctor`; `bun run cli version` prints the version.
 - An actual agent turn requires an **LLM provider credential**. With no credentials the default `cline` provider fails fast with an `Unauthorized` error and the interactive TUI shows a provider sign-in screen. Configure via `cline auth` or provider env vars (e.g. `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENROUTER_API_KEY`); see `apps/cli/README.md`. One-shot form: `bun run cli -P anthropic -m claude-sonnet-4-5 "<prompt>"`.
 - Credential gotcha: the injected `ANTHROPIC_API_KEY` may authenticate but still fail the turn with `Your credit balance is too low` — that means auth works and only billing blocks the LLM call, not the environment. Use a funded key (or another funded provider) to run live turns.
+- Seed the TUI past onboarding with `--key "$ANTHROPIC_API_KEY"` (or another provider key) when capturing screenshots.
+
+### Drive / Status Hub (product surfaces)
+- **Hub UI:** `bun run --cwd apps/cline-hub dev` → open the printed dashboard URL → Connect. Drive tab, Spotlight (in-call), Status Hub (`/status`), Drive Settings.
+- **Status data ports:** product views depend on ports only (`StatusSnapshotSource` in CLI, `StatusTeamsSource` in hub). Live hub adapters implement them; demos are separate adapters in `@cline/drivecode-demo`, wired only at composition roots (`apps/cli/src/tui/root.tsx`, hub `App.tsx`).
+- **Demo bootstrap (edge only):** `readDrivecodeDemoCliBootstrap()` / `readDrivecodeDemoHubBootstrap()` parse env/query. Views do not read `CLINE_DEMO_*` or `?demoPlans`.
+  - CLI: `CLINE_DEMO_STATUS_PLANS=1` → compose `DrivePlansDemoStatusSnapshotSource` as fallback behind the hub adapter; `CLINE_DEMO_STATUS_LENS`; `CLINE_DEMO_OPEN_STATUS=1`; `CLINE_DEMO_DRIVE=1`
+  - Hub: `?demoPlans=1` → `DrivePlansDemoTeamsSource`; `?statusMode=dependency-map`
+  - Screenshots: also `CLINE_DISABLE_CLINE_PASS_NOTICE=1`
+- Domain graph logic stays in `@cline/shared` (`buildDependencyMap`). Rebuild with `bun run build:sdk` after shared edits.
+- Product screenshots: `docs/assets/drivecode/` (`tui-drive-*.png`, `tui-status-*.png`, hub `status-*.png`, `drive-*.png`).
+- Demo package docs: `apps/drivecode-demo/README.md`.
 
 ### Build / Lint / test
 - SDK packages (`@cline/shared|llms|agents|core|sdk`) resolve each other through compiled `dist/` (their `exports` point only at `dist/`, with no `development` source condition). You **must** run `bun run build:sdk` after changing SDK dependencies/source before running the CLI or SDK tests, otherwise imports fail with missing `@cline/*` / missing `dist/` errors. Running processes do **not** hot-reload SDK source changes — rebuild and restart.\
@@ -15,6 +33,7 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 
 ### GUI display
 - A virtual X display is live at **`DISPLAY=:1`** (the same desktop used for screenshots). GUI apps (VS Code, the Tauri desktop window) launched with `DISPLAY=:1` render there and can be screenshotted — no need to start your own `xvfb`. Prefer starting long-running GUI/dev processes in a `tmux` session (see the tmux guidance) so they survive.
+- TUI screenshots: launch `xterm` on `DISPLAY=:1`, run `bun run cli -i --key …` with the demo envs above, then `import -window <id> docs/assets/drivecode/<name>.png`. Prefer demo envs over fragile `xdotool` key chords (Ctrl+D alone exits the TUI).
 
 ### VS Code extension (`apps/vscode`, package `claude-dev`)
 Toolchain is pre-installed and persisted in the VM: generated gRPC/proto code, the bundled `ripgrep` binaries (`apps/vscode/bin/`), the built webview (`webview-ui/build`), the esbuild bundle (`dist/extension.js`), VS Code itself (`/usr/bin/code`), and the GUI system libraries its tests need.

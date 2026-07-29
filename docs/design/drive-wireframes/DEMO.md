@@ -8,9 +8,10 @@ Click-through surfaces for the Drive / Drivecode stack. Hub owns room state via 
 |---|---|---|
 | Drive tab HTML | Throwaway prototype (locked IA) | Open [`drive-tab-discord-slack.html`](drive-tab-discord-slack.html) in a browser |
 | Overview canvas | Cursor `.canvas.tsx` + HTML twin | Open `drivecode-overview.canvas.tsx` from your Cursor canvases beside chat, or [`overview-canvas.html`](overview-canvas.html) |
-| Hub Chat Drive Spotlight | Shared Spotlight from hub room | `bun -F @cline/cline-hub dev` → `http://127.0.0.1:8787` → Connect → Chat → **Join call** |
-| Status Hub Dependency map | Live team tasks, or Drive plan fixture | `http://127.0.0.1:8787/status?demoPlans=1&statusMode=dependency-map` |
+| Hub Chat Drive Spotlight | Shared Spotlight from hub room | `bun -F @cline/cline-hub dev` → open the printed dashboard URL → Connect → Chat → **Join call** |
+| Status Hub Dependency map | Live team tasks, or Drive plan fixture | printed dashboard URL + `/status?demoPlans=1&statusMode=dependency-map` |
 | CLI Drive teaser | Local TUI flags | `bun run cli -i` then `Ctrl+Shift+D` / status-bar Drive control (`CLINE_DEMO_DRIVE=1` starts with Drive on) |
+| CLI Status Hub | Board + dependency map dialog | Compose demo adapter: `CLINE_DEMO_STATUS_PLANS=1 CLINE_DEMO_OPEN_STATUS=1 bun run cli -i` (`CLINE_DEMO_STATUS_LENS=dependency-map` for the map). See `apps/drivecode-demo/README.md`. |
 
 ## Drive Mode share screen (production Join path)
 
@@ -21,14 +22,14 @@ bun run build:sdk
 bun -F @cline/cline-hub dev
 ```
 
-Open **`http://127.0.0.1:8787`** → Connect → Chat → **Join call**.
+Open the dashboard URL printed by `bun -F @cline/cline-hub dev` → Connect → Chat → **Join call**.
 
 Pipeline:
 
 ```text
-browser → dashboard :8787 → HubUIClient → ws://127.0.0.1:25463/hub
+browser → dashboard (auto-picked listen port) → HubUIClient → hub (discovered)
   call_join (sessionId) / call_record_work / call_set_stage / call_get_room / …
-  ← room.snapshot / room.event
+    ← room.snapshot / room.event
 Spotlight cards + sharer + pin come from roomSnapshot (shared screen).
 The wire field is still `stage`; every surface says Spotlight.
 ```

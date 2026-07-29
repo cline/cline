@@ -26,3 +26,8 @@ export {
 	shouldPushToUser,
 	TERMINAL_STATUS_STATES,
 } from "./status";
+export {
+	buildDependencyMap,
+	type DependencyMap,
+	type DependencyNode,
+} from "./dependency-map";

@@ -1,7 +1,7 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
@@ -11,7 +11,12 @@ import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
+import type {
+	StatusSnapshotSource,
+	StatusViewBootstrap,
+} from "../status/status-snapshot-source";
 import { HistoryDialogContent } from "../views/history-view";
+import { StatusDialogContent } from "../views/status-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
 import type { OpenConfigOptions } from "./use-config-panel";
 
@@ -31,10 +36,14 @@ export function useLocalCommandActions(input: {
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
+	statusSource: StatusSnapshotSource;
+	statusBootstrap?: StatusViewBootstrap;
+	/** When true, open Status Hub once on mount (set at composition root from demo env). */
+	autoOpenStatus?: boolean;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
-	const { height: termHeight } = useTerminalDimensions();
+	const { width: termWidth, height: termHeight } = useTerminalDimensions();
 	const {
 		slashCommandRegistry,
 		canForkSession,
@@ -51,6 +60,9 @@ export function useLocalCommandActions(input: {
 		onFork,
 		onUndo,
 		onExit,
+		statusSource,
+		statusBootstrap,
+		autoOpenStatus,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -113,6 +125,40 @@ export function useLocalCommandActions(input: {
 		});
 		refocusTextarea();
 	}, [dialog, refocusTextarea, termHeight]);
+
+	const openStatus = useCallback(async () => {
+		const dialogWidth = Math.min(
+			100,
+			Math.max(72, Math.floor(termWidth * 0.78)),
+			Math.max(64, termWidth - 6),
+		);
+		await dialog.choice<void>({
+			size: "large",
+			style: { width: dialogWidth, maxHeight: termHeight - 2 },
+			content: (ctx: ChoiceContext<void>) => (
+				<StatusDialogContent
+					{...ctx}
+					source={statusSource}
+					bootstrap={statusBootstrap}
+				/>
+			),
+		});
+		refocusTextarea();
+	}, [
+		dialog,
+		refocusTextarea,
+		statusBootstrap,
+		statusSource,
+		termHeight,
+		termWidth,
+	]);
+
+	// Docs / screenshots: open Status Hub as soon as the TUI is ready.
+	useEffect(() => {
+		if (autoOpenStatus) {
+			void openStatus();
+		}
+	}, [autoOpenStatus, openStatus]);
 
 	const runCompact = useCallback(async () => {
 		session.setIsRunning(true);
@@ -223,6 +269,7 @@ export function useLocalCommandActions(input: {
 				clearConversation: onClearConversation,
 				openHelp,
 				openHistory,
+				openStatus,
 				exitCline: onExit,
 			});
 		},
@@ -235,6 +282,7 @@ export function useLocalCommandActions(input: {
 			openMcpManager,
 			openHelp,
 			openHistory,
+			openStatus,
 			openModelSelector,
 			openSkills,
 			runCompact,

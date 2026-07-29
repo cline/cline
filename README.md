@@ -105,6 +105,17 @@ sub-mode (`plan` / `agent` / `ask` / `debug`).
 
 ![TUI with Drive on — partner Adam in agent sub-mode](docs/assets/drivecode/tui-drive-on.png)
 
+**Status Hub in the TUI.** `/status` (or **Opt+T** / the command palette) opens
+the same Status Hub surface in a dialog: **Board** and **Dependency map**,
+switched with Tab. Live data comes from a `StatusSnapshotSource` (hub ops).
+Docs demos compose a separate adapter from `@cline/drivecode-demo` at the CLI
+root when `CLINE_DEMO_STATUS_PLANS=1` (optional lens / auto-open via
+`CLINE_DEMO_STATUS_LENS` / `CLINE_DEMO_OPEN_STATUS`).
+
+![TUI Status Hub — board](docs/assets/drivecode/tui-status-board.png)
+
+![TUI Status Hub — dependency map (Drive plans)](docs/assets/drivecode/tui-status-dependency-map.png)
+
 ```bash
 bun run cli -i                                    # interactive TUI
 bun run cli -P anthropic -m claude-sonnet-4-5 "…" # one-shot
@@ -199,6 +210,9 @@ you can see how the map reads with a real plan. In the hub, open
 
 ![Selected plan task with blockers and dependents](docs/assets/drivecode/status-dependency-map-selected.png)
 
+The same Board and Dependency map lenses are available in the interactive CLI
+via `/status` — see [CLI (TUI)](#cli-tui).
+
 ### How it works
 
 - **Storage.** `~/.cline/db/status.db` — its own SQLite file, separate from
@@ -273,18 +287,15 @@ bun run build:sdk          # required first — packages resolve each other thro
 bun run --cwd apps/cline-hub dev
 ```
 
-Open **http://127.0.0.1:8787** and click **Connect**.
+Open the dashboard URL printed in the terminal and click **Connect**. Preferred
+ports are used when free; if they are busy, the next free ports are chosen
+automatically. The hub daemon is the same: clients discover it — you do not
+hardcode a port.
 
 - **Drive** in the sidebar is the home for everything above.
 - **Start a Drive call** opens a room with an agent.
 - **Status Hub** is the Board, Changelog, and Dependency map.
 - In a call, **Drive Settings** chooses local/cloud/hybrid plus STT/TTS providers.
-
-Ports are configurable when 8787 or 5173 are taken:
-
-```bash
-CLINE_HUB_DASHBOARD_PORT=8791 CLINE_HUB_WEBVIEW_DEV_PORT=5175 bun run --cwd apps/cline-hub dev
-```
 
 **CLI (TUI)**
 
@@ -300,12 +311,13 @@ something looks unhealthy.
 ```
  Browser (Drive tab · Spotlight · Status Hub · Drive Settings)
         │  WebSocket
- Cline Hub dashboard
+ Cline Hub dashboard  ── listen port chosen automatically when free
         │  hub ops: call_* · status.* · drive.*
  CLI TUI  ── same hub daemon, same agent core ── bun run cli -i
         │       Drive join/leave: Ctrl+Shift+D (status bar)
+        │       Status Hub: /status · Opt+T
         │
- Hub daemon  ── single writer for room state ── ws://127.0.0.1:25463
+ Hub daemon  ── single writer for room state ── discovered (not a fixed port)
         │
  ├── @cline/drive     Drive kernel: sub-modes, narration, topology, BYOK
  ├── @cline/core      sessions, tools, status.db, cron.db, hub

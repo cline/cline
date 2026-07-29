@@ -1,5 +1,9 @@
 import { CORE_BUILD_VERSION } from "@cline/core";
-import { isNonLocalBindHost } from "./options";
+import {
+	buildInviteUrl,
+	isNonLocalBindHost,
+	rebasePublicUrlForListenPort,
+} from "./options";
 import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
@@ -8,9 +12,10 @@ import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
 	host,
-	inviteUrl,
 	port,
-	publicUrl,
+	portExplicit,
+	publicUrl as preferredPublicUrl,
+	publicUrlExplicit,
 	roomSecret,
 	webviewDistDir,
 } from "./server/deps";
@@ -50,6 +55,7 @@ import { broadcastHubState, hubStatusPayload } from "./server/state-payloads";
 import { handleCallCommand } from "./server/drive-calls";
 import { handleStatusCommand } from "./server/status-calls";
 import type { BrowserFrame, BrowserPeer } from "./server/types";
+import { resolveAvailablePort } from "./port";
 
 export interface ClineHubDashboardServer {
 	listenUrl: string;
@@ -89,6 +95,26 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
 
+	const listenPort = portExplicit
+		? port
+		: await resolveAvailablePort(host, port);
+	const publicUrl = rebasePublicUrlForListenPort(
+		{
+			host,
+			port,
+			publicUrl: preferredPublicUrl,
+			publicUrlExplicit,
+		},
+		listenPort,
+	);
+	const inviteUrl = buildInviteUrl(publicUrl, roomSecret);
+	browserConfig.publicUrl = publicUrl;
+	if (listenPort !== port) {
+		console.log(
+			`Cline Hub dashboard preferred port ${port} is busy; listening on ${listenPort} instead.`,
+		);
+	}
+
 	await attachHub(ctx);
 	const healthInterval = setInterval(() => {
 		void (async () => {
@@ -98,7 +124,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	}, 5_000);
 
 	const server = Bun.serve<BrowserPeer>({
-		port,
+		port: listenPort,
 		hostname: host,
 		async fetch(req, server) {
 			const url = new URL(req.url);
@@ -108,7 +134,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 					url,
 					{
 						bindHost: host,
-						port,
+						port: listenPort,
 						publicUrl,
 						roomSecret,
 					},

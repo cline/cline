@@ -3,7 +3,11 @@ import { isIP } from "node:net";
 export interface ClineHubServerOptions {
 	host: string;
 	port: number;
+	/** True when `CLINE_HUB_DASHBOARD_PORT` was set — do not silently relocate. */
+	portExplicit: boolean;
 	publicUrl: string;
+	/** True when `PUBLIC_URL` was set — keep it even if the listen port moves. */
+	publicUrlExplicit: boolean;
 	roomSecret?: string;
 	workspaceRoot: string;
 }
@@ -12,15 +16,17 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
 
-function parsePort(value: string | undefined): number {
-	if (!value?.trim()) return DEFAULT_PORT;
+function parsePort(
+	value: string | undefined,
+): { port: number; explicit: boolean } {
+	if (!value?.trim()) return { port: DEFAULT_PORT, explicit: false };
 	const port = Number.parseInt(value, 10);
 	if (!Number.isInteger(port) || port < 1 || port > 65535) {
 		throw new Error(
 			`${DASHBOARD_PORT_ENV} must be an integer from 1 to 65535, got ${value}`,
 		);
 	}
-	return port;
+	return { port, explicit: true };
 }
 
 function normalizeHost(value: string | undefined): string {
@@ -73,7 +79,8 @@ export function resolveClineHubServerOptions(
 	env: NodeJS.ProcessEnv = process.env,
 ): ClineHubServerOptions {
 	const host = normalizeHost(env.HOST);
-	const port = parsePort(env[DASHBOARD_PORT_ENV]);
+	const { port, explicit: portExplicit } = parsePort(env[DASHBOARD_PORT_ENV]);
+	const publicUrlExplicit = Boolean(env.PUBLIC_URL?.trim());
 	const publicUrl = normalizePublicUrl(env.PUBLIC_URL, host, port);
 	const roomSecret = normalizeRoomSecret(env.ROOM_SECRET);
 	if (isNonLocalBindHost(host) && !roomSecret) {
@@ -84,10 +91,30 @@ export function resolveClineHubServerOptions(
 	return {
 		host,
 		port,
+		portExplicit,
 		publicUrl,
+		publicUrlExplicit,
 		roomSecret,
 		workspaceRoot: env.WORKSPACE_ROOT?.trim() || process.cwd(),
 	};
+}
+
+/**
+ * When the dashboard falls back to another listen port, rewrite an auto-derived
+ * public URL so invite links and browser auth stay on the live origin. Leave an
+ * explicit `PUBLIC_URL` alone (tunnels, reverse proxies).
+ */
+export function rebasePublicUrlForListenPort(
+	options: Pick<
+		ClineHubServerOptions,
+		"host" | "port" | "publicUrl" | "publicUrlExplicit"
+	>,
+	listenPort: number,
+): string {
+	if (options.publicUrlExplicit || listenPort === options.port) {
+		return options.publicUrl;
+	}
+	return normalizePublicUrl(undefined, options.host, listenPort);
 }
 
 function isDefaultProtocolPort(url: URL, port: number): boolean {

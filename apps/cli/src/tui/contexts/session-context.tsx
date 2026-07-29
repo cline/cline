@@ -81,6 +81,8 @@ export function SessionProvider(props: {
 		totalTokens: number;
 		totalCost: number;
 	};
+	/** Composition-root seed for Drive chrome (e.g. demo adapter bootstrap). */
+	initialDriveActive?: boolean;
 	onRunningChange: TuiProps["onRunningChange"];
 	onAutoApproveChange: TuiProps["onAutoApproveChange"];
 	onCompactionModeChange: TuiProps["onCompactionModeChange"];
@@ -91,6 +93,7 @@ export function SessionProvider(props: {
 		config,
 		initialEntries,
 		initialUsage,
+		initialDriveActive = false,
 		onRunningChange,
 		onAutoApproveChange,
 		onCompactionModeChange,
@@ -211,10 +214,8 @@ export function SessionProvider(props: {
 		_setAutoApproveAll(next);
 	}, [onAutoApproveChange]);
 
-	/** Docs / demos: `CLINE_DEMO_DRIVE=1` starts the TUI already in a Drive call. */
-	const [driveActive, setDriveActive] = useState(
-		process.env.CLINE_DEMO_DRIVE === "1",
-	);
+	/** Seeded by composition root (demo adapter bootstrap), not by reading env here. */
+	const [driveActive, setDriveActive] = useState(initialDriveActive);
 	const [driveSubMode, setDriveSubMode] = useState<
 		"plan" | "agent" | "ask" | "debug"
 	>("agent");
