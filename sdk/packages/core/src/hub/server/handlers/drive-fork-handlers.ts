@@ -296,6 +296,8 @@ async function handleForkPromote(
 	const applied = applyPromotePacket({
 		state: room.director,
 		promote,
+		linkedShowTemplateIds: existing.seed.linkedShowTemplateIds,
+		ownerParticipantId: existing.seed.assigneeParticipantId,
 	});
 
 	const lifecycle = applied.lifecycle === "archived" ? "archived" : "dropped";
@@ -331,6 +333,7 @@ async function handleForkPromote(
 			status: promote.status,
 			lifecycle,
 			mainContextInjection: applied.mainContextInjection,
+			createdShowItemIds: applied.createdShowItemIds,
 		},
 	});
 	if (lifecycle === "dropped") {
@@ -346,6 +349,7 @@ async function handleForkPromote(
 		room: next,
 		fork: updated,
 		mainContextInjection: applied.mainContextInjection,
+		createdShowItemIds: applied.createdShowItemIds,
 	});
 }
 

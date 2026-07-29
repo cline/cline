@@ -201,7 +201,10 @@ export {
 } from "./director/chatForkLifecycle.js";
 export {
 	getShowTemplate,
+	mediaClassForArtifactKind,
 	SHOW_TEMPLATE_KIT,
+	showItemFromTemplate,
+	showItemIdForTemplate,
 	type ShowTemplate,
 } from "./director/showTemplates.js";
 export {

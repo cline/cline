@@ -53,6 +53,8 @@ export const PromotePacketSchema = z
 		summary: z.string(),
 		decisions: z.array(z.string()),
 		showItemIds: z.array(z.string()),
+		/** Template ids to materialize as ready ShowBacklogItems when missing. */
+		linkedShowTemplateIds: z.array(z.string()).optional(),
 		eventRefs: z.array(z.string()),
 		auditHandle: z.string().min(1),
 		retainForAudit: z.boolean(),

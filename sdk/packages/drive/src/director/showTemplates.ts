@@ -1,4 +1,4 @@
-import type { ShowArtifactKind } from "@cline/shared";
+import type { MediaClass, ShowArtifactKind, ShowBacklogItem } from "@cline/shared";
 
 export type ShowTemplate = {
 	templateId: string;
@@ -63,4 +63,77 @@ export const SHOW_TEMPLATE_KIT: readonly ShowTemplate[] = [
 
 export function getShowTemplate(templateId: string): ShowTemplate | undefined {
 	return SHOW_TEMPLATE_KIT.find((entry) => entry.templateId === templateId);
+}
+
+export function mediaClassForArtifactKind(
+	kind: ShowArtifactKind,
+): MediaClass {
+	switch (kind) {
+		case "diagram.architecture":
+		case "diagram.data_flow":
+		case "diagram.network_security":
+		case "diagram.sequence":
+		case "capture.screenshot":
+			return "still";
+		case "walkthrough.animation":
+			return "animation";
+		case "capture.demo_clip":
+			return "video";
+		case "doc.plan":
+		case "doc.review":
+		case "walkthrough.code":
+			return "document";
+		case "share.structured":
+			return "structured";
+		case "work.card":
+			return "work";
+		default: {
+			const _exhaustive: never = kind;
+			return _exhaustive;
+		}
+	}
+}
+
+export function showItemIdForTemplate(
+	templateId: string,
+	doItemId: string,
+): string {
+	return `show_${templateId.replace(/[^a-zA-Z0-9._-]+/g, "_")}_${doItemId}`;
+}
+
+/**
+ * Build a ready ShowBacklogItem from SHOW_TEMPLATE_KIT (or null if unknown).
+ */
+export function showItemFromTemplate(input: {
+	templateId: string;
+	ownerParticipantId: string;
+	linkedDoItemId: string;
+	showItemId?: string;
+	priority?: number;
+	args?: Record<string, unknown>;
+}): ShowBacklogItem | null {
+	const template = getShowTemplate(input.templateId);
+	if (!template) {
+		return null;
+	}
+	return {
+		id:
+			input.showItemId ??
+			showItemIdForTemplate(input.templateId, input.linkedDoItemId),
+		ownerParticipantId: input.ownerParticipantId,
+		title: template.title,
+		intent: template.intent,
+		artifactKind: template.artifactKind,
+		mediaClass: mediaClassForArtifactKind(template.artifactKind),
+		caption: template.intent,
+		produce: {
+			tool: template.produceTool,
+			templateId: template.templateId,
+			args: { ...template.defaultArgs, ...(input.args ?? {}) },
+		},
+		priority: input.priority ?? 10,
+		status: "ready",
+		linkedDoItemId: input.linkedDoItemId,
+		scoreReasons: ["promote_template"],
+	};
 }

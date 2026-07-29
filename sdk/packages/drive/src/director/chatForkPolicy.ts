@@ -4,9 +4,11 @@ import type {
 	PromotePacket,
 	SeedPacket,
 	SeedWorkspace,
+	ShowBacklogItem,
 	StageDirectorState,
 	WorkspaceIsolationMode,
 } from "@cline/shared";
+import { getShowTemplate, showItemFromTemplate } from "./showTemplates.js";
 
 export class IllegalChatForkError extends Error {
 	readonly code: string;
@@ -163,7 +165,12 @@ export function buildSeedPacket(input: BuildSeedPacketInput): SeedPacket {
 		parentBriefing: input.parentBriefing,
 		assigneeParticipantId: input.assigneeParticipantId,
 		allowedPathPrefixes,
-		linkedShowTemplateIds: [...(input.linkedShowTemplateIds ?? [])],
+		linkedShowTemplateIds: [
+			...((input.linkedShowTemplateIds &&
+			input.linkedShowTemplateIds.length > 0
+				? input.linkedShowTemplateIds
+				: input.doItem.linkedShowTemplateIds) ?? []),
+		],
 		workspace: input.workspace,
 		parentSessionId: input.parentSessionId,
 	};
@@ -173,16 +180,34 @@ export type ApplyPromotePacketResult = {
 	state: StageDirectorState;
 	mainContextInjection: string;
 	lifecycle: "archived" | "dropped";
+	createdShowItemIds: string[];
 };
+
+function markShowReady(item: ShowBacklogItem): ShowBacklogItem {
+	if (item.status === "planned") {
+		return { ...item, status: "ready" };
+	}
+	return item;
+}
 
 /**
  * Fold a PromotePacket into StageDirectorState. Does not splice worker
  * transcript messages into the room or main session history.
+ *
+ * Missing showItemIds that match a template id are created. Additional
+ * linkedShowTemplateIds (from promote, seed fallback, or the Do item)
+ * create ready rows when absent.
  */
 export function applyPromotePacket(input: {
 	state: StageDirectorState;
 	promote: PromotePacket;
+	/** Fallback when promote omits linkedShowTemplateIds (typically seed). */
+	linkedShowTemplateIds?: readonly string[];
+	ownerParticipantId?: string;
 }): ApplyPromotePacketResult {
+	const doItem = input.state.doBacklog.find(
+		(item) => item.id === input.promote.doItemId,
+	);
 	const doBacklog = input.state.doBacklog.map((item) => {
 		if (item.id !== input.promote.doItemId) {
 			return item;
@@ -194,16 +219,65 @@ export function applyPromotePacket(input: {
 		return { ...item, status };
 	});
 
-	const showIdSet = new Set(input.promote.showItemIds);
-	const showBacklog = input.state.showBacklog.map((item) => {
-		if (!showIdSet.has(item.id)) {
-			return item;
+	const ownerParticipantId =
+		input.ownerParticipantId ??
+		doItem?.assigneeParticipantId ??
+		"system";
+
+	const templateIds = [
+		...(input.promote.linkedShowTemplateIds ?? []),
+		...(input.linkedShowTemplateIds ?? []),
+		...(doItem?.linkedShowTemplateIds ?? []),
+	].filter((id, index, all) => all.indexOf(id) === index);
+
+	let showBacklog = [...input.state.showBacklog];
+	const createdShowItemIds: string[] = [];
+	const existingIds = new Set(showBacklog.map((item) => item.id));
+
+	for (const showItemId of input.promote.showItemIds) {
+		const existingIndex = showBacklog.findIndex((item) => item.id === showItemId);
+		if (existingIndex >= 0) {
+			showBacklog[existingIndex] = markShowReady(showBacklog[existingIndex]!);
+			continue;
 		}
-		if (item.status === "planned") {
-			return { ...item, status: "ready" as const };
+		const created = showItemFromTemplate({
+			templateId: showItemId,
+			showItemId,
+			ownerParticipantId,
+			linkedDoItemId: input.promote.doItemId,
+		});
+		if (created) {
+			showBacklog = [created, ...showBacklog];
+			createdShowItemIds.push(created.id);
+			existingIds.add(created.id);
 		}
-		return item;
-	});
+	}
+
+	for (const templateId of templateIds) {
+		const already =
+			showBacklog.find((item) => item.produce.templateId === templateId) ??
+			showBacklog.find((item) => item.id === templateId);
+		if (already) {
+			showBacklog = showBacklog.map((item) =>
+				item.id === already.id ? markShowReady(item) : item,
+			);
+			continue;
+		}
+		if (!getShowTemplate(templateId)) {
+			continue;
+		}
+		const created = showItemFromTemplate({
+			templateId,
+			ownerParticipantId,
+			linkedDoItemId: input.promote.doItemId,
+		});
+		if (!created || existingIds.has(created.id)) {
+			continue;
+		}
+		showBacklog = [created, ...showBacklog];
+		createdShowItemIds.push(created.id);
+		existingIds.add(created.id);
+	}
 
 	const decisionBlock =
 		input.promote.decisions.length > 0
@@ -226,5 +300,6 @@ export function applyPromotePacket(input: {
 		},
 		mainContextInjection,
 		lifecycle: input.promote.retainForAudit ? "archived" : "dropped",
+		createdShowItemIds,
 	};
 }

@@ -183,6 +183,69 @@ describe("handleDriveForkCommand", () => {
 		);
 	});
 
+	it("creates show backlog rows from seed linkedShowTemplateIds on promote", async () => {
+		const { ctx } = createCtx();
+		const claim = await handleDriveForkCommand(
+			ctx,
+			envelope("drive.fork.claim", {
+				roomId: "r-show",
+				parentSessionId: "sess-main",
+				assigneeParticipantId: "agent-1",
+				doItem: {
+					...doItem,
+					id: "do-show",
+					linkedShowTemplateIds: ["arch.overview"],
+				},
+				workspace: { mode: "shared_readonly" },
+			}),
+		);
+		expect(claim.ok).toBe(true);
+		const fork = claim.payload?.fork as {
+			workerSessionId: string;
+			seed: { linkedShowTemplateIds: string[] };
+		};
+		expect(fork.seed.linkedShowTemplateIds).toEqual(["arch.overview"]);
+		const promote = await handleDriveForkCommand(
+			ctx,
+			envelope("drive.fork.promote", {
+				roomId: "r-show",
+				promote: {
+					workerSessionId: fork.workerSessionId,
+					doItemId: "do-show",
+					status: "done",
+					summary: "Architecture drafted",
+					decisions: [],
+					showItemIds: [],
+					eventRefs: [],
+					auditHandle: fork.workerSessionId,
+					retainForAudit: true,
+				},
+			}),
+		);
+		expect(promote.ok).toBe(true);
+		expect(promote.payload?.createdShowItemIds).toEqual([
+			"show_arch.overview_do-show",
+		]);
+		const room = promote.payload?.room as {
+			director: {
+				showBacklog: Array<{
+					id: string;
+					status: string;
+					linkedDoItemId?: string;
+					artifactKind: string;
+				}>;
+			};
+		};
+		expect(room.director.showBacklog).toEqual([
+			expect.objectContaining({
+				id: "show_arch.overview_do-show",
+				status: "ready",
+				linkedDoItemId: "do-show",
+				artifactKind: "diagram.architecture",
+			}),
+		]);
+	});
+
 	it("cancels via promote cancelled", async () => {
 		const { ctx } = createCtx();
 		const claim = await handleDriveForkCommand(

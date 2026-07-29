@@ -80,6 +80,8 @@ export const DoBacklogItemSchema = z
 		status: z.enum(["queued", "active", "blocked", "done"]),
 		dependsOn: z.array(z.string()),
 		source: z.enum(["human", "planner", "router", "system"]),
+		/** Preferred show templates to create on promote. */
+		linkedShowTemplateIds: z.array(z.string()).optional(),
 	})
 	.strict();
 export type DoBacklogItem = z.infer<typeof DoBacklogItemSchema>;
