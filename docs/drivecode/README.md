@@ -215,6 +215,11 @@ Opening the map requests a snapshot, and a `team.progress` event requests a
 fresh one. The snapshot is intentionally live-only today, so the empty state
 means no active team tasks are available—not that no historical tasks exist.
 
+For docs and demos, `/status?demoPlans=1` loads
+`plan-tasks-fixture.ts`: the current `docs/plans/cline-drivemode` feature set
+with TASK-GRAPH dependency edges. That fixture is presentation-only; it does
+not write team runtime state.
+
 #### Accessibility and keyboard behavior
 
 The map is a semantic list of native task buttons, rather than a canvas-only
