@@ -887,6 +887,135 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("serializes model switches with turn metadata updates", async () => {
+		const sessionId = "sess-model-metadata-race";
+		let storedManifest: SessionManifest = {
+			...createManifest(sessionId),
+			metadata: { thinking: { enabled: true, level: "high" } },
+		};
+		let storedRowMetadata = storedManifest.metadata;
+		let blockModelWrite = false;
+		let releaseModelWrite = () => {};
+		const modelWriteBlocked = new Promise<void>((resolve) => {
+			releaseModelWrite = resolve;
+		});
+		let markModelWriteStarted = () => {};
+		const modelWriteStarted = new Promise<void>((resolve) => {
+			markModelWriteStarted = resolve;
+		});
+		const updateSession = vi.fn().mockImplementation(async (input) => {
+			storedRowMetadata = input.metadata;
+			storedManifest = { ...storedManifest, metadata: input.metadata };
+			return { updated: true };
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-model-race.json",
+				messagesPath: "/tmp/messages-model-race.json",
+				manifest: storedManifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession,
+			readSessionManifest: vi
+				.fn()
+				.mockImplementation(() => structuredClone(storedManifest)),
+			writeSessionManifest: vi
+				.fn()
+				.mockImplementation(async (_path, manifest) => {
+					if (blockModelWrite) {
+						markModelWriteStarted();
+						await modelWriteBlocked;
+					}
+					storedManifest = manifest;
+				}),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(
+				createResult({
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						totalCost: 0,
+					},
+				}),
+			),
+			continue: vi.fn().mockResolvedValue(
+				createResult({
+					usage: {
+						inputTokens: 3,
+						outputTokens: 4,
+						totalCost: 0.42,
+					},
+				}),
+			),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					thinking: true,
+					reasoningEffort: "high",
+				}),
+				prompt: "initialize persisted artifacts",
+				interactive: true,
+			}),
+		);
+		updateSession.mockClear();
+		storedRowMetadata = storedManifest.metadata;
+		blockModelWrite = true;
+
+		const modelUpdate = manager.updateSessionConnection(sessionId, {
+			modelId: "next-model",
+		});
+		await modelWriteStarted;
+		const turn = manager.runTurn({ sessionId, prompt: "hello" });
+		for (
+			let attempt = 0;
+			attempt < 50 && updateSession.mock.calls.length === 0;
+			attempt++
+		) {
+			await Promise.resolve();
+		}
+		releaseModelWrite();
+		await Promise.all([modelUpdate, turn]);
+
+		expect(storedManifest).toMatchObject({
+			model: "next-model",
+			metadata: {
+				thinking: { enabled: true, level: "high" },
+				totalCost: 0.42,
+				usage: {
+					inputTokens: 3,
+					outputTokens: 4,
+					totalCost: 0.42,
+				},
+			},
+		});
+		expect(storedManifest.metadata).toEqual(storedRowMetadata);
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",

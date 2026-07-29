@@ -241,10 +241,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
-	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
-	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
-	// Serializes metadata read-modify-writes per session; see persistSessionMetadata.
-	private readonly metadataMutationQueues = new Map<string, Promise<void>>();
+	// Serializes all manifest-affecting read-modify-writes per session.
+	private readonly sessionPersistenceQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -1143,16 +1141,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		return this.enqueueSessionPersistence(sessionId, async () => {
+			const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+				"updateSession",
+				{
+					sessionId,
+					prompt: updates.prompt,
+					metadata: updates.metadata,
+					title: updates.title,
+				},
+			);
+			return { updated: result?.updated === true };
+		});
 	}
 
 	async updateSessionCompactionState(
@@ -1482,13 +1482,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	private async enqueueSessionPersistence<T>(
+		sessionId: string,
+		persist: () => Promise<T>,
+	): Promise<T> {
+		const tail =
+			this.sessionPersistenceQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(persist);
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.sessionPersistenceQueues.set(sessionId, queued);
+		try {
+			return await next;
+		} finally {
+			if (this.sessionPersistenceQueues.get(sessionId) === queued) {
+				this.sessionPersistenceQueues.delete(sessionId);
+			}
+		}
+	}
+
 	/**
 	 * Serialized read-modify-write for a live session's manifest. Every
-	 * manifest write for an active session MUST go through this helper: it
-	 * re-reads the disk manifest first so disk-only writers (compaction-path
-	 * updates, title/metadata renames) are never reverted by a stale in-memory
-	 * copy, applies the field-level mutation, syncs the in-memory copy, and
-	 * persists — one mutation at a time per session.
+	 * manifest-affecting write for an active session shares the same per-session
+	 * queue so direct manifest mutations and metadata updates cannot commit stale
+	 * snapshots over one another.
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
@@ -1497,9 +1516,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
 		const sessionId = session.sessionId;
-		const tail =
-			this.manifestMutationQueues.get(sessionId) ?? Promise.resolve();
-		const next = tail.then(async () => {
+		return this.enqueueSessionPersistence(sessionId, async () => {
 			const latest =
 				(await this.invokeOptionalValue<SessionManifest>(
 					"readSessionManifest",
@@ -1514,18 +1531,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			return latest;
 		});
-		const queued = next.then(
-			() => undefined,
-			() => undefined,
-		);
-		this.manifestMutationQueues.set(sessionId, queued);
-		try {
-			return await next;
-		} finally {
-			if (this.manifestMutationQueues.get(sessionId) === queued) {
-				this.manifestMutationQueues.delete(sessionId);
-			}
-		}
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -1959,9 +1964,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			current: Record<string, unknown> | undefined,
 		) => Record<string, unknown> | undefined,
 	): Promise<void> {
-		const tail =
-			this.metadataMutationQueues.get(sessionId) ?? Promise.resolve();
-		const next = tail.then(async () => {
+		await this.enqueueSessionPersistence(sessionId, async () => {
 			const session = this.sessions.get(sessionId);
 			const currentManifest =
 				(await this.invokeOptionalValue<SessionManifest>(
@@ -1987,18 +1990,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.sessionMetadata = metadata;
 			session.artifacts.manifest.metadata = metadata;
 		});
-		const queued = next.then(
-			() => undefined,
-			() => undefined,
-		);
-		this.metadataMutationQueues.set(sessionId, queued);
-		try {
-			await next;
-		} finally {
-			if (this.metadataMutationQueues.get(sessionId) === queued) {
-				this.metadataMutationQueues.delete(sessionId);
-			}
-		}
 	}
 
 	private async finalizeSingleRun(
