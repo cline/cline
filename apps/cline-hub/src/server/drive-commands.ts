@@ -7,6 +7,8 @@ type DriveWebviewCommand =
 	| "drive.participant.mute.set"
 	| "drive.participant.deafen.set"
 	| "drive.show.present"
+	| "drive.show.enqueue"
+	| "drive.show.tick"
 	| "drive.fork.list"
 	| "drive.fork.audit.get"
 	| "drive.fork.retain.set";

@@ -234,6 +234,17 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				title: asString(payload.title) ?? undefined,
 			});
 		},
+		onDriveShowPlanned(payload) {
+			ctx.broadcast({
+				type: "drive_show_planned",
+				showItemId: asString(payload.showItemId) ?? "",
+				ownerParticipantId: asString(payload.ownerParticipantId) ?? "",
+				title: asString(payload.title) ?? undefined,
+				status: asString(payload.status) ?? undefined,
+				priority:
+					typeof payload.priority === "number" ? payload.priority : undefined,
+			});
+		},
 		onDriveSpotlightChanged(payload) {
 			ctx.broadcast({
 				type: "drive_spotlight_changed",

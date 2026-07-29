@@ -20,6 +20,7 @@ export const SAMPLE_ARCHITECTURE_SHOW_ID = "show-sample-arch-overview";
 export function buildSampleArchitectureShowItem(input?: {
 	ownerParticipantId?: string;
 	id?: string;
+	priority?: number;
 }): ShowBacklogItem {
 	return {
 		id: input?.id ?? SAMPLE_ARCHITECTURE_SHOW_ID,
@@ -35,7 +36,7 @@ export function buildSampleArchitectureShowItem(input?: {
 			templateId: "arch.overview",
 			args: { mermaidSource: SAMPLE_ARCHITECTURE_MERMAID },
 		},
-		priority: 10,
+		priority: input?.priority ?? 10,
 		status: "ready",
 		scoreReasons: ["sample_dev"],
 	};
@@ -49,6 +50,32 @@ export function presentSampleArchitectureShow(roomId?: string | null): void {
 		payload: {
 			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
 			showItem: buildSampleArchitectureShowItem(),
+		},
+	});
+}
+
+/** Enqueue sample architecture show without presenting (slice 2). */
+export function enqueueSampleArchitectureShow(roomId?: string | null): void {
+	postToHost({
+		type: "driveCommand",
+		command: "drive.show.enqueue",
+		payload: {
+			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
+			showItem: buildSampleArchitectureShowItem({
+				id: `${SAMPLE_ARCHITECTURE_SHOW_ID}-queued`,
+				priority: 10,
+			}),
+		},
+	});
+}
+
+/** Run show director tick to present top ranked backlog item. */
+export function tickShowDirector(roomId?: string | null): void {
+	postToHost({
+		type: "driveCommand",
+		command: "drive.show.tick",
+		payload: {
+			roomId: roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
 		},
 	});
 }

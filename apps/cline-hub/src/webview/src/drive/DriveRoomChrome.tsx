@@ -8,7 +8,11 @@ import { DriveSettingsPanel } from "./voice/DriveSettingsPanel";
 import { clearVoiceCaptionDraft } from "./voice/voiceCaptionState";
 import { Roster } from "./Roster";
 import { applyTranscriptFocus } from "./rosterHelpers";
-import { presentSampleArchitectureShow } from "./sampleShowPresent";
+import {
+	enqueueSampleArchitectureShow,
+	presentSampleArchitectureShow,
+	tickShowDirector,
+} from "./sampleShowPresent";
 import {
 	applyHardwarePrefsPatch,
 	applyVoiceFacetPatch,
@@ -100,6 +104,12 @@ export function DriveRoomChrome({
 					}}
 					onPresentSampleDiagram={() => {
 						presentSampleArchitectureShow(drive.roomId);
+					}}
+					onEnqueueSampleDiagram={() => {
+						enqueueSampleArchitectureShow(drive.roomId);
+					}}
+					onTickShowDirector={() => {
+						tickShowDirector(drive.roomId);
 					}}
 					presentSampleDisabled={disabled || !drive.active}
 					providerId={providerId}

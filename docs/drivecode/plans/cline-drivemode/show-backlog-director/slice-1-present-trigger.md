@@ -34,9 +34,9 @@ The hub present path is ~80% done but unreachable from UI. Without a trigger, en
 
 ## Acceptance
 
-- [ ] From hub Chat on a call with Stage open, one click presents a diagram into `StickyStagePane`.
-- [ ] No LLM credential required for the sample present.
-- [ ] `bun -F @cline/core test:unit` (drive-handlers) and hub unit tests for the new control pass.
+- [x] From hub Chat on a call with Stage open, one click presents a diagram into `StickyStagePane`.
+- [x] No LLM credential required for the sample present.
+- [x] `bun -F @cline/core test:unit` (drive-handlers) and hub unit tests for the new control pass.
 
 ## Risks
 

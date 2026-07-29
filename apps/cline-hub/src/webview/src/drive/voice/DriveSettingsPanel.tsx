@@ -29,6 +29,8 @@ export function DriveSettingsPanel({
 	onTtsEnabledChange,
 	onHardwareChange,
 	onPresentSampleDiagram,
+	onEnqueueSampleDiagram,
+	onTickShowDirector,
 	presentSampleDisabled,
 }: {
 	providerId: string;
@@ -41,6 +43,10 @@ export function DriveSettingsPanel({
 	onHardwareChange: (patch: Partial<DriveHardwarePrefs>) => void;
 	/** Sample / dev — posts drive.show.present (no LLM). */
 	onPresentSampleDiagram?: () => void;
+	/** Sample / dev — enqueue without presenting. */
+	onEnqueueSampleDiagram?: () => void;
+	/** Sample / dev — rank + present top backlog item. */
+	onTickShowDirector?: () => void;
 	presentSampleDisabled?: boolean;
 }) {
 	const llm = resolveLlmEgressForUi({
@@ -246,6 +252,30 @@ export function DriveSettingsPanel({
 					>
 						Present sample diagram
 					</Button>
+					{onEnqueueSampleDiagram ? (
+						<Button
+							data-testid="drive-enqueue-sample-diagram"
+							disabled={presentSampleDisabled}
+							onClick={onEnqueueSampleDiagram}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Enqueue sample diagram
+						</Button>
+					) : null}
+					{onTickShowDirector ? (
+						<Button
+							data-testid="drive-tick-show-director"
+							disabled={presentSampleDisabled}
+							onClick={onTickShowDirector}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Tick show director
+						</Button>
+					) : null}
 				</div>
 			) : null}
 		</div>

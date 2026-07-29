@@ -282,6 +282,8 @@ export type WebviewInboundMessage =
 				| "drive.participant.mute.set"
 				| "drive.participant.deafen.set"
 				| "drive.show.present"
+				| "drive.show.enqueue"
+				| "drive.show.tick"
 				| "drive.fork.list"
 				| "drive.fork.audit.get"
 				| "drive.fork.retain.set";
@@ -520,6 +522,14 @@ export type WebviewOutboundMessage =
 			uri?: string;
 			caption?: string;
 			title?: string;
+	  }
+	| {
+			type: "drive_show_planned";
+			showItemId: string;
+			ownerParticipantId: string;
+			title?: string;
+			status?: string;
+			priority?: number;
 	  }
 	| {
 			type: "drive_spotlight_changed";

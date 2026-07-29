@@ -37,7 +37,12 @@ Slices **1 + 2 + 3** with fixture seed (no planner):
 3. Tick ranks/presents → StickyStagePane.
 4. Attach 2-beat script → advance → sticky holds, caption changes.
 
-## Slice 1 live smoke (Present trigger)
+## Slice 2 live smoke (Enqueue + tick)
+
+1. Join call → Stage on → open Settings → Sample / dev.
+2. Click **Enqueue sample diagram** (sticky should not change yet).
+3. Click **Tick show director**.
+4. Confirm sticky shows the queued architecture diagram SVG.
 
 Prereqs: hub dashboard running (`bun run --cwd apps/cline-hub dev`), open printed URL, Chat view.
 

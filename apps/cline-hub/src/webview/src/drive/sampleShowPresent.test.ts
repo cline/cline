@@ -46,4 +46,25 @@ describe("sampleShowPresent", () => {
 			}),
 		);
 	});
+
+	it("enqueues and ticks via drive commands", async () => {
+		const { postToHost } = await import("../vscode");
+		const {
+			enqueueSampleArchitectureShow,
+			tickShowDirector,
+		} = await import("./sampleShowPresent");
+		enqueueSampleArchitectureShow("room-b");
+		expect(postToHost).toHaveBeenCalledWith(
+			expect.objectContaining({
+				command: "drive.show.enqueue",
+				payload: expect.objectContaining({ roomId: "room-b" }),
+			}),
+		);
+		tickShowDirector("room-b");
+		expect(postToHost).toHaveBeenCalledWith({
+			type: "driveCommand",
+			command: "drive.show.tick",
+			payload: { roomId: "room-b" },
+		});
+	});
 });

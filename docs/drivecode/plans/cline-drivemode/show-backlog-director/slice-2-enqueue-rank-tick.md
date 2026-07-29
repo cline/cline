@@ -41,9 +41,9 @@ Show items enter `director.showBacklog` as `planned`/`ready` without immediately
 
 ## Acceptance
 
-- [ ] Enqueue two mermaid shows with different priorities → tick presents the higher-ranked one.
-- [ ] Spotlight owner bias (+100) changes winner when priorities tie (unit test).
-- [ ] Slice 1 sample present still works (direct present bypasses rank).
+- [x] Enqueue two mermaid shows with different priorities → tick presents the higher-ranked one.
+- [x] Spotlight owner bias (+100) changes winner when priorities tie (unit test).
+- [x] Slice 1 sample present still works (direct present bypasses rank).
 
 ## Risks
 
