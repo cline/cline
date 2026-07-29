@@ -83,6 +83,19 @@ function attentionOrderSql(alias: string): string {
 
 const ATTENTION_ORDER_SQL = attentionOrderSql("s");
 
+const ATTENTION_RANK: Record<string, number> = {
+	blocked: 0,
+	failed: 1,
+	running: 2,
+	queued: 3,
+	done: 4,
+	cancelled: 5,
+};
+
+function attentionRank(state: string): number {
+	return ATTENTION_RANK[state] ?? 5;
+}
+
 function rowToStatusUpdate(row: Record<string, unknown>): StatusUpdate {
 	const historyCount = asOptionalNumber(row.history_count);
 	const previousState = asOptionalString(row.previous_state) as
@@ -297,17 +310,26 @@ export class SqliteStatusStore {
 		const byAttention = query.orderBy === "attention";
 		if (query.cursor != null) {
 			if (byAttention) {
-				// Attention order is (band, seq), so a bare `seq < cursor` cursor
-				// would drop every higher-seq row sitting in a later band. Page on
-				// the composite key instead, resolving the cursor row's band in
-				// SQL so the wire cursor stays a plain seq.
-				const cursorRank = `(SELECT ${attentionOrderSql("c")}
-					FROM status_updates c WHERE c.seq = ?)`;
-				where.push(
-					`(${ATTENTION_ORDER_SQL} > ${cursorRank}
-						OR (${ATTENTION_ORDER_SQL} = ${cursorRank} AND s.seq < ?))`,
-				);
-				params.push(query.cursor, query.cursor, query.cursor);
+				// Composite keyset: (attention ASC, seq DESC). A seq-only cursor
+				// would skip higher-seq rows that sort after the page boundary
+				// because they fall in a later attention band.
+				const cursorRow = this.db
+					.prepare("SELECT state FROM status_updates WHERE seq = ?")
+					.get(query.cursor);
+				const rank = cursorRow
+					? attentionRank(asString(cursorRow.state))
+					: null;
+				if (rank != null) {
+					where.push(
+						newer
+							? `(${ATTENTION_ORDER_SQL} < ? OR (${ATTENTION_ORDER_SQL} = ? AND s.seq > ?))`
+							: `(${ATTENTION_ORDER_SQL} > ? OR (${ATTENTION_ORDER_SQL} = ? AND s.seq < ?))`,
+					);
+					params.push(rank, rank, query.cursor);
+				} else {
+					where.push(newer ? "s.seq > ?" : "s.seq < ?");
+					params.push(query.cursor);
+				}
 			} else {
 				where.push(newer ? "s.seq > ?" : "s.seq < ?");
 				params.push(query.cursor);

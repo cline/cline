@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { RoomSnapshot } from "@cline/shared";
+import { describe, expect, it } from "vitest";
 import {
 	applyBankSnapshot,
 	applyRoomSnapshot,
@@ -9,12 +9,12 @@ import {
 	DEFAULT_DRIVE_UI,
 	DRIVE_PARTICIPANT_HUMAN,
 	DRIVE_PARTICIPANT_PARTNER,
+	type DriveUiState,
 	drivePersonaSystemHint,
 	fromSharedDriveSubMode,
 	syncDrivePostureFromBank,
 	toNativeMode,
 	toSharedDriveSubMode,
-	type DriveUiState,
 } from "./types";
 
 function sampleRoomSnapshot(
@@ -163,6 +163,8 @@ describe("applyRoomSnapshot", () => {
 		const next = applyRoomSnapshot(
 			{
 				...DEFAULT_DRIVE_UI,
+				stageSharer: "you",
+				spotlightParticipantId: DRIVE_PARTICIPANT_HUMAN,
 				stageCards: [
 					{
 						id: "stale",
@@ -179,6 +181,8 @@ describe("applyRoomSnapshot", () => {
 		);
 		expect(next.stageCards).toEqual([]);
 		expect(next.stagePin).toBeNull();
+		expect(next.stageSharer).toBe("agent");
+		expect(next.spotlightParticipantId).toBe(DRIVE_PARTICIPANT_PARTNER);
 	});
 
 	it("DEFAULT_DRIVE_UI starts with empty stage projection", () => {
@@ -242,6 +246,34 @@ describe("applyRoomSnapshot", () => {
 		expect(next.roomId).toBeNull();
 		expect(next.partnerName).toBe("Ada");
 		expect(next.demo).toBe(false);
+	});
+
+	it("treats legacy human ids as seated", () => {
+		const next = applyRoomSnapshot(
+			{ ...DEFAULT_DRIVE_UI, active: false, roomId: null },
+			sampleRoomSnapshot({
+				driveActive: true,
+				participants: [
+					{
+						id: "you",
+						kind: "human",
+						displayName: "You",
+						role: "host",
+						status: "idle",
+					},
+					{
+						id: DRIVE_PARTICIPANT_PARTNER,
+						kind: "agent",
+						displayName: "Ada",
+						role: "partner",
+						status: "idle",
+						seatSources: [],
+					},
+				],
+			}),
+		);
+		expect(next.active).toBe(true);
+		expect(next.roomId).toBe("default");
 	});
 });
 

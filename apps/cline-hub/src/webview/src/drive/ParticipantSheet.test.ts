@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Participant } from "@cline/shared";
+import { describe, expect, it } from "vitest";
 import {
 	applyPartnerDisplayName,
 	applyPartnerNameInk,
@@ -31,6 +31,35 @@ describe("applyPartnerDisplayName", () => {
 		expect(next.partnerName).toBe("Nova");
 		expect(next.participants[0]).toMatchObject({
 			id: DRIVE_PARTICIPANT_PARTNER,
+			displayName: "Nova",
+		});
+	});
+
+	it("does not retitle partnerName when renaming a secondary agent", () => {
+		const specialist: Participant = {
+			id: "drive:specialist",
+			kind: "agent",
+			displayName: "Scout",
+			role: "specialist",
+			status: "idle",
+			seatSources: [],
+		};
+		const next = applyPartnerDisplayName(
+			{
+				...DEFAULT_DRIVE_UI,
+				partnerName: "Ada",
+				participants: [partner, specialist],
+			},
+			"Nova",
+			"drive:specialist",
+		);
+		expect(next.partnerName).toBe("Ada");
+		expect(next.participants[0]).toMatchObject({
+			id: DRIVE_PARTICIPANT_PARTNER,
+			displayName: "Ada",
+		});
+		expect(next.participants[1]).toMatchObject({
+			id: "drive:specialist",
 			displayName: "Nova",
 		});
 	});

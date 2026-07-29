@@ -1331,14 +1331,16 @@ export class AgentRuntime {
 			prepared.push(await this.prepareToolExecution(toolCall));
 		}
 
-		if (this.config.toolExecution === "parallel") {
-			const results = await Promise.all(
+		// Pause-after-tool must finish the current tool and skip the rest of
+		// the batch. True parallel start cannot skip later calls, so when any
+		// shouldPauseAfterTool hook is registered, fall through to sequential.
+		if (
+			this.config.toolExecution === "parallel" &&
+			this.hooks.shouldPauseAfterTool.length === 0
+		) {
+			return Promise.all(
 				prepared.map((execution) => this.executePreparedTool(execution)),
 			);
-			if (await this.checkShouldPauseAfterTool()) {
-				this.pauseAfterToolReason = PAUSE_AFTER_TOOL_REASON;
-			}
-			return results;
 		}
 
 		const results: AgentMessage[] = [];
@@ -1362,8 +1364,7 @@ export class AgentRuntime {
 					results.push(
 						await this.executePreparedTool({
 							...remaining,
-							skipReason:
-								remaining.skipReason ?? PAUSE_AFTER_TOOL_REASON,
+							skipReason: remaining.skipReason ?? PAUSE_AFTER_TOOL_REASON,
 						}),
 					);
 				}

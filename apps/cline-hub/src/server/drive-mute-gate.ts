@@ -2,27 +2,25 @@ import type { RoomSnapshot } from "@cline/shared";
 import type { HubContext } from "./state";
 import type { BrowserPeer } from "./types";
 
-const KNOWN_HUMAN_IDS = new Set(["drive:human", "human", "you"]);
+/** Matches webview `DRIVE_PARTICIPANT_HUMAN` / `applyRoomSnapshot` fallback. */
+const DEFAULT_HUMAN_ID = "drive:human";
 
 /**
  * Pure check: is the Drive human muted in this room snapshot?
  * Used before forwarding voice-sourced Chat sends (DRV-MIC).
+ *
+ * Mirrors webview `applyRoomSnapshot`: mute for the seated human participant
+ * id only (not every legacy key), so strip UI and hub gate stay aligned.
  */
 export function isHumanMutedInRoomSnapshot(
 	snapshot: Pick<RoomSnapshot, "muteByParticipantId" | "participants">,
 ): boolean {
 	const muteMap = snapshot.muteByParticipantId ?? {};
-	for (const id of KNOWN_HUMAN_IDS) {
-		if (muteMap[id] === true) {
-			return true;
-		}
-	}
-	for (const participant of snapshot.participants ?? []) {
-		if (participant.kind === "human" && muteMap[participant.id] === true) {
-			return true;
-		}
-	}
-	return false;
+	const human = (snapshot.participants ?? []).find(
+		(participant) => participant.kind === "human",
+	);
+	const humanId = human?.id ?? DEFAULT_HUMAN_ID;
+	return muteMap[humanId] === true;
 }
 
 export type VoiceMuteGateResult =

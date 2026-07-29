@@ -1,5 +1,10 @@
 /** Drive Layer UI state for hub Chat (wireframe A → B staging). */
 
+import {
+	allowWorkspaceMutation,
+	type DrivePostureOverride,
+	resolveDriveLoop,
+} from "@cline/drive";
 import type {
 	BankSnapshot,
 	Participant,
@@ -7,11 +12,6 @@ import type {
 	StageCard,
 	StagePin,
 } from "@cline/shared";
-import {
-	allowWorkspaceMutation,
-	resolveDriveLoop,
-	type DrivePostureOverride,
-} from "@cline/drive";
 
 export type DriveSubMode = "plan" | "agent" | "ask" | "debug";
 
@@ -207,18 +207,12 @@ export function applyRoomSnapshot(
 	const agent = snapshot.participants.find(
 		(participant) => participant.kind === "agent",
 	);
-	const humanSeated = snapshot.participants.some(
-		(participant) =>
-			participant.kind === "human" &&
-			participant.id === DRIVE_PARTICIPANT_HUMAN,
-	);
+	// Any human seat counts — hub join paths may use legacy ids (`you`, `human`).
+	const humanSeated = human != null;
 	const sharer = snapshot.stage.sharer;
-	let stageSharer = drive.stageSharer;
-	if (sharer?.kind === "human") {
-		stageSharer = "you";
-	} else if (sharer?.kind === "agent") {
-		stageSharer = "agent";
-	}
+	// Hub stage.sharer is authoritative — null clears local "you"/spotlight.
+	const stageSharer: DriveStageSharerLocal =
+		sharer?.kind === "human" ? "you" : "agent";
 
 	const muteMap = snapshot.muteByParticipantId;
 	const humanId = human?.id ?? DRIVE_PARTICIPANT_HUMAN;
@@ -242,8 +236,7 @@ export function applyRoomSnapshot(
 		roomId: humanSeated ? snapshot.roomId : null,
 		partnerName: agent?.displayName ?? drive.partnerName,
 		stageSharer,
-		spotlightParticipantId:
-			sharer?.participantId ?? drive.spotlightParticipantId,
+		spotlightParticipantId: sharer?.participantId ?? agentId,
 		stageCards: [...snapshot.stage.cards],
 		stagePin: snapshot.stage.pin,
 		muted,
@@ -295,6 +288,7 @@ export function canMutateWorkspace(state: DriveUiState): boolean {
 /**
  * Optimistic partner rename in Drive chrome (Overview Save).
  * Hub `call_rename_participant` remains the room authority when roomId is set.
+ * Top-level `partnerName` updates only for the primary (first) agent.
  */
 export function applyPartnerDisplayName(
 	state: DriveUiState,
@@ -305,9 +299,14 @@ export function applyPartnerDisplayName(
 	if (!name) {
 		return state;
 	}
+	const primaryAgentId =
+		state.participants.find((participant) => participant.kind === "agent")
+			?.id ?? DRIVE_PARTICIPANT_PARTNER;
+	const updatePartnerChrome =
+		!participantId || participantId === primaryAgentId;
 	return {
 		...state,
-		partnerName: name,
+		...(updatePartnerChrome ? { partnerName: name } : {}),
 		participants: state.participants.map((participant) => {
 			if (participant.kind !== "agent") {
 				return participant;

@@ -34,6 +34,7 @@ export async function handleCallCommand(
 			type: "call_error",
 			text: "Hub is not connected.",
 			code: "hub_disconnected",
+			command: frame.type,
 		});
 		return;
 	}
@@ -50,6 +51,7 @@ export async function handleCallCommand(
 				type: "call_error",
 				text: reply.error?.message ?? "Call command failed.",
 				code: reply.error?.code,
+				command: frame.type,
 			});
 			return;
 		}
@@ -70,6 +72,7 @@ export async function handleCallCommand(
 			type: "call_error",
 			text: error instanceof Error ? error.message : String(error),
 			code: "call_command_failed",
+			command: frame.type,
 		});
 	}
 }

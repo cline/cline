@@ -134,17 +134,7 @@ export function StatusView(props: {
 	 * `status_updated` landing between the clear and the response repopulated
 	 * the list, so the fresh page appended onto stale rows.
 	 */
-	const replaceOnArrivalRef = useRef(true);
-	/**
-	 * The `message` listener is registered once per `mode`, so reading the
-	 * filters from its closure evaluated live rows against whatever the filters
-	 * were when it was attached. Keep them in a ref the listener can read at
-	 * delivery time instead.
-	 */
-	const filtersRef = useRef({ stateFilter, agentFilter, search });
-	useEffect(() => {
-		filtersRef.current = { stateFilter, agentFilter, search };
-	}, [stateFilter, agentFilter, search]);
+	const replaceRequestRef = useRef(false);
 
 	const filtersActive = hasActiveFilters({ stateFilter, agentFilter, search });
 
@@ -152,7 +142,7 @@ export function StatusView(props: {
 		(cursor: number | null, replace: boolean) => {
 			const requestId = `status-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 			activeRequestRef.current = requestId;
-			replaceOnArrivalRef.current = replace;
+			replaceRequestRef.current = replace;
 			setLoading(true);
 			setError(null);
 			if (replace) {
@@ -205,7 +195,7 @@ export function StatusView(props: {
 			if (message.type === "status_page") {
 				if (message.requestId !== activeRequestRef.current) return;
 				const page = message.updates as StatusUpdate[];
-				const replace = replaceOnArrivalRef.current;
+				const replace = replaceRequestRef.current;
 				setUpdates((current) => (replace ? page : [...current, ...page]));
 				setNextCursor((message.nextCursor as number | null) ?? null);
 				setHasMore(message.hasMore === true);
@@ -240,20 +230,24 @@ export function StatusView(props: {
 				// A broadcast row is not necessarily part of the view being shown.
 				// Prepending it unconditionally surfaced rows that contradict the
 				// active filters until the next refresh.
-				if (!matchesStatusFilters(live, filtersRef.current)) {
-					// Counts still moved even though the row is not shown here.
-					requestSummary();
-					return;
-				}
+				const matches = matchesStatusFilters(live, {
+					stateFilter,
+					agentFilter,
+					search,
+				});
 				setUpdates((current) => {
 					if (current.some((u) => u.updateId === live.updateId)) return current;
 					// The board shows one row per subject, so a live update for a
-					// subject already on screen replaces it rather than stacking.
-					const withoutSubject =
-						mode === "board"
-							? current.filter((u) => u.subject !== live.subject)
-							: current;
-					return [live, ...withoutSubject];
+					// subject already on screen replaces it rather than stacking —
+					// and drops the row when the new state no longer matches filters.
+					if (mode === "board") {
+						const withoutSubject = current.filter(
+							(u) => u.subject !== live.subject,
+						);
+						return matches ? [live, ...withoutSubject] : withoutSubject;
+					}
+					if (!matches) return current;
+					return [live, ...current];
 				});
 				// Counts moved, so the tiles are now stale.
 				requestSummary();
@@ -262,7 +256,7 @@ export function StatusView(props: {
 
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, [mode, requestSummary, requestTasks]);
+	}, [mode, requestSummary, requestTasks, stateFilter, agentFilter, search]);
 
 	const toggleState = useCallback((value: StatusState) => {
 		setStateFilter((current) =>

@@ -537,7 +537,7 @@ export type WebviewOutboundMessage =
 			event: import("@cline/shared").DriveEvent;
 			snapshot: import("@cline/shared").RoomSnapshot;
 	  }
-	| { type: "call_error"; text: string; code?: string }
+	| { type: "call_error"; text: string; code?: string; command?: string }
 	| {
 			type: "drive_bank_snapshot";
 			snapshot: import("@cline/shared").BankSnapshot;

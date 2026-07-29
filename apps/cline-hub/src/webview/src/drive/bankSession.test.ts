@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
 import type { BankSnapshot } from "@cline/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createDriveBankSession,
 	hydrateLocalBankFromHubSnapshot,
@@ -289,7 +289,7 @@ describe("bankSession hub mutation helpers", () => {
 		expect(plan?.taskIds).toEqual(["t-tests", "t-parse"]);
 	});
 
-	it("mutateBankEditPlanTasks falls back to local after hub error", async () => {
+	it("mutateBankEditPlanTasks does not mutate local after hub error", async () => {
 		const bus = stubWindowMessageBus();
 		vi.spyOn(await import("../vscode"), "postToHost").mockImplementation(
 			(message) => {
@@ -317,8 +317,8 @@ describe("bankSession hub mutation helpers", () => {
 			taskIds: ["t-tests"],
 		});
 		expect(result.fromHub).toBe(false);
-		expect(result.snapshot.openTaskIds).toEqual(["t-tests"]);
+		expect(result.snapshot.openTaskIds).toEqual(["t-parse", "t-tests"]);
 		const plan = await session.store.getPlan("p-active");
-		expect(plan?.taskIds).toEqual(["t-tests"]);
+		expect(plan?.taskIds).toEqual(["t-parse", "t-tests"]);
 	});
 });

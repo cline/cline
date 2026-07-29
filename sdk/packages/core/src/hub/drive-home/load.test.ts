@@ -10,7 +10,7 @@ import {
 
 const EXAMPLE_HOME = join(
 	dirname(fileURLToPath(import.meta.url)),
-	"../../../../../../docs/plans/cline-drivemode/examples/driveagent-pair-partner",
+	"../../../../../../docs/drivecode/plans/cline-drivemode/examples/driveagent-pair-partner",
 );
 
 describe("loadDriveagentHome", () => {

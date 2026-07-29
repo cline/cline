@@ -165,6 +165,30 @@ describe("handleDriveBankCommand", () => {
 		});
 	});
 
+	it("create_task rolls back task file when plan update fails", async () => {
+		const root = await mkdtemp(join(tmpdir(), "drive-bank-create-rollback-"));
+		dirs.push(root);
+		await handleDriveBankCommand(
+			ctx(),
+			command("drive_bank_seed", { workspaceRoot: root }),
+		);
+		const store = openWorkspaceBankStore(root);
+		await store.closeAndArchivePlan("p-active");
+
+		const created = await handleDriveBankCommand(
+			ctx(),
+			command("drive_bank_create_task", {
+				workspaceRoot: root,
+				id: "t-new",
+				title: "Should roll back",
+				planId: "p-active",
+			}),
+		);
+		expect(created.ok).toBe(false);
+		expect(created.error?.code).toBe("drive_bank_create_task_failed");
+		expect(await store.getTask("t-new")).toBeNull();
+	});
+
 	it("edit_plan_tasks reorders and persists across reopen", async () => {
 		const root = await mkdtemp(join(tmpdir(), "drive-bank-edit-"));
 		dirs.push(root);

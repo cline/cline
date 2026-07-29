@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { HubContext } from "./state";
-import type { BrowserPeer } from "./types";
 import {
 	gateVoiceSendIfMuted,
 	isHumanMutedInRoomSnapshot,
 	rejectVoiceSendIfMuted,
 } from "./drive-mute-gate";
+import type { HubContext } from "./state";
+import type { BrowserPeer } from "./types";
 
 describe("isHumanMutedInRoomSnapshot", () => {
 	it("detects drive:human mute map entry", () => {
@@ -19,22 +19,37 @@ describe("isHumanMutedInRoomSnapshot", () => {
 		).toBe(true);
 	});
 
-	it("detects legacy you / human ids", () => {
+	it("uses seated human id (including legacy you / human)", () => {
 		expect(
 			isHumanMutedInRoomSnapshot({
 				muteByParticipantId: { you: true },
-				participants: [],
+				participants: [
+					{ id: "you", kind: "human", displayName: "You" } as never,
+				],
 			}),
 		).toBe(true);
 		expect(
 			isHumanMutedInRoomSnapshot({
 				muteByParticipantId: { human: true },
-				participants: [],
+				participants: [
+					{ id: "human", kind: "human", displayName: "You" } as never,
+				],
 			}),
 		).toBe(true);
 	});
 
-	it("detects any human participant marked muted", () => {
+	it("ignores stale mute keys that are not the seated human", () => {
+		expect(
+			isHumanMutedInRoomSnapshot({
+				muteByParticipantId: { you: true, "drive:human": false },
+				participants: [
+					{ id: "drive:human", kind: "human", displayName: "You" } as never,
+				],
+			}),
+		).toBe(false);
+	});
+
+	it("detects the seated human participant marked muted", () => {
 		expect(
 			isHumanMutedInRoomSnapshot({
 				muteByParticipantId: { "user-abc": true },

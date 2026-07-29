@@ -16,15 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postToHost } from "../vscode";
 import {
+	type DriveagentHomeProjection,
+	requestDriveagentHome,
+} from "./requestDriveagentHome";
+import {
 	isRosterParticipantHandRaised,
 	isRosterParticipantMuted,
 	participantStatusLabel,
 	resolveAgentHomeSlug,
 } from "./rosterHelpers";
-import {
-	type DriveagentHomeProjection,
-	requestDriveagentHome,
-} from "./requestDriveagentHome";
 import {
 	applyPartnerDisplayName,
 	applyPartnerNameInk,
@@ -73,13 +73,12 @@ export function ParticipantSheet({
 					<DialogTitle>{title}</DialogTitle>
 					{mode === "chooser" ? (
 						<DialogDescription>
-							Choose Transcript to focus this stream, or Profile to
-							inspect without changing address.
+							Choose Transcript to focus this stream, or Profile to inspect
+							without changing address.
 						</DialogDescription>
 					) : (
 						<DialogDescription>
-							Appearance and home projection — prompts stay in
-							`.driveagent/`.
+							Appearance and home projection — prompts stay in `.driveagent/`.
 						</DialogDescription>
 					)}
 				</DialogHeader>
@@ -241,6 +240,7 @@ function AgentProfileSections({
 
 	useEffect(() => {
 		setDisplayNameDraft(participant.displayName);
+		setSaveNote(null);
 	}, [participant.displayName]);
 
 	const homeSlug = resolveAgentHomeSlug(participant);
@@ -270,10 +270,7 @@ function AgentProfileSections({
 				if (!cancelled) {
 					setHomeState({
 						status: "error",
-						message:
-							error instanceof Error
-								? error.message
-								: String(error),
+						message: error instanceof Error ? error.message : String(error),
 					});
 				}
 			});
@@ -288,9 +285,7 @@ function AgentProfileSections({
 			setSaveNote("Name cannot be empty.");
 			return;
 		}
-		onDriveChange(
-			applyPartnerDisplayName(drive, nextName, participant.id),
-		);
+		onDriveChange(applyPartnerDisplayName(drive, nextName, participant.id));
 		if (drive.roomId) {
 			postToHost({
 				type: "call_rename_participant",
@@ -324,17 +319,11 @@ function AgentProfileSections({
 					<div className="flex gap-2">
 						<Input
 							id="partner-display-name"
-							onChange={(event) =>
-								setDisplayNameDraft(event.target.value)
-							}
+							onChange={(event) => setDisplayNameDraft(event.target.value)}
 							style={inkColor ? { color: inkColor } : undefined}
 							value={displayNameDraft}
 						/>
-						<Button
-							onClick={saveDisplayName}
-							size="sm"
-							type="button"
-						>
+						<Button onClick={saveDisplayName} size="sm" type="button">
 							Save
 						</Button>
 					</div>
@@ -354,10 +343,7 @@ function AgentProfileSections({
 						id="partner-name-ink"
 						onChange={(event) => {
 							const raw = event.target.value;
-							const next =
-								raw === ""
-									? null
-									: Number.parseInt(raw, 10);
+							const next = raw === "" ? null : Number.parseInt(raw, 10);
 							onDriveChange(applyPartnerNameInk(drive, next));
 						}}
 						value={inkIndex === null ? "" : String(inkIndex)}
@@ -392,9 +378,7 @@ function AgentProfileSections({
 						<span className="capitalize">{participant.role}</span>
 					</div>
 					<div>
-						<span className="text-muted-foreground">
-							Seat sources ·{" "}
-						</span>
+						<span className="text-muted-foreground">Seat sources · </span>
 						{participant.seatSources.length > 0
 							? participant.seatSources.join(", ")
 							: "none"}
@@ -409,15 +393,12 @@ function AgentProfileSections({
 									{homeState.home.permissions.presetIntent}
 								</span>
 							</div>
-							{homeState.home.permissions.approvalHooks.length >
-							0 ? (
+							{homeState.home.permissions.approvalHooks.length > 0 ? (
 								<div>
 									<span className="text-muted-foreground">
 										Approval hooks ·{" "}
 									</span>
-									{homeState.home.permissions.approvalHooks.join(
-										", ",
-									)}
+									{homeState.home.permissions.approvalHooks.join(", ")}
 								</div>
 							) : null}
 							{homeState.home.permissions.notes ? (
@@ -446,9 +427,7 @@ function CapabilitiesSection({
 	switch (homeState.status) {
 		case "idle":
 		case "loading":
-			return (
-				<p className="text-xs text-muted-foreground">Loading home…</p>
-			);
+			return <p className="text-xs text-muted-foreground">Loading home…</p>;
 		case "empty":
 			return (
 				<p className="text-xs text-muted-foreground">
@@ -456,9 +435,7 @@ function CapabilitiesSection({
 				</p>
 			);
 		case "error":
-			return (
-				<p className="text-xs text-destructive">{homeState.message}</p>
-			);
+			return <p className="text-xs text-destructive">{homeState.message}</p>;
 		case "ready": {
 			const { compiled } = homeState.home;
 			const tools = compiled.tools ?? [];
@@ -477,9 +454,7 @@ function CapabilitiesSection({
 								))}
 							</ul>
 						) : (
-							<p className="text-xs text-muted-foreground">
-								None listed
-							</p>
+							<p className="text-xs text-muted-foreground">None listed</p>
 						)}
 					</div>
 					<div>
@@ -493,9 +468,7 @@ function CapabilitiesSection({
 								))}
 							</ul>
 						) : (
-							<p className="text-xs text-muted-foreground">
-								None listed
-							</p>
+							<p className="text-xs text-muted-foreground">None listed</p>
 						)}
 					</div>
 				</div>

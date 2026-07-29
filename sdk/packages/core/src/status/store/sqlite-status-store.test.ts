@@ -253,6 +253,39 @@ describe("SqliteStatusStore", () => {
 		expect(new Set(seen).size).toBe(12);
 	});
 
+	it("paginates attention order across bands without dropping rows", () => {
+		// High-seq failed row sorts after low-seq blocked rows. A seq-only
+		// cursor from page 1 would skip it entirely.
+		publish({ subject: "blocked-1", state: "blocked" });
+		publish({ subject: "blocked-2", state: "blocked" });
+		publish({ subject: "failed-high", state: "failed" });
+
+		const page1 = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				orderBy: "attention",
+				limit: 2,
+			}),
+		);
+		expect(page1.updates.map((u) => u.subject)).toEqual([
+			"blocked-2",
+			"blocked-1",
+		]);
+		expect(page1.hasMore).toBe(true);
+		expect(page1.nextCursor).toBe(page1.updates.at(-1)?.seq);
+
+		const page2 = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				orderBy: "attention",
+				limit: 2,
+				cursor: page1.nextCursor!,
+			}),
+		);
+		expect(page2.updates.map((u) => u.subject)).toEqual(["failed-high"]);
+		expect(page2.hasMore).toBe(false);
+	});
+
 	it("still leads with recency by default", () => {
 		publish({ subject: "a", state: "blocked" });
 		publish({ subject: "b", state: "done" });

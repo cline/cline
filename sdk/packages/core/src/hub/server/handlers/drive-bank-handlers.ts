@@ -2,6 +2,8 @@
  * Hub drive_bank_* durable task bank ops under .drive/bank/.
  */
 
+import { unlink } from "node:fs/promises";
+import { taskPath } from "@cline/drive";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { openWorkspaceBankStore } from "../../collaboration/workspaceBankStore";
 import { errorReply, type HubTransportContext, okReply } from "./context";
@@ -92,8 +94,7 @@ export async function handleDriveBankCommand(
 				);
 			}
 			const bodyRaw = envelope.payload?.body;
-			const body =
-				typeof bodyRaw === "string" ? bodyRaw : "";
+			const body = typeof bodyRaw === "string" ? bodyRaw : "";
 			const planId = readString(envelope.payload, "planId");
 			try {
 				const store = openWorkspaceBankStore(workspaceRoot);
@@ -107,10 +108,18 @@ export async function handleDriveBankCommand(
 						);
 					}
 					await store.createTask({ id, title, body });
-					await store.editPlanTaskIds(planId, [
-						...plan.taskIds,
-						id,
-					]);
+					try {
+						await store.editPlanTaskIds(planId, [...plan.taskIds, id]);
+					} catch (error) {
+						// Roll back the orphan task file so the durable bank
+						// stays consistent when the plan update fails.
+						try {
+							await unlink(taskPath(workspaceRoot, id));
+						} catch {
+							// Best-effort cleanup; rethrow the plan error.
+						}
+						throw error;
+					}
 				} else {
 					await store.createTask({ id, title, body });
 				}

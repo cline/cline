@@ -14,7 +14,7 @@ import {
 
 const EXAMPLE_HOME = join(
 	import.meta.dirname,
-	"../../../../../docs/plans/cline-drivemode/examples/driveagent-pair-partner",
+	"../../../../../docs/drivecode/plans/cline-drivemode/examples/driveagent-pair-partner",
 );
 
 /** Vitest runs under Node; parse fixture YAML via the Bun CLI (`Bun.YAML`). */

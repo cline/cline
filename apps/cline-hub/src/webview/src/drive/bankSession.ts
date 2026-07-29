@@ -1,7 +1,7 @@
 import {
+	type BankStore,
 	createBankStore,
 	createMemoryBankFs,
-	type BankStore,
 } from "@cline/drive";
 import type { BankSnapshot } from "@cline/shared";
 import { postToHost } from "../vscode";
@@ -23,9 +23,10 @@ export type HubBankOpType =
 /**
  * Browser projection of the task bank.
  *
- * Join seed and PlanEditor mutations write through hub durable ops
- * (`drive_bank_*`) when a workspaceRoot is available; the memory FS is a
- * fallback / local edit buffer when hub is unavailable or root is unset.
+ * Join seed prefers hub durable ops (`drive_bank_seed`) when a workspaceRoot
+ * is available; the memory FS is a fallback for seed when hub is unavailable
+ * or root is unset. PlanEditor mutations write through hub when root is set
+ * and leave the local store unchanged on hub failure (`fromHub: false`).
  */
 export function createDriveBankSession(): DriveBankSession {
 	const fs = createMemoryBankFs();
@@ -222,11 +223,7 @@ export function requestHubBankSeed(
 	workspaceRoot: string,
 	options?: { timeoutMs?: number },
 ): Promise<BankSnapshot> {
-	return requestHubBankOp(
-		"drive_bank_seed",
-		{ workspaceRoot },
-		options,
-	);
+	return requestHubBankOp("drive_bank_seed", { workspaceRoot }, options);
 }
 
 /**
@@ -261,8 +258,10 @@ export type BankMutationResult = {
 
 /**
  * Create a task (optionally appending to a plan). Writes through hub when
- * workspaceRoot is set; on hub error falls back to local memory store and
- * returns `{ fromHub: false }` so callers can surface divergence.
+ * workspaceRoot is set. On hub error returns `{ fromHub: false }` without
+ * mutating the local store so callers can surface divergence without
+ * presenting a local-only plan as durable. Without workspaceRoot, mutates
+ * the in-memory store only.
  */
 export async function mutateBankCreateTask(
 	session: DriveBankSession,
@@ -288,7 +287,9 @@ export async function mutateBankCreateTask(
 			await hydrateLocalBankFromHubSnapshot(session, snapshot);
 			return { snapshot, fromHub: true };
 		} catch {
-			// Hub failed — local-only fallback (fromHub: false).
+			// Hub failed — leave local store unchanged; callers check fromHub.
+			const snapshot = await session.refresh();
+			return { snapshot, fromHub: false };
 		}
 	}
 	await session.store.createTask({
@@ -311,8 +312,8 @@ export async function mutateBankCreateTask(
 
 /**
  * Replace a plan's task id list (reorder/remove). Writes through hub when
- * workspaceRoot is set; on hub error falls back to local memory store and
- * returns `{ fromHub: false }`.
+ * workspaceRoot is set. On hub error returns `{ fromHub: false }` without
+ * mutating the local store. Without workspaceRoot, mutates memory only.
  */
 export async function mutateBankEditPlanTasks(
 	session: DriveBankSession,
@@ -322,18 +323,17 @@ export async function mutateBankEditPlanTasks(
 	const root = workspaceRoot?.trim();
 	if (root) {
 		try {
-			const snapshot = await requestHubBankOp(
-				"drive_bank_edit_plan_tasks",
-				{
-					workspaceRoot: root,
-					planId: input.planId,
-					taskIds: input.taskIds,
-				},
-			);
+			const snapshot = await requestHubBankOp("drive_bank_edit_plan_tasks", {
+				workspaceRoot: root,
+				planId: input.planId,
+				taskIds: input.taskIds,
+			});
 			await hydrateLocalBankFromHubSnapshot(session, snapshot);
 			return { snapshot, fromHub: true };
 		} catch {
-			// Hub failed — local-only fallback (fromHub: false).
+			// Hub failed — leave local store unchanged; callers check fromHub.
+			const snapshot = await session.refresh();
+			return { snapshot, fromHub: false };
 		}
 	}
 	await session.store.editPlanTaskIds(input.planId, input.taskIds);
