@@ -277,6 +277,68 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("does not leak a pending Act model id into Plan edits after a mode switch", async () => {
+		mocks.refreshOpenAiModels.mockResolvedValue({ values: ["custom-model", "listed-model"] })
+		// The Act model-id commit stays unresolved across the mode switch.
+		const actCommit = deferred<void>()
+		mocks.commitSelection.mockReturnValueOnce(actCommit.promise)
+		mocks.useProviderConfig.mockReturnValue({
+			config: {
+				actSelection: {
+					providerId: "custom-openai",
+					modelId: "custom-model",
+					modelInfo: {
+						contextWindow: 128_000,
+						inputPrice: 0,
+						maxTokens: -1,
+						outputPrice: 0,
+						temperature: 0,
+						tiers: [],
+					},
+					overrides: { inputPrice: 3 },
+				},
+				planSelection: {
+					providerId: "custom-openai",
+					modelId: "plan-model",
+					modelInfo: {
+						contextWindow: 128_000,
+						inputPrice: 0,
+						maxTokens: -1,
+						outputPrice: 0,
+						temperature: 0,
+						tiers: [],
+					},
+					overrides: { outputPrice: 5 },
+				},
+				apiKeyLength: 12,
+				baseUrl: "http://localhost:1234/v1",
+				headers: {},
+				providerId: "custom-openai",
+			},
+			commitSelection: mocks.commitSelection,
+			write: mocks.write,
+		})
+		const view = render(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+
+		fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "listed-model" } })
+
+		view.rerender(<OpenAICompatibleProvider currentMode="plan" providerId="custom-openai" showModelOptions={false} />)
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+		fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.25" } })
+
+		expect(mocks.commitSelection).toHaveBeenLastCalledWith("plan", {
+			providerId: "custom-openai",
+			modelId: "plan-model",
+			overrides: { outputPrice: 5, temperature: 0.25 },
+		})
+
+		await act(async () => {
+			actCommit.resolve(undefined)
+		})
+	})
+
 	it("persists only the edited vision field while preserving existing overrides", async () => {
 		setCommittedSelection({
 			apiFormat: ApiFormat.OPENAI_RESPONSES,

@@ -89,24 +89,30 @@ export const OpenAICompatibleProvider = ({
 	// resolved ModelInfo satisfies it structurally.
 	const openAiModelInfo: OpenAiCompatibleModelInfo = selectedModelInfo ?? openAiModelInfoSafeDefaults
 	const selectedModelOverrides = fromProtobufProviderModelOverrides(committedSelection?.overrides) ?? {}
-	const selectedModelOverridesRef = useRef<{ modelId: string | undefined; overrides: ProviderModelOverrides }>({
+	// Pending state is scoped to the mode it was accumulated for: Plan and
+	// Act have independent selections, so a pending Act commit must never
+	// become the base (or the model id) for a Plan edit after a mode switch.
+	const selectedModelOverridesRef = useRef<{ mode: Mode; modelId: string | undefined; overrides: ProviderModelOverrides }>({
+		mode: currentMode,
 		modelId: selectedModelId,
 		overrides: selectedModelOverrides,
 	})
 
-	// Counts commits whose commit+read-back round-trip has not finished yet.
-	const pendingCommitsRef = useRef(0)
+	// Counts commits whose commit+read-back round-trip has not finished yet,
+	// per mode.
+	const pendingCommitsRef = useRef<Record<Mode, number>>({ plan: 0, act: 0 })
 
 	useEffect(() => {
 		// Do not reseed the pending-override accumulator from server state
-		// while commits are in flight: an earlier commit's read-back can land
-		// after a later local edit, and reseeding from that stale snapshot
-		// would silently drop the already-committed newer field.
-		if (pendingCommitsRef.current > 0) {
+		// while this mode's commits are in flight: an earlier commit's
+		// read-back can land after a later local edit, and reseeding from
+		// that stale snapshot would silently drop the already-committed
+		// newer field.
+		if (pendingCommitsRef.current[currentMode] > 0) {
 			return
 		}
-		selectedModelOverridesRef.current = { modelId: selectedModelId, overrides: selectedModelOverrides }
-	}, [committedSelection?.overrides, selectedModelId])
+		selectedModelOverridesRef.current = { mode: currentMode, modelId: selectedModelId, overrides: selectedModelOverrides }
+	}, [committedSelection?.overrides, selectedModelId, currentMode])
 
 	const commitOpenAiSelection = useCallback(
 		(modelId: string, overrides?: ProviderModelOverrides) => {
@@ -114,15 +120,16 @@ export const OpenAICompatibleProvider = ({
 				return
 			}
 
-			pendingCommitsRef.current += 1
-			void commitSelection(currentMode, {
+			const mode = currentMode
+			pendingCommitsRef.current[mode] += 1
+			void commitSelection(mode, {
 				providerId,
 				modelId,
 				...(overrides !== undefined ? { overrides } : {}),
 			})
 				.catch((error) => handleProviderConfigWriteError("model selection", error))
 				.finally(() => {
-					pendingCommitsRef.current -= 1
+					pendingCommitsRef.current[mode] -= 1
 				})
 		},
 		[commitSelection, currentMode, handleProviderConfigWriteError, providerId],
@@ -130,27 +137,29 @@ export const OpenAICompatibleProvider = ({
 
 	const updateModelOverride = useCallback(
 		<K extends keyof ProviderModelOverrides>(key: K, value: ProviderModelOverrides[K] | undefined) => {
-			// Prefer the pending selection's model id: while a model-id commit
-			// is still round-tripping, `selectedModelId` reads back the old id
-			// and an edit would be committed against the model just switched
-			// away from.
-			const modelId = (selectedModelOverridesRef.current.modelId ?? selectedModelId)?.trim()
+			// Prefer the pending selection's model id — but only when it was
+			// accumulated for this mode: while a model-id commit is still
+			// round-tripping, `selectedModelId` reads back the old id and an
+			// edit would be committed against the model just switched away
+			// from. A pending id from the other mode must not leak here.
+			const pending = selectedModelOverridesRef.current
+			const pendingForMode = pending.mode === currentMode ? pending : undefined
+			const modelId = (pendingForMode?.modelId ?? selectedModelId)?.trim()
 			if (!modelId) {
 				return
 			}
 
-			const currentOverrides =
-				selectedModelOverridesRef.current.modelId === modelId ? selectedModelOverridesRef.current.overrides : {}
+			const currentOverrides = pendingForMode?.modelId === modelId ? pendingForMode.overrides : {}
 			const nextOverrides = { ...currentOverrides }
 			if (value === undefined) {
 				delete nextOverrides[key]
 			} else {
 				Object.assign(nextOverrides, { [key]: value })
 			}
-			selectedModelOverridesRef.current = { modelId, overrides: nextOverrides }
+			selectedModelOverridesRef.current = { mode: currentMode, modelId, overrides: nextOverrides }
 			commitOpenAiSelection(modelId, nextOverrides)
 		},
-		[commitOpenAiSelection, selectedModelId],
+		[commitOpenAiSelection, currentMode, selectedModelId],
 	)
 
 	const updateNumericModelOverride = useCallback(
@@ -172,6 +181,7 @@ export const OpenAICompatibleProvider = ({
 			// quick revert during a commit round-trip is not mistaken for an
 			// echo of the (stale) displayed value.
 			const pendingOverrides =
+				selectedModelOverridesRef.current.mode === currentMode &&
 				selectedModelOverridesRef.current.modelId === selectedModelId?.trim()
 					? selectedModelOverridesRef.current.overrides
 					: undefined
@@ -184,7 +194,7 @@ export const OpenAICompatibleProvider = ({
 			}
 			updateModelOverride(key, parsed.value)
 		},
-		[updateModelOverride, openAiModelInfo, selectedModelId],
+		[updateModelOverride, currentMode, openAiModelInfo, selectedModelId],
 	)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
@@ -273,12 +283,13 @@ export const OpenAICompatibleProvider = ({
 			// id-independent blob. Recommit the displayed overrides under the
 			// new id; otherwise an unknown id resolves to safe defaults whose
 			// zero prices misbill paid requests as $0.
-			const overrides = selectedModelOverridesRef.current.overrides
+			const pending = selectedModelOverridesRef.current
+			const overrides = pending.mode === currentMode ? pending.overrides : selectedModelOverrides
 			const hasOverrides = Object.keys(overrides).length > 0
-			selectedModelOverridesRef.current = { modelId, overrides }
+			selectedModelOverridesRef.current = { mode: currentMode, modelId, overrides }
 			commitOpenAiSelection(modelId, hasOverrides ? overrides : undefined)
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider],
+		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, selectedModelOverrides],
 	)
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
