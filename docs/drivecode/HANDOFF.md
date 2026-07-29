@@ -35,6 +35,7 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](plans/clin
 - `docs/drivecode/plans/cline-drivemode/05-workflows.md` contains 45 user workflows (incl. Group I SDLC / requirements leadership). It maps them to features and calls out gaps.
 - `docs/drivecode/plans/cline-drivemode/06-platform-config.md` defines the 34-facet platform inventory, `RosterPack`, `AgentProfile`, ownership, privacy, and phases.
 - `docs/drivecode/plans/cline-drivemode/features/` contains the DRV feature plans.
+- `docs/drivecode/plans/cline-drivemode/show-backlog-director/` is the dependency-mapped implementation plan for planned Show backlog + director (enqueue → rank → present → script); feature [DRV-SHOW-BACKLOG](plans/cline-drivemode/features/DRV-SHOW-BACKLOG.md).
 - `docs/drivecode/plans/cline-drivemode/TASK-GRAPH.md` orders phases and acceptance gates.
 - `docs/drivecode/plans/cline-drivemode/AGENT-RUNBOOK.md` explains how the next agent should select, implement, and verify tasks.
 - `docs/drivecode/plans/cline-drivemode/prd/prd-driveagent-portfolio.md` defines Driveagent portfolios, knowledge graphs, and recruit.
@@ -85,6 +86,7 @@ This code does not yet implement hub-owned Drive rooms, reconnect convergence, a
 
 ### Top gaps
 
+- Planned Show backlog director loop is designed but not closed: start at [show-backlog-director/overview.md](plans/cline-drivemode/show-backlog-director/overview.md) (slices 1–3 minimum vertical).
 - `DRV-GATES` v1 action taxonomy enums landed (`sdk/packages/shared/src/drive/gates.ts`); still needs expiry rules and an owner for the approval UI.
 - Hub reconnect needs acceptance criteria and degraded-state UX under `DRV-ROOM-MVP`.
 - Revise-not-restart needs a kernel acceptance criterion that preserves useful work after an interruption.

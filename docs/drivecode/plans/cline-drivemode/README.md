@@ -35,6 +35,7 @@ Repo-level continuation brief. [HANDOFF.md](../../HANDOFF.md).
 | [14-primitives-audit.md](14-primitives-audit.md) | Primitives misuse / dead-code audit (P0) |
 | [HANDOFF-pr24-u4.md](HANDOFF-pr24-u4.md) | **Active:** remaining U4 work for PR 24 (AI SDK 7) |
 | [share-and-router/](share-and-router/) | Full reference PLAN for demo share + agent router |
+| [show-backlog-director/](show-backlog-director/) | Implementable Show backlog + director slices (deps mapped) |
 | [prd/](prd/) | Product requirements. PRD 6 portfolio; PRD 7 PiP; PRD 8 Drive-as-mode; PRD 9 task-bank loop |
 | [task-bank-drive-loop/](task-bank-drive-loop/) | Multi-phase plan for the task-bank Drive loop |
 | [ard/](ard/) | Architecture decision records for Driveagent home, graph, recruit, gated learn |
@@ -109,6 +110,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-TTS](features/DRV-TTS.md) | Partner voice out | 3 | MVP |
 | [DRV-CAPTIONS](features/DRV-CAPTIONS.md) | Live captions | 3 | MVP |
 | [DRV-DEMO-SHARE](features/DRV-DEMO-SHARE.md) | Demo artifact share (screenshots / clips) | 2+ | Planned |
+| [DRV-SHOW-BACKLOG](features/DRV-SHOW-BACKLOG.md) | Planned Show backlog + director tick | 2+ | Planned |
 | [DRV-AGENT-ROUTER](features/DRV-AGENT-ROUTER.md) | Route utterances among seated agents | 4 | Planned |
 | [DRV-CLI-PARITY](features/DRV-CLI-PARITY.md) | Drive in the TUI | 4 | Future |
 | [DRV-ISOLATION](features/DRV-ISOLATION.md) | Worktree isolation for multi-agent seats | 4 | Future |
