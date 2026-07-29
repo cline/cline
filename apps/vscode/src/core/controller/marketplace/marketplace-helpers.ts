@@ -52,6 +52,7 @@ const MARKETPLACE_CATALOG_URL = "https://cline.github.io/marketplace/catalog.jso
 const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git"
 const INSTALL_COMMAND_TIMEOUT_MS = 120_000
 const MAX_OUTPUT_CHARS = 12_000
+const MAX_PLUGIN_ERROR_CHARS = 400
 const SECRET_PATTERN =
 	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i
 const SECRET_KEY_VALUE_PATTERN =
@@ -445,13 +446,26 @@ function getPluginDisplayName(filePath: string, searchRoot: string): string {
 }
 
 /**
+ * A load failure carries the sandbox child's stderr tail, so it is both long and
+ * as untrusted as any other subprocess output. Redact it on the same terms as
+ * install output and flatten it to a single line the row can render; the full
+ * redacted text goes to the output channel.
+ */
+function formatPluginLoadError(message: string): string {
+	const flattened = redactOutput(message).replace(/\s+/g, " ").trim()
+	return flattened.length > MAX_PLUGIN_ERROR_CHARS ? `${flattened.slice(0, MAX_PLUGIN_ERROR_CHARS).trimEnd()}…` : flattened
+}
+
+/**
  * Load every enabled plugin the same way a session does and index the resulting
  * failures by plugin path. Without this the Installed list only proves a file
  * exists on disk, so a plugin that never loads still renders as healthy.
+ *
+ * `listPluginToolsWithDiagnostics` memoizes by plugin path + mtime + size, so
+ * only the first call after a plugin changes pays for a sandbox process.
  */
 async function collectPluginLoadErrors(controller: Controller, workspacePath: string | undefined): Promise<Map<string, string>> {
 	const errors = new Map<string, string>()
-	if (!workspacePath) return errors
 	try {
 		const { providerId, modelId } = getActiveProviderAndModel(controller)
 		const { failures } = await listPluginToolsWithDiagnostics({
@@ -462,12 +476,17 @@ async function collectPluginLoadErrors(controller: Controller, workspacePath: st
 		})
 		for (const failure of failures) {
 			const key = resolve(failure.pluginPath)
-			if (!errors.has(key)) errors.set(key, failure.message)
+			if (errors.has(key)) continue
+			Logger.error(
+				`[marketplace] plugin failed to load during ${failure.phase}: ${failure.pluginPath}`,
+				redactOutput(failure.message),
+			)
+			errors.set(key, formatPluginLoadError(failure.message))
 		}
 	} catch (error) {
 		// Diagnostics are advisory. A probe that blows up must not stop the
 		// Installed list from rendering.
-		Logger.error("[marketplace] failed to collect plugin load diagnostics", error instanceof Error ? error : undefined)
+		Logger.error("[marketplace] failed to collect plugin load diagnostics", error)
 	}
 	return errors
 }

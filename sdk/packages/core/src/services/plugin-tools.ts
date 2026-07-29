@@ -67,7 +67,7 @@ function cachePluginToolDescriptors(
 
 async function buildPluginToolDescriptorCacheKey(input: {
 	pluginPaths: ReadonlyArray<string>;
-	workspacePath: string;
+	workspacePath?: string;
 	cwd?: string;
 	providerId?: string;
 	modelId?: string;
@@ -142,7 +142,11 @@ async function collectPluginContributions(
 }
 
 export async function listPluginToolsWithDiagnostics(input: {
-	workspacePath: string;
+	/**
+	 * Workspace root, when one is open. Omit it to inspect only the globally
+	 * discoverable plugins, which is what a session in a folderless host loads.
+	 */
+	workspacePath?: string;
 	cwd?: string;
 	disabledToolNames?: ReadonlyArray<string>;
 	providerId?: string;
@@ -184,7 +188,9 @@ export async function listPluginToolsWithDiagnostics(input: {
 			cwd: input.cwd,
 			providerId: input.providerId,
 			modelId: input.modelId,
-			workspaceInfo: { rootPath: input.workspacePath },
+			workspaceInfo: input.workspacePath
+				? { rootPath: input.workspacePath }
+				: undefined,
 		});
 		failures = [...sandboxed.failures];
 		warnings = [...sandboxed.warnings];
@@ -194,14 +200,16 @@ export async function listPluginToolsWithDiagnostics(input: {
 			if (!pluginPath) {
 				continue;
 			}
-			const pluginSource = isPathWithin(input.workspacePath, pluginPath)
-				? "workspace-plugin"
-				: "global-plugin";
+			const pluginSource =
+				input.workspacePath && isPathWithin(input.workspacePath, pluginPath)
+					? "workspace-plugin"
+					: "global-plugin";
 			let contributions: Awaited<ReturnType<typeof collectPluginContributions>>;
 			try {
-				contributions = await collectPluginContributions(extension, {
-					rootPath: input.workspacePath,
-				});
+				contributions = await collectPluginContributions(
+					extension,
+					input.workspacePath ? { rootPath: input.workspacePath } : undefined,
+				);
 			} catch (error) {
 				failures.push({
 					pluginPath,
@@ -249,7 +257,7 @@ export async function listPluginToolsWithDiagnostics(input: {
 }
 
 export async function listPluginTools(input: {
-	workspacePath: string;
+	workspacePath?: string;
 	cwd?: string;
 	disabledToolNames?: ReadonlyArray<string>;
 	providerId?: string;

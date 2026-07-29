@@ -37,10 +37,12 @@ mock.module("@core/controller/file/refreshSkills", () => ({
 	refreshSkills: async () => ({ globalSkills: [], localSkills: [] }),
 }))
 
+let workspacePaths: string[] = ["/workspace/project"]
+
 mock.module("@/hosts/host-provider", () => ({
 	HostProvider: {
 		isInitialized: () => true,
-		workspace: { getWorkspacePaths: async () => ({ paths: ["/workspace/project"] }) },
+		workspace: { getWorkspacePaths: async () => ({ paths: workspacePaths }) },
 	},
 }))
 
@@ -56,6 +58,7 @@ function makeController(): Controller {
 
 describe("listLocalMarketplaceInstalledEntries plugin diagnostics", () => {
 	beforeEach(() => {
+		workspacePaths = ["/workspace/project"]
 		readGlobalSettingsStub.returns({ disabledPlugins: [DISABLED_PLUGIN] })
 		listPluginToolsWithDiagnosticsStub.resolves({
 			tools: [],
@@ -100,6 +103,57 @@ describe("listLocalMarketplaceInstalledEntries plugin diagnostics", () => {
 			entries.every((entry) => entry.error === undefined),
 			true,
 		)
+	})
+
+	it("redacts secrets that the sandbox echoed into the failure message", async () => {
+		listPluginToolsWithDiagnosticsStub.resolves({
+			tools: [],
+			warnings: [],
+			failures: [
+				{
+					pluginPath: BROKEN_PLUGIN,
+					phase: "setup",
+					message: "setup threw: request failed\nauthorization: Bearer sk-live-abcdef123456",
+				},
+			],
+		})
+		const { listLocalMarketplaceInstalledEntries } = await import("../marketplace-helpers")
+
+		const { entries } = await listLocalMarketplaceInstalledEntries(makeController())
+		const message = entries.find((entry) => entry.path === BROKEN_PLUGIN)?.error ?? ""
+
+		assert.equal(message.includes("sk-live-abcdef123456"), false)
+		assert.equal(message.includes("[redacted]"), true)
+	})
+
+	it("flattens and truncates a long multi-line stack", async () => {
+		listPluginToolsWithDiagnosticsStub.resolves({
+			tools: [],
+			warnings: [],
+			failures: [
+				{ pluginPath: BROKEN_PLUGIN, phase: "load", message: `boom\n${"    at frame (file.ts:1:1)\n".repeat(60)}` },
+			],
+		})
+		const { listLocalMarketplaceInstalledEntries } = await import("../marketplace-helpers")
+
+		const { entries } = await listLocalMarketplaceInstalledEntries(makeController())
+		const message = entries.find((entry) => entry.path === BROKEN_PLUGIN)?.error ?? ""
+
+		assert.equal(message.includes("\n"), false)
+		assert.equal(message.length <= 401, true)
+		assert.equal(message.startsWith("boom at frame"), true)
+		assert.equal(message.endsWith("…"), true)
+	})
+
+	it("still diagnoses global plugins when no workspace folder is open", async () => {
+		workspacePaths = []
+		const { listLocalMarketplaceInstalledEntries } = await import("../marketplace-helpers")
+
+		const { entries } = await listLocalMarketplaceInstalledEntries(makeController())
+
+		assert.equal(listPluginToolsWithDiagnosticsStub.callCount, 1)
+		assert.equal(listPluginToolsWithDiagnosticsStub.firstCall.args[0].workspacePath, undefined)
+		assert.equal(entries.find((entry) => entry.path === BROKEN_PLUGIN)?.error, "plugin-sandbox process exited (code=1)")
 	})
 
 	it("skips the probe entirely when every discovered plugin is disabled", async () => {
