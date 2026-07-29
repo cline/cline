@@ -238,7 +238,10 @@ export function createUserInstructionPlugin(
 				api.registerRule({
 					id: "cline-user-instructions:rules",
 					source: "user-instruction-watcher",
-					content: () => loadRulesForSystemPromptFromWatcher(options.watcher),
+					content: async () => {
+						await options.watcher.refreshType("rule").catch(() => {});
+						return loadRulesForSystemPromptFromWatcher(options.watcher);
+					},
 				});
 			}
 

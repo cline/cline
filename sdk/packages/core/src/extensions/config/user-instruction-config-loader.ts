@@ -108,6 +108,7 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	const nodeError = error as NodeJS.ErrnoException;
 	return (
 		nodeError?.code === "ENOENT" ||
+		nodeError?.code === "ENOTDIR" ||
 		nodeError?.code === "EACCES" ||
 		nodeError?.code === "EPERM" ||
 		nodeError?.code === "ELOOP"

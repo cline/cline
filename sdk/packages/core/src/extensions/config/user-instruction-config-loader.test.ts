@@ -438,4 +438,29 @@ New release workflow.`,
 			join(tempRoot, ".cline", "workflows", "release.md"),
 		);
 	});
+
+	it("loads a workspace .clinerules file without failing the skills scan", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-file-"),
+		);
+		tempRoots.push(tempRoot);
+		await writeFile(join(tempRoot, ".clinerules"), "Keep changes minimal.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: tempRoot, cwd: tempRoot },
+			rules: { workspacePath: tempRoot },
+			workflows: { workspacePath: tempRoot },
+		});
+
+		try {
+			await watcher.start();
+			expect(
+				[...watcher.getSnapshot("rule").values()].some(
+					(record) => record.filePath === join(tempRoot, ".clinerules"),
+				),
+			).toBe(true);
+		} finally {
+			watcher.stop();
+		}
+	});
 });
