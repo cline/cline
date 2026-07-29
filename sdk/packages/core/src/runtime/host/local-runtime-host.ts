@@ -35,6 +35,11 @@ import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
+import {
+	hasCurrentSessionThinkingMetadata,
+	resolveSessionThinkingMetadata,
+	withSessionThinkingMetadata,
+} from "../../services/session-thinking";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	captureAgentCreated,
@@ -525,10 +530,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
-			bootstrap.gitState,
+		// `bootstrap.providerConfig` carries the *effective* reasoning settings —
+		// the session config's choice when it made one, otherwise the persisted
+		// provider settings — so this records the level the session really runs
+		// with rather than only an explicitly passed flag.
+		const initialThinking = resolveSessionThinkingMetadata(
+			bootstrap.providerConfig,
 		);
+		// A read-only resume keeps the stored metadata untouched; the resumed
+		// session records its own thinking level once it actually runs a turn.
+		const initialSessionMetadata = resumedArtifacts
+			? withSessionGitMetadata(
+					resumedArtifacts.manifest.metadata,
+					bootstrap.gitState,
+				)
+			: withSessionThinkingMetadata(
+					withSessionGitMetadata(
+						startInput.sessionMetadata,
+						bootstrap.gitState,
+					),
+					initialThinking,
+				);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build(
 			bootstrap.runtimeBuilderInput,
@@ -772,6 +794,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			config: configWithProvider,
 			sessionMetadata: initialSessionMetadata,
+			thinking: initialThinking,
 			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
 			source,
 			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
@@ -1444,6 +1467,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (updates.modelId) manifest.model = updates.modelId;
 			});
 		}
+		// Only when the update actually carries a reasoning field: a plain model
+		// switch leaves `session.config` without the effective level resolved from
+		// provider settings, and re-deriving it here would clobber what start
+		// recorded.
+		if (
+			Object.hasOwn(updates, "reasoningEffort") ||
+			Object.hasOwn(updates, "thinking") ||
+			Object.hasOwn(updates, "thinkingBudgetTokens")
+		) {
+			session.thinking = resolveSessionThinkingMetadata(session.config);
+			await this.refreshActiveSessionThinkingMetadata(session);
+		}
 	}
 
 	/**
@@ -1692,6 +1727,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.aggregateUsageBySession.set(session.sessionId, aggregateUsage);
 			await this.persistSessionMetadata(session.sessionId, (current) => ({
 				...(current ?? {}),
+				// Recorded per turn rather than only at start so a resumed session,
+				// or one whose level was switched mid-run, reports the level its
+				// latest turn actually used.
+				thinking: session.thinking,
 				totalCost: accumulatedUsage.totalCost,
 				aggregatedAgentsCost: aggregateUsage.totalCost,
 				usage: accumulatedUsage,
@@ -1878,6 +1917,42 @@ export class LocalRuntimeHost implements RuntimeHost {
 				sessionId: session.sessionId,
 				error,
 			});
+		}
+	}
+
+	/**
+	 * Persist the session's thinking level to `metadata.thinking` (session row
+	 * plus manifest JSON). A metadata write must never break the caller — a
+	 * model/thinking switch has already been applied to the live session by the
+	 * time this runs — so failures are logged and swallowed.
+	 */
+	private async refreshActiveSessionThinkingMetadata(
+		session: ActiveSession,
+	): Promise<void> {
+		try {
+			if (!session.artifacts) return;
+			if (
+				hasCurrentSessionThinkingMetadata(
+					session.artifacts.manifest.metadata,
+					session.thinking,
+				)
+			) {
+				return;
+			}
+			await this.persistSessionMetadata(session.sessionId, (current) =>
+				withSessionThinkingMetadata(
+					{
+						...(current ?? {}),
+						...(session.sessionMetadata ?? {}),
+					},
+					session.thinking,
+				),
+			);
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to refresh session thinking metadata",
+				{ sessionId: session.sessionId, error },
+			);
 		}
 	}
 

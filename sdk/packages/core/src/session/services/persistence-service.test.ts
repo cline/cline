@@ -194,6 +194,60 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	sqliteIt(
+		"stores the thinking level in the session row and the manifest json",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "thinking-metadata-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "thinking-metadata-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "thinking-level-session";
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				metadata: { thinking: { enabled: true, level: "high" } },
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			expect(
+				JSON.parse(readFileSync(artifacts.manifestPath, "utf8")).metadata,
+			).toMatchObject({ thinking: { enabled: true, level: "high" } });
+			const [row] = await service.listSessions(10);
+			expect(row?.metadata).toMatchObject({
+				thinking: { enabled: true, level: "high" },
+			});
+
+			// A mid-session switch rewrites both stores.
+			await service.updateSession({
+				sessionId,
+				metadata: { thinking: { enabled: true, level: "low" } },
+			});
+
+			expect(
+				JSON.parse(readFileSync(artifacts.manifestPath, "utf8")).metadata,
+			).toMatchObject({ thinking: { enabled: true, level: "low" } });
+			const [updatedRow] = await service.listSessions(10);
+			expect(updatedRow?.metadata).toMatchObject({
+				thinking: { enabled: true, level: "low" },
+			});
+		},
+	);
+
+	sqliteIt(
 		"reconciles dead running sessions into failed manifests with terminal markers",
 		async () => {
 			const dbDir = mkdtempSync(join(tmpdir(), "stale-session-reconcile-db-"));

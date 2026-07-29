@@ -704,6 +704,91 @@ describe("LocalRuntimeHost", () => {
 		expect(session.config.thinkingBudgetTokens).toBeUndefined();
 	});
 
+	it("stores the chosen thinking level in session metadata and the manifest", async () => {
+		const sessionId = "sess-thinking-metadata";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-thinking.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					thinking: true,
+					reasoningEffort: "high",
+				}),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				metadata: expect.objectContaining({
+					thinking: { enabled: true, level: "high" },
+				}),
+			}),
+		);
+		expect(sessionService.updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: expect.objectContaining({
+				thinking: { enabled: true, level: "high" },
+			}),
+		});
+
+		await manager.updateSessionConnection(sessionId, {
+			reasoningEffort: "low",
+		});
+
+		expect(sessionService.updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: expect.objectContaining({
+				thinking: { enabled: true, level: "low" },
+			}),
+		});
+
+		await manager.updateSessionConnection(sessionId, { thinking: false });
+
+		expect(sessionService.updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: expect.objectContaining({ thinking: { enabled: false } }),
+		});
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",
@@ -1938,6 +2023,7 @@ describe("LocalRuntimeHost", () => {
 						},
 					],
 				},
+				thinking: { enabled: false },
 				totalCost: 0.42,
 				aggregatedAgentsCost: 0.42,
 				usage: {
@@ -1974,6 +2060,7 @@ describe("LocalRuntimeHost", () => {
 							},
 						],
 					},
+					thinking: { enabled: false },
 					totalCost: 0.42,
 					aggregatedAgentsCost: 0.42,
 					usage: {
@@ -2088,6 +2175,7 @@ describe("LocalRuntimeHost", () => {
 		expect(updateSession).toHaveBeenLastCalledWith({
 			sessionId,
 			metadata: {
+				thinking: { enabled: false },
 				totalCost: 0,
 				aggregatedAgentsCost: 0,
 				usage: {
