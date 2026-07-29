@@ -449,7 +449,7 @@ describe("executeForeground", () => {
 })
 
 describe("executeForeground — Proceed While Running", () => {
-	it("automatically proceeds after 30 seconds instead of blocking the agent turn", async () => {
+	it("automatically proceeds after 60 seconds instead of blocking the agent turn", async () => {
 		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
 		const coordinator = new SdkForegroundCommandCoordinator()
 		const { process, emitLine, complete } = createControllableTerminalProcess()
@@ -477,7 +477,7 @@ describe("executeForeground — Proceed While Running", () => {
 		await vi.advanceTimersByTimeAsync(1)
 		const result = await resultPromise
 		expect(result).toContain("automatically proceeded")
-		expect(result).toContain("after 30 seconds")
+		expect(result).toContain("after 60 seconds")
 		expect(result).not.toContain("The user chose")
 		expect(result).toContain("listening on :3000")
 		expect(coordinator.isRunning).toBe(false)
