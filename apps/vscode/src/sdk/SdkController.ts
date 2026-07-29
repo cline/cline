@@ -89,6 +89,7 @@ import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
+	findSdkUserMessageIndexByText,
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
@@ -1360,7 +1361,11 @@ export class Controller {
 		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
 		try {
 			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
-			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+			const ordinalTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+			const sdkTargetIndex =
+				ordinalTargetIndex >= 0
+					? ordinalTargetIndex
+					: findSdkUserMessageIndexByText(sdkMessages, targetMessage.text ?? "")
 			if (sdkTargetIndex === -1) {
 				throw new Error("Could not map edited message to persisted conversation history")
 			}

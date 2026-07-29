@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
-import { extractSdkUserText, findSdkUserMessageIndexByOrdinal, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
+import {
+	extractSdkUserText,
+	findSdkUserMessageIndexByOrdinal,
+	findSdkUserMessageIndexByText,
+	isSyntheticUserPrompt,
+} from "./sdk-user-message-mapping"
 
 // Persisted prompts are wrapped by formatModePrompt before they reach SDK
 // history; the mapping must recognize the wrapped shape, not just raw text.
@@ -128,6 +133,35 @@ describe("findSdkUserMessageIndexByOrdinal", () => {
 		]
 
 		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(2)
+	})
+})
+
+describe("findSdkUserMessageIndexByText", () => {
+	it("recovers a uniquely matching persisted message after ordinal drift", () => {
+		const messages = [
+			{ role: "user", content: wrapped("plan the auth refactor", "plan") },
+			{ role: "assistant", content: "which approach?" },
+			{ role: "user", content: [{ type: "tool_result", content: "direct" }] },
+			{
+				role: "user",
+				content: wrapped(
+					"<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>\nimplement it",
+				),
+			},
+		]
+
+		expect(findSdkUserMessageIndexByOrdinal(messages, 3)).toBe(-1)
+		expect(findSdkUserMessageIndexByText(messages, "implement it")).toBe(3)
+	})
+
+	it("does not guess when duplicate persisted messages match", () => {
+		const messages = [
+			{ role: "user", content: wrapped("repeat") },
+			{ role: "assistant", content: "done" },
+			{ role: "user", content: wrapped("repeat") },
+		]
+
+		expect(findSdkUserMessageIndexByText(messages, "repeat")).toBe(-1)
 	})
 })
 

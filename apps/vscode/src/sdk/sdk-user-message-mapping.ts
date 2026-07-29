@@ -102,3 +102,17 @@ export function findSdkUserMessageIndexByOrdinal(sdkMessages: SdkUserMessage[], 
 		return seenUsers === userOrdinal
 	})
 }
+
+export function findSdkUserMessageIndexByText(sdkMessages: SdkUserMessage[], expectedText: string): number {
+	const normalizedExpected = stripModeNotices(normalizeUserInput(expectedText)).trim()
+	if (!normalizedExpected) {
+		return -1
+	}
+	const matches = sdkMessages.flatMap((message, index) => {
+		if (message.role !== "user" || isSyntheticSdkUserMessage(message)) {
+			return []
+		}
+		return stripModeNotices(normalizeUserInput(extractSdkUserText(message))).trim() === normalizedExpected ? [index] : []
+	})
+	return matches.length === 1 ? matches[0] : -1
+}
