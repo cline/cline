@@ -7,10 +7,12 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
+	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
 	resolveDefaultMcpSettingsPath,
+	retainCheckpointRefs,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -1398,14 +1400,8 @@ export class Controller {
 			}
 
 			const resolvedPrompt = await this.resolveContextMentions(editedText)
-			const startInput = {
-				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
-				initialMessages,
-				sessionMetadata: {
-					title: historyTitle,
-					modelId: config.modelId,
-				},
-			}
+			let restoredCheckpointMetadata =
+				checkpointRunCount === undefined ? undefined : createRestoredCheckpointMetadata(sessionRecord, checkpointRunCount)
 
 			if (input.restoreWorkspace) {
 				if (activeSession?.isRunning) {
@@ -1414,7 +1410,7 @@ export class Controller {
 				if (checkpointRunCount === undefined) {
 					throw new Error("Workspace restore is only available for messages that started an agent run")
 				}
-				await sessionHost.restore({
+				const restored = await sessionHost.restore({
 					sessionId: sourceSessionId,
 					checkpointRunCount,
 					cwd,
@@ -1424,9 +1420,22 @@ export class Controller {
 						omitCheckpointMessageFromSession: true,
 					},
 				})
+				restoredCheckpointMetadata = createRestoredCheckpointMetadata(sessionRecord, restored.checkpoint.runCount)
 			}
 
+			const startInput = {
+				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+				initialMessages,
+				sessionMetadata: {
+					title: historyTitle,
+					modelId: config.modelId,
+					...(restoredCheckpointMetadata ? { checkpoint: restoredCheckpointMetadata } : {}),
+				},
+			}
 			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
+			if (restoredCheckpointMetadata) {
+				await retainCheckpointRefs(cwd, startResult.sessionId, restoredCheckpointMetadata.history)
+			}
 
 			this.turnStateTracker.set("streaming")
 			this.messageTranslatorState.clearTurnOutcome()
