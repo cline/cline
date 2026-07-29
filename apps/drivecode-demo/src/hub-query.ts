@@ -1,6 +1,8 @@
 export type DrivecodeDemoHubBootstrap = {
 	/** `?demoPlans=1` — use demo teams fixture for the dependency map */
 	useDemoTeamsAdapter: boolean;
+	/** `?demoShareScreen=1` — mount simulated share-screen Spotlight demo */
+	useShareScreenSpotlightDemo: boolean;
 	/** `?statusMode=` — initial Status Hub mode */
 	initialStatusMode?: "board" | "changelog" | "dependency-map";
 };
@@ -29,6 +31,7 @@ export function readDrivecodeDemoHubBootstrap(
 	const mode = params.get("statusMode")?.trim();
 	return {
 		useDemoTeamsAdapter: params.get("demoPlans") === "1",
+		useShareScreenSpotlightDemo: params.get("demoShareScreen") === "1",
 		initialStatusMode:
 			mode === "board" || mode === "changelog" || mode === "dependency-map"
 				? mode

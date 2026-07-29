@@ -71,7 +71,7 @@ import { DriveView } from "./components/views/drive-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
-import { StatusView } from "./components/views/status-view";
+import { ShareScreenSpotlightDemo } from "./drive/ShareScreenSpotlightDemo";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -79,6 +79,11 @@ const Chat = lazy(() => import("./Chat"));
 const SettingsView = lazy(() =>
 	import("./components/views/settings/settings-view").then((module) => ({
 		default: module.SettingsView,
+	})),
+);
+const StatusView = lazy(() =>
+	import("./components/views/status-view").then((module) => ({
+		default: module.StatusView,
 	})),
 );
 const CustomizationSectionView = lazy(() =>
@@ -1282,6 +1287,9 @@ function App() {
 			);
 		}
 		if (view === "drive") {
+			if (demoHub.useShareScreenSpotlightDemo) {
+				return <ShareScreenSpotlightDemo />;
+			}
 			return (
 				<DriveView
 					onOpenCall={() => navigate("chat")}
@@ -1400,6 +1408,7 @@ function App() {
 		);
 	}, [
 		demoHub.initialStatusMode,
+		demoHub.useShareScreenSpotlightDemo,
 		statusTeamsSource,
 		hubState,
 		deleteSession,

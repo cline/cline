@@ -61,16 +61,18 @@ describe("readDrivecodeDemoHubBootstrap", () => {
 	it("defaults to demos off when search is empty", () => {
 		expect(readDrivecodeDemoHubBootstrap()).toEqual({
 			useDemoTeamsAdapter: false,
+			useShareScreenSpotlightDemo: false,
 			initialStatusMode: undefined,
 		});
 	});
 
 	it("parses demoPlans and statusMode from a query string", () => {
 		const boot = readDrivecodeDemoHubBootstrap(
-			"?demoPlans=1&statusMode=dependency-map",
+			"?demoPlans=1&demoShareScreen=1&statusMode=dependency-map",
 		);
 		expect(boot).toEqual({
 			useDemoTeamsAdapter: true,
+			useShareScreenSpotlightDemo: true,
 			initialStatusMode: "dependency-map",
 		});
 	});
@@ -82,6 +84,7 @@ describe("readDrivecodeDemoHubBootstrap", () => {
 		});
 		expect(readDrivecodeDemoHubBootstrap(params)).toEqual({
 			useDemoTeamsAdapter: true,
+			useShareScreenSpotlightDemo: false,
 			initialStatusMode: "changelog",
 		});
 	});
