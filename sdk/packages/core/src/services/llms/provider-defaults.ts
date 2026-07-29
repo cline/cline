@@ -5,6 +5,11 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
+import {
+	fetchGroqPrivateModels,
+	fetchRequestyPrivateModels,
+	RICH_LIVE_MODEL_SOURCES,
+} from "./live-model-sources";
 import type {
 	ModelCatalogConfig,
 	ModelInfo,
@@ -141,10 +146,42 @@ async function loadGeneratedProviderModels(): Promise<
 	return Llms.getGeneratedProviderModels();
 }
 
+function stripUndefinedFields(info: ModelInfo): ModelInfo {
+	return Object.fromEntries(
+		Object.entries(info).filter(([, value]) => value !== undefined),
+	) as ModelInfo;
+}
+
+/**
+ * Layer rich live model entries field-wise on top of the curated base:
+ * fields the live source actually reports win, curated fields fill the gaps
+ * (release dates, reasoning options, ...). This is deliberately different
+ * from the record-level spreads used for the other layers — rich live
+ * sources parse provider endpoints that don't report every `ModelInfo`
+ * field, and replacing whole records would regress curated metadata.
+ */
+function overlayLiveModels(
+	base: Record<string, ModelInfo>,
+	overlay: Record<string, ModelInfo>,
+): Record<string, ModelInfo> {
+	if (Object.keys(overlay).length === 0) {
+		return base;
+	}
+	const merged = { ...base };
+	for (const [modelId, info] of Object.entries(overlay)) {
+		const existing = merged[modelId];
+		merged[modelId] = existing
+			? { ...existing, ...stripUndefinedFields(info) }
+			: info;
+	}
+	return merged;
+}
+
 async function mergeKnownModels(
 	providerId: string,
 	defaultKnownModels: Record<string, ModelInfo> = {},
 	liveModels: Record<string, ModelInfo> = {},
+	richLiveModels: Record<string, ModelInfo> = {},
 	privateModels: Record<string, ModelInfo> = {},
 	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
@@ -196,9 +233,14 @@ async function mergeKnownModels(
 		};
 	}
 	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
-		...generated,
-		...defaultKnownModels,
-		...liveModels,
+		...overlayLiveModels(
+			{
+				...generated,
+				...defaultKnownModels,
+				...liveModels,
+			},
+			richLiveModels,
+		),
 		...privateModels,
 		...publicModels,
 	});
@@ -337,6 +379,23 @@ interface BasetenModelResponse {
 	supported_features?: string[];
 	context_length?: number;
 	max_completion_tokens?: number;
+	pricing?: {
+		prompt?: number | string;
+		completion?: number | string;
+	};
+}
+
+/**
+ * Placeholder thinking budget signalling "this model supports thinking" when
+ * the provider only exposes a boolean-ish reasoning flag.
+ */
+const BASETEN_DEFAULT_MAX_THINKING_BUDGET = 6_000;
+
+function parseBasetenPricePerMillion(
+	value: number | string | undefined,
+): number | undefined {
+	const parsed = parseOptionalNumber(value);
+	return parsed !== undefined ? parsed * 1_000_000 : undefined;
 }
 
 async function fetchBasetenPrivateModels(
@@ -359,6 +418,7 @@ async function fetchBasetenPrivateModels(
 
 	const payload = (await response.json()) as { data?: BasetenModelResponse[] };
 	const entries = payload?.data ?? [];
+	const curated = Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.baseten?.models ?? {};
 	const models: Record<string, ModelInfo> = {};
 	for (const model of entries) {
 		const id = model.id?.trim();
@@ -372,16 +432,46 @@ async function fetchBasetenPrivateModels(
 		) {
 			continue;
 		}
+		const staticInfo = curated[id];
 		const features = model.supported_features ?? [];
-		models[id] = buildModelFromPrivateSource(id, {
-			name: id,
-			contextWindow: model.context_length,
-			maxInputTokens: model.context_length,
-			maxTokens: model.max_completion_tokens,
-			supportsReasoning:
-				features.includes("reasoning") || features.includes("reasoning_effort"),
+		const supportsReasoning =
+			features.includes("reasoning") || features.includes("reasoning_effort");
+		const base = buildModelFromPrivateSource(id, {
+			name: staticInfo?.name ?? id,
+			contextWindow: model.context_length ?? staticInfo?.contextWindow,
+			maxInputTokens: model.context_length ?? staticInfo?.maxInputTokens,
+			maxTokens: model.max_completion_tokens ?? staticInfo?.maxTokens,
+			supportsReasoning,
+			// Baseten model APIs do not support image input.
 			supportsImages: false,
+			supportsPromptCache: Boolean(
+				staticInfo?.capabilities?.includes("prompt-cache"),
+			),
+			releaseDate: staticInfo?.releaseDate,
 		});
+		const inputPrice =
+			parseBasetenPricePerMillion(model.pricing?.prompt) ??
+			staticInfo?.pricing?.input;
+		const outputPrice =
+			parseBasetenPricePerMillion(model.pricing?.completion) ??
+			staticInfo?.pricing?.output;
+		models[id] = {
+			...base,
+			description: staticInfo?.description,
+			pricing: {
+				input: inputPrice ?? 0,
+				output: outputPrice ?? 0,
+				cacheRead: staticInfo?.pricing?.cacheRead ?? 0,
+				cacheWrite: staticInfo?.pricing?.cacheWrite ?? 0,
+			},
+			...(supportsReasoning
+				? {
+						thinkingConfig: {
+							maxBudget: BASETEN_DEFAULT_MAX_THINKING_BUDGET,
+						},
+					}
+				: {}),
+		};
 	}
 	return models;
 }
@@ -649,9 +739,12 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	PrivateProviderModelFetcher
 > = {
 	baseten: fetchBasetenPrivateModels,
+	groq: (_config, token) => fetchGroqPrivateModels(token),
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
+	requesty: (config, token) =>
+		fetchRequestyPrivateModels(token, normalizeBaseUrl(config.baseUrl)),
 };
 
 const PUBLIC_MODELS_CACHE = new Map<
@@ -724,6 +817,79 @@ async function getPublicProviderModels(
 export function clearPublicModelsCatalogCache(): void {
 	PUBLIC_MODELS_CACHE.clear();
 	PUBLIC_MODELS_IN_FLIGHT.clear();
+}
+
+const RICH_LIVE_MODELS_CACHE = new Map<
+	string,
+	{ data: Record<string, ModelInfo>; expiresAt: number }
+>();
+const RICH_LIVE_MODELS_IN_FLIGHT = new Map<
+	string,
+	Promise<Record<string, ModelInfo>>
+>();
+
+function getRichLiveModelsForCatalogKey(
+	catalogKey: string,
+	cacheTtlMs: number,
+): Promise<Record<string, ModelInfo>> | undefined {
+	const fetchRichLiveModels = RICH_LIVE_MODEL_SOURCES[catalogKey];
+	if (!fetchRichLiveModels) {
+		return undefined;
+	}
+	const now = Date.now();
+
+	const cached = RICH_LIVE_MODELS_CACHE.get(catalogKey);
+	if (cached && cached.expiresAt > now) {
+		return Promise.resolve(cached.data);
+	}
+
+	const inFlight = RICH_LIVE_MODELS_IN_FLIGHT.get(catalogKey);
+	if (inFlight) {
+		return inFlight;
+	}
+
+	const request = fetchRichLiveModels()
+		.then((data) => {
+			RICH_LIVE_MODELS_CACHE.set(catalogKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
+			return data;
+		})
+		.finally(() => {
+			RICH_LIVE_MODELS_IN_FLIGHT.delete(catalogKey);
+		});
+
+	RICH_LIVE_MODELS_IN_FLIGHT.set(catalogKey, request);
+	return request;
+}
+
+/**
+ * Rich live models for a provider, resolved through the provider's generated
+ * catalog keys (so e.g. `cline` shares OpenRouter's live data). Failures
+ * degrade to an empty record — the curated catalog remains the fallback.
+ */
+async function getRichLiveProviderModels(
+	providerId: string,
+	modelCatalog: ModelCatalogConfig | undefined,
+): Promise<Record<string, ModelInfo>> {
+	const cacheTtlMs =
+		modelCatalog?.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const catalogKeys = Llms.resolveProviderModelCatalogKeys(providerId);
+	const results = await Promise.all(
+		catalogKeys.map(
+			(catalogKey) =>
+				getRichLiveModelsForCatalogKey(catalogKey, cacheTtlMs)?.catch(
+					() => ({}),
+				) ?? {},
+		),
+	);
+	return Object.assign({}, ...results);
+}
+
+export function clearRichLiveModelsCatalogCache(): void {
+	RICH_LIVE_MODELS_CACHE.clear();
+	RICH_LIVE_MODELS_IN_FLIGHT.clear();
 }
 
 async function fetchPrivateProviderModels(
@@ -898,6 +1064,12 @@ export async function resolveProviderConfig(
 		const liveModels = liveCatalog
 			? resolveCatalogModels(providerId, liveCatalog)
 			: {};
+		// Rich live model sources (OpenRouter & co.): provider-native model
+		// endpoints parsed into full ModelInfo, layered field-wise on top of
+		// the curated catalog in mergeKnownModels.
+		const richLiveModels = modelCatalog?.loadLatestOnInit
+			? await getRichLiveProviderModels(providerId, modelCatalog)
+			: {};
 		const privateModels =
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)
@@ -930,6 +1102,7 @@ export async function resolveProviderConfig(
 			providerId,
 			defaults.knownModels,
 			liveModels,
+			richLiveModels,
 			privateModels,
 			publicModels,
 			config?.knownModels,

@@ -16,7 +16,7 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
-import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -1661,11 +1661,6 @@ export class Controller {
 		await this.authService.handleHicapCallback(code)
 		this.persistProviderApiKeyFromState("hicap")
 		await this.postStateToWebview()
-	}
-
-	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-		stubWarn("readOpenRouterModels")
-		return undefined
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {

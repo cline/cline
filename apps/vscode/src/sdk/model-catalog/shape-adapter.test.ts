@@ -141,6 +141,42 @@ describe("adaptSdkModelInfo", () => {
 		})
 	})
 
+	describe("rich live source fields", () => {
+		it("maps thinkingConfig including the thinking-level flags", () => {
+			const model = adaptSdkModelInfo({
+				id: "google/gemini-3-pro",
+				thinkingConfig: { maxBudget: 32_767, outputPrice: 12, thinkingLevel: "high" },
+			})
+			expect(model.thinkingConfig).toEqual({
+				maxBudget: 32_767,
+				outputPrice: 12,
+				supportsThinkingLevel: true,
+				geminiThinkingLevel: "high",
+			})
+		})
+
+		it("maps temperature when present and finite", () => {
+			expect(adaptSdkModelInfo({ id: "m", temperature: 0.7 }).temperature).toBe(0.7)
+			expect(adaptSdkModelInfo({ id: "m" }).temperature).toBeUndefined()
+		})
+
+		it("maps global endpoint support from capability or metadata", () => {
+			expect(adaptSdkModelInfo({ id: "m", capabilities: ["global-endpoint"] }).supportsGlobalEndpoint).toBe(true)
+			expect(adaptSdkModelInfo({ id: "m", metadata: { supportsGlobalEndpoint: true } }).supportsGlobalEndpoint).toBe(true)
+			expect(adaptSdkModelInfo({ id: "m", metadata: {} }).supportsGlobalEndpoint).toBeUndefined()
+		})
+
+		it("passes metadata tiers through when present", () => {
+			const tiers = [{ contextWindow: 128_000, inputPrice: 1 }]
+			expect(adaptSdkModelInfo({ id: "m", metadata: { tiers } }).tiers).toEqual(tiers)
+			expect(adaptSdkModelInfo({ id: "m", metadata: { tiers: [] } }).tiers).toBeUndefined()
+		})
+
+		it("throws CatalogShapeError when thinkingConfig is malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", thinkingConfig: "yes" })).toThrow(CatalogShapeError)
+		})
+	})
+
 	it("maps rich SDK input end-to-end and drops unmapped SDK fields", () => {
 		const model = adaptSdkModelInfo({
 			id: "deepseek-v4-flash",

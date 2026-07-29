@@ -1,6 +1,5 @@
 import type { ModelInfo } from "@shared/api"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { StateManager } from "@/core/storage/StateManager"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
 import { Logger } from "@/shared/services/Logger"
@@ -20,9 +19,6 @@ export async function refreshLiteLlmModels(controller: ProviderCatalogController
 		}
 
 		const models: Record<string, ModelInfo> = Object.fromEntries(result.models)
-
-		// Store in StateManager's in-memory cache
-		StateManager.get().setModelsCache("liteLlm", models)
 
 		// Send event to subscribers
 		try {
