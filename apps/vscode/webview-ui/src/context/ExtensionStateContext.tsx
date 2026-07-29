@@ -25,6 +25,7 @@ import {
 	type ReplicaState,
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
+	isStateSnapshotStale as reducerIsStateSnapshotStale,
 } from "../components/chat/chat-view/messageReducer"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
@@ -454,6 +455,17 @@ export const ExtensionStateContextProvider: React.FC<{
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
+							// Snapshots are fire-and-forget and can be delivered out of order.
+							// Detect staleness (older epoch, or same-epoch version already
+							// superseded) BEFORE the reducer advances the high-water marks, so a
+							// stale snapshot's SCALAR fields (mode, settings, ...) never revert
+							// newer values already shown in the UI (e.g. the Plan/Act toggle).
+							const snapshotIsStale = reducerIsStateSnapshotStale(
+								replicaRef.current,
+								stateData.epoch ?? 0,
+								stateData.stateVersion ?? 0,
+							)
+
 							// Route the snapshot's transcript through the convergent-replica reducer:
 							// merge by ts/seq within the same epoch (never truncate), replace on a
 							// newer epoch, ignore stale/older snapshots. Unstamped (classic/legacy)
@@ -465,6 +477,19 @@ export const ExtensionStateContextProvider: React.FC<{
 								stateData.stateVersion ?? 0,
 								stateData.turnState,
 							)
+
+							if (snapshotIsStale) {
+								// Keep all scalar fields from the newer snapshot already applied;
+								// only adopt the replica's (seq/epoch-gated) transcript and
+								// turnState, which the reducer may still have advanced.
+								setDidHydrateState(true)
+								return {
+									...prevState,
+									clineMessages: replicaRef.current.messages,
+									turnState: replicaRef.current.turnState,
+								}
+							}
+
 							stateData.clineMessages = replicaRef.current.messages
 							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
 							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a

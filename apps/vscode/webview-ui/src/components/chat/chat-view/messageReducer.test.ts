@@ -1,6 +1,13 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { applyMessage, applyStateSnapshot, applyTurnState, createReplicaState, type ReplicaState } from "./messageReducer"
+import {
+	applyMessage,
+	applyStateSnapshot,
+	applyTurnState,
+	createReplicaState,
+	isStateSnapshotStale,
+	type ReplicaState,
+} from "./messageReducer"
 
 function msg(ts: number, seq: number, epoch: number, partial = false, text = `m${ts}`): ClineMessage {
 	return { ts, type: "say", say: "text", text, partial, seq, epoch }
@@ -232,6 +239,51 @@ describe("messageReducer — deterministic", () => {
 			// The transcript must still contain the real conversation, not just the stray row.
 			expect(tsList(s)).toContain(1)
 			expect(tsList(s)).toContain(2)
+		})
+	})
+
+	describe("messageReducer — isStateSnapshotStale (scalar-field gate)", () => {
+		it("a fresh replica accepts any stamped snapshot", () => {
+			const s = createReplicaState()
+			expect(isStateSnapshotStale(s, 1, 1)).toBe(false)
+		})
+
+		it("unstamped (classic/legacy) snapshots are never stale", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 3, 10)
+			expect(isStateSnapshotStale(s, 0, 0)).toBe(false)
+		})
+
+		it("an older-epoch snapshot is stale (straggler from a previous task/render)", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 2, 5)
+			expect(isStateSnapshotStale(s, 1, 99)).toBe(true)
+		})
+
+		it("a same-epoch snapshot with an older or equal version is stale", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 1, 5)
+			expect(isStateSnapshotStale(s, 1, 4)).toBe(true)
+			expect(isStateSnapshotStale(s, 1, 5)).toBe(true)
+		})
+
+		it("a same-epoch snapshot with a newer version is fresh", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 1, 5)
+			expect(isStateSnapshotStale(s, 1, 6)).toBe(false)
+		})
+
+		it("a newer-epoch snapshot is always fresh (e.g. after a plan/act mode rebuild)", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 1, 100)
+			expect(isStateSnapshotStale(s, 2, 1)).toBe(false)
+		})
+
+		it("evaluating BEFORE applying: the same snapshot is fresh once, then stale on redelivery", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [], 1, 3)
+			expect(isStateSnapshotStale(s, 1, 3)).toBe(true) // duplicate delivery
+			expect(isStateSnapshotStale(s, 1, 4)).toBe(false) // genuinely newer
 		})
 	})
 })

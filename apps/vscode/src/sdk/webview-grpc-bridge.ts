@@ -33,6 +33,8 @@ import type { SessionEventListener } from "./sdk-message-coordinator"
 export class WebviewGrpcBridge {
 	/** Function to get the full ExtensionState from the controller */
 	private getStateFn?: () => Promise<import("@shared/ExtensionMessage").ExtensionState>
+	/** Serialized state-post path (the controller's debounced postStateToWebview). */
+	private requestStateUpdateFn?: () => Promise<void>
 
 	constructor(_translatorState: MessageTranslatorState) {
 		// translatorState is kept as a constructor param for API compatibility
@@ -46,6 +48,23 @@ export class WebviewGrpcBridge {
 	 */
 	setGetStateFn(fn: () => Promise<import("@shared/ExtensionMessage").ExtensionState>): void {
 		this.getStateFn = fn
+	}
+
+	/**
+	 * Set the function used to REQUEST a state update instead of building and
+	 * sending one here. This should be the controller's postStateToWebview(),
+	 * whose StatePostDebouncer serializes snapshot builds and sends.
+	 *
+	 * Why this matters: building a snapshot here (getStateFn + sendStateUpdate)
+	 * runs CONCURRENTLY with the controller's own debounced posts. Snapshot
+	 * assembly awaits mid-build (task history, pending prompts), so a snapshot
+	 * that read its settings BEFORE a change (e.g. a plan/act toggle) can be
+	 * delivered AFTER the fresh snapshot and silently revert the webview's view
+	 * of state — the classic symptom was the Plan/Act toggle showing "Act"
+	 * while the session actually ran in plan mode.
+	 */
+	setRequestStateUpdate(fn: () => Promise<void>): void {
+		this.requestStateUpdateFn = fn
 	}
 
 	/**
@@ -80,8 +99,12 @@ export class WebviewGrpcBridge {
 			(event.type === "agent_event" && (event.payload.event.type === "done" || event.payload.event.type === "error"))
 
 		if (needsStateUpdate) {
-			// Push state update asynchronously — don't block the event stream
-			this.pushStateUpdate().catch((err) => {
+			// Request the update asynchronously — don't block the event stream.
+			// Prefer the controller's serialized post path (see setRequestStateUpdate)
+			// so this can never race a concurrent snapshot build; fall back to a
+			// direct build+send only when the controller isn't wired up.
+			const requestUpdate = this.requestStateUpdateFn ? this.requestStateUpdateFn : () => this.pushStateUpdate()
+			requestUpdate().catch((err) => {
 				Logger.error("[WebviewGrpcBridge] Failed to push state update:", err)
 			})
 		}

@@ -624,6 +624,13 @@ export class Controller {
 		// so state updates include messages, currentTaskItem, and task history
 		this.grpcBridge.setGetStateFn(() => this.getStateToPostToWebview())
 
+		// Route the bridge's state pushes through the debounced/serialized
+		// postStateToWebview() pipeline. A direct build+send from the bridge can
+		// interleave with a concurrent debounced build and deliver a snapshot
+		// carrying pre-change settings AFTER the fresh one (e.g. reverting the
+		// Plan/Act toggle in the UI while the session runs in the new mode).
+		this.grpcBridge.setRequestStateUpdate(() => this.postStateToWebview())
+
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 

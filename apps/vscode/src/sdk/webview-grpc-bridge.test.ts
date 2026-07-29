@@ -78,6 +78,53 @@ describe("WebviewGrpcBridge", () => {
 		})
 	})
 
+	describe("state updates on session events", () => {
+		const endedEvent = { type: "ended", payload: { sessionId: "s1" } }
+
+		it("routes through setRequestStateUpdate (serialized controller path) when wired", async () => {
+			const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
+			const requestStateUpdate = vi.fn().mockResolvedValue(undefined)
+			bridge.setGetStateFn(async () => ({ version: "1.0.0" }) as unknown as ExtensionState)
+			bridge.setRequestStateUpdate(requestStateUpdate)
+
+			const listener = bridge.createListener()
+			// biome-ignore lint/suspicious/noExplicitAny: test-only event type
+			listener([], endedEvent as any)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			expect(requestStateUpdate).toHaveBeenCalledTimes(1)
+			// The bridge must NOT build+send its own snapshot concurrently with the
+			// controller's debounced posts — that reordering is what made a stale
+			// snapshot revert the Plan/Act toggle in the UI.
+			expect(sendStateUpdate).not.toHaveBeenCalled()
+		})
+
+		it("falls back to a direct build+send when no request function is wired", async () => {
+			const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
+			const mockState = { version: "1.0.0" } as unknown as ExtensionState
+			bridge.setGetStateFn(async () => mockState)
+
+			const listener = bridge.createListener()
+			// biome-ignore lint/suspicious/noExplicitAny: test-only event type
+			listener([], endedEvent as any)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			expect(sendStateUpdate).toHaveBeenCalledWith(mockState)
+		})
+
+		it("surfaces requestStateUpdate rejections without throwing", async () => {
+			const requestStateUpdate = vi.fn().mockRejectedValue(new Error("post failed"))
+			bridge.setRequestStateUpdate(requestStateUpdate)
+
+			const listener = bridge.createListener()
+			// biome-ignore lint/suspicious/noExplicitAny: test-only event type
+			listener([], endedEvent as any)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			expect(requestStateUpdate).toHaveBeenCalledTimes(1)
+		})
+	})
+
 	describe("pushStateUpdateFromController", () => {
 		it("should push state from the provided getter", async () => {
 			const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")

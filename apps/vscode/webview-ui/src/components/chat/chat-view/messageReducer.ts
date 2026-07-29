@@ -141,6 +141,27 @@ export function applyMessage(state: ReplicaState, incoming: ClineMessage): Repli
 }
 
 /**
+ * Whether a full state snapshot is STALE relative to what the replica has already applied —
+ * i.e. an older-epoch snapshot, or a same-epoch snapshot whose stateVersion has already been
+ * superseded. The ExtensionStateContext uses this to skip applying the snapshot's SCALAR
+ * fields (mode, settings, etc.): snapshots are fire-and-forget and can arrive out of order,
+ * and a stale one must not revert a newer value (e.g. flip the Plan/Act toggle back to "act"
+ * while the session actually runs in plan mode).
+ *
+ * Evaluate BEFORE applying the snapshot to the replica (application advances the high-water
+ * marks). Unstamped snapshots (version 0, classic/legacy) are never considered stale.
+ */
+export function isStateSnapshotStale(state: ReplicaState, snapshotEpoch = 0, snapshotVersion = 0): boolean {
+	if (snapshotVersion === 0) {
+		return false
+	}
+	if (snapshotEpoch !== state.epoch) {
+		return snapshotEpoch < state.epoch
+	}
+	return snapshotVersion <= state.stateVersion
+}
+
+/**
  * Apply a full state snapshot's transcript.
  *
  *  - older epoch        -> drop entirely
