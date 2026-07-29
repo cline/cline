@@ -411,7 +411,14 @@ export function useDriveSession(
 					driveActiveRef.current = false;
 					setDriveJoinNote(null);
 				}
-				setDrive((current) => applyRoomSnapshot(current, snapshot));
+				setDrive((current) => {
+					const next = applyRoomSnapshot(current, snapshot);
+					// Slice S2 — Join auto-opens Stage so Spotlight mounts without a second click.
+					if (wasPendingJoin && seatedOnCall) {
+						return { ...next, stageLayout: true };
+					}
+					return next;
+				});
 				// Only sync chat mode while locally seated — not after leave/unseat.
 				if (seatedOnCall) {
 					onModeChangeRef.current(
