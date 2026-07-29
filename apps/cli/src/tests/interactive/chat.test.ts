@@ -149,7 +149,6 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		);
 		expect(dialogBackground).not.toEqual(backgroundAtDialogPosition);
 
-
 		terminal.keyEscape();
 		await expectNotVisible(terminal, "Keyboard Shortcuts");
 

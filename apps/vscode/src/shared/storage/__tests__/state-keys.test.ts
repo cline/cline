@@ -362,6 +362,16 @@ describe("State Keys Type Safety", () => {
 				expect(result.viewport).to.deep.equal({ width: 800, height: 600 })
 			}
 		})
+
+		it("should fold SDK provider spellings to legacy ApiProvider spellings on load", () => {
+			// State written by older builds (or other hosts) may store the SDK
+			// catalog id `openai-compatible`; the load transform migrates it to
+			// the legacy `openai` spelling the rest of the extension is keyed by.
+			expect(applyTransform("planModeApiProvider", "openai-compatible")).to.equal("openai")
+			expect(applyTransform("actModeApiProvider", "openai-compatible")).to.equal("openai")
+			expect(applyTransform("planModeApiProvider", "anthropic")).to.equal("anthropic")
+			expect(applyTransform("actModeApiProvider", "openai")).to.equal("openai")
+		})
 	})
 
 	describe("Metadata Properties", () => {

@@ -103,7 +103,9 @@ export function buildDependencyMap(
 		blocked: 0,
 		completed: 0,
 	};
-	nodes.forEach((n) => counts[n.status]++);
+	for (const n of nodes) {
+		counts[n.status]++;
+	}
 	return {
 		nodes: nodes.sort(compare),
 		cycles,

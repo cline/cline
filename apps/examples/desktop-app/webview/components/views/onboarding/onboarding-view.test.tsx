@@ -203,6 +203,145 @@ describe("OnboardingView", () => {
 		).toBe("cline");
 	});
 
+	it("lets the user cancel a pending browser sign-in", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		// OAuth login that never resolves (browser round-trip abandoned).
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise(() => undefined);
+			}
+			if (command === "cline_account") {
+				throw new Error("No Cline account auth token found");
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+		await act(async () => {
+			buttonByText("Sign in").click();
+		});
+		expect(container.textContent).toContain("Waiting for browser...");
+
+		await act(async () => {
+			buttonByText("Cancel").click();
+		});
+		expect(container.textContent).not.toContain("Waiting for browser...");
+		expect(buttonByText("Sign in")).toBeDefined();
+		// Cancelling must also stop the backend browser round-trip so a
+		// later-completed authorization can never persist credentials.
+		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+	});
+
+	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
+		const onComplete = await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		await act(async () => {
+			buttonByText("Use a Cline API key instead").click();
+		});
+		const keyInput = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Cline API key"]',
+		);
+		expect(keyInput).not.toBeNull();
+
+		invoke.mockClear();
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "save_provider_settings") {
+				return { providerId: "cline", enabled: true };
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(keyInput, "cline_key_123");
+			keyInput?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () => {
+			buttonByText("Connect").click();
+		});
+
+		expect(invoke).toHaveBeenCalledWith("save_provider_settings", {
+			provider: "cline",
+			enabled: true,
+			api_key: "cline_key_123",
+		});
+		expect(container.textContent).toContain("You're all set");
+		expect(container.textContent).toContain("Your Cline account is connected");
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			).lastProvider,
+		).toBe("cline");
+
+		await act(async () => {
+			buttonByText("Start building").click();
+		});
+		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects an invalid Cline API key and rolls back the saved key", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Use a Cline API key instead").click();
+		});
+		const keyInput = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Cline API key"]',
+		);
+
+		const savedKeys: Array<string | undefined> = [];
+		invoke.mockClear();
+		invoke.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "save_provider_settings") {
+					savedKeys.push(args?.api_key as string | undefined);
+					return { providerId: "cline", enabled: true };
+				}
+				if (command === "cline_account") {
+					throw new Error("Cline account request failed with status 401");
+				}
+				return {};
+			},
+		);
+
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(keyInput, "bad_key");
+			keyInput?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () => {
+			buttonByText("Connect").click();
+		});
+
+		// Stays on the connect step with an error instead of advancing.
+		expect(container.textContent).not.toContain("You're all set");
+		expect(container.textContent).toContain("Failed to save API key");
+		expect(container.textContent).toContain("could not be verified");
+		// The rejected key was persisted for verification, then rolled back.
+		expect(savedKeys).toEqual(["bad_key", ""]);
+	});
+
 	it("saves an API key provider and remembers the selection", async () => {
 		const onComplete = await render();
 		await act(async () => {
