@@ -6,6 +6,7 @@ import type {
 	CliMigrationNotice,
 	CliMigrationNoticeOptions,
 } from "./kanban-migration/notice";
+import { CLI_DEFAULT_MAX_ITERATIONS } from "./runtime/defaults";
 
 /** Real `fstatSync`: used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
 const fsActual = vi.hoisted(() => ({
@@ -569,6 +570,42 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
 			"hello world",
 			expect.any(Object),
+			expect.anything(),
+		);
+	});
+
+	it("bounds a prompt run with the default iteration cap", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello world"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello world",
+			expect.objectContaining({
+				maxIterations: CLI_DEFAULT_MAX_ITERATIONS,
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("honors an explicit --max-iterations override", async () => {
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--max-iterations",
+			"7",
+			"hello world",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello world",
+			expect.objectContaining({ maxIterations: 7 }),
 			expect.anything(),
 		);
 	});

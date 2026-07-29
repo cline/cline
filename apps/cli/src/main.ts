@@ -754,6 +754,11 @@ export async function runCli(): Promise<void> {
 			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
 		);
 	}
+	if (args.invalidMaxIterations) {
+		writeln(
+			`${c.dim}[warn] ignoring invalid --max-iterations value "${args.invalidMaxIterations}" (expected integer >= 1)${c.reset}`,
+		);
+	}
 	if (args.hooksDir?.trim()) {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
 	}
@@ -1025,7 +1030,7 @@ export async function runCli(): Promise<void> {
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
-			maxIterations: CLI_DEFAULT_MAX_ITERATIONS,
+			maxIterations: args.maxIterations ?? CLI_DEFAULT_MAX_ITERATIONS,
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
 			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
