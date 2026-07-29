@@ -36,17 +36,16 @@ function toRuntimeToolInteraction(
 	};
 }
 
-function deniedToolResult(): ToolApprovalResult {
+function deniedToolResult(request: ToolApprovalRequest): ToolApprovalResult {
 	return {
 		approved: false,
-		reason:
-			"This tool call was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed.",
+		reason: `The "${request.toolName}" tool call was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed.`,
 	};
 }
 
 function dismissPendingInteraction(pending: PendingRuntimeToolInteraction) {
 	if (pending.kind === "tool_approval") {
-		pending.resolve(deniedToolResult());
+		pending.resolve(deniedToolResult(pending.request));
 		return;
 	}
 	pending.resolve("[User dismissed the question]");
@@ -112,7 +111,9 @@ export function useRuntimeDialogBridge(input: {
 			if (!pending || pending.id !== id || pending.kind !== "tool_approval") {
 				return;
 			}
-			pending.resolve(approved ? { approved: true } : deniedToolResult());
+			pending.resolve(
+				approved ? { approved: true } : deniedToolResult(pending.request),
+			);
 			const hasNext = finishActive(id);
 			if (!hasNext) {
 				refocusTextarea();

@@ -1,7 +1,13 @@
 import { isEditTool } from "./sdk-tool-policies"
 
-export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON =
-	"This tool call was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed."
+/**
+ * Shared tail of every user-rejection denial reason. Kept as one contiguous string so
+ * isKnownToolApprovalDenial can match denials regardless of which tool name (if any)
+ * was interpolated at the front.
+ */
+export const TOOL_APPROVAL_DENIAL_REASON_SUFFIX =
+	"was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed."
+export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = `This tool call ${TOOL_APPROVAL_DENIAL_REASON_SUFFIX}`
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
 	"The user denied this edit. The file was NOT modified and still contains its original content."
@@ -16,7 +22,14 @@ export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
  * sync with the file on every retry.
  */
 export function buildToolApprovalDenialReason(toolName: string | undefined, feedback: string | undefined): string {
-	const denial = toolName && isEditTool(toolName) ? EDIT_TOOL_APPROVAL_DENIAL_REASON : DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+	let denial: string
+	if (toolName && isEditTool(toolName)) {
+		denial = EDIT_TOOL_APPROVAL_DENIAL_REASON
+	} else if (toolName) {
+		denial = `The "${toolName}" tool call ${TOOL_APPROVAL_DENIAL_REASON_SUFFIX}`
+	} else {
+		denial = DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+	}
 	const trimmedFeedback = feedback?.trim()
 	if (!trimmedFeedback) {
 		return denial
@@ -49,7 +62,7 @@ export function isKnownToolApprovalDenial(value: unknown): boolean {
 
 	return (
 		message.includes(USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON) ||
-		message.includes(DEFAULT_TOOL_APPROVAL_DENIAL_REASON) ||
+		message.includes(TOOL_APPROVAL_DENIAL_REASON_SUFFIX) ||
 		message.includes(EDIT_TOOL_APPROVAL_DENIAL_REASON)
 	)
 }
