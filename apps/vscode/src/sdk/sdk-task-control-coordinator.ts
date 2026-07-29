@@ -149,6 +149,8 @@ export class SdkTaskControlCoordinator {
 		}
 
 		try {
+			this.options.interactions.clearPending("Task switched")
+
 			// When reopening the task that is currently active, wait for its stop to
 			// land so the persisted session status read below reflects how the last
 			// turn actually ended (completed vs cancelled) instead of a transient
