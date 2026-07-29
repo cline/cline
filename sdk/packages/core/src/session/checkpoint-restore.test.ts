@@ -92,6 +92,49 @@ describe("applyCheckpointToWorktree", () => {
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
 	});
 
+	it("infers a kindless stash checkpoint without treating it as a commit", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"cline checkpoint session=legacy run=1",
+		]);
+		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
+
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded commit"]);
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"checkpoint state\n",
+		);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
+	it("restores a kindless root commit without reading a nonexistent parent", async () => {
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded commit"]);
+		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
+		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointRef);
+	});
+
 	it("carries checkpoint metadata through the restored run", () => {
 		const metadata = createRestoredCheckpointMetadata(
 			{

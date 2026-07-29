@@ -3,6 +3,11 @@ import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger } from "@cline/shared";
 
 const execFile = promisify(execFileCallback);
+const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
+
+export function isCheckpointStashMessage(message: string): boolean {
+	return message.includes(CHECKPOINT_STASH_MESSAGE_PREFIX);
+}
 
 export interface CheckpointEntry {
 	ref: string;
@@ -211,7 +216,7 @@ export function createCheckpointHooks(
 			}
 		};
 
-		const message = `cline checkpoint session=${options.sessionId} run=${runCount}`;
+		const message = `${CHECKPOINT_STASH_MESSAGE_PREFIX}${options.sessionId} run=${runCount}`;
 		let ref = "";
 		try {
 			const result = await runGit(options.cwd, ["stash", "create", message]);

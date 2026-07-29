@@ -5,6 +5,7 @@ import type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "../hooks/checkpoint-hooks";
+import { isCheckpointStashMessage } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
 import { isUserRunMessage } from "./user-run-messages";
 
@@ -150,6 +151,38 @@ export function createCheckpointRestorePlan(input: {
 	};
 }
 
+async function resolveCheckpointKind(
+	cwd: string,
+	checkpoint: CheckpointEntry,
+): Promise<NonNullable<CheckpointEntry["kind"]>> {
+	if (checkpoint.kind) {
+		return checkpoint.kind;
+	}
+	const result = await execFile(
+		"git",
+		["-C", cwd, "show", "-s", "--format=%P%x00%B", checkpoint.ref],
+		{ windowsHide: true },
+	);
+	const separatorIndex = result.stdout.indexOf("\0");
+	const parents =
+		separatorIndex < 0
+			? []
+			: result.stdout
+					.slice(0, separatorIndex)
+					.trim()
+					.split(/\s+/)
+					.filter(Boolean);
+	const message =
+		separatorIndex < 0 ? "" : result.stdout.slice(separatorIndex + 1);
+
+	// Checkpoints created before `kind` was persisted used Cline's stash
+	// message. Requiring both its merge shape and marker keeps ordinary merge
+	// commits from being passed to `git stash apply`.
+	return parents.length >= 2 && isCheckpointStashMessage(message)
+		? "stash"
+		: "commit";
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -167,18 +200,26 @@ export async function applyCheckpointToWorktree(
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
 		{ windowsHide: true },
 	);
+	const checkpointKind = await resolveCheckpointKind(cwd, checkpoint);
 	const restoreBase =
-		checkpoint.kind === "commit" ? checkpoint.ref : `${checkpoint.ref}^1`;
+		checkpointKind === "commit" ? checkpoint.ref : `${checkpoint.ref}^1`;
 	await execFile(
 		"git",
 		["-C", cwd, "cat-file", "-e", `${restoreBase}^{commit}`],
 		{ windowsHide: true },
 	);
+	if (checkpointKind === "stash") {
+		await execFile(
+			"git",
+			["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^2^{commit}`],
+			{ windowsHide: true },
+		);
+	}
 	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
 		windowsHide: true,
 	});
 	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
-	if (checkpoint.kind === "commit") {
+	if (checkpointKind === "commit") {
 		return;
 	}
 	await execFile("git", ["-C", cwd, "stash", "apply", checkpoint.ref], {
