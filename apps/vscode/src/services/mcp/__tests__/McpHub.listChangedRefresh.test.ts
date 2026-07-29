@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import "should"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
@@ -39,6 +40,7 @@ function createMcpHub(serverName = "test-server", options: { disabled?: boolean 
 	;(hub as any).listChangedRefreshTimers = new Map()
 	;(hub as any).listChangedRefreshInFlight = new Map()
 	;(hub as any).listChangedRefreshGeneration = new Map()
+	;(hub as any).listChangedRefreshDeadlines = new Map()
 
 	const fetchToolsList = sinon.stub().resolves([{ name: "tool1" }])
 	const fetchResourcesList = sinon.stub().resolves([{ name: "resource1" }])
@@ -272,6 +274,47 @@ describe("McpHub list_changed notification refresh", () => {
 		notifyWebviewOfServerChanges.calledOnce.should.be.true()
 	})
 
+	it("treats method-not-found and undeclared capabilities as authoritatively empty lists", async () => {
+		// Exercises the real fetch helpers (not the stubbed ones) with a fake
+		// client: a permanent "this server doesn't do that" answer must come
+		// back as [] — publishable, no retry — not as a failure (undefined)
+		const makeHubWithClient = (client: any) => {
+			const hub = Object.create(McpHub.prototype) as McpHub
+			;(hub as any).connections = [
+				{
+					server: { name: "test-server", config: "{}", status: "connected", disabled: false },
+					client,
+					transport: {},
+				},
+			]
+			return hub
+		}
+
+		// Server declares the resources capability but doesn't implement
+		// resources/templates/list
+		const methodNotFound = makeHubWithClient({
+			getServerCapabilities: () => ({ resources: {} }),
+			request: sinon.stub().rejects(new McpError(ErrorCode.MethodNotFound, "Method not found")),
+		})
+		;((await (methodNotFound as any).fetchResourceTemplatesList("test-server")) as any).should.deepEqual([])
+
+		// Server never declared the prompts capability: no request is made
+		const noCapability = makeHubWithClient({
+			getServerCapabilities: () => ({ tools: {} }),
+			request: sinon.stub().rejects(new Error("should not be called")),
+		})
+		;((await (noCapability as any).fetchPromptsList("test-server")) as any).should.deepEqual([])
+		noCapability.connections[0].client &&
+			(noCapability.connections[0].client as any).request.called.should.be.false()
+
+		// A transient error is still a failure (undefined), not an empty list
+		const transient = makeHubWithClient({
+			getServerCapabilities: () => ({ resources: {} }),
+			request: sinon.stub().rejects(new Error("timeout")),
+		})
+		;((await (transient as any).fetchResourcesList("test-server")) === undefined).should.be.true()
+	})
+
 	it("retries a failed refresh with backoff and applies the eventual result", async () => {
 		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
 		connection.server.tools = [{ name: "existing" }]
@@ -304,6 +347,47 @@ describe("McpHub list_changed notification refresh", () => {
 
 		fetchToolsList.callCount.should.equal(4)
 		notifyWebviewOfServerChanges.called.should.be.false()
+	})
+
+	it("retries when the fetch succeeded but publishing failed", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		fetchToolsList.resolves([{ name: "tool1" }])
+		notifyWebviewOfServerChanges.onFirstCall().rejects(new Error("settings read failed"))
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+
+		// First attempt: fetch succeeds and updates the cache, but consumers
+		// never saw it because the publish failed — so it must retry
+		await clock.tickAsync(300)
+		connection.server.tools.should.deepEqual([{ name: "tool1" }])
+		notifyWebviewOfServerChanges.calledOnce.should.be.true()
+
+		await clock.tickAsync(1000)
+		notifyWebviewOfServerChanges.calledTwice.should.be.true()
+	})
+
+	it("caps how long a sustained notification stream can defer the refresh", async () => {
+		const { hub, fetchToolsList } = createMcpHub()
+
+		// Notifications arriving every 200ms would re-arm the 300ms debounce
+		// forever; the 2s max-wait forces the refresh through regardless
+		for (let i = 0; i < 10; i++) {
+			;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+			await clock.tickAsync(200)
+		}
+
+		fetchToolsList.called.should.be.true()
+	})
+
+	it("cancels pending refreshes when the connection is deleted", async () => {
+		const { hub, connection, fetchToolsList } = createMcpHub()
+		;(connection as any).transport = { close: sinon.stub().resolves() }
+		;(connection as any).client = { close: sinon.stub().resolves() }
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+
+		await hub.deleteConnection("test-server")
+		await clock.tickAsync(300)
+
+		fetchToolsList.called.should.be.false()
 	})
 
 	it("lets a fresh notification supersede a pending retry", async () => {

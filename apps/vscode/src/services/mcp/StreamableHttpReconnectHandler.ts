@@ -35,6 +35,10 @@ export const DEFAULT_RECONNECT_CONFIG: ReconnectConfig = {
 	getDelayMs: (attempt: number) => 2000 * 2 ** attempt,
 }
 
+/** Attempts/delay for publishing server state after a successful reconnect. */
+const PUBLISH_ATTEMPTS = 3
+const PUBLISH_RETRY_DELAY_MS = 1000
+
 /**
  * Manages reconnection logic for a single StreamableHTTP MCP transport.
  *
@@ -70,6 +74,27 @@ export class StreamableHttpReconnectHandler {
 	}
 
 	/**
+	 * Publish server state to the webview, retrying transient failures up to
+	 * `attempts` times. Never throws: handleError runs from transport.onerror
+	 * with its promise discarded, so a rejection here would surface as an
+	 * unhandled rejection — and a publication failure must never be confused
+	 * with a transport failure.
+	 */
+	private async publishServerChanges(attempts = 1): Promise<void> {
+		for (let attempt = 1; attempt <= attempts; attempt++) {
+			try {
+				await this.callbacks.notifyWebviewOfServerChanges()
+				return
+			} catch (error) {
+				Logger.error(`Failed to publish server state for "${this.serverName}" (attempt ${attempt}/${attempts}):`, error)
+				if (attempt < attempts) {
+					await this.callbacks.delay(PUBLISH_RETRY_DELAY_MS)
+				}
+			}
+		}
+	}
+
+	/**
 	 * Handle a transport error. Call this from `transport.onerror`.
 	 */
 	async handleError(error: unknown): Promise<void> {
@@ -93,7 +118,9 @@ export class StreamableHttpReconnectHandler {
 			)
 			connection.server.status = "disconnected"
 			this.callbacks.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
-			await this.callbacks.notifyWebviewOfServerChanges()
+			// Terminal state: no further publish will come from this handler,
+			// so retry rather than risk leaving consumers on "connecting"
+			await this.publishServerChanges(PUBLISH_ATTEMPTS)
 			return
 		}
 
@@ -107,7 +134,7 @@ export class StreamableHttpReconnectHandler {
 		)
 
 		connection.server.status = "connecting"
-		await this.callbacks.notifyWebviewOfServerChanges()
+		await this.publishServerChanges()
 
 		await this.callbacks.delay(initialDelay)
 
@@ -146,13 +173,11 @@ export class StreamableHttpReconnectHandler {
 			// connectToServer() loads fresh lists but doesn't publish them;
 			// without this, the webview keeps showing "connecting" and
 			// consumers keep the pre-reconnect capabilities. Kept outside the
-			// connect try/catch: a publication failure must not be treated as
-			// a transport failure and restart the already-live connection.
-			try {
-				await this.callbacks.notifyWebviewOfServerChanges()
-			} catch (notifyError) {
-				Logger.error(`Failed to publish server state after reconnect for "${this.serverName}":`, notifyError)
-			}
+			// connect try/catch — a publication failure must not be treated
+			// as a transport failure and restart the already-live connection —
+			// and retried so a transient failure doesn't leave consumers
+			// stuck on "connecting" with pre-reconnect capabilities.
+			await this.publishServerChanges(PUBLISH_ATTEMPTS)
 			return
 		}
 
@@ -167,6 +192,7 @@ export class StreamableHttpReconnectHandler {
 			exhaustedConnection.server.status = "disconnected"
 			this.callbacks.appendErrorMessage(exhaustedConnection, error instanceof Error ? error.message : `${error}`)
 		}
-		await this.callbacks.notifyWebviewOfServerChanges()
+		// Terminal state — same rationale as the early-exhausted path above
+		await this.publishServerChanges(PUBLISH_ATTEMPTS)
 	}
 }

@@ -145,6 +145,34 @@ describe("StreamableHttpReconnectHandler", () => {
 		handler.attemptCount.should.equal(0)
 	})
 
+	it("should retry a transiently failing post-reconnect publication", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// Call 1 publishes "connecting"; call 2 (post-reconnect) fails; call 3 succeeds
+		cbs.stubs.notifyWebviewOfServerChanges.onSecondCall().rejects(new Error("settings read failed"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// The failed publish was retried until it succeeded, so consumers
+		// aren't left on "connecting" with pre-reconnect capabilities
+		cbs.stubs.notifyWebviewOfServerChanges.callCount.should.equal(3)
+	})
+
+	it("should not throw when every post-reconnect publication attempt fails", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.notifyWebviewOfServerChanges.rejects(new Error("persistent failure"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		// handleError runs from transport.onerror with its promise discarded,
+		// so it must never reject — even when publication never succeeds
+		await handler.handleError(new Error("connection lost"))
+
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+		handler.attemptCount.should.equal(0)
+	})
+
 	it("should use the configured delay for each attempt", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
