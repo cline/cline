@@ -9,6 +9,7 @@ import {
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import {
 	DirectorScriptSchema,
+	DoBacklogItemSchema,
 	type ShowBacklogItem,
 	ShowBacklogItemSchema,
 } from "@cline/shared";
@@ -173,6 +174,8 @@ export function handleDriveCommand(
 			return handleShowEnqueue(ctx, envelope);
 		case "drive.show.tick":
 			return handleShowTick(ctx, envelope);
+		case "drive.do.enqueue":
+			return handleDoEnqueue(ctx, envelope);
 		case "drive.script.attach":
 			return handleScriptAttach(ctx, envelope);
 		case "drive.script.advance":
@@ -375,6 +378,44 @@ function handleShowEnqueue(
 		}
 	}
 	return okReply(envelope, { room: next });
+}
+
+function handleDoEnqueue(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const roomId = readString(envelope.payload, "roomId") ?? "default";
+	const parsedDo = DoBacklogItemSchema.safeParse(envelope.payload?.doItem);
+	if (!parsedDo.success) {
+		return errorReply(
+			envelope,
+			"invalid_payload",
+			"doItem must be a valid DoBacklogItem",
+		);
+	}
+	const enqueued = {
+		...parsedDo.data,
+		status:
+			parsedDo.data.status === "done" || parsedDo.data.status === "blocked"
+				? parsedDo.data.status
+				: ("queued" as const),
+	};
+	const store = getDriveRoomStore();
+	store.create(roomId);
+	const room = store.getOrCreateLive(roomId);
+	const doBacklog = [
+		enqueued,
+		...room.director.doBacklog.filter((item) => item.id !== enqueued.id),
+	];
+	const next = store.setLive({
+		...room,
+		director: {
+			...room.director,
+			doBacklog,
+		},
+	});
+	publishRoom(ctx, next);
+	return okReply(envelope, { room: next, doItem: enqueued });
 }
 
 function handleShowTick(

@@ -335,4 +335,63 @@ describe("handleDriveCommand", () => {
 			showItemId: "show-hold",
 		});
 	});
+
+	it("enqueues a Do backlog item onto the room director", () => {
+		const { ctx, published } = createCtx();
+		const reply = handleDriveCommand(
+			ctx,
+			envelope("drive.do.enqueue", {
+				roomId: "r-do",
+				doItem: {
+					id: "do-auth",
+					title: "Fix auth flake",
+					goal: "Stabilize login test",
+					priority: 20,
+					status: "active",
+					dependsOn: [],
+					source: "human",
+				},
+			}),
+		);
+		expect(reply.ok).toBe(true);
+		const room = reply.payload?.room as {
+			director: { doBacklog: Array<{ id: string; status: string; title: string }> };
+		};
+		expect(room.director.doBacklog).toEqual([
+			expect.objectContaining({
+				id: "do-auth",
+				title: "Fix auth flake",
+				status: "queued",
+			}),
+		]);
+		expect(
+			published.some((event) => event.event === "drive.room.changed"),
+		).toBe(true);
+
+		const upsert = handleDriveCommand(
+			ctx,
+			envelope("drive.do.enqueue", {
+				roomId: "r-do",
+				doItem: {
+					id: "do-auth",
+					title: "Fix auth flake (updated)",
+					goal: "Stabilize login test",
+					priority: 30,
+					status: "queued",
+					dependsOn: [],
+					source: "planner",
+				},
+			}),
+		);
+		expect(upsert.ok).toBe(true);
+		const next = upsert.payload?.room as {
+			director: { doBacklog: Array<{ id: string; title: string; priority: number }> };
+		};
+		expect(next.director.doBacklog).toHaveLength(1);
+		expect(next.director.doBacklog[0]).toMatchObject({
+			id: "do-auth",
+			title: "Fix auth flake (updated)",
+			priority: 30,
+		});
+	});
 });

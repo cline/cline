@@ -462,6 +462,7 @@ export type HubCommandName =
 	| "drive.show.present"
 	| "drive.show.enqueue"
 	| "drive.show.tick"
+	| "drive.do.enqueue"
 	| "drive.script.attach"
 	| "drive.script.advance"
 	| "drive.fork.claim"
