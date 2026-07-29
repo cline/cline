@@ -1,6 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
+	findCheckpointRunCountForMessage,
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isCheckpointAnswerMessage,
@@ -96,5 +97,21 @@ describe("SDK checkpoint user-run mapping", () => {
 		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
 		expect(findVisibleCheckpointUserMessageByRun(messages, 1)?.message.text).toBe("start")
 		expect(findVisibleCheckpointUserMessageByRun(messages, 2)?.message.text).toBe("next task")
+	})
+
+	it("maps a user message to the checkpoint created for its model run", () => {
+		const history = [
+			{ ref: "before-first", createdAt: 110, runCount: 1 },
+			{ ref: "before-second", createdAt: 510, runCount: 5 },
+		]
+
+		expect(findCheckpointRunCountForMessage(history, 100, 500)).toBe(1)
+		expect(findCheckpointRunCountForMessage(history, 500)).toBe(5)
+	})
+
+	it("does not borrow a checkpoint from the next visible user turn", () => {
+		const history = [{ ref: "before-next", createdAt: 510, runCount: 5 }]
+
+		expect(findCheckpointRunCountForMessage(history, 100, 500)).toBeUndefined()
 	})
 })

@@ -11,6 +11,7 @@ import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
+	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	retainCheckpointRefs,
 	type SessionHistoryRecord,
@@ -64,6 +65,7 @@ import {
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
 import {
+	findCheckpointRunCountForMessage,
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
@@ -1356,7 +1358,7 @@ export class Controller {
 		const userOrdinal = clineMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-		const checkpointRunCount = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const checkpointRunOrdinal = getCheckpointRunCountForMessage(clineMessages, targetIndex)
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
@@ -1392,6 +1394,17 @@ export class Controller {
 				sessionRecord?.workspaceRoot?.trim() ||
 				historyItem?.cwdOnTaskInitialization?.trim() ||
 				fallbackCwd
+			const nextCheckpointMessage = clineMessages.find(
+				(_message, index) => index > targetIndex && getCheckpointRunCountForMessage(clineMessages, index) !== undefined,
+			)
+			const checkpointRunCount =
+				checkpointRunOrdinal === undefined
+					? undefined
+					: (findCheckpointRunCountForMessage(
+							readSessionCheckpointHistory(sessionRecord),
+							targetMessage.ts,
+							nextCheckpointMessage?.ts,
+						) ?? checkpointRunOrdinal)
 			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
 			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
