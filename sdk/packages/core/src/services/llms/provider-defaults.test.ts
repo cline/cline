@@ -2,14 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
-	clearRichLiveModelsCatalogCache,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
 	clearPrivateModelsCatalogCache();
-	clearRichLiveModelsCatalogCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
@@ -203,13 +201,6 @@ describe("resolveProviderConfig", () => {
 
 	it("adds cline-free models from the recommended endpoint to the Cline catalog", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
-			if (url.startsWith("https://openrouter.ai/")) {
-				// Rich live OpenRouter source (shared by the cline provider).
-				return new Response(JSON.stringify({ data: [] }), {
-					status: 200,
-					headers: { "content-type": "application/json" },
-				});
-			}
 			if (url === "https://models.test/api.json") {
 				return new Response(
 					JSON.stringify({
@@ -260,8 +251,7 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
-		// models.dev + cline recommended + rich live OpenRouter models
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(resolved?.knownModels?.["cline-free/live-free-model"]).toMatchObject(
 			{
 				id: "cline-free/live-free-model",
@@ -653,242 +643,6 @@ describe("resolveProviderConfig", () => {
 				maxTokens: 128_000,
 			}),
 		);
-	});
-
-	it("overlays rich live OpenRouter models field-wise onto the curated catalog", async () => {
-		const fetchMock = vi.fn(async (url: string | URL | Request) => {
-			const target = url.toString();
-			if (target.startsWith("https://openrouter.ai/")) {
-				return new Response(
-					JSON.stringify({
-						data: [
-							{
-								id: "anthropic/claude-sonnet-4.6",
-								name: "Anthropic: Claude Sonnet 4.6",
-								description: "Live description",
-								context_length: 1_000_000,
-								top_provider: { max_completion_tokens: 64_000 },
-								architecture: { modality: ["text", "image"] },
-								pricing: { prompt: "0.000003", completion: "0.000015" },
-								supported_parameters: ["tools", "reasoning"],
-							},
-							{
-								id: "vendor/live-only-openrouter-model",
-								name: "Live Only",
-								context_length: 200_000,
-								supported_parameters: ["tools"],
-							},
-						],
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			if (target === "https://models.test/api.json") {
-				return new Response(
-					JSON.stringify({
-						openrouter: {
-							models: {
-								"anthropic/claude-sonnet-4.6": {
-									name: "Claude Sonnet 4.6",
-									tool_call: true,
-									reasoning: true,
-									release_date: "2026-02-01",
-									limit: { context: 200_000, output: 64_000 },
-									cost: { input: 3, output: 15 },
-								},
-							},
-						},
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			return new Response("{}", {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
-		});
-		vi.stubGlobal("fetch", fetchMock);
-
-		const resolved = await resolveProviderConfig("openrouter", {
-			loadLatestOnInit: true,
-			failOnError: false,
-			cacheTtlMs: 0,
-			url: "https://models.test/api.json",
-		});
-
-		const sonnet = resolved?.knownModels?.["anthropic/claude-sonnet-4.6"];
-		// Live fields win (full 1m context passed through, curated cache
-		// pricing override applied), curated fields fill the gaps
-		// (release date survives the overlay).
-		expect(sonnet).toMatchObject({
-			name: "Anthropic: Claude Sonnet 4.6",
-			description: "Live description",
-			contextWindow: 1_000_000,
-			maxTokens: 64_000,
-			releaseDate: "2026-02-01",
-			pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-			thinkingConfig: { maxBudget: 6_000 },
-		});
-		expect(sonnet?.capabilities).toEqual(
-			expect.arrayContaining(["images", "reasoning", "prompt-cache", "tools"]),
-		);
-		// Live-only ids join the catalog, and stealth models are appended.
-		expect(
-			resolved?.knownModels?.["vendor/live-only-openrouter-model"],
-		).toMatchObject({ contextWindow: 200_000 });
-		expect(resolved?.knownModels?.["stealth/giga-potato"]).toBeDefined();
-	});
-
-	it("shares rich live OpenRouter models with the cline provider", async () => {
-		const fetchMock = vi.fn(async (url: string | URL | Request) => {
-			const target = url.toString();
-			if (target.startsWith("https://openrouter.ai/")) {
-				return new Response(
-					JSON.stringify({
-						data: [
-							{
-								id: "vendor/live-only-openrouter-model",
-								name: "Live Only",
-								context_length: 200_000,
-								supported_parameters: ["tools"],
-							},
-						],
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			return new Response("{}", {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
-		});
-		vi.stubGlobal("fetch", fetchMock);
-
-		const resolved = await resolveProviderConfig("cline", {
-			loadLatestOnInit: true,
-			failOnError: false,
-			cacheTtlMs: 0,
-			url: "https://models.test/api.json",
-		});
-
-		expect(
-			resolved?.knownModels?.["vendor/live-only-openrouter-model"],
-		).toMatchObject({ name: "Live Only", contextWindow: 200_000 });
-	});
-
-	it("loads Groq models from the authenticated models endpoint with curated enrichment", async () => {
-		const fetchMock = vi.fn(async () => {
-			return new Response(
-				JSON.stringify({
-					data: [
-						{
-							id: "meta-llama/llama-4-maverick-vision",
-							object: "model",
-							active: true,
-							context_window: 131_072,
-							max_completion_tokens: 8_192,
-							owned_by: "Meta",
-						},
-						{
-							id: "whisper-large-v3",
-							object: "model",
-							active: true,
-						},
-					],
-				}),
-				{ status: 200, headers: { "content-type": "application/json" } },
-			);
-		});
-		vi.stubGlobal("fetch", fetchMock);
-
-		const resolved = await resolveProviderConfig(
-			"groq",
-			{ failOnError: true, cacheTtlMs: 0 },
-			{
-				providerId: "groq",
-				modelId: "",
-				apiKey: "gsk_test",
-			},
-		);
-
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://api.groq.com/openai/v1/models",
-			expect.objectContaining({
-				method: "GET",
-				headers: expect.objectContaining({
-					Authorization: "Bearer gsk_test",
-				}),
-			}),
-		);
-		expect(
-			resolved?.knownModels?.["meta-llama/llama-4-maverick-vision"],
-		).toMatchObject({
-			contextWindow: 131_072,
-			maxTokens: 8_192,
-			description: "Meta model with 131,072 token context window",
-		});
-		expect(
-			resolved?.knownModels?.["meta-llama/llama-4-maverick-vision"]
-				?.capabilities,
-		).toEqual(expect.arrayContaining(["images"]));
-		expect(resolved?.knownModels?.["whisper-large-v3"]).toBeUndefined();
-	});
-
-	it("loads Requesty models from the configured router base URL", async () => {
-		const fetchMock = vi.fn(async () => {
-			return new Response(
-				JSON.stringify({
-					data: [
-						{
-							id: "anthropic/claude-sonnet-4-6",
-							context_window: 200_000,
-							max_output_tokens: 64_000,
-							supports_vision: true,
-							supports_caching: true,
-							input_price: 0.000003,
-							output_price: 0.000015,
-							caching_price: 0.00000375,
-							cached_price: 0.0000003,
-							description: "Routed Claude",
-						},
-					],
-				}),
-				{ status: 200, headers: { "content-type": "application/json" } },
-			);
-		});
-		vi.stubGlobal("fetch", fetchMock);
-
-		const resolved = await resolveProviderConfig(
-			"requesty",
-			{ failOnError: true, cacheTtlMs: 0 },
-			{
-				providerId: "requesty",
-				modelId: "",
-				apiKey: "requesty-key",
-				baseUrl: "https://eu.router.requesty.ai/v1",
-			},
-		);
-
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://eu.router.requesty.ai/v1/models",
-			expect.objectContaining({
-				method: "GET",
-				headers: expect.objectContaining({
-					Authorization: "Bearer requesty-key",
-				}),
-			}),
-		);
-		expect(
-			resolved?.knownModels?.["anthropic/claude-sonnet-4-6"],
-		).toMatchObject({
-			contextWindow: 200_000,
-			maxTokens: 64_000,
-			description: "Routed Claude",
-			pricing: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-		});
-		expect(
-			resolved?.knownModels?.["anthropic/claude-sonnet-4-6"]?.capabilities,
-		).toEqual(expect.arrayContaining(["images", "prompt-cache"]));
 	});
 
 	it("resolves ChatGPT OAuth models from the filtered catalog", async () => {

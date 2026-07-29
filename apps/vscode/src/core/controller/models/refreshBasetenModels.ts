@@ -5,11 +5,10 @@ import type { ProviderCatalogController } from "./providerCatalogShared"
 /**
  * Refreshes the Baseten models and returns application types.
  *
- * Model fetching/parsing is consolidated in the SDK: when a Baseten API key
- * is configured, `resolveProviderConfig` live-fetches Baseten's models
- * endpoint (`fetchBasetenPrivateModels` in `@cline/core`) with live pricing,
- * token limits, and reasoning support, enriched from the curated catalog;
- * without a key the curated catalog is served.
+ * Model catalogs are consolidated in the SDK: `resolveProviderConfig` serves
+ * the models.dev-backed catalog and, when a Baseten API key is configured,
+ * merges in the SDK's authenticated Baseten model fetch — the same source
+ * the CLI uses.
  */
 export async function refreshBasetenModels(controller: ProviderCatalogController): Promise<Record<string, ModelInfo>> {
 	const result = await controller.getProviderCatalog().resolveModels(parseProviderId("baseten"))

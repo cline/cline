@@ -5,10 +5,9 @@ import type { ProviderCatalogController } from "./providerCatalogShared"
 /**
  * Refreshes the Vercel AI Gateway models and returns application types.
  *
- * Model fetching/parsing is consolidated in the SDK: `resolveProviderConfig`
- * merges the curated catalog with the rich live Vercel AI Gateway source
- * (`fetchVercelAiGatewayLiveModels` in `@cline/core`), which parses live
- * pricing/context/thinking config.
+ * Model catalogs are consolidated in the SDK: this resolves through the
+ * models.dev-backed catalog (bundled + live refresh) via
+ * `resolveProviderConfig`, the same source the CLI uses.
  */
 export async function refreshVercelAiGatewayModels(controller: ProviderCatalogController): Promise<Record<string, ModelInfo>> {
 	const result = await controller.getProviderCatalog().resolveModels(parseProviderId("vercel-ai-gateway"))

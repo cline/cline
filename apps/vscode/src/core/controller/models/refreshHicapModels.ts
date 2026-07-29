@@ -7,9 +7,10 @@ import type { ProviderCatalogController } from "./providerCatalogShared"
 /**
  * Refreshes the Hicap models and returns the updated model list.
  *
- * Model fetching is consolidated in the SDK: when a Hicap API key is
- * configured, `resolveProviderConfig` live-fetches Hicap's models endpoint
- * (`fetchHicapPrivateModels` in `@cline/core`).
+ * Model catalogs are consolidated in the SDK: `resolveProviderConfig` serves
+ * the models.dev-backed catalog and, when a Hicap API key is configured,
+ * merges in the SDK's authenticated Hicap model fetch — the same source the
+ * CLI uses.
  */
 export async function refreshHicapModels(
 	controller: ProviderCatalogController,

@@ -40,22 +40,13 @@
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
  * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
- * `reasoning`/`global-endpoint` (for example `tools`, `streaming`,
- * `structured_output`, `temperature`).
+ * `reasoning` (for example `tools`, `streaming`, `structured_output`,
+ * `temperature`).
  *
- * Additional mapped fields sourced from the SDK's rich live model sources
- * (OpenRouter & co.):
- *
- * | extension ModelInfo field | source |
- * | --- | --- |
- * | thinkingConfig | `sdk.thinkingConfig` (`thinkingLevel` maps to `geminiThinkingLevel` + `supportsThinkingLevel`) |
- * | temperature | `sdk.temperature` if finite number |
- * | supportsGlobalEndpoint | capabilities includes `global-endpoint`, or `sdk.metadata.supportsGlobalEndpoint` is true |
- * | tiers | `sdk.metadata.tiers` when it is an array |
- *
- * Extension-only fields not populated by this adapter: `apiFormat` and local
- * provider loaded-context overrides. Those require host enrichment rather
- * than adapter guesses.
+ * Extension-only fields not populated by this adapter: `thinkingConfig`,
+ * `tiers`, `temperature`, `apiFormat`, `supportsGlobalEndpoint`, and local
+ * provider loaded-context overrides. Those require host enrichment or upstream
+ * SDK metadata rather than adapter guesses.
  */
 
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
@@ -83,7 +74,6 @@ export class CatalogShapeError extends Error {
 const IMAGE_CAPABILITIES = new Set(["images", "vision"])
 const PROMPT_CACHE_CAPABILITY = "prompt-cache"
 const REASONING_CAPABILITY = "reasoning"
-const GLOBAL_ENDPOINT_CAPABILITY = "global-endpoint"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
 
 interface NormalizedPricing {
@@ -118,43 +108,6 @@ function readStringArray(value: unknown): readonly string[] | undefined {
 		}
 	}
 	return [...value]
-}
-
-function readThinkingConfig(value: unknown): ModelInfo["thinkingConfig"] | undefined {
-	if (value === undefined) {
-		return undefined
-	}
-	if (!isPlainObject(value)) {
-		throw new CatalogShapeError("SDK model-info `thinkingConfig` must be an object when present.", {
-			details: { receivedType: typeof value },
-		})
-	}
-
-	const result: NonNullable<ModelInfo["thinkingConfig"]> = {}
-	if (isFiniteNumber(value.maxBudget)) {
-		result.maxBudget = value.maxBudget
-	}
-	if (isFiniteNumber(value.outputPrice)) {
-		result.outputPrice = value.outputPrice
-	}
-	if (value.thinkingLevel === "low" || value.thinkingLevel === "high") {
-		result.supportsThinkingLevel = true
-		result.geminiThinkingLevel = value.thinkingLevel
-	}
-	return Object.keys(result).length > 0 ? result : undefined
-}
-
-/**
- * Read `tiers` from the SDK metadata bag. Metadata is an open catchall, so
- * this is deliberately lenient: any array passes through unchanged (matching
- * the previous host behavior of forwarding the provider's raw tier objects).
- */
-function readTiers(metadata: Record<string, unknown>): ModelInfo["tiers"] | undefined {
-	const tiers = metadata.tiers
-	if (!Array.isArray(tiers) || tiers.length === 0) {
-		return undefined
-	}
-	return tiers as ModelInfo["tiers"]
 }
 
 function readPricing(value: unknown): NormalizedPricing | undefined {
@@ -266,26 +219,6 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (rawDescription !== undefined) {
 		result.description = rawDescription
-	}
-
-	const thinkingConfig = readThinkingConfig(input.thinkingConfig)
-	if (thinkingConfig) {
-		result.thinkingConfig = thinkingConfig
-	}
-
-	if (isFiniteNumber(input.temperature)) {
-		result.temperature = input.temperature
-	}
-
-	const metadata = isPlainObject(input.metadata) ? input.metadata : undefined
-	if (capabilities?.includes(GLOBAL_ENDPOINT_CAPABILITY) || metadata?.supportsGlobalEndpoint === true) {
-		result.supportsGlobalEndpoint = true
-	}
-	if (metadata) {
-		const tiers = readTiers(metadata)
-		if (tiers) {
-			result.tiers = tiers
-		}
 	}
 
 	return result

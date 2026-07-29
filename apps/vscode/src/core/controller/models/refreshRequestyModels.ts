@@ -7,10 +7,9 @@ import type { ProviderCatalogController } from "./providerCatalogShared"
 /**
  * Refreshes the Requesty models and returns the updated model list.
  *
- * Model fetching/parsing is consolidated in the SDK: when a Requesty API key
- * is configured, `resolveProviderConfig` live-fetches the configured Requesty
- * router's models endpoint (`fetchRequestyPrivateModels` in `@cline/core`)
- * with pricing, vision, and caching metadata.
+ * Model catalogs are consolidated in the SDK: this resolves through the
+ * models.dev-backed catalog (bundled + live refresh) via
+ * `resolveProviderConfig`, the same source the CLI uses.
  */
 export async function refreshRequestyModels(
 	controller: ProviderCatalogController,

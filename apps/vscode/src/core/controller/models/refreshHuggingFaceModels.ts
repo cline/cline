@@ -7,9 +7,9 @@ import type { ProviderCatalogController } from "./providerCatalogShared"
 /**
  * Refreshes the Hugging Face models and returns the updated model list.
  *
- * Model fetching/parsing is consolidated in the SDK: `resolveProviderConfig`
- * merges the curated catalog with the rich live Hugging Face router source
- * (`fetchHuggingFaceLiveModels` in `@cline/core`).
+ * Model catalogs are consolidated in the SDK: this resolves through the
+ * models.dev-backed catalog (bundled + live refresh) via
+ * `resolveProviderConfig`, the same source the CLI uses.
  */
 export async function refreshHuggingFaceModels(
 	controller: ProviderCatalogController,
