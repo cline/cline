@@ -12,9 +12,12 @@
  *   name?: string,
  *   contextWindow?: number,
  *   maxTokens?: number,
- *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
+ *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images", "global-endpoint"]
  *   pricing?: { input?, output?, cacheRead?, cacheWrite? },
  *   description?: string,
+ *   thinkingConfig?: { maxBudget?, outputPrice?, thinkingLevel? },
+ *   temperature?: number,
+ *   metadata?: { tiers?, ... },  // open bag; only `tiers` is mapped
  *   releaseDate?: string,        // not mapped — see "Unmapped SDK fields" below
  *   family?: string,             // not mapped
  *   status?: string,             // not mapped
@@ -32,19 +35,22 @@
  * | supportsImages | capabilities includes `images` or `vision` | SD.supportsImages (true) when capabilities absent |
  * | supportsPromptCache | capabilities includes `prompt-cache`; if capabilities absent, use SD | SD.supportsPromptCache (false) |
  * | supportsReasoning | capabilities includes `reasoning` | omitted (undefined) |
+ * | supportsGlobalEndpoint | capabilities includes `global-endpoint` | omitted (undefined) |
  * | inputPrice | `sdk.pricing.input` if finite number | SD.inputPrice (0) |
  * | outputPrice | `sdk.pricing.output` if finite number | SD.outputPrice (0) |
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
+ * | thinkingConfig | `sdk.thinkingConfig` (maxBudget/outputPrice pass through; `thinkingLevel` maps to `supportsThinkingLevel` + `geminiThinkingLevel`) | omitted (undefined) |
+ * | temperature | `sdk.temperature` if finite number | omitted (undefined) |
+ * | tiers | `sdk.metadata.tiers` if an array of objects | omitted (undefined) |
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
  * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
- * `reasoning` (for example `tools`, `streaming`, `structured_output`,
- * `temperature`).
+ * `reasoning`/`global-endpoint` (for example `tools`, `streaming`,
+ * `structured_output`, `temperature`).
  *
- * Extension-only fields not populated by this adapter: `thinkingConfig`,
- * `tiers`, `temperature`, `apiFormat`, `supportsGlobalEndpoint`, and local
+ * Extension-only fields not populated by this adapter: `apiFormat` and local
  * provider loaded-context overrides. Those require host enrichment or upstream
  * SDK metadata rather than adapter guesses.
  */
@@ -74,6 +80,7 @@ export class CatalogShapeError extends Error {
 const IMAGE_CAPABILITIES = new Set(["images", "vision"])
 const PROMPT_CACHE_CAPABILITY = "prompt-cache"
 const REASONING_CAPABILITY = "reasoning"
+const GLOBAL_ENDPOINT_CAPABILITY = "global-endpoint"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
 
 interface NormalizedPricing {
@@ -134,6 +141,79 @@ function readPricing(value: unknown): NormalizedPricing | undefined {
 		result[key] = raw
 	}
 	return result
+}
+
+function readThinkingConfig(value: unknown): ModelInfo["thinkingConfig"] {
+	if (value === undefined) {
+		return undefined
+	}
+	if (!isPlainObject(value)) {
+		throw new CatalogShapeError("SDK model-info `thinkingConfig` must be an object when present.", {
+			details: { receivedType: typeof value },
+		})
+	}
+
+	const result: NonNullable<ModelInfo["thinkingConfig"]> = {}
+	for (const key of ["maxBudget", "outputPrice"] as const) {
+		const raw = value[key]
+		if (raw === undefined || raw === null) {
+			continue
+		}
+		if (!isFiniteNumber(raw)) {
+			throw new CatalogShapeError(`SDK model-info \`thinkingConfig.${key}\` must be a finite number when present.`, {
+				details: { key, receivedType: typeof raw },
+			})
+		}
+		result[key] = raw
+	}
+
+	const thinkingLevel = value.thinkingLevel
+	if (thinkingLevel !== undefined && thinkingLevel !== null) {
+		if (thinkingLevel !== "low" && thinkingLevel !== "high") {
+			throw new CatalogShapeError('SDK model-info `thinkingConfig.thinkingLevel` must be "low" or "high" when present.', {
+				details: { receivedValue: thinkingLevel },
+			})
+		}
+		result.supportsThinkingLevel = true
+		result.geminiThinkingLevel = thinkingLevel
+	}
+
+	return result
+}
+
+function readTierNumber(tier: Record<string, unknown>, camelKey: string, snakeKey: string): number | undefined {
+	const raw = tier[camelKey] ?? tier[snakeKey]
+	return isFiniteNumber(raw) ? raw : undefined
+}
+
+/**
+ * Read tiered pricing from the SDK model-info's open `metadata` bag.
+ * `metadata.tiers` originates from provider APIs (OpenRouter), so it is
+ * read leniently: non-array values and entries without a usable context
+ * window are dropped rather than treated as shape errors.
+ */
+function readTiers(metadata: unknown): ModelInfo["tiers"] {
+	if (!isPlainObject(metadata) || !Array.isArray(metadata.tiers)) {
+		return undefined
+	}
+	const tiers: NonNullable<ModelInfo["tiers"]> = []
+	for (const entry of metadata.tiers) {
+		if (!isPlainObject(entry)) {
+			continue
+		}
+		const contextWindow = readTierNumber(entry, "contextWindow", "context_window")
+		if (contextWindow === undefined) {
+			continue
+		}
+		tiers.push({
+			contextWindow,
+			inputPrice: readTierNumber(entry, "inputPrice", "input_price"),
+			outputPrice: readTierNumber(entry, "outputPrice", "output_price"),
+			cacheWritesPrice: readTierNumber(entry, "cacheWritesPrice", "cache_writes_price"),
+			cacheReadsPrice: readTierNumber(entry, "cacheReadsPrice", "cache_reads_price"),
+		})
+	}
+	return tiers.length > 0 ? tiers : undefined
 }
 
 /**
@@ -207,6 +287,9 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		if (capabilities.includes(REASONING_CAPABILITY)) {
 			result.supportsReasoning = true
 		}
+		if (capabilities.includes(GLOBAL_ENDPOINT_CAPABILITY)) {
+			result.supportsGlobalEndpoint = true
+		}
 	} else {
 		result.supportsImages = openAiModelInfoSafeDefaults.supportsImages
 	}
@@ -219,6 +302,26 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (rawDescription !== undefined) {
 		result.description = rawDescription
+	}
+
+	const thinkingConfig = readThinkingConfig(input.thinkingConfig)
+	if (thinkingConfig !== undefined) {
+		result.thinkingConfig = thinkingConfig
+	}
+
+	const rawTemperature = input.temperature
+	if (rawTemperature !== undefined && !isFiniteNumber(rawTemperature)) {
+		throw new CatalogShapeError("SDK model-info `temperature` must be a finite number when present.", {
+			details: { receivedType: typeof rawTemperature },
+		})
+	}
+	if (isFiniteNumber(rawTemperature)) {
+		result.temperature = rawTemperature
+	}
+
+	const tiers = readTiers(input.metadata)
+	if (tiers !== undefined) {
+		result.tiers = tiers
 	}
 
 	return result

@@ -331,59 +331,52 @@ function buildModelFromPrivateSource(
 	};
 }
 
-interface BasetenModelResponse {
-	id?: string;
-	object?: string;
-	supported_features?: string[];
-	context_length?: number;
-	max_completion_tokens?: number;
-}
-
 async function fetchBasetenPrivateModels(
 	_config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
-	const response = await fetchWithTimeout(
-		"https://inference.baseten.co/v1/models",
-		{
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
+	const response = await fetchWithTimeout(Llms.BASETEN_LIVE_MODELS_URL, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
 		},
-	);
+	});
 	if (!response.ok) {
 		throw new Error(`Baseten model refresh failed: HTTP ${response.status}`);
 	}
 
-	const payload = (await response.json()) as { data?: BasetenModelResponse[] };
-	const entries = payload?.data ?? [];
-	const models: Record<string, ModelInfo> = {};
-	for (const model of entries) {
-		const id = model.id?.trim();
-		if (!id) {
-			continue;
-		}
-		if (
-			id.includes("whisper") ||
-			id.includes("tts") ||
-			id.includes("embedding")
-		) {
-			continue;
-		}
-		const features = model.supported_features ?? [];
-		models[id] = buildModelFromPrivateSource(id, {
-			name: id,
-			contextWindow: model.context_length,
-			maxInputTokens: model.context_length,
-			maxTokens: model.max_completion_tokens,
-			supportsReasoning:
-				features.includes("reasoning") || features.includes("reasoning_effort"),
-			supportsImages: false,
-		});
+	return Llms.normalizeBasetenLiveModels(
+		(await response.json()) as unknown,
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.baseten?.models,
+	);
+}
+
+async function fetchGroqPrivateModels(
+	_config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const cleanApiKey = token.trim();
+	if (!cleanApiKey.startsWith("gsk_")) {
+		throw new Error(
+			"Invalid Groq API key format. Groq API keys should start with 'gsk_'",
+		);
 	}
-	return models;
+	const response = await fetchWithTimeout(Llms.GROQ_LIVE_MODELS_URL, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${cleanApiKey}`,
+			"Content-Type": "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`Groq model refresh failed: HTTP ${response.status}`);
+	}
+
+	return Llms.normalizeGroqLiveModels(
+		(await response.json()) as unknown,
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.groq?.models,
+	);
 }
 
 interface HicapModelResponse {
@@ -649,10 +642,88 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	PrivateProviderModelFetcher
 > = {
 	baseten: fetchBasetenPrivateModels,
+	groq: fetchGroqPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
 };
+
+const DEFAULT_LIVE_MODELS_REQUEST_TIMEOUT_MS = 10_000;
+const PROVIDER_LIVE_MODELS_CACHE = new Map<
+	string,
+	{ data: Record<string, ModelInfo>; expiresAt: number }
+>();
+const PROVIDER_LIVE_MODELS_IN_FLIGHT = new Map<
+	string,
+	Promise<Record<string, ModelInfo>>
+>();
+
+/**
+ * Fetch a provider's rich live model list from its registered keyless
+ * live source (see `getProviderLiveModelsSource` in `@cline/llms`), e.g.
+ * OpenRouter's `/api/v1/models`. Unlike `modelsSourceUrl` (ids-only,
+ * authoritative-replace, Ollama/LM Studio semantics) these sources return
+ * full `ModelInfo` and are *layered on top of* the bundled catalog by
+ * `resolveProviderConfig`, so a failed fetch degrades to bundled data.
+ * Cached by source URL so providers sharing a source (OpenRouter and
+ * Cline) share one fetch.
+ */
+async function getProviderLiveModels(
+	providerId: string,
+	modelCatalog: ModelCatalogConfig | undefined,
+): Promise<Record<string, ModelInfo>> {
+	const source = Llms.getProviderLiveModelsSource(providerId);
+	if (!source) {
+		return {};
+	}
+	const cacheTtlMs =
+		modelCatalog?.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const now = Date.now();
+
+	const cached = PROVIDER_LIVE_MODELS_CACHE.get(source.url);
+	if (cached && cached.expiresAt > now) {
+		return cached.data;
+	}
+
+	const inFlight = PROVIDER_LIVE_MODELS_IN_FLIGHT.get(source.url);
+	if (inFlight) {
+		return inFlight;
+	}
+
+	const request = (async () => {
+		const response = await fetchWithTimeout(
+			source.url,
+			{ method: "GET" },
+			DEFAULT_LIVE_MODELS_REQUEST_TIMEOUT_MS,
+		);
+		if (!response.ok) {
+			throw new Error(
+				`failed to fetch live models from ${source.url}: HTTP ${response.status}`,
+			);
+		}
+		const curatedModels =
+			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[source.providerId]?.models;
+		return source.normalize((await response.json()) as unknown, curatedModels);
+	})()
+		.then((data) => {
+			PROVIDER_LIVE_MODELS_CACHE.set(source.url, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
+			return data;
+		})
+		.finally(() => {
+			PROVIDER_LIVE_MODELS_IN_FLIGHT.delete(source.url);
+		});
+
+	PROVIDER_LIVE_MODELS_IN_FLIGHT.set(source.url, request);
+	return request;
+}
+
+export function clearProviderLiveModelsCache(): void {
+	PROVIDER_LIVE_MODELS_CACHE.clear();
+	PROVIDER_LIVE_MODELS_IN_FLIGHT.clear();
+}
 
 const PUBLIC_MODELS_CACHE = new Map<
 	string,
@@ -895,9 +966,20 @@ export async function resolveProviderConfig(
 		const liveCatalog = modelCatalog?.loadLatestOnInit
 			? await getLiveModelsCatalog(modelCatalog)
 			: undefined;
-		const liveModels = liveCatalog
+		const modelsDevLiveModels = liveCatalog
 			? resolveCatalogModels(providerId, liveCatalog)
 			: {};
+		// Rich per-provider live sources (OpenRouter & co.) are fresher and
+		// carry more metadata than models.dev, so they win over it — but they
+		// still merge on top of the bundled catalog rather than replacing it,
+		// so a failed fetch degrades gracefully.
+		const providerLiveModels = modelCatalog?.loadLatestOnInit
+			? await getProviderLiveModels(providerId, modelCatalog).catch(() => ({}))
+			: {};
+		const liveModels = {
+			...modelsDevLiveModels,
+			...providerLiveModels,
+		};
 		const privateModels =
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)

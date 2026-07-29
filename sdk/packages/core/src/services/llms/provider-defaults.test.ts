@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	clearProviderLiveModelsCache,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
 	clearPrivateModelsCatalogCache();
+	clearProviderLiveModelsCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
@@ -251,7 +253,8 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev catalog + Cline recommended models + OpenRouter live models
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(resolved?.knownModels?.["cline-free/live-free-model"]).toMatchObject(
 			{
 				id: "cline-free/live-free-model",
@@ -405,6 +408,136 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.3-live"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 		expect(resolved?.knownModels?.["o-live"]).toBeUndefined();
+	});
+
+	it("layers rich OpenRouter live models on top of the bundled catalog", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://openrouter.ai/api/v1/models") {
+				return new Response(
+					JSON.stringify({
+						data: [
+							{
+								id: "anthropic/claude-sonnet-4.5",
+								name: "Anthropic: Claude Sonnet 4.5",
+								description: "Live description",
+								context_length: 1_000_000,
+								top_provider: { max_completion_tokens: 64_000 },
+								pricing: { prompt: "0.000003", completion: "0.000015" },
+								supported_parameters: ["tools", "reasoning"],
+							},
+							{
+								id: "vendor/live-only-openrouter-model",
+								name: "Live Only OpenRouter Model",
+								context_length: 100_000,
+								pricing: { prompt: "0.000001", completion: "0.000002" },
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			// models.dev catalog + Cline recommended models: empty
+			return new Response(JSON.stringify({}), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("openrouter", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		// Live entry overrides the bundled catalog entry (picker and task
+		// header now agree on the same metadata — ENG-2345 / ENG-2381).
+		expect(
+			resolved?.knownModels?.["anthropic/claude-sonnet-4.5"],
+		).toMatchObject({
+			description: "Live description",
+			contextWindow: 1_000_000,
+			maxTokens: 64_000,
+			pricing: expect.objectContaining({
+				input: 3,
+				output: 15,
+				// Curated Anthropic cache pricing override applied in the SDK.
+				cacheWrite: 3.75,
+				cacheRead: 0.3,
+			}),
+		});
+		// Live-only ids appear; bundled-only ids are kept (merge, not replace).
+		expect(
+			resolved?.knownModels?.["vendor/live-only-openrouter-model"]?.name,
+		).toBe("Live Only OpenRouter Model");
+		expect(resolved?.knownModels?.["qwen/qwen3.7-flash"]).toBeDefined();
+		// Stealth models ride the bundled catalog.
+		expect(resolved?.knownModels?.["stealth/giga-potato"]).toBeDefined();
+	});
+
+	it("keeps the bundled OpenRouter catalog when the live fetch fails", async () => {
+		const fetchMock = vi.fn(async () => {
+			throw new Error("network down");
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("openrouter", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(resolved?.knownModels?.["qwen/qwen3.7-flash"]).toBeDefined();
+		expect(resolved?.knownModels?.["stealth/giga-potato"]).toBeDefined();
+	});
+
+	it("loads enriched Groq live models through the private fetcher", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "groq-live-model",
+							object: "model",
+							context_window: 262_144,
+							max_completion_tokens: 32_768,
+							owned_by: "Groq",
+						},
+						{ id: "whisper-large-v3", object: "model" },
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"groq",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "groq",
+				modelId: "",
+				apiKey: "gsk_test-key",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.groq.com/openai/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer gsk_test-key",
+				}),
+			}),
+		);
+		expect(resolved?.knownModels?.["groq-live-model"]).toMatchObject({
+			contextWindow: 262_144,
+			maxTokens: 32_768,
+			description: "Groq model with 262,144 token context window",
+		});
+		expect(resolved?.knownModels?.["whisper-large-v3"]).toBeUndefined();
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {

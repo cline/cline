@@ -12,6 +12,7 @@ import {
 } from "@cline/shared";
 import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { OPENROUTER_STEALTH_MODELS } from "../catalog/catalog-live-openrouter";
 import {
 	isCanonicalModelIdForAliasRules,
 	preferCanonicalModelIds,
@@ -396,6 +397,17 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 
 function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
+}
+
+function buildOpenRouterModels(): Record<string, ModelInfo> {
+	// Stealth models are OpenRouter-compatible but unlisted; bundle them with
+	// the generated catalog so they survive live model refreshes and stay
+	// available offline. They are intentionally OpenRouter-only: the `cline`
+	// provider catalog (buildClineModels) does not include them.
+	return {
+		...generatedModels("openrouter"),
+		...OPENROUTER_STEALTH_MODELS,
+	};
 }
 
 function buildClineModels(): Record<string, ModelInfo> {
@@ -890,7 +902,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "anthropic/claude-sonnet-4.6",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
-		modelsProviderId: "openrouter",
+		modelsFactory: buildOpenRouterModels,
 		docsUrl: "https://openrouter.ai/models",
 		defaults: { baseUrl: "https://openrouter.ai/api/v1" },
 		metadata: {
@@ -1157,8 +1169,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {

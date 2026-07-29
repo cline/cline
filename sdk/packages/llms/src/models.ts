@@ -7,6 +7,16 @@ export {
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
 } from "./catalog/catalog-live";
+export {
+	BASETEN_LIVE_MODELS_URL,
+	normalizeBasetenLiveModels,
+} from "./catalog/catalog-live-baseten";
+export {
+	GROQ_LIVE_MODELS_URL,
+	normalizeGroqLiveModels,
+} from "./catalog/catalog-live-groq";
+export type { ProviderLiveModelsSource } from "./catalog/catalog-live-sources";
+export { getProviderLiveModelsSource } from "./catalog/catalog-live-sources";
 export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
 export {
 	isCanonicalModelIdForAliasRules,

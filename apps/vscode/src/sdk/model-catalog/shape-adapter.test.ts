@@ -171,6 +171,79 @@ describe("adaptSdkModelInfo", () => {
 		expect(Object.hasOwn(model, "status")).toBe(false)
 	})
 
+	describe("host-enrichment fields (thinkingConfig, tiers, temperature, global endpoint)", () => {
+		it("maps thinkingConfig maxBudget/outputPrice and thinkingLevel", () => {
+			const model = adaptSdkModelInfo({
+				id: "m",
+				thinkingConfig: { maxBudget: 32_767, outputPrice: 12, thinkingLevel: "high" },
+			})
+			expect(model.thinkingConfig).toEqual({
+				maxBudget: 32_767,
+				outputPrice: 12,
+				supportsThinkingLevel: true,
+				geminiThinkingLevel: "high",
+			})
+		})
+
+		it("keeps an empty thinkingConfig object as a thinking-support signal", () => {
+			const model = adaptSdkModelInfo({ id: "m", thinkingConfig: {} })
+			expect(model.thinkingConfig).toEqual({})
+		})
+
+		it("throws on malformed thinkingConfig", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", thinkingConfig: "budget" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", thinkingConfig: { maxBudget: "big" } })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", thinkingConfig: { thinkingLevel: "max" } })).toThrow(CatalogShapeError)
+		})
+
+		it("maps the global-endpoint capability", () => {
+			const model = adaptSdkModelInfo({ id: "m", capabilities: ["tools", "global-endpoint"] })
+			expect(model.supportsGlobalEndpoint).toBe(true)
+			expect(adaptSdkModelInfo({ id: "m", capabilities: ["tools"] }).supportsGlobalEndpoint).toBeUndefined()
+		})
+
+		it("maps temperature and rejects non-numeric temperature", () => {
+			expect(adaptSdkModelInfo({ id: "m", temperature: 0.7 }).temperature).toBe(0.7)
+			expect(() => adaptSdkModelInfo({ id: "m", temperature: "hot" })).toThrow(CatalogShapeError)
+		})
+
+		it("reads tiers leniently from metadata (camelCase and snake_case)", () => {
+			const model = adaptSdkModelInfo({
+				id: "m",
+				metadata: {
+					tiers: [
+						{ contextWindow: 128_000, inputPrice: 3, outputPrice: 15 },
+						{ context_window: 200_000, input_price: 6, cache_reads_price: 0.5 },
+						{ inputPrice: 1 }, // no usable context window — dropped
+						"garbage",
+					],
+				},
+			})
+			expect(model.tiers).toEqual([
+				{
+					contextWindow: 128_000,
+					inputPrice: 3,
+					outputPrice: 15,
+					cacheWritesPrice: undefined,
+					cacheReadsPrice: undefined,
+				},
+				{
+					contextWindow: 200_000,
+					inputPrice: 6,
+					outputPrice: undefined,
+					cacheWritesPrice: undefined,
+					cacheReadsPrice: 0.5,
+				},
+			])
+		})
+
+		it("omits tiers for missing or malformed metadata", () => {
+			expect(adaptSdkModelInfo({ id: "m" }).tiers).toBeUndefined()
+			expect(adaptSdkModelInfo({ id: "m", metadata: { tiers: "nope" } }).tiers).toBeUndefined()
+			expect(adaptSdkModelInfo({ id: "m", metadata: { tiers: [] } }).tiers).toBeUndefined()
+		})
+	})
+
 	it("does not mutate input", () => {
 		const input = {
 			id: "m",
