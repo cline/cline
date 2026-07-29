@@ -474,6 +474,74 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("uses configured MCP timeout during stdio initialize", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-timeout-"));
+		const serverPath = join(tempRoot, "slow-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    setTimeout(() => {
+      write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "slow", version: "1.0.0" } } });
+    }, 1700);
+    return;
+  }
+  if (message.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: {}, required: [] } }] } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\n");
+    if (separator < 0) break;
+    const line = buffer.slice(0, separator).trim();
+    buffer = buffer.slice(separator + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						slow: {
+							command: process.execPath,
+							args: [serverPath],
+							timeoutMs: 2_500,
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			expect(runtime.tools.map((tool) => tool.name)).toContain("slow__echo");
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("skips MCP settings tools when disableMcpSettingsTools is true", async () => {
 		const tempRoot = mkdtempSync(
 			join(tmpdir(), "runtime-builder-mcp-disabled-"),

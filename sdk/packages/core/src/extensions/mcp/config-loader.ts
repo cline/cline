@@ -24,6 +24,10 @@ import type {
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
+const timeoutFieldsSchema = {
+	timeout: z.number().positive().finite().optional(),
+	timeoutMs: z.number().int().positive().optional(),
+};
 const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
@@ -62,12 +66,24 @@ const mcpTransportSchema = z.discriminatedUnion("type", [
 	streamableHttpTransportSchema,
 ]);
 
-const nestedRegistrationBodySchema = z.object({
-	transport: mcpTransportSchema,
-	disabled: z.boolean().optional(),
-	metadata: metadataSchema.optional(),
-	oauth: oauthStateSchema.optional(),
-});
+const nestedRegistrationBodySchema = z
+	.object({
+		transport: mcpTransportSchema,
+		disabled: z.boolean().optional(),
+		...timeoutFieldsSchema,
+		metadata: metadataSchema.optional(),
+		oauth: oauthStateSchema.optional(),
+	})
+	.transform((value) => {
+		const timeoutMs = normalizeTimeoutMs(value);
+		return {
+			transport: value.transport,
+			disabled: value.disabled,
+			...(timeoutMs ? { timeoutMs } : {}),
+			metadata: value.metadata,
+			oauth: value.oauth,
+		};
+	});
 
 const legacyTransportTypeSchema = z
 	.enum(["stdio", "sse", "http", "streamableHttp"])
@@ -77,9 +93,23 @@ const legacyRegistrationBaseSchema = z.object({
 	type: z.enum(["stdio", "sse", "streamableHttp"]).optional(),
 	transportType: legacyTransportTypeSchema,
 	disabled: z.boolean().optional(),
+	...timeoutFieldsSchema,
 	metadata: metadataSchema.optional(),
 	oauth: oauthStateSchema.optional(),
 });
+
+function normalizeTimeoutMs(value: {
+	timeout?: number;
+	timeoutMs?: number;
+}): number | undefined {
+	if (typeof value.timeoutMs === "number") {
+		return value.timeoutMs;
+	}
+	if (typeof value.timeout === "number") {
+		return Math.ceil(value.timeout * 1000);
+	}
+	return undefined;
+}
 
 function mapLegacyTransportType(
 	transportType: z.infer<typeof legacyTransportTypeSchema>,
@@ -111,18 +141,22 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 			});
 		}
 	})
-	.transform((value) => ({
-		transport: {
-			type: "stdio" as const,
-			command: value.command,
-			args: value.args,
-			cwd: value.cwd,
-			env: value.env,
-		},
-		disabled: value.disabled,
-		metadata: value.metadata,
-		oauth: value.oauth,
-	}));
+	.transform((value) => {
+		const timeoutMs = normalizeTimeoutMs(value);
+		return {
+			transport: {
+				type: "stdio" as const,
+				command: value.command,
+				args: value.args,
+				cwd: value.cwd,
+				env: value.env,
+			},
+			disabled: value.disabled,
+			...(timeoutMs ? { timeoutMs } : {}),
+			metadata: value.metadata,
+			oauth: value.oauth,
+		};
+	});
 
 const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 	.extend({
@@ -145,6 +179,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 		const resolvedType =
 			value.type ?? mapLegacyTransportType(value.transportType) ?? "sse";
 		if (resolvedType === "streamableHttp") {
+			const timeoutMs = normalizeTimeoutMs(value);
 			return {
 				transport: {
 					type: "streamableHttp" as const,
@@ -152,10 +187,12 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 					headers: value.headers,
 				},
 				disabled: value.disabled,
+				...(timeoutMs ? { timeoutMs } : {}),
 				metadata: value.metadata,
 				oauth: value.oauth,
 			};
 		}
+		const timeoutMs = normalizeTimeoutMs(value);
 		return {
 			transport: {
 				type: "sse" as const,
@@ -163,6 +200,7 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				headers: value.headers,
 			},
 			disabled: value.disabled,
+			...(timeoutMs ? { timeoutMs } : {}),
 			metadata: value.metadata,
 			oauth: value.oauth,
 		};

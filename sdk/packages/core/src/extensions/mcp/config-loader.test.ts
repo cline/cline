@@ -52,6 +52,7 @@ describe("mcp config loader", () => {
 								command: "npx",
 								args: ["-y", "@modelcontextprotocol/server-filesystem"],
 							},
+							timeoutMs: 12_000,
 						},
 						search: {
 							transport: {
@@ -59,6 +60,7 @@ describe("mcp config loader", () => {
 								url: "https://mcp.example.com",
 							},
 							disabled: true,
+							timeout: 30,
 						},
 					},
 				},
@@ -83,6 +85,7 @@ describe("mcp config loader", () => {
 					args: ["-y", "@modelcontextprotocol/server-filesystem"],
 				},
 				disabled: undefined,
+				timeoutMs: 12_000,
 				metadata: undefined,
 				oauth: undefined,
 			},
@@ -93,6 +96,7 @@ describe("mcp config loader", () => {
 					url: "https://mcp.example.com",
 				},
 				disabled: true,
+				timeoutMs: 30_000,
 				metadata: undefined,
 				oauth: undefined,
 			},
