@@ -11,12 +11,11 @@ All Drive / drivecode docs live under this folder:
 - [design/](design/drive-wireframes/) — wireframes and canvases
 - [assets/](assets/) — product screenshots and logos
 - [reviews/](reviews/) — PR review notes
-- [writing/](writing/) — essays
 
 ## Maintaining this directory
 
-- **Single nest.** Put new Drive docs here. Do not recreate `docs/plans/`, `docs/design/`, `docs/reviews/`, `docs/writing/`, or `docs/assets/drivecode/`.
-- **Where to add.** Product plans → `plans/cline-drivemode/`; harness plan → `plans/drivecode-sdk/`; wireframes → `design/drive-wireframes/`; screenshots → `assets/`; PR notes → `reviews/`; essays → `writing/`; implemented reference → root files in this folder.
+- **Single nest.** Put new Drive docs here. Do not recreate `docs/plans/`, `docs/design/`, `docs/reviews/`, or `docs/assets/drivecode/`.
+- **Where to add.** Product plans → `plans/cline-drivemode/`; harness plan → `plans/drivecode-sdk/`; wireframes → `design/drive-wireframes/`; screenshots → `assets/`; PR notes → `reviews/`; implemented reference → root files in this folder.
 - **Editing.** Cite live code in reference pages. Prefer relative links inside the nest; use `docs/drivecode/...` absolute paths in handoffs and cross-repo callouts. After a rename/move, grep for the old path and fix links.
 - **Indexes.** Link new material from the nearest README (this file, `plans/*/README.md`, or `HANDOFF.md` when it changes the front door).
 - **Agent rules.** Full checklist: [AGENTS.md](AGENTS.md).

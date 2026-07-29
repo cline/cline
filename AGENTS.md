@@ -27,9 +27,9 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 - Demo package docs: `apps/drivecode-demo/README.md`.
 
 ### Drive docs (`docs/drivecode/`)
-- **Single nest.** All Drive / drivecode docs live under `docs/drivecode/` (plans, design, assets, reviews, writing, HANDOFF, product reference). Do not recreate `docs/plans/`, `docs/design/`, `docs/reviews/`, `docs/writing/`, or `docs/assets/drivecode/`.
+- **Single nest.** All Drive / drivecode docs live under `docs/drivecode/` (plans, design, assets, reviews, HANDOFF, product reference). Do not recreate `docs/plans/`, `docs/design/`, `docs/reviews/`, or `docs/assets/drivecode/`.
 - **Entry points:** `docs/drivecode/README.md` (product reference), `docs/drivecode/HANDOFF.md` (continuation brief), `docs/drivecode/AGENTS.md` (maintain / add / edit rules).
-- **Adding:** product plans → `docs/drivecode/plans/cline-drivemode/`; harness plan → `docs/drivecode/plans/drivecode-sdk/`; wireframes → `docs/drivecode/design/drive-wireframes/`; screenshots → `docs/drivecode/assets/`; reviews → `docs/drivecode/reviews/`; essays → `docs/drivecode/writing/`.
+- **Adding:** product plans → `docs/drivecode/plans/cline-drivemode/`; harness plan → `docs/drivecode/plans/drivecode-sdk/`; wireframes → `docs/drivecode/design/drive-wireframes/`; screenshots → `docs/drivecode/assets/`; reviews → `docs/drivecode/reviews/`.
 - **Editing:** prefer relative links inside the nest; use absolute `docs/drivecode/...` in handoffs and external callouts. After moves/renames, grep for the old path and fix links — do not leave stubs at old locations.
 - **Out of scope:** Mintlify user docs stay in `docs/sdk/`, `docs/cli/`, `docs/features/`, etc. Repo-root `assets/drive/` is brand source, not docs.
 

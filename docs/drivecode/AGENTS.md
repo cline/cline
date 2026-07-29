@@ -2,7 +2,7 @@
 
 All Drive / drivecode / cline-drivemode documentation lives under this directory.
 Do not create parallel trees at `docs/plans/`, `docs/design/`, `docs/reviews/`,
-`docs/writing/`, or `docs/assets/drivecode/`.
+or `docs/assets/drivecode/`.
 
 Human-facing product reference: [README.md](README.md).
 Cold-start handoff: [HANDOFF.md](HANDOFF.md).
@@ -18,7 +18,6 @@ Cold-start handoff: [HANDOFF.md](HANDOFF.md).
 | `design/drive-wireframes/` | HTML wireframes, brand tokens, canvases, DEMO runbook |
 | `assets/` | Product screenshots and logos (PNG) |
 | `reviews/` | PR review notes and glossary |
-| `writing/` | Essays / long-form framing (not plans) |
 
 Mintlify product docs (`docs/sdk/`, `docs/cli/`, `docs/features/`, …) stay outside
 this nest. Brand source files under repo-root `assets/drive/` are not docs.
