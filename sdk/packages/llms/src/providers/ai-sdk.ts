@@ -12,6 +12,7 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	modelSupportsImages,
 	sanitizeSurrogates,
 } from "@cline/shared";
 import { jsonSchema, streamText } from "ai";
@@ -248,10 +249,9 @@ function shouldIncludeReasoningHistory(
 }
 
 function shouldIncludeImages(context: GatewayProviderContext): boolean {
-	// Only omit image blocks when we positively know the model lacks the
-	// "images" capability (e.g. text-only GLM models). If capabilities are
-	// unknown, preserve prior behavior and include them.
-	return context.model.capabilities?.includes("images") ?? true;
+	// Capability resolution (incl. the unknown/missing -> omit policy) lives in
+	// `modelSupportsImages` so every request path applies the same rule.
+	return modelSupportsImages(context.model);
 }
 
 async function ensureGatewayLangfuseTelemetry(
