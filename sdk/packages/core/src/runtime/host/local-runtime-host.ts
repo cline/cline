@@ -36,7 +36,6 @@ import {
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
 import {
-	hasCurrentSessionThinkingMetadata,
 	resolveSessionThinkingMetadata,
 	withSessionThinkingMetadata,
 } from "../../services/session-thinking";
@@ -244,6 +243,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
+	// Serializes metadata read-modify-writes per session; see persistSessionMetadata.
+	private readonly metadataMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly aggregateUsageBySession = new Map<
 		string,
@@ -1931,22 +1932,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		try {
 			if (!session.artifacts) return;
-			if (
-				hasCurrentSessionThinkingMetadata(
-					session.artifacts.manifest.metadata,
-					session.thinking,
-				)
-			) {
-				return;
-			}
 			await this.persistSessionMetadata(session.sessionId, (current) =>
-				withSessionThinkingMetadata(
-					{
-						...(current ?? {}),
-						...(session.sessionMetadata ?? {}),
-					},
-					session.thinking,
-				),
+				withSessionThinkingMetadata(current, session.thinking),
 			);
 		} catch (error) {
 			session.config.logger?.debug?.(
@@ -1972,30 +1959,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 			current: Record<string, unknown> | undefined,
 		) => Record<string, unknown> | undefined,
 	): Promise<void> {
-		const session = this.sessions.get(sessionId);
-		const currentManifest =
-			(await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				sessionId,
-			)) ?? session?.artifacts?.manifest;
-		const metadata = resolveMetadata(
-			currentManifest?.metadata as Record<string, unknown> | undefined,
+		const tail =
+			this.metadataMutationQueues.get(sessionId) ?? Promise.resolve();
+		const next = tail.then(async () => {
+			const session = this.sessions.get(sessionId);
+			const currentManifest =
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				)) ?? session?.artifacts?.manifest;
+			const metadata = resolveMetadata(
+				currentManifest?.metadata as Record<string, unknown> | undefined,
+			);
+			if (!session?.artifacts) {
+				return;
+			}
+			const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+				"updateSession",
+				{
+					sessionId,
+					metadata,
+				},
+			);
+			if (result?.updated === false) {
+				return;
+			}
+			session.sessionMetadata = metadata;
+			session.artifacts.manifest.metadata = metadata;
+		});
+		const queued = next.then(
+			() => undefined,
+			() => undefined,
 		);
-		if (!session?.artifacts) {
-			return;
+		this.metadataMutationQueues.set(sessionId, queued);
+		try {
+			await next;
+		} finally {
+			if (this.metadataMutationQueues.get(sessionId) === queued) {
+				this.metadataMutationQueues.delete(sessionId);
+			}
 		}
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				metadata,
-			},
-		);
-		if (result?.updated === false) {
-			return;
-		}
-		session.sessionMetadata = metadata;
-		session.artifacts.manifest.metadata = metadata;
 	}
 
 	private async finalizeSingleRun(

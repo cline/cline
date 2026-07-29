@@ -789,6 +789,104 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("serializes thinking and turn-usage metadata updates", async () => {
+		const sessionId = "sess-thinking-metadata-race";
+		let storedManifest: SessionManifest = {
+			...createManifest(sessionId),
+			metadata: { thinking: { enabled: true, level: "high" } },
+		};
+		let releaseUsageWrite = () => {};
+		const usageWriteBlocked = new Promise<void>((resolve) => {
+			releaseUsageWrite = resolve;
+		});
+		let markUsageWriteStarted = () => {};
+		const usageWriteStarted = new Promise<void>((resolve) => {
+			markUsageWriteStarted = resolve;
+		});
+		const updateSession = vi.fn().mockImplementation(async (input) => {
+			if (input.metadata?.usage) {
+				markUsageWriteStarted();
+				await usageWriteBlocked;
+			}
+			storedManifest = { ...storedManifest, metadata: input.metadata };
+			return { updated: true };
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-thinking-race.json",
+				messagesPath: "/tmp/messages-thinking-race.json",
+				manifest: storedManifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession,
+			readSessionManifest: vi.fn().mockImplementation(() => storedManifest),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(
+				createResult({
+					usage: {
+						inputTokens: 3,
+						outputTokens: 4,
+						totalCost: 0.42,
+					},
+				}),
+			),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					thinking: true,
+					reasoningEffort: "high",
+				}),
+				prompt: "",
+				interactive: true,
+			}),
+		);
+
+		const turn = manager.runTurn({ sessionId, prompt: "hello" });
+		await usageWriteStarted;
+		const thinkingUpdate = manager.updateSessionConnection(sessionId, {
+			reasoningEffort: "low",
+		});
+		releaseUsageWrite();
+		await Promise.all([turn, thinkingUpdate]);
+
+		expect(storedManifest.metadata).toMatchObject({
+			thinking: { enabled: true, level: "low" },
+			totalCost: 0.42,
+			usage: {
+				inputTokens: 3,
+				outputTokens: 4,
+				totalCost: 0.42,
+			},
+		});
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",
