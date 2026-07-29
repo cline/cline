@@ -10,9 +10,6 @@ function toSearchParams(search?: string | URLSearchParams): URLSearchParams {
 		return search;
 	}
 	if (search === undefined) {
-		if (typeof window !== "undefined") {
-			return new URLSearchParams(window.location.search);
-		}
 		return new URLSearchParams();
 	}
 	const trimmed = search.startsWith("?") ? search.slice(1) : search;
@@ -21,6 +18,8 @@ function toSearchParams(search?: string | URLSearchParams): URLSearchParams {
 
 /**
  * Read hub demo flags from the URL search string at the composition-root edge.
+ * Pass `window.location.search` from the hub App — this helper does not touch
+ * the DOM so CLI typecheck stays Node-clean.
  * Product views must not import fixtures directly; use this + the demo adapter.
  */
 export function readDrivecodeDemoHubBootstrap(

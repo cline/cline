@@ -1161,7 +1161,10 @@ function App() {
 		[],
 	);
 
-	const demoHub = useMemo(() => readDrivecodeDemoHubBootstrap(), []);
+	const demoHub = useMemo(
+		() => readDrivecodeDemoHubBootstrap(window.location.search),
+		[],
+	);
 	const statusTeamsSource = useMemo((): StatusTeamsSource => {
 		if (demoHub.useDemoTeamsAdapter) {
 			return new DrivePlansDemoTeamsSource();
