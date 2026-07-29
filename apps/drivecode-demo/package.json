@@ -1,0 +1,25 @@
+{
+	"name": "@cline/drivecode-demo",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Drive / Status Hub demo fixtures and adapters (wired at composition roots, not a plugin system).",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "bun tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config vitest.config.ts",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@cline/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.4"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}
