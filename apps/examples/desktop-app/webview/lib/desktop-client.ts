@@ -150,13 +150,21 @@ class DesktopClient {
 		return this.endpoint;
 	}
 
+	private takePending(requestId: string): PendingRequest | undefined {
+		const pending = this.pending.get(requestId);
+		if (!pending) {
+			return undefined;
+		}
+		if (pending.timeoutId !== undefined) {
+			clearTimeout(pending.timeoutId);
+		}
+		this.pending.delete(requestId);
+		return pending;
+	}
+
 	private rejectPending(errorMessage: string) {
-		for (const [requestId, pending] of this.pending.entries()) {
-			if (pending.timeoutId !== undefined) {
-				clearTimeout(pending.timeoutId);
-			}
-			this.pending.delete(requestId);
-			pending.reject(new Error(errorMessage));
+		for (const requestId of this.pending.keys()) {
+			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
 	}
 
@@ -184,14 +192,10 @@ class DesktopClient {
 		}
 
 		const response = parsed as DesktopTransportResponse;
-		const pending = this.pending.get(response.id);
+		const pending = this.takePending(response.id);
 		if (!pending) {
 			return;
 		}
-		if (pending.timeoutId !== undefined) {
-			clearTimeout(pending.timeoutId);
-		}
-		this.pending.delete(response.id);
 		if (!response.ok) {
 			pending.reject(new Error(response.error || "Desktop command failed"));
 			return;
@@ -312,11 +316,10 @@ class DesktopClient {
 				timeoutMs === null
 					? undefined
 					: setTimeout(() => {
-							const pending = this.pending.get(id);
+							const pending = this.takePending(id);
 							if (!pending) {
 								return;
 							}
-							this.pending.delete(id);
 							pending.reject(
 								new Error(`Desktop command timed out waiting for ${command}`),
 							);
@@ -326,7 +329,12 @@ class DesktopClient {
 				reject,
 				timeoutId,
 			});
-			socket.send(JSON.stringify(request));
+			try {
+				socket.send(JSON.stringify(request));
+			} catch (error) {
+				this.takePending(id);
+				throw error;
+			}
 		});
 	}
 

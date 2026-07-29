@@ -15,6 +15,7 @@ class FakeWebSocket {
 
 	readonly sent: string[] = [];
 	readyState = FakeWebSocket.CONNECTING;
+	sendError: Error | null = null;
 	onopen: (() => void) | null = null;
 	onmessage: ((event: { data: string }) => void) | null = null;
 	onerror: (() => void) | null = null;
@@ -30,6 +31,9 @@ class FakeWebSocket {
 	}
 
 	send(data: string): void {
+		if (this.sendError) {
+			throw this.sendError;
+		}
 		this.sent.push(data);
 	}
 
@@ -62,13 +66,16 @@ class FakeWebSocket {
 const sockets: FakeWebSocket[] = [];
 const originalWebSocket = globalThis.WebSocket;
 
-async function connectLatestSocket(): Promise<FakeWebSocket> {
+async function connectLatestSocket(options?: {
+	sendError?: Error;
+}): Promise<FakeWebSocket> {
 	await Promise.resolve();
 	await Promise.resolve();
 	const socket = sockets.at(-1);
 	if (!socket) {
 		throw new Error("Desktop client did not create a WebSocket");
 	}
+	socket.sendError = options?.sendError ?? null;
 	socket.open();
 	for (let attempt = 0; attempt < 10 && socket.sent.length === 0; attempt++) {
 		await Promise.resolve();
@@ -140,5 +147,26 @@ describe("DesktopClient command deadlines", () => {
 
 		socket.close();
 		await rejection;
+	});
+
+	it("removes an unbounded request when WebSocket.send throws", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke(
+			"chat_session_command",
+			{ request: { action: "send" } },
+			{ timeoutMs: null },
+		);
+		await connectLatestSocket({
+			sendError: new Error("WebSocket send failed"),
+		});
+
+		await expect(invocation).rejects.toThrow("WebSocket send failed");
+		expect(
+			(
+				desktopClient as unknown as {
+					pending: Map<string, unknown>;
+				}
+			).pending.size,
+		).toBe(0);
 	});
 });
