@@ -88,11 +88,15 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
-	maxConsecutiveMistakes: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
+	/**
+	 * True while a foreground (VS Code terminal) command is awaited by a
+	 * run_commands tool call. Drives the "Proceed While Running" button.
+	 */
+	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
@@ -112,7 +116,6 @@ export interface ExtensionState {
 	compactionStrategy?: string
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
-	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
@@ -217,15 +220,14 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
-	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
 	| "reasoning"
 	| "completion_result"
+	| "plan_completion_result" // turn-final plan-mode response inferred at turn end (SDK path)
 	| "user_feedback"
 	| "user_feedback_diff"
-	| "api_req_retried"
 	| "command"
 	| "command_output"
 	| "tool"
@@ -252,6 +254,7 @@ export type ClineSay =
 	| "use_subagents"
 	| "subagent_usage"
 	| "conditional_rules_applied"
+	| "compaction" // context compaction progress/result divider
 
 export interface ClineSayTool {
 	tool:
@@ -275,7 +278,7 @@ export interface ClineSayTool {
 	operationIsLocatedInWorkspace?: boolean
 	/** Starting line numbers in the original file where each SEARCH block matched */
 	startLineNumbers?: number[]
-	/** Inclusive line range actually returned by read_file (for UI summaries). */
+	/** One-based inclusive line range requested by read_file; readLineEnd omitted = open-ended read (for UI summaries). */
 	readLineStart?: number
 	readLineEnd?: number
 }
@@ -363,12 +366,20 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
-	retryStatus?: {
-		attempt: number
-		maxAttempts: number
-		delaySec: number
-		errorSnippet?: string
-	}
+}
+
+/**
+ * JSON payload of a say:"compaction" message. Mirrors the CLI's compaction
+ * divider (apps/cli/src/tui/utils/compaction-status.ts): a "started" row shows
+ * a spinner and is later updated in place (same ts) to its terminal status.
+ */
+export interface ClineCompactionInfo {
+	status: "started" | "completed" | "skipped" | "failed" | "cancelled"
+	mode: "auto" | "manual"
+	tokensBefore?: number
+	tokensAfter?: number
+	messagesBefore?: number
+	messagesAfter?: number
 }
 
 export interface ClineSubagentUsageInfo {

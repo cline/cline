@@ -1,3 +1,4 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
 	ModelCollection,
 	ModelIdAliasRule,
@@ -7,6 +8,7 @@ export type {
 	ProviderInfo,
 } from "./models";
 export {
+	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,
@@ -30,19 +32,34 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export {
+	type OpenAICodexRequestHeaderContext,
+	type ProviderRequestHeaderClientContext,
+	type ProviderRequestHeaderLayers,
+	type ResolveProviderRequestHeadersInput,
+	resolveProviderRequestHeaders,
+} from "./providers/request-headers";
 export type {
 	ProviderCapability,
 	ProviderId,
 } from "./providers.browser";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
-	getClineOrgIndividualInferenceSubscriptionMessage,
+	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 	normalizeProviderId,
 } from "./providers.browser";

@@ -69,6 +69,8 @@
 		".vscode-test",
 		"webview-ui",
 		"src/test/e2e/**/*",
-		"src/test/scenarios/**/*"
+		"src/test/scenarios/**/*",
+		"src/test/cline-core-vitest-stub.ts",
+		"src/test/bun-test-preload.ts"
 	]
 }

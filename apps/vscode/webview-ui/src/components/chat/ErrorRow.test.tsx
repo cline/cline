@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
 
 const mockSetUserOrganization = vi.hoisted(() => vi.fn())
+const mockUpdateApiConfigurationProto = vi.hoisted(() => vi.fn())
+const mockApiConfiguration = vi.hoisted(() => ({
+	planModeApiProvider: "cline-pass",
+	actModeApiProvider: "cline-pass",
+	planModeClinePassModelId: "cline-pass/test-plan-model",
+	actModeClinePassModelId: "cline-pass/test-act-model",
+}))
 
 // Mock the auth context
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -14,6 +21,16 @@ vi.mock("@/context/ClineAuthContext", () => ({
 		isLoginLoading: false,
 	}),
 	handleSignOut: vi.fn(),
+}))
+
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({
+		apiConfiguration: mockApiConfiguration,
+		mode: "act",
+		providerModelsByProvider: {},
+		startProviderModelsRequest: vi.fn(),
+		applyProviderModelsResponse: vi.fn(),
+	}),
 }))
 
 // Mock CreditLimitError component
@@ -30,6 +47,11 @@ vi.mock("@/services/grpc-client", () => ({
 	AccountServiceClient: {
 		setUserOrganization: mockSetUserOrganization,
 	},
+	ModelsServiceClient: {
+		updateApiConfigurationProto: mockUpdateApiConfigurationProto,
+		commitModelSelection: vi.fn().mockResolvedValue({}),
+		resolveProviderModels: vi.fn().mockResolvedValue({ providerId: "cline", models: {} }),
+	},
 }))
 
 // Mock ClineError
@@ -43,6 +65,8 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Auth: "auth",
 		Entitlement: "entitlement",
 		OrgClinePassRestriction: "orgClinePassRestriction",
+		ClinePassLimit: "clinePassLimit",
+		ClineFreeModelLimit: "clineFreeModelLimit",
 		QuotaExceeded: "quotaExceeded",
 	},
 }))
@@ -58,6 +82,7 @@ describe("ErrorRow", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockSetUserOrganization.mockResolvedValue({})
+		mockUpdateApiConfigurationProto.mockResolvedValue({})
 	})
 
 	it("renders basic error message", () => {
@@ -258,6 +283,58 @@ describe("ErrorRow", () => {
 			expect(screen.queryByText(formattedMessage)).not.toBeInTheDocument()
 		})
 
+		it("renders ClinePass limit error and switches to Cline usage-based billing", async () => {
+			const limitMessage = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clinePassLimit"),
+				providerId: "cline-pass",
+				_error: {
+					message: limitMessage,
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={limitMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("cline-pass-limit-error")).toBeInTheDocument()
+			expect(screen.getByText(limitMessage)).toBeInTheDocument()
+
+			fireEvent.click(screen.getByText("Switch to Usage-Based billing"))
+
+			await waitFor(() => expect(mockUpdateApiConfigurationProto).toHaveBeenCalledTimes(1))
+			const request = mockUpdateApiConfigurationProto.mock.calls[0][0]
+			expect(request.apiConfiguration.planModeApiProvider).toBe("cline")
+			expect(request.apiConfiguration.actModeApiProvider).toBe("cline")
+			expect(request.apiConfiguration.planModeClineModelId).toBeUndefined()
+			expect(request.apiConfiguration.actModeClineModelId).toBeUndefined()
+			expect(screen.getByText("Switched to Usage-Based billing")).toBeInTheDocument()
+		})
+
+		it("renders a daily free model limit without usage-billing guidance", async () => {
+			const limitMessage = "Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m"
+			const mockClineError = {
+				message: limitMessage,
+				isErrorType: vi.fn((type) => type === "clineFreeModelLimit"),
+				providerId: "cline",
+				_error: { message: limitMessage },
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={limitMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("cline-free-model-limit-error")).toBeInTheDocument()
+			expect(screen.getByText(/You've reached today's free usage limit for this model/)).toBeInTheDocument()
+			expect(screen.getByText(/Try again in 23h 59m/)).toBeInTheDocument()
+			expect(screen.queryByText(limitMessage)).not.toBeInTheDocument()
+			expect(screen.queryByText(/deepseek-v4-flash/i)).not.toBeInTheDocument()
+			expect(screen.queryByText(/Switch to Usage-Based billing/i)).not.toBeInTheDocument()
+		})
+
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
 			const mockClineError = {
 				message: "Authentication failed",
@@ -324,7 +401,7 @@ describe("ErrorRow", () => {
 			render(<ErrorRow apiRequestFailedMessage="Some API error" errorType="error" message={mockMessage} />)
 
 			// When ClineError.parse returns null, we display the raw error message for non-Cline providers
-			// Since clineError is undefined, isClineProvider is false, so we show the raw apiRequestFailedMessage
+			// Since clineError is undefined, isClineUsageBillingProvider is false, so we show the raw apiRequestFailedMessage
 			expect(screen.getByText("Some API error")).toBeInTheDocument()
 		})
 

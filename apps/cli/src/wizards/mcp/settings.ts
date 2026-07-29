@@ -77,12 +77,17 @@ function getOwnServerRecord(
  * than once to verify deterministic output. Throw McpSettingsUpdateSkippedError
  * for normal no-op cases instead of returning a boolean that callers can ignore.
  */
-function mutateServers(mutate: (servers: Record<string, unknown>) => void): void {
+function mutateServers(
+	mutate: (servers: Record<string, unknown>) => void,
+): void {
 	updateMcpSettingsFileSync(getSettingsPath(), (settings) => {
 		const serversValue = settings.mcpServers;
-		const servers = serversValue && typeof serversValue === "object" && !Array.isArray(serversValue)
-			? { ...(serversValue as Record<string, unknown>) }
-			: {};
+		const servers =
+			serversValue &&
+			typeof serversValue === "object" &&
+			!Array.isArray(serversValue)
+				? { ...(serversValue as Record<string, unknown>) }
+				: {};
 		mutate(servers);
 		settings.mcpServers = servers;
 	});
@@ -98,7 +103,9 @@ export function removeServer(name: string): boolean {
 	try {
 		mutateServers((servers) => {
 			if (!(name in servers)) {
-				throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+				throw new McpSettingsUpdateSkippedError(
+					`MCP server not found: ${name}`,
+				);
 			}
 			delete servers[name];
 		});
@@ -126,7 +133,9 @@ export function clearServerOAuth(name: string): void {
 		mutateServers((servers) => {
 			const existing = getOwnServerRecord(servers, name);
 			if (!existing) {
-				throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+				throw new McpSettingsUpdateSkippedError(
+					`MCP server not found: ${name}`,
+				);
 			}
 			delete existing.oauth;
 			servers[name] = existing;

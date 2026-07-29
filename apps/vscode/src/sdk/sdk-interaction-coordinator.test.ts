@@ -4,7 +4,7 @@ import { MessageTranslatorState, translateSessionEvent } from "./message-transla
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +128,8 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", "too risky")
+		const expectedReason = `${DEFAULT_TOOL_APPROVAL_DENIAL_REASON} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", expectedReason)
 		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
 			type: "say",
 			say: "user_feedback",
@@ -137,7 +138,51 @@ describe("SdkInteractionCoordinator", () => {
 			files: ["a.ts"],
 			partial: false,
 		})
-		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: expectedReason })
+	})
+
+	it("denies edit tools with an explicit file-was-not-modified reason", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		// Feedback typed into the approval row denies the edit; the model-facing reason must
+		// state the file is unchanged, or it will treat the feedback as iteration on an
+		// applied edit and target old_text at content that never landed on disk.
+		expect(coordinator.resolvePendingToolApproval("make them bigger", "noButtonClicked")).toBe(true)
+		const result = await approvalPromise
+		expect(result.approved).toBe(false)
+		expect(result.reason).toContain("The file was NOT modified")
+		expect(result.reason).toContain("<feedback>\nmake them bigger\n</feedback>")
+
+		// Plain rejection (no feedback) also carries the file-unchanged statement.
+		const secondApproval = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 2,
+			toolCallId: "tool-call-2",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+		// Prior messages: ask #1 + the user_feedback say from the first denial.
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages().length).toBeGreaterThanOrEqual(3))
+		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
+		await expect(secondApproval).resolves.toEqual({ approved: false, reason: EDIT_TOOL_APPROVAL_DENIAL_REASON })
 	})
 
 	it("routes message responses as queued follow-ups without resolving pending tool approval", async () => {
@@ -313,7 +358,7 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
-	it("emits mistake_limit_reached and resolves proceed as SDK recovery guidance", async () => {
+	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
@@ -323,63 +368,35 @@ describe("SdkInteractionCoordinator", () => {
 			setTurnPhase,
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-			details: "bad arguments",
-		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({
-			type: "ask",
-			ask: "mistake_limit_reached",
-			partial: false,
-		})
-		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
-
-		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
-		await expect(decisionPromise).resolves.toEqual({
-			action: "continue",
-			guidance: "mistake_limit_reached: try smaller steps",
-		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
-			{ type: "ask", ask: "mistake_limit_reached" },
-			{ type: "say", say: "user_feedback", text: "try smaller steps" },
-		])
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
-	})
-
-	it("resolves mistake-limit no-button responses as stop decisions", async () => {
-		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
-		const setTurnPhase = vi.fn()
-		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
-			getSessionId: () => "session-123",
-			postStateToWebview: vi.fn().mockResolvedValue(undefined),
-			setTurnPhase,
-		})
-
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
-
-		await expect(decisionPromise).resolves.toEqual({
+		// CLI parity: the decision resolves right away as a stop — no pending
+		// prompt that would leave the agent loop running against the provider.
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+				details: "bad arguments",
+			}),
+		).resolves.toEqual({
 			action: "stop",
-			reason: "stopped after mistake_limit_reached prompt",
+			reason: "mistake_limit_reached: tool_execution_failed: bad arguments",
 		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{
+				type: "say",
+				say: "error",
+				partial: false,
+			},
+		])
+		const errorText = task.messageStateHandler.getClineMessages()[0].text ?? ""
+		expect(errorText).toContain("3 errors in a row")
+		expect(errorText).toContain("tool_execution_failed: bad arguments")
+		expect(errorText).toContain("Send a message to give Cline guidance")
 	})
 
-	it("clears pending mistake-limit prompts as stop decisions", async () => {
+	it("summarizes the mistake limit without details using the iteration", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
@@ -387,18 +404,17 @@ describe("SdkInteractionCoordinator", () => {
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+			}),
+		).resolves.toEqual({
+			action: "stop",
+			reason: "mistake_limit_reached: tool_execution_failed at iteration 4",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		coordinator.clearPending("Task cleared")
-
-		await expect(decisionPromise).resolves.toEqual({ action: "stop", reason: "Task cleared" })
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "yesButtonClicked")).toBe(false)
 	})
 
 	it("clears pending tool approvals as rejected", async () => {
@@ -427,5 +443,93 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task cancelled" })
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "read_files", "Task cancelled")
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
+
+	it("awaits onToolApprovalAsk before emitting the approval ask", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const events: string[] = []
+		let releaseHook: () => void = () => {}
+		const onToolApprovalAsk = vi.fn().mockImplementation(async () => {
+			events.push("hook-start")
+			await new Promise<void>((resolve) => {
+				releaseHook = resolve
+			})
+			events.push("hook-end")
+		})
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			onToolApprovalAsk,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+
+		await vi.waitFor(() => expect(events).toEqual(["hook-start"]))
+		// The ask message must not exist while the diff preview is still opening.
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+
+		releaseHook()
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(onToolApprovalAsk).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: "tool-call", toolName: "editor" }))
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
+	})
+
+	it("does not invoke onToolApprovalAsk for auto-approved tools", async () => {
+		const onToolApprovalAsk = vi.fn().mockResolvedValue(undefined)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => createTaskProxy("session-123", vi.fn(), vi.fn()) }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			shouldAutoApproveTool: () => true,
+			onToolApprovalAsk,
+		})
+
+		await expect(
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "editor",
+				input: { path: "a.ts", old_text: "a", new_text: "b" },
+				policy: { autoApprove: false },
+			}),
+		).resolves.toEqual({ approved: true })
+		expect(onToolApprovalAsk).not.toHaveBeenCalled()
+	})
+
+	it("still shows the approval ask when onToolApprovalAsk throws", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			onToolApprovalAsk: vi.fn().mockRejectedValue(new Error("preview failed")),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "a", new_text: "b" },
+			policy: { autoApprove: false },
+		})
+
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 })

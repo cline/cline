@@ -1,3 +1,4 @@
+import { formatDisplayUserInput } from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
 	WebviewChatMessage,
@@ -78,6 +79,7 @@ function summarizeClient(client: TrackedClient): {
 	if (
 		normalizedType === "code-sidecar" ||
 		normalizedType === "code-sidecar-approvals" ||
+		normalizedType === "code-sidecar-observer" ||
 		normalizedType === "code-sidecar-list"
 	) {
 		return { key: "code-app", label: "Code App", name: "Code App" };
@@ -146,7 +148,9 @@ function toolOutputFor(block: Record<string, unknown>): unknown {
 }
 
 function isErrorToolResult(block: Record<string, unknown>): boolean {
-	return block.is_error === true || block.isError === true || block.error === true;
+	return (
+		block.is_error === true || block.isError === true || block.error === true
+	);
 }
 
 function pushTextBlock(
@@ -211,10 +215,16 @@ export function mapHistoryToWebviewMessages(
 		const currentToolBlockIndexes = new Map<string, number>();
 		let reasoningRedacted = false;
 
+		// Persisted user text arrives raw, including runtime-generated
+		// <user_input>/<mode_notice> wrappers -- format at this display
+		// boundary so the webview never renders them.
+		const displayText = (text: string): string =>
+			role === "user" ? formatDisplayUserInput(text) : text;
+
 		const contentParts = historyContentParts(record.content);
 		if (contentParts.length === 0) {
 			const text = stringifyContent(record.content ?? record.text ?? record);
-			pushTextBlock(blocks, textParts, messageKey, 0, text);
+			pushTextBlock(blocks, textParts, messageKey, 0, displayText(text));
 		}
 
 		for (const [partIndex, part] of contentParts.entries()) {
@@ -225,7 +235,7 @@ export function mapHistoryToWebviewMessages(
 					textParts,
 					messageKey,
 					partIndex,
-					asString(part.text) ?? asString(part.content) ?? "",
+					displayText(asString(part.text) ?? asString(part.content) ?? ""),
 				);
 				continue;
 			}
@@ -297,10 +307,10 @@ export function mapHistoryToWebviewMessages(
 					currentBlockIndex !== undefined
 						? blocks[currentBlockIndex]
 						: existingLocation !== undefined
-						? mapped[existingLocation.messageIndex]?.blocks?.[
-								existingLocation.blockIndex
-							]
-						: undefined;
+							? mapped[existingLocation.messageIndex]?.blocks?.[
+									existingLocation.blockIndex
+								]
+							: undefined;
 				const existingToolEvent =
 					existing?.type === "tool" ? existing.toolEvent : undefined;
 				const toolEvent = {
@@ -324,7 +334,10 @@ export function mapHistoryToWebviewMessages(
 						toolEvent,
 					};
 					toolEvents.set(toolCallId, toolEvent);
-				} else if (existingLocation !== undefined && existing?.type === "tool") {
+				} else if (
+					existingLocation !== undefined &&
+					existing?.type === "tool"
+				) {
 					const target = mapped[existingLocation.messageIndex];
 					const targetBlocks = target.blocks;
 					const targetBlock = targetBlocks?.[existingLocation.blockIndex];

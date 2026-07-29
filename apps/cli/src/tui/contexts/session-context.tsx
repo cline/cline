@@ -103,9 +103,16 @@ export function SessionProvider(props: {
 	const [hasSubmitted, setHasSubmitted] = useState(
 		(initialEntries?.length ?? 0) > 0,
 	);
-	const [uiMode, setUiMode] = useState<AgentMode>(
+	const [uiMode, _setUiMode] = useState<AgentMode>(
 		config.mode === "plan" ? "plan" : "act",
 	);
+	// Mirror for appendEntry: entries are appended from event-handler
+	// callbacks that must see the mode at append time, not at closure time.
+	const uiModeRef = useRef<AgentMode>(config.mode === "plan" ? "plan" : "act");
+	const setUiMode = useCallback((mode: AgentMode) => {
+		uiModeRef.current = mode;
+		_setUiMode(mode);
+	}, []);
 	const initialAutoApproveAll = config.toolPolicies["*"]?.autoApprove !== false;
 	const autoApproveAllRef = useRef(initialAutoApproveAll);
 	const [autoApproveAll, _setAutoApproveAll] = useState(initialAutoApproveAll);
@@ -132,8 +139,9 @@ export function SessionProvider(props: {
 	);
 
 	const appendEntry = useCallback((entry: ChatEntry) => {
+		const stamped = entry.mode ? entry : { ...entry, mode: uiModeRef.current };
 		setEntries((prev) => {
-			const next = [...prev, entry];
+			const next = [...prev, stamped];
 			return next.length <= MAX_BUFFERED_LINES
 				? next
 				: next.slice(next.length - MAX_BUFFERED_LINES);
@@ -188,8 +196,8 @@ export function SessionProvider(props: {
 	}, []);
 
 	const toggleMode = useCallback(() => {
-		setUiMode((m) => (m === "act" ? "plan" : "act"));
-	}, []);
+		setUiMode(uiModeRef.current === "act" ? "plan" : "act");
+	}, [setUiMode]);
 
 	const toggleAutoApprove = useCallback(() => {
 		const next = !autoApproveAllRef.current;

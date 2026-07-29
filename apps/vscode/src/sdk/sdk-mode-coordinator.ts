@@ -1,4 +1,5 @@
 import { getProviderAuthStorageId } from "@cline/core"
+import { createModeSwitchNoticeTracker, type ModeSwitchNotice, type ModeSwitchNoticeTracker } from "@cline/shared"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
@@ -8,6 +9,7 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -52,13 +54,54 @@ export interface SdkModeCoordinatorOptions {
 	 * instead of showing a phantom run.
 	 */
 	onAutoContinueFailed: () => void
+	rebuilds: Pick<SdkSessionRebuildScheduler, "runExclusive">
 }
 
 export class SdkModeCoordinator {
 	private pendingModeChange: Mode | null = null
 	private rebuildInFlight: Promise<void> | undefined
+	/**
+	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
+	 * next outbound message by SdkSessionLifecycle.fireAndForgetSend. Shares the
+	 * CLI's round-trip-cancelling tracker (@cline/shared), scoped to the session
+	 * it was recorded for: unlike the CLI, the extension hops between tasks, and
+	 * a notice recorded while looking at task A must not leak onto a message
+	 * sent to task B (whose transcript never saw the "from" mode).
+	 */
+	private modeSwitchNoticeTracker: ModeSwitchNoticeTracker = createModeSwitchNoticeTracker()
+	private modeSwitchNoticeSessionId: string | null = null
 
 	constructor(private readonly options: SdkModeCoordinatorOptions) {}
+
+	/**
+	 * Returns (and clears) the pending mode-switch notice when the outbound
+	 * message targets the session the switch was recorded for; otherwise leaves
+	 * it pending — mode is a global setting, so the notice stays valid for the
+	 * recorded session even if the user visits another task in between.
+	 */
+	consumeModeSwitchNotice(sessionId: string): ModeSwitchNotice | null {
+		if (this.modeSwitchNoticeSessionId !== sessionId) {
+			return null
+		}
+		const notice = this.modeSwitchNoticeTracker.consume()
+		if (notice) {
+			this.modeSwitchNoticeSessionId = null
+		}
+		return notice
+	}
+
+	private recordModeSwitchNotice(sessionId: string, from: Mode | undefined, to: Mode): void {
+		if (from !== "plan" && from !== "act") {
+			return
+		}
+		if (this.modeSwitchNoticeSessionId !== sessionId) {
+			// A stale notice for another session is superseded rather than merged:
+			// round-trip cancellation only makes sense within one transcript.
+			this.modeSwitchNoticeTracker = createModeSwitchNoticeTracker()
+		}
+		this.modeSwitchNoticeSessionId = sessionId
+		this.modeSwitchNoticeTracker.record(from, to)
+	}
 
 	/**
 	 * Resolves once no mode rebuild is in flight. While a rebuild runs, the
@@ -94,7 +137,7 @@ export class SdkModeCoordinator {
 		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target}`)
 		// The tool result told the model to proceed with the plan, so rebuild with
 		// act-mode tools and auto-continue rather than waiting for another user message.
-		await this.rebuildSessionForMode(target, { autoContinue: target === "act" })
+		await this.rebuildSessionForMode(target, { autoContinue: target === "act", source: "tool" })
 	}
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
@@ -132,6 +175,7 @@ export class SdkModeCoordinator {
 				userContinuationPrompt: autoContinue ? userPrompt : undefined,
 				userImages: autoContinue ? userImages : undefined,
 				userFiles: autoContinue ? userFiles : undefined,
+				source: "ui",
 			})
 			// True tells the webview the composer content was consumed, so it clears it.
 			return continuationSent && hasUserContent
@@ -154,9 +198,16 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
+			/**
+			 * Who initiated the switch. Only "ui" toggles record a <mode_notice>
+			 * for the next outbound message; the model-initiated
+			 * switch_to_act_mode path ("tool") already announces itself via the
+			 * tool result and continuation prompt, matching the CLI's semantics.
+			 */
+			source?: "ui" | "tool"
 		} = {},
 	): Promise<boolean> {
-		const operation = this.performRebuildSessionForMode(newMode, options)
+		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
 		// Expose the full rebuild (teardown, replacement, continuation send) to
 		// waitForPendingRebuild. Errors are handled inside; the barrier only
 		// tracks completion.
@@ -174,6 +225,7 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
+			source?: "ui" | "tool"
 		},
 	): Promise<boolean> {
 		const previousMode = this.options.stateManager.getGlobalSettingsKey("mode")
@@ -226,6 +278,7 @@ export class SdkModeCoordinator {
 				mode: newMode,
 			})
 			const rebuildResult = await this.options.sessions.replaceActiveSession({
+				expectedSession: activeSession,
 				startInput,
 				initialMessages: initialMessages as InitialMessages,
 				disposeReason: "modeChange",
@@ -245,6 +298,13 @@ export class SdkModeCoordinator {
 			}
 
 			this.options.resetMessageTranslator()
+			// Record only after the session is actually replaced: a rebuild that
+			// fails earlier rolls the mode setting back, and a notice for a switch
+			// that never took effect would lie to the model. Recording before the
+			// auto-continue send lets that send carry the notice.
+			if (options.source === "ui") {
+				this.recordModeSwitchNotice(startResult.sessionId, previousMode, newMode)
+			}
 			if (options.autoContinue) {
 				const userPrompt = options.userContinuationPrompt
 				const userImages = options.userImages

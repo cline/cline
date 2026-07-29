@@ -21,6 +21,17 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt("make a plan for the auth refactor")).toBe(false)
 		expect(isSyntheticUserPrompt(wrapped("go ahead and implement step 1"))).toBe(false)
 	})
+
+	it("flags synthetic prompts that carry a mode-switch notice", () => {
+		// A user-initiated plan -> act toggle stamps a <mode_notice> onto the
+		// canned continuation; the notice must not make the synthetic prompt
+		// count as a visible user message or every later edit/regenerate
+		// ordinal shifts by one.
+		const notice = "<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>"
+		expect(isSyntheticUserPrompt(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`)).toBe(true)
+		expect(isSyntheticUserPrompt(wrapped(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`))).toBe(true)
+		expect(isSyntheticUserPrompt(`${notice}\ngo ahead and implement step 1`)).toBe(false)
+	})
 })
 
 describe("findSdkUserMessageIndexByOrdinal", () => {

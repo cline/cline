@@ -5,6 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import type { SdkSessionHost } from "./session-host"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -21,11 +22,10 @@ export interface SdkMcpCoordinatorOptions {
 	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
+	rebuilds: Pick<SdkSessionRebuildScheduler, "request">
 }
 
 export class SdkMcpCoordinator {
-	private restartPending = false
-
 	constructor(private readonly options: SdkMcpCoordinatorOptions) {}
 
 	handleToolListChanged(): void {
@@ -37,32 +37,7 @@ export class SdkMcpCoordinator {
 			return
 		}
 
-		if (activeSession.isRunning) {
-			Logger.log("[SdkController] Session is mid-turn - deferring MCP tool restart")
-			this.restartPending = true
-			return
-		}
-
-		this.restartSessionForMcpTools().catch((error) => {
-			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
-		})
-	}
-
-	checkDeferredRestart(): void {
-		if (!this.restartPending) {
-			return
-		}
-		this.restartPending = false
-
-		if (!this.options.sessions.getActiveSession()) {
-			Logger.log("[SdkController] Deferred MCP restart: no active session, skipping")
-			return
-		}
-
-		Logger.log("[SdkController] Executing deferred MCP tool restart")
-		this.restartSessionForMcpTools().catch((error) => {
-			Logger.error("[SdkController] Failed deferred MCP tool restart:", error)
-		})
+		this.options.rebuilds.request("mcpTools", () => this.restartSessionForMcpTools())
 	}
 
 	async restartSessionForMcpTools(): Promise<void> {
@@ -93,6 +68,7 @@ export class SdkMcpCoordinator {
 			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
 			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
 			const restartResult = await this.options.sessions.replaceActiveSession({
+				expectedSession: activeSession,
 				startInput,
 				initialMessages: initialMessages as InitialMessages,
 				disposeReason: "mcpToolRestart",

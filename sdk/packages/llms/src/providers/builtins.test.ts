@@ -1,7 +1,12 @@
-import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	CLINE_ENVIRONMENT_ENV,
+	CLINE_ENVIRONMENTS,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BUILTIN_SPECS } from "./builtins";
+import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
+import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -51,14 +56,18 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
+	it("exposes its canonical default model ID", () => {
+		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	});
+
 	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {
 		const models = await getModelsForProvider("cline");
 
 		expect(models["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_000_000,
-			maxInputTokens: 1_000_000,
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
 		});
 		expect(models["zai/glm-5.1"]).toMatchObject({
 			id: "zai/glm-5.1",
@@ -97,6 +106,65 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("merges generated provider specs with handwritten built-in overrides", async () => {
+		const generatedIds = new Set(
+			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
+		);
+		const builtinIds = new Set(BUILTIN_SPECS.map((spec) => spec.id));
+
+		for (const generatedId of generatedIds) {
+			expect(builtinIds.has(generatedId)).toBe(true);
+		}
+		expect(generatedIds.has("alibaba")).toBe(true);
+		expect(generatedIds.has("cohere")).toBe(false);
+
+		await expect(getProvider("alibaba")).resolves.toMatchObject({
+			id: "alibaba",
+			client: "openai-compatible",
+			baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		});
+		await expect(getModelsForProvider("alibaba")).resolves.toHaveProperty(
+			"qwen3.7-plus",
+		);
+
+		const generatedMistral = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "mistral",
+		);
+		expect(generatedMistral).toBeDefined();
+		await expect(getProvider("mistral")).resolves.toMatchObject({
+			id: "mistral",
+			baseUrl: "https://api.mistral.ai/v1",
+			defaultModelId: generatedMistral?.defaultModelId,
+			client: "ai-sdk-community",
+		});
+		await expect(getModelsForProvider("mistral")).resolves.toHaveProperty(
+			generatedMistral?.defaultModelId ?? "",
+		);
+	});
+
+	it("uses generated specs directly when no runtime override is required", () => {
+		// moonshot is intentionally absent: it carries a Cline-specific
+		// regional routing override (apiLineBaseUrls) on top of its generated
+		// spec.
+		const generatedOnlyProviderIds = [
+			"fireworks",
+			"poolside",
+			"nebius",
+			"baseten",
+			"requesty",
+			"huggingface",
+			"wandb",
+			"xiaomi",
+			"tencent-tokenhub",
+		] as const;
+
+		for (const providerId of generatedOnlyProviderIds) {
+			expect(BUILTIN_SPECS.find((spec) => spec.id === providerId)).toEqual(
+				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
+			);
+		}
+	});
+
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({
 			name: "Cline Usage-Billing",
@@ -120,13 +188,9 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining([
-				"gpt-5.5",
-				"gpt-5.5-pro",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-			]),
+			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
 		);
+		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
@@ -137,8 +201,10 @@ describe("built-in provider metadata", () => {
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiModels["gpt-5.5"],
-				maxInputTokens: 272_000,
+				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 		expect(chatGptModels["gpt-5.4"]).toEqual(
@@ -186,5 +252,73 @@ describe("built-in provider metadata", () => {
 				},
 			},
 		});
+	});
+});
+
+describe("regional API line base URLs", () => {
+	it("exposes china/international endpoints on regional provider specs", () => {
+		const expectations: Record<
+			string,
+			{ china: string; international: string }
+		> = {
+			qwen: {
+				china: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+				international: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+			},
+			"qwen-code": {
+				china: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+				international: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+			},
+			moonshot: {
+				china: "https://api.moonshot.cn/v1",
+				international: "https://api.moonshot.ai/v1",
+			},
+			zai: {
+				china: "https://open.bigmodel.cn/api/paas/v4",
+				international: "https://api.z.ai/api/paas/v4",
+			},
+			"zai-coding-plan": {
+				china: "https://open.bigmodel.cn/api/coding/paas/v4",
+				international: "https://api.z.ai/api/coding/paas/v4",
+			},
+			minimax: {
+				china: "https://api.minimaxi.com/anthropic/v1",
+				international: "https://api.minimax.io/anthropic/v1",
+			},
+		};
+
+		for (const [providerId, expected] of Object.entries(expectations)) {
+			const spec = BUILTIN_SPECS.find((s) => s.id === providerId);
+			expect(spec?.apiLineBaseUrls, providerId).toEqual(expected);
+		}
+	});
+
+	it("resolves the regional base URL for a selected api line", () => {
+		expect(resolveProviderApiLineBaseUrl("zai", "china")).toBe(
+			"https://open.bigmodel.cn/api/paas/v4",
+		);
+		expect(resolveProviderApiLineBaseUrl("moonshot", "china")).toBe(
+			"https://api.moonshot.cn/v1",
+		);
+		expect(resolveProviderApiLineBaseUrl("qwen", "international")).toBe(
+			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		);
+	});
+
+	it("returns undefined for unknown lines and non-regional providers", () => {
+		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
+		expect(
+			resolveProviderApiLineBaseUrl("anthropic", "china"),
+		).toBeUndefined();
+	});
+
+	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {
+		for (const providerId of ["zai", "moonshot", "minimax"]) {
+			const spec = BUILTIN_SPECS.find((s) => s.id === providerId);
+			expect(spec?.apiLineBaseUrls?.international, providerId).toBe(
+				spec?.defaults?.baseUrl,
+			);
+		}
 	});
 });

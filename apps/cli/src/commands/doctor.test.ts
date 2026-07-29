@@ -9,6 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as cliVersion } from "../../package.json";
 import { getCliBuildInfo } from "../utils/common";
 
 const {
@@ -21,6 +22,7 @@ const {
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
 	mockEnsureFileExists,
+	mockListActiveConnectors,
 	mockStopAllConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
@@ -49,8 +51,10 @@ const {
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 	mockEnsureFileExists: vi.fn(),
+	mockListActiveConnectors: vi.fn(() => []),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
+		failedProcesses: 0,
 		stoppedSessions: 0,
 		executed: 0,
 	})),
@@ -69,6 +73,7 @@ vi.mock("@cline/core", () => ({
 	readHubDiscovery: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
+	listActiveConnectors: mockListActiveConnectors,
 }));
 
 vi.mock("../connectors/common", () => ({
@@ -99,6 +104,7 @@ describe("runDoctorCommand", () => {
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 			executed: 0,
 		});
@@ -172,6 +178,40 @@ describe("runDoctorCommand", () => {
 						staleSidecarPids: [],
 					},
 		);
+	});
+
+	it("reports CLI and running hub Core versions", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.63",
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.64",
+		});
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			cliVersion,
+			coreVersion: "0.0.64",
+		});
 	});
 
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {
@@ -248,6 +288,7 @@ describe("runDoctorCommand", () => {
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 2,
+			failedProcesses: 0,
 			stoppedSessions: 5,
 			executed: 3,
 		});

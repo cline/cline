@@ -218,7 +218,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		void commitSelection(currentMode, {
 			providerId: "cline",
 			modelId: newModelId,
-			modelInfo,
 		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
 
 		void handleModeFieldsChange(
@@ -598,8 +597,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose,
-					compare available models by context window, pricing, and capabilities.
+					The extension automatically fetches the latest Cline model list.
 				</p>
 			)}
 		</div>
@@ -636,9 +634,11 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 	white-space: normal;
 
 	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+	color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionForeground, inherit)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+		color: var(--vscode-list-activeSelectionForeground, inherit);
 	}
 `
 

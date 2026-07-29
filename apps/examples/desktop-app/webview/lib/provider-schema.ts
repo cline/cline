@@ -46,6 +46,7 @@ export interface Provider {
 	docUrl?: string;
 	docLabel?: string;
 	defaultModelId?: string;
+	capabilities?: string[];
 	authDescription?: string;
 	baseUrlDescription?: string;
 	configFields?: ProviderConfigField[];

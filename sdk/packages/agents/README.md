@@ -206,6 +206,38 @@ new Agent({
 For richer, host-side hook orchestration (15-stage `HookEngine`,
 subprocess-backed hooks, MCP extensions), use `@cline/core`.
 
+### Preparing Requests with `prepareTurn`
+
+`prepareTurn` runs before messages are sent to the provider. It can rewrite the
+messages or system prompt for the next request:
+
+```text
+saved transcript
+        |
+        | turn preparation
+        v
+prepareTurn
+        |
+        v
+prepared provider request
+```
+
+Returned messages affect only the provider request for the current model call.
+They do not replace saved history and are not returned from
+`AgentRunResult.messages`.
+
+```text
+prepareTurn returns prepared messages
+        |
+        +--> provider request: yes
+        +--> saved transcript: no
+        +--> AgentRunResult.messages: no
+```
+
+This is intentionally different from changing saved history. Hosts that need
+durable redaction, normalization, or policy filtering must apply that change
+before a message enters the transcript.
+
 ### Plugins
 
 Plugins can contribute tools and hooks at setup time:

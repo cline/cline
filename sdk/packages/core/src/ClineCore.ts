@@ -39,17 +39,18 @@ import type {
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
+	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
+import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -69,10 +70,10 @@ export type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
-	HubOptions,
-	RemoteOptions,
 	CompareCheckpointInput,
 	CompareCheckpointResult,
+	HubOptions,
+	RemoteOptions,
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
@@ -492,6 +493,18 @@ export class ClineCore {
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
 	/**
+	 * Stores the compacted working-context state for an existing session.
+	 */
+	updateSessionCompactionState: RuntimeHost["updateSessionCompactionState"] = (
+		...args
+	) => this.host.updateSessionCompactionState(...args);
+	/**
+	 * Reads the compacted working-context sidecar for a session, if one exists.
+	 */
+	readSessionCompactionState: RuntimeHost["readSessionCompactionState"] = (
+		...args
+	) => this.host.readSessionCompactionState(...args);
+	/**
 	 * Reads message history for a session.
 	 *
 	 * Retrieves the full message transcript for a specific session, including all
@@ -507,6 +520,22 @@ export class ClineCore {
 	 */
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
+
+	/**
+	 * Reads message history for a session, preferring the live in-memory
+	 * conversation when the session is still resident in this host.
+	 *
+	 * The persisted transcript only catches up at assistant-message/turn
+	 * boundaries, so `readMessages` can miss an in-flight (or just-aborted)
+	 * turn. Use this when the current conversation matters — e.g. seeding a
+	 * replacement session during a plan/act mode switch. Falls back to the
+	 * persisted transcript when the session is not resident or the host does
+	 * not track live sessions.
+	 */
+	readLiveMessages: RuntimeHost["readSessionMessages"] = (sessionId) =>
+		this.host.readLiveSessionMessages
+			? this.host.readLiveSessionMessages(sessionId)
+			: this.host.readSessionMessages(sessionId);
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
@@ -608,4 +637,13 @@ export class ClineCore {
 		const service = this.host as RuntimeHostServiceExtensions;
 		return service.updateSessionModel?.(...args) ?? Promise.resolve();
 	};
+	/**
+	 * Updates provider/model/reasoning connection options for subsequent turns in
+	 * an active session.
+	 */
+	updateSessionConnection: SessionConnectionRuntimeService["updateSessionConnection"] =
+		(...args) => {
+			const service = this.host as RuntimeHostServiceExtensions;
+			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
+		};
 }

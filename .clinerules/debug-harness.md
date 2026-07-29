@@ -8,8 +8,9 @@ HTTP-controlled debugger for the VSCode extension at `src/dev/debug-harness/serv
 # Build extension first if needed (protos + esbuild):
 bun run protos && IS_DEV=true bun esbuild.mjs
 
-# Launch (skip-build if already built):
-bun src/dev/debug-harness/server.ts --skip-build --auto-launch
+# Launch (skip-build if already built). Run with node, NOT bun — Playwright's
+# Electron launch times out under bun:
+node src/dev/debug-harness/server.ts --skip-build --auto-launch
 
 # In another terminal:
 curl localhost:19229/api -d '{"method":"status"}'

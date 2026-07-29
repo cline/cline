@@ -24,7 +24,6 @@ import {
 	Link2Icon,
 	LoaderCircleIcon,
 	PencilIcon,
-	RefreshCwIcon,
 	SearchIcon,
 	SettingsIcon,
 	SquareArrowOutUpRightIcon,
@@ -46,6 +45,7 @@ import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
+import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
@@ -79,7 +79,6 @@ interface ChatRowProps {
 	mode?: Mode
 	reasoningContent?: string
 	responseStarted?: boolean
-	isRequestInProgress?: boolean
 }
 
 export interface QuoteButtonState {
@@ -144,7 +143,6 @@ export const ChatRowContent = memo(
 		onCancelCommand,
 		onLastRowContentChange,
 		mode,
-		isRequestInProgress,
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
@@ -194,16 +192,14 @@ export const ChatRowContent = memo(
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
+				return [info.cost, info.cancelReason, info.streamingFailedMessage]
 			}
-			return [undefined, undefined, undefined, undefined, undefined]
+			return [undefined, undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 		const apiRequestFailedMessage =
-			isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
-				? lastModifiedMessage?.text
-				: undefined
+			isLast && lastModifiedMessage?.ask === "api_req_failed" ? lastModifiedMessage?.text : undefined
 
 		const type = message.type === "ask" ? message.ask : message.say
 
@@ -322,11 +318,6 @@ export const ChatRowContent = memo(
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
 							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
-					]
-				case "completion_result":
-					return [
-						<span className="codicon codicon-check text-success mb-[-1.5px]" />,
-						<span className="text-success font-bold">Task Completed</span>,
 					]
 				case "api_req_started":
 					// API request rows no longer render the request payload/cost accordion.
@@ -507,10 +498,11 @@ export const ChatRowContent = memo(
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
-										{tool.readLineStart != null && tool.readLineEnd != null ? (
+										{tool.readLineStart != null ? (
 											<span className="opacity-80">
 												{" "}
-												({tool.readLineStart}-{tool.readLineEnd})
+												({tool.readLineStart}
+												{tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"})
 											</span>
 										) : null}
 									</span>
@@ -938,11 +930,13 @@ export const ChatRowContent = memo(
 						return (
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
-								headClassNames={HEADER_CLASSNAMES}
 								quoteButtonState={quoteButtonState}
 								text={text || ""}
 							/>
 						)
+					case "plan_completion_result":
+						// Turn-final plan-mode response inferred at turn end (SDK path)
+						return <PlanCompletionOutputRow text={message.text || ""} />
 					case "shell_integration_warning":
 						return (
 							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
@@ -963,52 +957,6 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
-					case "error_retry":
-						try {
-							const retryInfo = JSON.parse(message.text || "{}")
-							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
-							const isFailed = failed === true
-
-							return (
-								<div className="flex flex-col gap-2">
-									{errorMessage && (
-										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
-									)}
-									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-3">
-										<div className="flex items-center mb-1">
-											{isFailed && !isRequestInProgress ? (
-												<TriangleAlertIcon className="mr-2 size-2" />
-											) : (
-												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
-											)}
-											<span className="font-medium text-foreground">
-												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
-											</span>
-										</div>
-										<div className="text-foreground opacity-80">
-											{isFailed ? (
-												<span>
-													Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
-													intervention required.
-												</span>
-											) : (
-												<span>
-													Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> -
-													Retrying in {delaySeconds} seconds...
-												</span>
-											)}
-										</div>
-									</div>
-								</div>
-							)
-						} catch (_e) {
-							// Fallback if JSON parsing fails
-							return (
-								<div className="text-foreground">
-									<MarkdownRow markdown={message.text} />
-								</div>
-							)
-						}
 					case "hook_status":
 						return <HookMessage CommandOutput={CommandOutputContent} message={message} />
 					case "hook_output_stream":
@@ -1053,6 +1001,8 @@ export const ChatRowContent = memo(
 						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
+					case "compaction":
+						return <CompactionRow message={message} />
 					default:
 						return (
 							<div>
@@ -1079,7 +1029,6 @@ export const ChatRowContent = memo(
 							return (
 								<CompletionOutputRow
 									handleQuoteClick={handleQuoteClick}
-									headClassNames={HEADER_CLASSNAMES}
 									quoteButtonState={quoteButtonState}
 									text={text || ""}
 								/>
@@ -1184,10 +1133,7 @@ export const ChatRowContent = memo(
 						}
 						return (
 							<div>
-								<PlanCompletionOutputRow
-									headClassNames={HEADER_CLASSNAMES}
-									text={response || message.text || ""}
-								/>
+								<PlanCompletionOutputRow text={response || message.text || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={

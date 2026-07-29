@@ -30,6 +30,10 @@ export const THINKING_LEVELS: {
 	{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
 ];
 
+export const DEFAULT_THINKING_LEVEL_INDEX = THINKING_LEVELS.findIndex(
+	(l) => l.value === "medium",
+);
+
 export interface MenuOption {
 	label: string;
 	value: string;
@@ -203,5 +207,6 @@ export function getOAuthProviderLabel(providerId: string): string {
 }
 
 export function shouldUseFeaturedClineModelPicker(providerId: string): boolean {
-	return providerId === "cline";
+	// ClinePass uses the featured picker too, with Subscribed/Free sections
+	return providerId === "cline" || providerId === "cline-pass";
 }

@@ -367,6 +367,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					clearInputState()
 					break
 
+				case "proceed_while_running":
+					// Detach the running foreground terminal command: the agent
+					// receives the partial output plus a log file path for the
+					// rest, and the command keeps running in the terminal.
+					await TaskServiceClient.proceedWhileRunningCommand(EmptyRequest.create({})).catch((err) =>
+						console.error("Failed to proceed while running:", err),
+					)
+					break
+
 				case "new_task":
 					if (clineAsk === "new_task") {
 						await TaskServiceClient.newTask(

@@ -1,4 +1,4 @@
-import { normalizeUserInput } from "@cline/shared"
+import { normalizeUserInput, stripModeNotices } from "@cline/shared"
 import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 
 export type SdkUserMessage = {
@@ -41,8 +41,12 @@ export function extractSdkUserText(message: SdkUserMessage): string {
  */
 export function isSyntheticUserPrompt(text: string): boolean {
 	// Persisted prompts are wrapped by formatModePrompt as
-	// <user_input mode="...">...</user_input>; strip that before matching.
-	const normalized = normalizeUserInput(text)
+	// <user_input mode="...">...</user_input>; strip that before matching. A
+	// user-initiated plan -> act toggle can additionally prepend a
+	// <mode_notice> element to the canned continuation, so strip those too or
+	// the synthetic prompt would start counting as a visible user message and
+	// shift every later edit/regenerate ordinal by one.
+	const normalized = stripModeNotices(normalizeUserInput(text))
 	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
 }
 

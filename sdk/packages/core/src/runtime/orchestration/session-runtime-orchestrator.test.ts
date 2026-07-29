@@ -564,7 +564,7 @@ describe("SessionRuntime message preparation", () => {
 		]);
 		const textParts = result?.messages?.flatMap((message) =>
 			message.content.flatMap((part) =>
-				part.type === "text" ? [part.text] : [],
+				typeof part !== "string" && part.type === "text" ? [part.text] : [],
 			),
 		);
 		expect(textParts).toEqual(["original", "builder-added"]);
@@ -1210,6 +1210,55 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(calls.run).toHaveLength(1);
 	});
 
+	it("updateConnection clears stale reasoning fields for next run", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+			deps,
+		);
+		session.updateConnection({
+			thinking: null,
+			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		});
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toBeUndefined();
+	});
+
+	it("updateConnection lets explicit thinking disable override a simultaneous budget", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+			deps,
+		);
+		session.updateConnection({
+			thinking: false,
+			reasoningEffort: "high",
+			thinkingBudgetTokens: 2048,
+		});
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toEqual({ thinking: false });
+	});
+
+	it("updateConnection enables thinking when a positive budget is supplied", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		session.updateConnection({ thinkingBudgetTokens: 2048 });
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toEqual({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+	});
+
 	it("clearHistory resets the conversation store", () => {
 		const session = new SessionRuntime(
 			makeAgentConfig({
@@ -1426,7 +1475,10 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		expect(
 			modelRequests[1]?.some((message) =>
 				message.content.some(
-					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+					(part) =>
+						typeof part !== "string" &&
+						part.type === "text" &&
+						part.text === EMPTY_CONTENT_TEXT,
 				),
 			),
 		).toBe(false);
@@ -2137,6 +2189,61 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("captures task.mistake_limit_reached telemetry exactly once when the limit is hit", async () => {
+		const capture = vi.fn();
+		const telemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+		const { deps } = makeScriptedRuntime({
+			events: failedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 2 },
+				sessionId: "sess_mistakes",
+				telemetry,
+			}),
+			deps,
+		);
+
+		await session.run("one");
+		// First failed turn — counter 1 < 2, no telemetry yet.
+		const limitEvents = () =>
+			capture.mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "task.mistake_limit_reached");
+		expect(limitEvents()).toHaveLength(0);
+
+		await session.continue("two");
+		// Second failed turn hits the limit: exactly one event, even though
+		// no `onConsecutiveMistakeLimitReached` callback is configured (the
+		// tracker falls back to the default stop decision).
+		const events = limitEvents();
+		expect(events).toHaveLength(1);
+		expect(events[0].properties).toMatchObject({
+			ulid: "sess_mistakes",
+			model: "claude-3-5-sonnet",
+			provider: "anthropic",
+			reason: "tool_execution_failed",
+			consecutiveMistakes: 2,
+			maxConsecutiveMistakes: 2,
+			isSubagent: false,
+		});
+		expect(events[0].properties.agentId).toMatch(/^agent_/);
+	});
+
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
 		const identical = (i: number): AgentRuntimeEvent => ({
 			type: "tool-started",
@@ -2288,5 +2395,92 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.continue("b");
 		await session.continue("c");
 		expect(abortCalls).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Auth retry
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime auth retry", () => {
+	const authFailure: Partial<AgentRunResult> = {
+		status: "failed",
+		error: new Error(
+			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
+		),
+	};
+
+	/** Runtime factory that scripts each successive AgentRuntime build. */
+	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
+		deps: SessionRuntimeOrchestratorDeps;
+		createdCount: () => number;
+	} {
+		let created = 0;
+		const deps: SessionRuntimeOrchestratorDeps = {
+			createAgentRuntimeImpl: () => {
+				const script = scripts[Math.min(created, scripts.length - 1)];
+				created += 1;
+				return makeFakeAgentRuntime(script).runtime;
+			},
+		};
+		return { deps, createdCount: () => created };
+	}
+
+	it("retries once with refreshed credentials when a run fails with an auth error", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+			{ result: { outputText: "recovered" } },
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({ onAuthError, telemetry }),
+			deps,
+		);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(2);
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("recovered");
+		expect(capture).toHaveBeenCalledWith({
+			event: "user.auth_run_retry",
+			properties: { provider: "anthropic", recovered: true },
+		});
+	});
+
+	it("returns the failed result when the host cannot refresh credentials", async () => {
+		const onAuthError = vi.fn(async () => false);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
+	});
+
+	it("does not invoke onAuthError for non-auth failures", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: {
+					status: "failed",
+					error: new Error("Model stream failed"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).not.toHaveBeenCalled();
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
 	});
 });

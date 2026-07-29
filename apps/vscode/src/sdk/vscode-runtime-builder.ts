@@ -1,9 +1,10 @@
-import { createDefaultShellExecutor, createMcpTools } from "@cline/core"
-import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import { createMcpTools } from "@cline/core"
+import type { AgentTool, AgentToolContext } from "@cline/shared"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import { createVscodeRunCommandsTool } from "./vscode-run-commands-tool"
+import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
 interface McpToolDescriptor {
 	name: string
@@ -43,77 +44,6 @@ class McpHubToolProvider {
 	}
 }
 
-/**
- * Lazily-created shell executor for attempt_completion commands.
- * Re-uses the SDK's built-in shell executor which
- * already handles cross-platform shells, timeout, abort signals, and output truncation.
- */
-const getCompletionCommandExecutor = (() => {
-	let executor: ReturnType<typeof createDefaultShellExecutor> | undefined
-	return () => {
-		if (!executor) {
-			executor = createDefaultShellExecutor({
-				timeoutMs: 15_000, // showcase commands, not long-running builds
-				maxOutputBytes: 256_000,
-			})
-		}
-		return executor!
-	}
-})()
-
-function createAttemptCompletionTool(options: { cwd?: string } = {}): AgentTool {
-	return createTool({
-		name: "attempt_completion",
-		description:
-			"Once you've completed the user's task, use this tool to present the result to the user. " +
-			"The user may provide feedback if they are not satisfied, which you can use to make improvements and try again.",
-		inputSchema: {
-			type: "object",
-			properties: {
-				result: {
-					type: "string",
-					description: "A clear, brief summary of the final result of the task.",
-				},
-				command: {
-					type: "string",
-					description:
-						"An optional terminal command to showcase the result (e.g. open a dev server). " +
-						"Do not use commands like echo or cat that merely print text.",
-				},
-			},
-			required: ["result"],
-		},
-		execute: async (input: unknown, context: AgentToolContext) => {
-			const parsedInput = input && typeof input === "object" ? (input as Record<string, unknown>) : {}
-			const resultText = typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."
-			const command = typeof parsedInput.command === "string" ? parsedInput.command.trim() : undefined
-
-			if (!command) {
-				return resultText
-			}
-
-			// Execute the command and include its output in the result
-			const cwd = options.cwd || process.cwd()
-			Logger.log(`[attempt_completion] Executing command: ${command} (cwd: ${cwd})`)
-
-			try {
-				const shellExecutor = getCompletionCommandExecutor()
-				const commandOutput = await shellExecutor(command, cwd, context)
-				const trimmedOutput = commandOutput.trim()
-
-				if (trimmedOutput) {
-					return `${resultText}\n\n[Command: ${command}]\n${trimmedOutput}`
-				}
-				return `${resultText}\n\n[Command executed: ${command}]`
-			} catch (error) {
-				const errorMsg = error instanceof Error ? error.message : String(error)
-				Logger.warn(`[attempt_completion] Command failed: ${errorMsg}`)
-				return `${resultText}\n\n[Command failed: ${command}]\n${errorMsg}`
-			}
-		},
-	})
-}
-
 export interface VscodeExtraToolsOptions {
 	cwd?: string
 	/**
@@ -121,7 +51,11 @@ export interface VscodeExtraToolsOptions {
 	 * When provided, the custom `run_commands` tool replaces the SDK's
 	 * built-in version with foreground/background terminal support.
 	 */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
+	/** Current VS Code terminal execution mode, captured when the session tools are built. */
+	vscodeTerminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+	/** Registry of in-flight foreground executions for "Proceed While Running". */
+	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
@@ -144,19 +78,28 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 		}),
 	)
 
-	const tools: AgentTool[] = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
+	// No completion tool is exposed: the agent simply ends its turn with a text
+	// response, and the turn-end inference in message-translator.ts styles that
+	// final text as the completion feedback row.
+	const tools: AgentTool[] = [...mcpTools.flat()]
 
 	// Add the custom run_commands tool when a terminal manager is available.
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
 	if (options?.getTerminalManager) {
+		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 		tools.push(
 			createVscodeRunCommandsTool({
 				cwd: options.cwd ?? process.cwd(),
 				getTerminalManager: options.getTerminalManager,
+				bashTimeoutMs: executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : undefined,
+				vscodeTerminalExecutionMode: executionMode,
+				foregroundCommands: options.foregroundCommands,
 			}),
 		)
-		Logger.log("[VscodeRuntimeTools] Added custom run_commands tool (foreground/background terminal)")
+		Logger.log(
+			`[VscodeRuntimeTools] Added custom run_commands tool (mode=${executionMode}, timeoutMs=${executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : "default"})`,
+		)
 	}
 
 	Logger.log(`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools`)

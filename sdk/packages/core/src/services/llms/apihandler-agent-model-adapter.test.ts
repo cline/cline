@@ -64,35 +64,35 @@ const baseRequest: AgentModelRequest = {
 
 describe("createAgentModelFromApiHandler", () => {
 	it("maps text + usage chunks to events and appends a finish", async () => {
-			const handler = fakeHandler([
-				{ type: "text", text: "hello", id: "x" },
-				{
-					type: "usage",
-					inputTokens: 10,
-					outputTokens: 5,
-					thoughtsTokenCount: 2,
-					totalCost: 0.01,
-					id: "x",
-				},
-			]);
+		const handler = fakeHandler([
+			{ type: "text", text: "hello", id: "x" },
+			{
+				type: "usage",
+				inputTokens: 10,
+				outputTokens: 5,
+				thoughtsTokenCount: 2,
+				totalCost: 0.01,
+				id: "x",
+			},
+		]);
 		const model = createAgentModelFromApiHandler(handler);
 		const events = await collect(model.stream(baseRequest));
 
 		expect(events).toEqual([
 			{ type: "text-delta", text: "hello" },
-				{
-					type: "usage",
-					usage: {
-						inputTokens: 10,
-						outputTokens: 5,
-						cacheReadTokens: undefined,
-						cacheWriteTokens: undefined,
-						reasoningTokenCount: 2,
-						totalCost: 0.01,
-					},
+			{
+				type: "usage",
+				usage: {
+					inputTokens: 10,
+					outputTokens: 5,
+					cacheReadTokens: undefined,
+					cacheWriteTokens: undefined,
+					reasoningTokenCount: 2,
+					totalCost: 0.01,
 				},
-				{ type: "finish", reason: "stop" },
-			]);
+			},
+			{ type: "finish", reason: "stop" },
+		]);
 	});
 
 	it("maps tool_calls (object args) to a tool-call-delta event", async () => {

@@ -1,4 +1,4 @@
-import type { ITelemetryService } from "@cline/shared";
+import { decodeJwtPayload, type ITelemetryService } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
@@ -18,7 +18,6 @@ import type {
 	OcaTokenResolution,
 } from "./types";
 import {
-	decodeJwtPayload,
 	getProofKey,
 	isCredentialLikelyExpired,
 	normalizeBaseUrl,

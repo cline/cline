@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { validateImageMedia } from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
 	sharedSessionMessagesWritePath,
 } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
+import { readChildSessionMessages } from "./agents";
 import {
 	parseF64Value,
 	parseU64Value,
@@ -26,6 +28,17 @@ type ChatTurnResult = {
 };
 
 const nowMs = () => Date.now();
+
+function resolveMessageCreatedAt(
+	message: JsonRecord,
+	fallbackCreatedAt: number,
+): number {
+	return (
+		parseU64Value(message.ts) ??
+		parseU64Value(message.createdAt) ??
+		fallbackCreatedAt
+	);
+}
 
 function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 	return message.metadata && typeof message.metadata === "object"
@@ -119,6 +132,20 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 
 function trimNonEmptyString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function extractImageBlock(
+	record: JsonRecord,
+): { mediaType: string; data: string } | undefined {
+	const mediaType = trimNonEmptyString(record.mediaType);
+	const data = trimNonEmptyString(record.data);
+	if (!data) {
+		return undefined;
+	}
+	const validation = validateImageMedia(mediaType, data);
+	return validation.ok
+		? { mediaType: validation.mediaType, data: validation.base64 }
+		: undefined;
 }
 
 export function readPersistedChatMessages(sessionId: string): unknown[] | null {
@@ -301,7 +328,12 @@ export async function readSessionMessages(
 	sessionId: string,
 	maxMessages = 800,
 ): Promise<unknown[]> {
-	const persisted = readPersistedChatMessages(sessionId);
+	const persisted =
+		readPersistedChatMessages(sessionId) ??
+		// A child agent's transcript is not stored under its own session
+		// directory — it lives beside the root session's artifacts — so opening a
+		// subagent session has to resolve the path recorded on its row.
+		readChildSessionMessages(sessionId);
 	const messages =
 		persisted && persisted.length > 0
 			? persisted
@@ -312,7 +344,6 @@ export async function readSessionMessages(
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
-	let nextCreatedAt = baseTs;
 	let userRunCount = 0;
 
 	for (let idx = start; idx < messages.length; idx += 1) {
@@ -321,6 +352,7 @@ export async function readSessionMessages(
 			continue;
 		}
 		const message = rawMessage as JsonRecord;
+		const createdAt = resolveMessageCreatedAt(message, baseTs + idx);
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
@@ -360,13 +392,14 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt: nextCreatedAt++,
+				createdAt,
 				meta: textMeta,
 			});
 			continue;
 		}
 
 		const textParts: string[] = [];
+		const images: Array<{ id: string; mediaType: string; data: string }> = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -385,7 +418,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt: nextCreatedAt++,
+				createdAt,
 				meta: textMeta,
 			});
 			textSegmentIndex += 1;
@@ -415,7 +448,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: {
 						toolName,
 						hookEventName: "history_tool_use",
@@ -455,7 +488,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt: nextCreatedAt++,
+						createdAt,
 						meta: {
 							toolName: "tool_result",
 							hookEventName: "history_tool_result",
@@ -476,6 +509,16 @@ export async function readSessionMessages(
 				reasoningRedacted = true;
 				continue;
 			}
+			if (blockType === "image") {
+				const image = extractImageBlock(record);
+				if (image) {
+					images.push({
+						id: `${messageIdBase}_image_${blockIdx}`,
+						...image,
+					});
+				}
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -483,6 +526,25 @@ export async function readSessionMessages(
 		}
 
 		flushTextParts();
+		if (images.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.images = images;
+			} else {
+				out.push({
+					id: `${messageIdBase}_images`,
+					sessionId,
+					role,
+					content: "",
+					images,
+					createdAt,
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
 		if (reasoningParts.length > 0 || reasoningRedacted) {
 			const reasoning = reasoningParts.join("\n").trim();
 			const target = out
@@ -503,7 +565,7 @@ export async function readSessionMessages(
 					content: "",
 					reasoning: reasoning || undefined,
 					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: textMeta,
 				});
 				textMeta = undefined;

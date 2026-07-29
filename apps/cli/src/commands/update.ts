@@ -118,7 +118,12 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 				updateCommand: `yarn global add ${DEFAULT_PACKAGE_NAME}@${tag}`,
 			};
 		}
-		if (scriptPath.includes("/.bun/bin")) {
+		// `bun add -g` symlinks bins into ~/.bun/bin, but realpathSync resolves
+		// them to ~/.bun/install/global/node_modules/..., so match both.
+		if (
+			scriptPath.includes("/.bun/bin") ||
+			scriptPath.includes("/.bun/install/global/")
+		) {
 			return {
 				packageManager: PackageManager.BUN,
 				packageName: DEFAULT_PACKAGE_NAME,

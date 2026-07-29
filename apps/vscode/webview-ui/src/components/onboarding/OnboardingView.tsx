@@ -1,5 +1,7 @@
 import { buildModelInfoNameMap, type ModelInfo, openAiModelInfoSafeDefaults, resolveClinePassModelInfo } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
@@ -7,13 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
@@ -272,7 +272,25 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 						</ItemMedia>
 						<ItemContent className="w-full">
 							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{option.description}</ItemDescription>
+							<ItemDescription>
+								{option.description}
+								{option.learnMoreUrl && (
+									<>
+										{" "}
+										<VSCodeLink
+											className="inline"
+											onClick={(e) => {
+												e.stopPropagation()
+												UiServiceClient.openUrl(
+													StringRequest.create({ value: option.learnMoreUrl }),
+												).catch((err) => console.error("Failed to open learn more link:", err))
+											}}
+											style={{ fontSize: "inherit" }}>
+											Learn more
+										</VSCodeLink>
+									</>
+								)}
+							</ItemDescription>
 						</ItemContent>
 					</Item>
 				)
@@ -338,7 +356,6 @@ const OnboardingStepContent = ({
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const { models: clineModels } = useProviderModels("cline")
 	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
@@ -353,10 +370,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
-	// Gate on models too, so a fallback/empty response can't route flagged users into the dead-end empty step.
-	const showClinePass = isClinePassEnabled && models.clinePass.length > 0
+	// Gate on models so a fallback/empty response can't route users into the dead-end empty step.
+	const showClinePass = models.clinePass.length > 0
 	const userTypeSelections = useMemo(() => getUserTypeSelections(showClinePass), [showClinePass])
-	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
+	// ClinePass model IDs (e.g. "cline-pass/glm-5.2") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const onboardingModelById = useMemo(() => {
@@ -451,12 +468,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						commitSelection("plan", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 						commitSelection("act", {
 							providerId: "cline",
 							modelId: selectedModelId,
-							modelInfo: selectedModelInfo,
 						}),
 					])
 

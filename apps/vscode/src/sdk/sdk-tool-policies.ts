@@ -78,7 +78,7 @@ function isReadTool(toolName: string): boolean {
 	)
 }
 
-function isEditTool(toolName: string): boolean {
+export function isEditTool(toolName: string): boolean {
 	return ["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"].includes(toolName)
 }
 

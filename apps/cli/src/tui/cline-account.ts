@@ -51,9 +51,16 @@ export function isClineAccountAuthErrorMessage(message: string): boolean {
 
 export function isClineAccountCreditsErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
+	// The Cline API's 402 response carries `code: "insufficient_credits"` and
+	// the message "Not enough credits available". Depending on how much of the
+	// payload survives error extraction, the CLI may see the raw JSON blob or
+	// just the human-readable message, so match both. The
+	// "insufficient balance" pair is an older backend phrasing kept for safety.
 	return (
-		normalized.includes("insufficient balance") &&
-		normalized.includes("cline credits balance")
+		normalized.includes("insufficient_credits") ||
+		normalized.includes("not enough credits") ||
+		(normalized.includes("insufficient balance") &&
+			normalized.includes("cline credits balance"))
 	);
 }
 
@@ -128,7 +135,8 @@ export async function createClineAccountService(input: {
 	clineProviderSettings?: ProviderSettings;
 	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
-	const manager = input.providerSettingsManager ?? new ProviderSettingsManager();
+	const manager =
+		input.providerSettingsManager ?? new ProviderSettingsManager();
 	const settings =
 		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
 	const apiBaseUrl = resolveAccountApiBaseUrl({
@@ -148,6 +156,38 @@ export async function createClineAccountService(input: {
 		apiBaseUrl,
 		getAuthToken: async () => authToken,
 	});
+}
+
+/**
+ * Persist the active organization so headless runs and the hub daemon can
+ * attach it to telemetry identity. Personal account clears stale org fields.
+ */
+function persistClineOrganizationContext(
+	activeOrganization: ClineAccountOrganization | null,
+	userId: string,
+): void {
+	try {
+		const manager = new ProviderSettingsManager();
+		const persisted = manager.getProviderSettings("cline");
+		if (!persisted) {
+			return;
+		}
+		manager.saveProviderSettings(
+			{
+				...persisted,
+				auth: {
+					...persisted.auth,
+					accountId: persisted.auth?.accountId ?? userId,
+					organizationId: activeOrganization?.organizationId,
+					organizationName: activeOrganization?.name,
+					memberId: activeOrganization?.memberId,
+				},
+			},
+			{ setLastUsed: false },
+		);
+	} catch {
+		// Best-effort only.
+	}
 }
 
 export async function loadClineAccountSnapshot(input: {
@@ -182,6 +222,7 @@ export async function loadClineAccountSnapshot(input: {
 		memberId: activeOrganization?.memberId,
 	};
 	identifyTelemetryAccount(accountContext, input.config.logger);
+	persistClineOrganizationContext(activeOrganization, user.id);
 
 	return {
 		user,
