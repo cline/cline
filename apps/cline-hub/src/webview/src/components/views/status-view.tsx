@@ -262,7 +262,7 @@ export function StatusView(props: {
 
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
-	}, [mode, requestSummary, requestTasks, teamsSource]);
+	}, [mode, requestSummary, requestTasks]);
 
 	const toggleState = useCallback((value: StatusState) => {
 		setStateFilter((current) =>
