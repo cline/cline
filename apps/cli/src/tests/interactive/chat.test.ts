@@ -66,18 +66,58 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		env: clineEnv("default"),
 	});
 
-	// The dialog panel's background is @opentui-ui/dialog's DEFAULT_STYLE
-	// (#262626), which xterm reports as this packed 24-bit color.
-	const DIALOG_PANEL_BG = 0x262626;
+	type Background = {
+		mode: number | undefined;
+		color: number | undefined;
+	};
+	type TerminalSnapshot = ReturnType<Terminal["serialize"]> & {
+		baseY: number;
+	};
+	const backgroundsEqual = (
+		left: Background | undefined,
+		right: Background | undefined,
+	): boolean => left?.mode === right?.mode && left?.color === right?.color;
+	const snapshotTerminal = (terminal: Terminal): TerminalSnapshot => ({
+		...terminal.serialize(),
+		baseY: terminal.getCursor().baseY,
+	});
 
-	const countPanelCells = (terminal: Terminal): number => {
-		let count = 0;
-		for (const shift of terminal.serialize().shifts.values()) {
-			if (shift.bgColor === DIALOG_PANEL_BG) {
-				count++;
+	const findTextPosition = (
+		terminal: Terminal,
+		text: string,
+	): { x: number; y: number } => {
+		const lines = terminal.getViewableBuffer();
+		for (let y = 0; y < lines.length; y++) {
+			const x = lines[y].join("").indexOf(text);
+			if (x !== -1) {
+				return { x, y };
 			}
 		}
-		return count;
+		throw new Error(`Unable to locate visible text: ${text}`);
+	};
+
+	const getCellBackground = (
+		snapshot: TerminalSnapshot,
+		position: { x: number; y: number },
+	): Background => {
+		const targetRow = snapshot.baseY + position.y;
+		let background: Background = { mode: undefined, color: undefined };
+
+		for (let y = snapshot.baseY; y <= targetRow; y++) {
+			for (let x = 0; x < TERMINAL_WIDE.columns; x++) {
+				const shift = snapshot.shifts.get(`${x},${y}`);
+				if (shift?.bgColorMode !== undefined) {
+					background = { mode: shift.bgColorMode, color: shift.bgColor };
+				}
+				if (x === position.x && y === targetRow) {
+					return background;
+				}
+			}
+		}
+
+		throw new Error(
+			`Cell is outside the visible terminal: ${position.x},${position.y}`,
+		);
 	};
 
 	// @opentui-ui/dialog is built against @opentui/core ^0.1.69, whose
@@ -91,21 +131,40 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		terminal,
 	}) => {
 		await waitForChatReady(terminal);
+		const terminalBeforeDialog = snapshotTerminal(terminal);
 		await typeAndSubmit(terminal, "/help");
 		await expectVisible(terminal, "Keyboard Shortcuts");
-		expect(countPanelCells(terminal)).toBeGreaterThan(0);
+		const dialogPosition = findTextPosition(terminal, "Keyboard Shortcuts");
+		const backgroundAtDialogPosition = getCellBackground(
+			terminalBeforeDialog,
+			dialogPosition,
+		);
+		const dialogBackground = getCellBackground(
+			snapshotTerminal(terminal),
+			dialogPosition,
+		);
+		expect(dialogBackground).not.toEqual(backgroundAtDialogPosition);
 
 		terminal.keyEscape();
 		await expectNotVisible(terminal, "Keyboard Shortcuts");
 
-		// The panel unmounts a frame after its content; poll until the
-		// dialog's imperative box is detached rather than sampling once.
+		// The panel unmounts a frame after its content. Poll the title's former
+		// position until the background captured from the visible panel is gone.
 		const deadline = Date.now() + 10_000;
-		let remaining = countPanelCells(terminal);
-		while (remaining > 0 && Date.now() < deadline) {
+		let backgroundAfterDialog = getCellBackground(
+			snapshotTerminal(terminal),
+			dialogPosition,
+		);
+		while (
+			!backgroundsEqual(backgroundAfterDialog, backgroundAtDialogPosition) &&
+			Date.now() < deadline
+		) {
 			await new Promise((resolve) => setTimeout(resolve, 100));
-			remaining = countPanelCells(terminal);
+			backgroundAfterDialog = getCellBackground(
+				snapshotTerminal(terminal),
+				dialogPosition,
+			);
 		}
-		expect(remaining).toBe(0);
+		expect(backgroundAfterDialog).toEqual(backgroundAtDialogPosition);
 	});
 });

@@ -1,5 +1,19 @@
 # Cline CLI Changelog
 
+## 3.0.47
+
+- Free Cline models are now supported end to end: free models show as "(free)", and hitting the free limit renders a dedicated card with the reset time (from SDK v0.0.66)
+- `/settings` general toggles (plan/act mode, tool auto-approve, compaction mode) now persist across restarts
+- Upgraded the TUI stack from opentui 0.1.102 to 0.4.3
+- Fixed a grey panel left behind on screen after closing a dialog (model picker, help, command palette) — a leftover from the opentui upgrade
+- Fixed a React duplicate-key warning when `read_files` listed the same path more than once
+- Aborting a task no longer risks killing the shared hub daemon
+- Connector status delivery failures are no longer fatal to the turn
+- Agentic compaction is now the default context-compaction strategy, with fixes for it silently falling back to basic compaction and for tool-heavy transcripts that could never find a cut point (from SDK v0.0.66)
+- Editor edits preserve a file's existing line endings, fixing failed exact-match edits on CRLF files (from SDK v0.0.66)
+- Broader built-in provider coverage, now generated from models.dev (from SDK v0.0.66)
+- Updated the bundled model catalog (from SDK v0.0.66)
+
 ## 3.0.46
 
 - Fixed out-of-credits detection so the CLI reliably recognizes the Cline API's real `insufficient_credits` (402) error and shows the "add credits" card instead of a generic error

@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAccount } from "@/contexts/account-context";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 
 const DASHBOARD_URL = "https://app.cline.bot/dashboard";
@@ -255,6 +256,9 @@ export function AccountView() {
 			setOverviewError(message);
 			resetAccountData();
 		} finally {
+			// The login may have persisted credentials; drop the short-lived
+			// catalog cache so consumers reload them.
+			invalidateProviderCatalogCache();
 			setAccountActionPending(null);
 			void refreshAccount();
 		}
@@ -281,6 +285,7 @@ export function AccountView() {
 			const message = normalizeAccountViewError(err).message;
 			setOverviewError(message);
 		} finally {
+			invalidateProviderCatalogCache();
 			setAccountActionPending(null);
 			void refreshAccount();
 		}

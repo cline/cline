@@ -116,6 +116,19 @@ export class SdkSessionLifecycle {
 		return activeSession
 	}
 
+	/**
+	 * Resolves once any in-flight stop for `sessionId` has settled. Callers that
+	 * start a session outside startNewSession (e.g. on an isolated host) must
+	 * wait here first, or the old session's late cleanup tears down the new one.
+	 */
+	async waitForPendingStop(sessionId: string): Promise<void> {
+		const pendingStop = this.pendingStops.get(sessionId)
+		if (pendingStop) {
+			Logger.log(`[SdkController] Waiting for session ${sessionId} to stop before restarting it`)
+			await pendingStop
+		}
+	}
+
 	async updateActiveSessionModel(modelId: string): Promise<boolean> {
 		const activeSession = this.activeSession
 		if (!activeSession?.sdkHost.updateSessionModel) {
@@ -136,10 +149,8 @@ export class SdkSessionLifecycle {
 		// Same-id starts must wait for the previous session's stop to finish;
 		// see pendingStops. A fresh id cannot conflict, so it never waits.
 		const requestedSessionId = startInput.config?.sessionId?.trim()
-		const pendingStop = requestedSessionId ? this.pendingStops.get(requestedSessionId) : undefined
-		if (pendingStop) {
-			Logger.log(`[SdkController] Waiting for session ${requestedSessionId} to stop before restarting it`)
-			await pendingStop
+		if (requestedSessionId) {
+			await this.waitForPendingStop(requestedSessionId)
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")

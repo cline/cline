@@ -64,13 +64,10 @@ export function addRootOptions(cmd: Command): Command {
 				"--acp",
 				"Run in Agent Client Protocol (ACP) mode for editor integration",
 			)
-			.option(
-				"--config <path>",
-				"Configuration directory (default: ~/.cline/data/settings)",
-			)
+			.option("--config <path>", "Configuration directory (default: ~/.cline)")
 			.option(
 				"--data-dir <path>",
-				"Use isolated local state at this directory path (default: ~/.cline)",
+				"Use isolated local state at this directory path (default: ~/.cline/data)",
 			)
 			.option(
 				"--hooks-dir <path>",
@@ -136,6 +133,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		interactive: !!opts.tui,
 		outputMode: opts.json ? "json" : "text",
 		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
+		modeExplicitlySet: !!(opts.plan || opts.act || opts.yolo || opts.zen),
 		sandbox: !!opts.dataDir,
 		acpMode: !!opts.acp,
 		thinking: false,

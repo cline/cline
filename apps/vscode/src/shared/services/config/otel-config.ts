@@ -10,7 +10,7 @@ export interface OpenTelemetryClientConfig {
 
 	/**
 	 * Metrics exporter type(s) - can be comma-separated for multiple exporters
-	 * Examples: "console", "otlp", "prometheus", "console,otlp"
+	 * Examples: "console", "otlp", "console,otlp"
 	 */
 	metricsExporter?: string
 
@@ -148,7 +148,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  *
  * Supported Environment Variables:
  * - CLINE_OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
- * - CLINE_OTEL_METRICS_EXPORTER: Comma-separated list: "console", "otlp", "prometheus"
+ * - CLINE_OTEL_METRICS_EXPORTER: Comma-separated list: "console", "otlp"
  * - CLINE_OTEL_LOGS_EXPORTER: Comma-separated list: "console", "otlp"
  * - CLINE_OTEL_EXPORTER_OTLP_PROTOCOL: "grpc", "http/json", or "http/protobuf"
  * - CLINE_OTEL_EXPORTER_OTLP_ENDPOINT: OTLP collector endpoint (if not using specific endpoints)

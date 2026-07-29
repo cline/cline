@@ -1313,6 +1313,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	async readLiveSessionMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.Message[]> {
+		const target = sessionId.trim();
+		if (!target) return [];
+		// Resident sessions are authoritative: disk persistence lags at
+		// assistant-message/turn boundaries and abort() does not flush, so a
+		// mid-turn read of the persisted file would silently drop the
+		// in-flight exchange (e.g. hosts that abort a turn and immediately
+		// re-read messages to rebuild the session for a plan/act mode switch).
+		const live = this.sessions.get(target);
+		if (live) {
+			const messages = live.agent.getMessages();
+			if (messages.length > 0) {
+				return messages;
+			}
+		}
+		return this.readSessionMessages(target);
+	}
+
 	async readSessionMessages(
 		sessionId: string,
 	): Promise<LlmsProviders.Message[]> {
