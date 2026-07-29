@@ -177,6 +177,11 @@ export {
 	type RankedShow,
 } from "./director/rankBacklogs.js";
 export {
+	normalizeEnqueuedShowStatus,
+	pickNextShowToPresent,
+	type PickNextShowInput,
+} from "./director/pickNextShow.js";
+export {
 	IllegalChatForkError,
 	applyPromotePacket,
 	assertForkLegal,
