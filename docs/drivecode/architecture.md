@@ -1,6 +1,6 @@
 # Drivecode architecture: Status Hub, Drive UI, and protocol planes
 
-Companion to [README](README.md) and [ARD-0005](../plans/cline-drivemode/ard/ARD-0005-status-hub.md).
+Companion to [README](README.md) and [ARD-0005](./plans/cline-drivemode/ard/ARD-0005-status-hub.md).
 This page is the diagram-first view of how the pieces fit. Schemas and op lists
 live in the reference README; decisions live in the ARD.
 
@@ -216,6 +216,6 @@ Retention: `prune` is explicit; default is keep-everything. Search: indexed
 
 - [drivecode README](README.md) — schema and op detail
 - [skills inventory](skills-inventory.md) — in-repo skills vs `cline/skills`
-- [ARD-0005](../plans/cline-drivemode/ard/ARD-0005-status-hub.md) — decisions D1–D10
-- [ARD-0010](../plans/cline-drivemode/ard/ARD-0010-provider-harness-byok.md) — BYOK / topology
-- [01-architecture.md](../plans/cline-drivemode/01-architecture.md) — hub as single writer
+- [ARD-0005](./plans/cline-drivemode/ard/ARD-0005-status-hub.md) — decisions D1–D10
+- [ARD-0010](./plans/cline-drivemode/ard/ARD-0010-provider-harness-byok.md) — BYOK / topology
+- [01-architecture.md](./plans/cline-drivemode/01-architecture.md) — hub as single writer

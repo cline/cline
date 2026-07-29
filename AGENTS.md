@@ -23,7 +23,7 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
   - Hub: `?demoPlans=1` → `DrivePlansDemoTeamsSource`; `?statusMode=dependency-map`
   - Screenshots: also `CLINE_DISABLE_CLINE_PASS_NOTICE=1`
 - Domain graph logic stays in `@cline/shared` (`buildDependencyMap`). Rebuild with `bun run build:sdk` after shared edits.
-- Product screenshots: `docs/assets/drivecode/` (`tui-drive-*.png`, `tui-status-*.png`, hub `status-*.png`, `drive-*.png`).
+- Product screenshots: `docs/drivecode/assets/` (`tui-drive-*.png`, `tui-status-*.png`, hub `status-*.png`, `drive-*.png`).
 - Demo package docs: `apps/drivecode-demo/README.md`.
 
 ### Build / Lint / test
@@ -33,7 +33,7 @@ This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + t
 
 ### GUI display
 - A virtual X display is live at **`DISPLAY=:1`** (the same desktop used for screenshots). GUI apps (VS Code, the Tauri desktop window) launched with `DISPLAY=:1` render there and can be screenshotted — no need to start your own `xvfb`. Prefer starting long-running GUI/dev processes in a `tmux` session (see the tmux guidance) so they survive.
-- TUI screenshots: launch `xterm` on `DISPLAY=:1`, run `bun run cli -i --key …` with the demo envs above, then `import -window <id> docs/assets/drivecode/<name>.png`. Prefer demo envs over fragile `xdotool` key chords (Ctrl+D alone exits the TUI).
+- TUI screenshots: launch `xterm` on `DISPLAY=:1`, run `bun run cli -i --key …` with the demo envs above, then `import -window <id> docs/drivecode/assets/<name>.png`. Prefer demo envs over fragile `xdotool` key chords (Ctrl+D alone exits the TUI).
 
 ### VS Code extension (`apps/vscode`, package `claude-dev`)
 Toolchain is pre-installed and persisted in the VM: generated gRPC/proto code, the bundled `ripgrep` binaries (`apps/vscode/bin/`), the built webview (`webview-ui/build`), the esbuild bundle (`dist/extension.js`), VS Code itself (`/usr/bin/code`), and the GUI system libraries its tests need.

@@ -30,7 +30,7 @@ feature inside it.
   [`components/icons/drive-mark.tsx`](../../apps/cline-hub/src/webview/src/components/icons/drive-mark.tsx),
   an inline component so it inherits `currentColor` and picks up nav active and
   hover states. An `<img>` cannot do that.
-- **README hero** — `docs/assets/drivecode/logo-{light,dark}.png`, behind a
+- **README hero** — `docs/drivecode/assets/logo-{light,dark}.png`, behind a
   `<picture>` so it adapts to GitHub's theme.
 - **Served asset** — `apps/cline-hub/src/webview/public/cline-drive-logo.svg`,
   allowlisted in `apps/cline-hub/src/server.ts`.

@@ -21,4 +21,4 @@ Independent verification of the `live-demo` target on branch `orch/share-screen-
 - `demo-test-beat.png` — beat 4/5 (test), Spotlight shows EDIT + COMMAND + TEST + PLAN.
 - `demo-human-pin.png` — human takes spotlight: SELECTION "Human review note" pin, agent deck dimmed/paused.
 
-Committed screenshots under `docs/assets/drivecode/share-screen-spotlight-demo-*.png` match the live render.
+Committed screenshots under `docs/drivecode/assets/share-screen-spotlight-demo-*.png` match the live render.

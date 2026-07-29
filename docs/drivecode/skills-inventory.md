@@ -23,8 +23,8 @@ slash); rules in `.clinerules` / `AGENTS.md` are always-on.
 
 ## Drive product skills (planned, not shipped)
 
-Ported from cursor-drive under [DRV-SKILL-PORT](../plans/cline-drivemode/features/DRV-SKILL-PORT.md)
-and [DRV-SDLC-GUIDE](../plans/cline-drivemode/features/DRV-SDLC-GUIDE.md):
+Ported from cursor-drive under [DRV-SKILL-PORT](./plans/cline-drivemode/features/DRV-SKILL-PORT.md)
+and [DRV-SDLC-GUIDE](./plans/cline-drivemode/features/DRV-SDLC-GUIDE.md):
 
 - `drive-persona`
 - `drive-modes`

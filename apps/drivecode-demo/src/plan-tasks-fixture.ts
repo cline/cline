@@ -2,7 +2,7 @@ import type { TeamRuntimeState, TeamTask } from "@cline/shared";
 
 /**
  * Demo team snapshot: Drive plan features from
- * `docs/plans/cline-drivemode/` with TASK-GRAPH dependency edges.
+ * `docs/drivecode/plans/cline-drivemode/` with TASK-GRAPH dependency edges.
  * Used for docs screenshots and demos; hub wires via
  * `DrivePlansDemoTeamsSource` when `?demoPlans=1`.
  */
