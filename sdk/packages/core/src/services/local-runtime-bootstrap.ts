@@ -15,6 +15,7 @@ import type {
 import { hasRuntimeConfigExtension } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
+	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "../extensions/plugin/plugin-config-loader";
@@ -49,6 +50,7 @@ import {
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
+import { recordPluginLoadReport } from "./plugin-load-diagnostics";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
@@ -377,11 +379,47 @@ export async function prepareLocalRuntimeBootstrap(
 				loadedPlugins.warnings,
 				localConfig?.logger,
 			);
+			recordPluginLoadReport({
+				pluginPaths: loadedPlugins.pluginPaths,
+				failures: loadedPlugins.failures,
+				warnings: loadedPlugins.warnings,
+				workspacePath,
+				providerId: input.config.providerId,
+				modelId: input.config.modelId,
+			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			localConfig?.logger?.log?.(
 				`plugin loading failed; continuing without plugins (${message})`,
 			);
+			// A throw here means no plugin loaded at all — typically the sandbox
+			// never started. Attribute it to every plugin the session would have
+			// loaded so hosts can explain why each one contributes nothing. This
+			// only walks the filesystem; it runs no plugin code.
+			let affectedPaths: string[] = [];
+			try {
+				affectedPaths = resolveAgentPluginPaths({
+					pluginPaths: localConfig?.pluginPaths,
+					workspacePath,
+					cwd: input.config.cwd,
+				});
+			} catch {
+				// Without the paths the report is empty, which reads as
+				// "not validated" rather than a false clean bill of health.
+			}
+			recordPluginLoadReport({
+				pluginPaths: affectedPaths,
+				failures: affectedPaths.map((pluginPath) => ({
+					pluginPath,
+					phase: "load" as const,
+					message,
+					stack: error instanceof Error ? error.stack : undefined,
+				})),
+				warnings: [],
+				workspacePath,
+				providerId: input.config.providerId,
+				modelId: input.config.modelId,
+			});
 		}
 	}
 

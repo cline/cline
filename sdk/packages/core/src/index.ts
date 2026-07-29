@@ -583,6 +583,12 @@ export {
 	isOfficialPluginSlug,
 	parsePluginSource,
 } from "./services/plugin-install";
+export type { PluginLoadReport } from "./services/plugin-load-diagnostics";
+export {
+	clearPluginLoadReport,
+	getLatestPluginLoadReport,
+	recordPluginLoadReport,
+} from "./services/plugin-load-diagnostics";
 export type {
 	PluginMcpSettingsMutation,
 	PluginMcpSettingsSyncResult,

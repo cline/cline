@@ -6,10 +6,10 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import {
 	disablePluginMcpServersInSettings,
 	discoverPluginModulePaths,
+	getLatestPluginLoadReport,
 	installMcpServer,
 	installPlugin,
 	isMarketplaceSkillInstalled,
-	listPluginToolsWithDiagnostics,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
 	type MarketplacePrimitiveType,
@@ -448,68 +448,75 @@ function getPluginDisplayName(filePath: string, searchRoot: string): string {
 /**
  * A load failure carries the sandbox child's stderr tail, so it is both long and
  * as untrusted as any other subprocess output. Redact it on the same terms as
- * install output and flatten it to a single line the row can render; the full
- * redacted text goes to the output channel.
+ * install output and flatten it into one bounded line. The untruncated redacted
+ * text goes to the output channel.
  */
 function formatPluginLoadError(message: string): string {
 	const flattened = redactOutput(message).replace(/\s+/g, " ").trim()
 	return flattened.length > MAX_PLUGIN_ERROR_CHARS ? `${flattened.slice(0, MAX_PLUGIN_ERROR_CHARS).trimEnd()}…` : flattened
 }
 
+/** Report timestamp whose failures have already reached the output channel. */
+let loggedPluginReportAt: number | undefined
+
 /**
- * Load every enabled plugin the same way a session does and index the resulting
- * failures by plugin path. Without this the Installed list only proves a file
- * exists on disk, so a plugin that never loads still renders as healthy.
+ * Read the plugin load result the last session recorded and index it by plugin
+ * path. Without this the Installed list only proves a file exists on disk, so a
+ * plugin that never loads still renders as healthy.
  *
- * `listPluginToolsWithDiagnostics` memoizes by plugin path + mtime + size, so
- * only the first call after a plugin changes pays for a sandbox process.
+ * Listing must never load plugins itself. That would run plugin modules and
+ * `setup()` a second time, including in workspaces the user has not trusted, and
+ * a probe that resolves the sandbox runtime differently from the session would
+ * report failures the session never hit. The session bootstrap is the only thing
+ * that loads plugins; this renders what it found.
  */
-async function collectPluginLoadErrors(controller: Controller, workspacePath: string | undefined): Promise<Map<string, string>> {
+function collectPluginLoadErrors(): { errors: Map<string, string>; validatedPaths: Set<string> } {
 	const errors = new Map<string, string>()
-	try {
-		const { providerId, modelId } = getActiveProviderAndModel(controller)
-		const { failures } = await listPluginToolsWithDiagnostics({
-			workspacePath,
-			cwd: workspacePath,
-			providerId,
-			modelId,
-		})
-		for (const failure of failures) {
-			const key = resolve(failure.pluginPath)
-			if (errors.has(key)) continue
+	const validatedPaths = new Set<string>()
+	const report = getLatestPluginLoadReport()
+	if (!report) return { errors, validatedPaths }
+
+	for (const pluginPath of report.pluginPaths) {
+		validatedPaths.add(resolve(pluginPath))
+	}
+	const shouldLog = loggedPluginReportAt !== report.recordedAt
+	for (const failure of report.failures) {
+		const key = resolve(failure.pluginPath)
+		validatedPaths.add(key)
+		if (errors.has(key)) continue
+		if (shouldLog) {
 			Logger.error(
 				`[marketplace] plugin failed to load during ${failure.phase}: ${failure.pluginPath}`,
 				redactOutput(failure.message),
 			)
-			errors.set(key, formatPluginLoadError(failure.message))
 		}
-	} catch (error) {
-		// Diagnostics are advisory. A probe that blows up must not stop the
-		// Installed list from rendering.
-		Logger.error("[marketplace] failed to collect plugin load diagnostics", error)
+		errors.set(key, formatPluginLoadError(failure.message))
 	}
-	return errors
+	loggedPluginReportAt = report.recordedAt
+	return { errors, validatedPaths }
 }
 
-async function listPluginLocalEntries(controller: Controller): Promise<MarketplaceLocalInstalledEntry[]> {
+async function listPluginLocalEntries(): Promise<MarketplaceLocalInstalledEntry[]> {
 	const workspacePath = await getWorkspacePath()
 	const roots = resolvePluginConfigSearchPaths(workspacePath).filter((directory) => existsSync(directory))
 	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? [])
-	const discovered = roots.flatMap((root) => discoverPluginModulePaths(root).map((pluginPath) => ({ pluginPath, root })))
-	const hasEnabledPlugin = discovered.some(({ pluginPath }) => !disabledPlugins.has(pluginPath))
-	const loadErrors = hasEnabledPlugin ? await collectPluginLoadErrors(controller, workspacePath) : new Map<string, string>()
-	return discovered.map(({ pluginPath, root }) => {
-		const enabled = !disabledPlugins.has(pluginPath)
-		return MarketplaceLocalInstalledEntry.create({
-			id: pluginPath,
-			type: "plugin",
-			name: getPluginDisplayName(pluginPath, root),
-			path: pluginPath,
-			source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
-			enabled,
-			error: enabled ? loadErrors.get(resolve(pluginPath)) : undefined,
-		})
-	})
+	const { errors, validatedPaths } = collectPluginLoadErrors()
+	return roots.flatMap((root) =>
+		discoverPluginModulePaths(root).map((pluginPath) => {
+			const key = resolve(pluginPath)
+			const enabled = !disabledPlugins.has(pluginPath)
+			return MarketplaceLocalInstalledEntry.create({
+				id: pluginPath,
+				type: "plugin",
+				name: getPluginDisplayName(pluginPath, root),
+				path: pluginPath,
+				source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
+				enabled,
+				// A plugin no session has tried to load yet is unknown, not healthy.
+				error: enabled && validatedPaths.has(key) ? errors.get(key) : undefined,
+			})
+		}),
+	)
 }
 
 export async function listLocalMarketplaceInstalledEntries(controller: Controller): Promise<MarketplaceLocalInstalledEntries> {
@@ -547,7 +554,7 @@ export async function listLocalMarketplaceInstalledEntries(controller: Controlle
 			}),
 		),
 	]
-	const pluginEntries = await listPluginLocalEntries(controller)
+	const pluginEntries = await listPluginLocalEntries()
 	return MarketplaceLocalInstalledEntries.create({ entries: [...mcpEntries, ...skillEntries, ...pluginEntries] })
 }
 
