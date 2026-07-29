@@ -27,8 +27,8 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent Aurora, hero-heading, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 |
-| `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
+| `@cline/ui` | Agent Aurora, hero-heading, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui/components.css` | Styles and Tailwind source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
@@ -44,6 +44,9 @@ for a host-specific status palette.
 
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
+
+Import `components.css` after Tailwind and the theme; it registers the packaged
+component sources so their utilities are emitted.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 

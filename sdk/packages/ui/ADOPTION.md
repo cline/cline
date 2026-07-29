@@ -63,7 +63,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
-| Render shared welcome artwork, hero heading, quick actions, search combobox, or session status | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
+| Render shared root React primitives without host resets | `scoped-tokens.css`, `theme.css`, `components.css`, and `@cline/ui` | Tailwind v4 | React 18.3 or 19 |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -165,6 +165,19 @@ owns document, Markdown, scrollbar, or cursor behavior:
 @import "@cline/ui/theme/tokens.css";
 @import "@cline/ui/theme/theme.css";
 ```
+
+For an embedded surface that must preserve its host shell, scope the token
+values and add the shared component source registration:
+
+```css
+@import "tailwindcss";
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/theme/theme.css";
+@import "@cline/ui/components.css";
+```
+
+Render shared components inside `.cline-ui-theme`. Dark values activate when
+`.dark` is on that wrapper or an ancestor.
 
 If the application later opts into shared base behavior, import
 `@cline/ui/theme/base.css` after `theme.css`.

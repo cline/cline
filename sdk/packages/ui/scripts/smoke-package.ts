@@ -2,6 +2,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
+	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -68,6 +69,46 @@ function createConsumer(root: string): void {
 	);
 }
 
+async function verifyTailwindContract(root: string): Promise<void> {
+	const input = join(root, "tailwind.css");
+	const output = join(root, "tailwind-output.css");
+	writeFileSync(
+		input,
+		[
+			'@import "tailwindcss";',
+			'@import "@cline/ui/theme/scoped-tokens.css";',
+			'@import "@cline/ui/theme/theme.css";',
+			'@import "@cline/ui/components.css";',
+			"",
+		].join("\n"),
+	);
+	await run(
+		[
+			process.execPath,
+			"x",
+			"tailwindcss",
+			"-i",
+			input,
+			"-o",
+			output,
+			"--minify",
+		],
+		root,
+	);
+	const css = readFileSync(output, "utf8");
+	for (const candidate of [
+		"bg-background/95",
+		"border-border/60",
+		"text-muted-foreground",
+		"bg-primary/10",
+	]) {
+		const selector = `.${candidate.replace("/", "\\/")}`;
+		if (!css.includes(selector)) {
+			throw new Error(`packed Tailwind source did not emit ${candidate}`);
+		}
+	}
+}
+
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
 
 try {
@@ -96,10 +137,19 @@ try {
 	const bunConsumer = join(temporaryRoot, "bun-consumer");
 	createConsumer(bunConsumer);
 	await run(
-		[process.execPath, "add", "--ignore-scripts", archive, "react@19.2.4"],
+		[
+			process.execPath,
+			"add",
+			"--ignore-scripts",
+			archive,
+			"react@19.2.4",
+			"tailwindcss@4.2.0",
+			"@tailwindcss/cli@4.2.0",
+		],
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
+	await verifyTailwindContract(bunConsumer);
 
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);
