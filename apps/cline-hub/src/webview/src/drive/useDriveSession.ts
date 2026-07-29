@@ -18,6 +18,7 @@ import {
 	type DriveUiState,
 } from "./types";
 import {
+	isDriveHumanId,
 	isDrivePartnerId,
 	toggleDriveSpotlightId,
 } from "./participantIds";
@@ -205,6 +206,9 @@ export function useDriveSession(
 			}
 			const room = message.room;
 			setDrive((current) => {
+				const humanFlags = room.participantAudio?.find((flag) =>
+					isDriveHumanId(flag.participantId),
+				);
 				const partnerFlags = room.participantAudio?.find((flag) =>
 					isDrivePartnerId(flag.participantId),
 				);
@@ -213,6 +217,7 @@ export function useDriveSession(
 				return {
 					...current,
 					spotlightParticipantId: spotlight,
+					muted: humanFlags?.muted ?? current.muted,
 					partnerMuted: partnerFlags?.muted ?? current.partnerMuted,
 					partnerDeafened: partnerFlags?.deafened ?? current.partnerDeafened,
 				};
@@ -305,18 +310,15 @@ export function useDriveSession(
 				});
 			},
 			onMuteToggle: () => {
-				setDrive((current) => {
-					const muted = !current.muted;
-					postToHost({
-						type: "driveCommand",
-						command: "drive.participant.mute.set",
-						payload: {
-							roomId: "default",
-							participantId: DRIVE_PARTICIPANT_HUMAN,
-							muted,
-						},
-					});
-					return { ...current, muted };
+				// Hub is authoritative; wait for drive_room_changed.
+				postToHost({
+					type: "driveCommand",
+					command: "drive.participant.mute.set",
+					payload: {
+						roomId: "default",
+						participantId: DRIVE_PARTICIPANT_HUMAN,
+						muted: !drive.muted,
+					},
 				});
 			},
 			onOpenSettings: () => {
@@ -326,50 +328,41 @@ export function useDriveSession(
 				}));
 			},
 			onTogglePartnerDeafen: () => {
-				setDrive((current) => {
-					const partnerDeafened = !current.partnerDeafened;
-					postToHost({
-						type: "driveCommand",
-						command: "drive.participant.deafen.set",
-						payload: {
-							roomId: "default",
-							participantId: DRIVE_PARTICIPANT_PARTNER,
-							deafened: partnerDeafened,
-						},
-					});
-					return { ...current, partnerDeafened };
+				// Hub is authoritative; wait for drive_room_changed.
+				postToHost({
+					type: "driveCommand",
+					command: "drive.participant.deafen.set",
+					payload: {
+						roomId: "default",
+						participantId: DRIVE_PARTICIPANT_PARTNER,
+						deafened: !drive.partnerDeafened,
+					},
 				});
 			},
 			onTogglePartnerMute: () => {
-				setDrive((current) => {
-					const partnerMuted = !current.partnerMuted;
-					postToHost({
-						type: "driveCommand",
-						command: "drive.participant.mute.set",
-						payload: {
-							roomId: "default",
-							participantId: DRIVE_PARTICIPANT_PARTNER,
-							muted: partnerMuted,
-						},
-					});
-					return { ...current, partnerMuted };
+				// Hub is authoritative; wait for drive_room_changed.
+				postToHost({
+					type: "driveCommand",
+					command: "drive.participant.mute.set",
+					payload: {
+						roomId: "default",
+						participantId: DRIVE_PARTICIPANT_PARTNER,
+						muted: !drive.partnerMuted,
+					},
 				});
 			},
 			onToggleSpotlight: () => {
-				setDrive((current) => {
-					const spotlightParticipantId = toggleDriveSpotlightId(
-						current.spotlightParticipantId,
-					);
-					postToHost({
-						type: "driveCommand",
-						command: "drive.spotlight.set",
-						payload: {
-							roomId: "default",
-							participantId: spotlightParticipantId,
-							reason: "human",
-						},
-					});
-					return { ...current, spotlightParticipantId };
+				// Hub is authoritative; wait for drive_room_changed.
+				postToHost({
+					type: "driveCommand",
+					command: "drive.spotlight.set",
+					payload: {
+						roomId: "default",
+						participantId: toggleDriveSpotlightId(
+							drive.spotlightParticipantId,
+						),
+						reason: "human",
+					},
 				});
 			},
 			onSubModeChange: (subMode: DriveUiState["subMode"]) => {
@@ -380,7 +373,7 @@ export function useDriveSession(
 				});
 			},
 		}),
-		[args],
+		[args, drive],
 	);
 
 	return {
