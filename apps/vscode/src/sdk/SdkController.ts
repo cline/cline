@@ -557,6 +557,7 @@ export class Controller {
 				this.messageTranslatorState.clearApprovedToolMessageTs()
 				this.messageTranslatorState.getMinter().bumpEpoch()
 			},
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
@@ -1551,14 +1552,18 @@ export class Controller {
 	 * 1. Silently tear down the active session (unsubscribe + stop in background)
 	 * 2. Create the new task proxy with loaded messages BEFORE any state push
 	 * 3. Only then push state to the webview
+	 *
+	 * Delegates straight to the coordinator (including the history lookup) so
+	 * the "latest selection wins" generation is allocated synchronously at the
+	 * moment of the request — awaiting the lookup here first would let a
+	 * stalled older request grab a NEWER generation than a later selection and
+	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = await this.taskHistory.findHistoryItem(taskId)
+		const historyItem = await this.taskControl.showTaskWithId(taskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
-
-		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
 		return historyItemToTaskResponse(historyItem)
 	}
 
