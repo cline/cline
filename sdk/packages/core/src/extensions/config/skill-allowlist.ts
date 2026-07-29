@@ -21,6 +21,15 @@ export function toAllowedSkillSet(
 	return new Set(normalized);
 }
 
+/**
+ * A bare allowlist entry (`deploy`) matches both a skill named `deploy` and
+ * any namespaced skill ending in `:deploy`, mirroring how skill invocation
+ * resolves bare names to namespaced skills. This is scoping, not a trust
+ * boundary between skill sources: whoever can define `untrusted:deploy` can
+ * define a skill named exactly `deploy` too, since names are not reserved
+ * (built-ins excepted). Use a namespaced entry (`plugin:deploy`) to match
+ * only that qualified skill.
+ */
 export function isSkillAllowed(
 	skillId: string,
 	skillName: string,
