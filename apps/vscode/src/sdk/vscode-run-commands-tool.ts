@@ -363,7 +363,23 @@ export async function executeForeground(
 		process.on("line", bufferLine)
 
 		try {
-			applyAbort = () => process.continue()
+			applyAbort = () => {
+				// A cancelled task must actually stop the running command, not just
+				// stop observing it. VS Code has no API to kill a terminal's
+				// foreground process, so send Ctrl+C (SIGINT) before detaching our
+				// listeners; continue() alone would leave the command running in the
+				// user's terminal after cancellation.
+				try {
+					terminalManager.sendInterrupt(terminalInfo)
+				} catch (error) {
+					Logger.warn(
+						`[VscodeRunCommands] Failed to interrupt command on cancellation: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					)
+				}
+				process.continue()
+			}
 
 			applyDetach = () => {
 				if (detachedLog !== undefined) {
