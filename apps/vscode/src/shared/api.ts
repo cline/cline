@@ -130,7 +130,10 @@ export type BedrockModelId = string
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
-	contextWindow: 200_000,
+	// OpenRouter reports the full 1m extended context window for this model and we pass it
+	// through unchanged (the legacy 200k restriction was dropped). Keep in sync with the SDK
+	// model catalog and refreshOpenRouterModels.ts.
+	contextWindow: 1_000_000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,

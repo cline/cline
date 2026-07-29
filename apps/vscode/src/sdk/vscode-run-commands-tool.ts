@@ -502,7 +502,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 
 function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state: { snapshot: ShellSnapshot }): ShellExecutor {
 	const { cwd, getTerminalManager } = options
-	const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
+	const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 
 	// Lazy-init background executor — recreated when the snapshotted shell changes.
 	let bgExecutor: ShellExecutor | undefined
@@ -532,8 +532,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 				Logger.log(`[VscodeRunCommands] Background executor using shell: ${shell}`)
 			}
 			// Record execution outcomes so background mode is comparable with
-			// foreground mode in the same task.terminal_execution event —
-			// essential for judging the backgroundExec-by-default change.
+			// foreground mode in the same task.terminal_execution event.
 			try {
 				const result = await bgExecutor(command, commandCwd || cwd, context)
 				telemetryService.captureTerminalExecution(true, "vscode", "child_process", {

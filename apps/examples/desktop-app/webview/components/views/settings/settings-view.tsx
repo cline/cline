@@ -719,8 +719,8 @@ function GeneralSettingsContent() {
 							Keep CLI up to date
 						</p>
 						<p className="mt-1 text-[15px] text-muted-foreground">
-							Automatically update the cline terminal command, which shares
-							your sessions and settings with this app. The app itself updates
+							Automatically update the cline terminal command, which shares your
+							sessions and settings with this app. The app itself updates
 							separately.
 						</p>
 						{autoUpdateError ? (
