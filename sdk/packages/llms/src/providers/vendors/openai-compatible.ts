@@ -7,6 +7,7 @@ import type {
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import { resolveOpenAICompatibleMaxOutputTokens } from "./openai-compatible-options";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -130,6 +131,17 @@ export async function createOpenAICompatibleProviderModule(
 		includeUsage: true,
 	} as never);
 	return {
+		buildStreamConfig: (request, streamContext) => {
+			const maxOutputTokens = resolveOpenAICompatibleMaxOutputTokens(
+				streamContext.provider.id,
+				request.maxTokens,
+				request.defaultedMaxTokens,
+			);
+			return {
+				...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+				temperature: request.temperature,
+			};
+		},
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
 		// image-data parts get split into a placeholder text + a synthetic
