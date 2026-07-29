@@ -130,6 +130,8 @@ describe("SdkTaskHistory", () => {
 
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
+			// Mid-transcript turns are never retagged into the inferred completion row:
+			// history carries no per-turn outcome, so an earlier turn's text stays plain.
 			{ type: "say", say: "text", text: "Done", partial: false },
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
 			// A trailing ask:"completion_result" is appended so a reopened task
@@ -206,7 +208,8 @@ describe("SdkTaskHistory", () => {
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "add a joke", partial: false },
 			{ type: "say", say: "tool", partial: false },
-			{ type: "say", say: "text", text: "Done!", partial: false },
+			// The turn's final text response is retagged to the inferred completion row.
+			{ type: "say", say: "completion_result", text: "Done!", partial: false },
 			{ type: "ask", ask: "completion_result", partial: false },
 		])
 		expect(result.map((message) => message.text).join("\n")).not.toContain(rawToolResult)
@@ -214,6 +217,111 @@ describe("SdkTaskHistory", () => {
 			tool: "editedExistingFile",
 			path: "/Users/maxpaulus/c/c2/README.md",
 		})
+	})
+
+	it("retags only the final turn's text, styled by the mode recovered from user_input wrappers", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="plan">plan the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Here is the plan." }] },
+			{ role: "user", content: '<user_input mode="act">looks good, do it</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Implemented." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toMatchObject([
+			// The <user_input mode="..."> wrapper is stripped for display but its mode
+			// styles the final turn's inferred completion row. Mid-transcript turns stay
+			// plain — history has no per-turn outcome to trust.
+			{ type: "say", say: "task", text: "plan the feature" },
+			{ type: "say", say: "text", text: "Here is the plan." },
+			{ type: "say", say: "user_feedback", text: "looks good, do it" },
+			{ type: "say", say: "completion_result", text: "Implemented." },
+			{ type: "ask", ask: "completion_result" },
+		])
+	})
+
+	it("styles the final turn's inferred completion with the plan box when the last turn ran in plan mode", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="act">build it</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Built." }] },
+			{ role: "user", content: '<user_input mode="plan">now plan the next phase</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Phase two plan." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toContainEqual(
+			expect.objectContaining({ type: "say", say: "plan_completion_result", text: "Phase two plan." }),
+		)
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Built." }))
+	})
+
+	it("retags the terminal text of a session whose record says it completed", async () => {
+		// "completed" is written by the runtime host when the session is released after a
+		// clean final turn (task switch / clear / extension dispose).
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status: "completed" })])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: "first request" },
+			{ role: "assistant", content: [{ type: "text", text: "Final answer." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Final answer." }))
+	})
+
+	it("does not retag the terminal text of a session that did not end cleanly", async () => {
+		// "failed"/"cancelled" runs ended on a dangling response. Non-terminal statuses at
+		// rest mean the process died without recording an outcome — "idle" is also the state
+		// after an aborted turn (markTurnIdle runs for every finish reason), so it cannot be
+		// trusted as a clean ending.
+		for (const status of ["failed", "cancelled", "running", "pending", "idle"] as const) {
+			const { history, readMessages } = makeHistory([makeSessionRecord("task-1", { status })])
+			readMessages.mockResolvedValueOnce([
+				{ role: "user", content: "first request" },
+				{ role: "assistant", content: [{ type: "text", text: "First answer." }] },
+				{ role: "user", content: "second request" },
+				{ role: "assistant", content: [{ type: "text", text: "Dangling partial answer" }] },
+			] as never)
+
+			const result = await history.getClineMessages("task-1")
+
+			expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Dangling partial answer" }))
+			expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
+		}
+	})
+
+	it("does not retag the terminal text when no session record exists (unknown outcome)", async () => {
+		const { history, readMessages } = makeHistory([])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: "do the thing" },
+			{ role: "assistant", content: [{ type: "text", text: "Answer of unknown outcome" }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-without-record")
+
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Answer of unknown outcome" }))
+		expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
+	})
+
+	it("does not retag a transcript that ends on a dangling tool call", () => {
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "do the thing" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Reading the file first." },
+					{ type: "tool_use", id: "toolu_dangling", name: "read_files", input: { path: "/a.ts" } },
+				],
+			},
+		])
+
+		// The aborted turn's text stays a plain text row — no inferred completion box.
+		expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Reading the file first." }))
 	})
 
 	it("hides subagent sessions from task history", async () => {

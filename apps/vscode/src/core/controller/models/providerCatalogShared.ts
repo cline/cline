@@ -42,6 +42,7 @@ export interface ProviderCatalogStateController extends ProviderCatalogControlle
 		getApiConfiguration?(): ApiConfiguration
 	}
 	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
+	postStateToWebview?(): Promise<void>
 }
 
 export function hasProviderCatalogStateController(

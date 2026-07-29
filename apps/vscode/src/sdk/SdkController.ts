@@ -42,6 +42,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
@@ -91,10 +92,12 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
+import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -280,8 +283,13 @@ export class Controller {
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
-		// Initialize message translator state
-		this.messageTranslatorState = new MessageTranslatorState(undefined, () => this.getActiveProviderId())
+		// Initialize message translator state. The mode getter styles the inferred turn-final
+		// completion row (plan → yellow plan box, act → green completion box).
+		this.messageTranslatorState = new MessageTranslatorState(
+			undefined,
+			() => this.getActiveProviderId(),
+			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+		)
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
@@ -333,6 +341,9 @@ export class Controller {
 			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
 			editorExecutor: (input, cwd, context) => this.diffEdits.executeEditorTool(input, cwd, context),
 			applyPatchExecutor: (input, cwd, context) => this.diffEdits.executeApplyPatchTool(input, cwd, context),
+			// The SDK's built-in reader resolves relative paths against the extension
+			// host's process.cwd() (usually "/"); resolve them against the workspace instead.
+			readFileExecutor: createWorkspaceFileReadExecutor(() => this.getWorkspaceRoot()),
 			onSessionEvent: (event) => {
 				this.sessionEvents.handleSessionEvent(event).catch((err) => {
 					Logger.error("[SdkController] Failed to handle session event:", err)
@@ -507,6 +518,7 @@ export class Controller {
 				await this.mode.waitForPendingRebuild()
 				await this.sessionRebuilds.waitUntilSettled()
 			},
+			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -519,6 +531,13 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			onResumeFailed: () => {
 				this.turnStateTracker.set("error")
+			},
+			onFollowUpAbandoned: () => {
+				// Settle the streaming phase askResponse pre-set, unless a turn
+				// (for example on the newly displayed task) has actually started.
+				if (this.turnStateTracker.currentPhase === "streaming" && !this.sessions.getActiveSession()?.isRunning) {
+					this.turnStateTracker.set("idle")
+				}
 			},
 		})
 		this.taskControl = new SdkTaskControlCoordinator({
@@ -539,6 +558,7 @@ export class Controller {
 				this.messageTranslatorState.clearApprovedToolMessageTs()
 				this.messageTranslatorState.getMinter().bumpEpoch()
 			},
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
@@ -570,8 +590,13 @@ export class Controller {
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
+			rebuilds: this.sessionRebuilds,
 			messages: this.messages,
+			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
+			getDisplayedTaskId: () => this.task?.taskId,
+			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -671,7 +696,14 @@ export class Controller {
 
 			const apiConfig = this.stateManager.getApiConfiguration()
 			const activeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			return activeProvider === event.providerId.toString()
+			if (activeProvider === undefined) {
+				return false
+			}
+			// Normalize both sides so stale SDK spellings in cached state
+			// (e.g. `openai-compatible`) still match the parse-normalized
+			// event id and model-only commits keep the lightweight
+			// in-session update path.
+			return toLegacyApiProvider(activeProvider) === toLegacyApiProvider(event.providerId.toString())
 		} catch {
 			return false
 		}
@@ -810,9 +842,13 @@ export class Controller {
 	}
 
 	/**
-	 * Expand a leading `/workflow` or `/skill` slash command into its instruction
-	 * body. Mirrors the CLI's `buildUserInputMessage`. Returns the input unchanged
-	 * if it is not a known command or expansion fails.
+	 * Expand a `/workflow` or `/skill` slash command into its instruction body.
+	 * Serves the same purpose as the CLI's `buildUserInputMessage`, but is more
+	 * permissive than the SDK's leading-only resolver: it accepts the legacy
+	 * `/my-workflow.md` spelling the webview autocomplete inserts, matches
+	 * commands mid-message (anything the chat input highlights as a command),
+	 * and honors the user's workflow enable/disable toggles. Returns the input
+	 * unchanged if no known command matches or expansion fails.
 	 */
 	private async resolveSlashCommands(text: string): Promise<string> {
 		if (this.isDisposed) {
@@ -821,7 +857,18 @@ export class Controller {
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
-			return service.resolveRuntimeSlashCommand(text)
+			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
+			const workflowRecords = service
+				.listRecords("workflow")
+				.map((record) => ({ name: record.item.name, filePath: record.filePath }))
+			const disabledWorkflowNames = buildDisabledWorkflowNames({
+				records: workflowRecords,
+				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
+				workspaceToggles: this.stateManager.getWorkspaceStateKey("workflowToggles"),
+				remoteToggles: this.stateManager.getGlobalStateKey("remoteWorkflowToggles"),
+				remoteAlwaysEnabledNames: remoteWorkflows.filter((workflow) => workflow.alwaysEnabled).map((w) => w.name),
+			})
+			return expandSlashCommands(text, service.listRuntimeCommands(), { disabledWorkflowNames, workflowRecords })
 		} catch (error) {
 			Logger.warn("[SdkController] Slash command resolution failed, using raw text:", error)
 			return text
@@ -1521,14 +1568,18 @@ export class Controller {
 	 * 1. Silently tear down the active session (unsubscribe + stop in background)
 	 * 2. Create the new task proxy with loaded messages BEFORE any state push
 	 * 3. Only then push state to the webview
+	 *
+	 * Delegates straight to the coordinator (including the history lookup) so
+	 * the "latest selection wins" generation is allocated synchronously at the
+	 * moment of the request — awaiting the lookup here first would let a
+	 * stalled older request grab a NEWER generation than a later selection and
+	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = await this.taskHistory.findHistoryItem(taskId)
+		const historyItem = await this.taskControl.showTaskWithId(taskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
-
-		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
 		return historyItemToTaskResponse(historyItem)
 	}
 

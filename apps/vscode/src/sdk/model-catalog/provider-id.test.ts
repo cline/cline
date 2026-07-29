@@ -28,6 +28,12 @@ describe("parseProviderId", () => {
 		expect(parseProviderId("NOUSRESEARCH")).toBe("nousresearch")
 	})
 
+	it("folds the SDK openai-compatible spelling to the extension's openai id", () => {
+		expect(parseProviderId("openai-compatible")).toBe("openai")
+		expect(parseProviderId("  OpenAI-Compatible  ")).toBe("openai")
+		expect(warnSpy).not.toHaveBeenCalled()
+	})
+
 	it("warns once per non-empty unknown provider id", () => {
 		parseProviderId("provider-id-test-unknown-a")
 		parseProviderId("provider-id-test-unknown-a")

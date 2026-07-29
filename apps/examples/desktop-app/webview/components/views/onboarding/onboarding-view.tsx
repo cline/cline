@@ -8,7 +8,7 @@ import {
 	Loader2,
 	LogIn,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,11 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import type { Provider, ProviderCatalogResponse } from "@/lib/provider-schema";
+import {
+	fetchProviderCatalog,
+	invalidateProviderCatalogCache,
+} from "@/lib/provider-model-catalog";
+import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -180,6 +184,11 @@ function ConnectStep({
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 
+	const [showClineKeyForm, setShowClineKeyForm] = useState(false);
+	const [clineApiKey, setClineApiKey] = useState("");
+	const [clineKeySaving, setClineKeySaving] = useState(false);
+	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
+
 	const [showApiKeyForm, setShowApiKeyForm] = useState(false);
 	const [providers, setProviders] = useState<Provider[]>([]);
 	const [providersLoading, setProvidersLoading] = useState(true);
@@ -193,9 +202,7 @@ function ConnectStep({
 		let cancelled = false;
 		async function loadProviders() {
 			try {
-				const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-					"list_provider_catalog",
-				);
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}
@@ -220,22 +227,117 @@ function ConnectStep({
 		};
 	}, []);
 
+	// Increments whenever the user cancels a pending browser sign-in so a
+	// stale OAuth round-trip (which can dangle until the transport timeout)
+	// cannot advance or error the UI after the user has moved on.
+	const signInAttemptRef = useRef(0);
+
 	const signInWithCline = useCallback(async () => {
+		signInAttemptRef.current += 1;
+		const attempt = signInAttemptRef.current;
 		setSigningIn(true);
 		setSignInError(null);
 		try {
 			await desktopClient.invoke("run_provider_oauth_login", {
 				provider: "cline",
 			});
+			if (signInAttemptRef.current !== attempt) {
+				// The sign-in completed after the user cancelled but before the
+				// backend processed the cancellation, so credentials were saved.
+				// Refresh the account so the card reflects the real signed-in
+				// state instead of silently diverging from disk.
+				void refreshAccount();
+				return;
+			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
 			onConnected({ kind: "cline" });
 		} catch (error) {
+			if (signInAttemptRef.current !== attempt) {
+				return;
+			}
 			setSignInError(error instanceof Error ? error.message : String(error));
 		} finally {
-			setSigningIn(false);
+			// The login may have persisted credentials; drop the short-lived
+			// catalog cache so the app reloads them instead of a pre-save copy.
+			invalidateProviderCatalogCache();
+			if (signInAttemptRef.current === attempt) {
+				setSigningIn(false);
+			}
 		}
 	}, [onConnected, refreshAccount]);
+
+	const cancelSignInWithCline = useCallback(() => {
+		signInAttemptRef.current += 1;
+		setSigningIn(false);
+		// Cancel the backend browser round-trip so a later-completed
+		// authorization in the abandoned tab can never persist credentials.
+		// Retry transient delivery failures; if the transport itself is gone,
+		// the sidecar cancels pending logins when the connection closes.
+		void (async () => {
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					await desktopClient.invoke("cancel_provider_oauth_login", {
+						provider: "cline",
+					});
+					return;
+				} catch {
+					await new Promise((resolve) =>
+						setTimeout(resolve, 250 * (attempt + 1)),
+					);
+				}
+			}
+		})();
+	}, []);
+
+	const connectWithClineApiKey = useCallback(async () => {
+		const key = clineApiKey.trim();
+		if (!key) {
+			return;
+		}
+		setClineKeySaving(true);
+		setClineKeyError(null);
+		try {
+			await desktopClient.invoke("save_provider_settings", {
+				provider: "cline",
+				enabled: true,
+				api_key: key,
+			});
+			// Verify the key against the account API before advancing; the
+			// account context swallows errors, so an invalid key would
+			// otherwise onboard the user into a broken signed-in state.
+			try {
+				await desktopClient.invoke("cline_account", {
+					action: "clineAccount",
+					operation: "fetchMe",
+				});
+			} catch (verifyError) {
+				// Roll back the persisted key so an unusable credential does
+				// not linger in provider settings.
+				await desktopClient
+					.invoke("save_provider_settings", {
+						provider: "cline",
+						api_key: "",
+					})
+					.catch(() => undefined);
+				const message =
+					verifyError instanceof Error
+						? verifyError.message
+						: String(verifyError);
+				throw new Error(`the key could not be verified (${message})`);
+			}
+			rememberProviderSelection({ id: "cline" });
+			await refreshAccount();
+			onConnected({ kind: "cline" });
+		} catch (error) {
+			setClineKeyError(error instanceof Error ? error.message : String(error));
+		} finally {
+			// Credentials may have been saved (or rolled back); drop the
+			// short-lived catalog cache so consumers reload the persisted state.
+			invalidateProviderCatalogCache();
+			setClineKeySaving(false);
+		}
+	}, [clineApiKey, onConnected, refreshAccount]);
 
 	const selectedProvider =
 		providers.find((provider) => provider.id === selectedProviderId) ?? null;
@@ -260,6 +362,10 @@ function ConnectStep({
 		} catch (error) {
 			setSaveError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// Onboarding completion remounts the chat pane to reload provider
+			// credentials; drop the short-lived catalog cache so that reload
+			// sees the just-saved key rather than a pre-save copy.
+			invalidateProviderCatalogCache();
 			setSaving(false);
 		}
 	}, [apiKey, onConnected, selectedProvider]);
@@ -333,20 +439,90 @@ function ConnectStep({
 								)}
 								{signingIn ? "Waiting for browser..." : "Sign in"}
 							</Button>
-							<button
-								className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-								onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-								type="button"
-							>
-								Create account
-								<ExternalLink className="size-3.5" />
-							</button>
+							{signingIn ? (
+								<button
+									className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onClick={cancelSignInWithCline}
+									type="button"
+								>
+									Cancel
+								</button>
+							) : (
+								<button
+									className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									type="button"
+								>
+									Create account
+									<ExternalLink className="size-3.5" />
+								</button>
+							)}
 						</div>
 					)}
 					{signInError ? (
 						<p className="mt-2 text-xs text-destructive" role="alert">
 							Sign in failed: {signInError}
 						</p>
+					) : null}
+					{!user ? (
+						<div className="mt-3">
+							<button
+								aria-expanded={showClineKeyForm}
+								className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+								onClick={() => setShowClineKeyForm((current) => !current)}
+								type="button"
+							>
+								{showClineKeyForm
+									? "Hide Cline API key"
+									: "Use a Cline API key instead"}
+							</button>
+							{showClineKeyForm ? (
+								<div className="mt-3 flex flex-col gap-2">
+									<div className="flex flex-wrap items-center gap-2">
+										<Input
+											aria-label="Cline API key"
+											autoComplete="off"
+											className="min-w-52 flex-1 bg-background"
+											onChange={(event) => {
+												setClineApiKey(event.target.value);
+												setClineKeyError(null);
+											}}
+											onKeyDown={(event) => {
+												if (
+													event.key === "Enter" &&
+													clineApiKey.trim() &&
+													!clineKeySaving
+												) {
+													void connectWithClineApiKey();
+												}
+											}}
+											placeholder="Cline API key"
+											type="password"
+											value={clineApiKey}
+										/>
+										<Button
+											className="rounded-full"
+											disabled={!clineApiKey.trim() || clineKeySaving}
+											onClick={() => void connectWithClineApiKey()}
+											type="button"
+										>
+											{clineKeySaving ? (
+												<Loader2 className="size-4 animate-spin" />
+											) : null}
+											{clineKeySaving ? "Connecting..." : "Connect"}
+										</Button>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Find your key in the Cline dashboard under Account.
+									</p>
+									{clineKeyError ? (
+										<p className="text-xs text-destructive" role="alert">
+											Failed to save API key: {clineKeyError}
+										</p>
+									) : null}
+								</div>
+							) : null}
+						</div>
 					) : null}
 				</div>
 

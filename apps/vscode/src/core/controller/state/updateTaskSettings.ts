@@ -37,7 +37,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				planModeReasoningEffort,
 				actModeReasoningEffort,
 				mode,
-				customPrompt,
 				planModeApiProvider,
 				actModeApiProvider,
 				// Fields requiring special logic
@@ -85,10 +84,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			if (mode !== undefined) {
 				const converted = convertPlanActMode(mode)
 				controller.stateManager.setTaskSettings(taskId, "mode", converted)
-			}
-
-			if (customPrompt === "compact") {
-				controller.stateManager.setTaskSettings(taskId, "customPrompt", "compact")
 			}
 
 			if (planModeApiProvider !== undefined) {
