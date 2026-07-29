@@ -14,6 +14,7 @@ import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 	PromotePacket,
+	SeedPacket,
 	SeedWorkspace,
 } from "@cline/shared";
 import {
@@ -166,7 +167,7 @@ async function handleForkClaim(
 	const workspace: SeedWorkspace = workspaceParse.data;
 	const reason: ForkReason = reasonParse.data;
 
-	let seed;
+	let seed: SeedPacket;
 	try {
 		seed = buildSeedPacket({
 			doItem,
