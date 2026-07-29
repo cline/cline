@@ -49,6 +49,7 @@ import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
+import { expandBuiltinSlashCommands } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
@@ -853,6 +854,12 @@ export class Controller {
 	private async resolveSlashCommands(text: string): Promise<string> {
 		if (this.isDisposed) {
 			return text
+		}
+		// Built-in prompt-expansion commands (/deep-planning) take precedence
+		// over same-named workflow files, mirroring legacy behavior.
+		const builtin = expandBuiltinSlashCommands(text)
+		if (builtin.expanded) {
+			return builtin.text
 		}
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()
