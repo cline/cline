@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Share-screen canvas · cline-drivemode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --brand-purple: #9F58FA;
+    --brand-purple-text: #B98AFF;
+    --bg: #0A0A0A;
+    --panel: #101013;
+    --raised: #12131A;
+    --well: #08080A;
+    --text: #FFFFFF;
+    --text-2: #9CA3AF;
+    --text-3: #6B7280;
+    --line: rgba(255, 255, 255, 0.10);
+    --line-2: rgba(255, 255, 255, 0.05);
+    --r: 9px;
+    --hair: 0.8px;
+    --ui: "Schibsted Grotesk", system-ui, sans-serif;
+    --display: "DM Sans", system-ui, sans-serif;
+    --grotesk: "Space Grotesk", system-ui, sans-serif;
+    /* maturity palette (brand tokens) */
+    --m-locked: #9F58FA;
+    --m-implemented: #2BCC28;
+    --m-partial: #5487C8;
+    --m-planned: #E0A458;
+    --m-gap: #F53969;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1000px 500px at 8% -10%, color-mix(in srgb, var(--brand-purple) 22%, transparent), transparent 60%),
+      radial-gradient(900px 420px at 92% 0%, color-mix(in srgb, #5487C8 15%, transparent), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 14px/1.55 var(--ui);
+  }
+  .shell { max-width: 1500px; margin: 0 auto; padding: 26px 20px 60px; }
+  .eyebrow {
+    font: 500 10px/1 var(--grotesk);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+  .brand { font: 700 30px/1.08 var(--display); letter-spacing: -0.02em; }
+  .brand em { font-style: normal; color: var(--brand-purple-text); }
+  .lede { margin-top: 10px; color: var(--text-2); max-width: 82ch; }
+  .lede code { color: #D1D5DB; }
+  code {
+    font: 400 12px/1.35 var(--grotesk);
+    background: var(--raised);
+    border: var(--hair) solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: #D1D5DB;
+    word-break: break-word;
+  }
+  a { color: var(--brand-purple-text); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---- toolbar / legend ---- */
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin: 22px 0 6px;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: var(--hair) solid var(--line);
+    background: var(--raised);
+    color: var(--text-2);
+    border-radius: 9999px;
+    padding: 6px 12px 6px 10px;
+    cursor: pointer;
+    font: 500 12px/1 var(--ui);
+    user-select: none;
+  }
+  .chip .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .chip[data-on="false"] { opacity: 0.32; }
+  .chip:hover { border-color: var(--line); color: var(--text); }
+  .chip.reset { color: var(--text-3); }
+  .chip[data-mat="locked"] .sw { background: var(--m-locked); }
+  .chip[data-mat="implemented"] .sw { background: var(--m-implemented); }
+  .chip[data-mat="partial"] .sw { background: var(--m-partial); }
+  .chip[data-mat="planned"] .sw { background: var(--m-planned); }
+  .chip[data-mat="gap"] .sw { background: var(--m-gap); }
+  .legend-note { color: var(--text-3); font-size: 12px; margin: 4px 0 0; }
+
+  /* ---- gap banner ---- */
+  .gapbar {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin: 18px 0 6px;
+  }
+  .gapcard {
+    background: color-mix(in srgb, var(--m-gap) 10%, var(--panel));
+    border: var(--hair) solid color-mix(in srgb, var(--m-gap) 55%, transparent);
+    border-left: 3px solid var(--m-gap);
+    border-radius: var(--r);
+    padding: 12px 13px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+  }
+  .gapcard:hover { border-color: var(--m-gap); }
+  .gapcard .k {
+    font: 700 11px/1 var(--grotesk); letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--m-gap);
+  }
+  .gapcard h4 { font: 600 14px/1.25 var(--ui); margin: 7px 0 5px; }
+  .gapcard p { color: var(--text-2); font-size: 12.5px; }
+
+  /* ---- canvas ---- */
+  .canvas { position: relative; margin-top: 16px; }
+  #edges {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0; overflow: visible;
+  }
+  .layers {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.05fr;
+    gap: 26px;
+    align-items: start;
+  }
+  .layer { min-width: 0; }
+  .layer-head {
+    position: sticky; top: 0;
+    background: linear-gradient(var(--bg), color-mix(in srgb, var(--bg) 82%, transparent));
+    padding: 6px 2px 10px;
+    z-index: 2;
+  }
+  .layer-head .n { font: 500 10px/1 var(--grotesk); letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); }
+  .layer-head h2 { font: 700 18px/1.15 var(--display); margin-top: 5px; }
+  .layer-head p { color: var(--text-3); font-size: 12px; margin-top: 3px; }
+  .col { display: flex; flex-direction: column; gap: 12px; }
+
+  .node {
+    position: relative;
+    background: var(--panel);
+    border: var(--hair) solid var(--line);
+    border-left: 3px solid var(--m-planned);
+    border-radius: var(--r);
+    padding: 11px 12px;
+    cursor: pointer;
+    transition: border-color 150ms cubic-bezier(0.22,1,0.36,1), transform 150ms cubic-bezier(0.22,1,0.36,1), opacity 150ms;
+  }
+  .node[data-mat="locked"] { border-left-color: var(--m-locked); }
+  .node[data-mat="implemented"] { border-left-color: var(--m-implemented); }
+  .node[data-mat="partial"] { border-left-color: var(--m-partial); }
+  .node[data-mat="planned"] { border-left-color: var(--m-planned); }
+  .node[data-mat="gap"] { border-left-color: var(--m-gap); background: color-mix(in srgb, var(--m-gap) 7%, var(--panel)); }
+  .node:hover { border-color: var(--line); transform: translateY(-1px); }
+  .node-head { display: flex; align-items: center; gap: 8px; }
+  .node-head .dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+  .node[data-mat="locked"] .dot { background: var(--m-locked); }
+  .node[data-mat="implemented"] .dot { background: var(--m-implemented); }
+  .node[data-mat="partial"] .dot { background: var(--m-partial); }
+  .node[data-mat="planned"] .dot { background: var(--m-planned); }
+  .node[data-mat="gap"] .dot { background: var(--m-gap); }
+  .node-head h4 { font: 600 13.5px/1.25 var(--ui); flex: 1 1 auto; }
+  .badge {
+    font: 700 9px/1 var(--grotesk); letter-spacing: 0.07em; text-transform: uppercase;
+    border-radius: 9999px; padding: 4px 7px; flex: none;
+    border: var(--hair) solid var(--line); color: var(--text-2);
+  }
+  .node[data-mat="locked"] .badge { color: var(--m-locked); border-color: color-mix(in srgb, var(--m-locked) 55%, transparent); }
+  .node[data-mat="implemented"] .badge { color: var(--m-implemented); border-color: color-mix(in srgb, var(--m-implemented) 55%, transparent); }
+  .node[data-mat="partial"] .badge { color: var(--m-partial); border-color: color-mix(in srgb, var(--m-partial) 55%, transparent); }
+  .node[data-mat="planned"] .badge { color: var(--m-planned); border-color: color-mix(in srgb, var(--m-planned) 55%, transparent); }
+  .node[data-mat="gap"] .badge { color: var(--m-gap); border-color: color-mix(in srgb, var(--m-gap) 60%, transparent); }
+  .node-note { color: var(--text-2); font-size: 12px; margin: 6px 0 8px; }
+  .node .path { display: inline-block; font-size: 11px; }
+  .node .paths { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+
+  /* focus / dim states */
+  .canvas.has-focus .node:not(.lit) { opacity: 0.28; }
+  .canvas.has-focus .node.lit { border-color: color-mix(in srgb, var(--brand-purple) 60%, transparent); }
+  .node.focus { border-color: var(--brand-purple); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-purple) 45%, transparent); }
+  .node.dim-mat { opacity: 0.16; filter: grayscale(0.4); }
+
+  .foot { margin-top: 30px; color: var(--text-3); font-size: 12px; border-top: var(--hair) solid var(--line); padding-top: 14px; }
+  .foot a { color: var(--brand-purple-text); }
+
+  /* index table */
+  .index { margin-top: 34px; }
+  .index h2 { font: 700 18px/1.15 var(--display); margin-bottom: 4px; }
+  .index p { color: var(--text-3); font-size: 12px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: var(--hair) solid var(--line-2); vertical-align: top; }
+  th { color: var(--text-3); font: 500 10px/1 var(--grotesk); letter-spacing: 0.08em; text-transform: uppercase; }
+  td .mtag { font: 700 9px/1 var(--grotesk); letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 6px; border-radius: 9999px; border: var(--hair) solid var(--line); }
+  td.m-locked .mtag { color: var(--m-locked); }
+  td.m-implemented .mtag { color: var(--m-implemented); }
+  td.m-partial .mtag { color: var(--m-partial); }
+  td.m-planned .mtag { color: var(--m-planned); }
+  td.m-gap .mtag { color: var(--m-gap); }
+
+  @media (max-width: 980px) {
+    .layers { grid-template-columns: 1fr; }
+    #edges { display: none; }
+    .gapbar { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="eyebrow">In-repo canvas · share-screen slice of cline-drivemode (Drive / Drivecode)</div>
+  <div class="brand">Share&nbsp;screen<em>&nbsp;·&nbsp;three-layer map</em></div>
+  <p class="lede">
+    How Drive "shares a screen": an agent shares by emitting <strong>typed work events</strong> (edit / command / test / plan)
+    that render as <strong>cards</strong> on a shared surface called <strong>Spotlight</strong> — the wire protocol still calls it
+    <code>stage</code>. The hub daemon is the single writer of room state; clients mutate through <code>call_*</code> ops and
+    receive <code>room.snapshot</code> broadcasts. This canvas maps that slice across three layers — <strong>plans &amp; vision</strong>,
+    <strong>product docs</strong>, and <strong>code &amp; status</strong> — draws plan&nbsp;&rarr;&nbsp;code edges, and marks the three
+    gaps that keep the live loop from running. Click any node to trace its edges; click a legend chip to filter by maturity.
+  </p>
+
+  <div class="toolbar">
+    <div class="legend" id="legend">
+      <span class="chip" data-mat="locked" data-on="true"><span class="sw"></span>Locked</span>
+      <span class="chip" data-mat="implemented" data-on="true"><span class="sw"></span>Implemented</span>
+      <span class="chip" data-mat="partial" data-on="true"><span class="sw"></span>Partial</span>
+      <span class="chip" data-mat="planned" data-on="true"><span class="sw"></span>Planned</span>
+      <span class="chip" data-mat="gap" data-on="true"><span class="sw"></span>Gap</span>
+      <span class="chip reset" id="reset">Reset focus / filters</span>
+    </div>
+  </div>
+  <p class="legend-note">
+    <strong style="color:var(--m-locked)">Locked</strong> frozen foundation (breaking to change) ·
+    <strong style="color:var(--m-implemented)">Implemented</strong> built &amp; shippable/tested ·
+    <strong style="color:var(--m-partial)">Partial</strong> real code, incomplete or not the primary path ·
+    <strong style="color:var(--m-planned)">Planned</strong> specified, little/no code ·
+    <strong style="color:var(--m-gap)">Gap</strong> the specific missing wire that breaks the live share-screen loop.
+  </p>
+
+  <div class="eyebrow" style="margin-top:22px">The three share-screen gaps (highest leverage)</div>
+  <div class="gapbar">
+    <button class="gapcard" data-goto="c-chat" type="button">
+      <span class="k">Gap A</span>
+      <h4>Chat "Join call" does not post <code>call_join</code></h4>
+      <p>The webview Join button drives local Drive UI state only; it never sends the <code>call_join</code> frame, so no hub room is created and no <code>room.snapshot</code> is shared.</p>
+    </button>
+    <button class="gapcard" data-goto="c-spotlight" type="button">
+      <span class="k">Gap B</span>
+      <h4>Canonical <code>Spotlight.tsx</code> is built + tested but NOT mounted</h4>
+      <p>Chat renders <code>StickyStagePane</code> (the local Drive layer). The canonical events-first <code>Spotlight.tsx</code> has a passing branch test but zero importers.</p>
+    </button>
+    <button class="gapcard" data-goto="c-pin" type="button">
+      <span class="k">Gap C</span>
+      <h4>Human pin &rarr; <code>call_set_stage</code> is unwired</h4>
+      <p><code>buildHumanPinDefaults</code> exists, but "Spotlight me" never emits <code>call_set_stage</code> with the pin, so the hub never owns the human sharer pointer.</p>
+    </button>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <svg id="edges" aria-hidden="true"></svg>
+    <div class="layers">
+
+      <!-- ===================== LAYER 1 : PLANS ===================== -->
+      <section class="layer" data-layer="plans">
+        <div class="layer-head">
+          <div class="n">Layer 1</div>
+          <h2>Plans &amp; vision</h2>
+          <p>What share-screen should be. The plan is ahead of the code.</p>
+        </div>
+        <div class="col">
+          <article class="node" id="p-vision" data-mat="locked">
+            <div class="node-head"><span class="dot"></span><h4>Vision · "share screen = structured state, not pixels"</h4><span class="badge">Locked</span></div>
+            <p class="node-note">North star. Spotlight vs <code>stage</code> naming split; WebRTC deferred; Chat Join is a shortcut, not the home.</p>
+            <code class="path">docs/plans/cline-drivemode/00-vision.md</code>
+          </article>
+          <article class="node" id="p-mvp" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>MVP · UI &amp; shared screen</h4><span class="badge">Partial</span></div>
+            <p class="node-note">Slice A (<code>stageReducer</code>+Stage), Slice B (<code>call_set_stage</code> sharer), Slice C (Drive tab mount). "Have / missing" table drives the gaps below.</p>
+            <code class="path">docs/plans/cline-drivemode/MVP-UI-SHARED-SCREEN.md</code>
+          </article>
+          <article class="node" id="p-stage" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>DRV-STAGE · Spotlight/stage spec</h4><span class="badge">Partial</span></div>
+            <p class="node-note">Acceptance criteria for the stage projection (cards, sharer header, last-event-wins).</p>
+            <code class="path">docs/plans/cline-drivemode/features/DRV-STAGE.md</code>
+          </article>
+          <article class="node" id="p-share" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>DRV-SHARE · structured human share</h4><span class="badge">Partial</span></div>
+            <p class="node-note">Human takes Spotlight via selection / file / terminal pin. Bidirectional share contract.</p>
+            <code class="path">docs/plans/cline-drivemode/features/DRV-SHARE.md</code>
+          </article>
+          <article class="node" id="p-plan" data-mat="planned">
+            <div class="node-head"><span class="dot"></span><h4>Share &amp; router master plan</h4><span class="badge">Planned</span></div>
+            <p class="node-note">Canonical architecture: dual backlog (Do + Show), DirectorScript, Spotlight priority, per-agent media bags, mute &perp; deafen, A2A. Phases 1–10.</p>
+            <div class="paths">
+              <code class="path">docs/plans/cline-drivemode/share-and-router/PLAN.md</code>
+              <code class="path">docs/plans/cline-drivemode/share-and-router/README.md</code>
+            </div>
+          </article>
+          <article class="node" id="p-spotlight" data-mat="planned">
+            <div class="node-head"><span class="dot"></span><h4>Spotlight, mute/deafen, A2A</h4><span class="badge">Planned</span></div>
+            <p class="node-note">Spotlight biases show backlog / say / TTS voice; mute &perp; deafen; agent-to-agent via addressSet.</p>
+            <code class="path">docs/plans/cline-drivemode/11-spotlight-a2a.md</code>
+          </article>
+          <article class="node" id="p-demo" data-mat="planned">
+            <div class="node-head"><span class="dot"></span><h4>Demo share track</h4><span class="badge">Planned</span></div>
+            <p class="node-note">Share modes <code>structured | demo | pixel</code>; <code>drive_demo_frame</code> screenshot/clip artifacts as "appearing live".</p>
+            <div class="paths">
+              <code class="path">docs/plans/cline-drivemode/09-demo-share.md</code>
+              <code class="path">docs/plans/cline-drivemode/ard/ARD-0011-demo-share-track.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-DEMO-SHARE.md</code>
+            </div>
+          </article>
+          <article class="node" id="p-specs" data-mat="planned">
+            <div class="node-head"><span class="dot"></span><h4>Supporting feature specs</h4><span class="badge">Planned</span></div>
+            <p class="node-note">Call strip, narration, captions, participant sheet, Drive tab, PiP companion (ARD-0006, rejected variant kept as companion).</p>
+            <div class="paths">
+              <code class="path">docs/plans/cline-drivemode/features/DRV-CALL-STRIP.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-NARRATION.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-CAPTIONS.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-PARTICIPANT-SHEET.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-DRIVE-TAB.md</code>
+              <code class="path">docs/plans/cline-drivemode/features/DRV-PIP.md</code>
+              <code class="path">docs/plans/cline-drivemode/ard/ARD-0006-pip-partner-companion.md</code>
+            </div>
+          </article>
+          <article class="node" id="p-arch" data-mat="locked">
+            <div class="node-head"><span class="dot"></span><h4>Architecture context</h4><span class="badge">Locked</span></div>
+            <p class="node-note">Hub single-writer boundary, streaming research (no pixels for the agent stage), future multi-user deferral.</p>
+            <div class="paths">
+              <code class="path">docs/plans/cline-drivemode/01-architecture.md</code>
+              <code class="path">docs/plans/cline-drivemode/02-research-streaming.md</code>
+              <code class="path">docs/plans/cline-drivemode/04-future-multi-user.md</code>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===================== LAYER 2 : DOCS ===================== -->
+      <section class="layer" data-layer="docs">
+        <div class="layer-head">
+          <div class="n">Layer 2</div>
+          <h2>Product documentation</h2>
+          <p>What is shipped and how to run it, cited to code.</p>
+        </div>
+        <div class="col">
+          <article class="node" id="d-readme" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>drivecode reference (authoritative map)</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Hub single-writer, <code>StageState</code> = <code>{sharer, pin, cards}</code>, Spotlight vs <code>stage</code>, hub ops table, explicit "Not implemented" list.</p>
+            <code class="path">docs/drivecode/README.md</code>
+          </article>
+          <article class="node" id="d-demo" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>Drive UX demo runbook</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Production Join path: <code>bun -F @cline/cline-hub dev</code> &rarr; Chat &rarr; Join call. Fixture vs live room cards; live share-handoff smoke.</p>
+            <code class="path">docs/design/drive-wireframes/DEMO.md</code>
+          </article>
+          <article class="node" id="d-arch" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>drivecode architecture</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Diagrams behind the drivecode section: boundaries, room ownership, projection flow.</p>
+            <code class="path">docs/drivecode/architecture.md</code>
+          </article>
+          <article class="node" id="d-overview" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>Overview canvas + brand tokens</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">The self-contained HTML twin this canvas mirrors for style; measured Cline brand tokens (dark bg, purple #9F58FA, DM Sans / Schibsted / Space Grotesk).</p>
+            <div class="paths">
+              <code class="path">docs/design/drive-wireframes/overview-canvas.html</code>
+              <code class="path">docs/design/drive-wireframes/CLINE-BRAND-TOKENS.md</code>
+              <code class="path">docs/design/drive-wireframes/DRIVE-TAB.md</code>
+            </div>
+          </article>
+          <article class="node" id="d-demoflags" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>Demo bootstrap flag reference</h4><span class="badge">Implemented</span></div>
+            <p class="node-note"><code>CLINE_DEMO_*</code> / <code>?demoPlans</code> flags; demo adapters wired only at composition roots, never in views.</p>
+            <code class="path">apps/drivecode-demo/README.md</code>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===================== LAYER 3 : CODE ===================== -->
+      <section class="layer" data-layer="code">
+        <div class="layer-head">
+          <div class="n">Layer 3</div>
+          <h2>Code &amp; current status</h2>
+          <p>Schemas &rarr; pure policies &rarr; hub handlers &rarr; webview. Gaps are pink.</p>
+        </div>
+        <div class="col">
+          <article class="node" id="c-room" data-mat="locked">
+            <div class="node-head"><span class="dot"></span><h4>@cline/shared · drive/room.ts</h4><span class="badge">Locked</span></div>
+            <p class="node-note">Core share-screen shapes: <code>StageState</code>, <code>StageSharer</code>, <code>StagePin</code>, <code>StageCard</code>.</p>
+            <code class="path">sdk/packages/shared/src/drive/room.ts</code>
+          </article>
+          <article class="node" id="c-hubnames" data-mat="locked">
+            <div class="node-head"><span class="dot"></span><h4>@cline/shared · hub.ts (op names)</h4><span class="badge">Locked</span></div>
+            <p class="node-note">Wire command names: <code>call_join</code>, <code>call_set_stage</code>, <code>call_record_work</code>, <code>drive.spotlight.set</code>, &hellip;</p>
+            <code class="path">sdk/packages/shared/src/hub.ts</code>
+          </article>
+          <article class="node" id="c-share" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/shared · drive/share.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Schema only: <code>ShareMode</code> (<code>structured|demo|pixel</code>), <code>DemoArtifactRef</code>, structured share payloads.</p>
+            <code class="path">sdk/packages/shared/src/drive/share.ts</code>
+          </article>
+          <article class="node" id="c-director" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/shared · drive/director.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Schema only: <code>ShowBacklogItem</code>, <code>DirectorScript</code>, <code>StageDirectorState</code>, <code>AgentMediaBag</code>. Runtime is planned.</p>
+            <code class="path">sdk/packages/shared/src/drive/director.ts</code>
+          </article>
+          <article class="node" id="c-roomlive" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/shared · drive/roomLive.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Schema only: <code>DriveRoomLiveState</code> — spotlight id, mute/deafen, director snapshot.</p>
+            <div class="paths">
+              <code class="path">sdk/packages/shared/src/drive/roomLive.ts</code>
+              <code class="path">sdk/packages/shared/src/drive/events.ts</code>
+            </div>
+          </article>
+          <article class="node" id="c-reduce" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/drive · reduceRoom.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Pure room fold + <code>projectStage()</code> — the portable kernel the hub and clients share.</p>
+            <code class="path">sdk/packages/drive/src/reduceRoom.ts</code>
+          </article>
+          <article class="node" id="c-rank" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>@cline/drive · director/rankBacklogs.ts</h4><span class="badge">Partial</span></div>
+            <p class="node-note"><code>rankShowBacklog</code>, <code>advanceScriptBeat</code> — spotlight-aware ranking; not yet driven by a live hub tick.</p>
+            <code class="path">sdk/packages/drive/src/director/rankBacklogs.ts</code>
+          </article>
+          <article class="node" id="c-controls" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>@cline/drive · room/participantControls.ts</h4><span class="badge">Partial</span></div>
+            <p class="node-note"><code>setSpotlight()</code> and participant mute/deafen policy helpers.</p>
+            <code class="path">sdk/packages/drive/src/room/participantControls.ts</code>
+          </article>
+          <article class="node" id="c-store" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/core · collaboration/room.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note"><code>DriveRoomStore</code>: in-memory rooms, session&harr;room link, stage mutations (single writer).</p>
+            <code class="path">sdk/packages/core/src/hub/collaboration/room.ts</code>
+          </article>
+          <article class="node" id="c-workfromtool" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/core · collaboration/work-from-tool.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Completed tool events &rarr; work records &rarr; stage cards.</p>
+            <code class="path">sdk/packages/core/src/hub/collaboration/work-from-tool.ts</code>
+          </article>
+          <article class="node" id="c-roomhandlers" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>@cline/core · drive-room-handlers.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Hub handlers for <code>call_join</code>, <code>call_set_stage</code>, <code>call_record_work</code>, mute, mode. The receive side is ready — the webview just isn't calling it.</p>
+            <code class="path">sdk/packages/core/src/hub/server/handlers/drive-room-handlers.ts</code>
+          </article>
+          <article class="node" id="c-drivehandlers" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>@cline/core · drive-handlers.ts</h4><span class="badge">Partial</span></div>
+            <p class="node-note"><code>drive.spotlight.set</code>, mute/deafen, <code>drive.show.present</code>, mermaid artifact producer.</p>
+            <code class="path">sdk/packages/core/src/hub/server/handlers/drive-handlers.ts</code>
+          </article>
+          <article class="node" id="c-relay" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>hub app · server/drive-calls.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Relays <code>call_*</code> frames from the webview protocol to the hub. The frame types exist in <code>webview-protocol.ts</code>.</p>
+            <div class="paths">
+              <code class="path">apps/cline-hub/src/server/drive-calls.ts</code>
+              <code class="path">apps/cline-hub/src/webview-protocol.ts</code>
+            </div>
+          </article>
+          <article class="node" id="c-agentevents" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>hub app · server/agent-events.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Bridges completed agent tools &rarr; <code>call_record_work</code> so a live room's cards update for everyone.</p>
+            <code class="path">apps/cline-hub/src/server/agent-events.ts</code>
+          </article>
+          <article class="node" id="c-reducer" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>webview · drive/stageReducer.ts</h4><span class="badge">Implemented</span></div>
+            <p class="node-note"><code>projectStageCardsFromToolEvents</code> / <code>projectStageFromMessages</code> — offline local card projection.</p>
+            <code class="path">apps/cline-hub/src/webview/src/drive/stageReducer.ts</code>
+          </article>
+          <article class="node" id="c-spotlight" data-mat="gap">
+            <div class="node-head"><span class="dot"></span><h4>webview · drive/Spotlight.tsx — GAP B</h4><span class="badge">Gap</span></div>
+            <p class="node-note">Canonical events-first Spotlight surface (renders ai-elements cards + human pin). Has a passing branch test but <strong>zero importers</strong> — Chat does not mount it.</p>
+            <div class="paths">
+              <code class="path">apps/cline-hub/src/webview/src/drive/Spotlight.tsx</code>
+              <code class="path">apps/cline-hub/src/webview/src/drive/Spotlight.branch.test.ts</code>
+            </div>
+          </article>
+          <article class="node" id="c-sticky" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>webview · drive/StickyStagePane.tsx</h4><span class="badge">Partial</span></div>
+            <p class="node-note">What Chat renders today: the local Drive layer (fixture + task bank), not the hub room projection.</p>
+            <div class="paths">
+              <code class="path">apps/cline-hub/src/webview/src/drive/StickyStagePane.tsx</code>
+              <code class="path">apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx</code>
+            </div>
+          </article>
+          <article class="node" id="c-drivesession" data-mat="partial">
+            <div class="node-head"><span class="dot"></span><h4>webview · drive/useDriveSession.ts</h4><span class="badge">Partial</span></div>
+            <p class="node-note">Local session state: bank + demo fixture + persisted Drive UI. Never posts <code>call_join</code> / <code>call_set_stage</code>.</p>
+            <div class="paths">
+              <code class="path">apps/cline-hub/src/webview/src/drive/useDriveSession.ts</code>
+              <code class="path">apps/cline-hub/src/webview/src/drive/demoFixture.ts</code>
+            </div>
+          </article>
+          <article class="node" id="c-chat" data-mat="gap">
+            <div class="node-head"><span class="dot"></span><h4>webview · Chat.tsx — GAP A</h4><span class="badge">Gap</span></div>
+            <p class="node-note">Main in-call surface (Join + stage split). Join drives local UI only; it never sends <code>call_join</code>, so no hub room / snapshot exists. Imports <code>StickyStagePane</code>, not <code>Spotlight</code>.</p>
+            <code class="path">apps/cline-hub/src/webview/src/Chat.tsx</code>
+          </article>
+          <article class="node" id="c-pin" data-mat="gap">
+            <div class="node-head"><span class="dot"></span><h4>webview · drive/pinDefaults.ts — GAP C</h4><span class="badge">Gap</span></div>
+            <p class="node-note"><code>buildHumanPinDefaults</code> builds selection / file / terminal pins, but "Spotlight me" never emits <code>call_set_stage</code> so the hub never owns the human sharer.</p>
+            <code class="path">apps/cline-hub/src/webview/src/drive/pinDefaults.ts</code>
+          </article>
+          <article class="node" id="c-driveview" data-mat="implemented">
+            <div class="node-head"><span class="dot"></span><h4>webview · views/drive-view.tsx</h4><span class="badge">Implemented</span></div>
+            <p class="node-note">Shipped Drive sidebar tab (status tiles, Start a Drive call, links into Spotlight / Status Hub).</p>
+            <code class="path">apps/cline-hub/src/webview/src/components/views/drive-view.tsx</code>
+          </article>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ===================== NODE INDEX ===================== -->
+  <div class="index">
+    <h2>Node index &amp; edges</h2>
+    <p>Every node cites a real repo path. Edges (plan&nbsp;&rarr;&nbsp;code / doc&nbsp;&rarr;&nbsp;code) and the three gap edges are listed for reference.</p>
+    <table>
+      <thead><tr><th>Node</th><th>Layer</th><th>Maturity</th><th>Repo path(s)</th></tr></thead>
+      <tbody id="index-body"></tbody>
+    </table>
+  </div>
+
+  <p class="foot">
+    Companion: <a href="../../plans/cline-drivemode/share-screen-canvas/CANVAS.md">CANVAS.md</a> ·
+    Bootstrap map: <a href="../../plans/cline-drivemode/share-screen-canvas/BOOTSTRAP.md">BOOTSTRAP.md</a> ·
+    Style mirrors <a href="overview-canvas.html">overview-canvas.html</a> and
+    <a href="CLINE-BRAND-TOKENS.md">CLINE-BRAND-TOKENS.md</a>.
+    Self-contained: no build step; fonts load from Google Fonts CDN, everything else is inline.
+  </p>
+</div>
+
+<script>
+  // ---- edges: plan -> code (solid), doc -> code (blue dashed), gaps (pink dashed) ----
+  const EDGES = [
+    { from: "p-vision", to: "c-room", kind: "plan" },
+    { from: "p-vision", to: "c-spotlight", kind: "plan" },
+    { from: "p-mvp", to: "c-reducer", kind: "plan" },
+    { from: "p-mvp", to: "c-roomhandlers", kind: "plan" },
+    { from: "p-mvp", to: "c-chat", kind: "plan" },
+    { from: "p-stage", to: "c-room", kind: "plan" },
+    { from: "p-stage", to: "c-reduce", kind: "plan" },
+    { from: "p-share", to: "c-pin", kind: "plan" },
+    { from: "p-share", to: "c-roomhandlers", kind: "plan" },
+    { from: "p-plan", to: "c-director", kind: "plan" },
+    { from: "p-plan", to: "c-rank", kind: "plan" },
+    { from: "p-plan", to: "c-roomlive", kind: "plan" },
+    { from: "p-spotlight", to: "c-controls", kind: "plan" },
+    { from: "p-spotlight", to: "c-drivehandlers", kind: "plan" },
+    { from: "p-demo", to: "c-share", kind: "plan" },
+    { from: "p-arch", to: "c-store", kind: "plan" },
+    // doc -> code
+    { from: "d-readme", to: "c-roomhandlers", kind: "doc" },
+    { from: "d-readme", to: "c-room", kind: "doc" },
+    { from: "d-demo", to: "c-chat", kind: "doc" },
+    { from: "d-demoflags", to: "c-driveview", kind: "doc" },
+    // gap edges (broken wires)
+    { from: "c-chat", to: "c-roomhandlers", kind: "gap", label: "Join → call_join not posted" },
+    { from: "c-spotlight", to: "c-chat", kind: "gap", label: "Spotlight.tsx not mounted" },
+    { from: "c-pin", to: "c-roomhandlers", kind: "gap", label: "pin → call_set_stage unwired" },
+    // what Chat renders instead today
+    { from: "c-chat", to: "c-sticky", kind: "plan" },
+    { from: "c-chat", to: "c-drivesession", kind: "plan" },
+  ];
+
+  const KIND_STYLE = {
+    plan: { stroke: "#9F58FA", opacity: 0.42, dash: null, w: 1.4 },
+    doc:  { stroke: "#5487C8", opacity: 0.38, dash: "3 4", w: 1.3 },
+    gap:  { stroke: "#F53969", opacity: 0.85, dash: "6 5", w: 1.9 },
+  };
+
+  const canvas = document.getElementById("canvas");
+  const svg = document.getElementById("edges");
+  const SVGNS = "http://www.w3.org/2000/svg";
+
+  function anchor(el) {
+    const r = el.getBoundingClientRect();
+    const c = canvas.getBoundingClientRect();
+    return {
+      left: r.left - c.left,
+      right: r.right - c.left,
+      midY: r.top - c.top + r.height / 2,
+      midX: r.left - c.left + r.width / 2,
+    };
+  }
+
+  function buildEdges() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const c = canvas.getBoundingClientRect();
+    svg.setAttribute("viewBox", `0 0 ${c.width} ${c.height}`);
+    svg.setAttribute("width", c.width);
+    svg.setAttribute("height", c.height);
+
+    EDGES.forEach((e, i) => {
+      const a = document.getElementById(e.from);
+      const b = document.getElementById(e.to);
+      if (!a || !b) return;
+      const s = anchor(a), t = anchor(b);
+      const st = KIND_STYLE[e.kind];
+      let d, x1, y1, x2, y2;
+      const sameCol = Math.abs(s.midX - t.midX) < 40;
+      if (sameCol) {
+        x1 = s.right; y1 = s.midY; x2 = t.right; y2 = t.midY;
+        const bend = Math.max(s.right, t.right) + 46;
+        d = `M ${x1} ${y1} C ${bend} ${y1} ${bend} ${y2} ${x2} ${y2}`;
+      } else if (s.midX < t.midX) {
+        x1 = s.right; y1 = s.midY; x2 = t.left; y2 = t.midY;
+        const dx = Math.max(40, (x2 - x1) / 2);
+        d = `M ${x1} ${y1} C ${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`;
+      } else {
+        x1 = s.left; y1 = s.midY; x2 = t.right; y2 = t.midY;
+        const dx = Math.max(40, (x1 - x2) / 2);
+        d = `M ${x1} ${y1} C ${x1 - dx} ${y1} ${x2 + dx} ${y2} ${x2} ${y2}`;
+      }
+      const path = document.createElementNS(SVGNS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", st.stroke);
+      path.setAttribute("stroke-width", st.w);
+      path.setAttribute("stroke-opacity", st.opacity);
+      if (st.dash) path.setAttribute("stroke-dasharray", st.dash);
+      path.dataset.from = e.from;
+      path.dataset.to = e.to;
+      path.dataset.kind = e.kind;
+      path.dataset.baseOpacity = st.opacity;
+      svg.appendChild(path);
+
+      if (e.kind === "gap") {
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        const dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("cx", sameCol ? Math.max(x1, x2) + 46 : mx);
+        dot.setAttribute("cy", my);
+        dot.setAttribute("r", 3.4);
+        dot.setAttribute("fill", "#F53969");
+        svg.appendChild(dot);
+      }
+    });
+  }
+
+  // ---- focus a node: light its edges + neighbors ----
+  const nodes = [...document.querySelectorAll(".node")];
+  let focused = null;
+
+  function clearFocus() {
+    focused = null;
+    canvas.classList.remove("has-focus");
+    nodes.forEach((n) => n.classList.remove("lit", "focus"));
+    [...svg.querySelectorAll("path")].forEach((p) => {
+      p.setAttribute("stroke-opacity", p.dataset.baseOpacity);
+    });
+  }
+
+  function focusNode(id) {
+    if (focused === id) { clearFocus(); return; }
+    focused = id;
+    canvas.classList.add("has-focus");
+    const neighbors = new Set([id]);
+    EDGES.forEach((e) => {
+      if (e.from === id) neighbors.add(e.to);
+      if (e.to === id) neighbors.add(e.from);
+    });
+    nodes.forEach((n) => {
+      n.classList.toggle("lit", neighbors.has(n.id));
+      n.classList.toggle("focus", n.id === id);
+    });
+    [...svg.querySelectorAll("path")].forEach((p) => {
+      const on = p.dataset.from === id || p.dataset.to === id;
+      p.setAttribute("stroke-opacity", on ? Math.min(1, +p.dataset.baseOpacity + 0.45) : 0.05);
+    });
+  }
+
+  nodes.forEach((n) => n.addEventListener("click", () => focusNode(n.id)));
+
+  // ---- gap banner jump ----
+  document.querySelectorAll(".gapcard").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.goto;
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); focusNode(id); }
+    });
+  });
+
+  // ---- legend maturity filter ----
+  const active = new Set(["locked", "implemented", "partial", "planned", "gap"]);
+  function applyFilter() {
+    nodes.forEach((n) => n.classList.toggle("dim-mat", !active.has(n.dataset.mat)));
+    requestAnimationFrame(buildEdges);
+  }
+  document.querySelectorAll(".chip[data-mat]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const m = chip.dataset.mat;
+      if (active.has(m)) { active.delete(m); chip.dataset.on = "false"; }
+      else { active.add(m); chip.dataset.on = "true"; }
+      applyFilter();
+    });
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    active.clear(); ["locked","implemented","partial","planned","gap"].forEach((m) => active.add(m));
+    document.querySelectorAll(".chip[data-mat]").forEach((c) => (c.dataset.on = "true"));
+    nodes.forEach((n) => n.classList.remove("dim-mat"));
+    clearFocus();
+    buildEdges();
+  });
+
+  // ---- build the node index table ----
+  const LAYER_LABEL = { plans: "Plans & vision", docs: "Product docs", code: "Code & status" };
+  const MAT_LABEL = { locked: "Locked", implemented: "Implemented", partial: "Partial", planned: "Planned", gap: "Gap" };
+  const body = document.getElementById("index-body");
+  nodes.forEach((n) => {
+    const layer = n.closest(".layer").dataset.layer;
+    const mat = n.dataset.mat;
+    const title = n.querySelector("h4").textContent.replace(/ — GAP [ABC]$/, "");
+    const paths = [...n.querySelectorAll("code.path")].map((c) => c.textContent).join("<br>");
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td><a href="#${n.id}" data-goto="${n.id}">${title}</a></td>` +
+      `<td>${LAYER_LABEL[layer]}</td>` +
+      `<td class="m-${mat}"><span class="mtag">${MAT_LABEL[mat]}</span></td>` +
+      `<td><code>${paths}</code></td>`;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll("a[data-goto]").forEach((a) => {
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const id = a.dataset.goto;
+      document.getElementById(id).scrollIntoView({ behavior: "smooth", block: "center" });
+      focusNode(id);
+    });
+  });
+
+  // ---- draw + keep aligned ----
+  window.addEventListener("load", buildEdges);
+  window.addEventListener("resize", () => requestAnimationFrame(buildEdges));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildEdges);
+  buildEdges();
+</script>
+</body>
+</html>
