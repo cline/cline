@@ -1,16 +1,31 @@
 /**
  * Script to install dependencies for running E2E tests in GitHub Actions.
  */
+import { existsSync, rmSync } from "node:fs"
+import * as path from "node:path"
+import { fileURLToPath } from "node:url"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { execa } from "execa"
 
-const TIMEOUT_MINUTE = 1
+const TIMEOUT_MINUTE = 5
 const INSTALL_TIMEOUT_MS = TIMEOUT_MINUTE * 60 * 1000
+// build.mjs lives at apps/vscode/src/test/e2e/utils — four levels up is apps/vscode
+const CODEBASE_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..")
+const VSCODE_CACHE_DIR = path.join(CODEBASE_ROOT_DIR, ".vscode-test")
 
 async function installVSCode() {
 	const VSCODE_APP_TYPE = "stable"
 	console.log("Downloading VS Code...")
-	return await downloadAndUnzipVSCode(VSCODE_APP_TYPE, undefined, new SilentReporter())
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		const executablePath = await downloadAndUnzipVSCode(VSCODE_APP_TYPE, undefined, new SilentReporter())
+		if (existsSync(executablePath)) {
+			console.log(`VS Code ready at ${executablePath}`)
+			return executablePath
+		}
+		console.warn(`VS Code executable missing at ${executablePath}; clearing ${VSCODE_CACHE_DIR} and re-downloading`)
+		rmSync(VSCODE_CACHE_DIR, { recursive: true, force: true })
+	}
+	throw new Error("VS Code executable not found after re-download")
 }
 
 async function installChromium() {

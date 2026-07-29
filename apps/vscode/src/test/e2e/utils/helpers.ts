@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process"
-import { mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -27,7 +27,23 @@ export class E2ETestHelper {
 	private static readonly WINDOW_DIAGNOSTIC_TIMEOUT_MS = 1_000
 	private static readonly PROCESS_EXIT_TIMEOUT_MS = 2_000
 
-	// Instance properties for caching
+	/**
+	 * Resolve a VS Code executable, clearing a corrupt `.vscode-test` tree once if
+	 * download metadata claims COMPLETE but the darwin binary is missing
+	 * (VS Code >=1.110 ships Contents/MacOS/Code; older trees used Electron).
+	 */
+	public static async resolveVSCodeExecutable(channel: "stable" | "insiders"): Promise<string> {
+		const cachePath = path.join(E2ETestHelper.CODEBASE_ROOT_DIR, ".vscode-test")
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
+			if (existsSync(executablePath)) {
+				return executablePath
+			}
+			console.warn(`VS Code executable missing at ${executablePath}; clearing ${cachePath} and re-downloading`)
+			rmSync(cachePath, { recursive: true, force: true })
+		}
+		throw new Error(`VS Code executable not found after re-download (channel=${channel})`)
+	}
 	private cachedFrame: Frame | null = null
 
 	// Path utilities
@@ -373,7 +389,7 @@ export const e2e = test
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
 		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
+			const executablePath = await E2ETestHelper.resolveVSCodeExecutable(channel)
 
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test

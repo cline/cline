@@ -475,7 +475,7 @@
         "@types/turndown": "^5.0.5",
         "@types/vscode": "1.101.0",
         "@vscode/test-cli": "^0.0.12",
-        "@vscode/test-electron": "^2.5.2",
+        "@vscode/test-electron": "3.1.0",
         "@vscode/vsce": "^3.6.0",
         "c8": "^10.1.3",
         "chai": "^4.3.10",
@@ -2686,7 +2686,7 @@
 
     "@vscode/test-cli": ["@vscode/test-cli@0.0.12", "", { "dependencies": { "@types/mocha": "^10.0.10", "c8": "^10.1.3", "chokidar": "^3.6.0", "enhanced-resolve": "^5.18.3", "glob": "^10.3.10", "minimatch": "^9.0.3", "mocha": "^11.7.4", "supports-color": "^10.2.2", "yargs": "^17.7.2" }, "bin": { "vscode-test": "out/bin.mjs" } }, "sha512-iYN0fDg29+a2Xelle/Y56Xvv7Nc8Thzq4VwpzAF/SIE6918rDicqfsQxV6w1ttr2+SOm+10laGuY9FG2ptEKsQ=="],
 
-    "@vscode/test-electron": ["@vscode/test-electron@2.5.2", "", { "dependencies": { "http-proxy-agent": "^7.0.2", "https-proxy-agent": "^7.0.5", "jszip": "^3.10.1", "ora": "^8.1.0", "semver": "^7.6.2" } }, "sha512-8ukpxv4wYe0iWMRQU18jhzJOHkeGKbnw7xWRX3Zw1WJA4cEKbHcmmLPdPrPtL6rhDcrlCZN+xKRpv09n4gRHYg=="],
+    "@vscode/test-electron": ["@vscode/test-electron@3.1.0", "", { "dependencies": { "http-proxy-agent": "^7.0.2", "https-proxy-agent": "^7.0.5", "jszip": "^3.10.1", "ora": "^8.1.0", "semver": "^7.6.2" } }, "sha512-CRqv5u+YYoseuNVJ6Tyo4k0sF0mx4qnKMihRB0PjsUF8Dc0WKtCXo6CNL6nWWm5esfFQsQA/pejMj4ZbpJVLTw=="],
 
     "@vscode/vsce": ["@vscode/vsce@3.9.2", "", { "dependencies": { "@azure/identity": "^4.1.0", "@secretlint/node": "^10.1.2", "@secretlint/secretlint-formatter-sarif": "^10.1.2", "@secretlint/secretlint-rule-no-dotenv": "^10.1.2", "@secretlint/secretlint-rule-preset-recommend": "^10.1.2", "@vscode/vsce-sign": "^2.0.0", "azure-devops-node-api": "^12.5.0", "chalk": "^4.1.2", "cheerio": "^1.0.0-rc.9", "cockatiel": "^3.1.2", "commander": "^12.1.0", "form-data": "^4.0.0", "glob": "^13.0.6", "hosted-git-info": "^4.0.2", "jsonc-parser": "^3.2.0", "leven": "^3.1.0", "markdown-it": "^14.1.0", "mime": "^1.3.4", "minimatch": "^10.2.2", "parse-semver": "^1.1.1", "read": "^1.0.7", "secretlint": "^10.1.2", "semver": "^7.5.2", "tmp": "^0.2.3", "typed-rest-client": "^1.8.4", "url-join": "^4.0.1", "xml2js": "^0.5.0", "yauzl": "^3.2.1", "yazl": "^2.2.2" }, "optionalDependencies": { "keytar": "^7.7.0" }, "bin": { "vsce": "vsce" } }, "sha512-XSxMosEEDO6vLxELAHVkwmhC0qe0ijZni2jB9Rcs8kQsW4lhTDQ/wMzmwFs/buotAWSnpmUp/dRWD2ufG3UYKA=="],
 

@@ -431,7 +431,7 @@
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "1.101.0",
 		"@vscode/test-cli": "^0.0.12",
-		"@vscode/test-electron": "^2.5.2",
+		"@vscode/test-electron": "3.1.0",
 		"@vscode/vsce": "^3.6.0",
 		"c8": "^10.1.3",
 		"chai": "^4.3.10",
