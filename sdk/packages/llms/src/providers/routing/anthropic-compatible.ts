@@ -1,12 +1,14 @@
-import type {
-	GatewayModelRoute,
-	GatewayPromptCacheStrategy,
-	GatewayProviderContext,
-	GatewayProviderManifest,
-	GatewayProviderMetadata,
-	GatewayStreamRequest,
+import {
+	type GatewayModelRoute,
+	type GatewayPromptCacheStrategy,
+	type GatewayProviderContext,
+	type GatewayProviderManifest,
+	type GatewayProviderMetadata,
+	type GatewayStreamRequest,
+	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
 import {
+	getModelReasoningControls,
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	modelRouteMatches,
@@ -16,11 +18,6 @@ import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
-const ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS: Record<string, number> = {
-	low: 0.2,
-	medium: 0.5,
-	high: 0.8,
-};
 
 export type AnthropicReasoningRequestPolicy =
 	| { kind: "none" }
@@ -321,76 +318,10 @@ export function shouldEmitAnthropicReasoning(
 	return !capabilities || capabilities.includes("reasoning");
 }
 
-function resolveClaudeLine(
-	modelId: string | undefined,
-	family: string | undefined,
-) {
-	const normalizedFamily = family?.toLowerCase() ?? "";
-	const normalizedModelId = modelId?.toLowerCase() ?? "";
-
-	if (normalizedFamily.includes("opus") || normalizedModelId.includes("opus")) {
-		return "opus" as const;
-	}
-	if (
-		normalizedFamily.includes("sonnet") ||
-		normalizedModelId.includes("sonnet")
-	) {
-		return "sonnet" as const;
-	}
-	if (
-		normalizedFamily.includes("haiku") ||
-		normalizedModelId.includes("haiku")
-	) {
-		return "haiku" as const;
-	}
-
-	return undefined;
-}
-
-function resolveClaudeVersion(modelId: string | undefined) {
-	const normalized = modelId?.toLowerCase() ?? "";
-	const versionFirstMatch =
-		/claude-(\d+)[.-](\d{1,2})-(?:opus|sonnet|haiku)/i.exec(normalized);
-	const lineFirstMatch = /claude-(?:opus|sonnet|haiku)-(.+)/i.exec(normalized);
-	const tokens = lineFirstMatch?.[1]?.match(/\d+/g) ?? [];
-	const majorToken = versionFirstMatch?.[1] ?? tokens[0];
-	const minorToken =
-		versionFirstMatch?.[2] ?? (tokens[1]?.length <= 2 ? tokens[1] : undefined);
-	if (!majorToken || !minorToken) {
-		return undefined;
-	}
-
-	const major = Number.parseInt(majorToken, 10);
-	const minor = Number.parseInt(minorToken, 10);
-	if (!Number.isFinite(major) || !Number.isFinite(minor)) {
-		return undefined;
-	}
-	return { major, minor };
-}
-
-function supportsAnthropicAdaptiveThinkingPolicy(options: {
-	modelId?: string;
-	family?: string;
-}): boolean {
-	const line = resolveClaudeLine(options.modelId, options.family);
-	const version = resolveClaudeVersion(options.modelId);
-	if (!line || !version) {
-		return false;
-	}
-
-	// See https://platform.claude.com/docs/en/build-with-claude/extended-thinking
-	if (version.major !== 4) {
-		return version.major > 4;
-	}
-
-	return (line === "opus" || line === "sonnet") && version.minor >= 6;
-}
-
 export function resolveAnthropicReasoningRequestPolicy(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): AnthropicReasoningRequestPolicy {
-	const family = resolveModelFamily(context);
 	if (
 		!resolveReasoningRoute(request, context) ||
 		!shouldEmitAnthropicReasoning(context)
@@ -398,12 +329,27 @@ export function resolveAnthropicReasoningRequestPolicy(
 		return { kind: "none" };
 	}
 
-	return supportsAnthropicAdaptiveThinkingPolicy({
-		modelId: request.modelId,
-		family,
-	})
-		? { kind: "anthropic-adaptive" }
-		: { kind: "anthropic-manual" };
+	const controls = getModelReasoningControls(context.model.reasoningOptions);
+	if (controls) {
+		if (!controls.effort && !controls.budget && !controls.toggle) {
+			return { kind: "none" };
+		}
+		if (
+			typeof request.reasoning?.budgetTokens === "number" &&
+			controls.budget
+		) {
+			return { kind: "anthropic-manual" };
+		}
+		return controls.effort
+			? { kind: "anthropic-adaptive" }
+			: controls.budget || controls.toggle
+				? { kind: "anthropic-manual" }
+				: { kind: "none" };
+	}
+
+	// Custom/unlisted Claude-compatible models use the older manual-thinking
+	// wire shape instead of guessing adaptive-thinking support from their id.
+	return { kind: "anthropic-manual" };
 }
 
 export function buildAnthropicProviderOptions(
@@ -417,22 +363,22 @@ export function buildAnthropicProviderOptions(
 		(typeof request.reasoning?.budgetTokens === "number" &&
 			request.reasoning.budgetTokens > 0);
 
-	const thinking: Record<string, unknown> | undefined = wantsAnthropicThinking
-		? policy.kind === "anthropic-adaptive"
-			? { type: "adaptive" }
-			: policy.kind === "anthropic-manual"
-				? {
-						type: "enabled",
-						budgetTokens: resolveAnthropicCompatibleReasoningBudget({
-							modelId: request.modelId,
-							family: resolveModelFamily(context),
-							effort: request.reasoning?.effort,
-							maxTokens: request.maxTokens,
-							explicitBudgetTokens: request.reasoning?.budgetTokens,
-						}),
-					}
-				: undefined
-		: undefined;
+	let thinking: Record<string, unknown> | undefined;
+	if (request.reasoning?.enabled === false && policy.kind !== "none") {
+		thinking = { type: "disabled" };
+	} else if (wantsAnthropicThinking) {
+		if (policy.kind === "anthropic-adaptive") {
+			thinking = { type: "adaptive" };
+		} else if (policy.kind === "anthropic-manual") {
+			const budgetTokens = resolveAnthropicManualBudget(request, context);
+			if (budgetTokens === undefined) {
+				throw new Error(
+					"Anthropic manual thinking requires a positive budget smaller than maxTokens.",
+				);
+			}
+			thinking = { type: "enabled", budgetTokens };
+		}
+	}
 
 	return {
 		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
@@ -452,11 +398,25 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	maxTokens?: number;
 	explicitBudgetTokens?: number;
 }) {
+	const minimumBudget = ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
+	const maximumBudget = Math.min(
+		ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
+		typeof options.maxTokens === "number"
+			? options.maxTokens - 1
+			: ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
+	);
+	if (maximumBudget < 1) {
+		return undefined;
+	}
+	const defaultBudget = Math.min(minimumBudget, maximumBudget);
 	if (
 		typeof options.explicitBudgetTokens === "number" &&
 		options.explicitBudgetTokens > 0
 	) {
-		return options.explicitBudgetTokens;
+		return Math.min(
+			Math.max(Math.floor(options.explicitBudgetTokens), defaultBudget),
+			maximumBudget,
+		);
 	}
 
 	if (
@@ -468,29 +428,38 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	) {
 		return undefined;
 	}
-	if (!options.effort) {
-		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
-	}
-	if (typeof options.maxTokens !== "number") {
-		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
-	}
-	if (options.maxTokens <= ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS) {
-		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
+	if (!options.effort || typeof options.maxTokens !== "number") {
+		return defaultBudget;
 	}
 
-	const ratio = ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS[options.effort];
-	if (!ratio) {
-		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
-	}
+	return (
+		resolveReasoningBudgetFromRatio({
+			// Anthropic thinking shares max_tokens with visible output.
+			effort: options.effort === "max" ? "xhigh" : options.effort,
+			maxBudget: maximumBudget,
+			minimumBudget: defaultBudget,
+		}) ?? defaultBudget
+	);
+}
 
-	const maxBudget = Math.min(
-		options.maxTokens - 1,
-		ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
-	);
-	return Math.max(
-		ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS,
-		Math.floor(maxBudget * ratio),
-	);
+function resolveAnthropicManualBudget(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): number | undefined {
+	const explicitBudgetTokens = request.reasoning?.budgetTokens;
+	if (
+		typeof explicitBudgetTokens !== "number" &&
+		context.model.reasoningOptions !== undefined
+	) {
+		return undefined;
+	}
+	return resolveAnthropicCompatibleReasoningBudget({
+		modelId: request.modelId,
+		family: resolveModelFamily(context),
+		effort: request.reasoning?.effort,
+		maxTokens: request.maxTokens,
+		explicitBudgetTokens,
+	});
 }
 
 export function buildAnthropicCompatibleReasoningOptions(
@@ -507,13 +476,7 @@ export function buildAnthropicCompatibleReasoningOptions(
 		return undefined;
 	}
 
-	const budgetTokens = resolveAnthropicCompatibleReasoningBudget({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-		effort: request.reasoning?.effort,
-		maxTokens: request.maxTokens,
-		explicitBudgetTokens: request.reasoning?.budgetTokens,
-	});
+	const budgetTokens = resolveAnthropicManualBudget(request, context);
 	const reasoning: Record<string, unknown> = {};
 
 	if (request.reasoning?.enabled === true) {
@@ -522,9 +485,7 @@ export function buildAnthropicCompatibleReasoningOptions(
 	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
 		reasoning.effort = request.reasoning.effort;
 	}
-	if (typeof request.reasoning?.budgetTokens === "number") {
-		reasoning.max_tokens = request.reasoning.budgetTokens;
-	} else if (
+	if (
 		policy.kind === "anthropic-manual" &&
 		typeof budgetTokens === "number" &&
 		budgetTokens >= 0
@@ -572,31 +533,22 @@ export function buildGatewayReasoningOptions(
 	}
 
 	const budgetTokens =
-		policy.kind === "anthropic-manual"
-			? resolveAnthropicCompatibleReasoningBudget({
-					modelId: request.modelId,
-					family,
-					effort: request.reasoning?.effort,
-					maxTokens: request.maxTokens,
-					explicitBudgetTokens: request.reasoning?.budgetTokens,
-				})
-			: request.reasoning?.budgetTokens;
-	const shouldSendDisabledReasoning =
-		request.reasoning?.enabled === false &&
-		// FIXME: temporary compatibility patch for models that reject disabled
-		// reasoning. Remove once routed providers normalize disabled reasoning
-		// consistently, or replace with a systematic model policy.
-		!modelRejectsDisabledReasoning(request.modelId);
+		request.reasoning?.enabled === false
+			? undefined
+			: policy.kind === "anthropic-manual"
+				? resolveAnthropicManualBudget(request, context)
+				: request.reasoning?.budgetTokens;
+	const requestedEffort = request.reasoning?.effort;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
-			: shouldSendDisabledReasoning
+			: request.reasoning?.enabled === false
 				? { enabled: false }
 				: request.reasoning?.effort
 					? { enabled: true }
 					: {}),
-		...(request.reasoning?.effort && policy.kind !== "anthropic-manual"
-			? { effort: request.reasoning.effort }
+		...(requestedEffort && policy.kind !== "anthropic-manual"
+			? { effort: requestedEffort }
 			: {}),
 	};
 
@@ -605,12 +557,4 @@ export function buildGatewayReasoningOptions(
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
-}
-
-function modelRejectsDisabledReasoning(modelId: string): boolean {
-	const normalized = modelId.toLowerCase();
-	return (
-		normalized.includes("claude-fable") ||
-		normalized.includes("stepfun/step-3.7-flash")
-	);
 }
