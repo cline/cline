@@ -32,8 +32,12 @@ export const VSCODE_LM_PROVIDER_ID = "vscode-lm"
 //   (vscode.lm.selectChatModels) and the dedicated VSCodeLmProvider settings
 //   component fetches them via the getVsCodeLmModels RPC, storing the choice
 //   as a LanguageModelChatSelector rather than a catalog model id.
-// - `defaultModelId` is only a schema fallback. Users select a dynamic model
-//   before inference; that choice is stored as a LanguageModelChatSelector.
+// - `defaultModelId` is empty on purpose. The handler parses modelId as a
+//   `vendor/family` selector string, and an empty string parses to an empty
+//   selector, which `vscode.lm.selectChatModels` treats as "any available
+//   model" — the only safe default for a catalog whose models are dynamic.
+//   Any non-empty placeholder here (e.g. "vscode-lm") would parse to a vendor
+//   filter that matches nothing if a fallback path ever commits it.
 // - `client: "custom"` — inference is routed through the host handler
 //   registered below, never through an SDK gateway client.
 export const VSCODE_LM_PROVIDER_COLLECTION: ModelCollection = {
@@ -41,7 +45,7 @@ export const VSCODE_LM_PROVIDER_COLLECTION: ModelCollection = {
 		id: VSCODE_LM_PROVIDER_ID,
 		name: "GitHub Copilot (VS Code LM)",
 		description: "Models exposed by the VS Code Language Model API, e.g. GitHub Copilot.",
-		defaultModelId: VSCODE_LM_PROVIDER_ID,
+		defaultModelId: "",
 		client: "custom",
 		source: "system",
 	},
