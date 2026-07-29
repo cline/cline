@@ -12,7 +12,12 @@ const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { AgentAurora, AgentHeroHeading, SessionStatus } from "@cline/ui";
+import {
+	AgentAurora,
+	AgentHeroHeading,
+	AgentQuickActions,
+	SessionStatus,
+} from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 
 for (const specifier of [
@@ -30,6 +35,7 @@ const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (
 	!AgentAurora ||
 	!AgentHeroHeading ||
+	!AgentQuickActions ||
 	!SessionStatus ||
 	!Conversation ||
 	!Message ||
