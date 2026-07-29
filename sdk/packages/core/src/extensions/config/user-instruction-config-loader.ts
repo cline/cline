@@ -595,6 +595,12 @@ export function createWorkflowsConfigDefinition(
 				basename(context.filePath, extname(context.filePath)),
 			),
 		resolveId: (workflow) => normalizeName(workflow.name),
+		// Same-named workflows across scopes keep the earlier directory's file:
+		// workspace `.clinerules/workflows` shadows the global directories, which
+		// shadow the managed/remote-config files — the local-over-global
+		// precedence legacy Cline used. Last-wins would silently expand the
+		// *global* body for a name the user sees as their workspace workflow.
+		duplicateIdResolution: "first-wins",
 	};
 }
 

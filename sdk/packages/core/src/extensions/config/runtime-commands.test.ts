@@ -116,6 +116,37 @@ Do not run this workflow.`,
 		}
 	});
 
+	it("expands the earlier directory's body when scopes share a workflow name", async () => {
+		// Directory order expresses scope precedence (workspace before global);
+		// a same-named global workflow must not shadow the workspace file's body.
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const workspaceDir = join(tempRoot, "workspace-workflows");
+		const globalDir = join(tempRoot, "global-workflows");
+		await mkdir(workspaceDir, { recursive: true });
+		await mkdir(globalDir, { recursive: true });
+		await writeFile(
+			join(workspaceDir, "release.md"),
+			"Workspace release steps.",
+		);
+		await writeFile(join(globalDir, "release.md"), "Global release steps.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [] },
+			rules: { directories: [] },
+			workflows: { directories: [workspaceDir, globalDir] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			expect(resolveRuntimeSlashCommandFromWatcher("/release", watcher)).toBe(
+				"Workspace release steps.",
+			);
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("leaves workflow display description blank when no description is set", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);

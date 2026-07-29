@@ -52,6 +52,60 @@ describe("UnifiedConfigFileWatcher", () => {
 		tempRoots.length = 0;
 	});
 
+	it("resolves duplicate ids across directories per duplicateIdResolution", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-unified-config-watcher-"),
+		);
+		tempRoots.push(tempRoot);
+		const earlierDir = join(tempRoot, "workspace");
+		const laterDir = join(tempRoot, "global");
+		await mkdir(earlierDir, { recursive: true });
+		await mkdir(laterDir, { recursive: true });
+		await writeFile(
+			join(earlierDir, "reviewer.profile"),
+			"name: Reviewer\n\nWorkspace body.",
+		);
+		await writeFile(
+			join(laterDir, "reviewer.profile"),
+			"name: Reviewer\n\nGlobal body.",
+		);
+
+		const makeWatcher = (
+			duplicateIdResolution?: "first-wins" | "last-wins",
+		): UnifiedConfigFileWatcher<"profile", TestProfileConfig> =>
+			new UnifiedConfigFileWatcher([
+				{
+					type: "profile" as const,
+					directories: [earlierDir, laterDir],
+					includeFile: (fileName) => fileName.endsWith(".profile"),
+					parseFile: (context) => parseTestProfileConfig(context.content),
+					resolveId: (config) => config.name.toLowerCase(),
+					duplicateIdResolution,
+				},
+			]);
+
+		const firstWins = makeWatcher("first-wins");
+		try {
+			await firstWins.refreshAll();
+			expect(firstWins.getSnapshot("profile").get("reviewer")?.item.body).toBe(
+				"Workspace body.",
+			);
+		} finally {
+			firstWins.stop();
+		}
+
+		// The default keeps the record found last, matching previous behavior.
+		const lastWins = makeWatcher();
+		try {
+			await lastWins.refreshAll();
+			expect(lastWins.getSnapshot("profile").get("reviewer")?.item.body).toBe(
+				"Global body.",
+			);
+		} finally {
+			lastWins.stop();
+		}
+	});
+
 	it("emits upsert and remove events with config type", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-unified-config-watcher-"),

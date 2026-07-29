@@ -433,18 +433,24 @@ export function resolveRulesConfigSearchPaths(
 	]);
 }
 
+/**
+ * Workflow search paths in precedence order: workspace directories before
+ * global ones, and the new-format `.cline` locations before their legacy
+ * counterparts. The workflows config definition resolves same-named files
+ * first-wins, so this order decides which file a `/workflow` command expands.
+ */
 export function resolveWorkflowsConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	return dedupePaths([
 		workspacePath
-			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
-			: "",
-		resolveDocumentsExtensionPath("Workflows"),
-		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
-		workspacePath
 			? join(workspacePath, ".cline", WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
+		workspacePath
+			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
+			: "",
+		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
+		resolveDocumentsExtensionPath("Workflows"),
 	]);
 }
 

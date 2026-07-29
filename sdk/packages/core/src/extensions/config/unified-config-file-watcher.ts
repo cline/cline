@@ -29,6 +29,13 @@ export interface UnifiedConfigDefinition<
 	includeFile?: (fileName: string, filePath: string) => boolean;
 	parseFile: (context: UnifiedConfigFileContext<TType>) => TItem;
 	resolveId: (item: TItem, context: UnifiedConfigFileContext<TType>) => string;
+	/**
+	 * How to resolve two files that produce the same id within one scan.
+	 * With "first-wins" the `directories` order expresses precedence (an
+	 * earlier directory shadows later ones, e.g. workspace over global);
+	 * "last-wins" (the default) keeps the record found last.
+	 */
+	duplicateIdResolution?: "first-wins" | "last-wins";
 }
 
 export interface UnifiedConfigWatcherOptions {
@@ -425,6 +432,12 @@ export class UnifiedConfigFileWatcher<
 					const parsed = definition.parseFile(context);
 					const id = definition.resolveId(parsed, context).trim();
 					if (!id) {
+						continue;
+					}
+					if (
+						definition.duplicateIdResolution === "first-wins" &&
+						records.has(id)
+					) {
 						continue;
 					}
 					records.set(id, {

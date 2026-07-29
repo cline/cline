@@ -208,18 +208,20 @@ describe("storage path resolution", () => {
 		);
 	});
 
-	it("resolves legacy and new workflow paths, with .cline paths later for duplicate-name precedence", () => {
+	it("resolves workflow paths in precedence order: workspace before global, .cline before legacy", () => {
 		snapshot = captureEnv();
 		process.env.CLINE_DIR = "/tmp/home/.cline";
 		const workspacePath = "/repo/demo";
 
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 
+		// The workflows config definition resolves duplicate names first-wins,
+		// so this order decides which same-named file a `/workflow` expands.
 		expect(paths).toEqual([
-			join(workspacePath, ".clinerules", "workflows"),
-			expect.stringContaining(join("Documents", "Cline", "Workflows")),
-			join("/tmp/home", ".cline", "workflows"),
 			join(workspacePath, ".cline", "workflows"),
+			join(workspacePath, ".clinerules", "workflows"),
+			join("/tmp/home", ".cline", "workflows"),
+			expect.stringContaining(join("Documents", "Cline", "Workflows")),
 		]);
 	});
 });
