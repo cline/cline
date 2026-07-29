@@ -36,7 +36,7 @@ export async function subscribeToMcpServers(
 
 	// Send initial state if available
 	if (controller.mcpHub) {
-		const mcpServers = controller.mcpHub.getServers()
+		const mcpServers = controller.mcpHub.getAllServers()
 		if (mcpServers.length > 0) {
 			try {
 				const protoServers = McpServers.create({
