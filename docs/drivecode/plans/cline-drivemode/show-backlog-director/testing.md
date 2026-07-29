@@ -37,6 +37,15 @@ Slices **1 + 2 + 3** with fixture seed (no planner):
 3. Tick ranks/presents → StickyStagePane.
 4. Attach 2-beat script → advance → sticky holds, caption changes.
 
+## Slice 4 live smoke (Do ↔ Show)
+
+1. Enqueue a Do with `linkedShowTemplateIds: ["doc.plan"]` via `drive.do.enqueue` (or claim with that field on the Do).
+2. `drive.fork.tick` with parentSessionId + assignee → worker appears under Workers.
+3. Promote with `retainForAudit: true` (optionally `tickShow: true`).
+4. Confirm director `showBacklog` has a ready/showing row with `linkedDoItemId` set; Workers audit lists the show id.
+
+Automated: `drive-fork-tick.test.ts`, `drive-fork-handlers` promote+tickShow tests, `showIdsForFork` unit.
+
 ## Slice 3 live smoke (Script hold)
 
 1. Join call (Stage auto-opens) → Settings → Sample / dev.

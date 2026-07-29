@@ -25,7 +25,7 @@ Planner / policy          Do backlog ──► worker forks ──► promote
 | Live room | `DriveRoomLiveState.director` on hub room live map |
 | Pure kernel | `rankShowBacklog`, `rankDoBacklog`, `advanceScriptBeat`, `buildDirectorStateFromBags`, `SHOW_TEMPLATE_KIT` — **tests only for rank/script** |
 | Hub present | `drive.show.present` + mermaid materialize + `drive.show.presented` → `StickyStagePane` |
-| Forks | `drive.fork.*` + tick claims Do; promote flips **existing** show ids planned→ready |
+| Forks | `drive.fork.*` + tick claims Do; promote **creates** missing shows from templates (or flips planned→ready) |
 | Work cards | `call_record_work` → stage cards (orthogonal reactive path) |
 | UI gap | No product caller for `drive.show.present`; no enqueue/rank tick; no script runner |
 
@@ -134,8 +134,8 @@ That is **slices 1 + 2 + 3** with a fixture seed (no planner yet).
 | 1 Present trigger | **Done** (sample Settings control + title plumb + tests + smoke doc) |
 | 2 Enqueue + rank tick | **Done** (enqueue/tick commands, pickNextShow, Settings Sample/dev controls) |
 | 3 Script runner | **Done** (attach/advance + beat event + Sample/dev Next beat; hold tested) |
-| 4 Do↔Show link | Not started |
+| 4 Do↔Show link | **Done** (`drive.do.enqueue`, promote creates shows from templates, optional `tickShow`, Workers audit lists show ids) |
 | 5 Planner policy | Not started |
 | 6 Extra producers | Not started |
 | 7 Router wire | Not started |
-| S Stage chrome | Not started (decisions locked in overview defaults) |
+| S Stage chrome | **Partial** — S2 Join auto-opens Stage done; S1/S3/S4 not started |

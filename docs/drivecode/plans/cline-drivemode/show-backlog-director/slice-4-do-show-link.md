@@ -10,12 +10,12 @@ Do backlog can be seeded without a prior claim; promote **creates** Show items (
 
 | ID | Task | Depends on | Owner | Done when |
 |---|---|---|---|---|
-| 4.1 | Hub command `drive.do.enqueue` upserts `DoBacklogItem` onto `director.doBacklog` | — | shared + core | Queued items visible on `drive.room.get` / room.changed |
-| 4.2 | Ensure `runChatForkDirectorTick` / `tickChatForks` claims newly enqueued Do items (already implemented — add integration test with enqueue→tick→claim) | 4.1 | `@cline/core` | Test proves claim without pre-seeded claim |
-| 4.3 | Extend `PromotePacket` / `applyPromotePacket`: when `showItemIds` or `linkedShowTemplateIds` present, **create** `ShowBacklogItem`s from templates if missing, status `ready` | 4.1, slice 2 enqueue shapes | `@cline/drive` + core | Promote after worker adds show rows to backlog |
-| 4.4 | After promote creates shows, optional `runShowDirectorTick` (flag) | 4.3, slice 2 tick | core | Sticky can update from promote path |
-| 4.5 | `DoBacklogItem.linked` / Show `linkedDoItemId` round-trip in fixtures | 4.3 | shared tests | Schema + promote test asserts link |
-| 4.6 | Webview Workers audit: show created ids on promote summary | 4.3 | hub webview | Audit panel lists new show ids |
+| 4.1 | Hub command `drive.do.enqueue` upserts `DoBacklogItem` onto `director.doBacklog` | — | shared + core | Queued items visible on `drive.room.get` / room.changed ✓ |
+| 4.2 | Ensure `runChatForkDirectorTick` / `tickChatForks` claims newly enqueued Do items (already implemented — add integration test with enqueue→tick→claim) | 4.1 | `@cline/core` | Test proves claim without pre-seeded claim ✓ |
+| 4.3 | Extend `PromotePacket` / `applyPromotePacket`: when `showItemIds` or `linkedShowTemplateIds` present, **create** `ShowBacklogItem`s from templates if missing, status `ready` | 4.1, slice 2 enqueue shapes | `@cline/drive` + core | Promote after worker adds show rows to backlog ✓ |
+| 4.4 | After promote creates shows, optional `runShowDirectorTick` (flag) | 4.3, slice 2 tick | core | Sticky can update from promote path ✓ |
+| 4.5 | `DoBacklogItem.linked` / Show `linkedDoItemId` round-trip in fixtures | 4.3 | shared tests | Schema + promote test asserts link ✓ |
+| 4.6 | Webview Workers audit: show created ids on promote summary | 4.3 | hub webview | Audit panel lists new show ids ✓ |
 
 ## Dependency notes
 
@@ -39,9 +39,9 @@ Do backlog can be seeded without a prior claim; promote **creates** Show items (
 
 ## Acceptance
 
-- [ ] Enqueue Do → tick → claim → (simulate) promote with template ids → showBacklog contains new ready items.
-- [ ] Tick with empty Do backlog remains no-op (no errors).
-- [ ] Existing promote status-flip behavior preserved for pre-existing ids.
+- [x] Enqueue Do → tick → claim → (simulate) promote with template ids → showBacklog contains new ready items.
+- [x] Tick with empty Do backlog remains no-op (no errors).
+- [x] Existing promote status-flip behavior preserved for pre-existing ids.
 
 ## Risks
 
