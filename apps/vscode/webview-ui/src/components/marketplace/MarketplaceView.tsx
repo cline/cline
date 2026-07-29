@@ -849,13 +849,22 @@ const McpManagementPanel = ({
 	)
 }
 
+// The extension sends a redacted, length-capped excerpt, so the row and the
+// hover title show the same bounded text; the hover only lifts the line clamp.
+// The untruncated error lives in the "Cline" output channel.
+const TRUNCATION_MARKER = "…"
+const FULL_DETAIL_HINT = 'Full error text is in the "Cline" output channel.'
+
 const LocalEntryLoadError = ({ entries }: { entries: MarketplaceLocalInstalledEntry[] }) => {
 	const messages = [...new Set(entries.map((entry) => entry.error?.trim()).filter((message): message is string => !!message))]
 	if (messages.length === 0) return null
 	return (
 		<>
 			{messages.map((message) => (
-				<div className="marketplace-row-error" key={message} title={message}>
+				<div
+					className="marketplace-row-error"
+					key={message}
+					title={message.endsWith(TRUNCATION_MARKER) ? `${message}\n\n${FULL_DETAIL_HINT}` : message}>
 					<TriangleAlertIcon aria-hidden />
 					<span>Failed to load: {message}</span>
 				</div>
