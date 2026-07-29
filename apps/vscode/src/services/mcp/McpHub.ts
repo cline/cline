@@ -134,6 +134,11 @@ export class McpHub {
 	// A new refresh for the same key chains onto the in-flight one so
 	// overlapping fetches can't complete out of order and publish stale lists.
 	private listChangedRefreshInFlight: Map<string, Promise<void>> = new Map()
+	// Generation counter per key: every (re)schedule starts a new generation,
+	// and a refresh whose generation is no longer current when it would
+	// publish has been superseded by a newer notification — it drops its
+	// result instead of briefly publishing an obsolete list.
+	private listChangedRefreshGeneration: Map<string, number> = new Map()
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -937,6 +942,12 @@ export class McpHub {
 		if (existingTimer) {
 			clearTimeout(existingTimer)
 		}
+		// Supersede any refresh already in flight for this key: its result is
+		// older than the change signal that got us here, so publishing it
+		// would briefly expose an obsolete list before this refresh corrects it.
+		const generation = (this.listChangedRefreshGeneration.get(key) ?? 0) + 1
+		this.listChangedRefreshGeneration.set(key, generation)
+		const superseded = () => this.listChangedRefreshGeneration.get(key) !== generation
 		const delayMs = retryAttempt === 0 ? LIST_CHANGED_DEBOUNCE_MS : LIST_CHANGED_RETRY_BASE_DELAY_MS * 2 ** (retryAttempt - 1)
 		this.listChangedRefreshTimers.set(
 			key,
@@ -947,9 +958,9 @@ export class McpHub {
 				// and let a stale response overwrite a newer list.
 				const previous = this.listChangedRefreshInFlight.get(key) ?? Promise.resolve()
 				const run = previous
-					.then(() => this.refreshChangedList(serverName, kind))
+					.then(() => this.refreshChangedList(serverName, kind, superseded))
 					.then((outcome) => {
-						if (outcome === "failed" && retryAttempt < LIST_CHANGED_MAX_RETRIES) {
+						if (outcome === "failed" && retryAttempt < LIST_CHANGED_MAX_RETRIES && !superseded()) {
 							this.scheduleListChangedRefresh(serverName, kind, retryAttempt + 1)
 						}
 					})
@@ -968,18 +979,22 @@ export class McpHub {
 
 	/**
 	 * Refreshes the given cached list. Returns "failed" when a fetch failed
-	 * (the caller retries), "skipped" when the connection is gone or was
-	 * replaced (no retry: a replacement fetched fresh lists at connect time),
-	 * and "refreshed" on success.
+	 * (the caller retries), "skipped" when the refresh was superseded or the
+	 * connection is gone or was replaced (no retry: a newer refresh or the
+	 * replacement connection's connect-time fetch covers it), and "refreshed"
+	 * on success.
 	 */
 	private async refreshChangedList(
 		serverName: string,
 		kind: "tools" | "resources" | "prompts",
+		superseded: () => boolean,
 	): Promise<"refreshed" | "failed" | "skipped"> {
 		// Look the connection up fresh: it may have been deleted (or replaced
-		// by a reconnect) while the debounce timer was pending.
+		// by a reconnect) while the debounce timer was pending. A superseded
+		// run (a newer notification re-scheduled this key) skips the fetch
+		// outright — the newer refresh will fetch fresher data.
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection || connection.server.disabled || !connection.client) {
+		if (!connection || connection.server.disabled || !connection.client || superseded()) {
 			return "skipped"
 		}
 
@@ -1016,13 +1031,14 @@ export class McpHub {
 				break
 		}
 
-		// The connection may have been deleted or replaced by a reconnect
-		// while the fetches were in flight. Drop the result in that case: a
-		// replacement connection fetched fresh lists when it connected, after
-		// the change that produced this notification, so writing this (older)
-		// result to it could overwrite newer data.
+		// The connection may have been deleted or replaced by a reconnect, or
+		// this refresh superseded by a newer notification, while the fetches
+		// were in flight. Drop the result in either case: a replacement
+		// connection fetched fresh lists when it connected, and a superseding
+		// refresh will fetch fresher data — publishing this (older) result
+		// would briefly expose an obsolete list.
 		const current = this.connections.find((conn) => conn.server.name === serverName)
-		if (current !== connection) {
+		if (current !== connection || superseded()) {
 			return "skipped"
 		}
 
@@ -2030,6 +2046,7 @@ export class McpHub {
 			clearTimeout(timer)
 		}
 		this.listChangedRefreshTimers.clear()
+		this.listChangedRefreshGeneration.clear()
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
 			try {

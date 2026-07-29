@@ -38,6 +38,7 @@ function createMcpHub(serverName = "test-server", options: { disabled?: boolean 
 	;(hub as any).connections = [connection]
 	;(hub as any).listChangedRefreshTimers = new Map()
 	;(hub as any).listChangedRefreshInFlight = new Map()
+	;(hub as any).listChangedRefreshGeneration = new Map()
 
 	const fetchToolsList = sinon.stub().resolves([{ name: "tool1" }])
 	const fetchResourcesList = sinon.stub().resolves([{ name: "resource1" }])
@@ -238,6 +239,37 @@ describe("McpHub list_changed notification refresh", () => {
 		// The in-flight result must not overwrite the replacement's newer data
 		replacement.server.tools.should.deepEqual([{ name: "fresh-from-connect" }])
 		notifyWebviewOfServerChanges.called.should.be.false()
+	})
+
+	it("does not publish the result of an in-flight refresh superseded by a newer notification", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		let resolveFirstFetch: (tools: Array<{ name: string }>) => void = () => {}
+		fetchToolsList.onFirstCall().returns(
+			new Promise((resolve) => {
+				resolveFirstFetch = resolve
+			}),
+		)
+		fetchToolsList.onSecondCall().resolves([{ name: "fresh" }])
+
+		// First refresh fires and its fetch hangs in flight
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		// A newer notification supersedes the in-flight refresh
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		resolveFirstFetch([{ name: "stale" }])
+		await clock.tickAsync(0)
+		await clock.tickAsync(0)
+
+		// The superseded run completed but must not publish its stale result
+		connection.server.tools.should.deepEqual([])
+		notifyWebviewOfServerChanges.called.should.be.false()
+
+		// The superseding refresh publishes the fresh result
+		await clock.tickAsync(300)
+		connection.server.tools.should.deepEqual([{ name: "fresh" }])
+		notifyWebviewOfServerChanges.calledOnce.should.be.true()
 	})
 
 	it("retries a failed refresh with backoff and applies the eventual result", async () => {
