@@ -576,6 +576,53 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
+	it("warns that computer use is unavailable when a prompt argument is used", async () => {
+		const stdout = vi
+			.spyOn(process.stdout, "write")
+			.mockImplementation(() => true);
+		process.env.CLINE_COMPUTER_USE_PORT = "1234";
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		try {
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(stdout).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"computer use is only available in interactive mode",
+				),
+			);
+			expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		} finally {
+			delete process.env.CLINE_COMPUTER_USE_PORT;
+			stdout.mockRestore();
+		}
+	});
+
+	it("does not warn about computer use in interactive mode", async () => {
+		const stdout = vi
+			.spyOn(process.stdout, "write")
+			.mockImplementation(() => true);
+		process.env.CLINE_COMPUTER_USE_PORT = "1234";
+		process.argv = ["bun", "src/index.ts"];
+
+		try {
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(stdout).not.toHaveBeenCalledWith(
+				expect.stringContaining(
+					"computer use is only available in interactive mode",
+				),
+			);
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		} finally {
+			delete process.env.CLINE_COMPUTER_USE_PORT;
+			stdout.mockRestore();
+		}
+	});
+
 	it("rejects a single bare positional prompt token", async () => {
 		const consoleError = vi
 			.spyOn(console, "error")
