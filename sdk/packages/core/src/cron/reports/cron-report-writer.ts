@@ -62,6 +62,15 @@ function yamlEntry(key: string, value: string | undefined): string | undefined {
 	return `${key}: ${escapeYamlString(value)}`;
 }
 
+function fencedCodeBlock(content: string): string {
+	let longestBacktickRun = 0;
+	for (const match of content.matchAll(/`+/g)) {
+		longestBacktickRun = Math.max(longestBacktickRun, match[0].length);
+	}
+	const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
+	return `${fence}\n${content}\n${fence}`;
+}
+
 /**
  * Hub-managed schedules use a virtual sourcePath (`hub/schedules/<id>.cron.md`)
  * that never exists on disk — the definition lives in cron.db. File-based specs
@@ -88,8 +97,9 @@ function formatDuration(ms: number): string {
 	if (ms < 1000) return `${ms}ms`;
 	const seconds = ms / 1000;
 	if (seconds < 60) return `${seconds.toFixed(1)}s`;
-	const minutes = Math.floor(seconds / 60);
-	const rest = Math.round(seconds % 60);
+	const roundedSeconds = Math.round(seconds);
+	const minutes = Math.floor(roundedSeconds / 60);
+	const rest = roundedSeconds % 60;
 	return `${minutes}m ${rest}s`;
 }
 
@@ -187,7 +197,7 @@ function buildHeader(
 	lines.push(...facts, "");
 	const prompt = spec.prompt?.trim();
 	if (prompt) {
-		lines.push("### Prompt", "", "```", prompt, "```", "");
+		lines.push("### Prompt", "", fencedCodeBlock(prompt), "");
 	}
 	return lines.join("\n");
 }
@@ -213,7 +223,7 @@ function buildBody(data: CronRunReportData): string {
 		const context = data.errorContext
 			? `${data.errorContext}\n\n`
 			: "The run failed with the following error:\n\n";
-		sections.push(`## Error\n\n${context}\`\`\`\n${data.error}\n\`\`\`\n`);
+		sections.push(`## Error\n\n${context}${fencedCodeBlock(data.error)}\n`);
 	}
 	if (data.finalText && data.finalText.trim().length > 0) {
 		sections.push(`## Summary\n\n${data.finalText.trim()}\n`);
