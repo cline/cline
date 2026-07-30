@@ -374,6 +374,111 @@ export async function loadSandboxedPlugins(
 // Contribution registration helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Tool contexts and hook payloads cross the sandbox process boundary over
+ * JSON IPC, so they must survive JSON.stringify. Host code must not place
+ * live host objects (telemetry services, sockets, abort signals) on them,
+ * but a single offender would otherwise fail every sandboxed call — the
+ * telemetry service on toolContextMetadata did exactly that ("JSON.stringify
+ * cannot serialize cyclic structures"). These helpers are the safety net:
+ * the first attempt sends the payload untouched (no extra serialization on
+ * the happy path); only when the runtime rejects it as non-serializable do
+ * we retry with a JSON-safe clone and warn.
+ */
+function isSerializationError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	// Bun: "JSON.stringify cannot serialize cyclic structures."
+	// Node: "Converting circular structure to JSON"
+	return /cyclic|circular/i.test(message);
+}
+
+/**
+ * Deep-clone into a JSON-safe shape: cycles and non-serializable leaves
+ * (functions, symbols, bigints) are dropped, `toJSON` (e.g. Date) is
+ * honored. Fallback path only — never run on the happy path.
+ */
+function toJsonSafePayload(
+	value: unknown,
+	ancestors = new WeakSet<object>(),
+): unknown {
+	if (value === null || typeof value !== "object") {
+		return typeof value === "function" ||
+			typeof value === "symbol" ||
+			typeof value === "bigint"
+			? undefined
+			: value;
+	}
+	if (ancestors.has(value)) {
+		return undefined;
+	}
+	const withToJson = value as { toJSON?: () => unknown };
+	if (typeof withToJson.toJSON === "function") {
+		try {
+			return withToJson.toJSON();
+		} catch {
+			return undefined;
+		}
+	}
+	ancestors.add(value);
+	try {
+		if (Array.isArray(value)) {
+			return value.map(
+				(entry) => toJsonSafePayload(entry, ancestors) ?? null,
+			);
+		}
+		const out: Record<string, unknown> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			const safe = toJsonSafePayload(entry, ancestors);
+			if (safe !== undefined) {
+				out[key] = safe;
+			}
+		}
+		return out;
+	} finally {
+		ancestors.delete(value);
+	}
+}
+
+const warnedNonSerializablePayloads = new Set<string>();
+
+function warnNonSerializablePayloadOnce(
+	kind: "tool" | "hook",
+	name: string,
+	error: unknown,
+): void {
+	const key = `${kind}:${name}`;
+	if (warnedNonSerializablePayloads.has(key)) {
+		return;
+	}
+	warnedNonSerializablePayloads.add(key);
+	const message = error instanceof Error ? error.message : String(error);
+	console.warn(
+		`[plugin-sandbox] ${kind} "${name}" received a payload that is not JSON-serializable (${message}); ` +
+			"retrying with non-serializable values dropped. Host-only objects must not be placed on tool contexts or hook payloads.",
+	);
+}
+
+/**
+ * Invoke a sandbox call with the raw payload; if the IPC layer rejects it as
+ * non-serializable, retry once with a JSON-safe clone instead of failing the
+ * call.
+ */
+async function callWithSerializableFallback<T>(
+	invoke: (payload: unknown) => Promise<T>,
+	payload: unknown,
+	onSanitized: (error: unknown) => void,
+): Promise<T> {
+	try {
+		return await invoke(payload);
+	} catch (error) {
+		if (!isSerializationError(error)) {
+			throw error;
+		}
+		onSanitized(error);
+		return await invoke(toJsonSafePayload(payload));
+	}
+}
+
 function registerTools(
 	api: AgentExtensionApi,
 	sandbox: SubprocessSandbox,
@@ -392,33 +497,38 @@ function registerTools(
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
 			execute: async (input: unknown, context: unknown) => {
-				try {
-					return await sandbox.call(
-						"executeTool",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: td.id,
-							input,
-							context,
-						},
-						{ timeoutMs },
-					);
-				} catch (error) {
-					if (!isUnknownPluginIdError(error)) {
-						throw error;
+				const invoke = async (sandboxContext: unknown) => {
+					try {
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
 					}
-					await reinitialize();
-					return await sandbox.call(
-						"executeTool",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: td.id,
-							input,
-							context,
-						},
-						{ timeoutMs },
-					);
-				}
+				};
+				return await callWithSerializableFallback(invoke, context, (error) =>
+					warnNonSerializablePayloadOnce("tool", td.name, error),
+				);
 			},
 		};
 		api.registerTool(tool);
@@ -604,23 +714,28 @@ function makeHookHandler(
 	reinitialize: () => Promise<void>,
 ): (payload: unknown) => Promise<unknown> {
 	return async (payload: unknown) => {
-		try {
-			return await sandbox.call(
-				"invokeHook",
-				{ pluginId, hookName, payload },
-				{ timeoutMs },
-			);
-		} catch (error) {
-			if (!isUnknownPluginIdError(error)) {
-				throw error;
+		const invoke = async (sandboxPayload: unknown) => {
+			try {
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
+			} catch (error) {
+				if (!isUnknownPluginIdError(error)) {
+					throw error;
+				}
+				await reinitialize();
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
 			}
-			await reinitialize();
-			return await sandbox.call(
-				"invokeHook",
-				{ pluginId, hookName, payload },
-				{ timeoutMs },
-			);
-		}
+		};
+		return await callWithSerializableFallback(invoke, payload, (error) =>
+			warnNonSerializablePayloadOnce("hook", hookName, error),
+		);
 	};
 }
 

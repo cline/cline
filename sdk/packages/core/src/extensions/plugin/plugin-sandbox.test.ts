@@ -210,6 +210,32 @@ describe("plugin-sandbox", () => {
 		);
 
 		await writeFile(
+			join(dir, "plugin-telemetry.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-telemetry',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api, ctx) {",
+				"    api.registerTool({",
+				"      name: 'emit_plugin_telemetry',",
+				"      description: 'emit plugin telemetry',",
+				"      inputSchema: { type: 'object', properties: { topic: { type: 'string' } }, required: ['topic'] },",
+				"      execute: async (input) => {",
+				"        ctx.telemetry?.capture({",
+				"          event: 'sandbox_topic_used',",
+				"          properties: { topic: input.topic },",
+				"        });",
+				"        ctx.telemetry?.recordCounter('sandbox_topics', 1, { topic: input.topic });",
+				"        return { enabled: ctx.telemetry?.isEnabled() ?? false };",
+				"      },",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
 			join(dir, "plugin-ts.ts"),
 			[
 				"const TOOL_NAME: string = 'sandbox_ts_echo';",
@@ -359,6 +385,7 @@ describe("plugin-sandbox", () => {
 				join(dir, "plugin-events.mjs"),
 				join(dir, "plugin-run-end.mjs"),
 				join(dir, "plugin-automation-events.mjs"),
+				join(dir, "plugin-telemetry.mjs"),
 				join(dir, "plugin-message-builder.mjs"),
 				join(dir, "plugin-rules.mjs"),
 				join(dir, "plugin-ts.ts"),
@@ -413,6 +440,66 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("strips non-serializable host values from the tool context before IPC", async () => {
+		const extension = sharedExtensions.get("sandbox-test");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const echoTool = tools.find((tool) => tool.name === "sandbox_echo");
+		expect(echoTool).toBeDefined();
+
+		// The production orchestrator attaches the live telemetry service
+		// (cyclic: PostHog client) under this metadata key. Without
+		// sanitization, child.send() throws and every plugin tool call fails.
+		const cyclicTelemetry: Record<string, unknown> = { capture: () => {} };
+		cyclicTelemetry.self = cyclicTelemetry;
+		const result = await echoTool?.execute({ value: "ok" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			signal: new AbortController().signal,
+			emitUpdate: () => {},
+			metadata: {
+				modelSupportsImages: true,
+				__clineInternalTelemetry: cyclicTelemetry,
+			},
+		} as unknown as AgentToolContext);
+		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("bridges ctx.telemetry calls to the host as plugin_telemetry events", async () => {
+		const extension = sharedExtensions.get("sandbox-telemetry");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const tool = tools.find((t) => t.name === "emit_plugin_telemetry");
+		expect(tool).toBeDefined();
+
+		const result = await tool?.execute({ topic: "weather" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as AgentToolContext);
+		expect(result).toEqual({ enabled: true });
+
+		const telemetryEvents = forwardedEvents.filter(
+			(event) => event.name === "plugin_telemetry",
+		);
+		expect(telemetryEvents).toHaveLength(2);
+		expect(telemetryEvents[0]?.payload).toMatchObject({
+			pluginName: "sandbox-telemetry",
+			kind: "event",
+			event: "sandbox_topic_used",
+			properties: { topic: "weather" },
+		});
+		expect(telemetryEvents[1]?.payload).toMatchObject({
+			pluginName: "sandbox-telemetry",
+			kind: "metric",
+			metric: "counter",
+			name: "sandbox_topics",
+			value: 1,
+			attributes: { topic: "weather" },
+		});
 	});
 
 	it("enforces hook timeout and cancels sandbox process", async () => {

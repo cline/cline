@@ -7,6 +7,7 @@
 import type {
 	AgentToolContext,
 	ImageContent,
+	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
 import type {
@@ -238,6 +239,14 @@ export type DefaultToolName =
  * Configuration for enabling/disabling default tools
  */
 export interface DefaultToolsConfig {
+	/**
+	 * Host telemetry service, injected at tool construction time. Tools that
+	 * emit operational telemetry (e.g. run_commands timeouts) close over this
+	 * service. It is a live host object and must never travel on the per-call
+	 * AgentToolContext, which crosses process boundaries over JSON IPC.
+	 */
+	telemetry?: ITelemetryService;
+
 	/**
 	 * Enable the read_files tool
 	 * @default true
