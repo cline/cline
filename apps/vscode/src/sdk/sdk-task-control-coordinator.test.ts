@@ -148,6 +148,28 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(interactions.resolvePendingToolApproval("next task input", "noButtonClicked")).toBe(false)
 	})
 
+	it("settles a pending question when switching tasks so the outgoing run can unwind", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], {})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(questionPromise).resolves.toBe("")
+		expect(interactions.resolvePendingAskQuestion("late answer")).toBe(false)
+	})
+
 	it("shows a legacy task with a warning and a resume ask", async () => {
 		const legacyMessages: ClineMessage[] = [{ ts: 1, type: "say", say: "task", text: "legacy task" }]
 		const { coordinator, options, state } = makeCoordinator({
