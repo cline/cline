@@ -397,6 +397,7 @@ describe("plugin-sandbox", () => {
 			// CI environments are significantly slower for jiti transpilation;
 			// the default 4 000 ms is too tight for 7 plugins.
 			importTimeoutMs: 30_000,
+			telemetryAvailable: true,
 			onEvent: (event) => {
 				forwardedEvents.push(event);
 			},
@@ -500,6 +501,76 @@ describe("plugin-sandbox", () => {
 			value: 1,
 			attributes: { topic: "weather" },
 		});
+	});
+
+	it("omits ctx.telemetry when the host reports no telemetry service", async () => {
+		const noTelemetryDir = await mkdtemp(
+			join(tmpdir(), "core-plugin-sandbox-no-telemetry-"),
+		);
+		try {
+			const pluginPath = join(noTelemetryDir, "plugin-telemetry.mjs");
+			await writeFile(
+				pluginPath,
+				[
+					"export default {",
+					"  name: 'sandbox-no-telemetry',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api, ctx) {",
+					"    api.registerTool({",
+					"      name: 'probe_telemetry',",
+					"      description: 'probe telemetry availability',",
+					"      inputSchema: { type: 'object', properties: {}, required: [] },",
+					"      execute: async () => ({ present: ctx.telemetry !== undefined }),",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+			const events: Array<{ name: string; payload?: unknown }> = [];
+			const sandbox = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+				importTimeoutMs: 30_000,
+				// telemetryAvailable intentionally omitted: no host service.
+				onEvent: (event) => events.push(event),
+			});
+			try {
+				const { tools, api } = createApiCapture();
+				await sandbox.extensions?.[0]?.setup?.(api, {});
+				const tool = tools.find((t) => t.name === "probe_telemetry");
+				const result = await tool?.execute({}, {
+					agentId: "agent-1",
+					iteration: 1,
+				} as AgentToolContext);
+				expect(result).toEqual({ present: false });
+				expect(
+					events.filter((event) => event.name === "plugin_telemetry"),
+				).toHaveLength(0);
+			} finally {
+				await sandbox.shutdown();
+			}
+		} finally {
+			await rm(noTelemetryDir, { recursive: true, force: true });
+		}
+	}, 60_000);
+
+	it("strips non-serializable tool input via the same fallback", async () => {
+		const extension = sharedExtensions.get("sandbox-test");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const echoTool = tools.find((tool) => tool.name === "sandbox_echo");
+		expect(echoTool).toBeDefined();
+
+		// beforeTool hooks and programmatic callers can rewrite the input, so
+		// it can carry non-serializable values just like the context can.
+		const cyclicInput: Record<string, unknown> = { value: "ok" };
+		cyclicInput.self = cyclicInput;
+		const result = await echoTool?.execute(cyclicInput, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as AgentToolContext);
+		expect(result).toEqual({ echoed: "ok" });
 	});
 
 	it("enforces hook timeout and cancels sandbox process", async () => {

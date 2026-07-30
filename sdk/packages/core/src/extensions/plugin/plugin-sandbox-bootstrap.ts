@@ -528,6 +528,7 @@ async function loadPluginDescriptor(args: {
 		"session" | "client" | "user" | "workspaceInfo"
 	>;
 	loggerEnabled?: boolean;
+	telemetryEnabled?: boolean;
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
 	try {
@@ -629,7 +630,12 @@ async function loadPluginDescriptor(args: {
 			try {
 				const setupCtx = {
 					...args.setupCtxBase,
-					telemetry: createPluginTelemetry(plugin.name),
+					// Only offered when the host actually has a telemetry service:
+					// the feature-detection contract (`ctx.telemetry?.capture`) must
+					// mean "someone is listening", matching in-process behavior.
+					...(args.telemetryEnabled
+						? { telemetry: createPluginTelemetry(plugin.name) }
+						: {}),
 					...(args.loggerEnabled
 						? { logger: createPluginLogger(plugin.name) }
 						: {}),
@@ -704,6 +710,7 @@ async function initialize(args: {
 	user?: unknown;
 	workspaceInfo?: unknown;
 	loggerEnabled?: boolean;
+	telemetryEnabled?: boolean;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -755,6 +762,7 @@ async function initialize(args: {
 				targeting,
 				setupCtxBase,
 				loggerEnabled: args.loggerEnabled,
+				telemetryEnabled: args.telemetryEnabled,
 			});
 		}),
 	);

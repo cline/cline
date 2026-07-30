@@ -53,6 +53,13 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	user?: SandboxedPluginSetupContext["user"];
 	/** Enables a logger bridge that forwards sandbox log calls to the host. */
 	logger?: SandboxedPluginSetupContext["logger"];
+	/**
+	 * Enables the telemetry bridge (`ctx.telemetry`) for sandboxed plugins.
+	 * Set only when the host has a live telemetry service to route
+	 * `plugin_telemetry` events into, so plugin feature-detection of
+	 * `ctx.telemetry` means "someone is listening" in both execution modes.
+	 */
+	telemetryAvailable?: boolean;
 }
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -280,6 +287,7 @@ export async function loadSandboxedPlugins(
 		user: options.user,
 		workspaceInfo: options.workspaceInfo,
 		loggerEnabled: Boolean(options.logger),
+		telemetryEnabled: options.telemetryAvailable === true,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -497,14 +505,20 @@ function registerTools(
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
 			execute: async (input: unknown, context: unknown) => {
-				const invoke = async (sandboxContext: unknown) => {
+				// The fallback must cover the whole IPC payload: `input` can be
+				// rewritten by beforeTool hooks or programmatic callers, so it is
+				// just as capable of smuggling a non-serializable value as the
+				// context is.
+				const invoke = async (payload: unknown) => {
+					const { input: sandboxInput, context: sandboxContext } =
+						payload as { input: unknown; context: unknown };
 					try {
 						return await sandbox.call(
 							"executeTool",
 							{
 								pluginId: descriptor.pluginId,
 								contributionId: td.id,
-								input,
+								input: sandboxInput,
 								context: sandboxContext,
 							},
 							{ timeoutMs },
@@ -519,15 +533,17 @@ function registerTools(
 							{
 								pluginId: descriptor.pluginId,
 								contributionId: td.id,
-								input,
+								input: sandboxInput,
 								context: sandboxContext,
 							},
 							{ timeoutMs },
 						);
 					}
 				};
-				return await callWithSerializableFallback(invoke, context, (error) =>
-					warnNonSerializablePayloadOnce("tool", td.name, error),
+				return await callWithSerializableFallback(
+					invoke,
+					{ input, context },
+					(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
 				);
 			},
 		};
