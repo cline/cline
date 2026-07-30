@@ -31,7 +31,7 @@ export function AgentQuickActions({
 		>
 			{actions.map((action) => (
 				<button
-					className="cline-ui-agent-quick-actions__item flex w-full cursor-pointer items-center justify-between gap-5 rounded-none border-0 bg-transparent p-3 text-left text-inherit transition-[background-color] duration-150 ease-in-out not-last:border-b not-last:border-border/80 enabled:hover:bg-background/55 focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ring)] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+					className="cline-ui-agent-quick-actions__item flex w-full cursor-pointer items-center justify-between gap-5 rounded-none border-0 bg-transparent p-3 text-left text-inherit transition-[background-color] duration-150 ease-in-out not-last:border-b not-last:border-border/80 enabled:hover:bg-background/55 focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ring)] disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={disabled}
 					key={action.id}
 					onClick={() => onSelect(action)}

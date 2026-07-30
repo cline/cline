@@ -101,6 +101,8 @@ async function verifyTailwindContract(root: string): Promise<void> {
 		"border-border/60",
 		"text-muted-foreground",
 		"bg-primary/10",
+		"max-h-56",
+		"leading-none",
 	]) {
 		const selector = `.${candidate.replace("/", "\\/")}`;
 		if (!css.includes(selector)) {
