@@ -67,6 +67,6 @@ Apps still **project** with `reduceRoom` / `projectStage` / `projectRoster` from
 |---|---|
 | `createDriveHarness` rooms MVP | Done |
 | Host `getRoom` + roomId on `RoomOp` | Done |
-| Product hub migration onto harness | Not started |
-| DirectorPort / show commit on harness | Not started |
+| Product hub migration onto harness | **Partial** — `call_set_address` / `call_set_stage` / `call_set_mode` via `getHubDriveHarness` |
+| DirectorPort / show commit on harness | **Partial** — `commitDirectorOp` + `DriveHarness.shows`; hub `drive.show.*` still publishes events |
 | Webview single fold | Not started |

@@ -10,13 +10,14 @@ import type {
 	DriveSubMode,
 	HumanParticipant,
 	RoomSnapshot,
+	ShowBacklogItem,
 	StagePin,
 	StageSharer,
 } from "@cline/shared";
 import { advanceScriptBeat } from "./director/rankBacklogs.js";
 import { pickNextShowToPresent } from "./director/pickNextShow.js";
 import { planShowIntents } from "./director/planShowIntents.js";
-import type { DriveHostPort } from "./hostPort.js";
+import type { DirectorOpResult, DriveHostPort } from "./hostPort.js";
 import { assertRouteLegal, planRoute } from "./router/planRoute.js";
 import { setSpotlight } from "./room/participantControls.js";
 
@@ -89,16 +90,32 @@ export type DriveHarnessDirector = {
 	readonly advanceScriptBeat: typeof advanceScriptBeat;
 };
 
+export type DriveHarnessShows = {
+	enqueue(
+		roomId: string,
+		showItem: ShowBacklogItem,
+		opts?: { presentNow?: boolean },
+	): Promise<DirectorOpResult>;
+	present(roomId: string, showItem: ShowBacklogItem): Promise<DirectorOpResult>;
+	tick(
+		roomId: string,
+		opts?: { preferShowId?: string | null },
+	): Promise<DirectorOpResult>;
+};
+
 export type DriveHarness = {
 	readonly host: DriveHostPort;
 	start(): Promise<void>;
 	onEvent(handler: (event: DriveEvent) => void): () => void;
 	readonly rooms: DriveHarnessRooms;
 	/**
-	 * Pure Show/Director helpers. Live backlog commit stays on the hub
-	 * (`drive.show.*`) until a DirectorPort extends the host.
+	 * Pure Show/Director helpers (no host IO).
 	 */
 	readonly director: DriveHarnessDirector;
+	/**
+	 * Live Show backlog commits via DriveHostPort.commitDirectorOp.
+	 */
+	readonly shows: DriveHarnessShows;
 };
 
 export function createDriveHarness(
@@ -281,6 +298,40 @@ export function createDriveHarness(
 		},
 	};
 
+	const requireDirector = () => {
+		if (!host.commitDirectorOp) {
+			throw new Error(
+				"DriveHostPort.commitDirectorOp is required for DriveHarness.shows",
+			);
+		}
+		return host.commitDirectorOp;
+	};
+
+	const shows: DriveHarnessShows = {
+		async enqueue(roomId, showItem, opts) {
+			return requireDirector()({
+				type: "enqueueShow",
+				roomId,
+				showItem,
+				presentNow: opts?.presentNow,
+			});
+		},
+		async present(roomId, showItem) {
+			return requireDirector()({
+				type: "presentShow",
+				roomId,
+				showItem,
+			});
+		},
+		async tick(roomId, opts) {
+			return requireDirector()({
+				type: "tickShow",
+				roomId,
+				preferShowId: opts?.preferShowId,
+			});
+		},
+	};
+
 	return {
 		host,
 		async start() {
@@ -302,5 +353,6 @@ export function createDriveHarness(
 			assertRouteLegal,
 			advanceScriptBeat,
 		},
+		shows,
 	};
 }

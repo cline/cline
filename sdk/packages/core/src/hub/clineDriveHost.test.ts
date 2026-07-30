@@ -127,4 +127,39 @@ describe("createClineDriveHost", () => {
 		const again = await host.readDurableFacets(dir);
 		expect(again).toMatchObject({ "runtime.profile": "cloud" });
 	});
+
+	it("createDriveHarness shows.enqueue commits via DirectorOp", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-drive-host-"));
+		dirs.push(dir);
+		const store = new DriveRoomStore();
+		const host = createClineDriveHost({ configParent: dir, store });
+		const drive = createDriveHarness({ host });
+		await drive.rooms.createOrAttach({
+			roomId: "show-room",
+			humanId: "drive:human",
+		});
+		const result = await drive.shows.enqueue("show-room", {
+			id: "show-1",
+			ownerParticipantId: "drive:partner",
+			title: "Diagram",
+			intent: "Explain",
+			artifactKind: "diagram.architecture",
+			mediaClass: "still",
+			caption: "cap",
+			produce: {
+				tool: "render_mermaid",
+				args: { mermaidSource: "graph TD; A-->B;" },
+			},
+			priority: 10,
+			status: "planned",
+			scoreReasons: [],
+		});
+		expect(result.planned?.id).toBe("show-1");
+		const live = result.liveRoom as {
+			director: { showBacklog: Array<{ id: string }> };
+		};
+		expect(live.director.showBacklog.some((item) => item.id === "show-1")).toBe(
+			true,
+		);
+	});
 });

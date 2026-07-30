@@ -104,4 +104,28 @@ describe("createDriveHarness", () => {
 		});
 		expect(plan.slices.length).toBeGreaterThan(0);
 	});
+
+	it("shows.enqueue requires commitDirectorOp on the host", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({ host });
+		await expect(
+			drive.shows.enqueue("r", {
+				id: "s1",
+				ownerParticipantId: "a1",
+				title: "T",
+				intent: "x",
+				artifactKind: "doc.plan",
+				mediaClass: "document",
+				caption: "c",
+				produce: {
+					tool: "render_plan_card",
+					templateId: "doc.plan",
+					args: {},
+				},
+				priority: 1,
+				status: "planned",
+				scoreReasons: [],
+			}),
+		).rejects.toThrow(/commitDirectorOp/);
+	});
 });
