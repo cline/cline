@@ -141,6 +141,7 @@ describe("applyPromotePacket", () => {
 		});
 		expect(result.state.doBacklog[0]?.status).toBe("done");
 		expect(result.state.showBacklog[0]?.status).toBe("ready");
+		expect(result.createdShowItemIds).toEqual([]);
 		expect(result.lifecycle).toBe("archived");
 		expect(result.mainContextInjection).toContain("Flake fixed");
 		expect(result.mainContextInjection).toContain("Prefer waitFor");
@@ -163,5 +164,71 @@ describe("applyPromotePacket", () => {
 		});
 		expect(result.state.doBacklog[0]?.status).toBe("blocked");
 		expect(result.lifecycle).toBe("dropped");
+	});
+
+	it("creates ready Show items from linkedShowTemplateIds when missing", () => {
+		const result = applyPromotePacket({
+			state: {
+				...emptyDirector,
+				showBacklog: [],
+				doBacklog: [
+					{
+						...queuedDo,
+						linkedShowTemplateIds: ["arch.overview"],
+					},
+				],
+			},
+			promote: {
+				workerSessionId: "sess-worker",
+				doItemId: "do-1",
+				status: "done",
+				summary: "Diagram ready",
+				decisions: [],
+				showItemIds: [],
+				linkedShowTemplateIds: ["doc.plan"],
+				eventRefs: [],
+				auditHandle: "audit-sess-worker",
+				retainForAudit: true,
+			},
+			ownerParticipantId: "agent-1",
+			linkedShowTemplateIds: ["walk.code"],
+		});
+		expect(result.createdShowItemIds.length).toBe(3);
+		const kinds = result.state.showBacklog.map((item) => item.artifactKind).sort();
+		expect(kinds).toEqual([
+			"diagram.architecture",
+			"doc.plan",
+			"walkthrough.code",
+		]);
+		for (const item of result.state.showBacklog) {
+			expect(item.status).toBe("ready");
+			expect(item.linkedDoItemId).toBe("do-1");
+			expect(item.ownerParticipantId).toBe("agent-1");
+		}
+	});
+
+	it("creates from showItemIds that match template ids", () => {
+		const result = applyPromotePacket({
+			state: { ...emptyDirector, showBacklog: [] },
+			promote: {
+				workerSessionId: "sess-worker",
+				doItemId: "do-1",
+				status: "done",
+				summary: "Flow",
+				decisions: [],
+				showItemIds: ["flow.data"],
+				eventRefs: [],
+				auditHandle: "audit-sess-worker",
+				retainForAudit: true,
+			},
+			ownerParticipantId: "agent-1",
+		});
+		expect(result.createdShowItemIds).toEqual(["flow.data"]);
+		expect(result.state.showBacklog[0]).toMatchObject({
+			id: "flow.data",
+			artifactKind: "diagram.data_flow",
+			status: "ready",
+			linkedDoItemId: "do-1",
+		});
 	});
 });

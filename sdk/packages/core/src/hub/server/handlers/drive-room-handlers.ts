@@ -10,6 +10,7 @@ import type {
 	StageSharer,
 } from "@cline/shared";
 import {
+	AddressSetSchema,
 	DriveSubModeSchema,
 	ParticipantSchema,
 	StageSharerSchema,
@@ -26,6 +27,9 @@ import {
 	workRecordFromToolEvent,
 } from "../../collaboration";
 import { runChatForkDirectorTick } from "./drive-fork-tick";
+import {
+	runShowPlannerFromWork,
+} from "./drive-handlers";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
 function linkedSessionIds(
@@ -97,6 +101,10 @@ const CallSetStagePayloadSchema = RoomIdSchema.extend({
 		.strict()
 		.nullable()
 		.optional(),
+}).strict();
+
+const CallSetAddressPayloadSchema = RoomIdSchema.extend({
+	addressSet: AddressSetSchema,
 }).strict();
 
 const CallSetModePayloadSchema = RoomIdSchema.extend({
@@ -414,6 +422,27 @@ export function handleDriveRoomCommand(
 					snapshotPayload(committed.snapshot, committed.seq),
 				);
 			}
+			case "call_set_address": {
+				const payload = CallSetAddressPayloadSchema.parse(
+					envelope.payload ?? {},
+				);
+				store.create(payload.roomId);
+				const committed = store.setAddress({
+					roomId: payload.roomId,
+					addressSet: payload.addressSet,
+				});
+				publishRoomEvent(
+					ctx,
+					payload.roomId,
+					committed.snapshot,
+					committed.event,
+					committed.seq,
+				);
+				return okReply(
+					envelope,
+					snapshotPayload(committed.snapshot, committed.seq),
+				);
+			}
 			case "call_set_mode": {
 				const payload = CallSetModePayloadSchema.parse(envelope.payload ?? {});
 				const committed = store.setMode(payload);
@@ -450,6 +479,49 @@ export function handleDriveRoomCommand(
 					committed.event,
 					committed.seq,
 				);
+				const live = store.getOrCreateLive(roomId);
+				const ownerParticipantId =
+					live.spotlightParticipantId ??
+					live.seatedParticipantIds[0] ??
+					payload.actorId ??
+					"system";
+				const planner = runShowPlannerFromWork({
+					room: live,
+					workKind: work.kind,
+					ownerParticipantId,
+				});
+				if (planner.planned.length > 0) {
+					const nextLive = store.setLive(planner.room);
+					ctx.publish(
+						ctx.buildEvent("drive.room.changed", {
+							room: nextLive as unknown as Record<string, unknown>,
+						}),
+					);
+					for (const item of planner.planned) {
+						ctx.publish(
+							ctx.buildEvent("drive.show.planned", {
+								showItemId: item.id,
+								ownerParticipantId: item.ownerParticipantId,
+								status: item.status,
+								title: item.title,
+								priority: item.priority,
+								scoreReasons: item.scoreReasons,
+								plannerReasons: planner.reasons,
+							}),
+						);
+					}
+					if (planner.presented) {
+						ctx.publish(
+							ctx.buildEvent("drive.show.presented", {
+								showItemId: planner.presented.id,
+								ownerParticipantId: planner.presented.ownerParticipantId,
+								uri: planner.presented.uri,
+								caption: planner.presented.caption,
+								title: planner.presented.title,
+							}),
+						);
+					}
+				}
 				void runChatForkDirectorTick(ctx, {
 					roomId,
 					parentSessionId: payload.sessionId,

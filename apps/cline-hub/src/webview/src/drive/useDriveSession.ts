@@ -1,4 +1,4 @@
-import type { ChatForkRecord, RoomSnapshot } from "@cline/shared";
+import type { ChatForkRecord, RoomSnapshot, ShowBacklogItem } from "@cline/shared";
 import {
 	type Dispatch,
 	type SetStateAction,
@@ -155,6 +155,7 @@ export type UseDriveSessionResult = {
 		ownerParticipantId?: string;
 	} | null;
 	chatForks: ChatForkRecord[];
+	showBacklog: ShowBacklogItem[];
 	workersPanelOpen: boolean;
 	focusedAuditHandle: string | null;
 	auditMessages: unknown[];
@@ -192,6 +193,7 @@ export function useDriveSession(
 		ownerParticipantId?: string;
 	} | null>(null);
 	const [chatForks, setChatForks] = useState<ChatForkRecord[]>([]);
+	const [showBacklog, setShowBacklog] = useState<ShowBacklogItem[]>([]);
 	const [workersPanelOpen, setWorkersPanelOpen] = useState(false);
 	const [focusedAuditHandle, setFocusedAuditHandle] = useState<string | null>(
 		null,
@@ -276,8 +278,10 @@ export function useDriveSession(
 				text?: string;
 				command?: string;
 				showItemId?: string;
+				title?: string;
 				caption?: string;
 				uri?: string;
+				say?: string;
 				ownerParticipantId?: string;
 				snapshot?: RoomSnapshot;
 				auditHandle?: string;
@@ -306,10 +310,29 @@ export function useDriveSession(
 			if (message.type === "drive_show_presented" && message.showItemId) {
 				setPresentedShow({
 					showItemId: message.showItemId,
+					title: message.title,
 					caption: message.caption,
 					uri: message.uri,
 					ownerParticipantId: message.ownerParticipantId,
 				});
+				return;
+			}
+			if (message.type === "drive_script_beat") {
+				const say =
+					typeof message.say === "string" ? message.say.trim() : "";
+				if (say) {
+					setPresentedShow((current) =>
+						current
+							? {
+									...current,
+									caption: say,
+								}
+							: {
+									showItemId: message.showItemId ?? "script-beat",
+									caption: say,
+								},
+					);
+				}
 				return;
 			}
 			if (message.type === "call_error") {
@@ -409,7 +432,14 @@ export function useDriveSession(
 					driveActiveRef.current = false;
 					setDriveJoinNote(null);
 				}
-				setDrive((current) => applyRoomSnapshot(current, snapshot));
+				setDrive((current) => {
+					const next = applyRoomSnapshot(current, snapshot);
+					// Slice S2 — Join auto-opens Stage so Spotlight mounts without a second click.
+					if (wasPendingJoin && seatedOnCall) {
+						return { ...next, stageLayout: true };
+					}
+					return next;
+				});
 				// Only sync chat mode while locally seated — not after leave/unseat.
 				if (seatedOnCall) {
 					onModeChangeRef.current(
@@ -430,6 +460,9 @@ export function useDriveSession(
 			const room = message.room;
 			if (Array.isArray(room.chatForks)) {
 				setChatForks(room.chatForks);
+			}
+			if (Array.isArray(room.director?.showBacklog)) {
+				setShowBacklog(room.director.showBacklog as ShowBacklogItem[]);
 			}
 			setDrive((current) => {
 				const humanFlags = room.participantAudio?.find((flag) =>
@@ -751,15 +784,14 @@ export function useDriveSession(
 				});
 			},
 			onToggleSpotlight: () => {
-				// Hub is authoritative; wait for drive_room_changed.
+				const nextId = toggleDriveSpotlightId(drive.spotlightParticipantId);
+				const kind = isDriveHumanId(nextId) ? "human" : "agent";
+				// call_set_stage is authoritative; live spotlight syncs from sharer.
 				postToHost({
-					type: "driveCommand",
-					command: "drive.spotlight.set",
-					payload: {
-						roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
-						participantId: toggleDriveSpotlightId(drive.spotlightParticipantId),
-						reason: "human",
-					},
+					type: "call_set_stage",
+					roomId: drive.roomId ?? DRIVE_DEFAULT_ROOM_ID,
+					sharer: { kind, participantId: nextId },
+					pin: null,
 				});
 			},
 			onToggleWorkers: toggleWorkersPanel,
@@ -806,6 +838,7 @@ export function useDriveSession(
 		stripHandlers,
 		presentedShow,
 		chatForks,
+		showBacklog,
 		workersPanelOpen,
 		focusedAuditHandle,
 		auditMessages,

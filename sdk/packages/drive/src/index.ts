@@ -177,6 +177,11 @@ export {
 	type RankedShow,
 } from "./director/rankBacklogs.js";
 export {
+	normalizeEnqueuedShowStatus,
+	pickNextShowToPresent,
+	type PickNextShowInput,
+} from "./director/pickNextShow.js";
+export {
 	IllegalChatForkError,
 	applyPromotePacket,
 	assertForkLegal,
@@ -195,8 +200,28 @@ export {
 	type ChatForkClaimIntent,
 } from "./director/chatForkLifecycle.js";
 export {
+	classifyStageToolName,
+	looksLikeTestCommand,
+	STAGE_COMMAND_TOOLS,
+	STAGE_EDIT_TOOLS,
+	type StageWorkCategory,
+} from "./work/classifyStageTool.js";
+export {
+	DEFAULT_SHOW_PLANNER_COOLDOWN_MS,
+	planShowIntents,
+	workCategoryFromKind,
+	type PlanShowIntentsInput,
+	type PlanShowIntentsResult,
+	type PlanShowSignal,
+	type PlanShowWorkCategory,
+	type ShowPlannerMode,
+} from "./director/planShowIntents.js";
+export {
 	getShowTemplate,
+	mediaClassForArtifactKind,
 	SHOW_TEMPLATE_KIT,
+	showItemFromTemplate,
+	showItemIdForTemplate,
 	type ShowTemplate,
 } from "./director/showTemplates.js";
 export {

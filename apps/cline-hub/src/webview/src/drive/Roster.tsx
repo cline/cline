@@ -118,6 +118,17 @@ export function Roster({
 									<HandIcon className="size-2.5" />
 								</Badge>
 							) : null}
+							{participant.kind === "human" &&
+							drive.stageSharer === "you" &&
+							drive.stagePin ? (
+								<Badge
+									aria-label={`Sharing ${drive.stagePin.kind}`}
+									className="h-4 px-1 text-[10px]"
+									variant="secondary"
+								>
+									{drive.stagePin.kind}
+								</Badge>
+							) : null}
 						</button>
 					);
 				})}

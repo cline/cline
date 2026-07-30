@@ -231,6 +231,32 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 				ownerParticipantId: asString(payload.ownerParticipantId) ?? "",
 				uri: asString(payload.uri) ?? undefined,
 				caption: asString(payload.caption) ?? undefined,
+				title: asString(payload.title) ?? undefined,
+			});
+		},
+		onDriveShowPlanned(payload) {
+			ctx.broadcast({
+				type: "drive_show_planned",
+				showItemId: asString(payload.showItemId) ?? "",
+				ownerParticipantId: asString(payload.ownerParticipantId) ?? "",
+				title: asString(payload.title) ?? undefined,
+				status: asString(payload.status) ?? undefined,
+				priority:
+					typeof payload.priority === "number" ? payload.priority : undefined,
+			});
+		},
+		onDriveScriptBeat(payload) {
+			ctx.broadcast({
+				type: "drive_script_beat",
+				beatId: asString(payload.beatId) ?? null,
+				say: asString(payload.say) ?? "",
+				showItemId: asString(payload.showItemId) ?? null,
+				stickyShowIds: Array.isArray(payload.stickyShowIds)
+					? payload.stickyShowIds.filter(
+							(id): id is string => typeof id === "string",
+						)
+					: [],
+				activeScriptId: asString(payload.activeScriptId) ?? null,
 			});
 		},
 		onDriveSpotlightChanged(payload) {

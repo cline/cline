@@ -1,6 +1,6 @@
 /** Participant sheet chooser + profile sections (DRV-PARTICIPANT-SHEET). */
 
-import type { Participant } from "@cline/shared";
+import type { Participant, StagePin } from "@cline/shared";
 import { HandIcon, MicOffIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postToHost } from "../vscode";
 import {
+	buildHumanPinDefaults,
+	type HumanPinKind,
+} from "./pinDefaults";
+import {
 	type DriveagentHomeProjection,
 	requestDriveagentHome,
 } from "./requestDriveagentHome";
@@ -28,12 +32,126 @@ import {
 import {
 	applyPartnerDisplayName,
 	applyPartnerNameInk,
+	DRIVE_DEFAULT_ROOM_ID,
+	DRIVE_PARTICIPANT_HUMAN,
+	DRIVE_PARTICIPANT_PARTNER,
 	type DriveUiState,
 	nameInkPaletteColor,
 } from "./types";
 
 export type ParticipantSheetMode = "chooser" | "profile";
 
+function postSetStage(input: {
+	roomId: string | null;
+	sharer: { kind: "human" | "agent"; participantId: string } | null;
+	pin?: StagePin | null;
+}): void {
+	postToHost({
+		type: "call_set_stage",
+		roomId: input.roomId?.trim() || DRIVE_DEFAULT_ROOM_ID,
+		sharer: input.sharer,
+		pin: input.pin === undefined ? undefined : input.pin,
+	});
+}
+
+function StageShareChooser({
+	drive,
+	participant,
+	onDone,
+}: {
+	drive: DriveUiState;
+	participant: Participant;
+	onDone: () => void;
+}) {
+	const [pinOpen, setPinOpen] = useState(false);
+	const defaults = buildHumanPinDefaults(drive.stageCards);
+	const roomId = drive.roomId;
+
+	if (participant.kind === "human") {
+		return (
+			<div className="mt-1 space-y-2 border-t border-border pt-2">
+				<p className="text-[11px] text-muted-foreground">
+					Share pin — take Spotlight with a selection, file, or terminal card.
+				</p>
+				{pinOpen ? (
+					<div className="flex flex-col gap-1.5">
+						{(Object.keys(defaults) as HumanPinKind[]).map((kind) => (
+							<Button
+								className="justify-start"
+								data-testid={`drive-share-pin-${kind}`}
+								key={kind}
+								onClick={() => {
+									postSetStage({
+										roomId,
+										sharer: {
+											kind: "human",
+											participantId: participant.id || DRIVE_PARTICIPANT_HUMAN,
+										},
+										pin: defaults[kind],
+									});
+									onDone();
+								}}
+								size="sm"
+								type="button"
+								variant="secondary"
+							>
+								Pin {kind}
+								<span className="ml-auto max-w-[10rem] truncate text-[10px] text-muted-foreground">
+									{defaults[kind].label}
+								</span>
+							</Button>
+						))}
+						<Button
+							onClick={() => setPinOpen(false)}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							Cancel
+						</Button>
+					</div>
+				) : (
+					<Button
+						className="justify-start"
+						data-testid="drive-share-pin"
+						onClick={() => setPinOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Share pin…
+					</Button>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="mt-1 space-y-2 border-t border-border pt-2">
+			<p className="text-[11px] text-muted-foreground">
+				Return Spotlight to the partner and clear any human pin.
+			</p>
+			<Button
+				className="justify-start"
+				data-testid="drive-return-spotlight"
+				onClick={() => {
+					postSetStage({
+						roomId,
+						sharer: {
+							kind: "agent",
+							participantId: participant.id || DRIVE_PARTICIPANT_PARTNER,
+						},
+						pin: null,
+					});
+					onDone();
+				}}
+				type="button"
+				variant="outline"
+			>
+				Return spotlight
+			</Button>
+		</div>
+	);
+}
 export function ParticipantSheet({
 	open,
 	mode,
@@ -101,6 +219,11 @@ export function ParticipantSheet({
 						>
 							Profile
 						</Button>
+						<StageShareChooser
+							drive={drive}
+							onDone={() => onOpenChange(false)}
+							participant={participant}
+						/>
 					</div>
 				) : (
 					<ParticipantProfileBody

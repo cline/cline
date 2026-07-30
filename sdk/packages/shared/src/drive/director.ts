@@ -80,6 +80,8 @@ export const DoBacklogItemSchema = z
 		status: z.enum(["queued", "active", "blocked", "done"]),
 		dependsOn: z.array(z.string()),
 		source: z.enum(["human", "planner", "router", "system"]),
+		/** Preferred show templates to create on promote. */
+		linkedShowTemplateIds: z.array(z.string()).optional(),
 	})
 	.strict();
 export type DoBacklogItem = z.infer<typeof DoBacklogItemSchema>;
@@ -140,6 +142,12 @@ export const StageDirectorStateSchema = z
 		stickyShowIds: z.array(z.string()),
 		spotlightParticipantId: z.string().min(1).nullable(),
 		lastPresentedAt: z.string().datetime().nullable(),
+		/** Hub show planner: off disables; heuristic is default when unset. */
+		showPlannerMode: z.enum(["off", "heuristic"]).optional(),
+		/** When true (default), work events may tick show director after enqueue. */
+		tickOnWork: z.boolean().optional(),
+		showPlannerCooldownMs: z.number().int().nonnegative().optional(),
+		showPlannerLastAtByTemplate: z.record(z.string(), z.string()).optional(),
 	})
 	.strict();
 export type StageDirectorState = z.infer<typeof StageDirectorStateSchema>;

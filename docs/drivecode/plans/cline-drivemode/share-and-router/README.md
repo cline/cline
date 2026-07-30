@@ -14,6 +14,8 @@ Canonical architecture plan for **demo share** and **multi-agent router**.
 | [../features/DRV-DEMO-SHARE.md](../features/DRV-DEMO-SHARE.md) | Feature checklist |
 | [../features/DRV-AGENT-ROUTER.md](../features/DRV-AGENT-ROUTER.md) | Feature checklist |
 | [../features/DRV-CHAT-FORK.md](../features/DRV-CHAT-FORK.md) | Invisible auditable worker forks |
+| [../features/DRV-SHOW-BACKLOG.md](../features/DRV-SHOW-BACKLOG.md) | Planned Show backlog + director tick |
+| [../show-backlog-director/](../show-backlog-director/) | **Implementable slices** for enqueue → rank → produce → present → script |
 
 **Defaults.** Router `suggest` for multi-agent; fractions off; demo blobs ephemeral; screenshot MVP before video; lexical seated scorer first; chat forks invisible+auditable with PromotePacket merge.
 
@@ -26,5 +28,7 @@ Reconciled against `main` via [PR #39](https://github.com/hhalperin/cline-drivec
 **Landed (partial).** Schemas, pure ranking/routing policy, manual Hub Spotlight and audio-flag ops, Mermaid producer, sticky stage, fraction-routing API scaffolding. ChatForkLifecycle schemas + pure policy + hub `drive.fork.*` (claim/promote/cancel/audit/tick) + Workers audit UI + `?demoChatFork=1` demo ([ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md)).
 
 **Remaining (share/router).** Typed and operational A2A delivery polish, continuous seated director agents, complete template-producer kit, composer router preview/confirmation, voice-slot roster UI, optional seats and fraction routing, upstream license pass, production Spotlight Gaps A/B/C smokes. The simulated share-screen and ChatFork demos demonstrate interaction but do not satisfy the full production pipeline gate.
+
+**Show backlog build-out.** Detailed dependency-mapped implementation plan: [show-backlog-director/overview.md](../show-backlog-director/overview.md). Minimum vertical: slices 1–3 (present trigger → enqueue/rank tick → script sticky). Parallel stage chrome: converge spotlight, Join auto-stage, human pin, classifier collapse ([slice-S](../show-backlog-director/slice-S-spotlight-converge.md)).
 
 **Remaining (chat forks).** Real worktree isolation for overlapping edits ([DRV-ISOLATION](../features/DRV-ISOLATION.md)); wave `runTask` binding; richer agent-stream TranscriptFocus (fork audit pane ships now).

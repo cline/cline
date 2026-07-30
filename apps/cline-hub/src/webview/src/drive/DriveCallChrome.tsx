@@ -159,7 +159,7 @@ export function DriveCallStrip({
 					size="icon-sm"
 					type="button"
 					variant="ghost"
-					title="Toggle spotlight between you and partner"
+					title="Toggle stage sharer (call_set_stage) between you and partner"
 				>
 					<ApertureIcon className="size-3.5" />
 				</Button>

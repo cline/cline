@@ -28,6 +28,13 @@ export function DriveSettingsPanel({
 	onTtsChange,
 	onTtsEnabledChange,
 	onHardwareChange,
+	onPresentSampleDiagram,
+	onEnqueueSampleDiagram,
+	onTickShowDirector,
+	onAttachSampleScript,
+	onAdvanceSampleScript,
+	onSetShowPlannerMode,
+	presentSampleDisabled,
 }: {
 	providerId: string;
 	voice: DriveVoiceUi;
@@ -37,6 +44,16 @@ export function DriveSettingsPanel({
 	onTtsChange: (ttsId: string) => void;
 	onTtsEnabledChange: (enabled: boolean) => void;
 	onHardwareChange: (patch: Partial<DriveHardwarePrefs>) => void;
+	/** Sample / dev — posts drive.show.present (no LLM). */
+	onPresentSampleDiagram?: () => void;
+	/** Sample / dev — enqueue without presenting. */
+	onEnqueueSampleDiagram?: () => void;
+	/** Sample / dev — rank + present top backlog item. */
+	onTickShowDirector?: () => void;
+	onAttachSampleScript?: () => void;
+	onAdvanceSampleScript?: () => void;
+	onSetShowPlannerMode?: (mode: "off" | "heuristic") => void;
+	presentSampleDisabled?: boolean;
 }) {
 	const llm = resolveLlmEgressForUi({
 		profile: voice.profile,
@@ -220,6 +237,101 @@ export function DriveSettingsPanel({
 				{summarizeFacets(voice.facets)} ·{" "}
 				{summarizeHardware(voice.hardware)}
 			</p>
+
+			{onPresentSampleDiagram ? (
+				<div className="space-y-2 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 p-3">
+					<div className="text-xs font-medium text-amber-800 dark:text-amber-200">
+						Sample / dev
+					</div>
+					<p className="text-[11px] text-muted-foreground">
+						Present a fixture architecture diagram onto the sticky stage. No
+						LLM credential required. Used to smoke drive.show.present until the
+						planner lands.
+					</p>
+					<Button
+						data-testid="drive-present-sample-diagram"
+						disabled={presentSampleDisabled}
+						onClick={onPresentSampleDiagram}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						Present sample diagram
+					</Button>
+					{onEnqueueSampleDiagram ? (
+						<Button
+							data-testid="drive-enqueue-sample-diagram"
+							disabled={presentSampleDisabled}
+							onClick={onEnqueueSampleDiagram}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Enqueue sample diagram
+						</Button>
+					) : null}
+					{onTickShowDirector ? (
+						<Button
+							data-testid="drive-tick-show-director"
+							disabled={presentSampleDisabled}
+							onClick={onTickShowDirector}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Tick show director
+						</Button>
+					) : null}
+					{onAttachSampleScript ? (
+						<Button
+							data-testid="drive-attach-sample-script"
+							disabled={presentSampleDisabled}
+							onClick={onAttachSampleScript}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Attach sample script
+						</Button>
+					) : null}
+					{onAdvanceSampleScript ? (
+						<Button
+							data-testid="drive-advance-sample-script"
+							disabled={presentSampleDisabled}
+							onClick={onAdvanceSampleScript}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Next script beat
+						</Button>
+					) : null}
+					{onSetShowPlannerMode ? (
+						<div className="flex flex-wrap gap-2 pt-1">
+							<Button
+								data-testid="drive-planner-heuristic"
+								disabled={presentSampleDisabled}
+								onClick={() => onSetShowPlannerMode("heuristic")}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Planner on
+							</Button>
+							<Button
+								data-testid="drive-planner-off"
+								disabled={presentSampleDisabled}
+								onClick={() => onSetShowPlannerMode("off")}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Planner off
+							</Button>
+						</div>
+					) : null}
+				</div>
+			) : null}
 		</div>
 	);
 }

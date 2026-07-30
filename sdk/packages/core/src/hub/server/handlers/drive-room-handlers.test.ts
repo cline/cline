@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	getDriveRoomStore,
 	resetDriveRoomStoreForTests,
 	shouldDrivePauseAfterTool,
 } from "../../collaboration";
@@ -458,6 +459,144 @@ describe("handleDriveRoomCommand", () => {
 			| undefined;
 		const cards = afterCommand?.stage.cards ?? [];
 		expect(cards.map((c) => c.category).sort()).toEqual(["command", "edit"]);
+	});
+
+	it("call_record_work heuristic planner enqueues show on edit, skips command", () => {
+		resetDriveRoomStoreForTests();
+		const ctx = makeCtx();
+		handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_join",
+			requestId: "j-plan",
+			payload: {
+				roomId: "room_plan",
+				human: { id: "you", displayName: "You" },
+				agent: { id: "adam", displayName: "Adam" },
+			},
+		});
+		ctx.published.length = 0;
+
+		const edit = handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_record_work",
+			requestId: "w-edit",
+			payload: {
+				roomId: "room_plan",
+				work: {
+					kind: "edit",
+					path: "src/foo.ts",
+					summary: "touch foo",
+				},
+			},
+		});
+		expect(edit.ok).toBe(true);
+		expect(
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "drive.show.planned",
+			),
+		).toBe(true);
+		const planned = ctx.published.find(
+			(e) => (e as { event: string }).event === "drive.show.planned",
+		) as {
+			payload?: { scoreReasons?: string[]; title?: string };
+		};
+		expect(planned.payload?.scoreReasons?.some((r) => r.includes("planner:"))).toBe(
+			true,
+		);
+
+		const live = getDriveRoomStore().getOrCreateLive("room_plan");
+		expect(
+			live.director.showBacklog.some(
+				(item) => item.produce.templateId === "walk.code",
+			),
+		).toBe(true);
+
+		ctx.published.length = 0;
+		handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_record_work",
+			requestId: "w-cmd",
+			payload: {
+				roomId: "room_plan",
+				work: {
+					kind: "command",
+					command: "bun test",
+					failed: false,
+				},
+			},
+		});
+		expect(
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "drive.show.planned",
+			),
+		).toBe(false);
+	});
+
+	it("call_record_work with showPlannerMode off does not enqueue", () => {
+		resetDriveRoomStoreForTests();
+		const store = getDriveRoomStore();
+		store.create("room_off");
+		const room = store.getOrCreateLive("room_off");
+		store.setLive({
+			...room,
+			director: { ...room.director, showPlannerMode: "off" },
+			seatedParticipantIds: ["adam"],
+		});
+
+		const ctx = makeCtx();
+		handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_record_work",
+			requestId: "w-off",
+			payload: {
+				roomId: "room_off",
+				work: {
+					kind: "edit",
+					path: "a.ts",
+					summary: "x",
+				},
+			},
+		});
+		expect(
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "drive.show.planned",
+			),
+		).toBe(false);
+	});
+
+	it("test_result planner enqueues doc.plan; plan-mode signal via test maps template", () => {
+		resetDriveRoomStoreForTests();
+		const ctx = makeCtx();
+		handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_join",
+			requestId: "j-test",
+			payload: {
+				roomId: "room_test_plan",
+				human: { id: "you", displayName: "You" },
+				agent: { id: "adam", displayName: "Adam" },
+			},
+		});
+		handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_record_work",
+			requestId: "w-test",
+			payload: {
+				roomId: "room_test_plan",
+				work: {
+					kind: "test_result",
+					label: "auth",
+					passed: true,
+					summary: "ok",
+				},
+			},
+		});
+		const live = getDriveRoomStore().getOrCreateLive("room_test_plan");
+		expect(
+			live.director.showBacklog.some(
+				(item) => item.produce.templateId === "doc.plan",
+			),
+		).toBe(true);
 	});
 
 	it("call_get_room returns current snapshot; missing room errors", () => {

@@ -52,6 +52,10 @@ describe("DriveRoomStore", () => {
 		});
 		expect(store.getOrThrow("room_1").stage.sharer?.participantId).toBe("you");
 		expect(store.getOrThrow("room_1").stage.pin?.kind).toBe("file");
+		expect(store.getOrCreateLive("room_1").spotlightParticipantId).toBe("you");
+		expect(
+			store.getOrCreateLive("room_1").director.spotlightParticipantId,
+		).toBe("you");
 
 		store.setMode({
 			roomId: "room_1",
@@ -70,6 +74,59 @@ describe("DriveRoomStore", () => {
 		const afterLeave = store.getOrThrow("room_1");
 		expect(afterLeave.participants).toHaveLength(0);
 		expect(afterLeave.driveActive).toBe(true);
+	});
+
+	it("syncLiveFromSnapshot always overwrites live spotlight from stage sharer", () => {
+		const store = new DriveRoomStore();
+		store.create("room_sync");
+		store.join({
+			roomId: "room_sync",
+			participant: {
+				id: "you",
+				kind: "human",
+				displayName: "You",
+				role: "host",
+				status: "idle",
+			},
+		});
+		store.join({
+			roomId: "room_sync",
+			participant: {
+				id: "adam",
+				kind: "agent",
+				displayName: "Adam",
+				role: "partner",
+				status: "idle",
+				seatSources: [],
+			},
+		});
+		store.setStage({
+			roomId: "room_sync",
+			sharer: { kind: "agent", participantId: "adam" },
+		});
+		expect(store.getOrCreateLive("room_sync").spotlightParticipantId).toBe(
+			"adam",
+		);
+
+		// Simulate a divergent live spotlight (pre-converge / dual-write race).
+		const live = store.getOrCreateLive("room_sync");
+		store.setLive({
+			...live,
+			spotlightParticipantId: "you",
+			director: { ...live.director, spotlightParticipantId: "you" },
+		});
+		expect(store.getOrCreateLive("room_sync").spotlightParticipantId).toBe(
+			"you",
+		);
+
+		store.setStage({
+			roomId: "room_sync",
+			sharer: { kind: "agent", participantId: "adam" },
+			pin: null,
+		});
+		const synced = store.getOrCreateLive("room_sync");
+		expect(synced.spotlightParticipantId).toBe("adam");
+		expect(synced.director.spotlightParticipantId).toBe("adam");
 	});
 
 	it("is idempotent on re-join of the same participant id", () => {
@@ -131,6 +188,19 @@ describe("DriveRoomStore", () => {
 		expect(store.getRoomIdForSession("sess_1")).toBe("room_link");
 		store.unlinkSession("sess_1");
 		expect(store.getRoomIdForSession("sess_1")).toBeUndefined();
+	});
+
+	it("setAddress commits control.address onto the snapshot", () => {
+		const store = new DriveRoomStore();
+		store.create("room_addr");
+		store.setAddress({
+			roomId: "room_addr",
+			addressSet: { mode: "agents", agentIds: ["adam"] },
+		});
+		expect(store.getOrThrow("room_addr").addressSet).toEqual({
+			mode: "agents",
+			agentIds: ["adam"],
+		});
 	});
 });
 

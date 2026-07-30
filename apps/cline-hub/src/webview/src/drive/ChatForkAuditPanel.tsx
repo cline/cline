@@ -1,11 +1,14 @@
-import type { ChatForkRecord } from "@cline/shared";
+import type { ChatForkRecord, ShowBacklogItem } from "@cline/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { showIdsForFork } from "./chatForkSession";
 
-export { isChatForkSession } from "./chatForkSession";
+export { isChatForkSession, showIdsForFork } from "./chatForkSession";
 
 export type ChatForkAuditPanelProps = {
 	forks: ChatForkRecord[];
+	/** Director show backlog — used to list shows created/linked for a Do. */
+	showBacklog?: ShowBacklogItem[];
 	focusedAuditHandle: string | null;
 	auditMessages: unknown[];
 	summaryOnly: boolean;
@@ -18,6 +21,7 @@ export type ChatForkAuditPanelProps = {
 
 export function ChatForkAuditPanel({
 	forks,
+	showBacklog = [],
 	focusedAuditHandle,
 	auditMessages,
 	summaryOnly,
@@ -36,6 +40,9 @@ export function ChatForkAuditPanel({
 			fork.workerSessionId === focusedAuditHandle ||
 			fork.promote?.auditHandle === focusedAuditHandle,
 	);
+	const focusedShowIds = focused
+		? showIdsForFork(focused, showBacklog)
+		: [];
 
 	return (
 		<aside
@@ -57,46 +64,54 @@ export function ChatForkAuditPanel({
 				</p>
 			) : (
 				<ul className="flex flex-col gap-2">
-					{forks.map((fork) => (
-						<li
-							className="rounded border border-border/60 p-2"
-							key={fork.workerSessionId}
-						>
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								<div>
-									<p className="font-medium">{fork.seed.title}</p>
-									<p className="text-xs text-muted-foreground">
-										{fork.lifecycle} · {fork.seed.doItemId}
-									</p>
-								</div>
-								<div className="flex gap-1">
-									<Button
-										onClick={() => onOpenAudit(fork.workerSessionId)}
-										size="sm"
-										type="button"
-										variant="outline"
-									>
-										Open audit
-									</Button>
-									{fork.promote ? (
+					{forks.map((fork) => {
+						const showIds = showIdsForFork(fork, showBacklog);
+						return (
+							<li
+								className="rounded border border-border/60 p-2"
+								key={fork.workerSessionId}
+							>
+								<div className="flex flex-wrap items-center justify-between gap-2">
+									<div>
+										<p className="font-medium">{fork.seed.title}</p>
+										<p className="text-xs text-muted-foreground">
+											{fork.lifecycle} · {fork.seed.doItemId}
+										</p>
+										{showIds.length > 0 ? (
+											<p className="text-xs text-muted-foreground">
+												Shows: {showIds.join(", ")}
+											</p>
+										) : null}
+									</div>
+									<div className="flex gap-1">
 										<Button
-											onClick={() =>
-												onRetain(
-													fork.workerSessionId,
-													!fork.promote?.retainForAudit,
-												)
-											}
+											onClick={() => onOpenAudit(fork.workerSessionId)}
 											size="sm"
 											type="button"
-											variant="ghost"
+											variant="outline"
 										>
-											{fork.promote.retainForAudit ? "Drop" : "Retain"}
+											Open audit
 										</Button>
-									) : null}
+										{fork.promote ? (
+											<Button
+												onClick={() =>
+													onRetain(
+														fork.workerSessionId,
+														!fork.promote?.retainForAudit,
+													)
+												}
+												size="sm"
+												type="button"
+												variant="ghost"
+											>
+												{fork.promote.retainForAudit ? "Drop" : "Retain"}
+											</Button>
+										) : null}
+									</div>
 								</div>
-							</div>
-						</li>
-					))}
+							</li>
+						);
+					})}
 				</ul>
 			)}
 			{focused ? (
@@ -107,9 +122,15 @@ export function ChatForkAuditPanel({
 					{summaryOnly || focused.lifecycle === "dropped" ? (
 						<div className="space-y-1 text-xs">
 							<p>{focused.promote?.summary ?? "No summary"}</p>
-							{focused.promote?.showItemIds?.length ? (
+							{focusedShowIds.length ? (
 								<p className="text-muted-foreground">
-									Show ids: {focused.promote.showItemIds.join(", ")}
+									Show ids: {focusedShowIds.join(", ")}
+								</p>
+							) : null}
+							{focused.seed.linkedShowTemplateIds.length > 0 ? (
+								<p className="text-muted-foreground">
+									Templates:{" "}
+									{focused.seed.linkedShowTemplateIds.join(", ")}
 								</p>
 							) : null}
 						</div>

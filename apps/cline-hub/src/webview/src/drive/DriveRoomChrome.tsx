@@ -9,6 +9,14 @@ import { clearVoiceCaptionDraft } from "./voice/voiceCaptionState";
 import { Roster } from "./Roster";
 import { applyTranscriptFocus } from "./rosterHelpers";
 import {
+	advanceSampleScript,
+	attachSampleHoldScript,
+	enqueueSampleArchitectureShow,
+	presentSampleArchitectureShow,
+	setShowPlannerMode,
+	tickShowDirector,
+} from "./sampleShowPresent";
+import {
 	applyHardwarePrefsPatch,
 	applyVoiceFacetPatch,
 	applyVoiceProfile,
@@ -97,6 +105,25 @@ export function DriveRoomChrome({
 							}),
 						);
 					}}
+					onPresentSampleDiagram={() => {
+						presentSampleArchitectureShow(drive.roomId);
+					}}
+					onEnqueueSampleDiagram={() => {
+						enqueueSampleArchitectureShow(drive.roomId);
+					}}
+					onTickShowDirector={() => {
+						tickShowDirector(drive.roomId);
+					}}
+					onAttachSampleScript={() => {
+						attachSampleHoldScript(drive.roomId);
+					}}
+					onAdvanceSampleScript={() => {
+						advanceSampleScript(drive.roomId);
+					}}
+					onSetShowPlannerMode={(mode) => {
+						setShowPlannerMode(mode, drive.roomId);
+					}}
+					presentSampleDisabled={disabled || !drive.active}
 					providerId={providerId}
 					voice={driveVoice}
 				/>

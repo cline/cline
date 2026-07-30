@@ -7,6 +7,7 @@
  */
 
 import type { StageCard, StageSharer, StageState } from "@cline/shared";
+import { classifyStageToolName } from "@cline/drive";
 
 /** Chat message toolEvents row (webview-protocol shape). */
 export type StageToolEvent = {
@@ -32,27 +33,6 @@ const STAGE_CATEGORIES: readonly StageCategory[] = [
 	"command",
 	"test",
 ] as const;
-
-const EDIT_TOOLS = new Set([
-	"editor",
-	"apply_patch",
-	"write_to_file",
-	"replace_in_file",
-	"edit",
-	"str_replace",
-	"create_file",
-]);
-
-const COMMAND_TOOLS = new Set([
-	"run_commands",
-	"bash",
-	"execute_command",
-	"shell",
-	"run_terminal_cmd",
-]);
-
-const TEST_NAME_RE =
-	/\b(test|tests|vitest|jest|pytest|mocha|playwright|cypress|bun\s+test)\b/i;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -139,28 +119,11 @@ function pathFromPatch(input: unknown): string | undefined {
 	return match?.[1]?.trim();
 }
 
-function looksLikeTestCommand(command: string | undefined): boolean {
-	if (!command) {
-		return false;
-	}
-	return TEST_NAME_RE.test(command);
-}
-
 export function classifyToolEvent(
 	event: Pick<StageToolEvent, "name" | "input" | "text">,
 ): StageCategory | null {
-	const name = event.name.trim().toLowerCase();
-	if (EDIT_TOOLS.has(name)) {
-		return "edit";
-	}
-	if (COMMAND_TOOLS.has(name) || name.includes("command") || name === "bash") {
-		const command = firstCommandFromInput(event.input) ?? event.text;
-		return looksLikeTestCommand(command) ? "test" : "command";
-	}
-	if (name.includes("test")) {
-		return "test";
-	}
-	return null;
+	const commandHint = firstCommandFromInput(event.input) ?? event.text;
+	return classifyStageToolName(event.name, commandHint);
 }
 
 function titleForEvent(

@@ -282,6 +282,12 @@ export type WebviewInboundMessage =
 				| "drive.participant.mute.set"
 				| "drive.participant.deafen.set"
 				| "drive.show.present"
+				| "drive.show.enqueue"
+				| "drive.show.tick"
+				| "drive.do.enqueue"
+				| "drive.planner.set"
+				| "drive.script.attach"
+				| "drive.script.advance"
 				| "drive.fork.list"
 				| "drive.fork.audit.get"
 				| "drive.fork.retain.set";
@@ -331,6 +337,14 @@ export type WebviewInboundMessage =
 				label: string;
 				ref?: string;
 			} | null;
+	  }
+	| {
+			type: "call_set_address";
+			roomId: string;
+			addressSet:
+				| { mode: "everyone" }
+				| { mode: "agents"; agentIds: string[] }
+				| { mode: "pack"; packId: string };
 	  }
 	| {
 			type: "call_set_mode";
@@ -519,6 +533,23 @@ export type WebviewOutboundMessage =
 			ownerParticipantId: string;
 			uri?: string;
 			caption?: string;
+			title?: string;
+	  }
+	| {
+			type: "drive_show_planned";
+			showItemId: string;
+			ownerParticipantId: string;
+			title?: string;
+			status?: string;
+			priority?: number;
+	  }
+	| {
+			type: "drive_script_beat";
+			beatId: string | null;
+			say: string;
+			showItemId: string | null;
+			stickyShowIds: string[];
+			activeScriptId: string | null;
 	  }
 	| {
 			type: "drive_spotlight_changed";
