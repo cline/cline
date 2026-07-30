@@ -115,6 +115,8 @@ export function createClineDriveHost(
 						presented: result.presented,
 						planned: result.planned,
 						liveRoom: result.room,
+						errorCode: result.errorCode,
+						errorMessage: result.errorMessage,
 					};
 				}
 				case "tickShow": {

@@ -51,6 +51,24 @@ Agents working the same phase must not share write targets. Features in one phas
 - `create-skill` when DRV-SKILL-PORT authors skill files.
 - Drive's own runtime hooks are product code (DRV-HOOK-POLICY), not agent tooling. Do not confuse the two.
 
+## Diagram-first vs diagram-show (Cline skills)
+
+Honor [`.claude/diagram-conventions.md`](../../../../.claude/diagram-conventions.md). Skills live under `.agents/skills/` (Cline discovers them; SDK-backed, not Claude plugins).
+
+| Skill | When |
+|---|---|
+| **`diagram-first`** | Structural nest docs: ARDs, [architecture.md](../../architecture.md), share-and-router, ops topology, show-backlog DAGs |
+| **`diagram-show`** | Enqueue/present `diagram.*` Show items via `SHOW_TEMPLATE_KIT` + `drive.show.*` |
+
+**Do not** use diagram-first as the default for feature checklists or PR implementation plans — use visual-plan / the DRV checklist. Do not replace [TASK-GRAPH.md](TASK-GRAPH.md) with date `gantt` charts.
+
+When shipping structural nest Mermaid:
+
+1. Edit existing ` ```mermaid ` fences in place (stable node IDs).
+2. Caption ≤5 bullets; never narrate arrows; list open questions from blind spots.
+3. Gate with `bun sdk/scripts/validate-mermaid.ts <doc.md>` (same rules as `@cline/drive` `validateMermaidSource`).
+4. After correcting a naming mistake, offer to record the rule in `.claude/diagram-conventions.md`.
+
 ## Hard constraints (repeat offenders)
 
 - No second daemon. Nothing listens on `:7891`. The hub on `:25463` is the only server.

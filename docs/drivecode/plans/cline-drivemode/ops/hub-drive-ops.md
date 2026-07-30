@@ -61,6 +61,39 @@ Recruit never writes participants by itself (ARD-0003).
 
 See [DRV-GATES](../features/DRV-GATES.md).
 
+## Director / Show / planner ops
+
+Landed with [DRV-SHOW-BACKLOG](../features/DRV-SHOW-BACKLOG.md) (slices 1–7 + S on main).
+Pure rank/script in `@cline/drive`; commit/broadcast in `@cline/core`.
+Parse gate: `@cline/drive` `validateMermaidSource`. Cline skill: **`diagram-show`**.
+Names: [`.claude/diagram-conventions.md`](../../../../../.claude/diagram-conventions.md).
+
+```mermaid
+flowchart LR
+  ShowPlanner["ShowPlanner"] -->|"drive.planner.set / planShowIntents"| ShowBacklog["ShowBacklog"]
+  DoBacklog["DoBacklog"] -->|"drive.do.enqueue + ForkPromote"| ShowBacklog
+  ShowBacklog -->|"drive.show.enqueue"| ShowBacklog
+  ShowBacklog -->|"drive.show.tick"| MermaidProduce["MermaidProduce"]
+  ShowBacklog -->|"drive.show.present"| MermaidProduce
+  MermaidProduce -->|"drive.show.presented"| StickyStagePane["StickyStagePane"]
+  DirectorScript["DirectorScript"] -->|"drive.script.attach / advance"| StickyStagePane
+```
+
+| Op | Intent | Idempotent | Broadcast (conceptual) |
+|---|---|---|---|
+| `drive.show.enqueue` | Add/replace `ShowBacklogItem`; optional present-now tick | Yes (same id replaces) | `drive.show.planned`; room live |
+| `drive.show.present` | Materialize (parse-gated mermaid) + set sticky showing | Yes (re-present) | `drive.show.presented` |
+| `drive.show.tick` | Rank ready/planned → present winner | Yes (no-op if empty) | `drive.show.presented` when materialized |
+| `drive.do.enqueue` | Add `DoBacklogItem` for fork claim | Yes (same id) | room live |
+| `drive.planner.set` | `showPlanner: off \| heuristic` (+ cooldown knobs) | Yes | room live |
+| `drive.script.attach` | Attach `DirectorScript` to live director | Yes | room live |
+| `drive.script.advance` | `advanceScriptBeat`; sticky hold while `say` changes | Append beat cursor | `drive.script.beat` |
+| `drive.fork.*` | Claim/promote Do; promote may create Show from kit | Per-op | room live / planned show |
+
+**Fail closed:** `render_mermaid` without parse-valid `mermaidSource` does not get a `uri` and is not presented onto `StickyStagePane`.
+
+See [show-backlog-director/overview.md](../show-backlog-director/overview.md).
+
 ## Failure modes (minimum UX)
 
 | Condition | Client UX | Hub behavior |
@@ -73,6 +106,8 @@ See [DRV-GATES](../features/DRV-GATES.md).
 | Isolation unavailable + teamOpt seat | Fail closed (DRV-ISOLATION) | Typed error |
 | Stale definition while seated | Mark seat stale; require reseat for definition swap | No mid-turn hot-swap |
 | Privacy debug off | No transcript/audio persist paths | Enforce retention caps |
+| Invalid mermaidSource on present/tick | No sticky update; item stays without uri | Materialize fails closed; `mermaid_parse_failed` |
+| Planner off | No auto-enqueue from work | `planShowIntents` returns `planner_off` |
 
 ## Snapshot / reconnect
 

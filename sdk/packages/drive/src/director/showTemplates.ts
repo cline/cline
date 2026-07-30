@@ -9,6 +9,32 @@ export type ShowTemplate = {
 	defaultArgs: Record<string, unknown>;
 };
 
+/**
+ * Convention-stable Mermaid for diagram.* kit entries.
+ * Prefer these (and nest living fences) over free-form invent.
+ * Names match `.claude/diagram-conventions.md` / diagram-first skill.
+ */
+export const KIT_MERMAID_ARCH_OVERVIEW = `flowchart LR
+  HubDaemon --> StatusPlane
+  HubDaemon --> RoomPlane
+  RoomPlane --> DriveLive
+  DriveLive --> ShowBacklog
+  ShowBacklog --> MermaidProduce
+  MermaidProduce --> StickyStagePane`;
+
+export const KIT_MERMAID_FLOW_DATA = `flowchart LR
+  ShowPlanner -->|"ShowBacklogItem"| ShowBacklog
+  DoBacklog -->|"ForkPromote"| ShowBacklog
+  ShowBacklog -->|"rank"| MermaidProduce
+  MermaidProduce --> StickyStagePane`;
+
+export const KIT_MERMAID_SEC_NETWORK = `flowchart TB
+  subgraph localhostTrust["localhost trust boundary"]
+    HubDaemon
+    StickyStagePane
+  end
+  HubDaemon -.->|"no remoteBridge by default"| RemoteClients["remote clients"]`;
+
 /** MVP kit for planner/screen-manager produce steps. */
 export const SHOW_TEMPLATE_KIT: readonly ShowTemplate[] = [
 	{
@@ -17,7 +43,11 @@ export const SHOW_TEMPLATE_KIT: readonly ShowTemplate[] = [
 		title: "Architecture overview",
 		intent: "Explain system layout before coding",
 		produceTool: "render_mermaid",
-		defaultArgs: { diagramType: "architecture" },
+		defaultArgs: {
+			diagramType: "architecture",
+			mermaidSource: KIT_MERMAID_ARCH_OVERVIEW,
+			source: "SHOW_TEMPLATE_KIT",
+		},
 	},
 	{
 		templateId: "flow.data",
@@ -25,7 +55,11 @@ export const SHOW_TEMPLATE_KIT: readonly ShowTemplate[] = [
 		title: "Data flow",
 		intent: "Show how data moves across boundaries",
 		produceTool: "render_mermaid",
-		defaultArgs: { diagramType: "data_flow" },
+		defaultArgs: {
+			diagramType: "data_flow",
+			mermaidSource: KIT_MERMAID_FLOW_DATA,
+			source: "SHOW_TEMPLATE_KIT",
+		},
 	},
 	{
 		templateId: "sec.network",
@@ -33,7 +67,11 @@ export const SHOW_TEMPLATE_KIT: readonly ShowTemplate[] = [
 		title: "Network / security boundaries",
 		intent: "Explain trust boundaries and egress",
 		produceTool: "render_mermaid",
-		defaultArgs: { diagramType: "network_security" },
+		defaultArgs: {
+			diagramType: "network_security",
+			mermaidSource: KIT_MERMAID_SEC_NETWORK,
+			source: "SHOW_TEMPLATE_KIT",
+		},
 	},
 	{
 		templateId: "walk.code",
@@ -103,6 +141,7 @@ export function showItemIdForTemplate(
 
 /**
  * Build a ready ShowBacklogItem from SHOW_TEMPLATE_KIT (or null if unknown).
+ * Diagram templates include convention-stable mermaidSource in produce.args.
  */
 export function showItemFromTemplate(input: {
 	templateId: string;
@@ -119,7 +158,7 @@ export function showItemFromTemplate(input: {
 	return {
 		id:
 			input.showItemId ??
-			showItemIdForTemplate(input.templateId, input.linkedDoItemId),
+			showItemIdForTemplate(template.templateId, input.linkedDoItemId),
 		ownerParticipantId: input.ownerParticipantId,
 		title: template.title,
 		intent: template.intent,

@@ -258,12 +258,21 @@ export {
 } from "./director/planShowIntents.js";
 export {
 	getShowTemplate,
+	KIT_MERMAID_ARCH_OVERVIEW,
+	KIT_MERMAID_FLOW_DATA,
+	KIT_MERMAID_SEC_NETWORK,
 	mediaClassForArtifactKind,
 	SHOW_TEMPLATE_KIT,
 	showItemFromTemplate,
 	showItemIdForTemplate,
 	type ShowTemplate,
 } from "./director/showTemplates.js";
+export {
+	assertMermaidSource,
+	MermaidParseError,
+	validateMermaidSource,
+	type MermaidParseResult,
+} from "./director/validateMermaidSource.js";
 export {
 	assertDeliveryAllowed,
 	assertRouteLegal,

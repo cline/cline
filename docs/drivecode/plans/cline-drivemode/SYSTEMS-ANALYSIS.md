@@ -1,9 +1,9 @@
 # Systems analysis · cline-drivecode (Drive product)
 
-**Document type.** Professional systems analysis (product + architecture).  
-**Audience.** SE leads, PMs, implementers, reviewers.  
-**Status.** Living analysis aligned to the leadership planning wave.  
-**Date.** 2026-07-25.  
+**Document type.** Professional systems analysis (product + architecture).
+**Audience.** SE leads, PMs, implementers, reviewers.
+**Status.** Living analysis aligned to the leadership planning wave.
+**Date.** 2026-07-25.
 **Method.** Context → actors → functions → structure → data → interfaces → behavior → NFRs → failures → as-is/to-be → recommendations.
 
 Companion docs: [LEADERSHIP-BRIEF.md](LEADERSHIP-BRIEF.md), [01-architecture.md](01-architecture.md), [ops/hub-drive-ops.md](ops/hub-drive-ops.md), [05-workflows.md](05-workflows.md), [../drivecode-sdk/02-architecture.md](../drivecode-sdk/02-architecture.md).
@@ -252,11 +252,11 @@ All surfaces converge on a versioned `DriveEvent` union (`DRV-EVENTS`): presence
 
 See [ops/hub-drive-ops.md](ops/hub-drive-ops.md). Families:
 
-- Room/call: join, leave, end, mute, stage, mode, address, raise hand, steer, focus  
-- Roster: seat, unseat, add/remove pack  
-- Recruit: query-only; seat via separate op  
-- Config/home: get/put facets, profile patch, home get/put, compile  
-- Gates/learn: resolve gate; propose/resolve learn  
+- Room/call: join, leave, end, mute, stage, mode, address, raise hand, steer, focus
+- Roster: seat, unseat, add/remove pack
+- Recruit: query-only; seat via separate op
+- Config/home: get/put facets, profile patch, home get/put, compile
+- Gates/learn: resolve gate; propose/resolve learn
 
 ### 9.3 Package APIs (planned)
 
@@ -271,12 +271,12 @@ See [ops/hub-drive-ops.md](ops/hub-drive-ops.md). Families:
 
 ### 9.4 Underspecified for E2E (must freeze in Phase 0)
 
-1. Exact hub command/reply envelope and error codes  
-2. Human participant identity across webview + CLI  
-3. Hook rewrite allowlist ↔ persona injection migration from Chat `systemPrompt` side channel  
-4. Compile mapping: home YAML → host `ConfiguredAgent`-shaped view  
-5. Gate class ↔ concrete Cline tool name table  
-6. Guidance artifact event schemas  
+1. Exact hub command/reply envelope and error codes
+2. Human participant identity across webview + CLI
+3. Hook rewrite allowlist ↔ persona injection migration from Chat `systemPrompt` side channel
+4. Compile mapping: home YAML → host `ConfiguredAgent`-shaped view
+5. Gate class ↔ concrete Cline tool name table
+6. Guidance artifact event schemas
 
 ---
 
@@ -284,44 +284,44 @@ See [ops/hub-drive-ops.md](ops/hub-drive-ops.md). Families:
 
 ### 10.1 Join (control)
 
-1. UI → `call_join` / `joinCall()`  
-2. Hub validates → `createOrAttach`  
-3. Seat human + pair partner (seed defaults)  
-4. Broadcast state  
-5. Clients `reduceRoom`  
-6. Focused room only may run turns  
+1. UI → `call_join` / `joinCall()`
+2. Hub validates → `createOrAttach`
+3. Seat human + pair partner (seed defaults)
+4. Broadcast state
+5. Clients `reduceRoom`
+6. Focused room only may run turns
 
 ### 10.2 Addressed send + work (control + data)
 
-1. Set `addressSet`  
-2. Resolve address (empty pack → reject, never widen)  
-3. Optional honest prompt rewrite via hooks  
-4. Host commits turn to agent runtime  
-5. Work facts → Drive events  
-6. Narration policy may emit decision cards  
-7. Broadcast → stage/feed projections  
+1. Set `addressSet`
+2. Resolve address (empty pack → reject, never widen)
+3. Optional honest prompt rewrite via hooks
+4. Host commits turn to agent runtime
+5. Work facts → Drive events
+6. Narration policy may emit decision cards
+7. Broadcast → stage/feed projections
 
 ### 10.3 Gate (control)
 
-1. Classify tool → gate event  
-2. Feed card approve/deny/allow-session  
-3. Hub resolves; deny forces replan (no silent retry)  
-4. Session allows die on leave  
+1. Classify tool → gate event
+2. Feed card approve/deny/allow-session
+3. Hub resolves; deny forces replan (no silent retry)
+4. Session allows die on leave
 
 ### 10.4 Recruit → seat (control)
 
-1. `drive_recruit` query over compiled graphs  
-2. Human picks  
-3. `room_seat` with `seatSources`  
-4. Cap / teamOpt / isolation enforced  
-5. Address set not auto-expanded  
+1. `drive_recruit` query over compiled graphs
+2. Human picks
+3. `room_seat` with `seatSources`
+4. Cap / teamOpt / isolation enforced
+5. Address set not auto-expanded
 
 ### 10.5 SDLC guidance (control + data)
 
-1. Intent phrase → guidance loop (not join wizard)  
-2. Stage cards: problem → requirements → options → decision → checklist  
-3. “Just build X” → escape to work loop  
-4. Artifacts session-tier unless explicit export/accept  
+1. Intent phrase → guidance loop (not join wizard)
+2. Stage cards: problem → requirements → options → decision → checklist
+3. “Just build X” → escape to work loop
+4. Artifacts session-tier unless explicit export/accept
 
 ---
 
@@ -371,33 +371,48 @@ See [ops/hub-drive-ops.md](ops/hub-drive-ops.md). Families:
 
 ## 13. As-is vs to-be
 
-### 13.1 As-is (code)
+> **Living-diagram note (2026-07-30).** §13.1 below was the pre-landing inventory.
+> Treat dashed rows as **designed-vs-actual closed**. Current truth: nest
+> [HANDOFF.md](../../HANDOFF.md), [architecture.md](../../architecture.md),
+> [ops/hub-drive-ops.md](ops/hub-drive-ops.md). Cline skills: `diagram-first`, `diagram-show`.
 
-| Present | Absent |
+### 13.1 As-is (code) — historical snapshot (2026-07-25)
+
+| Then present | Then absent (now landed unless noted) |
 |---|---|
-| `DriveCallChrome`, local `DriveUiState` | `@cline/drive` package |
-| Chat Join + persona string inject | Hub collaboration rooms |
-| CLI `Ctrl+Shift+D` local flags | Drive tab route / channels |
-| Example `.driveagent` fixture (docs) | Home loader / compile / recruit |
-| Plans, wireframes, ARDs/DECs | Shared `src/drive` schemas |
+| `DriveCallChrome`, local `DriveUiState` | `@cline/drive` package — **landed**; prefer hub `RoomSnapshot` + `reduceRoom` |
+| Chat Join + persona string inject | Hub collaboration rooms — **landed** (`call_*` / `drive.*`) |
+| CLI `Ctrl+Shift+D` local flags | Drive tab / Status Hub — **landed** in hub webview |
+| Example `.driveagent` fixture (docs) | Home loader / compile / recruit — partial; see DRV features |
+| Plans, wireframes, ARDs/DECs | Shared drive schemas — **landed** in `@cline/shared` |
+| — | Show director dual backlog — **landed** (DRV-SHOW-BACKLOG on main) |
+
+```mermaid
+flowchart LR
+  subgraph closed["Authority migration — closed"]
+    ChatLocal["Chat-local DriveUiState"] -.->|"migrated"| HubRoom["Hub RoomSnapshot + reduceRoom"]
+  end
+  HubRoom --> DriveLive["DriveLive + ShowBacklog"]
+```
 
 ### 13.2 To-be (MVP product)
 
-| Capability | Phase gate |
-|---|---|
-| Schemas, kernel, privacy, facets, home compile fixture | Phase 0 |
-| Hub rooms, Drive tab, sheet, gates MVP, discovery/teach | Phase 1 |
-| Stage, address, packs, recruit, SDLC stage cards | Phase 2 |
-| Voice | Phase 3 |
-| CLI parity, isolation + teamOpt | Phase 4 |
-| Multi-user media design review | Phase 5 |
+| Capability | Phase gate | Note |
+|---|---|---|
+| Schemas, kernel, privacy, facets, home compile fixture | Phase 0 | Largely on main |
+| Hub rooms, Drive tab, sheet, gates MVP, discovery/teach | Phase 1 | Rooms + Drive tab on main; gates UI still open |
+| Stage, address, packs, recruit, SDLC stage cards | Phase 2 | Stage + show director on main; packs/recruit open |
+| Voice | Phase 3 | Open |
+| CLI parity, isolation + teamOpt | Phase 4 | Open |
+| Multi-user media design review | Phase 5 | Open |
 
 ### 13.3 Migration of authority
 
 ```text
-Chat-local DriveUiState  ──replace──►  Hub RoomSnapshot + reduceRoom
+Chat-local DriveUiState  ──done──►  Hub RoomSnapshot + reduceRoom
 systemPrompt persona side channel ──►  Hooks rewrite allowlist + Drive active
 ConfiguredAgent-only mental model ──►  .driveagent compile → single runtime
+Show reactive-only stage  ──done──►  ShowBacklog + DirectorScript + StickyStagePane
 ```
 
 ---
@@ -437,10 +452,10 @@ Full workflow coverage: [MATRIX-workflow-coverage.md](MATRIX-workflow-coverage.m
 
 ### 16.1 Immediate (before more UI chrome)
 
-1. Clear [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) (`accept all` or explicit changes).  
-2. Freeze interface list in §9.4 inside schema/ops ADRs as code lands.  
-3. Scaffold `@cline/shared` drive types + `@cline/drive` + compile fixture test.  
-4. Add import lint: apps must not reimplement `reduceRoom`.  
+1. Clear [CHECKLIST-phase0-entry.md](CHECKLIST-phase0-entry.md) (`accept all` or explicit changes).
+2. Freeze interface list in §9.4 inside schema/ops ADRs as code lands.
+3. Scaffold `@cline/shared` drive types + `@cline/drive` + compile fixture test.
+4. Add import lint: apps must not reimplement `reduceRoom`.
 
 ### 16.2 Phase 1 product bar
 
@@ -448,9 +463,9 @@ Ship **hub-owned rooms + Drive tab shell** that makes scaffold Join obsolete. In
 
 ### 16.3 Explicit non-work
 
-- Do not invest in richer Chat Drive chrome that diverges from hub snapshots.  
-- Do not start WebRTC.  
-- Do not enable `teamOpt` without isolation.  
+- Do not invest in richer Chat Drive chrome that diverges from hub snapshots.
+- Do not start WebRTC.
+- Do not enable `teamOpt` without isolation.
 - Do not open a separate `drivecode-sdk` repo.
 
 ### 16.4 E2E slice order (dependency-honest)
@@ -484,5 +499,6 @@ Schemas & privacy asserts
 | Version | Change |
 |---|---|
 | 2026-07-25 | Initial E2E systems analysis from leadership wave + plan/code inventory |
+| 2026-07-30 | §13 living-diagram refresh; point at HANDOFF / architecture / hub-drive-ops / Cline diagram skills |
 
 When implementation lands, update §13 as-is column and tick §9.4 items as frozen. Do not fork a second analysis doc—amend this one.

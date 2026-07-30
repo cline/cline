@@ -43,26 +43,47 @@ export function materializeShowItem(
 		case "render_mermaid": {
 			const mermaidSource = showItem.produce.args.mermaidSource;
 			if (typeof mermaidSource !== "string" || !mermaidSource.trim()) {
-				return showItem;
+				return {
+					...showItem,
+					scoreReasons: [
+						...new Set([
+							...showItem.scoreReasons,
+							"mermaid_parse_failed:empty mermaidSource",
+						]),
+					],
+				};
 			}
-			const produced = produceMermaidShowArtifact({
-				mermaidSource,
-				ownerParticipantId: showItem.ownerParticipantId,
-				title: showItem.title,
-				caption: showItem.caption,
-				templateId: showItem.produce.templateId,
-			});
-			return {
-				...showItem,
-				uri: produced.item.uri,
-				status: "ready",
-				scoreReasons: [
-					...new Set([
-						...showItem.scoreReasons,
-						...produced.item.scoreReasons,
-					]),
-				],
-			};
+			try {
+				const produced = produceMermaidShowArtifact({
+					mermaidSource,
+					ownerParticipantId: showItem.ownerParticipantId,
+					title: showItem.title,
+					caption: showItem.caption,
+					templateId: showItem.produce.templateId,
+				});
+				return {
+					...showItem,
+					uri: produced.item.uri,
+					status: "ready",
+					scoreReasons: [
+						...new Set([
+							...showItem.scoreReasons,
+							...produced.item.scoreReasons,
+						]),
+					],
+				};
+			} catch (error) {
+				const reason =
+					error instanceof Error
+						? error.message
+						: "mermaid_parse_failed:unknown";
+				return {
+					...showItem,
+					scoreReasons: [
+						...new Set([...showItem.scoreReasons, reason]),
+					],
+				};
+			}
 		}
 		case "render_plan_card": {
 			const stepsRaw = showItem.produce.args.steps;

@@ -265,15 +265,23 @@ async function handleShowPresent(
 	const result = await harness.shows.present(roomId, parsedShow.data);
 	const next = asLiveRoom(result.liveRoom);
 	const presented = result.presented;
+	if (result.errorCode || !presented?.uri) {
+		publishRoom(ctx, next);
+		return errorReply(
+			envelope,
+			result.errorCode ?? "show_materialize_failed",
+			result.errorMessage ??
+				"Show item could not be materialized (missing uri)",
+		);
+	}
 	publishRoom(ctx, next, {
 		event: "drive.show.presented",
 		payload: {
-			showItemId: presented?.id ?? parsedShow.data.id,
-			ownerParticipantId:
-				presented?.ownerParticipantId ?? parsedShow.data.ownerParticipantId,
-			uri: presented?.uri,
-			caption: presented?.caption ?? parsedShow.data.caption,
-			title: presented?.title ?? parsedShow.data.title,
+			showItemId: presented.id,
+			ownerParticipantId: presented.ownerParticipantId,
+			uri: presented.uri,
+			caption: presented.caption,
+			title: presented.title,
 		},
 	});
 	return okReply(envelope, { room: next });

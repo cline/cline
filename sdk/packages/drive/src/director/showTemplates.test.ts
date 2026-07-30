@@ -30,6 +30,8 @@ describe("SHOW_TEMPLATE_KIT", () => {
 			linkedDoItemId: "do-42",
 			produce: { tool: "render_mermaid", templateId: "arch.overview" },
 		});
+		expect(typeof item?.produce.args.mermaidSource).toBe("string");
+		expect(String(item?.produce.args.mermaidSource)).toContain("HubDaemon");
 		expect(mediaClassForArtifactKind("work.card")).toBe("work");
 	});
 });

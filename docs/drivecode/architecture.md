@@ -53,7 +53,7 @@ flowchart TB
   SessionsDB -.->|"team states for Dependency map"| StatusHandlers
 ```
 
-Two collaboration planes share the hub process but not storage:
+Two collaboration planes share the hub process but not storage (Director bags hang off the room live map — see Director / Show plane below):
 
 1. **Status plane** — durable log; survives hub restart; cross-agent.
 2. **Room plane** — roster, Spotlight/`stage`, mute/deafen; ephemeral Map.
@@ -155,12 +155,12 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  Join["call_join"] --> Room["RoomSnapshot Map"]
-  Stage["call_set_stage / call_record_work"] --> Room
-  Mode["call_set_mode"] --> Room
-  DriveLive["drive.spotlight.set / mute / deafen / show.present"] --> Live["DriveRoomLiveState Map"]
-  Room --> SpotlightUI["Spotlight UI projects stage"]
-  Live --> Chrome["Call chrome controls"]
+  Join["call_join"] --> RoomPlane["RoomSnapshot Map"]
+  Stage["call_set_stage / call_record_work"] --> RoomPlane
+  Mode["call_set_mode"] --> RoomPlane
+  DriveLive["drive.spotlight.set / mute / deafen / show.*"] --> DriveLiveState["DriveRoomLiveState Map"]
+  RoomPlane --> SpotlightUI["Spotlight UI projects stage"]
+  DriveLiveState --> Chrome["Call chrome controls"]
 ```
 
 | User-facing name | Wire name |
@@ -172,6 +172,38 @@ flowchart LR
 Rooms do not share a foreign key with Status Hub. Conventionally a room may
 publish under `subject = "drive-room/<id>"`, but that is a string convention
 only.
+
+## Director / Show plane (sibling)
+
+Third collaboration concern on the same hub process: **planned** Spotlight
+artifacts via dual backlog + DirectorScript. Orthogonal to reactive StageCards.
+Canonical names: [`.claude/diagram-conventions.md`](../.claude/diagram-conventions.md).
+Cline skills: `diagram-first` (nest docs), `diagram-show` (stage present).
+Ops: [hub-drive-ops.md](./plans/cline-drivemode/ops/hub-drive-ops.md).
+
+```mermaid
+flowchart TB
+  subgraph DirectorPlane["Director plane on DriveLive"]
+    ShowPlanner["ShowPlanner planShowIntents"]
+    DoBacklog["DoBacklog"]
+    ShowBacklog["ShowBacklog"]
+    DirectorScript["DirectorScript"]
+    MermaidProduce["MermaidProduce render_mermaid"]
+  end
+
+  ShowPlanner -->|"drive.show.enqueue"| ShowBacklog
+  DoBacklog -->|"ForkPromote"| ShowBacklog
+  ShowBacklog -->|"rank + drive.show.tick / present"| MermaidProduce
+  MermaidProduce -->|"uri + sticky"| StickyStagePane["StickyStagePane"]
+  DirectorScript -->|"advanceScriptBeat hold"| StickyStagePane
+  StageCards["StageCards call_record_work"] -.->|"orthogonal reactive"| StickyStagePane
+```
+
+- **Status plane** — durable log; survives hub restart.
+- **Room plane** — roster, stage, mute/deafen; ephemeral.
+- **Director plane** — Do/Show bags + script on `DriveRoomLiveState`; present is event-first (no WebRTC).
+
+Do not conflate Status `DepMap` (team task edges) with `ShowBacklog` sticky diagrams.
 
 ## UI map
 

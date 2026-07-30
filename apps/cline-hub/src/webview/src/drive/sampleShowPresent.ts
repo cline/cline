@@ -5,11 +5,12 @@ import {
 	DRIVE_PARTICIPANT_PARTNER,
 } from "./types";
 
-/** Deterministic sample diagram for Slice 1 present-trigger smoke (no LLM). */
+/** Deterministic sample diagram for Slice 1 present-trigger smoke (no LLM).
+ * Convention-stable names from `.claude/diagram-conventions.md`. */
 export const SAMPLE_ARCHITECTURE_MERMAID = `flowchart LR
-  Human --> Hub
-  Hub --> Agent
-  Agent --> Stage`;
+  HubDaemon --> ShowBacklog
+  ShowBacklog --> MermaidProduce
+  MermaidProduce --> StickyStagePane`;
 
 export const SAMPLE_ARCHITECTURE_SHOW_ID = "show-sample-arch-overview";
 

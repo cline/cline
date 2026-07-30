@@ -1,28 +1,64 @@
-import { ApertureIcon, HandIcon, HeadphonesIcon, MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon, Settings2Icon, UsersIcon, VolumeXIcon } from "lucide-react";
 import type { StageCard } from "@cline/shared";
+import {
+	ApertureIcon,
+	HandIcon,
+	HeadphonesIcon,
+	Loader2Icon,
+	MicIcon,
+	MicOffIcon,
+	PhoneIcon,
+	PhoneOffIcon,
+	Settings2Icon,
+	UsersIcon,
+	VolumeXIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { DriveSubMode, DriveUiState } from "./types";
 import { isDriveHumanId } from "./participantIds";
+import type { DriveSubMode, DriveUiState } from "./types";
+import type { DriveConnectionPhase } from "./useDriveSession";
 
 const SUB_MODES: DriveSubMode[] = ["plan", "agent", "ask", "debug"];
 
 export function DriveHeaderControls({
+	connectionPhase,
 	drive,
 	disabled,
-	onToggleDrive,
-	onToggleStage,
+	onJoinDrive,
+	onLeaveDrive,
+	onToggleSpotlight,
 }: {
+	connectionPhase: DriveConnectionPhase;
 	drive: DriveUiState;
 	disabled?: boolean;
-	onToggleDrive: () => void;
-	onToggleStage: () => void;
+	onJoinDrive: () => void;
+	onLeaveDrive: () => void;
+	onToggleSpotlight: () => void;
 }) {
+	const joining = connectionPhase === "joining";
+	const onCall = connectionPhase === "on";
+	const statusText =
+		connectionPhase === "joining"
+			? "Joining Drive call."
+			: connectionPhase === "on"
+				? "Drive call connected."
+				: connectionPhase === "error"
+					? "Drive call connection failed."
+					: "Drive call disconnected.";
+
 	return (
 		<div className="flex items-center gap-2">
-			{drive.active ? (
+			<span
+				aria-atomic="true"
+				aria-live="polite"
+				className="sr-only"
+				role="status"
+			>
+				{statusText}
+			</span>
+			{onCall && drive.active ? (
 				<>
 					<Badge
 						className="gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
@@ -39,26 +75,32 @@ export function DriveHeaderControls({
 					</Badge>
 					<Button
 						disabled={disabled}
-						onClick={onToggleStage}
+						onClick={onToggleSpotlight}
 						size="sm"
 						type="button"
 						variant={drive.stageLayout ? "default" : "outline"}
 					>
-						{drive.stageLayout ? "Stage on" : "Stage off"}
+						{drive.stageLayout ? "Spotlight on" : "Spotlight off"}
 					</Button>
 				</>
 			) : null}
 			<Button
+				aria-label={joining ? "Cancel joining Drive call" : undefined}
 				disabled={disabled}
-				onClick={onToggleDrive}
+				onClick={onCall || joining ? onLeaveDrive : onJoinDrive}
 				size="sm"
 				type="button"
-				variant={drive.active ? "default" : "outline"}
+				variant={onCall ? "default" : "outline"}
 			>
-				{drive.active ? (
+				{onCall ? (
 					<>
 						<PhoneOffIcon className="size-3.5" />
 						Leave call
+					</>
+				) : joining ? (
+					<>
+						<Loader2Icon className="size-3.5 animate-spin" />
+						Joining…
 					</>
 				) : (
 					<>
@@ -159,7 +201,7 @@ export function DriveCallStrip({
 					size="icon-sm"
 					type="button"
 					variant="ghost"
-					title="Toggle stage sharer (call_set_stage) between you and partner"
+					title="Move Spotlight between you and your partner"
 				>
 					<ApertureIcon className="size-3.5" />
 				</Button>
@@ -288,8 +330,7 @@ export function DriveStageCards({ cards }: { cards: readonly StageCard[] }) {
 	return (
 		<div className="space-y-2">
 			<p className="text-xs text-muted-foreground">
-				Last-event-wins stage cards. Prefer <code>Stage.tsx</code> for live
-				ai-elements rendering.
+				Latest Spotlight updates from the shared event stream.
 			</p>
 			{cards.map((card) => (
 				<div
@@ -322,7 +363,12 @@ export function DriveNarrationBanner({
 	text: string;
 }) {
 	return (
-		<div className="mx-4 mb-2 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm italic text-amber-900 dark:text-amber-100">
+		<div
+			aria-atomic="true"
+			aria-live="polite"
+			className="mx-4 mb-2 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm italic text-amber-900 dark:text-amber-100"
+			role="status"
+		>
 			<span
 				aria-hidden
 				className="mt-0.5 inline-block size-5 shrink-0 rounded-full border-2 border-amber-500 bg-amber-400/40"

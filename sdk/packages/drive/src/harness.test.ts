@@ -53,6 +53,81 @@ describe("createDriveHarness", () => {
 		);
 	});
 
+	it("createOrAttach preserves seated participants and active room presentation", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({ host });
+		await drive.rooms.createOrAttach({
+			roomId: "r_attach",
+			humanId: "h1",
+			humanDisplayName: "Original Human",
+			partner: { id: "a1", displayName: "Original Partner" },
+		});
+		await drive.rooms.setSubMode("r_attach", "debug", true);
+		await drive.rooms.setSharer(
+			"r_attach",
+			{ kind: "human", participantId: "h1" },
+			{ kind: "file", label: "Harness", ref: "src/harness.ts" },
+		);
+
+		const attached = await drive.rooms.createOrAttach({
+			roomId: "r_attach",
+			humanId: "h1",
+			humanDisplayName: "Replacement Human",
+			humanRole: "observer",
+			partner: {
+				id: "a1",
+				displayName: "Replacement Partner",
+				role: "recorder",
+			},
+		});
+
+		expect(attached.participants).toHaveLength(2);
+		expect(attached.participants.find((p) => p.id === "h1")).toMatchObject({
+			displayName: "Original Human",
+			role: "host",
+		});
+		expect(attached.participants.find((p) => p.id === "a1")).toMatchObject({
+			displayName: "Original Partner",
+			role: "partner",
+		});
+		expect(attached.driveActive).toBe(true);
+		expect(attached.subMode).toBe("debug");
+		expect(attached.stage).toMatchObject({
+			sharer: { kind: "human", participantId: "h1" },
+			pin: { kind: "file", label: "Harness", ref: "src/harness.ts" },
+		});
+	});
+
+	it("createOrAttach initializes presentation when attaching activates an inactive room", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({ host });
+		await drive.rooms.createOrAttach({
+			roomId: "r_inactive",
+			humanId: "h1",
+			partner: null,
+			activateDrive: false,
+		});
+		await drive.rooms.setSubMode("r_inactive", "debug", false);
+		await drive.rooms.setSharer(
+			"r_inactive",
+			{ kind: "human", participantId: "h1" },
+			{ kind: "terminal", label: "Tests" },
+		);
+
+		const activated = await drive.rooms.createOrAttach({
+			roomId: "r_inactive",
+			humanId: "h1",
+			partner: { id: "a1", displayName: "Partner" },
+		});
+
+		expect(activated.driveActive).toBe(true);
+		expect(activated.subMode).toBe("act");
+		expect(activated.stage).toMatchObject({
+			sharer: { kind: "agent", participantId: "a1" },
+			pin: null,
+		});
+	});
+
 	it("setAddress and setSpotlight go through the host", async () => {
 		const host = memoryDriveHost();
 		const drive = createDriveHarness({ host });

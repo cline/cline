@@ -168,6 +168,37 @@ describe("handleDriveCommand", () => {
 		).toBe("string");
 	});
 
+	it("fails closed when mermaidSource is not parse-valid", async () => {
+		const { ctx, published } = createCtx();
+		const reply = await handleDriveCommand(
+			ctx,
+			envelope("drive.show.present", {
+				roomId: "r1",
+				showItem: {
+					id: "show-bad",
+					ownerParticipantId: "drive:partner",
+					title: "Bad",
+					intent: "Explain",
+					artifactKind: "diagram.architecture",
+					mediaClass: "still",
+					caption: "Invalid",
+					produce: {
+						tool: "render_mermaid",
+						args: { mermaidSource: "not a real diagram" },
+					},
+					priority: 1,
+					status: "planned",
+					scoreReasons: [],
+				},
+			}),
+		);
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.code).toBe("mermaid_parse_failed");
+		expect(
+			published.some((event) => event.event === "drive.show.presented"),
+		).toBe(false);
+	});
+
 	it("enqueues without presenting, then tick presents higher priority", async () => {
 		const { ctx, published } = createCtx();
 		const low = {

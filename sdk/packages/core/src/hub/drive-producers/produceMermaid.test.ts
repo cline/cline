@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
 	__clearMermaidCacheForTests,
+	MermaidParseError,
 	produceMermaidShowArtifact,
 } from "./produceMermaid";
 
@@ -33,5 +34,14 @@ describe("produceMermaidShowArtifact", () => {
 		expect(first.cacheHit).toBe(false);
 		expect(second.cacheHit).toBe(true);
 		expect(second.item.uri).toBe(first.item.uri);
+	});
+
+	it("fails closed on invalid mermaidSource", () => {
+		expect(() =>
+			produceMermaidShowArtifact({
+				mermaidSource: "not a diagram",
+				ownerParticipantId: "agent-1",
+			}),
+		).toThrow(MermaidParseError);
 	});
 });

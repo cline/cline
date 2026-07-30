@@ -506,7 +506,7 @@ flowchart LR
 |---|---|
 | **Critic / QA** | Ranks Show items by “would a reviewer understand this?”; vetoes weak demos |
 | **Narrator** | Speaks DirectorScript `say` beats (TTS/captions) while sticky show holds |
-| **Diagrammer** | Specialized producer for mermaid/SVG/architecture templates |
+| **Diagrammer** | Specialized producer for mermaid/SVG/architecture templates — kit/`SHOW_TEMPLATE_KIT` + `.claude/diagram-conventions.md`; parse-gated via `@cline/drive`; Cline skill `diagram-show`; no free invent |
 | **Synthesizer** | Merges multi-slice answers into one human-facing summary after parallel specialists finish |
 | **Librarian** | Keeps artifact index / export pack for PR attachment (Cursor proof-of-work analog) |
 
@@ -569,49 +569,49 @@ No dates. Prefer SDK extension before new packages.
 
 ### Phase 1 · Docs amend (licensing + backlog + roles)
 
-**Goal.** Update `share-and-router/PLAN.md`, `09`/`10`, ADRs with this revision; add licensing section to drivemode README.  
-**Verify.** Docs linked; LICENSE/NOTICE expectations stated.  
+**Goal.** Update `share-and-router/PLAN.md`, `09`/`10`, ADRs with this revision; add licensing section to drivemode README.
+**Verify.** Docs linked; LICENSE/NOTICE expectations stated.
 **Acceptance.** Reader sees SDK-first + non-live backlog model.
 
 ### Phase 2 · Schemas
 
-**Goal.** Dual backlog + ShowArtifactKind + DirectorScript + **Spotlight** + **ParticipantAudioFlags** (muted/deafened) + A2A channel field in `@cline/shared`.  
-**Verify.** `bun -F @cline/shared test` + forbidden media keys.  
+**Goal.** Dual backlog + ShowArtifactKind + DirectorScript + **Spotlight** + **ParticipantAudioFlags** (muted/deafened) + A2A channel field in `@cline/shared`.
+**Verify.** `bun -F @cline/shared test` + forbidden media keys.
 **Acceptance.** Types cover per-agent bags, spotlight id, mute⟂deafen, A2A addressSets.
 
 ### Phase 3 · Pure director + router (spotlight-aware)
 
-**Goal.** `rankBacklogs` (spotlight bias), `advanceScriptBeat`, `planRoute`, `assertRouteLegal`, `assertDeliveryAllowed(sender, receiver, flags)`.  
+**Goal.** `rankBacklogs` (spotlight bias), `advanceScriptBeat`, `planRoute`, `assertRouteLegal`, `assertDeliveryAllowed(sender, receiver, flags)`.
 **Verify.** Fixtures: sticky hold; spotlight bias; muted sender drops speak; deafened receiver drops hear; A2A deliver matrix.
 
 ### Phase 4 · Hub live ops
 
-**Goal.** `call_set_spotlight`, mute/deafen ops, director tick respects flags; A2A transcript channel.  
+**Goal.** `call_set_spotlight`, mute/deafen ops, director tick respects flags; A2A transcript channel.
 **Verify.** `bun -F @cline/core test:unit`.
 
 ### Phase 5 · Standard template kit MVP
 
-**Goal.** Architecture, data-flow, code walkthrough, plan doc, screenshot (+ animation optional).  
+**Goal.** Architecture, data-flow, code walkthrough, plan doc, screenshot (+ animation optional).
 **Verify.** Golden fixtures → ShowBacklogItems in an AgentMediaBag.
 
 ### Phase 6 · Strip/roster UI: Spotlight + mute/deafen
 
-**Goal.** Spotlight button; per-agent mute/deafen; voiceSlot indicator.  
+**Goal.** Spotlight button; per-agent mute/deafen; voiceSlot indicator.
 **Verify.** hub webview tests + smoke.
 
 ### Phase 7 · Suggest/auto router + sticky stage + A2A filter
 
-**Goal.** Composer preview; stage sticky; human feed filter room vs a2a.  
+**Goal.** Composer preview; stage sticky; human feed filter room vs a2a.
 **Verify.** hub webview tests + smoke with two agents.
 
 ### Phase 8 · Optional seats + fractions + synthesizer
 
-**Goal.** Planner/screen manager as seats behind flag; fraction routing.  
+**Goal.** Planner/screen manager as seats behind flag; fraction routing.
 **Verify.** Fixtures; defaults off where specified.
 
 ### Phase 9 · Upstream contribution pass
 
-**Goal.** Apache-safe upstreamable commits for shared schemas/tools.  
+**Goal.** Apache-safe upstreamable commits for shared schemas/tools.
 **Verify.** License headers; dependency license scan.
 
 ### Phase 10 · Gates + smokes
@@ -640,11 +640,11 @@ License: `bun`/CI grep that new SDK files include Apache-2.0 header where requir
 
 ## Implementation guidance
 
-1. **how** on Team tools, hooks, hub handlers before inventing Drive-only runtimes.  
-2. Prefer ConfiguredAgent + tools over new agent frameworks.  
-3. Dual backlog + DirectorScript is the domain model; UI is projection.  
-4. Contribute upstream in separate commits from Drive IA.  
-5. `/deslop`, **unslop**, **show-me-your-work** on ADR updates.  
+1. **how** on Team tools, hooks, hub handlers before inventing Drive-only runtimes.
+2. Prefer ConfiguredAgent + tools over new agent frameworks.
+3. Dual backlog + DirectorScript is the domain model; UI is projection.
+4. Contribute upstream in separate commits from Drive IA.
+5. `/deslop`, **unslop**, **show-me-your-work** on ADR updates.
 6. No time frames in phase text.
 
 ---
@@ -665,14 +665,14 @@ License: `bun`/CI grep that new SDK files include Apache-2.0 header where requir
 
 ## Open decisions (defaults)
 
-1. **MVP screen manager / backlog planner run as hub policies**, not seated agents; promote to seats when `teamOpt` on.  
-2. **Do backlog** prefers existing DriveTask bank; Team tasks only when mailbox/outcomes required.  
-3. **Show backlog** Drive-owned director over **per-agent bags**; includes diagrams/walkthroughs/animations.  
-4. **DirectorScript sticky default** = `hold` for diagram/doc; `replace` for captures unless script says otherwise.  
-5. **Spotlight** default = pair_partner; human always wins; director may switch only under auto/suggest policy with audit.  
-6. **Mute ⟂ deafen**; `allowSilentWorkWhenMuted` default true; `spotlightFollowA2A` default false.  
-7. **Per-agent voices** via `voiceSlotId`; shared slots allowed.  
-8. **Router** suggest-default for multi-seat.  
+1. **MVP screen manager / backlog planner run as hub policies**, not seated agents; promote to seats when `teamOpt` on.
+2. **Do backlog** prefers existing DriveTask bank; Team tasks only when mailbox/outcomes required.
+3. **Show backlog** Drive-owned director over **per-agent bags**; includes diagrams/walkthroughs/animations.
+4. **DirectorScript sticky default** = `hold` for diagram/doc; `replace` for captures unless script says otherwise.
+5. **Spotlight** default = pair_partner; human always wins; director may switch only under auto/suggest policy with audit.
+6. **Mute ⟂ deafen**; `allowSilentWorkWhenMuted` default true; `spotlightFollowA2A` default false.
+7. **Per-agent voices** via `voiceSlotId`; shared slots allowed.
+8. **Router** suggest-default for multi-seat.
 9. **Upstream** general `@cline/shared` schemas when not Drive-UI-specific.
 10. **Chat forks** invisible+auditable; promote-not-merge; path-disjoint or worktree-isolated for parallel edits ([ARD-0014](../ard/ARD-0014-chat-fork-lifecycle.md)).
 

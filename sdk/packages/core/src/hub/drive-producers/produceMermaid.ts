@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { ShowBacklogItem } from "@cline/shared";
-import { getShowTemplate } from "@cline/drive";
+import {
+	assertMermaidSource,
+	getShowTemplate,
+	MermaidParseError,
+} from "@cline/drive";
 
 export type ProduceMermaidInput = {
 	templateId?: string;
@@ -16,6 +20,8 @@ export type ProduceMermaidResult = {
 	cacheHit: boolean;
 };
 
+export { MermaidParseError };
+
 const svgCache = new Map<string, string>();
 
 export function mermaidCacheKey(source: string): string {
@@ -26,10 +32,12 @@ export function mermaidCacheKey(source: string): string {
  * Produce an SVG artifact for a mermaid diagram.
  * Uses a deterministic SVG wrapper (no mermaid runtime required in core).
  * Webview may re-render from embedded source; hub caches by content hash.
+ * Fail closed: invalid mermaidSource throws MermaidParseError (no uri).
  */
 export function produceMermaidShowArtifact(
 	input: ProduceMermaidInput,
 ): ProduceMermaidResult {
+	assertMermaidSource(input.mermaidSource);
 	const template = input.templateId
 		? getShowTemplate(input.templateId)
 		: undefined;

@@ -90,7 +90,18 @@ export function presentShowOnStore(input: {
 					demoCapture: input.demoCapture,
 				});
 	if (!materialized.uri) {
-		return { room, presented: null, planned: null };
+		const parseReason = materialized.scoreReasons.find((reason) =>
+			reason.startsWith("mermaid_parse_failed"),
+		);
+		return {
+			room,
+			presented: null,
+			planned: null,
+			errorCode: parseReason ? "mermaid_parse_failed" : "show_materialize_failed",
+			errorMessage:
+				parseReason ??
+				"Show item could not be materialized (missing uri)",
+		};
 	}
 	const next = store.setLive(
 		applyPresentedShow(room, { ...materialized, status: "showing" }, {

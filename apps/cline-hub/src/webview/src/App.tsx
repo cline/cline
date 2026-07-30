@@ -34,6 +34,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -66,6 +67,7 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
+import type { DriveLaunchAction, DriveLaunchRequest } from "./Chat";
 import { DriveMarkIcon } from "./components/icons/drive-mark";
 import { DriveView } from "./components/views/drive-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
@@ -1169,6 +1171,9 @@ function App() {
 	const [locationSearch, setLocationSearch] = useState(
 		() => (typeof window !== "undefined" ? window.location.search : ""),
 	);
+	const [driveLaunchRequest, setDriveLaunchRequest] =
+		useState<DriveLaunchRequest | null>(null);
+	const nextDriveLaunchRequestIdRef = useRef(0);
 
 	const demoHub = useMemo(
 		() => readDrivecodeDemoHubBootstrap(locationSearch),
@@ -1191,6 +1196,9 @@ function App() {
 			replaceLegacyCustomizationRoute();
 			const nextView = readCurrentView();
 			setView(nextView);
+			if (nextView !== "chat") {
+				setDriveLaunchRequest(null);
+			}
 			setSelectedSessionId(
 				nextView === "chat" ? readCurrentChatSessionId() : undefined,
 			);
@@ -1237,12 +1245,31 @@ function App() {
 		}
 		if (nextView !== "chat") {
 			setSelectedSessionId(undefined);
+			setDriveLaunchRequest(null);
 		}
 		const nextPath = routePath(VIEW_PATHS[nextView]);
 		if (currentPathWithSearch() !== nextPath) {
 			window.history.pushState(null, "", nextPath);
 		}
 		setView(nextView);
+	}, []);
+
+	const openDriveCall = useCallback(
+		(action: DriveLaunchAction = "join") => {
+			nextDriveLaunchRequestIdRef.current += 1;
+			setDriveLaunchRequest({
+				id: nextDriveLaunchRequestIdRef.current,
+				action,
+			});
+			navigate("chat");
+		},
+		[navigate],
+	);
+
+	const acknowledgeDriveLaunch = useCallback((requestId: number) => {
+		setDriveLaunchRequest((current) =>
+			current?.id === requestId ? null : current,
+		);
 	}, []);
 
 	const openSession = useCallback((sessionId: string) => {
@@ -1286,7 +1313,9 @@ function App() {
 		if (view === "chat") {
 			return (
 				<Chat
+					driveLaunchRequest={driveLaunchRequest}
 					initialSessionId={selectedSessionId}
+					onDriveLaunchHandled={acknowledgeDriveLaunch}
 					onSessionSelected={updateChatSessionRoute}
 				/>
 			);
@@ -1300,7 +1329,7 @@ function App() {
 			}
 			return (
 				<DriveView
-					onOpenCall={() => navigate("chat")}
+					onOpenCall={openDriveCall}
 					onOpenStatus={() => navigate("status")}
 				/>
 			);
@@ -1418,11 +1447,14 @@ function App() {
 		demoHub.initialStatusMode,
 		demoHub.useChatForkDemo,
 		demoHub.useShareScreenSpotlightDemo,
+		acknowledgeDriveLaunch,
+		driveLaunchRequest,
 		statusTeamsSource,
 		hubState,
 		deleteSession,
 		navigate,
 		openSession,
+		openDriveCall,
 		recentSessions,
 		renameSession,
 		restartHub,

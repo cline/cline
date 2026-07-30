@@ -94,6 +94,9 @@ function withinCooldown(
 /**
  * Heuristic MVP show planner — no LLM. Maps work/plan signals to template
  * intents, deduping by templateId and respecting per-template cooldown.
+ *
+ * Diagram templates carry convention-stable mermaidSource from SHOW_TEMPLATE_KIT
+ * (see diagram-first / diagram-show Cline skills). Do not invent Mermaid here.
  */
 export function planShowIntents(
 	input: PlanShowIntentsInput,

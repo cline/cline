@@ -19,6 +19,8 @@ slash); rules in `.clinerules` / `AGENTS.md` are always-on.
 | **create-pull-request** | `.agents/skills/create-pull-request/` | Upstream **contributor** tooling → catalog candidate if not already published. |
 | **opentui** | `.agents/skills/opentui/` | Upstream **TUI contributor** skill → catalog candidate for CLI maintainers. |
 | **cline-sdk** | `.agents/skills/cline-sdk/` | Upstream product skill; already aligned with `cline/sdk-skill` / marketplace. |
+| **diagram-first** | `.agents/skills/diagram-first/` (+ `.cline/skills/diagram-first/`) | Structural Mermaid for nest architecture / ARDs / ops. Backed by `@cline/drive` `validateMermaidSource` + `bun sdk/scripts/validate-mermaid.ts`. |
+| **diagram-show** | `.agents/skills/diagram-show/` (+ `.cline/skills/diagram-show/`) | Drive Show `diagram.*` via `SHOW_TEMPLATE_KIT` + `drive.show.*`. Fail-closed parse gate. |
 | **publish-cli / publish-desktop / publish-ui** | `.cline/skills/` | Release-only for this monorepo. **Do not** publish to the community catalog. |
 
 ## Drive product skills (planned, not shipped)

@@ -25,9 +25,16 @@ A **hub policy** (not a ConfiguredAgent seat yet) continuously enqueues Show (an
 
 ## Non-goals
 
-- LLM-authored diagrams (heuristic templates only).
+- LLM-authored diagrams (heuristic templates only — **diagram.\*** sources come from `SHOW_TEMPLATE_KIT` convention-stable `mermaidSource`, nest living fences, or explicit args; never free invent). Use Cline skill **`diagram-show`**.
 - Seated screen-manager agent.
 - Replacing reactive StageCards.
+
+## Diagram source bias (Cline + @cline/drive)
+
+1. Prefer kit defaults (`KIT_MERMAID_*` in `showTemplates.ts`) aligned with `.claude/diagram-conventions.md`.
+2. Prefer nest living fences in `docs/drivecode/architecture.md` when updating architecture explainers.
+3. Hub `render_mermaid` uses `@cline/drive` `validateMermaidSource`; invalid source fails closed.
+4. Composition: ≤20 nodes, edge labels as types, stable IDs — skill **`diagram-first`**.
 
 ## Files likely
 

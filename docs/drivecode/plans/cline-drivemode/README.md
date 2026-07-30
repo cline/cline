@@ -110,7 +110,7 @@ MVP is phases 0 through 3. Future is phases 4 and 5.
 | [DRV-TTS](features/DRV-TTS.md) | Partner voice out | 3 | MVP |
 | [DRV-CAPTIONS](features/DRV-CAPTIONS.md) | Live captions | 3 | MVP |
 | [DRV-DEMO-SHARE](features/DRV-DEMO-SHARE.md) | Demo artifact share (screenshots / clips) | 2+ | Planned |
-| [DRV-SHOW-BACKLOG](features/DRV-SHOW-BACKLOG.md) | Planned Show backlog + director tick | 2+ | Planned |
+| [DRV-SHOW-BACKLOG](features/DRV-SHOW-BACKLOG.md) | Show backlog + director tick (slices 1–7 + S) | 2+ | Done (main #55) |
 | [DRV-AGENT-ROUTER](features/DRV-AGENT-ROUTER.md) | Route utterances among seated agents | 4 | Planned |
 | [DRV-CLI-PARITY](features/DRV-CLI-PARITY.md) | Drive in the TUI | 4 | Future |
 | [DRV-ISOLATION](features/DRV-ISOLATION.md) | Worktree isolation for multi-agent seats | 4 | Future |

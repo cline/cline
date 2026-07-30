@@ -252,45 +252,57 @@ export function createDriveHarness(
 				throw new Error("humanId is required");
 			}
 
-			await host.commitRoomOp({
+			let snapshot = await host.commitRoomOp({
 				type: "create",
 				roomId,
 				hostParticipantId: humanId,
 			});
 
-			const human: HumanParticipant = {
-				id: humanId,
-				kind: "human",
-				displayName: input.humanDisplayName?.trim() || "You",
-				role: input.humanRole ?? "host",
-				status: "idle",
-			};
-			let snapshot = await host.commitRoomOp({
-				type: "join",
-				roomId,
-				participant: human,
-			});
+			const isSeated = (participantId: string): boolean =>
+				snapshot.participants.some(
+					(participant) => participant.id === participantId,
+				);
+
+			if (!isSeated(humanId)) {
+				const human: HumanParticipant = {
+					id: humanId,
+					kind: "human",
+					displayName: input.humanDisplayName?.trim() || "You",
+					role: input.humanRole ?? "host",
+					status: "idle",
+				};
+				snapshot = await host.commitRoomOp({
+					type: "join",
+					roomId,
+					participant: human,
+				});
+			}
 
 			const partner = input.partner === null ? null : (input.partner ?? {});
 			let partnerId: string | null = null;
 			if (partner) {
 				partnerId = partner.id?.trim() || DRIVE_HARNESS_PARTNER_ID;
-				const agent: AgentParticipant = {
-					id: partnerId,
-					kind: "agent",
-					displayName: partner.displayName?.trim() || "Partner",
-					role: partner.role ?? "partner",
-					status: "idle",
-					seatSources: [{ kind: "manual" }],
-				};
-				snapshot = await host.commitRoomOp({
-					type: "join",
-					roomId,
-					participant: agent,
-				});
+				if (!isSeated(partnerId)) {
+					const agent: AgentParticipant = {
+						id: partnerId,
+						kind: "agent",
+						displayName: partner.displayName?.trim() || "Partner",
+						role: partner.role ?? "partner",
+						status: "idle",
+						seatSources: [{ kind: "manual" }],
+					};
+					snapshot = await host.commitRoomOp({
+						type: "join",
+						roomId,
+						participant: agent,
+					});
+				}
 			}
 
-			const activate = input.activateDrive !== false && partnerId != null;
+			const activate =
+				input.activateDrive !== false &&
+				partnerId != null &&
+				!snapshot.driveActive;
 			if (activate && partnerId) {
 				snapshot = await host.commitRoomOp({
 					type: "setMode",
