@@ -226,6 +226,7 @@ describe("SdkDiffEditCoordinator", () => {
 	let backgroundEdit: boolean
 	let fallbackEditor: Mock<EditorExecutor>
 	let fallbackApplyPatch: Mock<ApplyPatchExecutor>
+	let showEditedFile: Mock<(absolutePath: string) => Promise<void>>
 	let coordinator: SdkDiffEditCoordinator
 
 	function makeCoordinator(
@@ -243,6 +244,7 @@ describe("SdkDiffEditCoordinator", () => {
 			fallbackEditorExecutor: fallbackEditor,
 			fallbackApplyPatchExecutor: fallbackApplyPatch,
 			autoApprovePreviewLingerMs: 0,
+			showEditedFile,
 			...overrides,
 		})
 	}
@@ -254,6 +256,7 @@ describe("SdkDiffEditCoordinator", () => {
 		backgroundEdit = false
 		fallbackEditor = vi.fn<EditorExecutor>().mockResolvedValue("fallback editor result")
 		fallbackApplyPatch = vi.fn<ApplyPatchExecutor>().mockResolvedValue("fallback apply_patch result")
+		showEditedFile = vi.fn<(absolutePath: string) => Promise<void>>().mockResolvedValue(undefined)
 		coordinator = makeCoordinator()
 	})
 
@@ -334,6 +337,68 @@ describe("SdkDiffEditCoordinator", () => {
 		fallbackEditor.mockRejectedValueOnce(new Error("disk full"))
 
 		await expect(coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))).rejects.toThrow("disk full")
+		expect(previews[0].closed).toBe(1)
+		expect(showEditedFile).not.toHaveBeenCalled()
+	})
+
+	// Legacy DiffViewProvider.saveChanges() parity: show the file, then close the diff,
+	// so the user is left looking at the edited file rather than an empty editor group.
+	it("shows the edited file before closing the preview after a successful write", async () => {
+		await writeFile("a.ts", "old content")
+		const input = { path: "a.ts", old_text: "old", new_text: "new" }
+		await coordinator.openForApproval("tc1", "editor", input)
+
+		const callOrder: string[] = []
+		showEditedFile.mockImplementation(async () => {
+			callOrder.push("show")
+		})
+		const originalClose = previews[0].close.bind(previews[0])
+		previews[0].close = async () => {
+			callOrder.push("close")
+			await originalClose()
+		}
+
+		await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "a.ts"))
+		expect(callOrder).toEqual(["show", "close"])
+	})
+
+	it("shows the edited file after an auto-approved edit's preview linger", async () => {
+		await writeFile("a.ts", "old content")
+		const input = { path: "a.ts", old_text: "old", new_text: "new" }
+
+		await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "a.ts"))
+		expect(previews[0].closed).toBe(1)
+	})
+
+	it("does not show the file when background edit is enabled or no preview was shown", async () => {
+		backgroundEdit = true
+		await writeFile("a.ts", "old content")
+		await coordinator.executeEditorTool({ path: "a.ts", old_text: "old", new_text: "new" }, tempDir, makeContext("tc1"))
+		expect(showEditedFile).not.toHaveBeenCalled()
+
+		// No session either when the preview failed to open (non-background).
+		backgroundEdit = false
+		previewTweak = (preview) => {
+			preview.failOpen = true
+		}
+		await writeFile("b.ts", "old content")
+		await coordinator.executeEditorTool({ path: "b.ts", old_text: "old", new_text: "new" }, tempDir, makeContext("tc2"))
+		expect(showEditedFile).not.toHaveBeenCalled()
+	})
+
+	it("still returns the edit result when showing the file fails", async () => {
+		await writeFile("a.ts", "old content")
+		const input = { path: "a.ts", old_text: "old", new_text: "new" }
+		await coordinator.openForApproval("tc1", "editor", input)
+		showEditedFile.mockRejectedValueOnce(new Error("no editor available"))
+
+		const result = await coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))
+
+		expect(result).toBe("fallback editor result")
 		expect(previews[0].closed).toBe(1)
 	})
 
@@ -509,6 +574,9 @@ describe("SdkDiffEditCoordinator", () => {
 
 		expect(result).toBe("patch applied")
 		expect(callOrder).toEqual(["close", "apply"])
+		// The previewed file is still revealed after the write, even though its
+		// preview was discarded before the patch applied.
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "patched.ts"))
 	})
 
 	it("shows a brief preview around auto-approved patches", async () => {
@@ -528,6 +596,7 @@ describe("SdkDiffEditCoordinator", () => {
 			rightContent: "line ONE\nline two\n",
 		})
 		expect(previews[0].closed).toBe(1)
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "patched.ts"))
 	})
 
 	it("applies auto-approved patches without a preview when background edit is enabled", async () => {
@@ -541,5 +610,6 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(result).toBe("fallback apply_patch result")
 		expect(fallbackApplyPatch).toHaveBeenCalledOnce()
 		expect(previews).toHaveLength(0)
+		expect(showEditedFile).not.toHaveBeenCalled()
 	})
 })
