@@ -32,4 +32,10 @@ describe("modelSupportsImages", () => {
 	it("returns false for an explicitly empty capability list", () => {
 		expect(modelSupportsImages({ capabilities: [] })).toBe(false);
 	});
+
+	it("returns false when the model itself is absent", () => {
+		// e.g. tool admission where the model could not be resolved from config
+		expect(modelSupportsImages(undefined)).toBe(false);
+		expect(modelSupportsImages(null)).toBe(false);
+	});
 });

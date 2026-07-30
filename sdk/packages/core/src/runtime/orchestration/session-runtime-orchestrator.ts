@@ -46,6 +46,7 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsImages,
 	type ToolCallRecord,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
@@ -845,8 +846,10 @@ export class SessionRuntime {
 			telemetry: this.telemetry,
 			tools,
 			toolContextMetadata: {
-				modelSupportsImages:
-					modelInfo?.capabilities?.includes("images") ?? true,
+				// Same fail-closed policy as request formatting so tool admission
+				// (e.g. read_files reading an image) can't diverge from what the
+				// model will actually receive.
+				modelSupportsImages: modelSupportsImages(modelInfo),
 				...this.config.toolContextMetadata,
 				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: this.telemetry,
 			},
