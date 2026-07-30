@@ -146,6 +146,39 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
 
+	it("auto-continues when completed request bookkeeping trails the presented plan", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "task", text: "Create a plan.", partial: false },
+			{ ts: 2, type: "say", say: "api_req_started", text: "{}", partial: false },
+			{ ts: 3, type: "say", say: "reasoning", text: "Planning.", partial: false },
+			{ ts: 4, type: "say", say: "plan_completion_result", text: "Implement the plan.", partial: false },
+			{
+				ts: 5,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 10, tokensOut: 5, cost: 0.01 }),
+				partial: false,
+			},
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await coordinator.togglePlanActMode("act")
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+			undefined,
+			undefined,
+		)
+	})
+
 	it("submits typed chatContent as the continuation when toggling plan -> act on a presented plan", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session", planMessages())
@@ -352,6 +385,44 @@ describe("SdkModeCoordinator", () => {
 				files: [],
 			}),
 		).resolves.toBe(false)
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue a stale plan when the latest completed assistant result is from act mode", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "plan_completion_result", text: "Old plan.", partial: false },
+			{ ts: 2, type: "say", say: "api_req_started", text: JSON.stringify({ cost: 0.01 }), partial: false },
+			{ ts: 3, type: "say", say: "completion_result", text: "Act work finished.", partial: false },
+			{ ts: 4, type: "say", say: "api_req_started", text: JSON.stringify({ cost: 0.02 }), partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await coordinator.togglePlanActMode("act")
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue a partial plan result", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "plan_completion_result", text: "Still streaming.", partial: true },
+			{ ts: 2, type: "say", say: "api_req_started", text: "{}", partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await coordinator.togglePlanActMode("act")
 
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})

@@ -160,18 +160,25 @@ export class SdkModeCoordinator {
 		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
-			// latest chat message to be the explicit plan completion row emitted at
-			// the end of a successful plan-mode turn. This prevents an accidental
-			// act -> plan -> act round trip from starting work on a stale/nonexistent
-			// plan.
+			// latest completed assistant result to be the explicit plan completion
+			// row emitted at the end of a successful plan-mode turn. Request usage
+			// bookkeeping can trail that row, so the raw array tail is not reliable.
+			// Comparing both plan and act results prevents an accidental
+			// act -> plan -> act round trip from starting work on a stale plan.
 			const task = this.options.getTask()
-			const lastMessage = task?.messageStateHandler.getClineMessages().at(-1)
+			const clineMessages = task?.messageStateHandler.getClineMessages() ?? []
+			const latestAssistantResult = [...clineMessages]
+				.reverse()
+				.find(
+					(message) =>
+						message.type === "say" &&
+						(message.say === "plan_completion_result" || message.say === "completion_result"),
+				)
 			const planPresented =
 				!activeSession.isRunning &&
 				this.options.getTurnPhase() === "awaiting_followup" &&
-				lastMessage?.type === "say" &&
-				lastMessage.say === "plan_completion_result" &&
-				!lastMessage.partial
+				latestAssistantResult?.say === "plan_completion_result" &&
+				!latestAssistantResult.partial
 			const autoContinue = modeToSwitchTo === "act" && planPresented
 			const userPrompt = chatContent?.message?.trim() || undefined
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
