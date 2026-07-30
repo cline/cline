@@ -5,6 +5,8 @@ import {
 	isAllowedPeekabooTool,
 	isAllowedPlaywrightTool,
 	PEEKABOO_ALLOWED_TOOL_NAMES,
+	PEEKABOO_MCP_ARGS,
+	PEEKABOO_MCP_ENV,
 	PLAYWRIGHT_BLOCKED_TOOL_NAMES,
 	PLAYWRIGHT_MCP_ARGS,
 	default as plugin,
@@ -21,6 +23,14 @@ describe("computer-use routing", () => {
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--isolated");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--image-responses");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("vision");
+	});
+
+	test("configures Peekaboo for deterministic local capture", () => {
+		expect(PEEKABOO_MCP_ARGS).toContain("--no-remote");
+		expect(PEEKABOO_MCP_ENV).toEqual({
+			PEEKABOO_CAPTURE_ENGINE: "classic",
+			PEEKABOO_ALLOW_LEGACY_CAPTURE: "true",
+		});
 	});
 });
 

@@ -21,6 +21,10 @@ hosting Cline.
 
 Browser tasks require Google Chrome to be installed.
 
+The macOS backend runs Peekaboo locally and uses its classic CoreGraphics
+capture engine. This avoids ScreenCaptureKit enumeration stalls while retaining
+Peekaboo's accessibility inspection and semantic element actions.
+
 ## Routing
 
 - Web pages and URLs use Playwright in headed, isolated Chrome.

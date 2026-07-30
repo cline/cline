@@ -18,6 +18,17 @@ export const COMPUTER_USE_BROWSER_SERVER_NAME = "computer-use-browser";
 export const COMPUTER_USE_DESKTOP_SERVER_NAME = "computer-use-desktop";
 export const PLAYWRIGHT_MCP_VERSION = "0.0.78";
 export const PEEKABOO_VERSION = "3.9.8";
+export const PEEKABOO_MCP_ARGS = [
+	"-y",
+	`@steipete/peekaboo@${PEEKABOO_VERSION}`,
+	"mcp",
+	"serve",
+	"--no-remote",
+] as const;
+export const PEEKABOO_MCP_ENV = {
+	PEEKABOO_CAPTURE_ENGINE: "classic",
+	PEEKABOO_ALLOW_LEGACY_CAPTURE: "true",
+} as const;
 export const PLAYWRIGHT_MCP_ARGS = [
 	"-y",
 	`@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
@@ -142,12 +153,8 @@ const plugin: AgentPlugin = {
 				transport: {
 					type: "stdio",
 					command: "npx",
-					args: [
-						"-y",
-						`@steipete/peekaboo@${PEEKABOO_VERSION}`,
-						"mcp",
-						"serve",
-					],
+					args: [...PEEKABOO_MCP_ARGS],
+					env: { ...PEEKABOO_MCP_ENV },
 				},
 				metadata: {
 					description:
@@ -186,6 +193,7 @@ const plugin: AgentPlugin = {
 				...(backend === "peekaboo"
 					? [
 							"Call permissions before the first desktop action.",
+							"Peekaboo runs locally with its classic CoreGraphics capture engine to avoid ScreenCaptureKit stalls.",
 							"Prefer inspect_ui or see followed by element-ID actions; use raw coordinates only when accessibility data is insufficient.",
 							"After changing the UI, use inspect_ui or see again to verify the result.",
 							"Do not use Peekaboo's agent, analyze, browser, capture, or clipboard tools.",

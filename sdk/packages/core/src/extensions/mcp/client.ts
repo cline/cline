@@ -39,7 +39,8 @@ type StdioProtocolMode = "newline" | "framed";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const MCP_REQUEST_TIMEOUT_MS = 5_000;
-const MCP_CONNECT_TIMEOUT_MS = 1_500;
+const MCP_TOOL_CALL_TIMEOUT_MS = 60_000;
+const MCP_CONNECT_TIMEOUT_MS = 15_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -234,10 +235,14 @@ class StdioMcpClient implements McpServerClient {
 		name: string;
 		arguments?: Record<string, unknown>;
 	}): Promise<McpToolCallResult> {
-		return this.request("tools/call", {
-			name: request.name,
-			arguments: request.arguments ?? {},
-		});
+		return this.request(
+			"tools/call",
+			{
+				name: request.name,
+				arguments: request.arguments ?? {},
+			},
+			MCP_TOOL_CALL_TIMEOUT_MS,
+		);
 	}
 
 	private spawnProcess(protocolMode: StdioProtocolMode): void {
