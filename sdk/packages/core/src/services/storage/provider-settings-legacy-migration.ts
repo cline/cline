@@ -10,12 +10,29 @@ import {
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
+	type StoredModelEntry,
 	type StoredModelsFile,
 	writeModelsFileSync,
 } from "../providers/local-provider-registry";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
+
+/**
+ * Legacy `OpenAiCompatibleModelInfo` snapshot persisted by the old extension
+ * under `planModeOpenAiModelInfo` / `actModeOpenAiModelInfo`. Only the
+ * user-editable fields the legacy settings form exposed are read here.
+ */
+interface LegacyOpenAiModelInfo {
+	maxTokens?: number;
+	contextWindow?: number;
+	supportsImages?: boolean;
+	supportsPromptCache?: boolean;
+	inputPrice?: number;
+	outputPrice?: number;
+	temperature?: number;
+	isR1FormatRequired?: boolean;
+}
 
 interface LegacyGlobalState {
 	mode?: LegacyMode;
@@ -73,6 +90,8 @@ interface LegacyGlobalState {
 	actModeClineModelId?: string;
 	planModeOpenAiModelId?: string;
 	actModeOpenAiModelId?: string;
+	planModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
+	actModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
 	planModeOllamaModelId?: string;
 	actModeOllamaModelId?: string;
 	planModeLmStudioModelId?: string;
@@ -648,15 +667,44 @@ function buildLegacyProviderSettings(
 	return hasNonProviderFields ? parsed.data : undefined;
 }
 
+function positiveFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: undefined;
+}
+
 function resolveLegacyCustomProviderRegistration(
 	providerId: string,
 	settings: ProviderSettings,
+	legacyModelInfo?: LegacyOpenAiModelInfo,
 ): StoredModelsFile["providers"][string] | undefined {
 	if (providerId !== OPENAI_COMPATIBLE_PROVIDER_ID) {
 		return undefined;
 	}
 	if (!settings.baseUrl || !settings.model) {
 		return undefined;
+	}
+	// Carry the user-authored legacy model overrides into the seeded entry.
+	// This entry becomes the source of truth for openai-compatible models, and
+	// later override migrations skip models that already exist here — so
+	// seeding bare defaults would silently discard the user's configuration.
+	// Legacy treated maxTokens -1, temperature 0, and prices 0 as unset.
+	const contextWindow =
+		positiveFiniteNumber(legacyModelInfo?.contextWindow) ??
+		LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW;
+	const maxTokens = positiveFiniteNumber(legacyModelInfo?.maxTokens);
+	const inputPrice = positiveFiniteNumber(legacyModelInfo?.inputPrice);
+	const outputPrice = positiveFiniteNumber(legacyModelInfo?.outputPrice);
+	const temperature = positiveFiniteNumber(legacyModelInfo?.temperature);
+	const capabilities: NonNullable<StoredModelEntry["capabilities"]> = [
+		"streaming",
+		"tools",
+	];
+	if (legacyModelInfo?.supportsImages !== false) {
+		capabilities.push("images");
+	}
+	if (legacyModelInfo?.supportsPromptCache === true) {
+		capabilities.push("prompt-cache");
 	}
 	return {
 		provider: {
@@ -668,9 +716,16 @@ function resolveLegacyCustomProviderRegistration(
 			[settings.model]: {
 				id: settings.model,
 				name: settings.model,
-				contextWindow: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				maxInputTokens: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				capabilities: ["streaming", "tools", "images"],
+				contextWindow,
+				maxInputTokens: contextWindow,
+				capabilities,
+				...(maxTokens !== undefined ? { maxTokens } : {}),
+				...(inputPrice !== undefined ? { inputPrice } : {}),
+				...(outputPrice !== undefined ? { outputPrice } : {}),
+				...(temperature !== undefined ? { temperature } : {}),
+				...(legacyModelInfo?.isR1FormatRequired === true
+					? { isR1FormatRequired: true }
+					: {}),
 			},
 		},
 	};
@@ -845,6 +900,9 @@ export function migrateLegacyProviderSettings(
 		const registration = resolveLegacyCustomProviderRegistration(
 			providerId,
 			settings,
+			modeForProvider === "plan"
+				? globalState.planModeOpenAiModelInfo
+				: globalState.actModeOpenAiModelInfo,
 		);
 		if (registration && !modelsState.providers[providerId]) {
 			modelsState.providers[providerId] = registration;
