@@ -166,11 +166,10 @@ owns document, Markdown, scrollbar, or cursor behavior:
 @import "@cline/ui/theme/theme.css";
 ```
 
-For an embedded surface that must preserve its host shell, scope the token
-values and add the shared component source registration:
+For an existing Tailwind v4 surface that must preserve its host shell, keep
+Tailwind setup host-owned and add the scoped Cline imports:
 
 ```css
-@import "tailwindcss";
 @import "@cline/ui/theme/scoped-tokens.css";
 @import "@cline/ui/theme/theme.css";
 @import "@cline/ui/components.css";

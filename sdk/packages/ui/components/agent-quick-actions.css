@@ -1,3 +1,7 @@
+.cline-ui-agent-quick-actions__item:hover:not(:disabled) {
+	background: color-mix(in oklab, var(--background) 55%, transparent);
+}
+
 .cline-ui-agent-quick-actions__item:hover:not(:disabled)
 	.cline-ui-agent-quick-actions__arrow {
 	background: var(--primary);
