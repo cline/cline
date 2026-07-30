@@ -2183,6 +2183,44 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(context).toContain("COMMAND_TAIL");
 	});
 
+	it("includes inter-entry separators in the deterministic aggregate cap", () => {
+		const aggregateCharLimit = 601;
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: [0, 1, 2].map((index) => ({
+					type: "tool_use" as const,
+					id: `read-${index}`,
+					name: "read_files",
+					input: { files: [{ path: `/tmp/file-${index}.txt` }] },
+				})),
+			},
+			...[0, 1, 2].map(
+				(index): MessageWithMetadata => ({
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: `read-${index}`,
+							name: "read_files",
+							content: "result ".repeat(1_000),
+						},
+					],
+				}),
+			),
+		];
+
+		const context = buildDeterministicToolContext(
+			messages,
+			aggregateCharLimit,
+		);
+
+		expect(context.length).toBeLessThanOrEqual(aggregateCharLimit);
+		for (let index = 0; index < 3; index += 1) {
+			expect(context).toContain(`/tmp/file-${index}.txt`);
+		}
+	});
+
 	it("reports before/after tokens on the same baseline when apiMessages is a projection", async () => {
 		// Regression: tokensBefore was estimated over the (truncated) provider
 		// projection while tokensAfter was estimated over the compacted
