@@ -73,7 +73,7 @@ export function formatContentBlockToMarkdown(block: ContentBlock): string {
 			let input: string
 			if (typeof block.input === "object" && block.input !== null) {
 				input = Object.entries(block.input)
-					.map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`)
+					.map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${formatValue(value)}`)
 					.join("\n")
 			} else {
 				input = String(block.input)
@@ -92,6 +92,20 @@ export function formatContentBlockToMarkdown(block: ContentBlock): string {
 			return `[Tool${block.is_error ? " (Error)" : ""}]`
 		}
 		default:
-			return "[Unexpected content type]"
+			// Persisted tool results can carry untyped executor-output objects
+			// (e.g. { query, result, success }); render them as JSON rather than
+			// dropping the content.
+			return formatValue(block)
+	}
+}
+
+function formatValue(value: unknown): string {
+	if (typeof value !== "object" || value === null) {
+		return String(value)
+	}
+	try {
+		return JSON.stringify(value, null, 2)
+	} catch {
+		return "[Unexpected content type]"
 	}
 }
