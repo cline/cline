@@ -289,6 +289,70 @@ export function writeJsonFile(path: string, value: unknown): void {
 	writeFileSync(path, JSON.stringify(value, null, 2), "utf8");
 }
 
+/**
+ * Atomically claim a connector state path for this process.
+ *
+ * Uses O_EXCL so two concurrent `cline connect` launches cannot both observe
+ * "no running instance" and both proceed. Returns false when another live
+ * connector already owns the path (or a concurrent claim won the race).
+ */
+export function tryClaimConnectorStateFile(
+	statePath: string,
+	state: { pid: number } & Record<string, unknown>,
+	isRunning: (pid: number) => boolean = isProcessRunning,
+): boolean {
+	ensureParentDir(statePath);
+	const payload = `${JSON.stringify(state, null, 2)}
+`;
+	try {
+		const fd = openSync(statePath, "wx");
+		try {
+			writeFileSync(fd, payload, "utf8");
+		} finally {
+			closeSync(fd);
+		}
+		return true;
+	} catch (error) {
+		const code =
+			error && typeof error === "object" && "code" in error
+				? String((error as NodeJS.ErrnoException).code)
+				: undefined;
+		if (code !== "EEXIST") {
+			throw error;
+		}
+		// Another process may have crashed after writing state. If the owner
+		// pid is dead, replace the stale claim once and retry the exclusive create.
+		try {
+			const existing = JSON.parse(readFileSync(statePath, "utf8")) as {
+				pid?: unknown;
+			};
+			const existingPid =
+				typeof existing.pid === "number" ? existing.pid : undefined;
+			if (existingPid !== undefined && isRunning(existingPid)) {
+				return false;
+			}
+		} catch {
+			// Corrupt state file — treat as stale and replace below.
+		}
+		try {
+			rmSync(statePath, { force: true });
+		} catch {
+			return false;
+		}
+		try {
+			const fd = openSync(statePath, "wx");
+			try {
+				writeFileSync(fd, payload, "utf8");
+			} finally {
+				closeSync(fd);
+			}
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
 export function removeFile(path: string): void {
 	try {
 		rmSync(path, { force: true });

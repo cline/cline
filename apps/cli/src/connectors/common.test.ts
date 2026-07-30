@@ -189,3 +189,61 @@ describe("readSessionReplyText", () => {
 		).resolves.toBe(2);
 	});
 });
+
+describe("tryClaimConnectorStateFile", () => {
+	it("claims an empty path and rejects a second live claim", async () => {
+		const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+		const { tryClaimConnectorStateFile } = await import("./common");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		try {
+			const first = tryClaimConnectorStateFile(
+				statePath,
+				{ pid: process.pid, userName: "bot" },
+				() => true,
+			);
+			expect(first).toBe(true);
+			const parsed = JSON.parse(readFileSync(statePath, "utf8")) as {
+				pid: number;
+			};
+			expect(parsed.pid).toBe(process.pid);
+
+			const second = tryClaimConnectorStateFile(
+				statePath,
+				{ pid: process.pid + 1, userName: "bot" },
+				() => true,
+			);
+			expect(second).toBe(false);
+			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("replaces a dead-pid claim", async () => {
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import(
+			"node:fs"
+		);
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+		const { tryClaimConnectorStateFile } = await import("./common");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		writeFileSync(statePath, JSON.stringify({ pid: 1, userName: "stale" }), "utf8");
+		try {
+			const claimed = tryClaimConnectorStateFile(
+				statePath,
+				{ pid: process.pid, userName: "bot" },
+				(pid) => pid === process.pid,
+			);
+			expect(claimed).toBe(true);
+			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
