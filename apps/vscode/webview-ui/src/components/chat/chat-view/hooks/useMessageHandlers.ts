@@ -59,11 +59,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				messages.length > 0 &&
 				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
 			) {
+				// Clear the input before awaiting the RPC — condense resolves only
+				// after compaction finishes, and the typed command lingering in the
+				// field the whole time reads as if the send didn't register.
+				setInputValue("")
+				setActiveQuote(null)
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
 					console.error("Failed to compact task:", err),
 				)
-				setInputValue("")
-				setActiveQuote(null)
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
