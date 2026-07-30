@@ -197,6 +197,12 @@ function createControllableTerminalProcess() {
 			emitter.emit("continue")
 			resolvePromise()
 		},
+		continue: () => {
+			// Mirror VscodeTerminalProcess.continue(): stop observing and resolve.
+			emitter.removeAllListeners("line")
+			emitter.emit("continue")
+			resolvePromise()
+		},
 	})
 	return {
 		process: fakeProcess as unknown as ReturnType<VscodeTerminalManager["runCommand"]>,
@@ -443,6 +449,50 @@ describe("executeForeground", () => {
 		expect(process.listenerCount("completed")).toBe(0)
 		expect(process.listenerCount("continue")).toBe(0)
 		expect(removeAbortListener).toHaveBeenCalledWith("abort", expect.any(Function))
+	})
+
+	it("interrupts the running command in the terminal when the task is aborted", async () => {
+		const { process, emitLine } = createControllableTerminalProcess()
+		const sendInterrupt = vi.fn()
+		const terminalManager = {
+			getOrCreateTerminal: async () => ({ terminal: { show: () => {} } }) as never,
+			runCommand: () => process,
+			sendInterrupt,
+		} as unknown as VscodeTerminalManager
+		const abortController = new AbortController()
+
+		const resultPromise = executeForeground("sleep 300", "/workspace", terminalManager, 1000, abortController.signal)
+
+		// Wait until the command has actually started (line listeners attached).
+		await waitFor(() => process.listenerCount("line") > 0)
+		emitLine("still running")
+
+		abortController.abort()
+
+		await expect(resultPromise).rejects.toThrow("Command execution aborted")
+		// The command must be interrupted (Ctrl+C), not merely left running.
+		expect(sendInterrupt).toHaveBeenCalledTimes(1)
+		// And observation stops afterward.
+		expect(process.listenerCount("line")).toBe(0)
+	})
+
+	it("still cancels the task if interrupting the terminal throws", async () => {
+		const { process } = createControllableTerminalProcess()
+		const terminalManager = {
+			getOrCreateTerminal: async () => ({ terminal: { show: () => {} } }) as never,
+			runCommand: () => process,
+			sendInterrupt: () => {
+				throw new Error("terminal already disposed")
+			},
+		} as unknown as VscodeTerminalManager
+		const abortController = new AbortController()
+
+		const resultPromise = executeForeground("sleep 300", "/workspace", terminalManager, 1000, abortController.signal)
+
+		await waitFor(() => process.listenerCount("line") > 0)
+		abortController.abort()
+
+		await expect(resultPromise).rejects.toThrow("Command execution aborted")
 	})
 })
 
