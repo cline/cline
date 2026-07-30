@@ -49,6 +49,15 @@ import {
 	authenticateAcpProvider,
 	isAcpAuthMethodId,
 } from "./auth";
+import {
+	buildOrganizationConfigOption,
+	fetchClineOrganizations,
+	getAcpOrgSubscriptionMessage,
+	ORGANIZATION_CONFIG_ID,
+	PERSONAL_ACCOUNT_VALUE,
+	switchClineOrganization,
+	usesClineAccount,
+} from "./organizations";
 import { requestAcpToolApproval } from "./permissions";
 import { replaySessionHistory } from "./session-load";
 import {
@@ -187,6 +196,9 @@ export class AcpAgent implements Agent {
 			}),
 		);
 
+		const organizationOption =
+			await this.getOrganizationConfigOption(providerId);
+
 		return {
 			sessionId,
 			modes: {
@@ -201,6 +213,7 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+				...(organizationOption ? [organizationOption] : []),
 			],
 		};
 	}
@@ -446,6 +459,27 @@ export class AcpAgent implements Agent {
 				break;
 			}
 
+			case ORGANIZATION_CONFIG_ID: {
+				try {
+					await switchClineOrganization({
+						apiKey: this.accountApiKey,
+						providerSettingsManager: this.providerSettingsManager,
+						organizationId: value === PERSONAL_ACCOUNT_VALUE ? null : value,
+					});
+				} catch (error) {
+					const message = describeAgentError(error);
+					throw RequestError.internalError(
+						{ message },
+						`Failed to switch account: ${message}`,
+					);
+				}
+
+				// Restart the backend session so subsequent turns run under the
+				// newly selected account.
+				await this.teardownSessionManager(session);
+				break;
+			}
+
 			case "model": {
 				session.currentModelId = value;
 				if (session.sessionManager && session.activeSessionId) {
@@ -477,6 +511,12 @@ export class AcpAgent implements Agent {
 		}
 
 		const configOptions = await buildAllConfigOptions(session);
+		const organizationOption = await this.getOrganizationConfigOption(
+			session.currentProviderId,
+		);
+		if (organizationOption) {
+			configOptions.push(organizationOption);
+		}
 		sendConfigOptionUpdate(this.conn, params.sessionId, configOptions);
 		return { configOptions };
 	}
@@ -515,6 +555,25 @@ export class AcpAgent implements Agent {
 			}
 		}
 		this.sessions.clear();
+	}
+
+	private get accountApiKey(): string {
+		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+	}
+
+	private async getOrganizationConfigOption(
+		providerId: string,
+	): Promise<SessionConfigOption | undefined> {
+		if (!usesClineAccount(providerId)) {
+			return undefined;
+		}
+		const organizations = await fetchClineOrganizations({
+			apiKey: this.accountApiKey,
+			providerSettingsManager: this.providerSettingsManager,
+		});
+		return organizations
+			? buildOrganizationConfigOption(organizations)
+			: undefined;
 	}
 
 	/**
@@ -711,12 +770,14 @@ export class AcpAgent implements Agent {
  * as it forwards them across the event boundary, so `instanceof` alone fails on
  * the object ACP actually receives.
  */
-function toAcpPromptError(error: Error): RequestError {
+function toAcpPromptError(error: Error): RequestError {	
+	if (isClineOrgIndividualInferenceSubscriptionErrorMessage(error)) {
+		const message = getAcpOrgSubscriptionMessage();
+		return RequestError.internalError({ message }, message);
+	}
+
 	const message = describeAgentError(error);
-	const isAuthProblem =
-		isLikelyAuthError(error) ||
-		isClinePassSubscriptionError(error) ||
-		isClineOrgIndividualInferenceSubscriptionErrorMessage(error);
+	const isAuthProblem = isLikelyAuthError(error);
 	return isAuthProblem
 		? RequestError.authRequired({ message }, message)
 		: RequestError.internalError({ message }, message);
