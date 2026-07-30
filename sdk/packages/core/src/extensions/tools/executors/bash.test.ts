@@ -1,3 +1,6 @@
+import { access, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { CommandExitError, createShellExecutor } from "./bash";
@@ -7,6 +10,20 @@ const ctx: AgentToolContext = {
 	conversationId: "conv-1",
 	iteration: 1,
 };
+
+const longRunningCommand = {
+	command: process.execPath,
+	args: ["-e", "setInterval(() => {}, 1_000)"],
+};
+
+async function fileExists(path: string): Promise<boolean> {
+	try {
+		await access(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 describe("createShellExecutor", () => {
 	it("runs a simple command and returns stdout", async () => {
@@ -110,7 +127,7 @@ describe("createShellExecutor", () => {
 
 	it("rejects on timeout", async () => {
 		const shell = createShellExecutor({ timeoutMs: 50 });
-		await expect(shell("sleep 10", process.cwd(), ctx)).rejects.toThrow(
+		await expect(shell(longRunningCommand, process.cwd(), ctx)).rejects.toThrow(
 			"timed out",
 		);
 	});
@@ -212,9 +229,66 @@ describe("createShellExecutor", () => {
 		const shell = createShellExecutor();
 
 		setTimeout(() => ac.abort(), 50);
-		await expect(shell("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
-			"aborted",
-		);
+		await expect(
+			shell(longRunningCommand, process.cwd(), abortCtx),
+		).rejects.toThrow("aborted");
+	});
+
+	it("does not spawn a command for an already-aborted signal", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "shell-pre-abort-"));
+		const markerPath = join(tempDir, "spawned");
+		const ac = new AbortController();
+		ac.abort();
+		const shell = createShellExecutor();
+		try {
+			await expect(
+				shell(
+					{
+						command: process.execPath,
+						args: [
+							"-e",
+							`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "spawned")`,
+						],
+					},
+					process.cwd(),
+					{ ...ctx, signal: ac.signal },
+				),
+			).rejects.toThrow("aborted");
+			expect(await fileExists(markerPath)).toBe(false);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it("finishes abort cleanup before a descendant can outlive the command", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "shell-abort-tree-"));
+		const readyPath = join(tempDir, "ready");
+		const descendantPath = join(tempDir, "descendant-survived");
+		const ac = new AbortController();
+		const shell = createShellExecutor();
+		const descendantScript = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(descendantPath)}, "survived"), 1_000)`;
+		const parentScript = [
+			'const { spawn } = require("node:child_process")',
+			'const { writeFileSync } = require("node:fs")',
+			`spawn(process.execPath, ["-e", ${JSON.stringify(descendantScript)}], { stdio: "ignore" })`,
+			`writeFileSync(${JSON.stringify(readyPath)}, "ready")`,
+			"setInterval(() => {}, 1_000)",
+		].join(";");
+
+		try {
+			const execution = shell(
+				{ command: process.execPath, args: ["-e", parentScript] },
+				process.cwd(),
+				{ ...ctx, signal: ac.signal },
+			);
+			await expect.poll(() => fileExists(readyPath)).toBe(true);
+			ac.abort();
+			await expect(execution).rejects.toThrow("aborted");
+			await new Promise((resolve) => setTimeout(resolve, 1_200));
+			expect(await fileExists(descendantPath)).toBe(false);
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it("flushes a trailing incomplete multibyte sequence instead of dropping it", async () => {
