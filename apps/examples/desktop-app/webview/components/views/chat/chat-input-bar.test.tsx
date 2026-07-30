@@ -118,10 +118,12 @@ describe("ChatInputBar", () => {
 		await act(async () => compactModelTrigger?.click());
 		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("true");
 		expect(
-			container.querySelectorAll<HTMLButtonElement>('[aria-label="Provider"]'),
+			container.querySelectorAll<HTMLButtonElement>(
+				'[aria-label^="Provider:"]',
+			),
 		).toHaveLength(2);
 		expect(
-			container.querySelectorAll<HTMLButtonElement>('[aria-label="Model"]'),
+			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
 		).toHaveLength(2);
 		await act(async () =>
 			container
@@ -154,7 +156,7 @@ describe("ChatInputBar", () => {
 
 		expect(onReasoningChange).not.toHaveBeenCalled();
 		const providerTrigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Provider"]',
+			'[aria-label^="Provider:"]',
 		);
 		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
 			"max-[560px]:hidden",
