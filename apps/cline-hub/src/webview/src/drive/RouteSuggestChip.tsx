@@ -21,6 +21,7 @@ export function RouteSuggestChip({
 				className,
 			)}
 			data-testid="drive-route-suggest"
+			role="status"
 		>
 			<span className="font-medium text-foreground">
 				Route to {suggestion.displayName}
