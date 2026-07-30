@@ -402,10 +402,10 @@ describe("McpHub list_changed notification refresh", () => {
 		fetchToolsList.calledOnce.should.be.true()
 
 		// deleteConnection starts and blocks awaiting transport.close(); the
-		// connection is still in this.connections during that window
+		// connection must already be gone from published state in that window
 		const deletion = hub.deleteConnection("test-server")
 		await clock.tickAsync(0)
-		;(hub as any).connections.length.should.equal(1)
+		;(hub as any).connections.length.should.equal(0)
 
 		// The fetch completes inside the teardown window: its result must be
 		// dropped, not published against the connection being torn down

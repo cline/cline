@@ -17,6 +17,14 @@ export interface ReconnectCallbacks {
 	appendErrorMessage: (connection: { server: { status: string } }, message: string) => void
 	/** Awaitable delay — injected so tests can substitute a zero-delay or fake timer */
 	delay: (ms: number) => Promise<void>
+	/**
+	 * Reads current settings fresh and returns whether this server is still
+	 * configured and enabled. Checked before every reconnect attempt so a
+	 * retry can't resurrect a server the user removed or disabled during a
+	 * backoff delay. Should return true when settings can't be read — a
+	 * transient read failure must not kill the reconnect chain.
+	 */
+	isStillWanted: () => Promise<boolean>
 }
 
 /**
@@ -151,6 +159,28 @@ export class StreamableHttpReconnectHandler {
 		await this.callbacks.deleteConnection()
 
 		while (this.attempts <= this.config.maxAttempts) {
+			// Revalidate before every attempt: during the preceding await
+			// (teardown or a backoff delay) another path — the settings
+			// watcher, an RPC — may have installed a replacement connection,
+			// or settings may have removed/disabled the server. Proceeding
+			// would displace the replacement without closing it (leaking its
+			// transport) or resurrect a server the user removed. Our own
+			// original connection and the "disconnected" husk left behind by
+			// our own failed connectToServer() attempt are not replacements —
+			// keep retrying past those.
+			const existing = this.callbacks.findConnection()
+			if (existing && existing !== connection && existing.server.status !== "disconnected") {
+				Logger.log(
+					`StreamableHTTP reconnect aborted for "${this.serverName}": ` +
+						`another path installed a replacement connection (status: ${existing.server.status})`,
+				)
+				return
+			}
+			if (!(await this.callbacks.isStillWanted())) {
+				Logger.log(`StreamableHTTP reconnect aborted for "${this.serverName}": server no longer configured or disabled`)
+				return
+			}
+
 			try {
 				await this.callbacks.connectToServer()
 			} catch (reconnectError) {

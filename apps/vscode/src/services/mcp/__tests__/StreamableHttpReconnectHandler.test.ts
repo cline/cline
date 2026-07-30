@@ -31,6 +31,7 @@ function makeCallbacks(connection?: ReturnType<typeof makeConnection>): Reconnec
 		notifyWebviewOfServerChanges: sinon.stub().resolves(),
 		appendErrorMessage: sinon.stub(),
 		delay: sinon.stub().resolves(), // instant — no real waiting in tests
+		isStillWanted: sinon.stub().resolves(true),
 	}
 	return { ...(stubs as unknown as ReconnectCallbacks), stubs }
 }
@@ -145,6 +146,57 @@ describe("StreamableHttpReconnectHandler", () => {
 		handler.attemptCount.should.equal(0)
 	})
 
+	it("should abort retries when the server is removed from settings during a later delay", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.connectToServer.rejects(new Error("still broken"))
+		// After deleteConnection the old connection is gone
+		let deleted = false
+		cbs.stubs.findConnection.callsFake(() => (deleted ? undefined : conn))
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		// Attempt 1 is still wanted; during its backoff the user removes the server
+		cbs.stubs.isStillWanted.onFirstCall().resolves(true)
+		cbs.stubs.isStillWanted.onSecondCall().resolves(false)
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry after the removal must not run — it would resurrect the server
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+	})
+
+	it("should abort retries when another path installed a replacement connection during a later delay", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.connectToServer.rejects(new Error("still broken"))
+		// After our deleteConnection: nothing at first, then a live replacement
+		// appears (e.g. the settings watcher reconnected with a new config)
+		const replacement = makeConnection({ status: "connected" })
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? replacement : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			throw new Error("still broken")
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry must not displace the live replacement (connectToServer
+		// would drop it from the list without closing it)
+		attempts.should.equal(1)
+		replacement.server.status.should.equal("connected")
+	})
+
 	it("should retry a transiently failing post-reconnect publication", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
@@ -203,8 +255,11 @@ describe("StreamableHttpReconnectHandler", () => {
 		cbs.stubs.connectToServer.rejects(new Error("still broken"))
 
 		// After deleteConnection, findConnection returns undefined (old conn deleted)
-		// but connectToServer may leave a partial connection, so simulate that
-		const partialConn = makeConnection()
+		// but connectToServer may leave a partial connection, so simulate that.
+		// A partial connection from a failed connectToServer is always marked
+		// "disconnected" (its error path sets that before throwing) — which is
+		// also what lets the retry loop distinguish it from a live replacement.
+		const partialConn = makeConnection({ status: "disconnected" })
 		let deleted = false
 		cbs.stubs.findConnection.callsFake(() => {
 			if (!deleted) return conn

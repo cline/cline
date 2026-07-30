@@ -628,6 +628,16 @@ export class McpHub {
 						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
 						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
 						delay: (ms) => setTimeoutPromise(ms),
+						isStillWanted: async () => {
+							const settings = await this.readAndValidateMcpSettingsFile()
+							if (!settings) {
+								// Can't read settings — don't kill the reconnect
+								// chain over a transient read failure
+								return true
+							}
+							const serverConfig = (settings.mcpServers as Record<string, McpServerConfig> | undefined)?.[name]
+							return !!serverConfig && !serverConfig.disabled
+						},
 					})
 
 					transport.onerror = (error) => reconnectHandler.handleError(error)
@@ -1168,6 +1178,12 @@ export class McpHub {
 		}
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
+			// Remove from published state BEFORE awaiting the close handshake:
+			// concurrent publishers (list refreshes finishing their fetch,
+			// notifyWebviewOfServerChanges callers) read this.connections after
+			// their own suspension points, and must not see — or re-publish —
+			// a connection that is being torn down.
+			this.connections = this.connections.filter((conn) => conn.server.name !== name)
 			try {
 				// Only close transport and client if they exist (disabled servers don't have them)
 				if (connection.transport) {
@@ -1179,7 +1195,6 @@ export class McpHub {
 			} catch (error) {
 				Logger.error(`Failed to close transport for ${name}:`, error)
 			}
-			this.connections = this.connections.filter((conn) => conn.server.name !== name)
 		}
 	}
 
