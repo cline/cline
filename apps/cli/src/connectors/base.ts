@@ -179,14 +179,10 @@ export abstract class ConnectorBase<Options, State>
 	 */
 	protected claimConnectorInstance(input: {
 		statePath: string;
-		createState: (
-			claimId: string,
-		) => State & { claimId: string; pid: number };
+		createState: (claimId: string) => State & { claimId: string; pid: number };
 		readState: (path: string) => State | undefined;
 		getPid: (state: State) => number;
-	}):
-		| { claimed: true; claimId: string }
-		| { claimed: false; running?: State } {
+	}): { claimed: true; claimId: string } | { claimed: false; running?: State } {
 		const existing = input.readState(input.statePath);
 		if (existing && isProcessRunning(input.getPid(existing))) {
 			return { claimed: false, running: existing };

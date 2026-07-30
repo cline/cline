@@ -239,7 +239,11 @@ describe("tryClaimConnectorStateFile", () => {
 
 		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
 		const statePath = join(dir, "instance.json");
-		writeFileSync(statePath, JSON.stringify({ pid: 1, userName: "stale" }), "utf8");
+		writeFileSync(
+			statePath,
+			JSON.stringify({ pid: 1, userName: "stale" }),
+			"utf8",
+		);
 		try {
 			const claimed = tryClaimConnectorStateFile(
 				statePath,

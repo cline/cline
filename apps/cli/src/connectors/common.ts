@@ -335,11 +335,7 @@ export function tryClaimConnectorStateFile(
 		}
 	}
 
-	return tryReplaceStaleConnectorStateFile(
-		statePath,
-		observedPayload,
-		payload,
-	)
+	return tryReplaceStaleConnectorStateFile(statePath, observedPayload, payload)
 		? { claimId }
 		: undefined;
 }
@@ -382,9 +378,7 @@ function tryReplaceStaleConnectorStateFile(
 	observedPayload: string,
 	replacementPayload: string,
 ): boolean {
-	const generation = createHash("sha256")
-		.update(observedPayload)
-		.digest("hex");
+	const generation = createHash("sha256").update(observedPayload).digest("hex");
 	const replacementGuardPath = `${statePath}.${generation}.stale`;
 	try {
 		linkSync(statePath, replacementGuardPath);
