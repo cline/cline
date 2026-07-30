@@ -282,7 +282,7 @@ const USER_SETTINGS_FIELDS = {
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	showFeatureTips: { default: true as boolean },
+	showFeatureTips: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
