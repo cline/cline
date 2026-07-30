@@ -27,7 +27,7 @@ describe("marketplace-helpers plugin guard", () => {
 				id: "my-plugin",
 				type: "plugin",
 				name: "My Plugin",
-				install: { args: ["https://github.com/example/plugin.git"] },
+				install: { args: ["https://github.com/example/plugin.git"], env: [] },
 				tags: [],
 				tagObjects: [],
 			}),
