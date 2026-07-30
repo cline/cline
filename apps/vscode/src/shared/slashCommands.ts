@@ -26,8 +26,14 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	// expansions are ported to the SDK runtime — without expansion the literal
 	// command text reaches the model, which silently degrades to plain chat.
 	{
-		name: "smol",
+		name: "compact",
 		description: "Condenses your current context window",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "smol",
+		description: "Alias for /compact",
 		section: "default",
 		cliCompatible: true,
 	},

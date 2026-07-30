@@ -75,6 +75,8 @@ function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> =
 		setExpandedRows: vi.fn(),
 		pendingUserMessage: undefined,
 		setPendingUserMessage: vi.fn(),
+		pendingResponse: undefined,
+		setPendingResponse: vi.fn(),
 		textAreaRef: { current: null },
 		lastMessage: last,
 		secondLastMessage: messages.at(-2),
@@ -214,6 +216,7 @@ describe("useMessageHandlers — send routing", () => {
 		const setSelectedFiles = vi.fn()
 		const setEnableButtons = vi.fn()
 		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
 		const chatState = makeChatState(completedConversation, {
 			activeQuote: "selected context",
 			sendingDisabled: false,
@@ -225,6 +228,7 @@ describe("useMessageHandlers — send routing", () => {
 			setSelectedFiles,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingResponse,
 		})
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
 
@@ -261,6 +265,11 @@ describe("useMessageHandlers — send routing", () => {
 				}),
 			}),
 		)
+		expect(setPendingResponse).toHaveBeenCalledWith({
+			id: 1,
+			turnStateSeq: 7,
+			messageCount: completedConversation.length,
+		})
 
 		await act(async () => {
 			resolveAskResponse()
@@ -278,6 +287,7 @@ describe("useMessageHandlers — send routing", () => {
 		const setSelectedFiles = vi.fn()
 		const setEnableButtons = vi.fn()
 		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
 		const chatState = makeChatState(completedConversation, {
 			activeQuote: "selected context",
 			sendingDisabled: false,
@@ -289,6 +299,7 @@ describe("useMessageHandlers — send routing", () => {
 			setSelectedFiles,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingResponse,
 		})
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
 		askResponse.mockRejectedValueOnce(error)
@@ -326,7 +337,16 @@ describe("useMessageHandlers — send routing", () => {
 				}),
 			}),
 		)
-		expect(setPendingUserMessage).toHaveBeenLastCalledWith(undefined)
+		const optimisticMessage = setPendingUserMessage.mock.calls[0][0]
+		const rollbackMessage = setPendingUserMessage.mock.calls.at(-1)?.[0]
+		expect(rollbackMessage(optimisticMessage)).toBeUndefined()
+		const newerMessage = { afterTs: 3, message: { ...optimisticMessage.message, ts: 4 } }
+		expect(rollbackMessage(newerMessage)).toBe(newerMessage)
+		const pendingResponse = setPendingResponse.mock.calls[0][0]
+		const rollbackResponse = setPendingResponse.mock.calls.at(-1)?.[0]
+		expect(rollbackResponse(pendingResponse)).toBeUndefined()
+		const newerResponse = { ...pendingResponse, id: 2 }
+		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
 	})
 
 	it("does not show a pending chat bubble for a streaming follow-up that will be queued", async () => {
@@ -336,8 +356,12 @@ describe("useMessageHandlers — send routing", () => {
 			{ ts: 2, type: "say", say: "text", text: "working", partial: true },
 		]
 		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
 		const { result } = renderHook(() =>
-			useMessageHandlers(streamingConversation, makeChatState(streamingConversation, { setPendingUserMessage })),
+			useMessageHandlers(
+				streamingConversation,
+				makeChatState(streamingConversation, { setPendingUserMessage, setPendingResponse }),
+			),
 		)
 
 		await act(async () => {
@@ -346,6 +370,7 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(askResponse).toHaveBeenCalledTimes(1)
 		expect(setPendingUserMessage).not.toHaveBeenCalled()
+		expect(setPendingResponse).not.toHaveBeenCalled()
 	})
 
 	it("rejects a pending approval when the composer is submitted with typed feedback", async () => {
@@ -380,7 +405,10 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("phase awaiting_followup also routes a follow-up to askResponse", async () => {
 		mockTurnState = { phase: "awaiting_followup", seq: 3 }
-		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(completedConversation, makeChatState(completedConversation, { setPendingResponse })),
+		)
 
 		await act(async () => {
 			await result.current.handleSendMessage("more info", [], [])
@@ -388,6 +416,11 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(setPendingResponse).toHaveBeenCalledWith({
+			id: 1,
+			turnStateSeq: 3,
+			messageCount: completedConversation.length,
+		})
 	})
 
 	it("does not show a pending chat bubble when answering an active follow-up question with freeform text", async () => {
@@ -419,7 +452,11 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("an empty transcript still starts a NEW task (unchanged behavior)", async () => {
 		mockTurnState = { phase: "idle", seq: 1 }
-		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers([], makeChatState([], { setPendingUserMessage, setPendingResponse })),
+		)
 
 		await act(async () => {
 			await result.current.handleSendMessage("brand new task", [], [])
@@ -427,6 +464,16 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(setPendingResponse).toHaveBeenCalledWith({ id: 1, turnStateSeq: 1, messageCount: 0 })
+		expect(setPendingUserMessage).toHaveBeenCalledWith({
+			afterTs: 0,
+			message: expect.objectContaining({
+				type: "say",
+				say: "task",
+				text: "brand new task",
+				partial: false,
+			}),
+		})
 		expect(trackIntent).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: "prompt_submitted",
@@ -449,6 +496,8 @@ describe("useMessageHandlers — send routing", () => {
 		const setSelectedImages = vi.fn()
 		const setSelectedFiles = vi.fn()
 		const setEnableButtons = vi.fn()
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
 		const chatState = makeChatState([], {
 			activeQuote: "selected context",
 			sendingDisabled: false,
@@ -459,6 +508,8 @@ describe("useMessageHandlers — send routing", () => {
 			setSelectedImages,
 			setSelectedFiles,
 			setEnableButtons,
+			setPendingUserMessage,
+			setPendingResponse,
 		})
 		const { result } = renderHook(() => useMessageHandlers([], chatState))
 		newTask.mockRejectedValueOnce(error)
@@ -492,6 +543,12 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
 		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
 		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
+		const optimisticMessage = setPendingUserMessage.mock.calls[0][0]
+		const rollbackMessage = setPendingUserMessage.mock.calls.at(-1)?.[0]
+		expect(rollbackMessage(optimisticMessage)).toBeUndefined()
+		const pendingResponse = setPendingResponse.mock.calls[0][0]
+		const rollbackResponse = setPendingResponse.mock.calls.at(-1)?.[0]
+		expect(rollbackResponse(pendingResponse)).toBeUndefined()
 	})
 
 	// The webview does not gate sends on provider usability: submission always

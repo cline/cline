@@ -10,7 +10,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const LITELLM_PROVIDER_ID = "litellm"
@@ -126,7 +126,18 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						)}
 					</VSCodeButton>
 
-					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{selectedModelInfo?.supportsReasoning && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+								}).catch((err) => console.error("Failed to update LiteLLM reasoning effort:", err))
+							}}
+						/>
+					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
