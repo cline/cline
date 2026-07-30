@@ -11,11 +11,6 @@ import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfigura
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
-import {
-	hasPendingMessageConfirmation,
-	isPendingResponseUnconfirmed,
-	withPendingUserMessage,
-} from "./chat-view/utils/pendingResponse"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -34,6 +29,11 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import {
+	hasPendingMessageConfirmation,
+	isPendingResponseUnconfirmed,
+	withPendingUserMessage,
+} from "./chat-view/utils/pendingResponse"
 
 interface ChatViewProps {
 	isHidden: boolean

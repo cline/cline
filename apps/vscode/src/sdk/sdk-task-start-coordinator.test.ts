@@ -57,8 +57,13 @@ describe("SdkTaskStartCoordinator", () => {
 			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
 			{ type: "status", payload: { sessionId, status: "running" } },
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 		expect(options.messages.appendAndEmit.mock.invocationCallOrder[0]).toBeLessThan(
+			options.sessions.startNewSession.mock.invocationCallOrder[0],
+		)
+		// The first state post carries the streaming TurnState to the webview (thinking
+		// indicator) and must not wait for the potentially slow session startup.
+		expect(options.postStateToWebview.mock.invocationCallOrder[0]).toBeLessThan(
 			options.sessions.startNewSession.mock.invocationCallOrder[0],
 		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
@@ -121,7 +126,8 @@ describe("SdkTaskStartCoordinator", () => {
 			],
 			{ type: "status", payload: { sessionId: state.task?.taskId, status: "error" } },
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// One early post before session startup, one after the failure.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it.each([true, false])("forwards task useAutoCondense=%s into SDK session config inputs", async (useAutoCondense) => {
