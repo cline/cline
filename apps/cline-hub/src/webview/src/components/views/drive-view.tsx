@@ -121,18 +121,22 @@ function FeatureCard({
 }
 
 function RoomPreviewCard({
+	lookupError,
 	preview,
 	onOpenCall,
+	onRetry,
 }: {
+	lookupError: string | null;
 	preview: DriveRoomPreview | null;
-	onOpenCall: (intent: DriveRoomOpenIntent) => void;
+	onOpenCall: (request: DriveOpenCallRequest) => void;
+	onRetry: () => void;
 }) {
 	const copy = preview ? ROOM_STATE_COPY[preview.state] : null;
 	const actionIntent = preview ? driveRoomOpenIntent(preview.state) : null;
+	const showRoomDetails = preview !== null && preview.state !== "empty";
 
 	return (
 		<section
-			aria-live="polite"
 			className={cn(
 				"mb-6 rounded-lg border bg-card p-5",
 				preview?.state === "seated" && "border-primary/40",
@@ -146,7 +150,7 @@ function RoomPreviewCard({
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-2">
 							<h2 className="text-base font-semibold text-foreground">
-								{copy?.title ?? "Checking your Drive room…"}
+								{copy?.title ?? "Pairing room"}
 							</h2>
 							<Badge
 								className={cn(
@@ -155,75 +159,88 @@ function RoomPreviewCard({
 								)}
 								variant={preview?.state === "seated" ? "outline" : "secondary"}
 							>
-								{copy?.badge ?? "Checking"}
+								{lookupError ? "Unavailable" : (copy?.badge ?? "Checking")}
 							</Badge>
 						</div>
-						<p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-							{copy?.description ??
-								"Reading the authoritative Pairing room from the hub."}
+						<p
+							aria-atomic="true"
+							aria-live="polite"
+							className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground"
+							role="status"
+						>
+							{lookupError ??
+								copy?.description ??
+								"Checking the Pairing room with the hub."}
 						</p>
 					</div>
 				</div>
 				<Button
-					disabled={!actionIntent}
+					disabled={!actionIntent && !lookupError}
 					onClick={() => {
-						if (actionIntent) {
-							onOpenCall(actionIntent);
+						if (lookupError) {
+							onRetry();
+						} else if (actionIntent && preview) {
+							onOpenCall({
+								action: actionIntent,
+								roomId: preview.roomId,
+							});
 						}
 					}}
 					type="button"
 				>
 					<PhoneIcon className="size-3.5" />
-					{preview ? ROOM_ACTION_LABELS[preview.state] : "Checking…"}
+					{lookupError
+						? "Retry"
+						: preview
+							? ROOM_ACTION_LABELS[preview.state]
+							: "Checking…"}
 				</Button>
 			</div>
 
-			<div className="mt-5 grid gap-3 sm:grid-cols-3">
-				<div className="rounded-md border bg-background/50 px-3 py-2.5">
-					<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-						Roster
-					</div>
-					<div className="mt-2 flex min-h-5 flex-wrap gap-1.5">
-						{preview && preview.roster.length > 0 ? (
-							preview.roster.map((participant) => (
-								<Badge key={participant.id} variant="outline">
-									{participant.displayName}
-									<span className="ml-1.5 text-muted-foreground">
-										{PARTICIPANT_STATUS_LABELS[participant.status]}
-									</span>
-								</Badge>
-							))
-						) : (
-							<span className="text-sm text-muted-foreground">
-								{preview ? "No one seated" : "Checking…"}
-							</span>
-						)}
-					</div>
-				</div>
-				<div className="rounded-md border bg-background/50 px-3 py-2.5">
-					<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-						Spotlight
-					</div>
-					<div className="mt-2 text-sm font-medium text-foreground">
-						{preview?.spotlightOwner?.displayName ??
-							(preview ? "No one sharing" : "Checking…")}
-					</div>
-				</div>
-				<div className="rounded-md border bg-background/50 px-3 py-2.5">
-					<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-						Working state
-					</div>
-					<div className="mt-2 text-sm font-medium text-foreground">
-						{preview ? SUBMODE_LABELS[preview.subMode] : "Checking…"}
-					</div>
-					{preview ? (
-						<div className="mt-0.5 text-xs text-muted-foreground">
-							{preview.cardCount} Spotlight{" "}
-							{preview.cardCount === 1 ? "card" : "cards"}
+			{showRoomDetails ? (
+				<div className="mt-5 grid gap-3 sm:grid-cols-3">
+					<div className="rounded-md border bg-background/50 px-3 py-2.5">
+						<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+							Roster
 						</div>
-					) : null}
+						<div className="mt-2 flex min-h-5 flex-wrap gap-1.5">
+							{preview.roster.length > 0 ? (
+								preview.roster.map((participant) => (
+									<Badge key={participant.id} variant="outline">
+										{participant.displayName}
+										<span className="ml-1.5 text-muted-foreground">
+											{PARTICIPANT_STATUS_LABELS[participant.status]}
+										</span>
+									</Badge>
+								))
+							) : (
+								<span className="text-sm text-muted-foreground">
+									No one seated
+								</span>
+							)}
+						</div>
+					</div>
+					<div className="rounded-md border bg-background/50 px-3 py-2.5">
+						<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+							Spotlight
+						</div>
+						<div className="mt-2 text-sm font-medium text-foreground">
+							{preview.spotlightOwner?.displayName ?? "No one sharing"}
+						</div>
+						<div className="mt-0.5 text-xs text-muted-foreground">
+							{preview.cardCount} {preview.cardCount === 1 ? "card" : "cards"}
+						</div>
+					</div>
+					<div className="rounded-md border bg-background/50 px-3 py-2.5">
+						<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+							Working state
+						</div>
+						<div className="mt-2 text-sm font-medium text-foreground">
+							{SUBMODE_LABELS[preview.subMode]}
+						</div>
+					</div>
 				</div>
-			</div>
+			) : null}
 		</section>
 	);
 }
@@ -232,17 +249,20 @@ export function DriveView({
 	onOpenCall,
 	onOpenStatus,
 }: {
-	onOpenCall: (intent: DriveRoomOpenIntent) => void;
+	onOpenCall: (request: DriveOpenCallRequest) => void;
 	onOpenStatus: () => void;
 }) {
 	const [summary, setSummary] = useState<StatusSummary | null>(null);
 	const [roomPreview, setRoomPreview] = useState<DriveRoomPreview | null>(null);
+	const [roomLookupError, setRoomLookupError] = useState<string | null>(null);
 
 	const requestSummary = useCallback(() => {
 		postToHost({ type: "status_summary", requestId: "drive-summary" });
 	}, []);
 
 	const requestRoom = useCallback(() => {
+		setRoomLookupError(null);
+		setRoomPreview(null);
 		postToHost({ type: "call_get_room", roomId: DRIVE_DEFAULT_ROOM_ID });
 	}, []);
 
@@ -263,6 +283,19 @@ export function DriveView({
 				requestSummary();
 			}
 			if (
+				message.type === "call_error" &&
+				message.command === "call_get_room" &&
+				message.code !== "room_not_found"
+			) {
+				setRoomPreview(null);
+				setRoomLookupError(
+					typeof message.text === "string" && message.text.trim()
+						? message.text
+						: "Could not check the Pairing room.",
+				);
+				return;
+			}
+			if (
 				message.type === "room_snapshot" ||
 				message.type === "drive_event" ||
 				message.type === "room_not_found" ||
@@ -270,6 +303,7 @@ export function DriveView({
 					message.code === "room_not_found" &&
 					message.command === "call_get_room")
 			) {
+				setRoomLookupError(null);
 				setRoomPreview((current) => {
 					const base = current ?? EMPTY_DRIVE_ROOM_PREVIEW;
 					const next = applyDriveRoomPreviewMessage(base, message);
@@ -286,12 +320,17 @@ export function DriveView({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Drive coding: you stay on a call with an agent while it works, watch what it is doing, and steer. Everything this fork adds to Cline lives here."
+				description="Stay on a call with an agent while it works. Watch what it is doing, then steer when needed."
 				icon={DriveMarkIcon}
 				title="Drive"
 			/>
 
-			<RoomPreviewCard onOpenCall={onOpenCall} preview={roomPreview} />
+			<RoomPreviewCard
+				lookupError={roomLookupError}
+				onOpenCall={onOpenCall}
+				onRetry={requestRoom}
+				preview={roomPreview}
+			/>
 
 			{/* Status snapshot first: if something is blocked, that is the most
 			    useful thing this page can tell you. */}
