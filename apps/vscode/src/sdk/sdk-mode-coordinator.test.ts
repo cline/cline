@@ -114,7 +114,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -141,7 +141,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("submits typed chatContent as the continuation when toggling plan -> act on a presented plan", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -173,7 +173,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("forwards attachments alongside the typed message when auto-continuing", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -211,7 +211,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("consumes attachment-only chatContent and sends it with the canned prompt", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -249,7 +249,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("resets the running state and reports an error phase when the continuation send setup fails", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -286,9 +286,10 @@ describe("SdkModeCoordinator", () => {
 
 	it("does not auto-continue while a follow-up question is pending", async () => {
 		// handleAskQuestion sets the phase to awaiting_followup but blocks the
-		// turn mid-run, so the session is still flagged running.
+		// turn mid-run, so the session is still flagged running. A plan is in the
+		// transcript so `isRunning` is the only thing holding the continuation back.
 		const activeSession = makeActiveSession({ isRunning: true })
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -311,7 +312,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("does not auto-continue a plan -> act toggle while a turn is running", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -323,6 +324,47 @@ describe("SdkModeCoordinator", () => {
 
 		expect(state.mode).toBe("act")
 		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(true)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue an act -> plan -> act round trip that never produced a plan", async () => {
+		// The user toggled to plan by accident after an ordinary act-mode answer and
+		// toggled straight back. The turn phase still reads awaiting_followup, so
+		// only the transcript can tell there is no plan to act on.
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", NO_PLAN)
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "act",
+			turnPhase: "awaiting_followup",
+		})
+
+		await coordinator.togglePlanActMode("plan")
+		// The composer content survives, because nothing consumed it.
+		await expect(coordinator.togglePlanActMode("act", { message: "and now?", images: [], files: [] })).resolves.toBe(false)
+
+		expect(state.mode).toBe("act")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onAutoContinueStarting).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue when the agent asked a follow-up question instead of presenting a plan", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			...PRESENTED_PLAN,
+			{ ts: 3, type: "say", say: "user_feedback", text: "what about tests?" },
+			{ ts: 4, type: "ask", ask: "followup", text: '{"question":"Unit or e2e?"}' },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await expect(coordinator.togglePlanActMode("act", { message: "unit", images: [], files: [] })).resolves.toBe(false)
+
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
@@ -349,7 +391,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("does not auto-continue on act -> plan toggle even when the agent is awaiting followup", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -369,7 +411,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("does not mark a live continuation as failed when the post-send state post rejects", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", PRESENTED_PLAN)
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -510,7 +552,7 @@ describe("SdkModeCoordinator", () => {
 
 		it("makes the notice available before the auto-continue send fires", async () => {
 			const activeSession = makeActiveSession()
-			const task = makeTask("old-session")
+			const task = makeTask("old-session", PRESENTED_PLAN)
 			const { coordinator, options } = makeCoordinator({
 				activeSession,
 				task,
@@ -712,6 +754,22 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		isRunning: input.isRunning ?? false,
 	}
 }
+
+/**
+ * Transcript whose last turn presented a plan. The UI toggle's auto-continue
+ * requires this, so tests that assert a continuation fires — or that assert it is
+ * blocked for some *other* reason — start from it.
+ */
+const PRESENTED_PLAN: Array<Partial<ClineMessage>> = [
+	{ ts: 1, type: "say", say: "user_feedback", text: "plan the refactor" },
+	{ ts: 2, type: "say", say: "plan_completion_result", text: "Here is the plan." },
+]
+
+/** Transcript whose last turn was an ordinary act-mode answer, so there is no plan to act on. */
+const NO_PLAN: Array<Partial<ClineMessage>> = [
+	{ ts: 1, type: "say", say: "user_feedback", text: "what does math.js do?" },
+	{ ts: 2, type: "say", say: "completion_result", text: "It exports add()." },
+]
 
 function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
 	return {

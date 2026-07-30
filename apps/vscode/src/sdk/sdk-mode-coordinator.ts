@@ -5,6 +5,7 @@ import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { endsOnPresentedPlan } from "./presented-plan"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -158,13 +159,20 @@ export class SdkModeCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession) {
-			// A plan -> act toggle while the agent is idle after presenting its plan
-			// (awaiting_followup) is the user acting on that plan, so continue
-			// automatically. Any other state only updates the session configuration
-			// and waits for an explicit send. A pending ask_question also reports
-			// awaiting_followup but blocks the turn mid-run, so isRunning stays
-			// true and it cannot reach this branch.
-			const planPresented = !activeSession.isRunning && this.options.getTurnPhase() === "awaiting_followup"
+			// A plan -> act toggle while the agent is idle after presenting a plan is
+			// the user acting on that plan, so continue automatically. Any other
+			// state only updates the session configuration and waits for an explicit
+			// send. A pending ask_question also reports awaiting_followup but blocks
+			// the turn mid-run, so isRunning stays true and it cannot reach this
+			// branch. The transcript check is what keeps this honest: the phase alone
+			// only says "it's the user's move", which is equally true after an
+			// act-mode answer, and it survives mode toggles — so an accidental
+			// act -> plan -> act round trip would otherwise ask the agent to act on a
+			// plan it never presented.
+			const planPresented =
+				!activeSession.isRunning &&
+				this.options.getTurnPhase() === "awaiting_followup" &&
+				endsOnPresentedPlan(this.options.getTask()?.messageStateHandler?.getClineMessages() ?? [])
 			const autoContinue = modeToSwitchTo === "act" && planPresented
 			const userPrompt = chatContent?.message?.trim() || undefined
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
