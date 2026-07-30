@@ -1,6 +1,7 @@
 "use client";
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import { SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
@@ -46,7 +47,6 @@ import {
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
-import { SearchableSelect } from "./searchable-select";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -1524,15 +1524,16 @@ const ModelSelector = memo(function ModelSelector({
 		],
 	);
 	const renderProviderSelect = (triggerClassName: string) => (
-		<SearchableSelect
+		<SearchCombobox
 			ariaLabel="Provider"
+			className={triggerClassName}
 			disabled={isBusy || providers.length === 0}
-			emptyLabel="No providers found."
-			items={providers}
-			onSelect={handleProviderSelect}
+			emptyText="No providers found."
+			onValueChange={handleProviderSelect}
+			options={providers.map((value) => ({ label: value, value }))}
 			placeholder="Provider"
+			placement="top"
 			searchPlaceholder="Search providers"
-			triggerClassName={triggerClassName}
 			value={resolvedProvider}
 		/>
 	);
@@ -1540,18 +1541,19 @@ const ModelSelector = memo(function ModelSelector({
 		triggerClassName: string,
 		closeMobileMenu = false,
 	) => (
-		<SearchableSelect
+		<SearchCombobox
 			ariaLabel="Model"
+			className={triggerClassName}
 			disabled={isBusy || modelsForProvider.length === 0}
-			emptyLabel="No models found."
-			items={modelsForProvider}
-			onSelect={(value) => {
+			emptyText="No models found."
+			onValueChange={(value) => {
 				onModelChange(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
+			options={modelsForProvider.map((value) => ({ label: value, value }))}
 			placeholder="Model"
+			placement="top"
 			searchPlaceholder="Search models"
-			triggerClassName={triggerClassName}
 			value={resolvedModel}
 		/>
 	);

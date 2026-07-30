@@ -450,38 +450,6 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
-	it("restores the R1 checkbox from authored override readback", async () => {
-		setCommittedSelection({ isR1FormatRequired: true })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("restores the R1 checkbox from canonical resolved apiFormat", async () => {
-		setCommittedSelection({}, { apiFormat: ApiFormat.R1_CHAT })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("persists the R1 checkbox as one explicit override", async () => {
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
-
-		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
-			providerId: "custom-openai",
-			modelId: "custom-model",
-			overrides: { isR1FormatRequired: true },
-		})
-	})
-
 	it("persists a temperature edit without adding resolved defaults", async () => {
 		renderProvider()
 		await act(async () => {})

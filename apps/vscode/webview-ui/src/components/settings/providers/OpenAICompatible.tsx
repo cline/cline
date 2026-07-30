@@ -1,6 +1,6 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { azureOpenAiDefaultApiVersion, type OpenAiCompatibleModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
-import { ApiFormat, OpenAiModelsRequest } from "@shared/proto/cline/models"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
@@ -558,12 +558,6 @@ export const OpenAICompatibleProvider = ({
 						checked={!!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => updateModelOverride("supportsVision", e.target.checked === true)}>
 						Supports Images
-					</VSCodeCheckbox>
-
-					<VSCodeCheckbox
-						checked={selectedModelOverrides.isR1FormatRequired ?? openAiModelInfo.apiFormat === ApiFormat.R1_CHAT}
-						onChange={(e: any) => updateModelOverride("isR1FormatRequired", e.target.checked === true)}>
-						Enable R1 messages format
 					</VSCodeCheckbox>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>

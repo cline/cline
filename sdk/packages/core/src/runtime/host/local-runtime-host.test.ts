@@ -3423,6 +3423,10 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				checkpoint: {
+					latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
+					history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
+				},
 			},
 			messages_path: messagesPath,
 		};
@@ -3506,6 +3510,10 @@ describe("LocalRuntimeHost", () => {
 			config: pathlessConfig,
 			interactive: true,
 			initialMessages,
+			sessionMetadata: {
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+			},
 		});
 
 		expect(createRootSessionWithArtifacts).not.toHaveBeenCalled();
@@ -3520,6 +3528,13 @@ describe("LocalRuntimeHost", () => {
 		expect(persistSessionMessages).not.toHaveBeenCalled();
 		expect(updateSessionStatus).not.toHaveBeenCalled();
 		expect(updateSession).not.toHaveBeenCalled();
+		expect((await manager.getSession(sessionId))?.metadata).toEqual(
+			expect.objectContaining({
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+				checkpoint: manifest.metadata.checkpoint,
+			}),
+		);
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({
 			inputTokens: 11,
 			outputTokens: 7,
