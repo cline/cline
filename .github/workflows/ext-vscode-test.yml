@@ -30,6 +30,7 @@ on:
             - "bun.lock"
             - "sdk/packages/**"
             - ".github/workflows/ext-vscode-test.yml"
+            - ".github/actions/setup-bun-workspace/**"
     workflow_dispatch:
     pull_request:
         branches:
@@ -58,6 +59,7 @@ on:
             - "bun.lock"
             - "sdk/packages/**"
             - ".github/workflows/ext-vscode-test.yml"
+            - ".github/actions/setup-bun-workspace/**"
     workflow_call:
 
 # Cancel superseded PR pushes. Use run_id for non-PR (push / workflow_dispatch /
@@ -148,19 +150,10 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
-                  bun-version: 1.3.14
-
-            # Single root install resolves the entire bun workspace (apps/vscode,
-            # webview-ui, testing-platform and the @cline/* SDK symlinks) at once,
-            # so the previous per-package `npm ci` steps collapse into one.
-            - name: Install workspace dependencies
-              working-directory: ${{ github.workspace }}
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  bun-version: "1.3.14"
 
             # @cline/* are local workspace symlinks to source packages; their dist/
             # output must be built before the extension can type-check/compile.
@@ -181,15 +174,33 @@ jobs:
             - name: Run Quality Checks (Parallel)
               run: bun run ci:check-all
 
-    vscode-test:
+    # PRs: Ubuntu only (Windows was ~12 min wall, mostly install). push / call /
+    # dispatch keep Ubuntu + Windows. Aligns with e2e PR matrix policy.
+    vscode-matrix:
         needs: [detect-changes, quality-checks]
+        if: needs.detect-changes.outputs.vscode == 'true'
+        runs-on: ubuntu-latest
+        name: VS Code test matrix
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - id: set-matrix
+              run: |
+                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                    echo 'matrix=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+                  else
+                    echo 'matrix=["ubuntu-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+                  fi
+
+    vscode-test:
+        needs: [detect-changes, quality-checks, vscode-matrix]
         if: needs.detect-changes.outputs.vscode == 'true'
         env:
             VSCODE_TEST_VERSION: 1.101.0
         strategy:
-            fail-fast: false
+            fail-fast: true
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                os: ${{ fromJson(needs.vscode-matrix.outputs.matrix) }}
         runs-on: ${{ matrix.os }}
         name: ${{ matrix.os == 'ubuntu-latest' && 'vscode test' || format('vscode test ({0})', matrix.os) }}
         defaults:
@@ -200,18 +211,10 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
-                  bun-version: 1.3.14
-
-            # Single root install resolves the entire bun workspace at once (replaces
-            # the per-package `npm ci` steps for apps/vscode + webview-ui).
-            - name: Install workspace dependencies
-              working-directory: ${{ github.workspace }}
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  bun-version: "1.3.14"
 
             # @cline/* are local workspace symlinks to source packages; build dist/
             # before compiling/testing the extension.
@@ -252,7 +255,6 @@ jobs:
 
             - name: Vitest Suites (SDK adapter + model catalog)
               id: vitest_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               # The vitest config sets passWithNoTests: true, so a broken glob/alias
               # would "pass" with zero tests. Capture output and assert a non-zero
               # test count to guard against silent skips.
@@ -269,7 +271,7 @@ jobs:
 
             - name: Unit Tests (bun) - Linux
               id: unit_tests_linux
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              if: runner.os == 'Linux'
               # The node-side unit suite (.mocharc spec set) now runs under `bun test`
               # via scripts/run-bun-unit-tests.ts (one isolated bun process per file).
               # The runner exits non-zero on any failure and prints a final
@@ -285,18 +287,18 @@ jobs:
 
             - name: Unit Tests (bun) - Non-Linux
               id: unit_tests_non_linux
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
+              if: runner.os != 'Linux'
               run: |
                   bun run test:unit
 
             - name: Extension Integration Tests - Linux
               id: integration_tests_linux
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              if: runner.os == 'Linux'
               run: xvfb-run -a bun run test:coverage
 
             - name: Extension Integration Tests - Non-Linux
               id: integration_tests_non_linux
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
+              if: runner.os != 'Linux'
               run: |
                   for attempt in 1 2 3; do
                     echo "Running extension integration tests (attempt ${attempt}/3)"
@@ -315,7 +317,6 @@ jobs:
 
             - name: Webview Tests with Coverage
               id: webview_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: |
                   cd webview-ui
                   bun run test:coverage
@@ -340,19 +341,10 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
-                  bun-version: 1.3.14
-
-            # Single root install resolves the whole bun workspace, including the
-            # testing-platform package, so the separate per-package `npm ci` steps
-            # (extension + webview-ui + testing-platform) collapse into one.
-            - name: Install workspace dependencies
-              working-directory: ${{ github.workspace }}
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  bun-version: "1.3.14"
 
             # @cline/* are local workspace symlinks to source packages; build dist/
             # before compiling the standalone core.

@@ -1,6 +1,11 @@
 # Pathless companion: wake reusable suites for ci/* overrides.
 # - labeled: human/UI label adds (GITHUB_TOKEN label adds do not emit this).
 # - opened/edited/synchronize/…: checkbox body (bot sync cannot wake via labeled).
+#
+# Dedup: body-driven wakes only force suites whose path filters would NOT already
+# run on this PR. Checked `ci/sdk` + an sdk/** change must not pay for sdk-test
+# twice (path workflow + this companion). `drive-ci` already honors `ci/drive`
+# checkboxes/labels itself, so this workflow never re-invokes drive.
 name: ci-label-overrides
 
 on:
@@ -24,7 +29,6 @@ jobs:
     detect:
         runs-on: ubuntu-latest
         outputs:
-            drive: ${{ steps.out.outputs.drive }}
             sdk: ${{ steps.out.outputs.sdk }}
             docs: ${{ steps.out.outputs.docs }}
             vscode: ${{ steps.out.outputs.vscode }}
@@ -32,11 +36,10 @@ jobs:
             e2e_full: ${{ steps.out.outputs.e2e_full }}
         steps:
             - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-              id: out
+              id: wanted
               with:
                   script: |
                       const overrides = [
-                        "ci/drive",
                         "ci/vscode",
                         "ci/e2e",
                         "ci/e2e-full",
@@ -44,7 +47,6 @@ jobs:
                         "ci/docs",
                       ]
                       const keys = {
-                        "ci/drive": "drive",
                         "ci/vscode": "vscode",
                         "ci/e2e": "e2e",
                         "ci/e2e-full": "e2e_full",
@@ -55,6 +57,7 @@ jobs:
                       const wanted = new Set()
                       if (context.payload.action === "labeled") {
                         const name = context.payload.label?.name
+                        // drive-ci already force-runs from label/checkbox; never wake it here.
                         if (name && overrides.includes(name)) wanted.add(name)
                       } else {
                         // Body is source of truth for checkbox sync (labels lag / GITHUB_TOKEN).
@@ -73,12 +76,129 @@ jobs:
                       }
                       core.info(`wanted: ${[...wanted].join(", ") || "(none)"}`)
 
-    drive:
-        needs: detect
-        if: needs.detect.outputs.drive == 'true'
-        uses: ./.github/workflows/drive-ci.yml
-        with:
-            force: true
+            # Body-driven: skip suites path filters already cover (avoid double runs).
+            # Labeled (human UI): always force — that is an explicit override.
+            - uses: actions/checkout@v4
+              if: >
+                  github.event.action != 'labeled' &&
+                  (steps.wanted.outputs.sdk == 'true' ||
+                   steps.wanted.outputs.docs == 'true' ||
+                   steps.wanted.outputs.vscode == 'true' ||
+                   steps.wanted.outputs.e2e == 'true' ||
+                   steps.wanted.outputs.e2e_full == 'true')
+
+            - uses: dorny/paths-filter@v3
+              id: paths
+              if: >
+                  github.event.action != 'labeled' &&
+                  (steps.wanted.outputs.sdk == 'true' ||
+                   steps.wanted.outputs.docs == 'true' ||
+                   steps.wanted.outputs.vscode == 'true' ||
+                   steps.wanted.outputs.e2e == 'true' ||
+                   steps.wanted.outputs.e2e_full == 'true')
+              with:
+                  # Keep aligned with workflow-level `on.paths` for each suite.
+                  filters: |
+                      sdk:
+                          - 'sdk/**'
+                          - '.github/workflows/sdk-test.yml'
+                          - '.github/actions/setup-bun-workspace/**'
+                      docs:
+                          - '**/*.md'
+                          - '**/*.mdx'
+                          - 'docs/docs.json'
+                          - 'sdk/scripts/check-links.ts'
+                          - '.github/workflows/docs-link-check.yml'
+                      vscode:
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/webview-ui/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/tests/**'
+                          - 'apps/vscode/scripts/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/assets/**'
+                          - 'apps/vscode/walkthrough/**'
+                          - 'apps/vscode/testing-platform/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/webview-ui/package.json'
+                          - 'apps/vscode/testing-platform/package.json'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/biome.jsonc'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/bunfig.toml'
+                          - 'apps/vscode/.vscode-test.mjs'
+                          - 'apps/vscode/.vscodeignore'
+                          - 'apps/vscode/test-setup.js'
+                          - 'bun.lock'
+                          - 'sdk/packages/**'
+                          - '.github/workflows/ext-vscode-test.yml'
+                          - '.github/actions/setup-bun-workspace/**'
+                      e2e:
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/webview-ui/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/tests/**'
+                          - 'apps/vscode/scripts/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/assets/**'
+                          - 'apps/vscode/walkthrough/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/webview-ui/package.json'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/biome.jsonc'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/bunfig.toml'
+                          - 'apps/vscode/.vscode-test.mjs'
+                          - 'apps/vscode/.vscodeignore'
+                          - 'apps/vscode/playwright*.ts'
+                          - 'bun.lock'
+                          - '.github/workflows/ext-vscode-test-e2e.yml'
+
+            - id: out
+              env:
+                  ACTION: ${{ github.event.action }}
+                  WANT_SDK: ${{ steps.wanted.outputs.sdk }}
+                  WANT_DOCS: ${{ steps.wanted.outputs.docs }}
+                  WANT_VSCODE: ${{ steps.wanted.outputs.vscode }}
+                  WANT_E2E: ${{ steps.wanted.outputs.e2e }}
+                  WANT_E2E_FULL: ${{ steps.wanted.outputs.e2e_full }}
+                  PATH_SDK: ${{ steps.paths.outputs.sdk }}
+                  PATH_DOCS: ${{ steps.paths.outputs.docs }}
+                  PATH_VSCODE: ${{ steps.paths.outputs.vscode }}
+                  PATH_E2E: ${{ steps.paths.outputs.e2e }}
+              run: |
+                  # labeled → force whatever was wanted.
+                  # body-driven → only wake when paths would miss the suite.
+                  wake() {
+                    local want="$1" path="$2" name="$3"
+                    if [ "$want" != "true" ]; then
+                      echo "${name}=false" >> "$GITHUB_OUTPUT"
+                      return
+                    fi
+                    if [ "$ACTION" = "labeled" ] || [ "$path" != "true" ]; then
+                      echo "${name}=true" >> "$GITHUB_OUTPUT"
+                      echo "wake ${name} (want=true path=${path:-n/a} action=$ACTION)"
+                    else
+                      echo "${name}=false" >> "$GITHUB_OUTPUT"
+                      echo "skip ${name} (path workflow already covers this PR)"
+                    fi
+                  }
+                  wake "$WANT_SDK" "$PATH_SDK" sdk
+                  wake "$WANT_DOCS" "$PATH_DOCS" docs
+                  wake "$WANT_VSCODE" "$PATH_VSCODE" vscode
+                  # e2e + e2e-full share the same path filter; e2e-full still wakes
+                  # when checked so the full OS matrix runs (path workflow uses PR matrix).
+                  wake "$WANT_E2E" "$PATH_E2E" e2e
+                  if [ "$WANT_E2E_FULL" = "true" ]; then
+                    # Always wake e2e-full when checked — path-triggered e2e uses the
+                    # smaller PR matrix; full is the point of the override.
+                    echo "e2e_full=true" >> "$GITHUB_OUTPUT"
+                    echo "wake e2e_full"
+                  else
+                    echo "e2e_full=false" >> "$GITHUB_OUTPUT"
+                  fi
 
     sdk:
         needs: detect

@@ -1,0 +1,52 @@
+# Shared Bun workspace bootstrap for CI jobs.
+# Caches ~/.bun/install/cache (critical on Windows where cold install is 3–5+ min).
+name: Setup Bun workspace
+description: Install Bun, restore install cache, and bun install at the repo root
+
+inputs:
+    bun-version:
+        description: Bun version to install
+        required: false
+        default: "1.3.13"
+    frozen-lockfile:
+        description: Pass --frozen-lockfile to bun install
+        required: false
+        default: "true"
+    working-directory:
+        description: Directory for bun install (repo root by default)
+        required: false
+        default: "."
+    cache:
+        description: Restore/save ~/.bun/install/cache (skip on Linux-only jobs where cold install is already fast)
+        required: false
+        default: "true"
+
+runs:
+    using: composite
+    steps:
+        - name: Setup Bun
+          uses: oven-sh/setup-bun@v2
+          with:
+              bun-version: ${{ inputs.bun-version }}
+
+        - name: Cache Bun install cache
+          if: inputs.cache == 'true'
+          uses: actions/cache@v4
+          with:
+              path: ~/.bun/install/cache
+              key: ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('bun.lock') }}
+              restore-keys: |
+                  ${{ runner.os }}-bun-${{ inputs.bun-version }}-
+                  ${{ runner.os }}-bun-
+
+        - name: Install workspace dependencies
+          shell: bash
+          working-directory: ${{ inputs.working-directory }}
+          env:
+              GITHUB_TOKEN: ${{ github.token }}
+          run: |
+              if [ "${{ inputs.frozen-lockfile }}" = "true" ]; then
+                bun install --frozen-lockfile
+              else
+                bun install
+              fi

@@ -158,7 +158,7 @@ jobs:
         needs: [detect-changes, matrix_prep]
         if: needs.detect-changes.outputs.e2e == 'true'
         strategy:
-            fail-fast: false
+            fail-fast: true
             matrix:
                 include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
         runs-on: ${{ matrix.runner }}-latest

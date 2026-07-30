@@ -128,22 +128,12 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - uses: oven-sh/setup-bun@v2
+            # Linux-only jobs: skip Bun install cache (restore was ~20s vs ~15s cold install).
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
                   bun-version: "1.3.13"
-
-            - name: Cache Bun install cache
-              uses: actions/cache@v4
-              with:
-                  path: ~/.bun/install/cache
-                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-bun-
-
-            - name: Install workspace dependencies
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  cache: "false"
 
             - name: Build SDK packages
               run: bun run build:sdk
@@ -165,22 +155,12 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - uses: oven-sh/setup-bun@v2
+            # Linux-only jobs: skip Bun install cache (restore was ~20s vs ~15s cold install).
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
                   bun-version: "1.3.13"
-
-            - name: Cache Bun install cache
-              uses: actions/cache@v4
-              with:
-                  path: ~/.bun/install/cache
-                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-bun-
-
-            - name: Install workspace dependencies
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  cache: "false"
 
             - name: Build SDK packages
               run: bun run build:sdk
@@ -199,22 +179,12 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - uses: oven-sh/setup-bun@v2
+            # Linux-only jobs: skip Bun install cache (restore was ~20s vs ~15s cold install).
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
                   bun-version: "1.3.13"
-
-            - name: Cache Bun install cache
-              uses: actions/cache@v4
-              with:
-                  path: ~/.bun/install/cache
-                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-bun-
-
-            - name: Install workspace dependencies
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  cache: "false"
 
             - name: Build SDK packages
               run: bun run build:sdk
@@ -233,22 +203,12 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - uses: oven-sh/setup-bun@v2
+            # Linux-only jobs: skip Bun install cache (restore was ~20s vs ~15s cold install).
+            - name: Setup Bun workspace
+              uses: ./.github/actions/setup-bun-workspace
               with:
                   bun-version: "1.3.13"
-
-            - name: Cache Bun install cache
-              uses: actions/cache@v4
-              with:
-                  path: ~/.bun/install/cache
-                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-bun-
-
-            - name: Install workspace dependencies
-              run: bun install --frozen-lockfile
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  cache: "false"
 
             - name: Build SDK packages
               run: bun run build:sdk
