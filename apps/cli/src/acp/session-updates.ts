@@ -81,6 +81,16 @@ function translateContentStart(
 	}
 }
 
+export function describeAgentError(error: unknown): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message;
+	}
+	if (typeof error === "string" && error.trim()) {
+		return error;
+	}
+	return "The agent reported an unknown error.";
+}
+
 function translateContentEnd(
 	event: AgentEvent & { type: "content_end" },
 ): SessionUpdate[] {
