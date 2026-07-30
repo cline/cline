@@ -63,6 +63,26 @@ export async function resolveModelInfo(
 				source: "committed-selection",
 			})
 		}
+	} else {
+		// No explicit model id. This is the state immediately after the SDK
+		// provider migration, which records the committed model in
+		// providers.json but not in the mode-specific globalState fields the
+		// settings picker reads — so the webview asks "what model?" with no id.
+		// Honor the user's committed selection (readSelection falls through to
+		// providers.json when the state field is empty) before substituting a
+		// catalog default, so the settings UI reflects the model that will
+		// actually run instead of the hardcoded openRouterDefaultModelId.
+		for (const mode of ["act", "plan"] as const) {
+			const selection = store.readSelection(providerId, mode)
+			if (selection) {
+				return ResolveModelInfoResponse.create({
+					providerId,
+					modelId: selection.modelId,
+					modelInfo: toProtobufModelInfo(selection.modelInfo),
+					source: "committed-selection",
+				})
+			}
+		}
 	}
 
 	// Custom-model-id providers (openai-compatible, ollama, lmstudio, litellm)
