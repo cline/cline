@@ -146,7 +146,7 @@ describe("pathless session starts", () => {
 		});
 		const ctx = {
 			liveSessions: new Map(),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: { start },
 		} as unknown as SidecarContext;
 
@@ -213,7 +213,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -281,6 +281,116 @@ describe("session forks", () => {
 		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
 			expectedMessages,
 		);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("holds the workspace lock for the full edit restore", async () => {
+		const sourceSessionId = `locking-source-${Date.now()}`;
+		const siblingSessionId = `locking-sibling-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+		];
+		let releaseRestore = () => {};
+		const restoreGate = new Promise<void>((resolve) => {
+			releaseRestore = resolve;
+		});
+		let markRestoreStarted = () => {};
+		const restoreStarted = new Promise<void>((resolve) => {
+			markRestoreStarted = resolve;
+		});
+		const send = vi.fn();
+		const restore = vi.fn(async () => {
+			markRestoreStarted();
+			await restoreGate;
+			return {
+				sessionId: "locked-edited-fork",
+				messages: sourceMessages,
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			};
+		});
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+							cwd: "/workspace/project",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+				[
+					siblingSessionId,
+					{
+						config: { workspaceRoot: "/workspace/project/." },
+						messages: [],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						checkpoint: {
+							latest: { ref: "first", createdAt: 1, runCount: 1 },
+							history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+						},
+					},
+				})),
+				readMessages: vi.fn(async () => sourceMessages),
+				restore,
+				send,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const fork = handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 1,
+		});
+		await restoreStarted;
+		try {
+			expect(ctx.restoringWorkspacePaths).toEqual(
+				new Set(["/workspace/project"]),
+			);
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId: siblingSessionId,
+					prompt: "race",
+				}),
+			).rejects.toThrow(
+				"Cannot send a prompt while the session workspace is being restored",
+			);
+			expect(send).not.toHaveBeenCalled();
+		} finally {
+			releaseRestore();
+		}
+
+		await expect(fork).resolves.toMatchObject({
+			sessionId: "locked-edited-fork",
+		});
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
 	it("keeps a full-history fork on the current workspace without restoring", async () => {
@@ -309,7 +419,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -360,7 +470,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: { restore },
 		} as unknown as SidecarContext;
 
@@ -370,9 +480,7 @@ describe("session forks", () => {
 				sessionId: sourceSessionId,
 				forkBeforeRunCount: 1,
 			}),
-		).rejects.toThrow(
-			"Wait for the current turn to finish before editing a message",
-		);
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
 	});
 
@@ -393,7 +501,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -409,22 +517,72 @@ describe("session forks", () => {
 				sessionId: sourceSessionId,
 				forkBeforeRunCount: 1,
 			}),
-		).rejects.toThrow(
-			"Wait for the current turn to finish before editing a message",
-		);
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
-		expect(ctx.versioningSessionIds.has(sourceSessionId)).toBe(false);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("blocks concurrent sends while an edit fork owns the workspace", async () => {
+	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
+		const sourceSessionId = "idle-source-session";
+		const siblingSessionId = "busy-sibling-session";
+		const restore = vi.fn();
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { cwd: "/workspace/project" },
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+				[
+					siblingSessionId,
+					{
+						config: { workspaceRoot: "/workspace/project/." },
+						messages: [],
+						promptsInQueue: [],
+						busy: true,
+						startedAt: Date.now(),
+						status: "running",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+				})),
+				restore,
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
+		expect(restore).not.toHaveBeenCalled();
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("blocks sends from sibling sessions while their workspace is restored", async () => {
 		const send = vi.fn();
-		const sessionId = "versioning-source-session";
+		const sessionId = "workspace-sibling-session";
 		const ctx = {
 			liveSessions: new Map([
 				[
 					sessionId,
 					{
-						config: {},
+						config: { workspaceRoot: "/workspace/project/." },
 						messages: [{ role: "user", content: "prompt" }],
 						promptsInQueue: [],
 						busy: false,
@@ -433,7 +591,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set([sessionId]),
+			restoringWorkspacePaths: new Set(["/workspace/project"]),
 			sessionManager: { send },
 		} as unknown as SidecarContext;
 
@@ -491,7 +649,7 @@ describe("first-send connection updates", () => {
 					},
 				],
 			]),
-			versioningSessionIds: new Set(),
+			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {

@@ -10,6 +10,7 @@ import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
+	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
@@ -46,6 +47,80 @@ const workspaceMetadataPromises = new Map<
 	string,
 	WorkspaceMetadataCacheEntry
 >();
+const ACTIVE_WORKSPACE_SESSION_STATUSES = new Set([
+	"starting",
+	"pending",
+	"running",
+	"stopping",
+]);
+const WORKSPACE_RESTORE_SEND_ERROR =
+	"Cannot send a prompt while the session workspace is being restored";
+const WORKSPACE_RESTORE_BUSY_ERROR =
+	"Wait for all turns in this workspace to finish before restoring it";
+
+type WorkspacePathSource = {
+	cwd?: unknown;
+	workspaceRoot?: unknown;
+	workspace_root?: unknown;
+};
+
+function readWorkspacePath(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
+	if (cwd) return cwd;
+	const workspaceRoot =
+		typeof source?.workspaceRoot === "string"
+			? source.workspaceRoot.trim()
+			: "";
+	if (workspaceRoot) return workspaceRoot;
+	const snakeCaseWorkspaceRoot =
+		typeof source?.workspace_root === "string"
+			? source.workspace_root.trim()
+			: "";
+	return snakeCaseWorkspaceRoot || undefined;
+}
+
+function workspacePathKey(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const workspacePath = readWorkspacePath(source);
+	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+function hasActiveWorkspaceTurn(session: LiveSession): boolean {
+	return (
+		session.busy ||
+		session.transitioningProvider === true ||
+		ACTIVE_WORKSPACE_SESSION_STATUSES.has(session.status)
+	);
+}
+
+async function withWorkspaceRestoreLock<T>(
+	ctx: SidecarContext,
+	workspacePath: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	const key = resolve(workspacePath);
+	if (ctx.restoringWorkspacePaths.has(key)) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	for (const session of ctx.liveSessions.values()) {
+		if (
+			workspacePathKey(session.config) === key &&
+			hasActiveWorkspaceTurn(session)
+		) {
+			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+		}
+	}
+
+	ctx.restoringWorkspacePaths.add(key);
+	try {
+		return await work();
+	} finally {
+		ctx.restoringWorkspacePaths.delete(key);
+	}
+}
 
 function getWorkspaceMetadataPromise(
 	cwd: string,
@@ -715,11 +790,6 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	if (ctx.versioningSessionIds.has(sessionId)) {
-		throw new Error(
-			"Cannot send a prompt while the session workspace is being restored",
-		);
-	}
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -729,6 +799,15 @@ async function handleSend(
 	}
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	const lockedWorkspaceKey = workspacePathKey(
+		session?.config ?? request.config,
+	);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -945,37 +1024,48 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
+	const manager = getSessionManager(ctx);
+	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		liveSourceSession &&
+		hasActiveWorkspaceTurn(liveSourceSession)
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	const sourceSession = await manager.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		(sourceSession?.status === "running" || sourceSession?.status === "pending")
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
 	if (forkBeforeRunCount === undefined) {
 		return handleForkUnlocked(
 			ctx,
 			request,
 			sourceSessionId,
 			forkBeforeRunCount,
+			sourceSession,
 		);
 	}
-	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
-	if (
-		ctx.versioningSessionIds.has(sourceSessionId) ||
-		liveSourceSession?.busy ||
-		liveSourceSession?.status === "starting" ||
-		liveSourceSession?.status === "running" ||
-		liveSourceSession?.status === "stopping"
-	) {
-		throw new Error(
-			"Wait for the current turn to finish before editing a message",
-		);
+	const restoreWorkspacePath =
+		readWorkspacePath(sourceSession) ??
+		readWorkspacePath(liveSourceSession?.config) ??
+		readWorkspacePath(request.config);
+	if (!restoreWorkspacePath) {
+		throw new Error("cwd or workspaceRoot is required to edit a message");
 	}
-	ctx.versioningSessionIds.add(sourceSessionId);
-	try {
-		return await handleForkUnlocked(
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
+		handleForkUnlocked(
 			ctx,
 			request,
 			sourceSessionId,
 			forkBeforeRunCount,
-		);
-	} finally {
-		ctx.versioningSessionIds.delete(sourceSessionId);
-	}
+			sourceSession,
+			restoreWorkspacePath,
+		),
+	);
 }
 
 async function handleForkUnlocked(
@@ -983,6 +1073,8 @@ async function handleForkUnlocked(
 	request: ChatSessionCommandRequest,
 	sourceSessionId: string,
 	forkBeforeRunCount: number | undefined,
+	sourceSession: SessionRecord | undefined,
+	restoreWorkspacePath?: string,
 ): Promise<unknown> {
 	const manager = getSessionManager(ctx);
 	const sourceMessages =
@@ -992,15 +1084,6 @@ async function handleForkUnlocked(
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
 
-	const sourceSession = await manager.get(sourceSessionId);
-	if (
-		forkBeforeRunCount !== undefined &&
-		(sourceSession?.status === "running" || sourceSession?.status === "pending")
-	) {
-		throw new Error(
-			"Wait for the current turn to finish before editing a message",
-		);
-	}
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
@@ -1078,6 +1161,7 @@ async function handleForkUnlocked(
 	let newSessionId: string;
 	if (forkBeforeRunCount !== undefined) {
 		const cwd =
+			restoreWorkspacePath ||
 			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
 			(typeof forkConfig.workspaceRoot === "string" &&
 				forkConfig.workspaceRoot.trim()) ||
@@ -1171,63 +1255,64 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
-	if (!request.config)
-		throw new Error("config is required to restore a checkpoint");
+	const config = request.config;
+	if (!config) throw new Error("config is required to restore a checkpoint");
 	const cwd =
-		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
-		(typeof request.config.workspaceRoot === "string" &&
-			request.config.workspaceRoot.trim()) ||
+		(typeof config.cwd === "string" && config.cwd.trim()) ||
+		(typeof config.workspaceRoot === "string" && config.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const manager = getSessionManager(ctx);
-	const restored = await manager.restore({
-		sessionId: sourceSessionId,
-		checkpointRunCount: runCount,
-		cwd,
-		restore: { messages: true, workspace: true },
-		start: {
-			...splitCoreSessionConfig(
-				buildCoreSessionConfig({
-					...request.config,
-					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as unknown as ClineCoreStartConfig,
-			),
-			source: SessionSource.DESKTOP,
-			interactive: true,
-			toolPolicies: resolveToolPolicies(request.config),
-		},
+	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: runCount,
+			cwd,
+			restore: { messages: true, workspace: true },
+			start: {
+				...splitCoreSessionConfig(
+					buildCoreSessionConfig({
+						...config,
+						systemPrompt: await resolveSystemPrompt(config),
+					}) as unknown as ClineCoreStartConfig,
+				),
+				source: SessionSource.DESKTOP,
+				interactive: true,
+				toolPolicies: resolveToolPolicies(config),
+			},
+		});
+		const sessionId = restored.sessionId;
+		const restoredMessages = restored.messages;
+		if (!sessionId || !restoredMessages) {
+			throw new Error("Checkpoint restore did not return a new session");
+		}
+		discardAllTrackedAttachments(
+			sourceSessionId,
+			ctx.liveSessions.get(sourceSessionId),
+		);
+		ctx.liveSessions.delete(sourceSessionId);
+		ctx.liveSessions.set(
+			sessionId,
+			createLiveSession(config, {
+				messages: restoredMessages,
+				prompt: derivePromptFromMessages(restoredMessages),
+				title: readSessionMetadataTitle(sourceSessionId),
+				status: "idle",
+			}),
+		);
+		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+		let messages: unknown[] = restoredMessages;
+		try {
+			const read = await manager.readMessages(sessionId);
+			if (read?.length > 0) messages = read;
+		} catch {}
+		return {
+			sessionId,
+			messages,
+			restoredCheckpoint: restored.checkpoint,
+		};
 	});
-	const sessionId = restored.sessionId;
-	const restoredMessages = restored.messages;
-	if (!sessionId || !restoredMessages) {
-		throw new Error("Checkpoint restore did not return a new session");
-	}
-	discardAllTrackedAttachments(
-		sourceSessionId,
-		ctx.liveSessions.get(sourceSessionId),
-	);
-	ctx.liveSessions.delete(sourceSessionId);
-	ctx.liveSessions.set(
-		sessionId,
-		createLiveSession(request.config, {
-			messages: restoredMessages,
-			prompt: derivePromptFromMessages(restoredMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
-			status: "idle",
-		}),
-	);
-	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
-	sendPromptsInQueueSnapshot(ctx, sessionId);
-	let messages: unknown[] = restoredMessages;
-	try {
-		const read = await manager.readMessages(sessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
-	return {
-		sessionId,
-		messages,
-		restoredCheckpoint: restored.checkpoint,
-	};
 }
 
 async function handlePendingPrompts(

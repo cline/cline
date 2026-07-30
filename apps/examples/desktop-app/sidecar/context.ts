@@ -456,7 +456,7 @@ export function createSidecarContext(
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
-		versioningSessionIds: new Set(),
+		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
