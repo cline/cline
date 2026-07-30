@@ -294,6 +294,39 @@ describe("normalizeProviderReasoningSettings", () => {
 
 		expect(result).toEqual({ reasoningEffort: "medium" })
 	})
+
+	it("honors a migrated legacy budget as thinking-on with a derived effort", () => {
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 1024 })).toEqual({
+			thinking: true,
+			reasoningEffort: "low",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 6000 })).toEqual({
+			thinking: true,
+			reasoningEffort: "medium",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 32_767 })).toEqual({
+			thinking: true,
+			reasoningEffort: "high",
+		})
+	})
+
+	it("derives an effort from the budget when enabled without an effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "medium" })
+	})
+
+	it("prefers an explicit effort over a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "xhigh", budgetTokens: 1024 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "xhigh" })
+	})
+
+	it("keeps disabled reasoning off even with a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: false, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: false })
+	})
 })
 
 // ---------------------------------------------------------------------------

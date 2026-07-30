@@ -57,6 +57,24 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</button>
 	),
+	VSCodeDropdown: ({
+		children,
+		id,
+		onChange,
+		value,
+		"aria-label": ariaLabel,
+	}: {
+		children?: ReactNode
+		id?: string
+		onChange?: ChangeEventHandler<HTMLSelectElement>
+		value?: string
+		"aria-label"?: string
+	}) => (
+		<select aria-label={ariaLabel} id={id} onChange={onChange} value={value}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
 	VSCodeCheckbox: ({
 		checked,
 		children,
@@ -429,38 +447,6 @@ describe("OpenAICompatibleProvider", () => {
 				outputPrice: 2,
 				supportsVision: true,
 			},
-		})
-	})
-
-	it("restores the R1 checkbox from authored override readback", async () => {
-		setCommittedSelection({ isR1FormatRequired: true })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("restores the R1 checkbox from canonical resolved apiFormat", async () => {
-		setCommittedSelection({}, { apiFormat: ApiFormat.R1_CHAT })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("persists the R1 checkbox as one explicit override", async () => {
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
-
-		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
-			providerId: "custom-openai",
-			modelId: "custom-model",
-			overrides: { isR1FormatRequired: true },
 		})
 	})
 

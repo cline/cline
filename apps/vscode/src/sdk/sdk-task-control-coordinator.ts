@@ -44,6 +44,15 @@ export class SdkTaskControlCoordinator {
 
 	constructor(private readonly options: SdkTaskControlCoordinatorOptions) {}
 
+	async cancelClineTaskOnSignOut(isClineManagedProvider: boolean): Promise<void> {
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!isClineManagedProvider || !activeSession?.isRunning) {
+			return
+		}
+
+		await this.cancelTask()
+	}
+
 	async cancelTask(): Promise<void> {
 		this.options.interactions.clearPending("Task cancelled")
 
@@ -149,6 +158,12 @@ export class SdkTaskControlCoordinator {
 		}
 
 		try {
+			// Reject any outstanding approval before tearing down the old session. Approval
+			// resolvers live on the shared interaction coordinator, so ending the session
+			// alone does not discard them; if one leaks across this task switch, the first
+			// message sent in the newly selected task is consumed as the old task's response.
+			this.options.interactions.clearPending("Task switched")
+
 			// When reopening the task that is currently active, wait for its stop to
 			// land so the persisted session status read below reflects how the last
 			// turn actually ended (completed vs cancelled) instead of a transient

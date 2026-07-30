@@ -1,6 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
+import { createTaskProxy } from "./task-proxy"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -30,6 +33,26 @@ describe("SdkTaskControlCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "cancelled" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("cancels a running Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
+
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("session-123")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+	})
+
+	it("does not cancel a non-Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(false)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
 	})
 
 	it("raises the cancel fence BEFORE aborting the session (so stragglers are fenced)", async () => {
@@ -93,6 +116,58 @@ describe("SdkTaskControlCoordinator", () => {
 			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
 		])
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("clears a pending approval when switching tasks so the new task input is not consumed", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const approvalPromise = interactions.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: {},
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task switched" })
+		expect(interactions.resolvePendingToolApproval("next task input", "noButtonClicked")).toBe(false)
+	})
+
+	it("settles a pending question when switching tasks so the outgoing run can unwind", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], {})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(questionPromise).resolves.toBe("")
+		expect(interactions.resolvePendingAskQuestion("late answer")).toBe(false)
 	})
 
 	it("shows a legacy task with a warning and a resume ask", async () => {
