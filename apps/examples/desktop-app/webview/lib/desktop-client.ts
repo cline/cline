@@ -87,11 +87,19 @@ export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
 type PendingRequest = {
 	resolve: (value: unknown) => void;
 	reject: (error: Error) => void;
-	timeoutId: ReturnType<typeof setTimeout>;
+	timeoutId?: ReturnType<typeof setTimeout>;
 };
 
 type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
+
+export type DesktopInvokeOptions = {
+	/**
+	 * Override the default command deadline. Use `null` for commands whose
+	 * response represents completion of a legitimately long-running operation.
+	 */
+	timeoutMs?: number | null;
+};
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
@@ -142,11 +150,21 @@ class DesktopClient {
 		return this.endpoint;
 	}
 
-	private rejectPending(errorMessage: string) {
-		for (const [requestId, pending] of this.pending.entries()) {
+	private takePending(requestId: string): PendingRequest | undefined {
+		const pending = this.pending.get(requestId);
+		if (!pending) {
+			return undefined;
+		}
+		if (pending.timeoutId !== undefined) {
 			clearTimeout(pending.timeoutId);
-			this.pending.delete(requestId);
-			pending.reject(new Error(errorMessage));
+		}
+		this.pending.delete(requestId);
+		return pending;
+	}
+
+	private rejectPending(errorMessage: string) {
+		for (const requestId of this.pending.keys()) {
+			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
 	}
 
@@ -174,12 +192,10 @@ class DesktopClient {
 		}
 
 		const response = parsed as DesktopTransportResponse;
-		const pending = this.pending.get(response.id);
+		const pending = this.takePending(response.id);
 		if (!pending) {
 			return;
 		}
-		clearTimeout(pending.timeoutId);
-		this.pending.delete(response.id);
 		if (!response.ok) {
 			pending.reject(new Error(response.error || "Desktop command failed"));
 			return;
@@ -265,7 +281,11 @@ class DesktopClient {
 		return this.connectPromise;
 	}
 
-	async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+	async invoke<T>(
+		command: string,
+		args?: Record<string, unknown>,
+		options?: DesktopInvokeOptions,
+	): Promise<T> {
 		// Route native OS commands (directory picker, file opener) through Tauri
 		// only when running inside the full Tauri app shell. In sidecar/web mode
 		// these are handled by the sidecar over WebSocket.
@@ -288,22 +308,33 @@ class DesktopClient {
 		};
 
 		return await new Promise<T>((resolve, reject) => {
-			const timeoutId = setTimeout(() => {
-				const pending = this.pending.get(id);
-				if (!pending) {
-					return;
-				}
-				this.pending.delete(id);
-				pending.reject(
-					new Error(`Desktop command timed out waiting for ${command}`),
-				);
-			}, REQUEST_TIMEOUT_MS);
+			const timeoutMs =
+				options?.timeoutMs === undefined
+					? REQUEST_TIMEOUT_MS
+					: options.timeoutMs;
+			const timeoutId =
+				timeoutMs === null
+					? undefined
+					: setTimeout(() => {
+							const pending = this.takePending(id);
+							if (!pending) {
+								return;
+							}
+							pending.reject(
+								new Error(`Desktop command timed out waiting for ${command}`),
+							);
+						}, timeoutMs);
 			this.pending.set(id, {
 				resolve: (value) => resolve(value as T),
 				reject,
 				timeoutId,
 			});
-			socket.send(JSON.stringify(request));
+			try {
+				socket.send(JSON.stringify(request));
+			} catch (error) {
+				this.takePending(id);
+				throw error;
+			}
 		});
 	}
 

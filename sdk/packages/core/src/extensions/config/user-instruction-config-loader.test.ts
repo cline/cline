@@ -211,6 +211,48 @@ Escalation runbook`,
 		}
 	});
 
+	it("still loads all rules when .clinerules is a legacy single file", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-file-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const originalHomeDir = process.env.HOME?.trim() || homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const workspaceRoot = join(tempRoot, "workspace");
+		const globalRulesDir = join(tempRoot, "home", ".cline", "rules");
+		await mkdir(workspaceRoot, { recursive: true });
+		await mkdir(globalRulesDir, { recursive: true });
+		// Legacy single-file ruleset: `.clinerules/skills` and
+		// `.clinerules/workflows` now resolve through a file (ENOTDIR), which
+		// must not abort scanning of the other config sources.
+		await writeFile(
+			join(workspaceRoot, ".clinerules"),
+			"Never introduce ESM syntax.",
+		);
+		await writeFile(
+			join(globalRulesDir, "style.md"),
+			"Sign off with GLOBAL-OK.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: workspaceRoot },
+			rules: { workspacePath: workspaceRoot },
+			workflows: { workspacePath: workspaceRoot },
+		});
+
+		try {
+			await watcher.refreshAll();
+			const rules = [...watcher.getSnapshot("rule").values()].map(
+				(record) => record.item.instructions,
+			);
+			expect(rules).toContain("Never introduce ESM syntax.");
+			expect(rules).toContain("Sign off with GLOBAL-OK.");
+		} finally {
+			setHomeDir(originalHomeDir);
+		}
+	});
+
 	it("loads global and workspace AGENTS.md rules without clobbering either source", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-agents-"),

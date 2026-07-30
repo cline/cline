@@ -1,6 +1,6 @@
 import type { AgentMessage } from "./agent";
-import type { ReasoningEffort } from "./agents/types";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
+import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
 export type HubProtocolVersion = "v1";
