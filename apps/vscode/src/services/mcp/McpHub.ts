@@ -1147,11 +1147,15 @@ export class McpHub {
 	}
 
 	async deleteConnection(name: string): Promise<void> {
-		// Cancel pending list_changed refresh timers for this server: either
+		// Cancel pending list_changed refresh timers for this server (either
 		// it's going away, or a replacement connection will fetch fresh lists
-		// itself. Generation entries are kept — they must stay monotonic so
-		// an in-flight refresh from the old connection can't mistake a
-		// post-reconnect generation for its own.
+		// itself) and bump the generation to supersede any refresh already in
+		// flight: the connection stays in this.connections while the close
+		// calls below are awaited, so without the bump a refresh completing in
+		// that window would pass its identity check and publish state for a
+		// connection that's being torn down. Bumping (never resetting) keeps
+		// generations monotonic, so an in-flight refresh from the old
+		// connection can't mistake a post-reconnect generation for its own.
 		for (const kind of ["tools", "resources", "prompts"]) {
 			const key = `${name}:${kind}`
 			const timer = this.listChangedRefreshTimers.get(key)
@@ -1160,6 +1164,7 @@ export class McpHub {
 				this.listChangedRefreshTimers.delete(key)
 			}
 			this.listChangedRefreshDeadlines.delete(key)
+			this.listChangedRefreshGeneration.set(key, (this.listChangedRefreshGeneration.get(key) ?? 0) + 1)
 		}
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {

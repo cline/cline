@@ -378,6 +378,48 @@ describe("McpHub list_changed notification refresh", () => {
 		fetchToolsList.called.should.be.true()
 	})
 
+	it("supersedes an in-flight refresh during connection teardown", async () => {
+		const { hub, connection, fetchToolsList, notifyWebviewOfServerChanges } = createMcpHub()
+		let resolveFetch: (tools: Array<{ name: string }>) => void = () => {}
+		fetchToolsList.returns(
+			new Promise((resolve) => {
+				resolveFetch = resolve
+			}),
+		)
+		let resolveClose: () => void = () => {}
+		;(connection as any).transport = {
+			close: sinon.stub().returns(
+				new Promise<void>((resolve) => {
+					resolveClose = resolve
+				}),
+			),
+		}
+		;(connection as any).client = { close: sinon.stub().resolves() }
+
+		// Refresh fires and its fetch hangs in flight
+		;(hub as any).scheduleListChangedRefresh("test-server", "tools")
+		await clock.tickAsync(300)
+		fetchToolsList.calledOnce.should.be.true()
+
+		// deleteConnection starts and blocks awaiting transport.close(); the
+		// connection is still in this.connections during that window
+		const deletion = hub.deleteConnection("test-server")
+		await clock.tickAsync(0)
+		;(hub as any).connections.length.should.equal(1)
+
+		// The fetch completes inside the teardown window: its result must be
+		// dropped, not published against the connection being torn down
+		resolveFetch([{ name: "stale" }])
+		await clock.tickAsync(0)
+		await clock.tickAsync(0)
+		connection.server.tools.should.deepEqual([])
+		notifyWebviewOfServerChanges.called.should.be.false()
+
+		resolveClose()
+		await deletion
+		;(hub as any).connections.length.should.equal(0)
+	})
+
 	it("cancels pending refreshes when the connection is deleted", async () => {
 		const { hub, connection, fetchToolsList } = createMcpHub()
 		;(connection as any).transport = { close: sinon.stub().resolves() }
