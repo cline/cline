@@ -643,6 +643,7 @@ export function useDriveSession(
 				uri?: string;
 				say?: string;
 				ownerParticipantId?: string;
+				roomId?: string;
 				snapshot?: RoomSnapshot;
 				event?: unknown;
 				auditHandle?: string;
@@ -699,11 +700,26 @@ export function useDriveSession(
 			if (message.type === "call_error") {
 				if (
 					message.command === "call_join" &&
-					!pendingJoinRef.current &&
-					!driveIntentRef.current
+					!hasPendingDriveJoinRequest({
+						pendingRoomJoin: pendingJoinRef.current,
+						pendingAttachedSessionId:
+							pendingAttachedSessionIdRef.current,
+					})
 				) {
-					// Ignore a join failure that arrived after the user cancelled.
+					// Ignore a failure from a cancelled or already-confirmed join.
+					// In particular, a late call_join error must not tear down an
+					// authoritative on-call room.
 					return;
+				}
+				const failedAttachmentSessionId =
+					message.command === "call_join"
+						? pendingAttachedSessionIdRef.current
+						: null;
+				if (failedAttachmentSessionId) {
+					pendingAttachedSessionIdRef.current = null;
+					failedAttachedSessionIdRef.current =
+						failedAttachmentSessionId;
+					setAttachmentRevision((revision) => revision + 1);
 				}
 				const resolution = resolveDriveCallError({
 					code: message.code,
@@ -719,6 +735,9 @@ export function useDriveSession(
 					return;
 				}
 				setDriveJoinNote(resolution.note);
+				if (resolution.kind === "notice") {
+					return;
+				}
 				// Refresh authoritative room state (rolls back optimistic rename, etc.).
 				refreshDriveRoom();
 				return;
@@ -737,6 +756,15 @@ export function useDriveSession(
 				message.snapshot
 			) {
 				const hubSnapshot = message.snapshot;
+				if (
+					!isDriveRoomSnapshotForTarget({
+						expectedRoomId: expectedRoomIdRef.current,
+						outerRoomId: message.roomId,
+						snapshotRoomId: hubSnapshot.roomId,
+					})
+				) {
+					return;
+				}
 				// Fold drive_event through reduceRoom; room_snapshot replaces.
 				// Compute candidate before intent guards — only commit to the ref
 				// once we know this client should apply the update.
@@ -769,9 +797,25 @@ export function useDriveSession(
 				if (wasPendingJoin) {
 					pendingJoinRef.current = false;
 				}
+				if (seatedOnCall && pendingAttachedSessionIdRef.current) {
+					const confirmedSessionId =
+						pendingAttachedSessionIdRef.current;
+					confirmedAttachedSessionIdRef.current =
+						confirmedSessionId;
+					pendingAttachedSessionIdRef.current = null;
+					if (
+						failedAttachedSessionIdRef.current ===
+						confirmedSessionId
+					) {
+						failedAttachedSessionIdRef.current = null;
+					}
+					setAttachmentRevision((revision) => revision + 1);
+				}
 				if (!seatedOnCall) {
 					driveIntentRef.current = false;
-					lastAttachedSessionIdRef.current = null;
+					confirmedAttachedSessionIdRef.current = null;
+					pendingAttachedSessionIdRef.current = null;
+					failedAttachedSessionIdRef.current = null;
 					connectionPhaseRef.current = "off";
 					setConnectionPhase("off");
 					setDriveJoinNote(null);
@@ -851,15 +895,30 @@ export function useDriveSession(
 		const sessionId = args.sessionId?.trim();
 		if (!shouldReattachDriveSession({
 			active: drive.active,
+			confirmedAttachedSessionId:
+				confirmedAttachedSessionIdRef.current,
 			connectionPhase,
 			driveIntended: driveIntentRef.current,
-			lastAttachedSessionId: lastAttachedSessionIdRef.current,
+			failedAttachedSessionId:
+				failedAttachedSessionIdRef.current,
+			pendingAttachedSessionId:
+				pendingAttachedSessionIdRef.current,
 			sessionId,
 		})) {
 			return;
 		}
-		sendDriveJoin(driveRef.current, sessionId);
-	}, [args.sessionId, connectionPhase, drive.active, sendDriveJoin]);
+		sendDriveJoin(
+			driveRef.current,
+			sessionId,
+			expectedRoomIdRef.current,
+		);
+	}, [
+		args.sessionId,
+		attachmentRevision,
+		connectionPhase,
+		drive.active,
+		sendDriveJoin,
+	]);
 
 	const driveVoiceResolved = useMemo(
 		() =>
