@@ -998,6 +998,16 @@ export async function runCli(): Promise<void> {
 			(!process.stdin.isTTY && !args.interactive);
 		const isInteractive = (args.interactive || !args.prompt) && !isHeadless;
 
+		// Computer-use is wired only into the interactive runtime, so any other
+		// path yields a session with no `computer` tool. The model then reports
+		// having no such tool, which reads like a backend fault rather than a
+		// consequence of how cline was invoked.
+		if (process.env.CLINE_COMPUTER_USE_PORT?.trim() && !isInteractive) {
+			writeln(
+				`${c.dim}[warn] CLINE_COMPUTER_USE_PORT is set, but computer use is only available in interactive mode, so the "computer" tool will not be registered for this run. Start cline without a prompt argument (and without --yolo/--zen/--output json) to use it.${c.reset}`,
+			);
+		}
+
 		if (!apiKey && isOAuthProvider(provider) && !isHeadless && !isInteractive) {
 			const oauthResult = await ensureOAuthProviderApiKey({
 				providerId: provider,
