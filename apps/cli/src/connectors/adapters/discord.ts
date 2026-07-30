@@ -1120,6 +1120,8 @@ class DiscordConnector extends ConnectorBase<
 			},
 		) => {
 			const queueKey = thread.id;
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -1152,6 +1154,7 @@ class DiscordConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
 						createEmptyRuntimeReplyResolver:
@@ -1291,9 +1294,7 @@ class DiscordConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {
