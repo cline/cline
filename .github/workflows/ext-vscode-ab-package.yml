@@ -44,9 +44,11 @@ jobs:
     # suites pass.
     #
     # Caveat (shared with the nightly workflow): the reusable bun suite tests the
-    # DISPATCH ref — main, since this workflow is dispatched from main — not
-    # `next-ref`. With the default `next-ref: main` they are the same thing; a
-    # non-default `next-ref` builds a bundle this gate did not test.
+    # DISPATCH revision — main's tip at dispatch, since this workflow is only
+    # dispatched from main — not `next-ref`. The package job therefore pins the
+    # default next-ref checkout to that same revision (tested == built) and
+    # refuses publish=true for any other next-ref; build-only artifact runs may
+    # still build untested refs.
     test-next:
         name: Test next (SDK) bundle
         permissions:
@@ -114,10 +116,24 @@ jobs:
         runs-on: ubuntu-latest
         environment: publish
         steps:
+            # Refuse to publish a next bundle the test-next gate did not cover.
+            # The reusable suite tests the dispatch revision (main), so publishing
+            # any other next-ref would ship an untested bundle. Build-only runs
+            # (publish=false) may still use arbitrary next-refs for artifact
+            # rehearsals.
+            - name: Refuse to publish an untested next-ref
+              if: ${{ github.event.inputs.publish == 'true' && github.event.inputs.next-ref != 'main' }}
+              run: |
+                  echo "Error: publish=true requires next-ref=main — the test gate only covers main."
+                  exit 1
+
+            # For the default next-ref (main), pin the checkout to the exact
+            # revision the test-next gate ran against: a moving branch name could
+            # otherwise drift past the tested commit during the test phase.
             - name: Checkout next (SDK) source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.next-ref }}
+                  ref: ${{ github.event.inputs.next-ref == 'main' && github.sha || github.event.inputs.next-ref }}
                   path: next-src
                   lfs: true
 

@@ -92,11 +92,14 @@ Release prep on `main` (PR, not direct push):
 ```bash
 gh workflow run ext-vscode-ab-package.yml --ref main \
   -f version=<VERSION> -f next-ref=main -f legacy-ref=legacy-extension -f publish=true
-# publish=false builds an installable .vsix artifact only (rehearsal).
+# publish=false builds an installable .vsix artifact without publishing, but the
+# package job still requires the same Publish environment approval — an
+# unapproved rehearsal sits in `waiting` and blocks that version's concurrency
+# group (rule 5).
 gh run list --workflow=ext-vscode-ab-package.yml --limit 1
 ```
 
-Both test suites run first; the gated `package` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). Check what a run is waiting on:
+Both test suites run first (no approval needed); the gated `package` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). The next bundle builds the exact revision the test gate ran against; `publish=true` is refused for any `next-ref` other than `main` (the gate only tests main — non-main next-refs are for build-only artifact rehearsals). Check what a run is waiting on:
 
 ```bash
 gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
