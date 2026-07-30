@@ -147,7 +147,10 @@ describe("handleDriveCommand", () => {
 		);
 		expect(reply.ok).toBe(true);
 		const room = reply.payload?.room as {
-			director: { activeShowId: string; showBacklog: Array<{ uri?: string }> };
+			director: {
+				activeShowId: string;
+				showBacklog: Array<{ uri?: string; title?: string }>;
+			};
 		};
 		expect(room.director.activeShowId).toBe("show-1");
 		expect(room.director.showBacklog[0]?.uri).toMatch(/^data:image\/svg\+xml/);
