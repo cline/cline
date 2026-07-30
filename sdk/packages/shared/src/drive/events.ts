@@ -125,6 +125,8 @@ export const WorkCommandEventSchema = DriveEventBaseSchema.extend({
 	command: z.string().min(1),
 	exitCode: z.number().int().optional(),
 	failed: z.boolean().optional(),
+	/** Optional stage/card copy; reduceRoom falls back to ok/failed. */
+	summary: z.string().optional(),
 }).strict();
 
 export const WorkTestResultEventSchema = DriveEventBaseSchema.extend({

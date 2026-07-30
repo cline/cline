@@ -3,6 +3,7 @@ import {
 	classifyToolEvent,
 	projectStageCardsFromToolEvents,
 	projectStageFromMessages,
+	toolEventToDriveEvent,
 	upsertStageCard,
 	webviewToolEventToStageToolEvent,
 	type StageToolEvent,
@@ -45,7 +46,7 @@ describe("classifyToolEvent", () => {
 });
 
 describe("projectStageCardsFromToolEvents", () => {
-	it("projects last-event-wins cards for edit, command, and test", () => {
+	it("projects last-event-wins cards for edit, command, and test via reduceRoom", () => {
 		const cards = projectStageCardsFromToolEvents(
 			[
 				event({
@@ -78,6 +79,7 @@ describe("projectStageCardsFromToolEvents", () => {
 		expect(cards[1]?.title).toContain("bun run build");
 		expect(cards[2]?.title).toContain("bun test");
 		expect(cards.every((card) => card.updatedAt === NOW)).toBe(true);
+		expect(cards[0]?.workEventId).toBe("e1");
 	});
 
 	it("keeps only the latest card per category (last-event-wins)", () => {
@@ -133,6 +135,41 @@ describe("projectStageCardsFromToolEvents", () => {
 		expect(projectStageCardsFromToolEvents(events, { now: NOW })).toEqual(
 			projectStageCardsFromToolEvents(events, { now: NOW }),
 		);
+	});
+});
+
+describe("toolEventToDriveEvent", () => {
+	it("emits work.edit / work.command / work.test_result for stage tools", () => {
+		expect(
+			toolEventToDriveEvent(
+				event({
+					id: "e1",
+					name: "editor",
+					input: { path: "src/a.ts" },
+				}),
+				{ roomId: "r1", now: NOW },
+			)?.type,
+		).toBe("work.edit");
+		expect(
+			toolEventToDriveEvent(
+				event({
+					id: "c1",
+					name: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				{ roomId: "r1", now: NOW },
+			)?.type,
+		).toBe("work.command");
+		expect(
+			toolEventToDriveEvent(
+				event({
+					id: "t1",
+					name: "run_commands",
+					input: { commands: ["bun test"] },
+				}),
+				{ roomId: "r1", now: NOW },
+			)?.type,
+		).toBe("work.test_result");
 	});
 });
 
