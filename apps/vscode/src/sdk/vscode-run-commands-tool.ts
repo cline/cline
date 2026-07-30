@@ -46,8 +46,8 @@ type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 /** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
 export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
-/** Release the agent turn if a foreground command is still running after 60 seconds. */
-export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 60 * 1000
+/** Release the agent turn if a foreground command is still running after 300 seconds. */
+export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 300 * 1000
 
 /**
  * Cap on the "Proceed While Running" log file. A detached devserver can log
@@ -229,7 +229,7 @@ export async function executeForeground(
 	const terminalCommand = formatCommandForTerminal(command)
 
 	// "Proceed While Running": register a per-invocation handle so the user can
-	// detach this command. If they do not act, automatically detach after 60
+	// detach this command. If they do not act, automatically detach after 300
 	// seconds so a long-running command cannot block the agent turn indefinitely.
 	// Detaching redirects the remaining output to a log file and resolves the
 	// awaited promise; the command keeps running in the user's terminal (and the
