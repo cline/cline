@@ -1971,6 +1971,34 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-3.1-pro-preview"
 export const geminiModels = {
+	"gemini-3.6-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.5,
+		outputPrice: 7.5,
+		cacheReadsPrice: 0.15,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "low",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3.5-flash-lite": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.03,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "low",
+			supportsThinkingLevel: true,
+		},
+	},
 	"gemini-3.5-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
