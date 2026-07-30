@@ -366,10 +366,12 @@ export class SdkModeCoordinator {
 				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
 				continuationSent = true
 			}
-			if (options.autoContinue) {
-				// Publish the running/turn-phase changes made by auto-continuation.
-				await this.options.postStateToWebview()
-			}
+			// The early pre-rebuild post already showed the new mode, but state can
+			// change during the rebuild: aborting a running turn appends finalized
+			// messages (clineMessages ride on the state post), and auto-continue
+			// flips the running flag and turn phase. Post again so the webview
+			// converges on the post-rebuild state.
+			await this.options.postStateToWebview()
 
 			Logger.log(`[SdkController] Session rebuilt for mode ${newMode}: ${oldSessionId} -> ${startResult.sessionId}`)
 		} catch (error) {

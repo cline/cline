@@ -87,7 +87,9 @@ describe("SdkModeCoordinator", () => {
 		expect(task.taskId).toBe("new-session")
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// Once before the rebuild (responsive toggle) and once after (messages
+		// finalized during the rebuild ride on the state post).
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it("publishes the new mode before active session replacement finishes", async () => {
@@ -634,6 +636,11 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
+		// The finalized messages ride on the state post, so a post must land
+		// after the append or the webview keeps showing the aborted partial.
+		const appendOrder = (options.messages.appendMessages as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+		const postOrders = (options.postStateToWebview as ReturnType<typeof vi.fn>).mock.invocationCallOrder
+		expect(Math.max(...postOrders)).toBeGreaterThan(appendOrder)
 	})
 
 	describe("mode switch notices", () => {
