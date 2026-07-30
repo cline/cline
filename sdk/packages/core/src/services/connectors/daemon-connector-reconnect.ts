@@ -1,14 +1,25 @@
 import { spawn } from "node:child_process";
 import {
+	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	type ConnectorCliLaunchSpec,
 	readConnectorCliLaunchSpec,
+	readStartingConnectorInstance,
 } from "@cline/shared";
 import { listActiveConnectors } from "./active-connectors";
 import {
 	type ReconnectAttempt,
 	reconnectPersistedConnectors,
 } from "./connector-autostart";
+
+/**
+ * Env markers a connector sets on its own detached child: the shared
+ * `CLINE_CONNECTOR_DETACHED_CHILD` plus one per adapter
+ * (`CLINE_SLACK_CONNECT_CHILD`, `CLINE_TELEGRAM_CONNECT_CHILD`, ...). They are
+ * owned by the CLI, so match them by shape rather than importing upward.
+ */
+const CONNECTOR_CHILD_MARKER_PATTERN =
+	/^CLINE_(?:CONNECTOR_DETACHED_CHILD|[A-Z0-9]+_CONNECT_CHILD)$/;
 
 type ConnectorCliChild = {
 	stderr?: {
@@ -43,6 +54,16 @@ async function runConnectorCli(
 	const spawnProcess = options.spawnProcess ?? (spawn as SpawnConnectorCli);
 	const childEnv = { ...process.env };
 	delete childEnv[CLINE_RUN_AS_HUB_DAEMON_ENV];
+	// The daemon inherits its spawning connector's environment, and those
+	// markers mean "you are the detached child, skip the already-running check".
+	// Leaving them set would make every relaunched connector bypass that check
+	// and happily start alongside a live instance holding the same credentials.
+	delete childEnv[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+	for (const key of Object.keys(childEnv)) {
+		if (CONNECTOR_CHILD_MARKER_PATTERN.test(key)) {
+			delete childEnv[key];
+		}
+	}
 
 	return await new Promise<boolean>((resolve) => {
 		let stderr = "";
@@ -122,7 +143,15 @@ export async function reconnectDaemonConnectors(
 	for (const record of listActiveConnectors()) {
 		activeInstances.add(`${record.type}\0${record.instanceId}`);
 	}
+	// A connector spawns this daemon partway through its own startup, so it is
+	// not registered as active yet. Reconnecting it here would put a second
+	// process on the same credentials, and for socket-mode adapters both would
+	// hold a live connection and split incoming events between them.
+	const startingInstance = readStartingConnectorInstance();
 	return await reconnectPersistedConnectors({
+		isHealthy: ({ channel, instanceId }) =>
+			startingInstance?.channel === channel &&
+			startingInstance.instanceId === instanceId,
 		start: async ({ channel, instanceId, args }) => {
 			if (!launchSpec) {
 				log(

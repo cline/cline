@@ -438,13 +438,19 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
-export type { ConnectorCliLaunchSpec } from "./runtime/hub-daemon-env";
+export type {
+	ConnectorCliLaunchSpec,
+	ConnectorInstanceRef,
+} from "./runtime/hub-daemon-env";
 export {
 	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
+	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
 	readConnectorCliLaunchSpec,
+	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
+	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,

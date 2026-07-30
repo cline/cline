@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import {
+	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	type ConnectorCliLaunchSpec,
 } from "@cline/shared";
@@ -59,6 +60,9 @@ describe("daemon connector CLI launcher", () => {
 		cwd: "/workspace",
 	};
 
+	const originalStartingInstance =
+		process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+
 	afterEach(() => {
 		vi.clearAllMocks();
 		if (originalDaemonFlag === undefined) {
@@ -66,6 +70,14 @@ describe("daemon connector CLI launcher", () => {
 		} else {
 			process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = originalDaemonFlag;
 		}
+		if (originalStartingInstance === undefined) {
+			delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+		} else {
+			process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV] =
+				originalStartingInstance;
+		}
+		delete process.env.CLINE_TELEGRAM_CONNECT_CHILD;
+		delete process.env.CLINE_CONNECTOR_DETACHED_CHILD;
 	});
 
 	it("launches reconnect through the CLI without the daemon sentinel", async () => {
@@ -94,6 +106,96 @@ describe("daemon connector CLI launcher", () => {
 			}),
 		);
 		expect(log).not.toHaveBeenCalled();
+	});
+
+	it("strips connector child markers so the relaunch runs the normal launch path", async () => {
+		// The daemon inherits these from the connector that spawned it. Passing
+		// them on tells the new connector "you are the detached child", which
+		// makes it skip the already-running check and double up on the token.
+		process.env.CLINE_TELEGRAM_CONNECT_CHILD = "1";
+		process.env.CLINE_CONNECTOR_DETACHED_CHILD = "1";
+		process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV] = JSON.stringify({
+			channel: "telegram",
+			instanceId: "other_bot",
+		});
+		const child = new FakeConnectorCliChild();
+		let childEnv: NodeJS.ProcessEnv = {};
+		const spawnProcess = vi.fn(
+			(
+				_launcher: string,
+				_args: string[],
+				options: { env: NodeJS.ProcessEnv },
+			) => {
+				childEnv = options.env;
+				return child;
+			},
+		);
+
+		const pending = __test__.runConnectorCli(
+			spec,
+			"telegram",
+			["-k", "token"],
+			{
+				log: vi.fn(),
+				spawnProcess,
+			},
+		);
+		child.emit("close", 0);
+		await pending;
+
+		expect(childEnv.CLINE_TELEGRAM_CONNECT_CHILD).toBeUndefined();
+		expect(childEnv.CLINE_CONNECTOR_DETACHED_CHILD).toBeUndefined();
+		expect(childEnv[CLINE_CONNECTOR_STARTING_INSTANCE_ENV]).toBeUndefined();
+		// Unrelated environment still reaches the relaunched connector.
+		expect(childEnv.PATH).toBe(process.env.PATH);
+	});
+
+	it("does not reconnect the connector instance that is starting this daemon", async () => {
+		process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV] = JSON.stringify({
+			channel: "telegram",
+			instanceId: "cline_bot",
+		});
+		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
+		mocks.listActiveConnectors.mockReturnValue([]);
+		let isHealthy:
+			| ((target: { channel: string; instanceId: string }) => boolean)
+			| undefined;
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			isHealthy = options.isHealthy;
+			return [];
+		});
+
+		await reconnectDaemonConnectors(vi.fn());
+
+		expect(isHealthy?.({ channel: "telegram", instanceId: "cline_bot" })).toBe(
+			true,
+		);
+		// A different instance of the same channel still needs reconnecting.
+		expect(isHealthy?.({ channel: "telegram", instanceId: "other_bot" })).toBe(
+			false,
+		);
+		expect(isHealthy?.({ channel: "slack", instanceId: "cline_bot" })).toBe(
+			false,
+		);
+	});
+
+	it("reconnects every persisted instance when no connector is starting", async () => {
+		delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
+		mocks.listActiveConnectors.mockReturnValue([]);
+		let isHealthy:
+			| ((target: { channel: string; instanceId: string }) => boolean)
+			| undefined;
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			isHealthy = options.isHealthy;
+			return [];
+		});
+
+		await reconnectDaemonConnectors(vi.fn());
+
+		expect(isHealthy?.({ channel: "telegram", instanceId: "cline_bot" })).toBe(
+			false,
+		);
 	});
 
 	it("reports non-zero CLI reconnect exits", async () => {

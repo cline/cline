@@ -1,4 +1,6 @@
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -187,5 +189,38 @@ describe("readSessionReplyText", () => {
 		await expect(
 			readSessionMessageCount(client as never, "session-1"),
 		).resolves.toBe(2);
+	});
+});
+
+describe("detached connector log rotation", () => {
+	it("keeps one generation once the log grows past the cap", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-connector-log-"));
+		const logPath = join(dir, "cline-slack.log");
+		writeFileSync(logPath, "x".repeat(__test__.DETACHED_LOG_MAX_BYTES + 1));
+
+		__test__.rotateOversizedLog(logPath);
+
+		expect(existsSync(logPath)).toBe(false);
+		expect(readFileSync(`${logPath}.1`, "utf8").length).toBe(
+			__test__.DETACHED_LOG_MAX_BYTES + 1,
+		);
+	});
+
+	it("leaves a small log in place so restarts keep their history", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-connector-log-"));
+		const logPath = join(dir, "cline-slack.log");
+		writeFileSync(logPath, "recent failure");
+
+		__test__.rotateOversizedLog(logPath);
+
+		expect(readFileSync(logPath, "utf8")).toBe("recent failure");
+		expect(existsSync(`${logPath}.1`)).toBe(false);
+	});
+
+	it("does nothing when there is no log yet", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-connector-log-"));
+		expect(() =>
+			__test__.rotateOversizedLog(join(dir, "missing.log")),
+		).not.toThrow();
 	});
 });

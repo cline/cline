@@ -5,6 +5,7 @@ import {
 	persistConnectorConnection,
 	removePersistedConnectorConnection,
 } from "@cline/core";
+import { setStartingConnectorInstance } from "@cline/shared";
 import {
 	CLINE_CONNECTOR_DETACHED_CHILD_ENV,
 	CONNECT_ALREADY_RUNNING_EXIT_CODE,
@@ -208,6 +209,14 @@ async function runConnectAdapterWithResult(
 		},
 		setPersistenceInstanceId: (instanceId) => {
 			persistenceInstanceId = instanceId;
+			// Adapters report their instance id before they build a Cline core, so
+			// this lands in the environment before the hub daemon is spawned and
+			// inherited by it. Without it the daemon's autostart pass cannot tell
+			// that this instance is mid-startup and launches a second copy of it.
+			setStartingConnectorInstance({
+				channel: connector.name,
+				instanceId,
+			});
 		},
 	};
 	const exitCode = await connector.run(passthroughArgs, io, context);

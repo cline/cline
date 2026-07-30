@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
@@ -72,11 +72,89 @@ type ProcessRecord = {
 	command: string;
 };
 
+// Container id inside a cgroup path, e.g.
+// "0::/system.slice/docker-<64-hex>.scope" (docker/containerd/podman) or
+// "/kubepods/.../<64-hex>" (kubernetes). Captures the id so two different
+// containers can be told apart, not merely "is containerised".
+const CONTAINER_CGROUP_PATTERN =
+	/(?:docker[-/]|containerd[-/]|libpod[-/]|crio[-/]|lxc[-/.])([0-9a-f]{12,64})/;
+
 function parsePids(raw: string): number[] {
 	return raw
 		.split(/\r?\n/)
 		.map((line) => Number.parseInt(line.trim(), 10))
 		.filter((pid) => Number.isInteger(pid) && pid > 0);
+}
+
+function tryReadLink(target: string): string | undefined {
+	try {
+		return readlinkSync(target);
+	} catch {
+		return undefined;
+	}
+}
+
+function readContainerCgroupId(pid: number | "self"): string | undefined {
+	let raw: string;
+	try {
+		raw = readFileSync(`/proc/${pid}/cgroup`, "utf8");
+	} catch {
+		return undefined;
+	}
+	return raw.match(CONTAINER_CGROUP_PATTERN)?.[1];
+}
+
+/**
+ * Decide whether a process belongs to a container other than our own.
+ *
+ * Namespace identity is the reliable signal: a containerised process has
+ * different PID/mount namespaces than the host process running the scan.
+ * Container ids parsed from cgroup paths are the fallback for kernels where the
+ * namespace links are unreadable. Unknown on both sides means "assume ours",
+ * preserving the previous behaviour rather than silently dropping processes the
+ * user does want cleaned up.
+ */
+function decideForeignContainer(input: {
+	platform: string;
+	namespacePairs: Array<[string | undefined, string | undefined]>;
+	ownContainerId: string | undefined;
+	otherContainerId: string | undefined;
+}): boolean {
+	// /proc/<pid>/ns exists only on Linux. Elsewhere containers run inside a VM
+	// and never share a pid space with us, so there is nothing to disambiguate.
+	if (input.platform !== "linux") {
+		return false;
+	}
+	for (const [own, other] of input.namespacePairs) {
+		if (own && other && own !== other) {
+			return true;
+		}
+	}
+	return (
+		Boolean(input.otherContainerId) &&
+		input.otherContainerId !== input.ownContainerId
+	);
+}
+
+/**
+ * True when `pid` belongs to a container other than this process's own.
+ *
+ * `pgrep` sees every process on the host, containers included: a Docker agent's
+ * hub daemon shows up beside ours, and when the container shares our uid `kill`
+ * on it succeeds. Those daemons are emphatically not stale — they belong to a
+ * live agent with its own data dir — so reporting them, and killing them in
+ * `doctor fix`, takes down an unrelated agent.
+ */
+function isForeignContainerPid(pid: number): boolean {
+	return decideForeignContainer({
+		platform: process.platform,
+		namespacePairs: (["pid", "mnt"] as const).map((namespace) => [
+			tryReadLink(`/proc/self/ns/${namespace}`),
+			tryReadLink(`/proc/${pid}/ns/${namespace}`),
+		]),
+		ownContainerId: readContainerCgroupId("self"),
+		otherContainerId: readContainerCgroupId(pid),
+	});
 }
 
 function listMatchingProcesses(pattern: string): ProcessRecord[] {
@@ -108,7 +186,8 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 			pid <= 0 ||
 			!command ||
 			pid === process.pid ||
-			pid === process.ppid
+			pid === process.ppid ||
+			isForeignContainerPid(pid)
 		) {
 			continue;
 		}
@@ -410,6 +489,11 @@ function killPids(pids: number[]): number {
 	}
 	return killed;
 }
+
+export const __test__ = {
+	decideForeignContainer,
+	CONTAINER_CGROUP_PATTERN,
+};
 
 export async function runDoctorCommand(
 	opts: { cwd: string; json?: boolean; fix?: boolean; verbose?: boolean },
