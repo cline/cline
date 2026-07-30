@@ -1888,6 +1888,83 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
 	});
 
+	it("folds a trailing parallel tool block when no later safe boundary exists", async () => {
+		// Live VS Code repro: one assistant emits parallel reads and the runtime
+		// invokes prepareTurn immediately after the separate tool-result messages.
+		// The end of the transcript is the only forward safe boundary; walking
+		// backward preserves the entire heavy block and grows context by adding a
+		// summary in front of it.
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-trailing-parallel",
+						text: "## Goal\nRead three files\n\n## Next\nAnswer from memory",
+					},
+					{ type: "done", id: "summary-trailing-parallel", success: true },
+				]),
+			),
+		});
+		const heavyToolOutput = "x".repeat(4_000);
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Read three files" },
+			assistantMultiToolUseMessage([
+				"trailing-tool-0",
+				"trailing-tool-1",
+				"trailing-tool-2",
+			]),
+			toolResultMessage("trailing-tool-0", heavyToolOutput),
+			toolResultMessage("trailing-tool-1", heavyToolOutput),
+			toolResultMessage("trailing-tool-2", heavyToolOutput),
+		];
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 200,
+			},
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 2_000 },
+			},
+		});
+
+		expect(result?.messages).toHaveLength(1);
+		expect(result?.messages[0]).toMatchObject({
+			role: "user",
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(collectToolPairPresence(result?.messages ?? []).size).toBe(0);
+		const completed = emitStatusNotice.mock.calls.find(
+			([, metadata]) =>
+				(metadata as Record<string, unknown>)?.phase === "completed",
+		);
+		const completedMeta = completed?.[1] as Record<string, number>;
+		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
+	});
+
 	it("reports before/after tokens on the same baseline when apiMessages is a projection", async () => {
 		// Regression: tokensBefore was estimated over the (truncated) provider
 		// projection while tokensAfter was estimated over the compacted

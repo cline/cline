@@ -360,9 +360,27 @@ export function findCutIndex(
 	if (forwardCut < messages.length) {
 		return forwardCut;
 	}
-	// No safe boundary between the cut and the end of the transcript —
-	// fall back to the backward walk so the tool pair stays intact even
-	// though it preserves more than the budget asked for.
+	// The end of the transcript is also a safe boundary. This occurs when a
+	// single-task turn ends with tool results and no later assistant/typed-user
+	// message. Folding the whole completed tool block is preferable to walking
+	// backward to its assistant tool_use and preserving every heavy result.
+	if (forwardCut === messages.length) {
+		let trailingToolBlockStart = messages.length;
+		while (
+			trailingToolBlockStart > 0 &&
+			isToolResultOnlyUserMessage(messages[trailingToolBlockStart - 1])
+		) {
+			trailingToolBlockStart -= 1;
+		}
+		if (
+			trailingToolBlockStart > 0 &&
+			messages[trailingToolBlockStart - 1].role === "assistant"
+		) {
+			return forwardCut;
+		}
+	}
+	// A malformed/dangling result block has no assistant tool_use to fold with.
+	// Preserve it by falling back to the nearest earlier safe boundary.
 	let backwardCut = cut;
 	while (backwardCut > 0 && !isSafeCutBoundary(messages[backwardCut])) {
 		backwardCut -= 1;

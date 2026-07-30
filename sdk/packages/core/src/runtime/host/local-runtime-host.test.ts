@@ -5094,7 +5094,7 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("persists auto-compaction state when the store's user turn lacks id/ts", async () => {
+	it("persists auto-compaction state against runtime messages and replaces an invalid older sidecar", async () => {
 		// Regression: the orchestrator appends the follow-up user turn to the
 		// conversation store WITHOUT id/ts, while the runtime's working
 		// transcript (which prepareTurn sees, and which the compaction state's
@@ -5181,6 +5181,30 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
+
+		// Resume normalization can make the loaded sidecar unprojectable and
+		// reduce the current source count (for example, consolidating parallel
+		// tool-result messages). That invalid state must not win the stale-write
+		// check solely because its old count is larger.
+		const staleState = createSessionCompactionState({
+			sourceMessages: [
+				...runtimeMessages,
+				{ role: "assistant", content: "old extra message", id: "m4", ts: 4 },
+			],
+			compactedMessages: [{ role: "user", content: "stale summary" }],
+			conversationId: sessionId,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const activeSessions = Reflect.get(manager as object, "sessions") as Map<
+			string,
+			{ compactionState?: typeof staleState }
+		>;
+		const activeSession = activeSessions.get(sessionId);
+		expect(activeSession).toBeDefined();
+		if (!activeSession) {
+			throw new Error("expected active session");
+		}
+		activeSession.compactionState = staleState;
 
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
 		expect(prepareTurn).toBeDefined();

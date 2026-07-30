@@ -111,7 +111,7 @@ export async function runAgenticCompaction(options: {
 		options.preserveRecentTokens,
 		options.estimateMessageTokens,
 	);
-	if (cutIndex <= 0 || cutIndex >= messages.length) {
+	if (cutIndex <= 0 || cutIndex > messages.length) {
 		return undefined;
 	}
 

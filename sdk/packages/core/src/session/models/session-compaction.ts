@@ -78,16 +78,26 @@ function assertBoundaryRole(role: MessageWithMetadata["role"]): void {
 function sourceMessageHashInput(message: MessageWithMetadata): unknown[] {
 	const normalized = normalizeMessageForSourceHash(message);
 	assertBoundaryRole(normalized.role);
+	// VS Code normalizes parallel tool results into one user message on resume;
+	// the core codec then splits them back into individual runtime tool messages.
+	// Their content and tool_use ids remain stable, but message ids/timestamps are
+	// regenerated from the consolidated message. Those transport identities must
+	// not invalidate an otherwise identical compaction prefix.
+	const hasVolatileToolResultIdentity =
+		normalized.role === "user" &&
+		Array.isArray(normalized.content) &&
+		normalized.content.length > 0 &&
+		normalized.content.every((part) => part.type === "tool_result");
 	return [
 		["role", normalized.role],
 		["content", normalized.content],
-		["id", normalized.id ?? null],
+		["id", hasVolatileToolResultIdentity ? null : (normalized.id ?? null)],
 		["agent", normalized.agent ?? null],
 		["sessionId", normalized.sessionId ?? null],
 		["metadata", normalized.metadata ?? null],
 		["modelInfo", normalized.modelInfo ?? null],
 		["metrics", normalized.metrics ?? null],
-		["ts", normalized.ts ?? null],
+		["ts", hasVolatileToolResultIdentity ? null : (normalized.ts ?? null)],
 	];
 }
 

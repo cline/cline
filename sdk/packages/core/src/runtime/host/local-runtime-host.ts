@@ -1292,7 +1292,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return { updated: false };
 		}
 		return await this.enqueueCompactionStateWrite(session, async () => {
-			if (isIncomingCompactionStateStale(state, session.compactionState)) {
+			const currentState = session.compactionState;
+			const currentStateStillProjects =
+				currentState !== undefined &&
+				projectSessionCompactionState(
+					currentState,
+					sourceMessages ?? session.agent.getMessages(),
+				) !== undefined;
+			// Message normalization during a resume can invalidate an older
+			// sidecar while reducing its source count. A newer state computed
+			// from the current transcript must replace that invalid state rather
+			// than losing forever to the old count-based stale-write guard.
+			if (
+				currentState &&
+				(currentStateStillProjects
+					? isIncomingCompactionStateStale(state, currentState)
+					: Date.parse(state.updated_at) < Date.parse(currentState.updated_at))
+			) {
 				return { updated: false };
 			}
 			await this.invoke<void>(
