@@ -210,8 +210,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	// heuristics: any reasoning-capable model gets the effort selector. Prefer
 	// the live catalog entry over the committed legacy snapshot — the snapshot
 	// can be cleared by provider-config writes (fallback-source resolutions).
+	// Read the raw snapshot field (not the hook's default-info fallback) so an
+	// id that is absent from the catalog never inherits reasoning support from
+	// placeholder metadata.
 	const showReasoningEffort =
-		showAdaptiveThinkingEffort || (openRouterModels[selectedModelId] ?? selectedModelInfo)?.supportsReasoning === true
+		showAdaptiveThinkingEffort ||
+		(openRouterModels[selectedModelId] ?? modeFields.openRouterModelInfo)?.supportsReasoning === true
 	const handleReasoningEffortChange = (effort: string) => {
 		void write({
 			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
