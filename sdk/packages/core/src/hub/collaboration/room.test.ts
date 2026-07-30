@@ -137,7 +137,7 @@ describe("DriveRoomStore", () => {
 			displayName: "Adam",
 			role: "partner" as const,
 			status: "idle" as const,
-			seatSources: [] as string[],
+			seatSources: [],
 		};
 		store.create("room_2");
 		store.join({ roomId: "room_2", participant });

@@ -162,4 +162,64 @@ describe("createClineDriveHost", () => {
 			true,
 		);
 	});
+
+	it("createDriveHarness scripts.attach commits via DirectorOp", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-drive-host-"));
+		dirs.push(dir);
+		const store = new DriveRoomStore();
+		const host = createClineDriveHost({ configParent: dir, store });
+		const drive = createDriveHarness({ host });
+		await drive.rooms.createOrAttach({
+			roomId: "script-room",
+			humanId: "drive:human",
+		});
+		const showItem = {
+			id: "show-script",
+			ownerParticipantId: "drive:partner",
+			title: "Hold",
+			intent: "Explain",
+			artifactKind: "diagram.architecture" as const,
+			mediaClass: "still" as const,
+			caption: "diagram",
+			produce: {
+				tool: "render_mermaid",
+				args: { mermaidSource: "graph TD; A-->B;" },
+			},
+			priority: 10,
+			status: "ready" as const,
+			scoreReasons: [] as string[],
+		};
+		const attached = await drive.scripts.attach(
+			"script-room",
+			{
+				scriptId: "s1",
+				ownerParticipantId: "drive:partner",
+				title: "Hold script",
+				stickyShowIds: ["show-script"],
+				beats: [
+					{
+						beatId: "b1",
+						say: "First say",
+						showItemId: "show-script",
+						sticky: { mode: "hold" },
+						advance: "on_human",
+					},
+					{
+						beatId: "b2",
+						say: "Second say",
+						showItemId: "show-script",
+						sticky: { mode: "hold" },
+						advance: "on_human",
+					},
+				],
+			},
+			{ showItems: [showItem] },
+		);
+		expect(attached.beatId).toBe("b1");
+		expect(attached.presented?.id).toBe("show-script");
+		const advanced = await drive.scripts.advance("script-room");
+		expect(advanced.beatId).toBe("b2");
+		expect(advanced.say).toBe("Second say");
+		expect(advanced.errorCode).toBeUndefined();
+	});
 });

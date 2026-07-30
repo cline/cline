@@ -3,6 +3,27 @@ export {
 	mergeFacetScopes,
 } from "./merge";
 export {
+	emptyDriveRegistry,
+	lookupRosterPack,
+	parseDriveRegistry,
+	DRIVE_REGISTRY_SCHEMA_VERSION,
+	DriveRegistrySchema,
+	type DriveRegistry,
+} from "./registry";
+export {
+	parseRosterPack,
+	PermissionPresetSchema,
+	RosterPackMemberOverrideSchema,
+	RosterPackMemberRoleSchema,
+	RosterPackMemberSchema,
+	RosterPackSchema,
+	type PermissionPreset,
+	type RosterPack,
+	type RosterPackMember,
+	type RosterPackMemberOverride,
+	type RosterPackMemberRole,
+} from "./rosterPack";
+export {
 	AgentAppearanceSchema,
 	AgentProfileSchema,
 	DRIVE_FACET_FORBIDDEN_PROMPT_KEYS,

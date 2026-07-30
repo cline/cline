@@ -1,9 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	getDriveRoomStore,
 	resetDriveRoomStoreForTests,
 	shouldDrivePauseAfterTool,
 } from "../../collaboration";
+import { writeDriveRegistryFile } from "../../drive-config/driveRegistryStore";
 import { buildHubEvent, type HubTransportContext, okReply } from "./context";
 import { handleDriveRoomCommand } from "./drive-room-handlers";
 
@@ -26,7 +30,7 @@ function makeCtx(): HubTransportContext & { published: unknown[] } {
 }
 
 describe("handleDriveRoomCommand", () => {
-	it("joins via joinCall and publishes room.snapshot", async () => {
+	it("joins via createOrAttach harness and publishes room.snapshot", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
 		const reply = await handleDriveRoomCommand(ctx, {
@@ -41,9 +45,11 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(reply.ok).toBe(true);
 		expect(reply.payload?.roomId).toBe("room_h1");
-		expect(ctx.published.some((e) => (e as { event: string }).event === "room.snapshot")).toBe(
-			true,
-		);
+		expect(
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "room.snapshot",
+			),
+		).toBe(true);
 
 		const leave = await handleDriveRoomCommand(ctx, {
 			version: "v1",
@@ -64,6 +70,40 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(stage.ok).toBe(true);
 		expect(okReply({ version: "v1", requestId: "x" }).ok).toBe(true);
+	});
+
+	it("forwards optional human and agent roles on call_join", async () => {
+		resetDriveRoomStoreForTests();
+		const ctx = makeCtx();
+		const reply = await handleDriveRoomCommand(ctx, {
+			version: "v1",
+			command: "call_join",
+			requestId: "r_roles",
+			payload: {
+				roomId: "room_roles",
+				human: {
+					id: "observer_you",
+					displayName: "You",
+					role: "observer",
+				},
+				agent: {
+					id: "recorder_adam",
+					displayName: "Adam",
+					role: "recorder",
+				},
+				activateDrive: false,
+			},
+		});
+		expect(reply.ok).toBe(true);
+		const snap = reply.payload?.snapshot as {
+			participants: Array<{ id: string; role: string }>;
+		};
+		expect(snap.participants.find((p) => p.id === "observer_you")?.role).toBe(
+			"observer",
+		);
+		expect(snap.participants.find((p) => p.id === "recorder_adam")?.role).toBe(
+			"recorder",
+		);
 	});
 
 	it("returns room_not_found for leave on missing room", async () => {
@@ -142,7 +182,9 @@ describe("handleDriveRoomCommand", () => {
 		};
 		expect(handSnap.raisedHandByParticipantId.you).toBe(true);
 		expect(
-			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "room.event",
+			),
 		).toBe(true);
 
 		const lowered = await handleDriveRoomCommand(ctx, {
@@ -191,11 +233,13 @@ describe("handleDriveRoomCommand", () => {
 		const snap = renamed.payload?.snapshot as {
 			participants: Array<{ id: string; displayName: string }>;
 		};
+		expect(snap.participants.find((p) => p.id === "adam")?.displayName).toBe(
+			"Nova",
+		);
 		expect(
-			snap.participants.find((p) => p.id === "adam")?.displayName,
-		).toBe("Nova");
-		expect(
-			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "room.event",
+			),
 		).toBe(true);
 
 		const missing = await handleDriveRoomCommand(ctx, {
@@ -437,7 +481,9 @@ describe("handleDriveRoomCommand", () => {
 		};
 		expect(snapshot.stage.cards.some((c) => c.category === "edit")).toBe(true);
 		expect(
-			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
+			ctx.published.some(
+				(e) => (e as { event: string }).event === "room.event",
+			),
 		).toBe(true);
 
 		const cmd = await handleDriveRoomCommand(ctx, {
@@ -500,9 +546,9 @@ describe("handleDriveRoomCommand", () => {
 		) as {
 			payload?: { scoreReasons?: string[]; title?: string };
 		};
-		expect(planned.payload?.scoreReasons?.some((r) => r.includes("planner:"))).toBe(
-			true,
-		);
+		expect(
+			planned.payload?.scoreReasons?.some((r) => r.includes("planner:")),
+		).toBe(true);
 
 		const live = getDriveRoomStore().getOrCreateLive("room_plan");
 		expect(
@@ -709,5 +755,70 @@ describe("handleDriveRoomCommand", () => {
 		expect(agentSnap.stage.sharer?.kind).toBe("agent");
 		expect(agentSnap.stage.pin).toBeNull();
 		expect(agentSnap.stage.cards.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("adds and removes a roster pack from durable registry via harness", async () => {
+		resetDriveRoomStoreForTests();
+		const root = mkdtempSync(join(tmpdir(), "hub-pack-"));
+		try {
+			writeDriveRegistryFile(root, {
+				schemaVersion: 1,
+				packs: {
+					review: {
+						id: "review",
+						slug: "review-crew",
+						displayName: "Review",
+						members: [{ profileId: "reviewer", role: "specialist" }],
+						addressable: true,
+					},
+				},
+			});
+			const ctx = makeCtx();
+			await handleDriveRoomCommand(ctx, {
+				version: "v1",
+				command: "call_join",
+				requestId: "p0",
+				payload: {
+					roomId: "room_pack",
+					human: { id: "you", displayName: "You" },
+					agent: { id: "adam", displayName: "Adam" },
+					workspaceRoot: root,
+				},
+			});
+			const added = await handleDriveRoomCommand(ctx, {
+				version: "v1",
+				command: "call_add_roster_pack",
+				requestId: "p1",
+				payload: {
+					roomId: "room_pack",
+					packId: "review-crew",
+					workspaceRoot: root,
+				},
+			});
+			expect(added.ok).toBe(true);
+			const snap = added.payload?.snapshot as {
+				participants: Array<{ id: string; kind: string }>;
+			};
+			expect(snap.participants.some((p) => p.id === "reviewer")).toBe(true);
+			expect(added.payload?.seated).toEqual(["reviewer"]);
+
+			const removed = await handleDriveRoomCommand(ctx, {
+				version: "v1",
+				command: "call_remove_roster_pack",
+				requestId: "p2",
+				payload: {
+					roomId: "room_pack",
+					packId: "review",
+					workspaceRoot: root,
+				},
+			});
+			expect(removed.ok).toBe(true);
+			const after = removed.payload?.snapshot as {
+				participants: Array<{ id: string }>;
+			};
+			expect(after.participants.some((p) => p.id === "reviewer")).toBe(false);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });

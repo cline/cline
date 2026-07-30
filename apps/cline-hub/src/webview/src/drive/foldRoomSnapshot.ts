@@ -4,7 +4,11 @@
  */
 
 import { reduceRoom } from "@cline/drive";
-import { parseDriveEvent, type RoomSnapshot } from "@cline/shared";
+import {
+	type DriveEvent,
+	parseDriveEvent,
+	type RoomSnapshot,
+} from "@cline/shared";
 
 /**
  * Fold one incoming DriveEvent onto local room state.
@@ -21,7 +25,7 @@ export function foldIncomingDriveEvent(input: {
 			? input.hubSnapshot
 			: null;
 
-	let event;
+	let event: DriveEvent;
 	try {
 		event = parseDriveEvent(input.event);
 	} catch {

@@ -21,7 +21,10 @@ import {
 	JsonlRoomEventLog,
 } from "./collaboration";
 import {
+	advanceScriptOnStore,
+	attachScriptOnStore,
 	enqueueShowOnStore,
+	planFromWorkOnStore,
 	presentShowOnStore,
 	tickShowOnStore,
 } from "./driveDirectorOps";
@@ -126,6 +129,56 @@ export function createClineDriveHost(
 						presented: result.presented,
 						planned: result.planned,
 						liveRoom: result.room,
+					};
+				}
+				case "attachScript": {
+					const result = attachScriptOnStore({
+						roomId: op.roomId,
+						script: op.script,
+						showItems: op.showItems,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+						beatId: result.beatId,
+						say: result.say,
+					};
+				}
+				case "advanceScript": {
+					const result = advanceScriptOnStore({
+						roomId: op.roomId,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+						beatId: result.beatId,
+						say: result.say,
+						showChanged: result.showChanged,
+						errorCode: result.errorCode,
+						errorMessage: result.errorMessage,
+					};
+				}
+				case "planFromWork": {
+					const result = planFromWorkOnStore({
+						roomId: op.roomId,
+						workKind: op.workKind,
+						ownerParticipantId: op.ownerParticipantId,
+						nowMs: op.nowMs,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+						plannedShows: result.plannedShows,
+						plannerReasons: result.plannerReasons,
 					};
 				}
 				default: {

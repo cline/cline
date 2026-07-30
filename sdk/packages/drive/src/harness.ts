@@ -6,25 +6,40 @@
 import type {
 	AddressSet,
 	AgentParticipant,
+	AgentProfile,
+	DirectorScript,
 	DriveEvent,
 	DriveSubMode,
 	HumanParticipant,
+	PermissionPreset,
 	RoomSnapshot,
+	RosterPack,
 	ShowBacklogItem,
 	StagePin,
 	StageSharer,
 } from "@cline/shared";
-import { advanceScriptBeat } from "./director/rankBacklogs.js";
 import { pickNextShowToPresent } from "./director/pickNextShow.js";
 import { planShowIntents } from "./director/planShowIntents.js";
+import { advanceScriptBeat } from "./director/rankBacklogs.js";
+import { expandRosterPack } from "./facets/expand.js";
 import type { DirectorOpResult, DriveHostPort } from "./hostPort.js";
-import { assertRouteLegal, planRoute } from "./router/planRoute.js";
 import { setSpotlight } from "./room/participantControls.js";
+import {
+	applySeatSourceDelta,
+	planRemoveRosterPack,
+} from "./room/seatSources.js";
+import { assertRouteLegal, planRoute } from "./router/planRoute.js";
 
 export const DRIVE_HARNESS_DEFAULT_ROOM_ID = "default" as const;
 export const DRIVE_HARNESS_HUMAN_ID = "drive:human" as const;
 export const DRIVE_HARNESS_PARTNER_ID = "drive:partner" as const;
 
+const DEFAULT_INK = {
+	kind: "token" as const,
+	token: "foreground" as const,
+};
+
+/** Stub member list until durable RosterPack IO lands. */
 export type RosterPackMember = {
 	readonly id: string;
 	readonly displayName: string;
@@ -35,10 +50,14 @@ export type CreateOrAttachInput = {
 	roomId?: string;
 	humanId: string;
 	humanDisplayName?: string;
+	/** Human roster role (default "host"). */
+	humanRole?: HumanParticipant["role"];
 	/** When set, seats a pair_partner agent (default display "Partner"). */
 	partner?: {
 		id?: string;
 		displayName?: string;
+		/** Agent roster role (default "partner"). */
+		role?: AgentParticipant["role"];
 	} | null;
 	/** Activate Drive + stage sharer on the partner (default true when partner seated). */
 	activateDrive?: boolean;
@@ -49,17 +68,31 @@ export type CreateDriveHarnessOptions = {
 	/**
 	 * Resolves roster pack seats until durable RosterPack IO lands.
 	 * Required for `rooms.addRosterPack`.
+	 * Accepts either a full `RosterPack` or a stub member list.
 	 */
 	resolveRosterPack?: (
 		packId: string,
 	) =>
-		| Promise<readonly RosterPackMember[]>
-		| readonly RosterPackMember[];
+		| Promise<RosterPack | readonly RosterPackMember[] | null>
+		| RosterPack
+		| readonly RosterPackMember[]
+		| null;
+	/** Parent permission ceiling when expanding packs (default full). */
+	parentPreset?: PermissionPreset;
+	/** Max new seats from a single pack expand (default unlimited). */
+	seatCap?: number;
+	/** Optional profile map for expand; stubs are synthesized from members when omitted. */
+	resolveProfiles?: (
+		profileIds: readonly string[],
+	) =>
+		| Promise<ReadonlyMap<string, AgentProfile>>
+		| ReadonlyMap<string, AgentProfile>;
 };
 
 export type DriveHarnessRooms = {
 	createOrAttach(input: CreateOrAttachInput): Promise<RoomSnapshot>;
 	addRosterPack(roomId: string, packId: string): Promise<RoomSnapshot>;
+	removeRosterPack(roomId: string, packId: string): Promise<RoomSnapshot>;
 	setAddress(roomId: string, addressSet: AddressSet): Promise<RoomSnapshot>;
 	raiseHand(
 		roomId: string,
@@ -101,6 +134,21 @@ export type DriveHarnessShows = {
 		roomId: string,
 		opts?: { preferShowId?: string | null },
 	): Promise<DirectorOpResult>;
+	planFromWork(
+		roomId: string,
+		workKind: "edit" | "command" | "test_result",
+		ownerParticipantId: string,
+		opts?: { nowMs?: number },
+	): Promise<DirectorOpResult>;
+};
+
+export type DriveHarnessScripts = {
+	attach(
+		roomId: string,
+		script: DirectorScript,
+		opts?: { showItems?: ShowBacklogItem[] },
+	): Promise<DirectorOpResult>;
+	advance(roomId: string): Promise<DirectorOpResult>;
 };
 
 export type DriveHarness = {
@@ -116,12 +164,72 @@ export type DriveHarness = {
 	 * Live Show backlog commits via DriveHostPort.commitDirectorOp.
 	 */
 	readonly shows: DriveHarnessShows;
+	/**
+	 * Script attach/advance commits via DriveHostPort.commitDirectorOp.
+	 */
+	readonly scripts: DriveHarnessScripts;
 };
+
+function isRosterPack(value: unknown): value is RosterPack {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"members" in value &&
+		"id" in value &&
+		"slug" in value &&
+		"addressable" in value &&
+		Array.isArray((value as RosterPack).members) &&
+		typeof (value as RosterPack).id === "string"
+	);
+}
+
+function stubPackFromMembers(
+	packId: string,
+	members: readonly RosterPackMember[],
+): RosterPack {
+	return {
+		id: packId,
+		slug: packId,
+		displayName: packId,
+		members: members.map((member) => ({
+			profileId: member.id,
+			role: member.role === "partner" ? "pair_partner" : "specialist",
+			override: { displayName: member.displayName },
+		})),
+		addressable: true,
+	};
+}
+
+function stubProfilesFromPack(pack: RosterPack): Map<string, AgentProfile> {
+	const profiles = new Map<string, AgentProfile>();
+	for (const member of pack.members) {
+		profiles.set(member.profileId, {
+			id: member.profileId,
+			ref: { kind: "builtin", id: member.profileId },
+			displayName: member.override?.displayName ?? member.profileId,
+			nameInk: member.override?.nameInk ?? DEFAULT_INK,
+			bodyInk: member.override?.bodyInk ?? DEFAULT_INK,
+		});
+	}
+	return profiles;
+}
+
+function agentRoleFromPack(
+	role: RosterPack["members"][number]["role"],
+): AgentParticipant["role"] {
+	return role === "pair_partner" ? "partner" : "specialist";
+}
 
 export function createDriveHarness(
 	options: CreateDriveHarnessOptions,
 ): DriveHarness {
-	const { host, resolveRosterPack } = options;
+	const {
+		host,
+		resolveRosterPack,
+		parentPreset = "full",
+		seatCap = Number.POSITIVE_INFINITY,
+		resolveProfiles,
+	} = options;
 
 	const requireRoom = async (roomId: string): Promise<RoomSnapshot> => {
 		if (!host.getRoom) {
@@ -154,7 +262,7 @@ export function createDriveHarness(
 				id: humanId,
 				kind: "human",
 				displayName: input.humanDisplayName?.trim() || "You",
-				role: "host",
+				role: input.humanRole ?? "host",
 				status: "idle",
 			};
 			let snapshot = await host.commitRoomOp({
@@ -171,9 +279,9 @@ export function createDriveHarness(
 					id: partnerId,
 					kind: "agent",
 					displayName: partner.displayName?.trim() || "Partner",
-					role: "partner",
+					role: partner.role ?? "partner",
 					status: "idle",
-					seatSources: [],
+					seatSources: [{ kind: "manual" }],
 				};
 				snapshot = await host.commitRoomOp({
 					type: "join",
@@ -182,8 +290,7 @@ export function createDriveHarness(
 				});
 			}
 
-			const activate =
-				input.activateDrive !== false && partnerId != null;
+			const activate = input.activateDrive !== false && partnerId != null;
 			if (activate && partnerId) {
 				snapshot = await host.commitRoomOp({
 					type: "setMode",
@@ -208,32 +315,129 @@ export function createDriveHarness(
 					"addRosterPack requires createDriveHarness({ resolveRosterPack }) until durable packs land",
 				);
 			}
-			const members = await resolveRosterPack(packId);
-			if (!members.length) {
+			const resolved = await resolveRosterPack(packId);
+			if (!resolved) {
 				return requireRoom(roomId);
 			}
 
-			let snapshot = await requireRoom(roomId);
-			const seated = new Set(snapshot.participants.map((p) => p.id));
+			const pack = isRosterPack(resolved)
+				? resolved
+				: stubPackFromMembers(packId, resolved);
+			if (!pack.members.length) {
+				return requireRoom(roomId);
+			}
 
-			for (const member of members) {
-				if (seated.has(member.id)) {
+			const profileIds = pack.members.map((member) => member.profileId);
+			const profiles =
+				(await resolveProfiles?.(profileIds)) ?? stubProfilesFromPack(pack);
+			const known = await host.resolveKnownAgents();
+			const expanded = expandRosterPack({
+				pack,
+				profiles,
+				known,
+				parentPreset,
+				seatCap,
+			});
+
+			let snapshot = await requireRoom(roomId);
+			const packSource = { kind: "pack" as const, packId };
+
+			for (const proposal of expanded.proposals) {
+				const existing = snapshot.participants.find(
+					(participant) => participant.id === proposal.profileId,
+				);
+				if (existing?.kind === "agent") {
+					const delta = applySeatSourceDelta(existing.seatSources, {
+						type: "add",
+						source: packSource,
+					});
+					const unchanged =
+						delta.next.length === existing.seatSources.length &&
+						delta.next.every((source, index) => {
+							const prior = existing.seatSources[index];
+							return (
+								prior !== undefined &&
+								source.kind === prior.kind &&
+								(source.kind !== "pack" ||
+									(prior.kind === "pack" && source.packId === prior.packId)) &&
+								(source.kind !== "spawn" ||
+									(prior.kind === "spawn" &&
+										source.parentId === prior.parentId))
+							);
+						});
+					if (unchanged) {
+						continue;
+					}
+					const updated: AgentParticipant = {
+						...existing,
+						seatSources: delta.next,
+					};
+					snapshot = await host.commitRoomOp({
+						type: "join",
+						roomId,
+						participant: updated,
+					});
+					continue;
+				}
+				if (existing) {
 					continue;
 				}
 				const agent: AgentParticipant = {
-					id: member.id,
+					id: proposal.profileId,
 					kind: "agent",
-					displayName: member.displayName,
-					role: member.role ?? "specialist",
+					displayName: proposal.displayName,
+					role: agentRoleFromPack(proposal.role),
 					status: "idle",
-					seatSources: [packId],
+					seatSources: [packSource],
 				};
 				snapshot = await host.commitRoomOp({
 					type: "join",
 					roomId,
 					participant: agent,
 				});
-				seated.add(member.id);
+			}
+			return snapshot;
+		},
+
+		async removeRosterPack(roomId, packId) {
+			const removeKeys = new Set<string>([packId]);
+			if (resolveRosterPack) {
+				const resolved = await resolveRosterPack(packId);
+				if (resolved && isRosterPack(resolved)) {
+					removeKeys.add(resolved.id);
+					if (resolved.slug?.trim()) {
+						removeKeys.add(resolved.slug.trim());
+					}
+				}
+			}
+
+			let snapshot = await requireRoom(roomId);
+			for (const key of removeKeys) {
+				const actions = planRemoveRosterPack(snapshot.participants, key);
+				for (const action of actions) {
+					if (action.action === "leave") {
+						snapshot = await host.commitRoomOp({
+							type: "leave",
+							roomId,
+							participantId: action.participantId,
+						});
+						continue;
+					}
+					const existing = snapshot.participants.find(
+						(participant) => participant.id === action.participantId,
+					);
+					if (!existing || existing.kind !== "agent") {
+						continue;
+					}
+					snapshot = await host.commitRoomOp({
+						type: "join",
+						roomId,
+						participant: {
+							...existing,
+							seatSources: action.seatSources,
+						},
+					});
+				}
 			}
 			return snapshot;
 		},
@@ -301,7 +505,7 @@ export function createDriveHarness(
 	const requireDirector = () => {
 		if (!host.commitDirectorOp) {
 			throw new Error(
-				"DriveHostPort.commitDirectorOp is required for DriveHarness.shows",
+				"DriveHostPort.commitDirectorOp is required for DriveHarness.shows/scripts",
 			);
 		}
 		return host.commitDirectorOp;
@@ -330,6 +534,32 @@ export function createDriveHarness(
 				preferShowId: opts?.preferShowId,
 			});
 		},
+		async planFromWork(roomId, workKind, ownerParticipantId, opts) {
+			return requireDirector()({
+				type: "planFromWork",
+				roomId,
+				workKind,
+				ownerParticipantId,
+				nowMs: opts?.nowMs,
+			});
+		},
+	};
+
+	const scripts: DriveHarnessScripts = {
+		async attach(roomId, script, opts) {
+			return requireDirector()({
+				type: "attachScript",
+				roomId,
+				script,
+				showItems: opts?.showItems,
+			});
+		},
+		async advance(roomId) {
+			return requireDirector()({
+				type: "advanceScript",
+				roomId,
+			});
+		},
 	};
 
 	return {
@@ -339,7 +569,9 @@ export function createDriveHarness(
 				throw new Error("DriveHarness requires HostCapabilities.roomOps");
 			}
 			if (!host.capabilities.writerEndpoint.trim()) {
-				throw new Error("DriveHarness requires HostCapabilities.writerEndpoint");
+				throw new Error(
+					"DriveHarness requires HostCapabilities.writerEndpoint",
+				);
 			}
 		},
 		onEvent(handler) {
@@ -354,5 +586,6 @@ export function createDriveHarness(
 			advanceScriptBeat,
 		},
 		shows,
+		scripts,
 	};
 }

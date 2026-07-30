@@ -49,7 +49,7 @@ export function joinCall(
 		displayName: input.agent.displayName,
 		role: input.agent.role ?? "partner",
 		status: "idle",
-		seatSources: [],
+		seatSources: [{ kind: "manual" }],
 	};
 
 	store.join({

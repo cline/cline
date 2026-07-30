@@ -50,9 +50,9 @@ describe("handleDriveCommand", () => {
 		__resetDriveRoomsForTests();
 	});
 
-	it("gets an empty room", () => {
+	it("gets an empty room", async () => {
 		const { ctx } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.room.get", { roomId: "r1" }),
 		);
@@ -63,9 +63,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("sets spotlight and broadcasts", () => {
+	it("sets spotlight and broadcasts", async () => {
 		const { ctx, published } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.spotlight.set", {
 				roomId: "r1",
@@ -93,9 +93,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("toggles mute independently of deafen", () => {
+	it("toggles mute independently of deafen", async () => {
 		const { ctx } = createCtx();
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.participant.mute.set", {
 				roomId: "r1",
@@ -103,7 +103,7 @@ describe("handleDriveCommand", () => {
 				muted: true,
 			}),
 		);
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.participant.deafen.set", {
 				roomId: "r1",
@@ -121,9 +121,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("materializes mermaid show items without uri", () => {
+	it("materializes mermaid show items without uri", async () => {
 		const { ctx, published } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.present", {
 				roomId: "r1",
@@ -168,7 +168,7 @@ describe("handleDriveCommand", () => {
 		).toBe("string");
 	});
 
-	it("enqueues without presenting, then tick presents higher priority", () => {
+	it("enqueues without presenting, then tick presents higher priority", async () => {
 		const { ctx, published } = createCtx();
 		const low = {
 			id: "show-low",
@@ -198,12 +198,12 @@ describe("handleDriveCommand", () => {
 			},
 		};
 
-		const enqueueLow = handleDriveCommand(
+		const enqueueLow = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", { roomId: "r1", showItem: low }),
 		);
 		expect(enqueueLow.ok).toBe(true);
-		const enqueueHigh = handleDriveCommand(
+		const enqueueHigh = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", { roomId: "r1", showItem: high }),
 		);
@@ -217,7 +217,7 @@ describe("handleDriveCommand", () => {
 		expect(roomAfterEnqueue.director.activeShowId).toBeNull();
 		expect(roomAfterEnqueue.director.showBacklog).toHaveLength(2);
 
-		const tick = handleDriveCommand(
+		const tick = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.tick", { roomId: "r1" }),
 		);
@@ -236,9 +236,9 @@ describe("handleDriveCommand", () => {
 		).toBe(true);
 	});
 
-	it("tick is a no-op when backlog is empty", () => {
+	it("tick is a no-op when backlog is empty", async () => {
 		const { ctx } = createCtx();
-		const tick = handleDriveCommand(
+		const tick = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.tick", { roomId: "empty" }),
 		);
@@ -246,9 +246,9 @@ describe("handleDriveCommand", () => {
 		expect(tick.payload?.presented).toBeNull();
 	});
 
-	it("enqueue with presentNow presents immediately", () => {
+	it("enqueue with presentNow presents immediately", async () => {
 		const { ctx, published } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", {
 				roomId: "r2",
@@ -281,7 +281,7 @@ describe("handleDriveCommand", () => {
 		).toBe(true);
 	});
 
-	it("attach sample hold script then advance updates say while keeping show", () => {
+	it("attach sample hold script then advance updates say while keeping show", async () => {
 		const { ctx, published } = createCtx();
 		const showItem = {
 			id: "show-hold",
@@ -299,7 +299,7 @@ describe("handleDriveCommand", () => {
 			status: "ready" as const,
 			scoreReasons: [],
 		};
-		const attach = handleDriveCommand(
+		const attach = await handleDriveCommand(
 			ctx,
 			envelope("drive.script.attach", {
 				roomId: "r-script",
@@ -330,7 +330,7 @@ describe("handleDriveCommand", () => {
 		);
 		expect(attach.ok).toBe(true);
 		expect(attach.payload?.beatId).toBe("b1");
-		const advance = handleDriveCommand(
+		const advance = await handleDriveCommand(
 			ctx,
 			envelope("drive.script.advance", { roomId: "r-script" }),
 		);
@@ -351,9 +351,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("blocks script say when the speaker is muted", () => {
+	it("blocks script say when the speaker is muted", async () => {
 		const { ctx, published } = createCtx();
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.participant.mute.set", {
 				roomId: "r-mute-say",
@@ -361,7 +361,7 @@ describe("handleDriveCommand", () => {
 				muted: true,
 			}),
 		);
-		const attach = handleDriveCommand(
+		const attach = await handleDriveCommand(
 			ctx,
 			envelope("drive.script.attach", {
 				roomId: "r-mute-say",
@@ -409,9 +409,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("enqueues a Do backlog item onto the room director", () => {
+	it("enqueues a Do backlog item onto the room director", async () => {
 		const { ctx, published } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.do.enqueue", {
 				roomId: "r-do",
@@ -441,7 +441,7 @@ describe("handleDriveCommand", () => {
 			published.some((event) => event.event === "drive.room.changed"),
 		).toBe(true);
 
-		const upsert = handleDriveCommand(
+		const upsert = await handleDriveCommand(
 			ctx,
 			envelope("drive.do.enqueue", {
 				roomId: "r-do",
@@ -468,9 +468,9 @@ describe("handleDriveCommand", () => {
 		});
 	});
 
-	it("sets show planner knobs on the room director", () => {
+	it("sets show planner knobs on the room director", async () => {
 		const { ctx } = createCtx();
-		const reply = handleDriveCommand(
+		const reply = await handleDriveCommand(
 			ctx,
 			envelope("drive.planner.set", {
 				roomId: "r-plan",
@@ -492,9 +492,9 @@ describe("handleDriveCommand", () => {
 		expect(room.director.showPlannerCooldownMs).toBe(60_000);
 	});
 
-	it("materializes plan_card and walkthrough on tick", () => {
+	it("materializes plan_card and walkthrough on tick", async () => {
 		const { ctx } = createCtx();
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", {
 				roomId: "r-prod",
@@ -513,7 +513,7 @@ describe("handleDriveCommand", () => {
 				},
 			}),
 		);
-		const tick = handleDriveCommand(
+		const tick = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.tick", { roomId: "r-prod" }),
 		);
@@ -529,9 +529,9 @@ describe("handleDriveCommand", () => {
 		expect(room.director.showBacklog[0]?.status).toBe("showing");
 	});
 
-	it("skips browser snapshot without demoCapture and leaves backlog planned", () => {
+	it("skips browser snapshot without demoCapture and leaves backlog planned", async () => {
 		const { ctx } = createCtx();
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", {
 				roomId: "r-shot",
@@ -554,7 +554,7 @@ describe("handleDriveCommand", () => {
 				},
 			}),
 		);
-		const tick = handleDriveCommand(
+		const tick = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.tick", { roomId: "r-shot" }),
 		);
@@ -562,7 +562,7 @@ describe("handleDriveCommand", () => {
 		expect(tick.payload?.presented).toBeNull();
 	});
 
-	it("show tick prefers addressed owner when priorities tie", () => {
+	it("show tick prefers addressed owner when priorities tie", async () => {
 		const { ctx } = createCtx();
 		getDriveRoomStore().create("r-addr");
 		getDriveRoomStore().setAddress({
@@ -584,7 +584,7 @@ describe("handleDriveCommand", () => {
 			status: "ready" as const,
 			scoreReasons: [] as string[],
 		};
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", {
 				roomId: "r-addr",
@@ -595,7 +595,7 @@ describe("handleDriveCommand", () => {
 				},
 			}),
 		);
-		handleDriveCommand(
+		await handleDriveCommand(
 			ctx,
 			envelope("drive.show.enqueue", {
 				roomId: "r-addr",
@@ -606,7 +606,7 @@ describe("handleDriveCommand", () => {
 				},
 			}),
 		);
-		const tick = handleDriveCommand(
+		const tick = await handleDriveCommand(
 			ctx,
 			envelope("drive.show.tick", { roomId: "r-addr" }),
 		);

@@ -4,13 +4,13 @@
 
 Drivecode should make Cline feel like a pair-programming call with recruitable agents, shared work, and clear room context. The product north star is a Drive tab with Discord-style information architecture, Slack-like chrome, pair-call interactions, and the cline.bot visual brand.
 
-The planning set is broad. The implementation is still an MVP UI scaffold. The next session needs one entry point that separates accepted constraints, proposed design, partial code, and unresolved work.
+**Current agent work (2026-07-30):** finish harness leverage on draft [PR #58](https://github.com/hhalperin/cline-drivecode/pull/58). Detailed continuation brief: [plans/drivecode-sdk/07-agent-handoff.md](plans/drivecode-sdk/07-agent-handoff.md).
 
 ## Requirements
 
 Keep these constraints:
 
-- The Cline hub at `ws://127.0.0.1:25463` is the single writer for Drive room state.
+- The Cline hub is the single writer for Drive room state (discovery / `ensureDetachedHubServer`; do not hardcode ports).
 - Do not add a second daemon or default anything to `:7891`.
 - Use Bun. Do not use npm, yarn, or pnpm in this repository.
 - Keep privacy-strict defaults. Do not persist audio or transcripts without an explicit and visible debug setting.
@@ -28,6 +28,19 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](plans/clin
 
 ## State so far
 
+### Active engineering track
+
+| Item | Status |
+|---|---|
+| Show backlog director (slices 1–7 + S) | **On main** (merged #55) |
+| `createDriveHarness` + webview `reduceRoom` fold | **On main** (merged #56) |
+| Hub join / raise-hand / address / stage / mode via harness | **On PR #58** (join + raise-hand); address/stage/mode already on main |
+| Thin `drive.show.*` onto harness (break import cycle) | **Next** — see [07-agent-handoff.md](plans/drivecode-sdk/07-agent-handoff.md) |
+| Phase-2 `expandRosterPack` / `capPreset` / `resolveAddress` | Not started |
+| Leverage checklist | [plans/drivecode-sdk/06-sdk-leverage.md](plans/drivecode-sdk/06-sdk-leverage.md) |
+
+Branch: `cursor/drive-harness-remaining-1929`. After SDK edits: `bun run build:sdk`.
+
 ### Product and interaction plans
 
 - `docs/drivecode/plans/cline-drivemode/00-vision.md` defines the Drive tab, pair-call experience, and staged product direction.
@@ -35,7 +48,7 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](plans/clin
 - `docs/drivecode/plans/cline-drivemode/05-workflows.md` contains 45 user workflows (incl. Group I SDLC / requirements leadership). It maps them to features and calls out gaps.
 - `docs/drivecode/plans/cline-drivemode/06-platform-config.md` defines the 34-facet platform inventory, `RosterPack`, `AgentProfile`, ownership, privacy, and phases.
 - `docs/drivecode/plans/cline-drivemode/features/` contains the DRV feature plans.
-- `docs/drivecode/plans/cline-drivemode/show-backlog-director/` is the dependency-mapped implementation plan for planned Show backlog + director (enqueue → rank → present → script); feature [DRV-SHOW-BACKLOG](plans/cline-drivemode/features/DRV-SHOW-BACKLOG.md).
+- `docs/drivecode/plans/cline-drivemode/show-backlog-director/` is the dependency-mapped implementation plan for planned Show backlog + director (enqueue → rank → present → script); feature [DRV-SHOW-BACKLOG](plans/cline-drivemode/features/DRV-SHOW-BACKLOG.md). **Implementation of listed slices is on main** — treat plans as reference, not a greenfield backlog.
 - `docs/drivecode/plans/cline-drivemode/TASK-GRAPH.md` orders phases and acceptance gates.
 - `docs/drivecode/plans/cline-drivemode/AGENT-RUNBOOK.md` explains how the next agent should select, implement, and verify tasks.
 - `docs/drivecode/plans/cline-drivemode/prd/prd-driveagent-portfolio.md` defines Driveagent portfolios, knowledge graphs, and recruit.
@@ -51,9 +64,11 @@ Leadership planning wave entry. [cline-drivemode/LEADERSHIP-BRIEF.md](plans/clin
 - `docs/drivecode/plans/drivecode-sdk/02-architecture.md` defines the host port, capability descriptor, policies, and conformance kit.
 - `docs/drivecode/plans/drivecode-sdk/03-phased-plan.md` provides verifiable implementation phases.
 - `docs/drivecode/plans/drivecode-sdk/04-relationship-to-cline-drivecode.md` explains how the harness relates to the Cline SDK and the cline-drivecode product.
+- `docs/drivecode/plans/drivecode-sdk/06-sdk-leverage.md` is the live leverage checklist (harness vs `@cline/sdk`).
+- `docs/drivecode/plans/drivecode-sdk/07-agent-handoff.md` is the **detailed session handoff** for the current PR track.
 - `docs/drivecode/plans/drivecode-sdk/decisions.tsv` is the decision trail for that plan.
 
-The current plan treats the meta-harness role and the planned `@cline/drive` kernel as one package. It does not create a parallel runtime. The harness proposes operations, the Cline host commits them through the hub, and the webview or CLI projects resulting events.
+The harness proposes operations, the Cline host commits them through the hub, and the webview or CLI projects resulting events (`reduceRoom` — one fold).
 
 ### Wireframes and brand
 
@@ -61,48 +76,29 @@ The current plan treats the meta-harness role and the planned `@cline/drive` ker
 - `docs/drivecode/design/drive-wireframes/drive-tab-discord-slack.html` is the primary interactive Drive tab prototype.
 - `docs/drivecode/design/drive-wireframes/CLINE-BRAND-TOKENS.md` records the palette, typography, spacing, borders, and radii measured from cline.bot.
 - `docs/drivecode/design/drive-wireframes/index.html` contains the earlier Chat-based variants. Its banner marks them as superseded where appropriate.
-- `docs/drivecode/design/drive-wireframes/variant-a.png`, `variant-b.png`, and `variant-c.png` are reference captures for the earlier variants.
+- Prefer the in-repo overview canvas: [docs/drivecode/design/drive-wireframes/overview-canvas.html](./design/drive-wireframes/overview-canvas.html). Click-through runbook: [DEMO.md](./design/drive-wireframes/DEMO.md).
 
-Open either HTML prototype directly from File Explorer. PowerShell can also open them:
+### Implementation (no longer “scaffold only”)
 
-```powershell
-Start-Process .\docs\drivecode\design\drive-wireframes\drive-tab-discord-slack.html
-Start-Process .\docs\drivecode\design\drive-wireframes\index.html
-```
+Hub-owned rooms, Show backlog wire commands, Drive webview chrome, and CLI Drive surfaces exist on main. Entry points:
 
-### Partial phase 1 implementation
-
-The working branch includes an MVP UI scaffold, not production-complete:
-
-- `apps/cline-hub/src/webview/src/drive/DriveCallChrome.tsx` provides the first call chrome.
-- `apps/cline-hub/src/webview/src/drive/types.ts` defines the local UI types.
-- `apps/cline-hub/src/webview/src/drive/types.test.ts` covers those type helpers.
-- `apps/cline-hub/src/webview/src/Chat.tsx` wires the first Drive state, persona hint, and stage snippet into Chat.
-- `apps/cli/src/tui/components/status-bar.tsx` shows Drive status.
-- `apps/cli/src/tui/hooks/use-root-keyboard.ts` adds the `Ctrl+Shift+D` interaction.
-- `apps/cli/src/tui/components/dialogs/help-dialog.tsx`, `session-context.tsx`, `chat-view.tsx`, and `status-bar.test.ts` complete the early CLI wiring.
-
-This code does not yet implement hub-owned Drive rooms, reconnect convergence, a Drive tab route, recruit, RosterPack seating, or Driveagent loading.
+- Hub webview Drive: `apps/cline-hub/src/webview/src/drive/` (`useDriveSession`, `foldRoomSnapshot`, stage/roster/show UI)
+- Hub handlers: `sdk/packages/core/src/hub/server/handlers/drive-*.ts`
+- Harness: `sdk/packages/drive/src/harness.ts`
+- Product screenshots: `docs/drivecode/assets/`
 
 ### Top gaps
 
-- Planned Show backlog director loop is designed but not closed: start at [show-backlog-director/overview.md](plans/cline-drivemode/show-backlog-director/overview.md) (slices 1–3 minimum vertical).
+- Thin hub `drive.show.*` onto harness without circular imports ([07-agent-handoff.md](plans/drivecode-sdk/07-agent-handoff.md) §5).
+- Phase-2 pure helpers: `expandRosterPack`, `applySeatSourceDelta`, `capPreset`, `resolveAddress`; durable `addRosterPack`.
 - `DRV-GATES` v1 action taxonomy enums landed (`sdk/packages/shared/src/drive/gates.ts`); still needs expiry rules and an owner for the approval UI.
 - Hub reconnect needs acceptance criteria and degraded-state UX under `DRV-ROOM-MVP`.
 - Revise-not-restart needs a kernel acceptance criterion that preserves useful work after an interruption.
 - Multi-room focus needs a product rule for whether an unfocused room is only a view or remains an active runtime.
 
-### Prior art and external context
-
-- Cursor Drive prior art lives at `C:\Users\harri\Documents\dev\profiles\ai-secretagent\active\cursor-drive`.
-- Claude Drive prior art lives at `C:\Users\harri\Documents\dev\profiles\ai-secretagent\active\claude-drive`.
-- The overview canvas used to live outside this repository at `C:\Users\harri\.cursor\projects\c-Users-harri-Documents-dev-profiles-ai-secretagent-active-cursor-drive\canvases\cline-drivecode-overview.canvas.tsx`.
-- Prefer the in-repo twin: [docs/drivecode/design/drive-wireframes/overview-canvas.html](./design/drive-wireframes/overview-canvas.html). Click-through runbook: [DEMO.md](./design/drive-wireframes/DEMO.md).
-- This handoff lives on the Drivecode stack tip (see open PRs / demo branch).
-
 ## Demo
 
-Open [docs/drivecode/design/drive-wireframes/DEMO.md](./design/drive-wireframes/DEMO.md) for HTML, hub Chat fixture, CLI `Ctrl+Shift+D`, and overview canvas steps. Hub Join/Stage uses a local `DriveDemoFixture` only. Hub-owned rooms are not wired yet.
+Open [docs/drivecode/design/drive-wireframes/DEMO.md](./design/drive-wireframes/DEMO.md) for HTML, hub Chat, CLI, and overview canvas steps. Live hub rooms use `bun run --cwd apps/cline-hub dev` / `bun run cli -i` with provider credentials; demo adapters stay behind composition-root flags (`CLINE_DEMO_*`, `?demoPlans=1`) — see root `AGENTS.md`.
 
 ## Core tension
 
@@ -114,6 +110,6 @@ The implementation must also keep `AgentProfile` separate from agent behavior. P
 
 **Package location — Accepted.** See [cline-drivemode/decisions/DEC-package-location.md](plans/cline-drivemode/decisions/DEC-package-location.md).
 
-**ARD-0000â€¦0013 + DEC bundle â€” Accepted** via human `accept all` (2026-07-29). ARD-0014 (Chat-fork lifecycle) later Accepted on main.
+**ARD-0000…0013 + DEC bundle — Accepted** via human `accept all` (2026-07-29). ARD-0014 (Chat-fork lifecycle) later Accepted on main.
 
 Board: [cline-drivemode/ard/ARD-0000-status-board.md](plans/cline-drivemode/ard/ARD-0000-status-board.md).

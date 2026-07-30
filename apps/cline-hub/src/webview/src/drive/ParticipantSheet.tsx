@@ -503,7 +503,22 @@ function AgentProfileSections({
 					<div>
 						<span className="text-muted-foreground">Seat sources · </span>
 						{participant.seatSources.length > 0
-							? participant.seatSources.join(", ")
+							? participant.seatSources
+									.map((source) => {
+										switch (source.kind) {
+											case "manual":
+												return "manual";
+											case "pack":
+												return source.packId;
+											case "spawn":
+												return `spawn:${source.parentId}`;
+											default: {
+												const _never: never = source;
+												return _never;
+											}
+										}
+									})
+									.join(", ")
 							: "none"}
 					</div>
 					{homeState.status === "ready" ? (

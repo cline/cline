@@ -2,7 +2,12 @@
  * DriveHostPort + HostCapabilities (interfaces only — no IO).
  */
 
-import type { DriveEvent, RoomSnapshot, ShowBacklogItem } from "@cline/shared";
+import type {
+	DirectorScript,
+	DriveEvent,
+	RoomSnapshot,
+	ShowBacklogItem,
+} from "@cline/shared";
 
 /** Sole Cline hub writer (hub listens on 25463 — never a second daemon). */
 export const CLINE_HUB_WRITER_ENDPOINT = "ws://127.0.0.1:25463" as const;
@@ -81,6 +86,23 @@ export type DirectorOp =
 			type: "tickShow";
 			roomId: string;
 			preferShowId?: string | null;
+	  }
+	| {
+			type: "attachScript";
+			roomId: string;
+			script: DirectorScript;
+			showItems?: ShowBacklogItem[];
+	  }
+	| {
+			type: "advanceScript";
+			roomId: string;
+	  }
+	| {
+			type: "planFromWork";
+			roomId: string;
+			workKind: "edit" | "command" | "test_result";
+			ownerParticipantId: string;
+			nowMs?: number;
 	  };
 
 export type DirectorOpResult = {
@@ -89,6 +111,13 @@ export type DirectorOpResult = {
 	readonly planned: ShowBacklogItem | null;
 	/** Opaque live room for hub publishers (DriveRoomLiveState-shaped). */
 	readonly liveRoom: unknown;
+	readonly beatId?: string | null;
+	readonly say?: string;
+	readonly showChanged?: boolean;
+	readonly plannedShows?: ShowBacklogItem[];
+	readonly plannerReasons?: string[];
+	readonly errorCode?: string;
+	readonly errorMessage?: string;
 };
 
 export type PromptRewriteDecision = {

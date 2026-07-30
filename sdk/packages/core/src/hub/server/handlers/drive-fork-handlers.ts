@@ -29,7 +29,7 @@ import {
 	resetDriveRoomStoreForTests,
 } from "../../collaboration";
 import { errorReply, type HubTransportContext, okReply } from "./context";
-import { runShowDirectorTick } from "./drive-handlers";
+import { runShowDirectorTick } from "../../driveShowRuntime";
 
 function readString(
 	payload: Record<string, unknown> | undefined,

@@ -19,6 +19,10 @@ export function resolveDriveFacetsPath(configParent: string): string {
 	return join(resolveDriveConfigDir(configParent), DRIVE_FACETS_FILE_NAME);
 }
 
+export function resolveDriveRegistryPath(configParent: string): string {
+	return join(resolveDriveConfigDir(configParent), DRIVE_REGISTRY_FILE_NAME);
+}
+
 export const DRIVE_ROOMS_DIRECTORY_NAME = "rooms";
 export const DRIVE_ROOM_EVENTS_FILE_NAME = "events.jsonl";
 export const DRIVE_ROOM_META_FILE_NAME = "meta.json";

@@ -39,7 +39,7 @@ export function resolveRosterParticipants(
 /**
  * Resolve `.driveagent/<slug>/` for an agent participant.
  * Builtin pair_partner / default partner maps to the example fixture slug.
- * seatSources may carry a driveagent slug when packs seat a home.
+ * Pack seat sources may carry a driveagent slug when packs seat a home.
  */
 export function resolveAgentHomeSlug(
 	participant: Participant,
@@ -48,9 +48,14 @@ export function resolveAgentHomeSlug(
 		return null;
 	}
 	for (const source of participant.seatSources) {
-		const trimmed = source.trim();
-		if (/^[a-z0-9-]+$/.test(trimmed)) {
-			return trimmed;
+		const candidate =
+			source.kind === "pack"
+				? source.packId.trim()
+				: source.kind === "spawn"
+					? source.parentId.trim()
+					: "";
+		if (candidate && /^[a-z0-9-]+$/.test(candidate)) {
+			return candidate;
 		}
 	}
 	if (

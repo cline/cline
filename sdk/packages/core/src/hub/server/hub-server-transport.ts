@@ -473,6 +473,8 @@ export class HubServerTransport implements NativeHubTransport {
 			case "call_set_stage":
 			case "call_set_address":
 			case "call_set_mode":
+			case "call_add_roster_pack":
+			case "call_remove_roster_pack":
 			case "call_record_work":
 			case "call_get_room":
 				return await handleDriveRoomCommand(this.ctx, envelope);

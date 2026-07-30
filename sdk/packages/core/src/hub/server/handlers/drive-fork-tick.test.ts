@@ -75,7 +75,7 @@ describe("drive.do.enqueue → drive.fork.tick", () => {
 
 	it("claims a newly enqueued Do item without a prior claim payload", async () => {
 		const { ctx, published } = createCtx();
-		const enqueue = handleDriveCommand(
+		const enqueue = await handleDriveCommand(
 			ctx,
 			envelope("drive.do.enqueue", {
 				roomId: "r-tick",

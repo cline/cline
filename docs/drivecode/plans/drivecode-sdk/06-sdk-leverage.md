@@ -28,6 +28,8 @@ Product Drive surfaces (`apps/cline-hub`, CLI Drive chrome) should compose **`cr
 - **`memoryDriveHost`** for kernel tests without a hub
 - **`director.*`** on the harness exposes pure Show helpers (`pickNextShow`, `planRoute`, `planShowIntents`, `advanceScriptBeat`) — live backlog commit remains `drive.show.*` until a DirectorPort exists
 - **Webview single fold** — `useDriveSession` folds `drive_event` via `foldIncomingDriveEvent` → `reduceRoom`; demo `stageReducer` maps tools → `work.*` → same fold
+- **Hub room ops via harness** — `call_join` → `createOrAttach`; `call_raise_hand` / `call_set_address` / `call_set_stage` / `call_set_mode` via `getHubDriveHarness`
+- **Hub show ops via harness** — `drive.show.enqueue|present|tick` → `harness.shows.*` / `commitDirectorOp`; show runtime extracted to `driveShowRuntime.ts` (no handlers ↔ directorOps cycle)
 
 ## How to use it
 
@@ -54,13 +56,16 @@ await drive.rooms.setAddress(room.roomId, {
 
 Apps still **project** with `reduceRoom` / `projectStage` / `projectRoster` from the same package — one fold.
 
-## Recommended next leverage (ordered)
+## Remaining leverage (this PR track)
 
-1. **Hub handlers call the harness** for join / address / stage instead of duplicating `joinCall` + store writes — single commit path.
-2. **DirectorPort** on the host: `enqueueShow` / `tickShow` / `presentShow` / `attachScript` so Show backlog leaves `drive-handlers.ts` private functions.
-3. **Webview**: fold `drive_event` with `reduceRoom` (retire dual `stageReducer` for live rooms; demos map tools → work events → same fold).
-4. **Do not** dump all of `@cline/drive` into `@cline/sdk` root — keep agent vs room packages separate; optional future subpath `@cline/sdk/drive` only if publishing needs one install name.
-5. Land missing Phase-2 pure helpers still named in the architecture (`expandRosterPack`, `capPreset`, `resolveAddress`) and wire `addRosterPack` to durable packs.
+See [08-followon-tasks.md](08-followon-tasks.md) for the fleshed F1–F3 task graph.
+
+1. ~~**Hub join via harness**~~ — Done.
+2. ~~**Thin `drive.show.*` handlers**~~ — Done (script/planner DirectorOps tracked in F3).
+3. ~~**Phase-2 pure helpers**~~ — Done (durable registry + hub remove tracked in F1/F2).
+4. **Do not** dump all of `@cline/drive` into `@cline/sdk` root.
+
+`joinCall` remains exported for unit tests / gradual callers; product hub path is the harness.
 
 ## Status
 
@@ -68,6 +73,10 @@ Apps still **project** with `reduceRoom` / `projectStage` / `projectRoster` from
 |---|---|
 | `createDriveHarness` rooms MVP | Done |
 | Host `getRoom` + roomId on `RoomOp` | Done |
-| Product hub migration onto harness | **Partial** — `call_set_address` / `call_set_stage` / `call_set_mode` via `getHubDriveHarness` |
-| DirectorPort / show commit on harness | **Partial** — `commitDirectorOp` + `DriveHarness.shows`; hub `drive.show.*` still publishes events |
+| Product hub migration onto harness | **Done** for join / raise-hand / address / stage / mode |
+| DirectorPort / show commit on harness | **Done** for enqueue / present / tick / script attach / advance / planFromWork |
 | Webview single fold | **Done** — `foldIncomingDriveEvent` + tool→`work.*`→`reduceRoom` in `stageReducer` |
+| Phase-2 pack/address/preset helpers | **Done** (pure helpers + harness wire) |
+| Durable registry + hub add/remove pack | **Done** — `registry.v1.json`, `call_add_roster_pack` / `call_remove_roster_pack` |
+| Script/planner DirectorOps | **Done** — `attachScript` / `advanceScript` / `planFromWork` |
+| Pack library UI / `/pack` | Out of scope (see 08-followon-tasks) |

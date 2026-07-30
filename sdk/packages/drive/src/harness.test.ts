@@ -30,6 +30,29 @@ describe("createDriveHarness", () => {
 		});
 	});
 
+	it("createOrAttach honors optional human and partner roles", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({ host });
+		const room = await drive.rooms.createOrAttach({
+			roomId: "r_roles",
+			humanId: "h_obs",
+			humanDisplayName: "Observer",
+			humanRole: "observer",
+			partner: {
+				id: "a_rec",
+				displayName: "Recorder",
+				role: "recorder",
+			},
+			activateDrive: false,
+		});
+		expect(room.participants.find((p) => p.id === "h_obs")?.role).toBe(
+			"observer",
+		);
+		expect(room.participants.find((p) => p.id === "a_rec")?.role).toBe(
+			"recorder",
+		);
+	});
+
 	it("setAddress and setSpotlight go through the host", async () => {
 		const host = memoryDriveHost();
 		const drive = createDriveHarness({ host });
@@ -81,8 +104,94 @@ describe("createDriveHarness", () => {
 		expect(reviewer).toMatchObject({
 			kind: "agent",
 			role: "specialist",
-			seatSources: ["review-crew"],
+			seatSources: [{ kind: "pack", packId: "review-crew" }],
 		});
+	});
+
+	it("addRosterPack adds a pack source when the member is already seated", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({
+			host,
+			resolveRosterPack: () => [
+				{ id: "partner", displayName: "Partner", role: "partner" },
+			],
+		});
+		await drive.rooms.createOrAttach({
+			roomId: "r4",
+			humanId: "h1",
+			partner: { id: "partner", displayName: "Partner" },
+		});
+		const next = await drive.rooms.addRosterPack("r4", "pair-pack");
+		const partner = next.participants.find((p) => p.id === "partner");
+		expect(partner?.kind).toBe("agent");
+		if (partner?.kind === "agent") {
+			expect(partner.seatSources).toEqual([
+				{ kind: "manual" },
+				{ kind: "pack", packId: "pair-pack" },
+			]);
+		}
+	});
+
+	it("removeRosterPack keeps overlap and leaves last-source members", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({
+			host,
+			resolveRosterPack: (packId) => {
+				if (packId === "p1") {
+					return [
+						{ id: "shared", displayName: "Shared", role: "specialist" },
+						{ id: "only", displayName: "Only", role: "specialist" },
+					];
+				}
+				if (packId === "p2") {
+					return [{ id: "shared", displayName: "Shared", role: "specialist" }];
+				}
+				return [];
+			},
+		});
+		await drive.rooms.createOrAttach({
+			roomId: "r5",
+			humanId: "h1",
+			partner: null,
+			activateDrive: false,
+		});
+		await drive.rooms.addRosterPack("r5", "p1");
+		await drive.rooms.addRosterPack("r5", "p2");
+		const afterRemove = await drive.rooms.removeRosterPack("r5", "p1");
+		expect(afterRemove.participants.some((p) => p.id === "only")).toBe(false);
+		const shared = afterRemove.participants.find((p) => p.id === "shared");
+		expect(shared?.kind).toBe("agent");
+		if (shared?.kind === "agent") {
+			expect(shared.seatSources).toEqual([{ kind: "pack", packId: "p2" }]);
+		}
+	});
+
+	it("removeRosterPack matches seat tags by pack id or slug alias", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({
+			host,
+			resolveRosterPack: (packId) => {
+				if (packId === "review-crew" || packId === "review") {
+					return {
+						id: "review",
+						slug: "review-crew",
+						displayName: "Review",
+						members: [{ profileId: "reviewer", role: "specialist" }],
+						addressable: true,
+					};
+				}
+				return null;
+			},
+		});
+		await drive.rooms.createOrAttach({
+			roomId: "r_alias",
+			humanId: "h1",
+			partner: null,
+			activateDrive: false,
+		});
+		await drive.rooms.addRosterPack("r_alias", "review-crew");
+		const after = await drive.rooms.removeRosterPack("r_alias", "review");
+		expect(after.participants.some((p) => p.id === "reviewer")).toBe(false);
 	});
 
 	it("exposes pure director helpers without host IO", async () => {
@@ -125,6 +234,28 @@ describe("createDriveHarness", () => {
 				priority: 1,
 				status: "planned",
 				scoreReasons: [],
+			}),
+		).rejects.toThrow(/commitDirectorOp/);
+	});
+
+	it("scripts.attach requires commitDirectorOp on the host", async () => {
+		const host = memoryDriveHost();
+		const drive = createDriveHarness({ host });
+		await expect(
+			drive.scripts.attach("r", {
+				scriptId: "s1",
+				ownerParticipantId: "a1",
+				title: "Script",
+				stickyShowIds: [],
+				beats: [
+					{
+						beatId: "b1",
+						say: "hi",
+						showItemId: null,
+						sticky: { mode: "hold" },
+						advance: "on_human",
+					},
+				],
 			}),
 		).rejects.toThrow(/commitDirectorOp/);
 	});

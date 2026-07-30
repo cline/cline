@@ -19,6 +19,8 @@ Repo-level continuation brief. [HANDOFF.md](../../HANDOFF.md).
 | [04-relationship-to-cline-drivecode.md](04-relationship-to-cline-drivecode.md) | How the product consumes the SDK and the Cline SDK together. What changes in the existing drivemode plan. |
 | [05-alignment-with-driveagent.md](05-alignment-with-driveagent.md) | How host port + `.driveagent/` compile coexist; reconciles older “no Drive-owned definition” wording. |
 | [06-sdk-leverage.md](06-sdk-leverage.md) | How product code should use `createDriveHarness` vs `@cline/sdk`; gaps and migration order. |
+| [07-agent-handoff.md](07-agent-handoff.md) | Detailed session handoff for the current harness-leverage PR track (#58). |
+| [08-followon-tasks.md](08-followon-tasks.md) | Fleshed follow-ons after Phase-2: durable registry, remove-pack cascade, script/planner DirectorOps. |
 | [decisions.tsv](decisions.tsv) | The decision trail for this wave. One row per decision, with evidence pointers. |
 
 ## Reading order

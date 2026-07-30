@@ -126,7 +126,7 @@ describe("resolveAgentHomeSlug", () => {
 		expect(
 			resolveAgentHomeSlug({
 				...partner,
-				seatSources: ["custom-agent"],
+				seatSources: [{ kind: "pack", packId: "custom-agent" }],
 			}),
 		).toBe("custom-agent");
 	});

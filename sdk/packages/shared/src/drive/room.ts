@@ -16,7 +16,11 @@ export type DriveSubMode = z.infer<typeof DriveSubModeSchema>;
 export const DriveHumanRoleSchema = z.enum(["host", "participant", "observer"]);
 export type DriveHumanRole = z.infer<typeof DriveHumanRoleSchema>;
 
-export const DriveAgentRoleSchema = z.enum(["partner", "specialist", "recorder"]);
+export const DriveAgentRoleSchema = z.enum([
+	"partner",
+	"specialist",
+	"recorder",
+]);
 export type DriveAgentRole = z.infer<typeof DriveAgentRoleSchema>;
 
 export const ParticipantStatusSchema = z.enum([
@@ -26,6 +30,45 @@ export const ParticipantStatusSchema = z.enum([
 	"away",
 ]);
 export type ParticipantStatus = z.infer<typeof ParticipantStatusSchema>;
+
+/** Why an agent is seated (DRV-ROSTER-PACK). Never empty while seated. */
+export const SeatSourceSchema = z.discriminatedUnion("kind", [
+	z
+		.object({
+			kind: z.literal("manual"),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("pack"),
+			packId: z.string().min(1),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("spawn"),
+			parentId: z.string().min(1),
+		})
+		.strict(),
+]);
+export type SeatSource = z.infer<typeof SeatSourceSchema>;
+
+/** Coerce legacy pack-id strings into structured SeatSource values. */
+export function coerceSeatSources(input: unknown): SeatSource[] {
+	if (!Array.isArray(input)) {
+		return [];
+	}
+	return input.map((entry) => {
+		if (typeof entry === "string" && entry.trim()) {
+			return { kind: "pack" as const, packId: entry.trim() };
+		}
+		return SeatSourceSchema.parse(entry);
+	});
+}
+
+export function parseSeatSource(input: unknown): SeatSource {
+	return SeatSourceSchema.parse(input);
+}
 
 export const HumanParticipantSchema = z
 	.object({
@@ -44,8 +87,11 @@ export const AgentParticipantSchema = z
 		displayName: z.string().min(1),
 		role: DriveAgentRoleSchema,
 		status: ParticipantStatusSchema.default("idle"),
-		/** Roster-pack ids that seated this agent (DRV-ROSTER-PACK). */
-		seatSources: z.array(z.string().min(1)).default([]),
+		/** Seat provenance (DRV-ROSTER-PACK). Never empty while seated. */
+		seatSources: z.preprocess(
+			(value) => (value === undefined ? undefined : coerceSeatSources(value)),
+			z.array(SeatSourceSchema).default([]),
+		),
 	})
 	.strict();
 
@@ -78,14 +124,7 @@ export type StagePin = z.infer<typeof StagePinSchema>;
 export const StageCardSchema = z
 	.object({
 		id: z.string().min(1),
-		category: z.enum([
-			"edit",
-			"command",
-			"test",
-			"plan",
-			"decision",
-			"other",
-		]),
+		category: z.enum(["edit", "command", "test", "plan", "decision", "other"]),
 		title: z.string().min(1),
 		summary: z.string().optional(),
 		workEventId: z.string().min(1).optional(),
@@ -114,9 +153,7 @@ export const RoomSnapshotSchema = z
 		stage: StageStateSchema,
 		addressSet: AddressSetSchema.default(EVERYONE_ADDRESS),
 		muteByParticipantId: z.record(z.string(), z.boolean()).default({}),
-		raisedHandByParticipantId: z
-			.record(z.string(), z.boolean())
-			.default({}),
+		raisedHandByParticipantId: z.record(z.string(), z.boolean()).default({}),
 		/** Ring of applied event ids for idempotent reduce. */
 		appliedEventIds: z.array(z.string().min(1)).default([]),
 	})
