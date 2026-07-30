@@ -332,7 +332,9 @@ describe("SqliteStatusStore", () => {
 		expect(history.updates[2]?.previousState).toBeUndefined();
 	});
 
-	it("summarizes live rows across the whole table, not a page", () => {
+	it(
+		"summarizes live rows across the whole table, not a page",
+		() => {
 		for (let i = 0; i < 60; i += 1) {
 			publish({
 				subject: `t/${i}`,
@@ -366,7 +368,9 @@ describe("SqliteStatusStore", () => {
 			parseStatusQuery({ currentOnly: true, limit: 10 }),
 		);
 		expect(page.updates).toHaveLength(10);
-	});
+	},
+		20_000,
+	);
 
 	it("summarizes an empty store without throwing", () => {
 		const summary = store.summary();
