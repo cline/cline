@@ -311,6 +311,16 @@ export class SdkModeCoordinator {
 				disposeReason: "modeChange",
 			})
 			if (!rebuildResult) {
+				// Replacement was refused. When the session we tried to replace is
+				// still the active one (e.g. a queued turn started running in the
+				// meantime), it still has the previous mode's tools, so roll the
+				// setting back — same reasoning as the auth guard above. When another
+				// session took over (or none is left), the superseding flow owns the
+				// mode now and the setting must not be clobbered.
+				if (this.options.sessions.getActiveSession() === activeSession) {
+					this.options.stateManager.setGlobalState("mode", previousMode)
+				}
+				await this.options.postStateToWebview()
 				return false
 			}
 

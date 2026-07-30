@@ -121,6 +121,40 @@ describe("SdkModeCoordinator", () => {
 		await toggle
 	})
 
+	it("rolls the mode back when replacement is refused and the old session is still active", async () => {
+		// A queued turn started running between the toggle and the rebuild, so
+		// replaceActiveSession refuses; the still-active session has plan tools.
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", planMessages())
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "plan" })
+		options.sessions.replaceActiveSession.mockResolvedValueOnce(undefined)
+
+		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+		expect(state.mode).toBe("plan")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		// Early post (optimistic act) plus the rollback post.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+	})
+
+	it("keeps the new mode when replacement is refused because another session took over", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", planMessages())
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "plan" })
+		options.sessions.replaceActiveSession.mockResolvedValueOnce(undefined)
+		// By the time the refusal is observed, a different session is active; the
+		// superseding flow owns the mode, so the setting must not be clobbered.
+		options.sessions.getActiveSession
+			.mockReturnValueOnce(activeSession) // togglePlanActMode gate read
+			.mockReturnValueOnce(activeSession) // performRebuild initial read
+			.mockReturnValue({ ...makeActiveSession(), sessionId: "other-session" })
+
+		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+		expect(state.mode).toBe("act")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
 	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session", planMessages())
