@@ -163,8 +163,9 @@ export const OpenAICompatibleProvider = ({
 		[commitOpenAiSelection, currentMode, selectedModelId],
 	)
 
-	// Checkbox-backed overrides must render from the pending accumulator
-	// (the user's latest intent), not from the resolved/committed snapshot.
+	// Checkbox-backed overrides render from the pending accumulator only
+	// while this mode has a local commit in flight. Otherwise the committed
+	// snapshot is authoritative (and may have changed externally).
 	// The FAST-based VSCodeCheckbox emits a synthetic `change` whenever its
 	// `checked` property changes — including programmatic React re-syncs
 	// (FormAssociatedCheckbox.checkedChanged fires $emit("change") for any
@@ -175,7 +176,9 @@ export const OpenAICompatibleProvider = ({
 	// guard against the same echo class in updateNumericModelOverride.
 	const displayedOverrides = (() => {
 		const pending = selectedModelOverridesRef.current[currentMode]
-		return pending.modelId === selectedModelId ? pending.overrides : selectedModelOverrides
+		return pendingCommitsRef.current[currentMode] > 0 && pending.modelId === selectedModelId
+			? pending.overrides
+			: selectedModelOverrides
 	})()
 
 	const updateNumericModelOverride = useCallback(

@@ -537,6 +537,31 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("renders newly committed checkbox overrides when no local commit is pending", async () => {
+		setCommittedSelection(
+			{ isR1FormatRequired: false, supportsVision: false },
+			{ apiFormat: ApiFormat.OPENAI_RESPONSES, supportsImages: false },
+		)
+		const view = renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+		expect(screen.getByRole("checkbox", { name: "Supports Images" })).not.toBeChecked()
+		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).not.toBeChecked()
+
+		// Simulate a committed-state update from another settings surface.
+		// With no local commit pending, the committed snapshot must win over
+		// the matching (but now stale) ref entry from the preceding render.
+		setCommittedSelection(
+			{ isR1FormatRequired: true, supportsVision: true },
+			{ apiFormat: ApiFormat.R1_CHAT, supportsImages: true },
+		)
+		view.rerender(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={false} />)
+
+		expect(screen.getByRole("checkbox", { name: "Supports Images" })).toBeChecked()
+		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
+		expect(mocks.commitSelection).not.toHaveBeenCalled()
+	})
+
 	it("restores the R1 checkbox from authored override readback", async () => {
 		setCommittedSelection({ isR1FormatRequired: true })
 		renderProvider()
