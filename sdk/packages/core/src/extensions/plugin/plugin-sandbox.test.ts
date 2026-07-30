@@ -571,6 +571,19 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
+
+		// BigInts raise a different serialization error message than cycles do
+		// in both Bun and Node; the fallback must classify those too.
+		const bigintInput: Record<string, unknown> = {
+			value: "ok",
+			blockNumber: 123n,
+		};
+		const bigintResult = await echoTool?.execute(bigintInput, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		} as AgentToolContext);
+		expect(bigintResult).toEqual({ echoed: "ok" });
 	});
 
 	it("enforces hook timeout and cancels sandbox process", async () => {

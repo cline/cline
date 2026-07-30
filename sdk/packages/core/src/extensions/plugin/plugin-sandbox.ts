@@ -395,9 +395,11 @@ export async function loadSandboxedPlugins(
  */
 function isSerializationError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
-	// Bun: "JSON.stringify cannot serialize cyclic structures."
-	// Node: "Converting circular structure to JSON"
-	return /cyclic|circular/i.test(message);
+	// Bun: "JSON.stringify cannot serialize cyclic structures." /
+	//      "JSON.stringify cannot serialize BigInt."
+	// Node: "Converting circular structure to JSON" /
+	//       "Do not know how to serialize a BigInt"
+	return /cyclic|circular|bigint/i.test(message);
 }
 
 /**
