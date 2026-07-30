@@ -9,19 +9,15 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
-	GetPromptResultSchema,
 	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
-	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
-	DEFAULT_MCP_TIMEOUT_SECONDS,
+	MAX_MCP_TIMEOUT_SECONDS,
 	type McpPrompt,
-	type McpPromptResponse,
 	type McpResource,
-	type McpResourceResponse,
 	type McpResourceTemplate,
 	type McpServer,
 	type McpTool,
@@ -29,7 +25,6 @@ import {
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { secondsToMs } from "@utils/time"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
@@ -42,12 +37,29 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
-import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
-import { updateMcpSettingsFile } from "./settingsLock"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
-import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
+import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
+
+function stableJsonStringify(value: unknown): string {
+	if (value === undefined) {
+		return "null"
+	}
+	if (value === null || typeof value !== "object") {
+		return JSON.stringify(value)
+	}
+	if (Array.isArray(value)) {
+		return `[${value.map(stableJsonStringify).join(",")}]`
+	}
+	return `{${Object.entries(value as Record<string, unknown>)
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableJsonStringify(entryValue)}`)
+		.join(",")}}`
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -639,7 +651,8 @@ export class McpHub {
 
 			// Connect - wrap in try-catch to detect OAuth requirement
 			try {
-				await client.connect(transport)
+				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+				await client.connect(transport, { timeout })
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
@@ -665,8 +678,10 @@ export class McpHub {
 					await this.notifyWebviewOfServerChanges()
 					return // Don't throw, just mark as needs auth
 				}
-				// Re-throw other errors
-				throw error
+				await client.close().catch(() => {})
+				// Re-throw other errors with the same actionable timeout detail as
+				// post-initialize requests.
+				throw augmentMcpTimeoutError(error, name, resolveMcpServerTimeoutMs(connection.server.config))
 			}
 
 			connection.server.status = "connected"
@@ -742,17 +757,29 @@ export class McpHub {
 			}
 
 			// Initial fetch of tools, resources, and prompts
-			connection.server.tools = await this.fetchToolsList(name)
-			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
-			connection.server.prompts = await this.fetchPromptsList(name)
+			await this.fetchServerCapabilities(connection)
 		} catch (error) {
-			// Update status with error
-			const connection = this.findConnection(name, source)
-			if (connection) {
-				connection.server.status = "disconnected"
-				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
+			// Update status with error. A failure before the connection was
+			// registered (e.g. the transport failed to start) must still leave
+			// an entry, so the server stays visible in the list with its error
+			// rather than silently disappearing.
+			let connection = this.findConnection(name, source)
+			if (!connection) {
+				connection = {
+					server: {
+						name,
+						config: JSON.stringify(config),
+						status: "disconnected",
+						disabled: config.disabled,
+						uid: this.getMcpServerKey(name),
+					},
+					client: null as unknown as Client,
+					transport: null as unknown as Transport,
+				}
+				this.connections.push(connection)
 			}
+			connection.server.status = "disconnected"
+			this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
 			throw error
 		}
 	}
@@ -760,6 +787,28 @@ export class McpHub {
 	private appendErrorMessage(connection: McpConnection, error: string) {
 		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
 		connection.server.error = newError //.slice(0, 800)
+	}
+
+	/**
+	 * Fetches the server's tools, resources, resource templates, and prompts
+	 * onto the connection. The four list requests run in parallel so a server
+	 * that hangs after initialize costs one timeout bound rather than four;
+	 * the MCP client correlates concurrent requests by JSON-RPC id. Each
+	 * fetch helper swallows its own errors and returns an empty list, so a
+	 * failure in one capability cannot reject the others.
+	 */
+	private async fetchServerCapabilities(connection: McpConnection): Promise<void> {
+		const name = connection.server.name
+		const [tools, resources, resourceTemplates, prompts] = await Promise.all([
+			this.fetchToolsList(name),
+			this.fetchResourcesList(name),
+			this.fetchResourceTemplatesList(name),
+			this.fetchPromptsList(name),
+		])
+		connection.server.tools = tools
+		connection.server.resources = resources
+		connection.server.resourceTemplates = resourceTemplates
+		connection.server.prompts = prompts
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
@@ -776,7 +825,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 
 			// Get autoApprove settings
@@ -793,7 +842,11 @@ export class McpHub {
 
 			return tools
 		} catch (error) {
-			Logger.error(`Failed to fetch tools for ${serverName}:`, error)
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			const effectiveError = connection
+				? augmentMcpTimeoutError(error, serverName, resolveMcpServerTimeoutMs(connection.server.config))
+				: error
+			Logger.error(`Failed to fetch tools for ${serverName}:`, effectiveError)
 			return []
 		}
 	}
@@ -808,7 +861,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -830,7 +883,7 @@ export class McpHub {
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: resolveMcpServerTimeoutMs(connection.server.config),
 				},
 			)
 
@@ -851,7 +904,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 
 			return (response?.prompts || []).map((prompt) => ({
@@ -933,7 +986,7 @@ export class McpHub {
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config,
 				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
 				try {
 					if (config.type === "stdio") {
@@ -965,6 +1018,10 @@ export class McpHub {
 			}
 		}
 
+		// MCP agent tools snapshot server metadata and timeout when a session is
+		// built. Reconciliation must enroll that snapshot boundary even when the
+		// set of tool names is unchanged.
+		this.checkToolListChanged()
 		this.isConnecting = false
 	}
 
@@ -1001,12 +1058,15 @@ export class McpHub {
 					connectionChangesOccurred = true
 				} catch (error) {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
 				}
 			} else if (
 				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
 				this.serverGainedOAuthTokens(currentConnection, config)
 			) {
-				// Existing server with changed connection config (excludes Cline-specific settings),
+				// Existing server with changed connection config,
 				// or an unauthenticated server whose OAuth tokens just appeared in the settings
 				// file (e.g. the CLI or another window completed authorization for it)
 				try {
@@ -1024,6 +1084,9 @@ export class McpHub {
 					connectionChangesOccurred = true
 				} catch (error) {
 					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
 				}
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart
@@ -1054,14 +1117,13 @@ export class McpHub {
 
 	/**
 	 * Compares two MCP server configs to determine if a restart is required.
-	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
+	 * Excludes Cline-specific settings that don't affect the MCP client.
 	 *
 	 * ## Cline-specific settings (don't require restart):
 	 * - `autoApprove`: tool approval list (UI setting)
-	 * - `timeout`: request timeout (read at request time, not connection time)
 	 *
-	 * ## MCP SDK connection settings (require restart):
-	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`
+	 * ## MCP client settings (require restart):
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`
 	 *
 	 * ## Adding new Cline-specific settings:
 	 * When adding a new setting that doesn't require server restart:
@@ -1080,7 +1142,6 @@ export class McpHub {
 		// serverGainedOAuthTokens in updateServerConnections.
 		const {
 			autoApprove: _oldAutoApprove,
-			timeout: _oldTimeout,
 			remoteConfigured: _oldRemoteConfigured,
 			oauth: _oldOauth,
 			metadata: _oldMetadata,
@@ -1088,7 +1149,6 @@ export class McpHub {
 		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		const {
 			autoApprove: _newAutoApprove,
-			timeout: _newTimeout,
 			remoteConfigured: _newRemoteConfigured,
 			oauth: _newOauth,
 			metadata: _newMetadata,
@@ -1343,70 +1403,12 @@ export class McpHub {
 		}
 	}
 
-	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
-		}
-		if (connection.server.disabled) {
-			throw new Error(`Server "${serverName}" is disabled`)
-		}
-
-		return await connection.client.request(
-			{
-				method: "resources/read",
-				params: {
-					uri,
-				},
-			},
-			ReadResourceResultSchema,
-		)
-	}
-
-	async getPrompt(
-		serverName: string,
-		promptName: string,
-		promptArguments?: Record<string, string>,
-	): Promise<McpPromptResponse> {
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
-		}
-		if (connection.server.disabled) {
-			throw new Error(`Server "${serverName}" is disabled`)
-		}
-		if (!connection.client) {
-			throw new Error(`No client available for server: ${serverName}`)
-		}
-
-		const response = await connection.client.request(
-			{
-				method: "prompts/get",
-				params: {
-					name: promptName,
-					arguments: promptArguments,
-				},
-			},
-			GetPromptResultSchema,
-			{
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
-			},
-		)
-
-		return {
-			description: response.description,
-			messages: response.messages.map((msg) => ({
-				role: msg.role,
-				content: msg.content as McpPromptResponse["messages"][0]["content"],
-			})),
-		}
-	}
-
 	async callTool(
 		serverName: string,
 		toolName: string,
 		toolArguments: Record<string, unknown> | undefined,
 		ulid: string,
+		signal?: AbortSignal,
 	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
@@ -1419,15 +1421,17 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
-		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
-
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+		// A failed (re)connect leaves an entry with no client so the server
+		// stays visible in the list; a tool wrapper captured by an active
+		// session can still target it, and must get a controlled error.
+		if (!connection.client) {
+			const detail = connection.server.error ? ` Last error: ${connection.server.error}` : ""
+			throw new Error(`Server "${serverName}" is not connected and cannot be used.${detail}`)
 		}
+
+		// The config is re-resolved on each call, so a changed timeout takes
+		// effect on the next request.
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
 
 		this.telemetryService.captureMcpToolCall(
 			ulid,
@@ -1450,6 +1454,7 @@ export class McpHub {
 				CallToolResultSchema,
 				{
 					timeout,
+					signal,
 				},
 			)
 
@@ -1475,7 +1480,7 @@ export class McpHub {
 				error instanceof Error ? error.message : String(error),
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
-			throw error
+			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
 	}
 
@@ -1665,9 +1670,12 @@ export class McpHub {
 	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
 		try {
 			// Validate timeout against schema
-			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
+			const setConfigResult = McpTimeoutSecondsSchema.safeParse(timeout)
 			if (!setConfigResult.success) {
-				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
+				throw new Error(
+					`Invalid timeout value: ${timeout}. The "timeout" field must be a finite number from ` +
+						`${MIN_MCP_TIMEOUT_SECONDS} to ${MAX_MCP_TIMEOUT_SECONDS} seconds.`,
+				)
 			}
 
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
@@ -1687,14 +1695,7 @@ export class McpHub {
 				return parsed
 			})
 			const config = await this.readPostWriteMcpSettings()
-
-			// Update in-memory config to reflect the new timeout
-			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection) {
-				const currentConfig = JSON.parse(connection.server.config)
-				currentConfig.timeout = timeout
-				connection.server.config = JSON.stringify(currentConfig)
-			}
+			await this.updateServerConnectionsRPC(config.mcpServers as Record<string, McpServerConfig>)
 
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
@@ -1769,10 +1770,10 @@ export class McpHub {
 	/**
 	 * Compute a fingerprint of the current tool list.
 	 *
-	 * The fingerprint is a sorted, deterministic string of
-	 * "serverName:toolName" pairs for all connected, non-disabled servers.
-	 * Changes to this fingerprint indicate that the agent's available
-	 * tool set has changed and a session restart may be needed.
+	 * The fingerprint is a sorted, deterministic representation of every value
+	 * captured by createMcpTools: server name, tool name, description, input
+	 * schema, and timeout. A change to any captured value must rebuild the active
+	 * session even when the set of tool names is unchanged.
 	 */
 	computeToolFingerprint(): string {
 		const entries: string[] = []
@@ -1780,12 +1781,21 @@ export class McpHub {
 			if (conn.server.disabled || conn.server.status !== "connected") {
 				continue
 			}
+			const timeoutMs = resolveMcpServerTimeoutMs(conn.server.config)
 			for (const tool of conn.server.tools ?? []) {
-				entries.push(`${conn.server.name}:${tool.name}`)
+				entries.push(
+					stableJsonStringify([
+						conn.server.name,
+						tool.name,
+						tool.description ?? null,
+						tool.inputSchema ?? {},
+						timeoutMs,
+					]),
+				)
 			}
 		}
 		entries.sort()
-		return entries.join("|")
+		return JSON.stringify(entries)
 	}
 
 	/**

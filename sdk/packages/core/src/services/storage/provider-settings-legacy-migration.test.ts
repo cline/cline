@@ -577,6 +577,124 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
+	it("carries legacy OpenAI-compatible model-info overrides into the seeded models.json entry", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "deepseek/deepseek-r1-distill-llama-70b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+					actModeOpenAiModelInfo: {
+						maxTokens: 1234,
+						contextWindow: 77000,
+						supportsImages: false,
+						supportsPromptCache: false,
+						inputPrice: 12.5,
+						outputPrice: 25.5,
+						temperature: 0.55,
+						isR1FormatRequired: true,
+					},
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-compatible-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true });
+		const modelsPath = path.join(tempDir, "settings", "models.json");
+		expect(
+			JSON.parse(readFileSync(modelsPath, "utf8")).providers[
+				"openai-compatible"
+			].models["deepseek/deepseek-r1-distill-llama-70b"],
+		).toEqual({
+			id: "deepseek/deepseek-r1-distill-llama-70b",
+			name: "deepseek/deepseek-r1-distill-llama-70b",
+			contextWindow: 77000,
+			maxInputTokens: 77000,
+			capabilities: ["streaming", "tools"],
+			maxTokens: 1234,
+			inputPrice: 12.5,
+			outputPrice: 25.5,
+			temperature: 0.55,
+			isR1FormatRequired: true,
+		});
+	});
+
+	it("ignores legacy model-info sentinel values (maxTokens -1, temperature 0, prices 0)", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "gpt-oss-120b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+					// Legacy sane defaults: all of these mean "unset".
+					actModeOpenAiModelInfo: {
+						maxTokens: -1,
+						contextWindow: 128000,
+						supportsImages: true,
+						supportsPromptCache: false,
+						inputPrice: 0,
+						outputPrice: 0,
+						temperature: 0,
+						isR1FormatRequired: false,
+					},
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-compatible-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true });
+		const modelsPath = path.join(tempDir, "settings", "models.json");
+		expect(
+			JSON.parse(readFileSync(modelsPath, "utf8")).providers[
+				"openai-compatible"
+			].models["gpt-oss-120b"],
+		).toEqual({
+			id: "gpt-oss-120b",
+			name: "gpt-oss-120b",
+			contextWindow: 128000,
+			maxInputTokens: 128000,
+			capabilities: ["streaming", "tools", "images"],
+		});
+	});
+
 	it("keeps official OpenAI endpoints under the built-in openai-compatible provider", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
