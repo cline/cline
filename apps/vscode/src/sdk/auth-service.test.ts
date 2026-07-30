@@ -36,7 +36,6 @@ vi.mock("@/core/storage/StateManager", () => ({
 				}
 			},
 			getGlobalSettingsKey: () => "act",
-			getGlobalStateKey: (key: string) => mockGlobalState.get(key),
 			setGlobalState: (key: string, value: unknown) => {
 				mockGlobalState.set(key, value)
 			},

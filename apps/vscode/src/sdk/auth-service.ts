@@ -518,20 +518,16 @@ export class AuthService {
 	// ---- Login flows ----
 
 	/**
-	 * Mark the welcome/onboarding view as completed once a login actually
-	 * succeeds. The onboarding webview intentionally does NOT set this flag for
-	 * OAuth sign-ups — it stays on the "Almost there!" step until the host
-	 * confirms authentication (matching the classic extension, where
-	 * Controller.handleAuthCallback set the flag after the token exchange).
+	 * A successful login completes onboarding. The onboarding webview does NOT
+	 * set this flag for OAuth sign-ups — it waits on the "Almost there!" step
+	 * until the host confirms authentication (parity with the classic
+	 * extension, where Controller.handleAuthCallback set it post-exchange).
 	 */
-	private markWelcomeViewCompletedAfterLogin(): void {
+	private markWelcomeViewCompleted(): void {
 		try {
-			const stateManager = StateManager.get()
-			if (!stateManager.getGlobalStateKey("welcomeViewCompleted")) {
-				stateManager.setGlobalState("welcomeViewCompleted", true)
-			}
+			StateManager.get().setGlobalState("welcomeViewCompleted", true)
 		} catch (error) {
-			Logger.error("[SdkAuthService] Failed to mark welcome view completed after login:", error)
+			Logger.error("[SdkAuthService] Failed to mark welcome view completed:", error)
 		}
 	}
 
@@ -600,9 +596,9 @@ export class AuthService {
 					sessionStartedAtMs: authInfo.startedAt,
 				})
 
-				// Login succeeded — complete onboarding before pushing state so the
-				// same update moves the webview from the welcome view to chat.
-				this.markWelcomeViewCompletedAfterLogin()
+				// Set before pushing state so the same update moves the webview
+				// from the welcome view to chat.
+				this.markWelcomeViewCompleted()
 
 				// Push auth state update
 				await this.sendAuthStatusUpdate()
@@ -683,7 +679,7 @@ export class AuthService {
 			sessionStartedAtMs,
 		})
 
-		this.markWelcomeViewCompletedAfterLogin()
+		this.markWelcomeViewCompleted()
 
 		await this.sendAuthStatusUpdate()
 		Logger.log(`[SdkAuthService] E2E mock login completed as ${this._clineAuthInfo.userInfo.email}`)
@@ -916,7 +912,7 @@ export class AuthService {
 				sessionStartedAtMs,
 			})
 
-			this.markWelcomeViewCompletedAfterLogin()
+			this.markWelcomeViewCompleted()
 
 			await this.sendAuthStatusUpdate()
 		} catch (error) {

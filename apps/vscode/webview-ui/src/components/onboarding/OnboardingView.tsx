@@ -28,7 +28,6 @@ import {
 	type OnboardingModelsByGroup,
 } from "./data-models"
 import { getUserTypeSelections, NEW_USER_TYPE, STEP_CONFIG } from "./data-steps"
-import { setPendingOnboardingCompletion } from "./onboardingCompletion"
 import { useOnboardingModels } from "./useOnboardingModels"
 
 type OnboardingPage =
@@ -442,8 +441,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		[currentPage, stepNumber, userType],
 	)
 
-	const saveOnboardingModelSelection = useCallback(
-		async (updateModelId: boolean): Promise<string | undefined> => {
+	// `markCompleted: false` saves the selection but leaves the welcome view open:
+	// for OAuth sign-ups the host marks it completed once authentication actually
+	// succeeds, which switches this view to chat automatically.
+	const finishOnboarding = useCallback(
+		async (updateModelId: boolean, step: number, markCompleted = true) => {
 			const modelSelected = (updateModelId && selectedModelId) || undefined
 			// Guard: never save a non-ClinePass model id under the cline-pass provider.
 			const isClinePassModel = selectedModelId.startsWith("cline-pass/")
@@ -490,27 +492,13 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					console.error(`Skipped ClinePass provider setup: unexpected model id "${selectedModelId}"`)
 				}
 			}
-			return modelSelected
-		},
-		[
-			handleFieldsChange,
-			selectedModelId,
-			openRouterModelsByName,
-			clineModels,
-			onboardingModelById,
-			commitSelection,
-			userType,
-		],
-	)
 
-	const finishOnboarding = useCallback(
-		async (updateModelId: boolean, step: number) => {
-			const modelSelected = await saveOnboardingModelSelection(updateModelId)
-
-			await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
-			setShowWelcome(false)
-			hideAccount()
-			hideSettings()
+			if (markCompleted) {
+				await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+				setShowWelcome(false)
+				hideAccount()
+				hideSettings()
+			}
 			StateServiceClient.captureOnboardingProgress({
 				step,
 				action: "completed",
@@ -520,10 +508,22 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				completed: true,
 			})
 		},
-		[hideAccount, hideSettings, saveOnboardingModelSelection, setShowWelcome, userType],
+		[
+			hideAccount,
+			hideSettings,
+			handleFieldsChange,
+			selectedModelId,
+			openRouterModels,
+			openRouterModelsByName,
+			clineModels,
+			onboardingModelById,
+			commitSelection,
+			setShowWelcome,
+			userType,
+		],
 	)
 
-	const loginAndAwaitOnboardingCompletion = useCallback(
+	const loginAndFinishOnboarding = useCallback(
 		async (updateModelId: boolean, step: number) => {
 			const loginAttemptId = loginAttemptIdRef.current + 1
 			loginAttemptIdRef.current = loginAttemptId
@@ -540,39 +540,26 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				}
 			}, 10_000)
 
-			// Persist the model/provider choice up front so the account is ready to
-			// use the moment authentication completes.
-			const modelSelected = await saveOnboardingModelSelection(updateModelId)
-
-			// Record the completion intent for the telemetry funnel. It fires from
-			// App once auth succeeds (this view unmounts when the host completes
-			// the welcome view, so it can't fire from here).
-			setPendingOnboardingCompletion({
-				step,
-				page: getOnboardingPage(step, userType),
-				userType,
-				modelSelected,
-			})
-
-			try {
-				// Resolves once the sign-in URL is opened; the OAuth flow itself
-				// continues in the browser. Do NOT mark onboarding complete here —
-				// the host sets welcomeViewCompleted only after authentication
-				// succeeds, which switches this view to chat automatically.
-				await AccountServiceClient.accountLoginClicked({})
-			} catch (error) {
-				console.error("Failed to log in during onboarding:", error)
-				if (loginAttemptIdRef.current === loginAttemptId) {
-					setPendingOnboardingCompletion(null)
+			await AccountServiceClient.accountLoginClicked({})
+				.catch((error) => {
+					console.error("Failed to log in during onboarding:", error)
+				})
+				.finally(() => {
+					if (loginAttemptIdRef.current !== loginAttemptId) {
+						return
+					}
 					if (loginLoadingTimeoutRef.current) {
 						clearTimeout(loginLoadingTimeoutRef.current)
 						loginLoadingTimeoutRef.current = null
 					}
-					setIsActionLoading(false)
-				}
-			}
+				})
+
+			// Save the selection but stay on the "Almost there!" step — the host
+			// completes the welcome view once the browser sign-in succeeds.
+			await finishOnboarding(updateModelId, step, false)
+			setIsActionLoading(false)
 		},
-		[saveOnboardingModelSelection, userType],
+		[finishOnboarding],
 	)
 
 	const handleFooterAction = useCallback(
@@ -596,22 +583,20 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					setPendingClinePassSubscribe(userType === NEW_USER_TYPE.CLINE_PASS)
 					captureNavigation("signup_clicked", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
-					await loginAndAwaitOnboardingCompletion(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
 					setPendingClinePassSubscribe(false)
 					captureNavigation("signin_clicked")
-					await loginAndAwaitOnboardingCompletion(true, stepNumber)
+					await loginAndFinishOnboarding(true, stepNumber)
 					break
 				case "next":
 					captureNavigation("continued", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
-					// Abandon any pending ClinePass subscription redirect and completion
-					// telemetry when the user goes back.
+					// Abandon any pending ClinePass subscription redirect when the user goes back.
 					setPendingClinePassSubscribe(false)
-					setPendingOnboardingCompletion(null)
 					captureNavigation("back_clicked", stepNumber - 1)
 					setStepNumber(stepNumber - 1)
 					break
@@ -620,7 +605,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 			}
 		},
-		[stepNumber, currentPage, userType, selectedModelId, finishOnboarding, loginAndAwaitOnboardingCompletion, setShowWelcome],
+		[stepNumber, currentPage, userType, selectedModelId, finishOnboarding, loginAndFinishOnboarding, setShowWelcome],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
