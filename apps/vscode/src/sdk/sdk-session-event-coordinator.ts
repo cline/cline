@@ -57,6 +57,12 @@ export class SdkSessionEventCoordinator {
 			return
 		}
 
+		// Captured synchronously, before any await below can yield. If a newer turn
+		// starts while this handler is suspended (the SDK drains a queued prompt the
+		// moment the previous turn ends), this event's turn-end bookkeeping is stale
+		// and must not clobber the new turn's streaming phase / running flag.
+		const turnEpochAtEntry = this.options.sessions.getTurnEpoch()
+
 		if (event.type === "pending_prompts") {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
@@ -76,6 +82,12 @@ export class SdkSessionEventCoordinator {
 		if (event.type === "pending_prompt_submitted") {
 			this.options.beginProviderFailureTelemetryTurn?.()
 			this.options.messageTranslatorState.clearTurnOutcome()
+			// A drained queued prompt starts a NEW agent turn inside the SDK — no
+			// extension send exists for it, so mark the turn start here. Steered
+			// prompts join the turn that is already running instead.
+			if (event.payload.delivery === "queue") {
+				this.options.sessions.beginTurn()
+			}
 			this.options.sessions.setRunning(true)
 			this.options.setTurnPhase?.(PROVIDER_FAILURE_PHASE.STREAMING)
 		}
@@ -101,24 +113,34 @@ export class SdkSessionEventCoordinator {
 				// simply stopped and is waiting for the user ("awaiting_followup"). Error turns
 				// are surfaced as the error phase. The webview reads this, not the array tail.
 				//
-				// EXCEPTION: if the session is already not running, this turn-complete is a
+				// EXCEPTION 1: a newer turn started while this handler was suspended (the SDK
+				// drained a queued prompt as soon as this turn ended). This event describes the
+				// PREVIOUS turn, so applying its terminal phase — or marking the session not
+				// running — would clobber the queued turn's streaming state and make its own
+				// turn-complete look like a cancelled-turn straggler (UI stuck on "Thinking").
+				//
+				// EXCEPTION 2: if the session is already not running, this turn-complete is a
 				// straggler from a turn that was cancelled (cancelTask already set phase
 				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
 				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
 				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
-				if (!activeSession.isRunning) {
-					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
-				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
-					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
-					// offer error recovery (Retry / Start New Task), not the followup state.
-					this.options.setTurnPhase?.("error")
-				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
-					this.options.setTurnPhase?.("completed")
+				if (this.options.sessions.getTurnEpoch() !== turnEpochAtEntry) {
+					Logger.debug("[SdkController] turn-complete for a superseded turn; preserving the newer turn's phase")
 				} else {
-					this.options.setTurnPhase?.("awaiting_followup")
-				}
+					if (!activeSession.isRunning) {
+						Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+					} else if (this.options.messageTranslatorState.wasErrorSeen()) {
+						// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
+						// offer error recovery (Retry / Start New Task), not the followup state.
+						this.options.setTurnPhase?.("error")
+					} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
+						this.options.setTurnPhase?.("completed")
+					} else {
+						this.options.setTurnPhase?.("awaiting_followup")
+					}
 
-				this.options.sessions.setRunning(false)
+					this.options.sessions.setRunning(false)
+				}
 			}
 
 			if (result.usage && activeSession.startResult) {

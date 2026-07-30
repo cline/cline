@@ -307,6 +307,69 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("skips completion bookkeeping when a queued prompt started a newer turn before the send settled", async () => {
+		// A turn's send promise settles only after the SDK has already drained any
+		// queued prompt into a NEW turn on the same session (the drain microtask
+		// runs before the promise chain unwinds). The old send's completion
+		// bookkeeping must not mark that live queued turn idle — the queued
+		// turn's own turn-complete event would then be mistaken for a
+		// cancelled-turn straggler, leaving the UI stuck on "Thinking".
+		const onSendComplete = vi.fn()
+		let resolveSend: () => void = () => {}
+		const send = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveSend = resolve
+				}),
+		)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onSendComplete })
+		await lifecycle.startNewSession({} as StartInput)
+
+		// Plan turn: user sends, then queues a follow-up while it streams.
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "make a plan")
+		// Plan turn ends: the done event's bookkeeping marks the session idle...
+		lifecycle.setRunning(false)
+		// ...and the SDK immediately drains the queued prompt into a new turn
+		// (pending_prompt_submitted bookkeeping in the session-event coordinator).
+		lifecycle.beginTurn()
+		lifecycle.setRunning(true)
+
+		// Only now does the plan turn's send promise unwind.
+		resolveSend()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(onSendComplete).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+	})
+
+	it("skips error bookkeeping when a queued prompt started a newer turn before the send failed", async () => {
+		const onSendError = vi.fn()
+		let rejectSend: (error: Error) => void = () => {}
+		const send = vi.fn(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectSend = reject
+				}),
+		)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onSendError })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "make a plan")
+		lifecycle.setRunning(false)
+		lifecycle.beginTurn()
+		lifecycle.setRunning(true)
+
+		rejectSend(new Error("boom"))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(onSendError).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+	})
+
 	it("completes the old session stop before starting a same-id replacement", async () => {
 		let resolveStop: () => void = () => {}
 		const stop = vi.fn(

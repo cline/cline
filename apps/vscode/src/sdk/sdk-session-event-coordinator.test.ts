@@ -151,10 +151,36 @@ describe("SdkSessionEventCoordinator", () => {
 
 		expect(clearTurnOutcome).toHaveBeenCalledOnce()
 		expect(options.beginProviderFailureTelemetryTurn).toHaveBeenCalledOnce()
+		expect(options.sessions.beginTurn).toHaveBeenCalledOnce()
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
 		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("does not start a new turn epoch for a steered prompt joining the current run", async () => {
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "steer the run",
+				delivery: "steer",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.sessions.beginTurn).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
 	})
 
 	it("posts state for queued prompt turn start even when no transcript message is emitted", async () => {
@@ -200,6 +226,64 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(options.setTurnPhase).not.toHaveBeenCalled()
+	})
+
+	it("does not clobber a queued turn's streaming state when the previous turn's completion is processed late", async () => {
+		// Interleaving under test: the previous turn's done event suspends at the
+		// free-model cost check, the SDK drains a queued prompt (starting a NEW
+		// turn) in that window, and the done handler only then resumes. Its
+		// terminal phase belongs to the finished turn and must not overwrite the
+		// queued turn's streaming phase or running flag — otherwise the queued
+		// turn's own completion is later mistaken for a cancelled-turn straggler
+		// and the UI stays stuck on "Thinking".
+		let resolveFreeModelCheck: (value: boolean) => void = () => {}
+		const { coordinator, options, event } = makeCoordinator({
+			isClineFreeModel: vi.fn(
+				() =>
+					new Promise<boolean>((resolve) => {
+						resolveFreeModelCheck = resolve
+					}),
+			),
+		})
+		options.translateSessionEvent.mockReturnValueOnce({
+			messages: [],
+			sessionEnded: false,
+			turnComplete: true,
+			usage: { tokensIn: 10, tokensOut: 5, totalCost: 0.01 },
+		})
+
+		// Previous turn's done event suspends at the usage-cost check.
+		const doneHandling = coordinator.handleSessionEvent(event)
+
+		// The SDK drains the queued prompt: a new turn starts while done is suspended.
+		await coordinator.handleSessionEvent({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "queued prompt",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
+
+		resolveFreeModelCheck(false)
+		await doneHandling
+
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("awaiting_followup")
+		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(false)
+
+		// The queued turn's own completion (no newer turn since) still lands normally.
+		options.translateSessionEvent.mockReturnValueOnce({
+			messages: [],
+			sessionEnded: false,
+			turnComplete: true,
+		})
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 	})
 
 	it("updates task usage when the active session has a start result", async () => {
@@ -356,11 +440,14 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 	} as unknown as CoreSessionEvent
 	const activeSession = input.activeSession ?? makeActiveSession()
+	let turnEpoch = 0
 	const options = {
 		messageTranslatorState: new MessageTranslatorState(),
 		sessions: {
 			getActiveSession: vi.fn(() => activeSession),
 			setRunning: vi.fn(),
+			beginTurn: vi.fn(() => ++turnEpoch),
+			getTurnEpoch: vi.fn(() => turnEpoch),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
@@ -379,6 +466,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: SdkSessionEventCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
+			beginTurn: ReturnType<typeof vi.fn>
+			getTurnEpoch: ReturnType<typeof vi.fn>
 		}
 		messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
