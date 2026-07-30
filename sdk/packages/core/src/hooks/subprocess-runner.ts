@@ -85,28 +85,40 @@ async function writeToChildStdin(
 	}
 
 	await new Promise<void>((resolve, reject) => {
-		const onError = (error: Error) => {
-			stdin.off("error", onError);
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (settled) return;
+			settled = true;
+			fn();
+		};
+		const isClosedPipeError = (error: Error) => {
 			const code = (error as Error & { code?: string }).code;
-			if (code === "EPIPE" || code === "ERR_STREAM_DESTROYED") {
-				resolve();
+			return (
+				code === "EPIPE" || code === "EOF" || code === "ERR_STREAM_DESTROYED"
+			);
+		};
+		const onError = (error: Error) => {
+			if (isClosedPipeError(error)) {
+				settle(resolve);
 				return;
 			}
-			reject(error);
+			settle(() => reject(error));
 		};
-		stdin.once("error", onError);
+		// The end callback can run before a late pipe error is emitted. Keep the
+		// observer through close so a child that exits without reading stdin cannot
+		// leak EPIPE (Unix) or EOF (Windows) as an uncaught exception.
+		stdin.on("error", onError);
+		stdin.once("close", () => stdin.off("error", onError));
 		stdin.end(payload, (error?: Error | null) => {
-			stdin.off("error", onError);
 			if (error) {
-				const code = (error as Error & { code?: string }).code;
-				if (code === "EPIPE" || code === "ERR_STREAM_DESTROYED") {
-					resolve();
+				if (isClosedPipeError(error)) {
+					settle(resolve);
 					return;
 				}
-				reject(error);
+				settle(() => reject(error));
 				return;
 			}
-			resolve();
+			settle(resolve);
 		});
 	});
 }
