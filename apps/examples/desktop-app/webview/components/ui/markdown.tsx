@@ -9,6 +9,7 @@ import {
 	Streamdown,
 } from "streamdown";
 import { openExternalUrl } from "@/lib/desktop-client";
+import { cn } from "@/lib/utils";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -298,13 +299,15 @@ const markdownComponents = {
 export const MemoizedMarkdown = memo(
 	({
 		content,
+		classNames,
 		streaming = false,
 	}: {
 		content: string;
 		streaming?: boolean;
+		classNames?: string;
 	}) => (
 		<Streamdown
-			className="cline-markdown"
+			className={cn("cline-markdown", classNames)}
 			components={markdownComponents}
 			controls={streamdownControls}
 			dir="auto"

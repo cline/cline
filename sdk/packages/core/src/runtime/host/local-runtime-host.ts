@@ -932,6 +932,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			startSession: (startInput) => this.startSession(startInput),
 			getStartedSessionId: (startResult) => startResult.sessionId,
+			cleanupStartedSession: async (startResult) => {
+				if (!(await this.deleteSession(startResult.sessionId))) {
+					throw new Error(
+						`Failed to clean up restored session ${startResult.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => this.getSession(sessionId),
 		});
 	}

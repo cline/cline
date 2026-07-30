@@ -752,6 +752,7 @@ export {
 	createRestoredCheckpointMetadata,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
+	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
@@ -784,6 +785,13 @@ export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
+export {
+	countUserRunMessages,
+	getUserRunSpan,
+	isUserRunMessage,
+	type MessageDisplayRole,
+	resolveMessageDisplayRole,
+} from "./session/user-run-messages";
 export type {
 	CoreSettingsItem,
 	CoreSettingsItemKind,
