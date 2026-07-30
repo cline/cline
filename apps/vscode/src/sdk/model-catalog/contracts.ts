@@ -176,7 +176,6 @@ export interface ModelSelectionOverrides {
 	readonly cacheWritesPrice?: number
 	readonly temperature?: number
 	readonly apiFormat?: ModelInfo["apiFormat"]
-	readonly isR1FormatRequired?: boolean
 }
 
 /**

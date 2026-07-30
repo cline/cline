@@ -615,6 +615,8 @@ class GoogleChatConnector extends ConnectorBase<
 			text: string,
 		) => {
 			const queueKey = thread.id;
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -637,6 +639,7 @@ class GoogleChatConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
@@ -698,9 +701,7 @@ class GoogleChatConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {
