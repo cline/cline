@@ -28,6 +28,9 @@ function createRepo(cwd: string): void {
 	git(cwd, ["init"]);
 	git(cwd, ["config", "user.name", "Codex Test"]);
 	git(cwd, ["config", "user.email", "codex@example.com"]);
+	// Keep fixture contents stable regardless of the runner's global Windows
+	// checkout settings. These tests validate restoration, not autocrlf.
+	git(cwd, ["config", "core.autocrlf", "false"]);
 	writeFileSync(join(cwd, "tracked.txt"), "base\n", "utf8");
 	git(cwd, ["add", "tracked.txt"]);
 	git(cwd, ["commit", "-m", "initial"]);
