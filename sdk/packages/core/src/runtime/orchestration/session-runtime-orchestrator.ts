@@ -194,11 +194,20 @@ function mergeRuntimeHooks(
 			return aggregate;
 		},
 		afterModel: async (ctx) => {
+			let assistantMessage = ctx.assistantMessage;
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["afterModel"]>>>
+				| undefined;
 			for (const hook of hooks) {
-				const result = await hook.afterModel?.(ctx);
-				if (result?.stop) return result;
+				const result = await hook.afterModel?.({ ...ctx, assistantMessage });
+				if (!result) continue;
+				if (result.stop) return { ...aggregate, ...result };
+				aggregate = { ...aggregate, ...result };
+				if (result.message) {
+					assistantMessage = result.message;
+				}
 			}
-			return undefined;
+			return aggregate;
 		},
 		beforeTool: async (ctx) => {
 			let input = ctx.input;

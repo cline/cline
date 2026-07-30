@@ -92,7 +92,7 @@ jobs:
 
             - name: Run Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os != 'windows-latest' }}
-              run: bun run test
+              run: bun run test && bun -F cline-xml-tool-calling-plugin test
 
             - name: Run SDK Tests (Windows)
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}

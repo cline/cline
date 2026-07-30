@@ -1,0 +1,36 @@
+{
+	"name": "cline-xml-tool-calling-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "XML tool calling for models without reliable native function calling (local/weak models)",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "bun test",
+		"clean": "rm -rf node_modules dist"
+	},
+	"exports": {
+		".": "./index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"hooks",
+					"rules"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	}
+}

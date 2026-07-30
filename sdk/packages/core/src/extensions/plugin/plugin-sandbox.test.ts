@@ -131,6 +131,35 @@ describe("plugin-sandbox", () => {
 		);
 
 		await writeFile(
+			join(dir, "plugin-model-hooks.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-model-hooks',",
+				"  manifest: { capabilities: ['hooks'] },",
+				"  hooks: {",
+				"    beforeModel(ctx) {",
+				"      return {",
+				"        tools: [],",
+				"        messages: ctx.request.messages.concat([",
+				"          { id: 'docs', role: 'user', content: [{ type: 'text', text: 'TOOL DOCUMENTATION' }], createdAt: 0 },",
+				"        ]),",
+				"      };",
+				"    },",
+				"    afterModel(ctx) {",
+				"      return {",
+				"        message: {",
+				"          ...ctx.assistantMessage,",
+				"          content: [{ type: 'tool-call', toolCallId: 'xml_1', toolName: 'echo', input: { text: 'hi' } }],",
+				"        },",
+				"      };",
+				"    },",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
 			join(dir, "plugin-message-builder.mjs"),
 			[
 				"export default {",
@@ -358,6 +387,7 @@ describe("plugin-sandbox", () => {
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-events.mjs"),
 				join(dir, "plugin-run-end.mjs"),
+				join(dir, "plugin-model-hooks.mjs"),
 				join(dir, "plugin-automation-events.mjs"),
 				join(dir, "plugin-message-builder.mjs"),
 				join(dir, "plugin-rules.mjs"),
@@ -413,6 +443,58 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("round-trips beforeModel/afterModel transform results across the sandbox", async () => {
+		const extension = sharedExtensions.get("sandbox-model-hooks");
+		expect(extension?.name).toBe("sandbox-model-hooks");
+
+		const beforeResult = await extension?.hooks?.beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "base prompt",
+				messages: [
+					{
+						id: "u1",
+						role: "user",
+						content: [{ type: "text", text: "hi" }],
+						createdAt: 1,
+					},
+				],
+				tools: [
+					{
+						name: "echo",
+						description: "echo",
+						inputSchema: { type: "object" },
+					},
+				],
+			},
+		});
+		expect(beforeResult?.tools).toEqual([]);
+		expect(beforeResult?.messages).toHaveLength(2);
+		expect(beforeResult?.messages?.[1]?.content).toEqual([
+			{ type: "text", text: "TOOL DOCUMENTATION" },
+		]);
+
+		const afterResult = await extension?.hooks?.afterModel?.({
+			snapshot: makeSnapshot(),
+			assistantMessage: {
+				id: "a1",
+				role: "assistant",
+				content: [{ type: "text", text: "<echo><text>hi</text></echo>" }],
+				createdAt: 1,
+			},
+			finishReason: "stop",
+		});
+		expect(afterResult?.message?.content).toEqual([
+			{
+				type: "tool-call",
+				toolCallId: "xml_1",
+				toolName: "echo",
+				input: { text: "hi" },
+			},
+		]);
+		expect(afterResult?.message?.id).toBe("a1");
 	});
 
 	it("enforces hook timeout and cancels sandbox process", async () => {

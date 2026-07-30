@@ -1,5 +1,6 @@
 import { createGateway, type GatewayProviderSettings } from "@cline/llms";
 import type {
+	AgentAfterModelResult,
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
 	AgentBeforeToolResult,
@@ -827,6 +828,7 @@ export class AgentRuntime {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				lifecycle: tool.lifecycle ? { ...tool.lifecycle } : undefined,
 			})),
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {
@@ -1051,7 +1053,7 @@ export class AgentRuntime {
 			});
 		}
 
-		const message = createMessage(
+		let message = createMessage(
 			"assistant",
 			content,
 			invalidToolCalls.length > 0 ? { invalidToolCalls } : undefined,
@@ -1065,12 +1067,19 @@ export class AgentRuntime {
 			message.modelInfo = { ...this.config.messageModelInfo };
 		}
 		for (const hook of this.hooks.afterModel) {
-			const control = (await hook({
+			const result = (await hook({
 				snapshot: this.snapshot(),
 				assistantMessage: message,
 				finishReason,
-			})) as AgentStopControl | undefined;
-			this.applyStopControl(control);
+			})) as AgentAfterModelResult | undefined;
+			if (result?.message) {
+				message = {
+					...result.message,
+					metrics: result.message.metrics ?? message.metrics,
+					modelInfo: result.message.modelInfo ?? message.modelInfo,
+				};
+			}
+			this.applyStopControl(result);
 		}
 
 		return { message, finishReason };
