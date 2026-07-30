@@ -137,6 +137,47 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		expect(result.current).toBe(false)
 	})
 
+	it("shows immediately when a reasoning tail finalizes mid-turn (no grace gap before the next tool call)", () => {
+		// Reasoning streaming: the reasoning row's own shimmer is visible, loader hidden.
+		const { result, rerender } = renderLoader(inputsFor([say(1, "reasoning", true, "hmm")], streaming()))
+		expect(result.current).toBe(false)
+
+		// Reasoning finalizes while the turn keeps streaming (model is now assembling a tool
+		// call). Reasoning never ends a turn, so the loader must take over without the grace
+		// gap that made the thinking indicator disappear and reappear before the tool row.
+		rerender(inputsFor([say(1, "reasoning", false, "hmm")], streaming()))
+		expect(result.current).toBe(true)
+	})
+
+	it("keeps an already-visible loader shown when a tool group tail finalizes", () => {
+		const toolAsk = (partial: boolean): ClineMessage => ({
+			ts: 2,
+			type: "ask",
+			ask: "tool",
+			text: JSON.stringify({ tool: "readFile", path: "a.ts" }),
+			partial,
+		})
+		const toolGroupInputs = (tail: ClineMessage): ThinkingLoaderInputs => {
+			const group = Object.assign([tail], { _isToolGroup: true }) as ClineMessage[]
+			return {
+				turnState: streaming(),
+				lastRawMessage: tail,
+				groupedMessages: [group],
+				lastVisibleRow: group,
+				lastVisibleMessage: tail,
+				modifiedMessages: [tail],
+			}
+		}
+
+		// Loader is visible below the streaming tool group.
+		const { result, rerender } = renderLoader(toolGroupInputs(toolAsk(true)))
+		expect(result.current).toBe(true)
+
+		// The group's tail finalizing must not blink the visible loader off for the grace period.
+		rerender(toolGroupInputs(toolAsk(false)))
+		expect(result.current).toBe(true)
+	})
+
 	it("does not flash on attempt_completion turns even without the debounce timing", () => {
 		const { result, rerender } = renderLoader(inputsFor([say(1, "completion_result", true)], streaming()))
 		expect(result.current).toBe(false)
