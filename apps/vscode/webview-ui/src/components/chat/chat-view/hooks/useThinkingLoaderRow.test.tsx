@@ -1,5 +1,6 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
+import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	computeIsWaitingForResponse,
@@ -152,6 +153,19 @@ describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this 
 	function renderLoader(initial: ThinkingLoaderInputs) {
 		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
 	}
+
+	function LoaderProbe({ inputs }: { inputs: ThinkingLoaderInputs }) {
+		return <span>{useThinkingLoaderRow(inputs) ? "visible" : "hidden"}</span>
+	}
+
+	it("shows in the initial render before passive effects run", () => {
+		const inputs = {
+			...inputsFor([say(1, "completion_result", false, "done")], { phase: "completed", seq: 5 }),
+			optimisticTurnStart: true,
+		}
+
+		expect(renderToString(<LoaderProbe inputs={inputs} />)).toContain("visible")
+	})
 
 	it("shows immediately for a new task while the replica's turnState is still a stale idle", () => {
 		// Right after a new-task submit the replica still holds the pre-task "idle" TurnState;

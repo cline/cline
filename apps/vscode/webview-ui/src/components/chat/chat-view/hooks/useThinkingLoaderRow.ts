@@ -161,29 +161,35 @@ export function computeIsWaitingForResponse({
  * before the phase flips out of "streaming", and an instant loader would flash in and out.
  */
 export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number | undefined, tailIsPartial: boolean): boolean {
-	const [visible, setVisible] = useState(false)
+	const [debouncedTailTs, setDebouncedTailTs] = useState<number>()
 	const prevTailRef = useRef<{ ts: number | undefined; partial: boolean }>({ ts: undefined, partial: false })
+	const prevTail = prevTailRef.current
+	const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
+	const waitingForDebounce = tailJustFinishedStreaming || (tailTs !== undefined && debouncedTailTs === tailTs)
 
 	useEffect(() => {
-		const prevTail = prevTailRef.current
 		prevTailRef.current = { ts: tailTs, partial: tailIsPartial }
 
 		if (!shouldShow) {
-			setVisible(false)
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
 		if (!tailJustFinishedStreaming) {
-			setVisible(true)
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const timer = setTimeout(() => setVisible(true), THINKING_LOADER_GRACE_MS)
+		setDebouncedTailTs(tailTs)
+		const timer = setTimeout(() => setDebouncedTailTs(undefined), THINKING_LOADER_GRACE_MS)
 		return () => clearTimeout(timer)
 	}, [shouldShow, tailTs, tailIsPartial])
 
-	return visible
+	// Effects run after the browser can paint. Derive ordinary show/hide states directly so an
+	// unambiguous turn start is present in the first render and streaming content removes a stale
+	// loader in that same render. State is only needed to latch the ambiguous partial -> final
+	// transition until its grace timer expires.
+	return shouldShow && !waitingForDebounce
 }
 
 /**
