@@ -592,6 +592,19 @@ export function createCompactionStateAwarePrepareTurn(input: {
 			? projectSessionCompactionState(existingState, context.messages)
 			: undefined;
 		if (existingState && projectedMessages) {
+			const projectedResult = {
+				messages: projectedMessages,
+				...(existingState.system_prompt !== undefined
+					? { systemPrompt: existingState.system_prompt }
+					: {}),
+			};
+			if (context.messages.length === existingState.source_message_count) {
+				// This canonical prefix has already been compacted. A prepareTurn
+				// callback can run more than once while an ongoing tool turn is
+				// assembled; do not feed the same completed block back through the
+				// summarizer. Project its sidecar directly.
+				return projectedResult;
+			}
 			// Re-compaction intentionally starts from the compacted projection plus
 			// canonical tail. This keeps automatic turns bounded without rebuilding a
 			// full-transcript summary every turn; manual `/compact` is the path for a
@@ -618,12 +631,10 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				};
 			}
 			return {
-				messages: projectedMessages,
+				...projectedResult,
 				...(result?.systemPrompt !== undefined
 					? { systemPrompt: result.systemPrompt }
-					: existingState.system_prompt !== undefined
-						? { systemPrompt: existingState.system_prompt }
-						: {}),
+					: {}),
 			};
 		}
 		const result = input.compact ? await input.compact(context) : undefined;

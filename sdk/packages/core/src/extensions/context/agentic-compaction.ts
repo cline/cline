@@ -23,6 +23,7 @@ import {
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
+	truncateToolResultsForCompaction,
 } from "./compaction-shared";
 
 const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
@@ -51,7 +52,7 @@ export function buildAgenticSummaryInputBudget(options: {
 	estimateMessageTokens: EstimateMessageTokens;
 }): BudgetProjectionResult {
 	return buildBudgetProjection({
-		messages: options.messages,
+		messages: truncateToolResultsForCompaction(options.messages),
 		targetTokens: Math.max(1, options.targetTokens),
 		policyIntent: "agentic_summary",
 		estimateMessageTokens: options.estimateMessageTokens,
@@ -202,7 +203,11 @@ export async function runAgenticCompaction(options: {
 		);
 		return undefined;
 	}
-	const fileOps = extractFileOps(summaryInputBudget.messages);
+	// File activity is semantic context, not optional payload. The budget
+	// projection may drop a completed tool pair after extracting bounded,
+	// representative result text, so derive this list from the unprojected
+	// span rather than falsely reporting that no files were read.
+	const fileOps = preProjectionFileOps;
 	const conversationText = serializeConversation(summaryInputBudget.messages);
 	const summaryRequest = buildSummaryRequest({
 		previousSummary,

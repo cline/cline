@@ -1425,7 +1425,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			logger: undefined,
 		});
 
-		await prepareTurn?.({
+		const result = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			parentAgentId: null,
@@ -1434,15 +1434,15 @@ describe("createContextCompactionPrepareTurn", () => {
 			systemPrompt: "You are helpful.",
 			tools: [],
 			messages: [
-				{ role: "user", content: "Run a large command" },
+				{ role: "user", content: "Read a large notes file" },
 				{
 					role: "assistant",
 					content: [
 						{
 							type: "tool_use",
 							id: "tool-large",
-							name: "execute_command",
-							input: { command: "print-large-output" },
+							name: "read_files",
+							input: { files: [{ path: "/tmp/large-notes.txt" }] },
 						},
 					],
 				},
@@ -1452,7 +1452,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
-							name: "tool",
+							name: "read_files",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -1462,15 +1462,15 @@ describe("createContextCompactionPrepareTurn", () => {
 				{ role: "assistant", content: "Latest answer" },
 			],
 			apiMessages: [
-				{ role: "user", content: "Run a large command" },
+				{ role: "user", content: "Read a large notes file" },
 				{
 					role: "assistant",
 					content: [
 						{
 							type: "tool_use",
 							id: "tool-large",
-							name: "execute_command",
-							input: { command: "print-large-output" },
+							name: "read_files",
+							input: { files: [{ path: "/tmp/large-notes.txt" }] },
 						},
 					],
 				},
@@ -1480,7 +1480,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
-							name: "tool",
+							name: "read_files",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -1507,6 +1507,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(summarizerPrompt).toContain("...[truncated ");
 		expect(summarizerPrompt).not.toContain(omittedTail);
 		expect(summarizerPrompt.length).toBeLessThan(longToolOutput.length);
+		expect(
+			(result?.messages[0]?.metadata as { details?: { readFiles?: string[] } })
+				?.details?.readFiles,
+		).toEqual(["/tmp/large-notes.txt"]);
 	});
 
 	it("budgets agentic summary input before serialization", () => {
@@ -1544,6 +1548,99 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result.estimatedTokens).toBeLessThanOrEqual(400);
 		expect(JSON.stringify(result.messages)).toContain("Latest typed prompt");
 		expect(result.actions.length).toBeGreaterThan(0);
+	});
+
+	it("keeps representative content from every structured parallel read result", () => {
+		const makeReadResult = (
+			id: string,
+			path: string,
+			head: string,
+			tail: string,
+		): LlmsProviders.Message =>
+			({
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: id,
+						name: "read_files",
+						content: [
+							{
+								query: path,
+								result: `${head}\n${"filler ".repeat(2_000)}\n${tail}`,
+								success: true,
+							},
+						],
+					},
+				],
+			}) as unknown as LlmsProviders.Message;
+		const messages: LlmsProviders.Message[] = [
+			{
+				role: "user",
+				content:
+					"Read notes_architecture.txt, notes_incidents.txt, and notes_roadmap.txt, then summarize each.",
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "read-architecture",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_architecture.txt" }] },
+					},
+					{
+						type: "tool_use",
+						id: "read-incidents",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_incidents.txt" }] },
+					},
+					{
+						type: "tool_use",
+						id: "read-roadmap",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_roadmap.txt" }] },
+					},
+				],
+			},
+			makeReadResult(
+				"read-architecture",
+				"/tmp/notes_architecture.txt",
+				"event-sourced ledger",
+				"append-only invoice events",
+			),
+			makeReadResult(
+				"read-incidents",
+				"/tmp/notes_incidents.txt",
+				"stale DNS incident",
+				"reliability backlog",
+			),
+			makeReadResult(
+				"read-roadmap",
+				"/tmp/notes_roadmap.txt",
+				"Kotlin Multiplatform sync engine",
+				"automated latency regression gates",
+			),
+		];
+
+		const result = buildAgenticSummaryInputBudget({
+			messages,
+			targetTokens: 8_000,
+			estimateMessageTokens: estimateJsonTokens,
+		});
+		const serialized = JSON.stringify(result.messages);
+
+		expect(result.status).toBe("ok");
+		expect(result.estimatedTokens).toBeLessThanOrEqual(8_000);
+		expect(serialized).toContain("/tmp/notes_architecture.txt");
+		expect(serialized).toContain("event-sourced ledger");
+		expect(serialized).toContain("append-only invoice events");
+		expect(serialized).toContain("/tmp/notes_incidents.txt");
+		expect(serialized).toContain("stale DNS incident");
+		expect(serialized).toContain("reliability backlog");
+		expect(serialized).toContain("/tmp/notes_roadmap.txt");
+		expect(serialized).toContain("Kotlin Multiplatform sync engine");
+		expect(serialized).toContain("automated latency regression gates");
 	});
 
 	it("never lands the agentic cut in the middle of a tool pair", async () => {
@@ -4107,5 +4204,84 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(
 			projectSessionCompactionState(savedState, currentMessages),
 		).toBeDefined();
+	});
+
+	it("projects a sidecar instead of recompacting the same completed parallel tool block", async () => {
+		const canonicalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Read and summarize all three notes files" },
+			{
+				role: "assistant",
+				content: ["architecture", "incidents", "roadmap"].map((name) => ({
+					type: "tool_use" as const,
+					id: `read-${name}`,
+					name: "read_files",
+					input: { files: [{ path: `/tmp/notes_${name}.txt` }] },
+				})),
+			},
+			...["architecture", "incidents", "roadmap"].map(
+				(name): LlmsProviders.Message => ({
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: `read-${name}`,
+							name: "read_files",
+							content: `${name} findings ${"detail ".repeat(1_000)}`,
+						},
+					],
+				}),
+			),
+		];
+		const compactedMessages: LlmsProviders.Message[] = [
+			{
+				role: "user",
+				content:
+					"Context summary: all three reads completed; synthesize the answer now.",
+			},
+		];
+		let state: ReturnType<typeof createSessionCompactionState> | undefined;
+		const compact = vi.fn().mockResolvedValue({
+			messages: compactedMessages,
+		});
+		const saveState = vi.fn(
+			(nextState: ReturnType<typeof createSessionCompactionState>) => {
+				state = nextState;
+			},
+		);
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => state,
+			saveState,
+		});
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: canonicalMessages,
+			apiMessages: canonicalMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 9_000 },
+			},
+		};
+
+		const first = await prepareTurn({ ...context, iteration: 2 });
+		const second = await prepareTurn({ ...context, iteration: 3 });
+
+		expect(first?.messages).toEqual(compactedMessages);
+		expect(second?.messages).toEqual(compactedMessages);
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(saveState).toHaveBeenCalledTimes(1);
+		expect(state).toBeDefined();
+		if (!state) {
+			throw new Error("expected compaction state to be saved");
+		}
+		expect(projectSessionCompactionState(state, canonicalMessages)).toEqual(
+			compactedMessages,
+		);
 	});
 });

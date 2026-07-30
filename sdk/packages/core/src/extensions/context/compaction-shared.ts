@@ -74,6 +74,39 @@ export function truncateText(text: string, limit: number): string {
 	return `${text.slice(0, limit)}\n...[truncated ${text.length - limit} chars]`;
 }
 
+function truncateRepresentativeText(text: string, limit: number): string {
+	if (text.length <= limit) {
+		return text;
+	}
+	const marker = `\n...[truncated ${text.length - limit} chars]...\n`;
+	const available = Math.max(2, limit - marker.length);
+	const headLength = Math.ceil(available / 2);
+	const tailLength = Math.floor(available / 2);
+	return `${text.slice(0, headLength)}${marker}${text.slice(-tailLength)}`;
+}
+
+function serializeStructuredToolResultBlock(block: unknown): string {
+	if (typeof block === "string") {
+		return block;
+	}
+	if (!block || typeof block !== "object" || Array.isArray(block)) {
+		return String(block ?? "");
+	}
+	const record = block as Record<string, unknown>;
+	if (typeof record.result === "string") {
+		const query =
+			typeof record.query === "string" && record.query.trim()
+				? `[${record.query.trim()}]\n`
+				: "";
+		return `${query}${record.result}`;
+	}
+	try {
+		return JSON.stringify(block);
+	} catch {
+		return String(block);
+	}
+}
+
 export function flattenToolResultContent(
 	content: ToolResultContent["content"],
 ): string {
@@ -91,7 +124,7 @@ export function flattenToolResultContent(
 				case "image":
 					return `[image:${block.mediaType}]`;
 				default:
-					return "";
+					return serializeStructuredToolResultBlock(block);
 			}
 		})
 		.join("\n");
@@ -101,25 +134,61 @@ export function truncateToolResultContentForCompaction(
 	content: ToolResultContent["content"],
 ): ToolResultContent["content"] {
 	if (typeof content === "string") {
-		return truncateText(content, TOOL_RESULT_CHAR_LIMIT);
+		return truncateRepresentativeText(content, TOOL_RESULT_CHAR_LIMIT);
 	}
 	return content.map((block) => {
 		switch (block.type) {
 			case "text":
 				return {
 					...block,
-					text: truncateText(block.text, TOOL_RESULT_CHAR_LIMIT),
+					text: truncateRepresentativeText(block.text, TOOL_RESULT_CHAR_LIMIT),
 				};
 			case "file":
 				return {
 					...block,
-					content: truncateText(block.content, FILE_CONTENT_CHAR_LIMIT),
+					content: truncateRepresentativeText(
+						block.content,
+						FILE_CONTENT_CHAR_LIMIT,
+					),
 				};
 			case "image":
 				return block;
 			default:
-				return block;
+				// Runtime tool adapters may return structured payloads rather than
+				// provider-native text/file blocks (read_files uses
+				// { query, result, success }). Convert those payloads into bounded
+				// text so the summary sees representative content instead of
+				// retaining an untruncatable object that the budgeter later drops.
+				return {
+					type: "text",
+					text: truncateRepresentativeText(
+						serializeStructuredToolResultBlock(block),
+						TOOL_RESULT_CHAR_LIMIT,
+					),
+				};
 		}
+	});
+}
+
+export function truncateToolResultsForCompaction(
+	messages: MessageWithMetadata[],
+): MessageWithMetadata[] {
+	return messages.map((message) => {
+		if (!Array.isArray(message.content)) {
+			return message;
+		}
+		let changed = false;
+		const content = message.content.map((block) => {
+			if (block.type !== "tool_result") {
+				return block;
+			}
+			changed = true;
+			return {
+				...block,
+				content: truncateToolResultContentForCompaction(block.content),
+			};
+		});
+		return changed ? { ...message, content } : message;
 	});
 }
 
@@ -686,6 +755,11 @@ export function buildSummaryRequest(options: {
 }): string {
 	const parts: string[] = [
 		`Summarize this session for continuation. Be concise and factual.
+Treat successful tool results as completed work. Preserve the task goal and
+the key facts from tool outputs needed to finish it. If the requested
+information is already present, say that it was obtained and make the next
+step answer or synthesize it directly; never ask the user to provide content
+that a tool result already supplied.
 
 ## Goal
 One sentence: what is being built or fixed.
