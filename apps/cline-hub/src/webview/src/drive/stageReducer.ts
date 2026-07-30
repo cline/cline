@@ -1,13 +1,23 @@
 /**
  * Events-first Stage projection for Hub Chat (Slice A).
  *
- * Maps session toolEvents / WebviewToolEvent-shaped rows onto @cline/shared
- * StageCard semantics (last-event-wins per edit|command|test), without hub
- * call_* room ops.
+ * Maps session toolEvents / WebviewToolEvent-shaped rows onto Drive work events,
+ * then folds with the same reduceRoom / projectStage kernel as live rooms.
  */
 
-import type { StageCard, StageSharer, StageState } from "@cline/shared";
-import { classifyStageToolName } from "@cline/drive";
+import {
+	classifyStageToolName,
+	createEmptyRoomSnapshot,
+	projectStage,
+	reduceRoom,
+} from "@cline/drive";
+import {
+	DRIVE_SCHEMA_VERSION,
+	type DriveEvent,
+	type StageCard,
+	type StageSharer,
+	type StageState,
+} from "@cline/shared";
 
 /** Chat message toolEvents row (webview-protocol shape). */
 export type StageToolEvent = {
@@ -254,29 +264,100 @@ export function upsertStageCard(
 	return [...without, card];
 }
 
+const TOOL_STAGE_ROOM_ID = "webview-tool-stage";
+
 /**
- * Project an ordered tool-event stream into Stage cards.
+ * Map a chat tool event onto a Drive work.* event for reduceRoom.
+ * Returns null for tools that do not create stage cards.
+ */
+export function toolEventToDriveEvent(
+	event: StageToolEvent,
+	options: { roomId: string; now: string },
+): DriveEvent | null {
+	const category = classifyToolEvent(event);
+	if (!category) {
+		return null;
+	}
+	const at = event.updatedAt ?? options.now;
+	const id = event.toolCallId ?? event.id;
+	const summary = summaryForEvent(category, event);
+	switch (category) {
+		case "edit": {
+			const path =
+				pathFromInput(event.input) ??
+				pathFromPatch(event.input) ??
+				event.name;
+			const baseName = path.split(/[/\\]/).pop() ?? path;
+			return {
+				schemaVersion: DRIVE_SCHEMA_VERSION,
+				type: "work.edit",
+				track: "work",
+				id,
+				roomId: options.roomId,
+				at,
+				path: baseName,
+				summary,
+			};
+		}
+		case "command": {
+			const command =
+				firstCommandFromInput(event.input) ??
+				asString(event.text) ??
+				event.name;
+			const firstLine = command.split("\n")[0] ?? command;
+			const title =
+				firstLine.length > 64 ? `${firstLine.slice(0, 61)}…` : firstLine;
+			return {
+				schemaVersion: DRIVE_SCHEMA_VERSION,
+				type: "work.command",
+				track: "work",
+				id,
+				roomId: options.roomId,
+				at,
+				command: title,
+				failed: event.state === "output-error",
+				summary,
+			};
+		}
+		case "test": {
+			return {
+				schemaVersion: DRIVE_SCHEMA_VERSION,
+				type: "work.test_result",
+				track: "work",
+				id,
+				roomId: options.roomId,
+				at,
+				label: titleForEvent("test", event),
+				passed: event.state !== "output-error",
+				summary,
+			};
+		}
+		default: {
+			const _exhaustive: never = category;
+			return _exhaustive;
+		}
+	}
+}
+
+/**
+ * Project an ordered tool-event stream into Stage cards via reduceRoom.
  * Only edit / command / test categories are kept (MVP stage surface).
  */
 export function projectStageCardsFromToolEvents(
 	events: readonly StageToolEvent[],
-	options?: { now?: string },
+	options?: { now?: string; roomId?: string },
 ): StageCard[] {
 	const now = options?.now ?? new Date().toISOString();
-	let cards: StageCard[] = [];
+	const roomId = options?.roomId ?? TOOL_STAGE_ROOM_ID;
+	let snapshot = createEmptyRoomSnapshot({ roomId, createdAt: now });
 	for (const event of events) {
-		const card = toolEventToStageCard(event, now);
-		if (!card) {
+		const driveEvent = toolEventToDriveEvent(event, { roomId, now });
+		if (!driveEvent) {
 			continue;
 		}
-		if (
-			card.category === "edit" ||
-			card.category === "command" ||
-			card.category === "test"
-		) {
-			cards = upsertStageCard(cards, card);
-		}
+		snapshot = reduceRoom(snapshot, driveEvent);
 	}
+	const cards = projectStage(snapshot).cards;
 	return STAGE_CATEGORIES.map((category) =>
 		cards.find((card) => card.category === category),
 	).filter((card): card is StageCard => card != null);

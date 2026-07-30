@@ -7,6 +7,8 @@
 
 import {
 	CLINE_HOST_CAPABILITIES,
+	type DirectorOp,
+	type DirectorOpResult,
 	type DriveHostPort,
 	type PromptRewriteDecision,
 	type RoomOp,
@@ -18,6 +20,11 @@ import {
 	getDriveRoomStore,
 	JsonlRoomEventLog,
 } from "./collaboration";
+import {
+	enqueueShowOnStore,
+	presentShowOnStore,
+	tickShowOnStore,
+} from "./driveDirectorOps";
 import {
 	loadOrSeedDriveFacets,
 	writeDriveFacetsFile,
@@ -74,6 +81,58 @@ export function createClineDriveHost(
 		},
 		async getRoom(roomId: string) {
 			return store.get(roomId) ?? null;
+		},
+		async commitDirectorOp(op: DirectorOp): Promise<DirectorOpResult> {
+			const demoCapture = capabilities.demoCapture;
+			switch (op.type) {
+				case "enqueueShow": {
+					const result = enqueueShowOnStore({
+						roomId: op.roomId,
+						showItem: op.showItem,
+						presentNow: op.presentNow,
+						demoCapture,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+					};
+				}
+				case "presentShow": {
+					const result = presentShowOnStore({
+						roomId: op.roomId,
+						showItem: op.showItem,
+						demoCapture,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+					};
+				}
+				case "tickShow": {
+					const result = tickShowOnStore({
+						roomId: op.roomId,
+						preferShowId: op.preferShowId,
+						demoCapture,
+						store,
+					});
+					return {
+						roomId: op.roomId,
+						presented: result.presented,
+						planned: result.planned,
+						liveRoom: result.room,
+					};
+				}
+				default: {
+					const _never: never = op;
+					return _never;
+				}
+			}
 		},
 		async commitRoomOp(op: RoomOp): Promise<RoomSnapshot> {
 			switch (op.type) {

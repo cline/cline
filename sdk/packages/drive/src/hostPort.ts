@@ -2,7 +2,7 @@
  * DriveHostPort + HostCapabilities (interfaces only — no IO).
  */
 
-import type { DriveEvent, RoomSnapshot } from "@cline/shared";
+import type { DriveEvent, RoomSnapshot, ShowBacklogItem } from "@cline/shared";
 
 /** Sole Cline hub writer (hub listens on 25463 — never a second daemon). */
 export const CLINE_HUB_WRITER_ENDPOINT = "ws://127.0.0.1:25463" as const;
@@ -64,6 +64,33 @@ export type RoomOp =
 	  }
 	| { type: "mute"; roomId: string; participantId: string; muted: boolean };
 
+/** Live director mutations (Show backlog). Host implements; harness proposes. */
+export type DirectorOp =
+	| {
+			type: "enqueueShow";
+			roomId: string;
+			showItem: ShowBacklogItem;
+			presentNow?: boolean;
+	  }
+	| {
+			type: "presentShow";
+			roomId: string;
+			showItem: ShowBacklogItem;
+	  }
+	| {
+			type: "tickShow";
+			roomId: string;
+			preferShowId?: string | null;
+	  };
+
+export type DirectorOpResult = {
+	readonly roomId: string;
+	readonly presented: ShowBacklogItem | null;
+	readonly planned: ShowBacklogItem | null;
+	/** Opaque live room for hub publishers (DriveRoomLiveState-shaped). */
+	readonly liveRoom: unknown;
+};
+
 export type PromptRewriteDecision = {
 	readonly turnId: string;
 	readonly rewrite: string;
@@ -81,6 +108,11 @@ export type DriveHostPort = {
 	commitRoomOp(op: RoomOp): Promise<RoomSnapshot>;
 	/** Read current room snapshot (required by DriveHarness for pack/spotlight). */
 	getRoom?(roomId: string): Promise<RoomSnapshot | null>;
+	/**
+	 * Optional Show/Director commit. Required for DriveHarness.shows.
+	 * Uses HostCapabilities.demoCapture when materializing capture tools.
+	 */
+	commitDirectorOp?(op: DirectorOp): Promise<DirectorOpResult>;
 	broadcast(event: DriveEvent): Promise<void>;
 	subscribe(handler: (event: DriveEvent) => void): () => void;
 

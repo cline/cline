@@ -27,6 +27,7 @@ Product Drive surfaces (`apps/cline-hub`, CLI Drive chrome) should compose **`cr
 - **`DriveHostPort.getRoom`** for pack/spotlight reads
 - **`memoryDriveHost`** for kernel tests without a hub
 - **`director.*`** on the harness exposes pure Show helpers (`pickNextShow`, `planRoute`, `planShowIntents`, `advanceScriptBeat`) — live backlog commit remains `drive.show.*` until a DirectorPort exists
+- **Webview single fold** — `useDriveSession` folds `drive_event` via `foldIncomingDriveEvent` → `reduceRoom`; demo `stageReducer` maps tools → `work.*` → same fold
 
 ## How to use it
 
@@ -57,7 +58,7 @@ Apps still **project** with `reduceRoom` / `projectStage` / `projectRoster` from
 
 1. **Hub handlers call the harness** for join / address / stage instead of duplicating `joinCall` + store writes — single commit path.
 2. **DirectorPort** on the host: `enqueueShow` / `tickShow` / `presentShow` / `attachScript` so Show backlog leaves `drive-handlers.ts` private functions.
-3. **Webview**: fold `room_snapshot` events with `reduceRoom` (retire dual `stageReducer` for live rooms).
+3. **Webview**: fold `drive_event` with `reduceRoom` (retire dual `stageReducer` for live rooms; demos map tools → work events → same fold).
 4. **Do not** dump all of `@cline/drive` into `@cline/sdk` root — keep agent vs room packages separate; optional future subpath `@cline/sdk/drive` only if publishing needs one install name.
 5. Land missing Phase-2 pure helpers still named in the architecture (`expandRosterPack`, `capPreset`, `resolveAddress`) and wire `addRosterPack` to durable packs.
 
@@ -67,6 +68,6 @@ Apps still **project** with `reduceRoom` / `projectStage` / `projectRoster` from
 |---|---|
 | `createDriveHarness` rooms MVP | Done |
 | Host `getRoom` + roomId on `RoomOp` | Done |
-| Product hub migration onto harness | Not started |
-| DirectorPort / show commit on harness | Not started |
-| Webview single fold | Not started |
+| Product hub migration onto harness | **Partial** — `call_set_address` / `call_set_stage` / `call_set_mode` via `getHubDriveHarness` |
+| DirectorPort / show commit on harness | **Partial** — `commitDirectorOp` + `DriveHarness.shows`; hub `drive.show.*` still publishes events |
+| Webview single fold | **Done** — `foldIncomingDriveEvent` + tool→`work.*`→`reduceRoom` in `stageReducer` |

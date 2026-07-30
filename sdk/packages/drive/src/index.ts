@@ -20,6 +20,8 @@ export {
 export {
 	CLINE_HOST_CAPABILITIES,
 	CLINE_HUB_WRITER_ENDPOINT,
+	type DirectorOp,
+	type DirectorOpResult,
 	type DriveHostPort,
 	type HostCapabilities,
 	type PromptRewriteDecision,
@@ -35,6 +37,7 @@ export {
 	type DriveHarness,
 	type DriveHarnessDirector,
 	type DriveHarnessRooms,
+	type DriveHarnessShows,
 	type RosterPackMember,
 } from "./harness.js";
 export {

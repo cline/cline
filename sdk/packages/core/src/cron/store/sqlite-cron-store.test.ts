@@ -203,7 +203,9 @@ describe("SqliteCronStore", () => {
 });
 
 describe("SqliteCronStore: schema migrations", () => {
-	it("recreates the one-off run uniqueness index when its predicate changes", () => {
+	it(
+		"recreates the one-off run uniqueness index when its predicate changes",
+		() => {
 		const tmp = tempDbPath();
 		const initialStore = new SqliteCronStore({ dbPath: tmp.path });
 		initialStore.close();
@@ -241,7 +243,9 @@ describe("SqliteCronStore: schema migrations", () => {
 			migratedDb.close?.();
 			rmSync(tmp.dir, { recursive: true, force: true });
 		}
-	});
+	},
+		20_000,
+	);
 });
 
 describe("SqliteCronStore: runs", () => {

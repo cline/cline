@@ -109,4 +109,34 @@ describe("reduceRoom", () => {
 		});
 		expect(next).toBe(room);
 	});
+
+	it("prefers work.command and work.test_result summary when present", () => {
+		let room = createEmptyRoomSnapshot({ roomId: "room_1", createdAt: at });
+		room = reduceRoom(room, {
+			schemaVersion: 1,
+			id: "c1",
+			roomId: "room_1",
+			at,
+			type: "work.command",
+			track: "work",
+			command: "bun test",
+			failed: false,
+			summary: "built ok",
+		});
+		expect(projectStage(room).cards[0]?.summary).toBe("built ok");
+
+		room = reduceRoom(room, {
+			schemaVersion: 1,
+			id: "t1",
+			roomId: "room_1",
+			at,
+			type: "work.test_result",
+			track: "work",
+			label: "unit",
+			passed: true,
+			summary: "3 pass",
+		});
+		const testCard = projectStage(room).cards.find((c) => c.category === "test");
+		expect(testCard?.summary).toBe("3 pass");
+	});
 });

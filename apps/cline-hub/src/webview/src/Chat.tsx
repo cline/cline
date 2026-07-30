@@ -801,17 +801,32 @@ export default function Chat({
 			attachmentCount: number;
 			source: "voice" | "text";
 		}) => {
-			const flush = () => {
-				if (pending.source === "voice") {
-					flushVoiceSend(pending.prompt);
+			const flushPending = (held: {
+				prompt: string;
+				attachments?: WebviewChatAttachments;
+				attachmentCount: number;
+				source: "voice" | "text";
+			}) => {
+				if (held.source === "voice") {
+					flushVoiceSend(held.prompt);
 					return;
 				}
 				flushComposerSend({
-					prompt: pending.prompt,
-					attachments: pending.attachments,
-					attachmentCount: pending.attachmentCount,
+					prompt: held.prompt,
+					attachments: held.attachments,
+					attachmentCount: held.attachmentCount,
 				});
 			};
+
+			// Do not drop a held send when a new utterance arrives — skip-route flush first.
+			if (pendingRouteSend) {
+				const prior = pendingRouteSend;
+				setRouteSuggestion(null);
+				setPendingRouteSend(null);
+				flushPending(prior);
+			}
+
+			const flush = () => flushPending(pending);
 
 			if (!drive.active || routerMode === "manual") {
 				flush();
@@ -841,6 +856,7 @@ export default function Chat({
 			drive.participants,
 			flushComposerSend,
 			flushVoiceSend,
+			pendingRouteSend,
 			routerMode,
 		],
 	);

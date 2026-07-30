@@ -26,6 +26,10 @@ import {
 	type WorkRecordPayload,
 	workRecordFromToolEvent,
 } from "../../collaboration";
+import {
+	getHubDriveHarness,
+	takeHubRoomCommit,
+} from "../../driveHarnessBinding";
 import { runChatForkDirectorTick } from "./drive-fork-tick";
 import {
 	runShowPlannerFromWork,
@@ -279,10 +283,10 @@ function ensureEventLog(
 	store.attachEventLog(new JsonlRoomEventLog(workspaceRoot));
 }
 
-export function handleDriveRoomCommand(
+export async function handleDriveRoomCommand(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
-): HubReplyEnvelope {
+): Promise<HubReplyEnvelope> {
 	const store = getDriveRoomStore();
 	try {
 		switch (envelope.command) {
@@ -405,11 +409,20 @@ export function handleDriveRoomCommand(
 			}
 			case "call_set_stage": {
 				const payload = CallSetStagePayloadSchema.parse(envelope.payload ?? {});
-				const committed = store.setStage({
-					roomId: payload.roomId,
-					sharer: payload.sharer as StageSharer | null,
-					pin: payload.pin,
-				});
+				const { harness } = getHubDriveHarness({ store });
+				await harness.rooms.setSharer(
+					payload.roomId,
+					payload.sharer as StageSharer | null,
+					payload.pin,
+				);
+				const committed = takeHubRoomCommit(store);
+				if (!committed) {
+					return errorReply(
+						envelope,
+						"commit_failed",
+						"setStage did not produce a room commit",
+					);
+				}
 				publishRoomEvent(
 					ctx,
 					payload.roomId,
@@ -427,10 +440,16 @@ export function handleDriveRoomCommand(
 					envelope.payload ?? {},
 				);
 				store.create(payload.roomId);
-				const committed = store.setAddress({
-					roomId: payload.roomId,
-					addressSet: payload.addressSet,
-				});
+				const { harness } = getHubDriveHarness({ store });
+				await harness.rooms.setAddress(payload.roomId, payload.addressSet);
+				const committed = takeHubRoomCommit(store);
+				if (!committed) {
+					return errorReply(
+						envelope,
+						"commit_failed",
+						"setAddress did not produce a room commit",
+					);
+				}
 				publishRoomEvent(
 					ctx,
 					payload.roomId,
@@ -445,7 +464,20 @@ export function handleDriveRoomCommand(
 			}
 			case "call_set_mode": {
 				const payload = CallSetModePayloadSchema.parse(envelope.payload ?? {});
-				const committed = store.setMode(payload);
+				const { harness } = getHubDriveHarness({ store });
+				await harness.rooms.setSubMode(
+					payload.roomId,
+					payload.subMode,
+					payload.driveActive,
+				);
+				const committed = takeHubRoomCommit(store);
+				if (!committed) {
+					return errorReply(
+						envelope,
+						"commit_failed",
+						"setMode did not produce a room commit",
+					);
+				}
 				publishRoomEvent(
 					ctx,
 					payload.roomId,

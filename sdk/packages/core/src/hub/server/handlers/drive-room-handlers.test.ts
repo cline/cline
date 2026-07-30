@@ -26,10 +26,10 @@ function makeCtx(): HubTransportContext & { published: unknown[] } {
 }
 
 describe("handleDriveRoomCommand", () => {
-	it("joins via joinCall and publishes room.snapshot", () => {
+	it("joins via joinCall and publishes room.snapshot", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		const reply = handleDriveRoomCommand(ctx, {
+		const reply = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "r1",
@@ -45,7 +45,7 @@ describe("handleDriveRoomCommand", () => {
 			true,
 		);
 
-		const leave = handleDriveRoomCommand(ctx, {
+		const leave = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_leave",
 			requestId: "r2",
@@ -53,7 +53,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(leave.ok).toBe(true);
 
-		const stage = handleDriveRoomCommand(ctx, {
+		const stage = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_set_stage",
 			requestId: "r3",
@@ -66,10 +66,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(okReply({ version: "v1", requestId: "x" }).ok).toBe(true);
 	});
 
-	it("returns room_not_found for leave on missing room", () => {
+	it("returns room_not_found for leave on missing room", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		const reply = handleDriveRoomCommand(ctx, {
+		const reply = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_leave",
 			requestId: "r4",
@@ -79,10 +79,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(reply.error?.code).toBe("room_not_found");
 	});
 
-	it("call_mute and call_raise_hand update snapshot maps and broadcast", () => {
+	it("call_mute and call_raise_hand update snapshot maps and broadcast", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_mute",
@@ -94,7 +94,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		ctx.published.length = 0;
 
-		const muted = handleDriveRoomCommand(ctx, {
+		const muted = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_mute",
 			requestId: "m1",
@@ -110,7 +110,7 @@ describe("handleDriveRoomCommand", () => {
 		};
 		expect(muteSnap.muteByParticipantId.you).toBe(true);
 
-		const partnerMuted = handleDriveRoomCommand(ctx, {
+		const partnerMuted = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_mute",
 			requestId: "m2",
@@ -126,7 +126,7 @@ describe("handleDriveRoomCommand", () => {
 		};
 		expect(partnerSnap.muteByParticipantId.adam).toBe(true);
 
-		const hand = handleDriveRoomCommand(ctx, {
+		const hand = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h1",
@@ -145,7 +145,7 @@ describe("handleDriveRoomCommand", () => {
 			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
 		).toBe(true);
 
-		const lowered = handleDriveRoomCommand(ctx, {
+		const lowered = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h2",
@@ -162,10 +162,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(loweredSnap.raisedHandByParticipantId.you).toBe(false);
 	});
 
-	it("call_rename_participant updates displayName and broadcasts", () => {
+	it("call_rename_participant updates displayName and broadcasts", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_rename",
@@ -177,7 +177,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		ctx.published.length = 0;
 
-		const renamed = handleDriveRoomCommand(ctx, {
+		const renamed = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_rename_participant",
 			requestId: "rn1",
@@ -198,7 +198,7 @@ describe("handleDriveRoomCommand", () => {
 			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
 		).toBe(true);
 
-		const missing = handleDriveRoomCommand(ctx, {
+		const missing = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_rename_participant",
 			requestId: "rn2",
@@ -211,10 +211,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(missing.ok).toBe(false);
 	});
 
-	it("call_raise_hand with linked session sets and clears pause-after-tool", () => {
+	it("call_raise_hand with linked session sets and clears pause-after-tool", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_pause",
@@ -227,7 +227,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(shouldDrivePauseAfterTool("sess_pause")).toBe(false);
 
-		const raised = handleDriveRoomCommand(ctx, {
+		const raised = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_raise",
@@ -240,7 +240,7 @@ describe("handleDriveRoomCommand", () => {
 		expect(raised.ok).toBe(true);
 		expect(shouldDrivePauseAfterTool("sess_pause")).toBe(true);
 
-		const lowered = handleDriveRoomCommand(ctx, {
+		const lowered = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_lower",
@@ -254,10 +254,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(shouldDrivePauseAfterTool("sess_pause")).toBe(false);
 	});
 
-	it("pause-after-tool stays true while any participant still has hand raised", () => {
+	it("pause-after-tool stays true while any participant still has hand raised", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_multi_hand",
@@ -269,7 +269,7 @@ describe("handleDriveRoomCommand", () => {
 			},
 		});
 
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_you",
@@ -279,7 +279,7 @@ describe("handleDriveRoomCommand", () => {
 				raised: true,
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_adam",
@@ -291,7 +291,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(shouldDrivePauseAfterTool("sess_multi_hand")).toBe(true);
 
-		const lowerOne = handleDriveRoomCommand(ctx, {
+		const lowerOne = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_lower_you",
@@ -304,7 +304,7 @@ describe("handleDriveRoomCommand", () => {
 		expect(lowerOne.ok).toBe(true);
 		expect(shouldDrivePauseAfterTool("sess_multi_hand")).toBe(true);
 
-		const lowerBoth = handleDriveRoomCommand(ctx, {
+		const lowerBoth = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_lower_adam",
@@ -318,10 +318,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(shouldDrivePauseAfterTool("sess_multi_hand")).toBe(false);
 	});
 
-	it("call_leave clears pause-after-tool when no raised hands remain", () => {
+	it("call_leave clears pause-after-tool when no raised hands remain", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_leave_pause",
@@ -332,7 +332,7 @@ describe("handleDriveRoomCommand", () => {
 				agent: { id: "adam", displayName: "Adam" },
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_leave",
@@ -344,7 +344,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(shouldDrivePauseAfterTool("sess_leave_pause")).toBe(true);
 
-		const leave = handleDriveRoomCommand(ctx, {
+		const leave = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_leave",
 			requestId: "l_pause",
@@ -354,10 +354,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(shouldDrivePauseAfterTool("sess_leave_pause")).toBe(false);
 	});
 
-	it("call_leave keeps pause-after-tool when another participant still has hand raised", () => {
+	it("call_leave keeps pause-after-tool when another participant still has hand raised", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j_leave_other",
@@ -368,7 +368,7 @@ describe("handleDriveRoomCommand", () => {
 				agent: { id: "adam", displayName: "Adam" },
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_you_leave",
@@ -378,7 +378,7 @@ describe("handleDriveRoomCommand", () => {
 				raised: true,
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_raise_hand",
 			requestId: "h_adam_stay",
@@ -390,7 +390,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		expect(shouldDrivePauseAfterTool("sess_leave_other")).toBe(true);
 
-		const leave = handleDriveRoomCommand(ctx, {
+		const leave = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_leave",
 			requestId: "l_other",
@@ -400,10 +400,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(shouldDrivePauseAfterTool("sess_leave_other")).toBe(true);
 	});
 
-	it("call_record_work from tool-shaped input fills stage.cards and broadcasts", () => {
+	it("call_record_work from tool-shaped input fills stage.cards and broadcasts", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j1",
@@ -416,7 +416,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		ctx.published.length = 0;
 
-		const reply = handleDriveRoomCommand(ctx, {
+		const reply = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w1",
@@ -440,7 +440,7 @@ describe("handleDriveRoomCommand", () => {
 			ctx.published.some((e) => (e as { event: string }).event === "room.event"),
 		).toBe(true);
 
-		const cmd = handleDriveRoomCommand(ctx, {
+		const cmd = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w2",
@@ -461,10 +461,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(cards.map((c) => c.category).sort()).toEqual(["command", "edit"]);
 	});
 
-	it("call_record_work heuristic planner enqueues show on edit, skips command", () => {
+	it("call_record_work heuristic planner enqueues show on edit, skips command", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j-plan",
@@ -476,7 +476,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 		ctx.published.length = 0;
 
-		const edit = handleDriveRoomCommand(ctx, {
+		const edit = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w-edit",
@@ -512,7 +512,7 @@ describe("handleDriveRoomCommand", () => {
 		).toBe(true);
 
 		ctx.published.length = 0;
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w-cmd",
@@ -532,7 +532,7 @@ describe("handleDriveRoomCommand", () => {
 		).toBe(false);
 	});
 
-	it("call_record_work with showPlannerMode off does not enqueue", () => {
+	it("call_record_work with showPlannerMode off does not enqueue", async () => {
 		resetDriveRoomStoreForTests();
 		const store = getDriveRoomStore();
 		store.create("room_off");
@@ -544,7 +544,7 @@ describe("handleDriveRoomCommand", () => {
 		});
 
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w-off",
@@ -564,10 +564,10 @@ describe("handleDriveRoomCommand", () => {
 		).toBe(false);
 	});
 
-	it("test_result planner enqueues doc.plan; plan-mode signal via test maps template", () => {
+	it("test_result planner enqueues doc.plan; plan-mode signal via test maps template", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j-test",
@@ -577,7 +577,7 @@ describe("handleDriveRoomCommand", () => {
 				agent: { id: "adam", displayName: "Adam" },
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "w-test",
@@ -599,10 +599,10 @@ describe("handleDriveRoomCommand", () => {
 		).toBe(true);
 	});
 
-	it("call_get_room returns current snapshot; missing room errors", () => {
+	it("call_get_room returns current snapshot; missing room errors", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "j2",
@@ -612,7 +612,7 @@ describe("handleDriveRoomCommand", () => {
 				agent: { id: "adam", displayName: "Adam" },
 			},
 		});
-		const got = handleDriveRoomCommand(ctx, {
+		const got = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_get_room",
 			requestId: "g1",
@@ -621,7 +621,7 @@ describe("handleDriveRoomCommand", () => {
 		expect(got.ok).toBe(true);
 		expect(got.payload?.roomId).toBe("room_get");
 
-		const missing = handleDriveRoomCommand(ctx, {
+		const missing = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_get_room",
 			requestId: "g2",
@@ -631,10 +631,10 @@ describe("handleDriveRoomCommand", () => {
 		expect(missing.error?.code).toBe("room_not_found");
 	});
 
-	it("handoff: join → record work → human pin → agent clears pin", () => {
+	it("handoff: join → record work → human pin → agent clears pin", async () => {
 		resetDriveRoomStoreForTests();
 		const ctx = makeCtx();
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_join",
 			requestId: "h0",
@@ -645,7 +645,7 @@ describe("handleDriveRoomCommand", () => {
 				agent: { id: "adam", displayName: "Adam" },
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "h1",
@@ -654,7 +654,7 @@ describe("handleDriveRoomCommand", () => {
 				work: { kind: "edit", path: "a.ts", summary: "diff" },
 			},
 		});
-		handleDriveRoomCommand(ctx, {
+		await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_record_work",
 			requestId: "h2",
@@ -663,7 +663,7 @@ describe("handleDriveRoomCommand", () => {
 				work: { kind: "command", command: "ls", failed: false },
 			},
 		});
-		const human = handleDriveRoomCommand(ctx, {
+		const human = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_set_stage",
 			requestId: "h3",
@@ -689,7 +689,7 @@ describe("handleDriveRoomCommand", () => {
 		expect(humanSnap.stage.pin?.ref).toBe("const x = 1");
 		expect(humanSnap.stage.cards.length).toBeGreaterThanOrEqual(2);
 
-		const agent = handleDriveRoomCommand(ctx, {
+		const agent = await handleDriveRoomCommand(ctx, {
 			version: "v1",
 			command: "call_set_stage",
 			requestId: "h4",

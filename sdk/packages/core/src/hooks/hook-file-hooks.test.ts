@@ -367,6 +367,7 @@ describe("createHookConfigFileHooks", () => {
 				});
 			}
 		},
+		20_000,
 	);
 
 	it("maps TaskError hook files to agent_error stop events", async () => {

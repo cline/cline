@@ -35,7 +35,7 @@ function cardFromWorkEvent(event: DriveEvent): StageCard | null {
 				id: `card_${event.id}`,
 				category: "command",
 				title: event.command,
-				summary: event.failed ? "failed" : "ok",
+				summary: event.summary ?? (event.failed ? "failed" : "ok"),
 				workEventId: event.id,
 				updatedAt: event.at,
 			};
@@ -44,7 +44,7 @@ function cardFromWorkEvent(event: DriveEvent): StageCard | null {
 				id: `card_${event.id}`,
 				category: "test",
 				title: event.label,
-				summary: event.passed ? "passed" : "failed",
+				summary: event.summary ?? (event.passed ? "passed" : "failed"),
 				workEventId: event.id,
 				updatedAt: event.at,
 			};

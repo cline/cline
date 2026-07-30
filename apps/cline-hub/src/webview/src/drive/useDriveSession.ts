@@ -15,6 +15,7 @@ import {
 	listPlanTasks,
 	seedBankForJoin,
 } from "./bankSession";
+import { foldIncomingDriveEvent } from "./foldRoomSnapshot";
 import {
 	isDriveHumanId,
 	isDrivePartnerId,
@@ -206,6 +207,8 @@ export function useDriveSession(
 	>([]);
 	/** True between call_join and the first successful room_snapshot. */
 	const pendingJoinRef = useRef(false);
+	/** Local RoomSnapshot for reduceRoom fold (same kernel as hub). */
+	const roomSnapshotRef = useRef<RoomSnapshot | null>(null);
 	/**
 	 * Local intent to be on the Drive call (joining or seated).
 	 * Cleared synchronously on leave/cancel so late hub snapshots cannot rejoin
@@ -284,6 +287,7 @@ export function useDriveSession(
 				say?: string;
 				ownerParticipantId?: string;
 				snapshot?: RoomSnapshot;
+				event?: unknown;
 				auditHandle?: string;
 				messages?: unknown[];
 				summaryOnly?: boolean;
@@ -405,7 +409,18 @@ export function useDriveSession(
 				(message.type === "room_snapshot" || message.type === "drive_event") &&
 				message.snapshot
 			) {
-				const snapshot = message.snapshot;
+				const hubSnapshot = message.snapshot;
+				// Fold drive_event through reduceRoom; room_snapshot replaces.
+				// Compute candidate before intent guards — only commit to the ref
+				// once we know this client should apply the update.
+				const snapshot =
+					message.type === "drive_event" && message.event != null
+						? foldIncomingDriveEvent({
+								local: roomSnapshotRef.current,
+								event: message.event,
+								hubSnapshot,
+							})
+						: hubSnapshot;
 				// Any human seat counts — hub join paths may use legacy ids (`you`, `human`).
 				const humanSeated = snapshot.participants.some(
 					(participant) => participant.kind === "human",
@@ -423,6 +438,7 @@ export function useDriveSession(
 				if (wasPendingJoin && !seatedOnCall) {
 					return;
 				}
+				roomSnapshotRef.current = seatedOnCall ? snapshot : null;
 				if (wasPendingJoin) {
 					pendingJoinRef.current = false;
 					driveActiveRef.current = true;
@@ -576,6 +592,7 @@ export function useDriveSession(
 			pendingJoinRef.current = false;
 			driveIntentRef.current = false;
 			driveActiveRef.current = false;
+			roomSnapshotRef.current = null;
 			const leaveRoomId = current.roomId ?? DRIVE_DEFAULT_ROOM_ID;
 			postToHost({
 				type: "call_leave",
