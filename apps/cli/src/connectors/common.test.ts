@@ -202,21 +202,27 @@ describe("tryClaimConnectorStateFile", () => {
 		try {
 			const first = tryClaimConnectorStateFile(
 				statePath,
-				{ pid: process.pid, userName: "bot" },
+				(claimId) => ({ claimId, pid: process.pid, userName: "bot" }),
 				() => true,
 			);
-			expect(first).toBe(true);
+			expect(first).toBeDefined();
 			const parsed = JSON.parse(readFileSync(statePath, "utf8")) as {
+				claimId: string;
 				pid: number;
 			};
+			expect(parsed.claimId).toBe(first?.claimId);
 			expect(parsed.pid).toBe(process.pid);
 
 			const second = tryClaimConnectorStateFile(
 				statePath,
-				{ pid: process.pid + 1, userName: "bot" },
+				(claimId) => ({
+					claimId,
+					pid: process.pid + 1,
+					userName: "bot",
+				}),
 				() => true,
 			);
-			expect(second).toBe(false);
+			expect(second).toBeUndefined();
 			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
@@ -237,11 +243,61 @@ describe("tryClaimConnectorStateFile", () => {
 		try {
 			const claimed = tryClaimConnectorStateFile(
 				statePath,
-				{ pid: process.pid, userName: "bot" },
+				(claimId) => ({ claimId, pid: process.pid, userName: "bot" }),
 				(pid) => pid === process.pid,
 			);
-			expect(claimed).toBe(true);
+			expect(claimed).toBeDefined();
 			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("allows only one contender to replace the same stale generation", async () => {
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import(
+			"node:fs"
+		);
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		const stalePayload = `${JSON.stringify({
+			claimId: "stale",
+			pid: 1,
+			userName: "stale",
+		})}
+`;
+		const firstPayload = `${JSON.stringify({
+			claimId: "first",
+			pid: 2,
+			userName: "bot",
+		})}
+`;
+		const secondPayload = `${JSON.stringify({
+			claimId: "second",
+			pid: 3,
+			userName: "bot",
+		})}
+`;
+		writeFileSync(statePath, stalePayload, "utf8");
+
+		try {
+			expect(
+				__test__.tryReplaceStaleConnectorStateFile(
+					statePath,
+					stalePayload,
+					firstPayload,
+				),
+			).toBe(true);
+			expect(
+				__test__.tryReplaceStaleConnectorStateFile(
+					statePath,
+					stalePayload,
+					secondPayload,
+				),
+			).toBe(false);
+			expect(readFileSync(statePath, "utf8")).toBe(firstPayload);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}

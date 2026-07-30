@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import {
 	closeSync,
 	existsSync,
+	linkSync,
 	openSync,
 	readFileSync,
 	rmSync,
@@ -269,6 +271,7 @@ export const __test__ = {
 	buildDetachedConnectorArgs,
 	buildDetachedConnectorCommand,
 	buildDetachedConnectorEnv,
+	tryReplaceStaleConnectorStateFile,
 };
 
 export function readJsonFile<T>(path: string, fallback: T): T {
@@ -293,63 +296,117 @@ export function writeJsonFile(path: string, value: unknown): void {
  * Atomically claim a connector state path for this process.
  *
  * Uses O_EXCL so two concurrent `cline connect` launches cannot both observe
- * "no running instance" and both proceed. Returns false when another live
+ * "no running instance" and both proceed. Returns undefined when another live
  * connector already owns the path (or a concurrent claim won the race).
  */
 export function tryClaimConnectorStateFile(
 	statePath: string,
-	state: { pid: number } & Record<string, unknown>,
+	createState: (
+		claimId: string,
+	) => { claimId: string; pid: number } & Record<string, unknown>,
 	isRunning: (pid: number) => boolean = isProcessRunning,
-): boolean {
+): { claimId: string } | undefined {
 	ensureParentDir(statePath);
+	const claimId = randomUUID();
+	const state = createState(claimId);
 	const payload = `${JSON.stringify(state, null, 2)}
 `;
+
+	if (tryCreateConnectorStateFile(statePath, payload)) {
+		return { claimId };
+	}
+
+	let observedPayload: string;
 	try {
-		const fd = openSync(statePath, "wx");
-		try {
-			writeFileSync(fd, payload, "utf8");
-		} finally {
-			closeSync(fd);
+		observedPayload = readFileSync(statePath, "utf8");
+	} catch {
+		return undefined;
+	}
+	try {
+		const existing = JSON.parse(observedPayload) as { pid?: unknown };
+		const existingPid =
+			typeof existing.pid === "number" ? existing.pid : undefined;
+		if (existingPid !== undefined && isRunning(existingPid)) {
+			return undefined;
 		}
-		return true;
+	} catch (error) {
+		if (!(error instanceof SyntaxError)) {
+			return undefined;
+		}
+	}
+
+	return tryReplaceStaleConnectorStateFile(
+		statePath,
+		observedPayload,
+		payload,
+	)
+		? { claimId }
+		: undefined;
+}
+
+function tryCreateConnectorStateFile(
+	statePath: string,
+	payload: string,
+): boolean {
+	let fd: number;
+	try {
+		fd = openSync(statePath, "wx");
 	} catch (error) {
 		const code =
 			error && typeof error === "object" && "code" in error
 				? String((error as NodeJS.ErrnoException).code)
 				: undefined;
-		if (code !== "EEXIST") {
-			throw error;
-		}
-		// Another process may have crashed after writing state. If the owner
-		// pid is dead, replace the stale claim once and retry the exclusive create.
-		try {
-			const existing = JSON.parse(readFileSync(statePath, "utf8")) as {
-				pid?: unknown;
-			};
-			const existingPid =
-				typeof existing.pid === "number" ? existing.pid : undefined;
-			if (existingPid !== undefined && isRunning(existingPid)) {
-				return false;
-			}
-		} catch {
-			// Corrupt state file — treat as stale and replace below.
-		}
-		try {
-			rmSync(statePath, { force: true });
-		} catch {
+		if (code === "EEXIST") {
 			return false;
 		}
-		try {
-			const fd = openSync(statePath, "wx");
-			try {
-				writeFileSync(fd, payload, "utf8");
-			} finally {
-				closeSync(fd);
-			}
-			return true;
-		} catch {
+		throw error;
+	}
+	try {
+		writeFileSync(fd, payload, "utf8");
+	} finally {
+		closeSync(fd);
+	}
+	return true;
+}
+
+/**
+ * Replaces exactly the stale generation that the caller observed.
+ *
+ * The permanent hard-link guard is keyed by the observed payload. Only one
+ * contender can create it, and delayed contenders cannot unlink the winner's
+ * newer claim. Keeping the guard also protects against a contender that was
+ * suspended after reading the stale generation.
+ */
+function tryReplaceStaleConnectorStateFile(
+	statePath: string,
+	observedPayload: string,
+	replacementPayload: string,
+): boolean {
+	const generation = createHash("sha256")
+		.update(observedPayload)
+		.digest("hex");
+	const replacementGuardPath = `${statePath}.${generation}.stale`;
+	try {
+		linkSync(statePath, replacementGuardPath);
+	} catch (error) {
+		const code =
+			error && typeof error === "object" && "code" in error
+				? String((error as NodeJS.ErrnoException).code)
+				: undefined;
+		if (code === "EEXIST" || code === "ENOENT") {
 			return false;
 		}
+		throw error;
+	}
+
+	try {
+		if (readFileSync(replacementGuardPath, "utf8") !== observedPayload) {
+			return false;
+		}
+		rmSync(statePath);
+		return tryCreateConnectorStateFile(statePath, replacementPayload);
+	} catch {
+		return false;
 	}
 }
 

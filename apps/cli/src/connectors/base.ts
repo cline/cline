@@ -179,28 +179,31 @@ export abstract class ConnectorBase<Options, State>
 	 */
 	protected claimConnectorInstance(input: {
 		statePath: string;
-		state: State & { pid: number };
+		createState: (
+			claimId: string,
+		) => State & { claimId: string; pid: number };
 		readState: (path: string) => State | undefined;
 		getPid: (state: State) => number;
-	}): { claimed: true } | { claimed: false; running?: State } {
+	}):
+		| { claimed: true; claimId: string }
+		| { claimed: false; running?: State } {
 		const existing = input.readState(input.statePath);
 		if (existing && isProcessRunning(input.getPid(existing))) {
 			return { claimed: false, running: existing };
 		}
-		if (
-			!tryClaimConnectorStateFile(
-				input.statePath,
-				input.state as { pid: number } & Record<string, unknown>,
-				isProcessRunning,
-			)
-		) {
+		const claim = tryClaimConnectorStateFile(
+			input.statePath,
+			input.createState,
+			isProcessRunning,
+		);
+		if (!claim) {
 			const raced = input.readState(input.statePath);
 			return {
 				claimed: false,
 				...(raced ? { running: raced } : {}),
 			};
 		}
-		return { claimed: true };
+		return { claimed: true, claimId: claim.claimId };
 	}
 
 	protected async maybeRunInBackground(input: {
@@ -224,12 +227,6 @@ export abstract class ConnectorBase<Options, State>
 		if (runningState && input.isRunning(runningState)) {
 			input.io.writeln(input.formatAlreadyRunningMessage(runningState));
 			return CONNECT_ALREADY_RUNNING_EXIT_CODE;
-		}
-		// Drop a dead pid so the child can exclusively claim the state path.
-		// Without this, two parent launches can both pass the liveness check
-		// above and spawn two children that race on the same Slack tokens.
-		if (runningState) {
-			this.removeStateFile(input.statePath);
 		}
 		const pid = spawnDetachedConnector(
 			["connect", this.name],

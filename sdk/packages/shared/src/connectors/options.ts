@@ -83,6 +83,7 @@ export type ConnectSlackOptions = {
 };
 
 export type SlackConnectorState = {
+	claimId: string;
 	userName: string;
 	connectionMode?: "webhook" | "socket";
 	pid: number;

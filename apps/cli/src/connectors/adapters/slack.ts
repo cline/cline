@@ -628,6 +628,7 @@ class SlackConnector extends ConnectorBase<
 				Boolean(
 					value &&
 						typeof value === "object" &&
+						typeof (value as SlackConnectorState).claimId === "string" &&
 						typeof (value as SlackConnectorState).pid === "number" &&
 						typeof (value as SlackConnectorState).userName === "string",
 				),
@@ -689,11 +690,11 @@ class SlackConnector extends ConnectorBase<
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const stateStorePath = this.resolveStateStorePath(options.userName);
-		const staleState = this.removeStaleState(
-			statePath,
-			(path) => this.readConnectorState(path),
-			(state) => state.pid,
-		);
+		const existingState = this.readConnectorState(statePath);
+		const staleState =
+			existingState && !isProcessRunning(existingState.pid)
+				? existingState
+				: undefined;
 		if (staleState) {
 			clearBindingSessionIds<SlackThreadState>(bindingsPath);
 		}
@@ -722,18 +723,20 @@ class SlackConnector extends ConnectorBase<
 
 		// Foreground / detached-child path: exclusively claim the instance before
 		// opening Slack socket-mode so a second process cannot share the token.
+		const startedAt = new Date().toISOString();
 		const claim = this.claimConnectorInstance({
 			statePath,
-			state: {
+			createState: (claimId) => ({
+				claimId,
 				userName: options.userName,
 				connectionMode: options.connectionMode,
 				pid: process.pid,
 				rpcAddress: "pending",
-				startedAt: new Date().toISOString(),
+				startedAt,
 				...(options.connectionMode === "webhook"
 					? { port: options.port, baseUrl: options.baseUrl }
 					: {}),
-			} as SlackConnectorState,
+			}),
 			readState: (path) => this.readConnectorState(path),
 			getPid: (state) => state.pid,
 		});
@@ -833,6 +836,7 @@ class SlackConnector extends ConnectorBase<
 		});
 		await client.connect();
 		this.writeConnectorState(statePath, {
+			claimId: claim.claimId,
 			userName: options.userName,
 			connectionMode: options.connectionMode,
 			pid: process.pid,
@@ -840,7 +844,7 @@ class SlackConnector extends ConnectorBase<
 			...(options.connectionMode === "webhook"
 				? { port: options.port, baseUrl: options.baseUrl }
 				: {}),
-			startedAt: new Date().toISOString(),
+			startedAt,
 		});
 
 		let stopping = false;
