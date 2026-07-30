@@ -134,7 +134,9 @@ export class SdkDiffEditCoordinator {
 				// just cuts the linger short (the edit has already been applied).
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
-			await this.showEditedFile(this.sessions.get(toolCallId)?.revealPath)
+			if (!context.signal?.aborted) {
+				await this.showEditedFile(this.livePreviewRevealPath(toolCallId))
+			}
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
@@ -151,7 +153,7 @@ export class SdkDiffEditCoordinator {
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		// The pre-approval preview is discarded before the patch applies, so remember
 		// which file it showed for the post-edit reveal.
-		const preApprovalPath = this.sessions.get(toolCallId)?.revealPath
+		const preApprovalRevealPath = this.livePreviewRevealPath(toolCallId)
 		try {
 			if (hadPreApprovalPreview) {
 				await this.discardPreview(toolCallId)
@@ -167,7 +169,9 @@ export class SdkDiffEditCoordinator {
 			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
-			await this.showEditedFile(preApprovalPath ?? this.sessions.get(toolCallId)?.revealPath)
+			if (!context.signal?.aborted) {
+				await this.showEditedFile(preApprovalRevealPath ?? this.livePreviewRevealPath(toolCallId))
+			}
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
@@ -175,12 +179,23 @@ export class SdkDiffEditCoordinator {
 	}
 
 	/**
+	 * The reveal path for a tool call whose preview tab is still open. Undefined once
+	 * the preview was superseded by a newer same-file preview (the newer diff should
+	 * stay frontmost), failed to open, or was never opened (background edit).
+	 */
+	private livePreviewRevealPath(toolCallId: string): string | undefined {
+		const session = this.sessions.get(toolCallId)
+		return session?.preview ? session.revealPath : undefined
+	}
+
+	/**
 	 * Opens the edited file in a regular editor tab after a successful write, so it
 	 * stays visible once the preview diff tab closes — matching the legacy
 	 * DiffViewProvider.saveChanges() flow (show the file, then close the diff).
 	 * preserveFocus keeps the user's focus (e.g. the chat input) where it was.
-	 * Skipped when no preview was shown (background edit, preview failed to open) —
-	 * the reveal accompanies the diff, not the write itself.
+	 * Callers skip the reveal when no live preview accompanied the edit (background
+	 * edit, failed preview open, superseded by a newer same-file preview) and when
+	 * the task was aborted mid-edit — the reveal accompanies the diff, not the write.
 	 * Best-effort: a failure only loses the reveal, never the edit result.
 	 */
 	private async showEditedFile(absolutePath: string | undefined): Promise<void> {

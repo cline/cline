@@ -423,7 +423,7 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews[0].closed).toBe(1)
 	})
 
-	it("cuts the auto-approve linger short on abort without failing the applied edit", async () => {
+	it("cuts the auto-approve linger short on abort without failing the applied edit, and skips the reveal", async () => {
 		coordinator = makeCoordinator({ autoApprovePreviewLingerMs: 10_000 })
 		await writeFile("a.ts", "old content")
 		const input = { path: "a.ts", old_text: "old", new_text: "new" }
@@ -435,6 +435,8 @@ describe("SdkDiffEditCoordinator", () => {
 
 		expect(await promise).toBe("fallback editor result")
 		expect(previews[0].closed).toBe(1)
+		// A cancelled task should not pop the edited file open mid-teardown.
+		expect(showEditedFile).not.toHaveBeenCalled()
 	})
 
 	it("does not block openForApproval on a hung preview open, and closes the late tab once it settles", async () => {
@@ -518,14 +520,17 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews[0].closed).toBe(1)
 		expect(previews[1].opened?.rightContent).toBe("alpha\nSHARED\n")
 
-		// Executor #1 (session tombstoned) writes without opening a fresh auto-approve preview.
+		// Executor #1 (session tombstoned) writes without opening a fresh auto-approve
+		// preview, and does not reveal the file over #2's still-pending approval diff.
 		const result = await coordinator.executeEditorTool(first, tempDir, makeContext("tc1"))
 		expect(result).toBe("fallback editor result")
 		expect(previews).toHaveLength(2)
+		expect(showEditedFile).not.toHaveBeenCalled()
 
-		// Executor #2 closes its own preview.
+		// Executor #2 closes its own preview and reveals the file.
 		await coordinator.executeEditorTool(second, tempDir, makeContext("tc2"))
 		expect(previews[1].closed).toBe(1)
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "a.ts"))
 	})
 
 	it("discards previews on denial and discardAllPreviews closes everything", async () => {
