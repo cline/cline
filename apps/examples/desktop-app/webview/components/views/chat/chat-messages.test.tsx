@@ -680,3 +680,46 @@ describe("ChatMessages thinking indicator", () => {
 		expect(container.textContent).not.toContain("Thinking...");
 	});
 });
+
+describe("ChatMessages tool approvals", () => {
+	it("renders the shared card and forwards its decisions", async () => {
+		const onApprove = vi.fn();
+		const onReject = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "user-1",
+					sessionId: "session-1",
+					role: "user",
+					content: "Run pwd",
+					createdAt: 1,
+				},
+			],
+			{
+				onApproveToolApproval: onApprove,
+				onRejectToolApproval: onReject,
+				pendingToolApprovals: [
+					{
+						requestId: "req-1",
+						sessionId: "session-1",
+						createdAt: new Date(1).toISOString(),
+						toolCallId: "call-1",
+						toolName: "execute_command",
+						input: { command: "pwd" },
+					},
+				],
+			},
+		);
+
+		const card = container.querySelector(".cline-ui-agent-approval-card");
+		expect(card?.textContent).toContain("execute_command");
+		expect(card?.textContent).toContain('"command": "pwd"');
+
+		const [approve, reject] = card?.querySelectorAll("button") ?? [];
+		await act(async () => approve?.click());
+		expect(onApprove).toHaveBeenCalledWith("req-1");
+
+		await act(async () => reject?.click());
+		expect(onReject).toHaveBeenCalledWith("req-1");
+	});
+});

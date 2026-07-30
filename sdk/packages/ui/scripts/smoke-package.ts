@@ -14,6 +14,7 @@ const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentApprovalCard,
 	AgentAurora,
 	AgentHeroHeading,
 	AgentQuickActions,
@@ -35,6 +36,7 @@ for (const specifier of [
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (
+	!AgentApprovalCard ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!SearchCombobox ||
