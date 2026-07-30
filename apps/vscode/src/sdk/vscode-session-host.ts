@@ -32,7 +32,7 @@ import {
 } from "@cline/core"
 import {
 	type AgentToolContext,
-	RUNTIME_CONFIG_EXTENSION_KINDS,
+	type RuntimeConfigExtensionKind,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type ToolPolicy,
@@ -49,8 +49,9 @@ import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-m
 
 // Plugins run in the hub process, not in the VS Code extension host. Exclude
 // "plugins" from every VS Code session so installed plugin files are not
-// discovered or loaded here.
-const VSCODE_CONFIG_EXTENSIONS = RUNTIME_CONFIG_EXTENSION_KINDS.filter((k) => k !== "plugins")
+// discovered or loaded here. Keep in sync with RuntimeConfigExtensionKind in
+// @cline/shared when new extension kinds are added.
+const VSCODE_CONFIG_EXTENSIONS: readonly RuntimeConfigExtensionKind[] = ["rules", "skills", "workflows"]
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
