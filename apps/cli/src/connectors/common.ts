@@ -179,6 +179,7 @@ function rotateOversizedLog(path: string): void {
 		if (statSync(path).size < DETACHED_LOG_MAX_BYTES) {
 			return;
 		}
+		rmSync(`${path}.1`, { force: true });
 		renameSync(path, `${path}.1`);
 	} catch {
 		// No log yet, or it cannot be rotated: appending is still fine.
