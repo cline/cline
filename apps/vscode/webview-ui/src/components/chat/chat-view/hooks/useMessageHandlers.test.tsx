@@ -75,8 +75,8 @@ function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> =
 		setExpandedRows: vi.fn(),
 		pendingUserMessage: undefined,
 		setPendingUserMessage: vi.fn(),
-		pendingNewTaskSeq: undefined,
-		setPendingNewTaskSeq: vi.fn(),
+		pendingTurnStartSeq: undefined,
+		setPendingTurnStartSeq: vi.fn(),
 		textAreaRef: { current: null },
 		lastMessage: last,
 		secondLastMessage: messages.at(-2),
@@ -392,6 +392,55 @@ describe("useMessageHandlers — send routing", () => {
 		expect(askResponse).toHaveBeenCalledTimes(1)
 	})
 
+	it("marks an optimistic turn start when a follow-up is sent after a completed turn", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const setPendingTurnStartSeq = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(completedConversation, makeChatState(completedConversation, { setPendingTurnStartSeq })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("another question", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(setPendingTurnStartSeq).toHaveBeenCalledWith(7)
+	})
+
+	it("does not mark an optimistic turn start for a follow-up sent during streaming", async () => {
+		mockTurnState = { phase: "streaming", seq: 9 }
+		const streamingConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "text", text: "working", partial: true },
+		]
+		const setPendingTurnStartSeq = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(streamingConversation, makeChatState(streamingConversation, { setPendingTurnStartSeq })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("steer this way", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(setPendingTurnStartSeq).not.toHaveBeenCalled()
+	})
+
+	it("rolls the optimistic turn-start marker back when a follow-up askResponse fails", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const setPendingTurnStartSeq = vi.fn()
+		const chatState = makeChatState(completedConversation, { setPendingTurnStartSeq })
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
+		askResponse.mockRejectedValueOnce(new Error("transport down"))
+
+		await act(async () => {
+			await result.current.handleSendMessage("another question", [], []).catch(() => {})
+		})
+
+		expect(setPendingTurnStartSeq).toHaveBeenNthCalledWith(1, 7)
+		expect(setPendingTurnStartSeq).toHaveBeenLastCalledWith(undefined)
+	})
+
 	it("does not show a pending chat bubble when answering an active follow-up question with freeform text", async () => {
 		mockTurnState = { phase: "awaiting_followup", anchorTs: 2, seq: 3 }
 		const questionConversation: ClineMessage[] = [
@@ -421,8 +470,8 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("an empty transcript still starts a NEW task (unchanged behavior)", async () => {
 		mockTurnState = { phase: "idle", seq: 1 }
-		const setPendingNewTaskSeq = vi.fn()
-		const { result } = renderHook(() => useMessageHandlers([], makeChatState([], { setPendingNewTaskSeq })))
+		const setPendingTurnStartSeq = vi.fn()
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([], { setPendingTurnStartSeq })))
 
 		await act(async () => {
 			await result.current.handleSendMessage("brand new task", [], [])
@@ -431,7 +480,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
 		// The optimistic thinking marker captures the TurnState seq observed at submit.
-		expect(setPendingNewTaskSeq).toHaveBeenCalledWith(1)
+		expect(setPendingTurnStartSeq).toHaveBeenCalledWith(1)
 		expect(trackIntent).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: "prompt_submitted",
@@ -454,7 +503,7 @@ describe("useMessageHandlers — send routing", () => {
 		const setSelectedImages = vi.fn()
 		const setSelectedFiles = vi.fn()
 		const setEnableButtons = vi.fn()
-		const setPendingNewTaskSeq = vi.fn()
+		const setPendingTurnStartSeq = vi.fn()
 		const chatState = makeChatState([], {
 			activeQuote: "selected context",
 			sendingDisabled: false,
@@ -465,7 +514,7 @@ describe("useMessageHandlers — send routing", () => {
 			setSelectedImages,
 			setSelectedFiles,
 			setEnableButtons,
-			setPendingNewTaskSeq,
+			setPendingTurnStartSeq,
 		})
 		const { result } = renderHook(() => useMessageHandlers([], chatState))
 		newTask.mockRejectedValueOnce(error)
@@ -500,8 +549,8 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
 		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
 		// The optimistic thinking marker is set at submit and rolled back on failure.
-		expect(setPendingNewTaskSeq).toHaveBeenNthCalledWith(1, 1)
-		expect(setPendingNewTaskSeq).toHaveBeenLastCalledWith(undefined)
+		expect(setPendingTurnStartSeq).toHaveBeenNthCalledWith(1, 1)
+		expect(setPendingTurnStartSeq).toHaveBeenLastCalledWith(undefined)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

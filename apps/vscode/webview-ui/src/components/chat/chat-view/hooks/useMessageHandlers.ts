@@ -25,7 +25,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
-		setPendingNewTaskSeq,
+		setPendingTurnStartSeq,
 		clineAsk,
 		lastMessage,
 	} = chatState
@@ -107,6 +107,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				) => {
 					trackPromptSubmitted(true)
 					clearSentMessageState()
+					// Outside a streaming phase this send starts a new agent turn. Mark it so the
+					// "Thinking..." loader shows immediately instead of waiting for the backend's
+					// streaming TurnState round-trip (cleared in ChatView once it arrives). During
+					// streaming the loader logic is already live, so no marker is needed.
+					const startsTurn = turnState?.phase !== "streaming"
+					if (startsTurn) {
+						setPendingTurnStartSeq(turnState?.seq ?? 0)
+					}
 					if (options.showPendingMessage) {
 						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
 						setPendingUserMessage({
@@ -125,6 +133,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					try {
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
+						if (startsTurn) {
+							setPendingTurnStartSeq(undefined)
+						}
 						if (options.showPendingMessage) {
 							setPendingUserMessage(undefined)
 						}
@@ -141,14 +152,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
-					// Force the "Thinking..." loader row from the instant of submit until the
+					// Show the "Thinking..." loader row from the instant of submit until the
 					// backend's fresher TurnState arrives (cleared in ChatView), so the indicator
 					// shows together with the task message instead of after session startup.
-					setPendingNewTaskSeq(turnState?.seq ?? 0)
+					setPendingTurnStartSeq(turnState?.seq ?? 0)
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
-						setPendingNewTaskSeq(undefined)
+						setPendingTurnStartSeq(undefined)
 						restorePendingMessageState()
 						throw error
 					}
@@ -278,7 +289,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			setPendingUserMessage,
-			setPendingNewTaskSeq,
+			setPendingTurnStartSeq,
 			chatState,
 		],
 	)

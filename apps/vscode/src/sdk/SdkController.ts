@@ -1325,6 +1325,12 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
+		// The webview only learns the phase through a full state post. Without one here it would
+		// keep the stale terminal phase (and hide the thinking indicator) until the first session
+		// event of the new turn posts state — a visible delay after every follow-up/approval.
+		this.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
+		})
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 

@@ -92,8 +92,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows,
 		pendingUserMessage,
 		setPendingUserMessage,
-		pendingNewTaskSeq,
-		setPendingNewTaskSeq,
+		pendingTurnStartSeq,
+		setPendingTurnStartSeq,
 		textAreaRef,
 	} = chatState
 
@@ -120,19 +120,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [messages, pendingUserMessage, setPendingUserMessage])
 
-	// Retire the optimistic new-task thinking marker once the backend confirms the turn: a
+	// Retire the optimistic turn-start thinking marker once the backend confirms the turn: a
 	// TurnState fresher than the one observed at submit (any phase — streaming hands off to the
 	// normal loader logic, error/idle must stop forcing it). Without turnState (classic/legacy
-	// state), the legacy tail heuristic takes over as soon as the task message arrives.
+	// state), the legacy tail heuristic takes over as soon as messages flow.
 	useEffect(() => {
-		if (pendingNewTaskSeq === undefined) {
+		if (pendingTurnStartSeq === undefined) {
 			return
 		}
-		const backendConfirmedTurn = turnState ? turnState.seq > pendingNewTaskSeq : messages.length > 0
+		const backendConfirmedTurn = turnState ? turnState.seq > pendingTurnStartSeq : messages.length > 0
 		if (backendConfirmedTurn) {
-			setPendingNewTaskSeq(undefined)
+			setPendingTurnStartSeq(undefined)
 		}
-	}, [turnState, messages, pendingNewTaskSeq, setPendingNewTaskSeq])
+	}, [turnState, messages, pendingTurnStartSeq, setPendingTurnStartSeq])
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)

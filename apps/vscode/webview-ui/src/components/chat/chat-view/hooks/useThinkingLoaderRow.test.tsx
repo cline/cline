@@ -148,21 +148,42 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 	})
 })
 
-describe("useThinkingLoaderRow forceShow (optimistic new-task submit)", () => {
+describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this webview)", () => {
 	function renderLoader(initial: ThinkingLoaderInputs) {
 		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
 	}
 
-	it("shows immediately while the replica's turnState is still a stale idle", () => {
+	it("shows immediately for a new task while the replica's turnState is still a stale idle", () => {
 		// Right after a new-task submit the replica still holds the pre-task "idle" TurnState;
-		// without the force flag the authoritative gate would hide the loader until the
-		// streaming TurnState round-trips through a full state post.
-		const { result } = renderLoader({ ...inputsFor([], { phase: "idle", seq: 1 }), forceShow: true })
+		// without the marker the authoritative gate would hide the loader until the streaming
+		// TurnState round-trips through a full state post.
+		const { result } = renderLoader({ ...inputsFor([], { phase: "idle", seq: 1 }), optimisticTurnStart: true })
 		expect(result.current).toBe(true)
 	})
 
-	it("does not show for a stale idle turnState without the force flag", () => {
+	it("does not show for a stale idle turnState without the marker", () => {
 		const { result } = renderLoader(inputsFor([], { phase: "idle", seq: 1 }))
+		expect(result.current).toBe(false)
+	})
+
+	it("shows immediately for a follow-up while the replica's turnState is still the completed phase", () => {
+		// Follow-up after a completed turn: the tail is the previous turn's completion_result and
+		// the phase is still "completed" until the streaming TurnState posts. Both would normally
+		// suppress the loader; the optimistic marker bypasses them at turn START.
+		const conversation = [say(1, "completion_result", false, "done")]
+		const { result } = renderLoader({
+			...inputsFor(conversation, { phase: "completed", seq: 5 }),
+			optimisticTurnStart: true,
+		})
+		expect(result.current).toBe(true)
+	})
+
+	it("never shows while a visible content row is actively streaming, even with the marker", () => {
+		const conversation = [say(1, "text", true, "already streaming")]
+		const { result } = renderLoader({
+			...inputsFor(conversation, { phase: "completed", seq: 5 }),
+			optimisticTurnStart: true,
+		})
 		expect(result.current).toBe(false)
 	})
 
@@ -177,12 +198,15 @@ describe("useThinkingLoaderRow forceShow (optimistic new-task submit)", () => {
 			modifiedMessages: [],
 		})
 
-		const { result, rerender } = renderLoader({ ...withTask(inputsFor([], { phase: "idle", seq: 1 })), forceShow: true })
+		const { result, rerender } = renderLoader({
+			...withTask(inputsFor([], { phase: "idle", seq: 1 })),
+			optimisticTurnStart: true,
+		})
 		expect(result.current).toBe(true)
 
-		// The streaming TurnState arrives and ChatView drops the force flag in the same pass:
+		// The streaming TurnState arrives and ChatView drops the marker in the same pass:
 		// the loader must remain visible with no gap (now via the authoritative path).
-		rerender({ ...withTask(inputsFor([], streaming(2))), forceShow: false })
+		rerender({ ...withTask(inputsFor([], streaming(2))), optimisticTurnStart: false })
 		expect(result.current).toBe(true)
 	})
 })
