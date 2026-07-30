@@ -164,6 +164,41 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(result.config.extensions).toEqual([{ name: "remote-config" }])
 		expect(result.config.extraTools).toEqual([{ name: "remote-tool" }, { name: "vscode-tool" }])
 	})
+
+	it("excludes plugins from configExtensions in every VS Code session", async () => {
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		const result = await bootstrap.applyToStartSessionInput({
+			config: { cwd: "/tmp/workspace" },
+		})
+
+		expect(result.localRuntime?.configExtensions).toBeDefined()
+		expect(result.localRuntime?.configExtensions).not.toContain("plugins")
+		expect(result.localRuntime?.configExtensions).toContain("skills")
+		expect(result.localRuntime?.configExtensions).toContain("rules")
+	})
+
+	it("preserves existing localRuntime fields when setting configExtensions", async () => {
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		const result = await bootstrap.applyToStartSessionInput({
+			config: { cwd: "/tmp/workspace" },
+			localRuntime: { telemetry: undefined },
+		})
+
+		// configExtensions must be set and plugins must be excluded
+		expect(result.localRuntime?.configExtensions).not.toContain("plugins")
+	})
 })
 
 function makeTelemetry(): ITelemetryService {

@@ -13,7 +13,7 @@ export async function installMarketplaceEntry(
 	if (request.entry.type === "mcp") {
 		await controller.mcpHub?.reconcileMcpServersFromSettingsRPC()
 	}
-	if (request.entry.type === "skill" || request.entry.type === "plugin") {
+	if (request.entry.type === "skill") {
 		await controller.invalidateUserInstructionService()
 	}
 	return result

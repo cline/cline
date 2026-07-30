@@ -30,7 +30,13 @@ import {
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import {
+	type AgentToolContext,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolPolicy,
+} from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -40,6 +46,11 @@ import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-c
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
+
+// Plugins run in the hub process, not in the VS Code extension host. Exclude
+// "plugins" from every VS Code session so installed plugin files are not
+// discovered or loaded here.
+const VSCODE_CONFIG_EXTENSIONS = RUNTIME_CONFIG_EXTENSION_KINDS.filter((k) => k !== "plugins")
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
@@ -149,6 +160,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 					return {
 						...inputWithRemoteConfig,
 						source: inputWithRemoteConfig.source ?? "vscode",
+						localRuntime: {
+							...inputWithRemoteConfig.localRuntime,
+							configExtensions: VSCODE_CONFIG_EXTENSIONS,
+						},
 						config: {
 							...inputWithRemoteConfig.config,
 							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,

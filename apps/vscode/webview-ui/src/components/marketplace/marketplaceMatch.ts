@@ -30,10 +30,6 @@ function sourceBaseName(value: string | undefined): string | undefined {
 	return pathBaseName(withoutFragment)
 }
 
-function stripPluginInstallSuffix(value: string | undefined): string | undefined {
-	return value?.replace(/-[0-9a-f]{12}$/i, "")
-}
-
 function addMatchValue(values: Set<string>, value: string | undefined): void {
 	const normalized = normalizeMatchValue(value)
 	if (normalized && normalized !== "skill") {
@@ -73,10 +69,7 @@ function entryMatchValues(entry: MarketplaceEntry): Set<string> {
 	addMatchValue(values, entry.name)
 
 	const [source] = installArgs(entry)
-	if (entry.type === "plugin") {
-		addMatchValue(values, source)
-		addMatchValue(values, stripPluginInstallSuffix(sourceBaseName(source)))
-	} else if (entry.type === "mcp") {
+	if (entry.type === "mcp") {
 		addMatchValue(values, source)
 	}
 	return values
@@ -89,8 +82,6 @@ function localEntryMatchValues(entry: MarketplaceLocalInstalledEntry): Set<strin
 
 	if (entry.type === "skill") {
 		addMatchValue(values, pathBaseName(entry.path))
-	} else if (entry.type === "plugin") {
-		addMatchValue(values, stripPluginInstallSuffix(pathBaseName(entry.path)))
 	}
 	return values
 }

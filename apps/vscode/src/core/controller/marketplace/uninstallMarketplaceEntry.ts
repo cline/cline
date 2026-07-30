@@ -10,7 +10,7 @@ export async function uninstallMarketplaceEntry(
 		throw new Error("Marketplace entry is required.")
 	}
 	const result = await uninstallMarketplaceEntryFromCatalog(controller, request.entry)
-	if (request.entry.type === "skill" || request.entry.type === "plugin") {
+	if (request.entry.type === "skill") {
 		await controller.invalidateUserInstructionService()
 	}
 	return result
