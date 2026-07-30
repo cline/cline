@@ -37,8 +37,80 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # Gate the build/publish on BOTH bundles' own test suites, mirroring the two
+    # standalone publish paths (nightly gates on the bun suite via the same
+    # reusable workflow; the legacy publish inlines the npm suite). The gated
+    # `package` job requests its `publish` environment approval only after both
+    # suites pass.
+    #
+    # Caveat (shared with the nightly workflow): the reusable bun suite tests the
+    # DISPATCH ref — main, since this workflow is dispatched from main — not
+    # `next-ref`. With the default `next-ref: main` they are the same thing; a
+    # non-default `next-ref` builds a bundle this gate did not test.
+    test-next:
+        name: Test next (SDK) bundle
+        permissions:
+            contents: read
+            pull-requests: read
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    # The legacy branch is the npm codebase, so the bun-based reusable workflow
+    # cannot test it. Inlined npm steps, kept in sync with the `test` job in
+    # ext-vscode-publish-legacy.yml (same suite, different ref input name).
+    test-legacy:
+        name: Test legacy bundle
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.legacy-ref }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: "npm"
+                  cache-dependency-path: |
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
     package:
         name: Build combined (legacy + next) VSIX
+        needs: [test-next, test-legacy]
         runs-on: ubuntu-latest
         environment: publish
         steps:
