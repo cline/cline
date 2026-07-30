@@ -839,6 +839,8 @@ class SlackConnector extends ConnectorBase<
 				startRequest,
 			);
 			const queueKey = thread.id;
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await withSlackTeamBotToken({
@@ -867,6 +869,7 @@ class SlackConnector extends ConnectorBase<
 								userInstructionService,
 								chatCommandHost,
 								activeTurns,
+								enqueueTurn,
 								turnKey: queueKey,
 								getSessionMetadata: (
 									currentThread,
@@ -951,9 +954,7 @@ class SlackConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

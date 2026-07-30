@@ -53,6 +53,20 @@ export type ActiveConnectorTurn = {
 	participantKey?: string;
 };
 
+type ConnectorTurnQueue = (work: () => Promise<void>) => Promise<void>;
+
+type ConnectorTurnCoordination =
+	| {
+			activeTurns: Map<string, ActiveConnectorTurn>;
+			enqueueTurn: ConnectorTurnQueue;
+			turnKey?: string;
+	  }
+	| {
+			activeTurns?: undefined;
+			enqueueTurn?: undefined;
+			turnKey?: string;
+	  };
+
 type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
 
 type EmptyRuntimeReplyResolverFactory = (input: {
@@ -152,13 +166,17 @@ async function forgetStaleThreadSession<
 	logger: CliLoggerAdapter;
 	transport: string;
 	sessionId: string;
-}): Promise<void> {
-	await forgetThreadSession({
+}): Promise<boolean> {
+	const forgotten = await forgetThreadSession({
 		thread: input.thread,
 		bindingsPath: input.bindingsPath,
 		baseStartRequest: input.baseStartRequest,
 		errorLabel: input.errorLabel,
+		expectedSessionId: input.sessionId,
 	});
+	if (!forgotten) {
+		return false;
+	}
 	input.logger.core.log(
 		"Connector thread session no longer exists; starting a new session",
 		{
@@ -169,6 +187,7 @@ async function forgetStaleThreadSession<
 			sessionId: input.sessionId,
 		},
 	);
+	return true;
 }
 
 function applyForcedToolDisable<TState extends ConnectorThreadState>(
@@ -265,8 +284,6 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 	firstContactMessage?: string | ((currentState: TState) => string | undefined);
 	chatCommandHost?: ChatCommandHost;
 	userInstructionService?: UserInstructionConfigService;
-	activeTurns?: Map<string, ActiveConnectorTurn>;
-	turnKey?: string;
 	resolveMuteTarget?: (input: {
 		target: string;
 		thread: Thread<TState>;
@@ -310,7 +327,7 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 		threadId: string;
 		error: Error;
 	}) => Promise<void>;
-};
+} & ConnectorTurnCoordination;
 
 export async function handleConnectorUserTurn<
 	TState extends ConnectorThreadState,
@@ -930,21 +947,22 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		effectiveCurrentState,
 	);
-	const activeTurn =
-		input.activeTurns?.get(turnKey) ??
-		(input.activeTurns && currentState.sessionId?.trim()
-			? Array.from(input.activeTurns.values()).find(
-					(turn) =>
+	const keyedActiveTurn = input.activeTurns?.get(turnKey);
+	const activeTurnEntry = keyedActiveTurn
+		? ([turnKey, keyedActiveTurn] as const)
+		: input.activeTurns && currentState.sessionId?.trim()
+			? Array.from(input.activeTurns.entries()).find(
+					([, turn]) =>
 						turn.sessionId === currentState.sessionId?.trim() &&
 						turn.threadId === input.thread.id,
 				)
-			: undefined);
-	if (activeTurn?.sessionId?.trim()) {
+			: undefined;
+	if (activeTurnEntry?.[1].sessionId?.trim()) {
+		const [activeTurnKey, activeTurn] = activeTurnEntry;
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			runtimeInput,
 			input.userInstructionService,
 		);
-		let steered = true;
 		try {
 			await input.client.sendRuntimeSession(
 				activeTurn.sessionId,
@@ -961,28 +979,74 @@ export async function handleConnectorUserTurn<
 				throw error;
 			}
 			// The tracked turn points at a session the hub no longer knows about.
-			// Drop it and fall through to start a fresh session for this thread.
-			steered = false;
-			input.activeTurns?.delete(turnKey);
-			await forgetStaleThreadSession({
-				thread: input.thread,
-				bindingsPath: input.bindingsPath,
-				baseStartRequest: input.baseStartRequest,
-				errorLabel: input.errorLabel,
-				logger: input.logger,
-				transport: input.transport,
-				sessionId: activeTurn.sessionId,
-			});
-		}
-		if (steered) {
-			await postConnectorText(
-				input.thread,
-				input.transport,
-				"Steering current task.",
+			// Remove only the entry we attempted to steer, then route recovery
+			// through the normal per-thread queue. Concurrent messages that saw
+			// the same stale turn will line up behind this one instead of creating
+			// independent replacement sessions.
+			if (input.activeTurns?.get(activeTurnKey) === activeTurn) {
+				input.activeTurns.delete(activeTurnKey);
+			}
+			const enqueueTurn = input.enqueueTurn;
+			if (!enqueueTurn) {
+				throw new Error(
+					"Active connector turns require a per-thread turn queue",
+				);
+			}
+			await enqueueTurn(() =>
+				runConnectorRuntimeTurnWithRecovery({
+					input,
+					runtimeInput,
+					turnKey,
+					staleSessionId: activeTurn.sessionId,
+				}),
 			);
 			return;
 		}
+		await postConnectorText(
+			input.thread,
+			input.transport,
+			"Steering current task.",
+		);
+		return;
 	}
+
+	await runConnectorRuntimeTurnWithRecovery({
+		input,
+		runtimeInput,
+		turnKey,
+		currentState,
+	});
+}
+
+/**
+ * Runs a queued connector turn, replacing a stale session mapping at most once
+ * before replaying the user's input.
+ */
+async function runConnectorRuntimeTurnWithRecovery<
+	TState extends ConnectorThreadState,
+>(params: {
+	input: ConnectorUserTurnInput<TState>;
+	runtimeInput: string;
+	turnKey: string;
+	currentState?: TState;
+	staleSessionId?: string;
+}): Promise<void> {
+	const { input, runtimeInput, turnKey } = params;
+	const currentState =
+		params.currentState ??
+		(await loadThreadState(
+			input.thread,
+			input.bindingsPath,
+			input.baseStartRequest,
+		));
+	const effectiveCurrentState = applyForcedToolDisable(
+		currentState,
+		input.forceDisableTools,
+	);
+	const startRequest = buildThreadStartRequest(
+		input.baseStartRequest,
+		effectiveCurrentState,
+	);
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
 		runtimeInput,
 		input.userInstructionService,
@@ -992,30 +1056,43 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
+	if (params.staleSessionId) {
+		await forgetStaleThreadSession({
+			thread: input.thread,
+			bindingsPath: input.bindingsPath,
+			baseStartRequest: input.baseStartRequest,
+			errorLabel: input.errorLabel,
+			logger: input.logger,
+			transport: input.transport,
+			sessionId: params.staleSessionId,
+		});
+	}
 	// A thread binding can outlive its runtime session (hub restart, session
 	// deletion, retention cleanup). When that happens the turn fails with
 	// `session_not_found`; drop the stale mapping and replay the turn once
 	// against a brand new session instead of wedging the thread forever.
-	let sessionId = await getOrCreateSessionId({
-		thread: input.thread,
-		client: input.client,
-		startRequest,
-		logger: input.logger,
-		clientId: input.clientId,
-		transport: input.transport,
-		bindingsPath: input.bindingsPath,
-		errorLabel: input.errorLabel,
-		hookCommand: input.hookCommand,
-		hookBotUserName: input.botUserName,
-		sessionMetadata: input.getSessionMetadata(
-			input.thread,
-			input.clientId,
-			currentState,
-		),
-		reusedLogMessage: input.reusedLogMessage,
-		startedLogMessage: input.startedLogMessage,
-	});
-	let allowStaleSessionRetry = true;
+	const resolveSessionId = () =>
+		getOrCreateSessionId({
+			thread: input.thread,
+			client: input.client,
+			startRequest,
+			logger: input.logger,
+			clientId: input.clientId,
+			transport: input.transport,
+			bindingsPath: input.bindingsPath,
+			errorLabel: input.errorLabel,
+			hookCommand: input.hookCommand,
+			hookBotUserName: input.botUserName,
+			sessionMetadata: input.getSessionMetadata(
+				input.thread,
+				input.clientId,
+				currentState,
+			),
+			reusedLogMessage: input.reusedLogMessage,
+			startedLogMessage: input.startedLogMessage,
+		});
+	let sessionId = await resolveSessionId();
+	let allowStaleSessionRetry = params.staleSessionId === undefined;
 	for (;;) {
 		try {
 			await runConnectorRuntimeTurn({
@@ -1040,25 +1117,7 @@ export async function handleConnectorUserTurn<
 				transport: input.transport,
 				sessionId,
 			});
-			sessionId = await getOrCreateSessionId({
-				thread: input.thread,
-				client: input.client,
-				startRequest,
-				logger: input.logger,
-				clientId: input.clientId,
-				transport: input.transport,
-				bindingsPath: input.bindingsPath,
-				errorLabel: input.errorLabel,
-				hookCommand: input.hookCommand,
-				hookBotUserName: input.botUserName,
-				sessionMetadata: input.getSessionMetadata(
-					input.thread,
-					input.clientId,
-					currentState,
-				),
-				reusedLogMessage: input.reusedLogMessage,
-				startedLogMessage: input.startedLogMessage,
-			});
+			sessionId = await resolveSessionId();
 		}
 	}
 
@@ -1092,11 +1151,12 @@ async function runConnectorRuntimeTurn<
 		sessionId,
 	});
 
-	input.activeTurns?.set(turnKey, {
+	const activeTurn: ActiveConnectorTurn = {
 		sessionId,
 		threadId: input.thread.id,
 		participantKey: currentState.participantKey,
-	});
+	};
+	input.activeTurns?.set(turnKey, activeTurn);
 	await input.thread.startTyping();
 	let toolStatusMessage: SentMessage | undefined;
 	const postFinalReply = input.postFinalReply
@@ -1161,7 +1221,9 @@ async function runConnectorRuntimeTurn<
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
-		input.activeTurns?.delete(turnKey);
+		if (input.activeTurns?.get(turnKey) === activeTurn) {
+			input.activeTurns.delete(turnKey);
+		}
 		if (toolStatusMessage) {
 			await toolStatusMessage.delete().catch(() => undefined);
 		}
