@@ -207,8 +207,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
 	// Reasoning support comes from the SDK catalog (models.dev), not model-id
-	// heuristics: any reasoning-capable model gets the effort selector.
-	const showReasoningEffort = showAdaptiveThinkingEffort || selectedModelInfo.supportsReasoning === true
+	// heuristics: any reasoning-capable model gets the effort selector. Prefer
+	// the live catalog entry over the committed legacy snapshot — the snapshot
+	// can be cleared by provider-config writes (fallback-source resolutions).
+	const showReasoningEffort =
+		showAdaptiveThinkingEffort || (openRouterModels[selectedModelId] ?? selectedModelInfo)?.supportsReasoning === true
 	const handleReasoningEffortChange = (effort: string) => {
 		void write({
 			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
