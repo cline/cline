@@ -204,6 +204,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+						// Resuming a task opened from history rebuilds the SDK session before the
+						// extension echoes say:user_feedback, so without an optimistic bubble the
+						// user's message would not appear until the (slow) resume finishes — the
+						// chat would show only the Thinking loader in the meantime.
 						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -211,6 +215,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								images,
 								files,
 							}),
+							{ showPendingMessage: turnState?.phase !== "streaming" },
 						)
 						messageSent = true
 					} else {

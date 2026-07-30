@@ -349,6 +349,83 @@ describe("useMessageHandlers — send routing", () => {
 		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
 	})
 
+	it("shows a pending chat bubble immediately when sending a message to a task resumed from history", async () => {
+		mockTurnState = { phase: "resumable", seq: 5 }
+		const historyConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "text", text: "partial work" },
+			{ ts: 3, type: "ask", ask: "resume_task" },
+		]
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				historyConversation,
+				makeChatState(historyConversation, { setPendingUserMessage, setPendingResponse }),
+			),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("keep going", ["image.png"], ["a.ts"])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseType: "yesButtonClicked",
+				text: "keep going",
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				afterTs: 3,
+				message: expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: "keep going",
+					images: ["image.png"],
+					files: ["a.ts"],
+					partial: false,
+				}),
+			}),
+		)
+		expect(setPendingResponse).toHaveBeenCalledWith({
+			id: 1,
+			turnStateSeq: 5,
+			messageCount: historyConversation.length,
+		})
+	})
+
+	it("shows a pending chat bubble when resuming a completed task from history", async () => {
+		mockTurnState = { phase: "completed", seq: 4 }
+		const historyConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "completion_result", text: "all done" },
+			{ ts: 3, type: "ask", ask: "resume_completed_task" },
+		]
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(historyConversation, makeChatState(historyConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("one more thing", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "yesButtonClicked", text: "one more thing" }),
+		)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				afterTs: 3,
+				message: expect.objectContaining({ say: "user_feedback", text: "one more thing" }),
+			}),
+		)
+	})
+
 	it("does not show a pending chat bubble for a streaming follow-up that will be queued", async () => {
 		mockTurnState = { phase: "streaming", seq: 9 }
 		const streamingConversation: ClineMessage[] = [
