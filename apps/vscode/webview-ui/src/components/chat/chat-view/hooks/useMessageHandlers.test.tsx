@@ -134,6 +134,21 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
+	it("routes the /newtask alias to the condense RPC as well", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/newtask", [], [])
+		})
+
+		expect(condense).toHaveBeenCalledTimes(1)
+		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).not.toHaveBeenCalled()
+	})
+
 	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
 		mockTurnState = { phase: "idle", seq: 1 }
 		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))

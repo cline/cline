@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentApprovalCard } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -745,67 +746,37 @@ function ToolApprovalPanel({
 			<div className="mt-3 flex flex-col gap-2">
 				{items.map((item) => {
 					const pendingAction = pendingActions[item.requestId];
-					const isPending = Boolean(pendingAction);
 					const error = requestErrors[item.requestId];
 					return (
-						<div
-							className="rounded-lg border border-border/80 bg-background/70 p-3"
+						<AgentApprovalCard
+							description={
+								<>
+									Request {item.requestId}
+									{item.iteration != null
+										? ` · Iteration ${item.iteration}`
+										: ""}
+								</>
+							}
+							detail={formatApprovalInput(item.input)}
+							error={error}
 							key={item.requestId}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="text-sm font-medium text-foreground">
-									{item.toolName}
-								</div>
-								<div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+							meta={
+								<>
 									<Clock3 className="h-3 w-3" />
 									{formatApprovalTimestamp(item.createdAt)}
-								</div>
-							</div>
-							<div className="mt-1 text-[11px] text-muted-foreground">
-								Request {item.requestId}
-								{item.iteration != null ? ` · Iteration ${item.iteration}` : ""}
-							</div>
-							<pre className="mt-2 max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
-								{formatApprovalInput(item.input)}
-							</pre>
-							{error ? (
-								<div className="mt-2 text-xs text-destructive">{error}</div>
-							) : null}
-							<div className="mt-2 flex items-center gap-2">
-								<Button
-									disabled={isPending}
-									onClick={() => onApprove(item.requestId)}
-									size="sm"
-									type="button"
-									variant="default"
-								>
-									{pendingAction === "approving" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Approving...
-										</>
-									) : (
-										"Approve"
-									)}
-								</Button>
-								<Button
-									disabled={isPending}
-									onClick={() => onReject(item.requestId)}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									{pendingAction === "rejecting" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Rejecting...
-										</>
-									) : (
-										"Reject"
-									)}
-								</Button>
-							</div>
-						</div>
+								</>
+							}
+							onApprove={() => onApprove(item.requestId)}
+							onReject={() => onReject(item.requestId)}
+							responding={
+								pendingAction === "approving"
+									? "approve"
+									: pendingAction === "rejecting"
+										? "reject"
+										: undefined
+							}
+							title={item.toolName}
+						/>
 					);
 				})}
 			</div>

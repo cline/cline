@@ -45,12 +45,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its alias `/smol`) must run a real SDK manual
-			// compaction via the condense RPC — sending the literal text to the
-			// model would make it improvise a fake summary instead of compacting
-			// the context window (CLINE-2503). With no active task there is nothing
-			// to compact, so fall through to normal new-task handling.
-			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
+			// `/compact` (and its aliases `/smol` and `/newtask`) must run a real
+			// SDK manual compaction via the condense RPC — sending the literal
+			// text to the model would make it improvise a fake summary instead of
+			// compacting the context window (CLINE-2503). `/newtask` aliases
+			// compaction because condensing achieves its goal (continue working
+			// with a fresh, summarized context) without the legacy new_task tool.
+			// With no active task there is nothing to compact, so fall through to
+			// normal new-task handling.
+			if (
+				messages.length > 0 &&
+				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
+			) {
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
 					console.error("Failed to compact task:", err),
 				)
