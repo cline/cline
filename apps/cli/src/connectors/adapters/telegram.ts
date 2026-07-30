@@ -817,6 +817,8 @@ class TelegramConnector extends ConnectorBase<
 			text: string,
 		) => {
 			const queueKey = thread.id;
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -841,6 +843,7 @@ class TelegramConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						forceDisableTools: !options.enableTools,
 						postFinalReply: async ({
@@ -952,9 +955,7 @@ class TelegramConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

@@ -8,7 +8,6 @@ import {
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { ModelCapabilitySchema } from "@cline/shared"
 import { type ApiConfiguration, type ApiProvider, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
-import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { isSecretKey, isSettingsKey, type SecretKey, type SettingsKey } from "@shared/storage/state-keys"
@@ -255,7 +254,6 @@ function normalizeModelSelectionOverrides(overrides: ModelSelectionOverrides | u
 		...(cacheWritesPrice !== undefined ? { cacheWritesPrice } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
-		...(overrides.isR1FormatRequired !== undefined ? { isR1FormatRequired: overrides.isR1FormatRequired } : {}),
 	}
 	return Object.keys(next).length > 0 ? next : undefined
 }
@@ -278,7 +276,6 @@ function toStoredModelEntry(overrides: ModelSelectionOverrides): StoredModelEntr
 		...(overrides.cacheWritesPrice !== undefined ? { cacheWritesPrice: overrides.cacheWritesPrice } : {}),
 		...(overrides.temperature !== undefined ? { temperature: overrides.temperature } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
-		...(overrides.isR1FormatRequired !== undefined ? { isR1FormatRequired: overrides.isR1FormatRequired } : {}),
 	}
 }
 
@@ -302,7 +299,6 @@ function toSelectionOverrides(entry: StoredModelEntry | undefined): ModelSelecti
 		...(entry.cacheWritesPrice !== undefined ? { cacheWritesPrice: entry.cacheWritesPrice } : {}),
 		...(entry.temperature !== undefined ? { temperature: entry.temperature } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
-		...(entry.isR1FormatRequired !== undefined ? { isR1FormatRequired: entry.isR1FormatRequired } : {}),
 	})
 }
 
@@ -377,10 +373,6 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 	}
 	if (overrides.supportsVision !== undefined) next.supportsImages = overrides.supportsVision
 	if (overrides.supportsReasoning !== undefined) next.supportsReasoning = overrides.supportsReasoning
-
-	// apiFormat is canonical. The legacy R1 flag remains a compatibility alias
-	// that forces R1 only when explicitly true.
-	if (overrides.isR1FormatRequired) next.apiFormat = ApiFormat.R1_CHAT
 	return next
 }
 
@@ -680,7 +672,7 @@ function writeSelectionToProviderSettings(providerId: ProviderId, selection: Mod
 	saveProviderSettings(providerId, next)
 }
 
-type LegacyModelInfo = ModelInfo & { maxInputTokens?: number; isR1FormatRequired?: boolean }
+type LegacyModelInfo = ModelInfo & { maxInputTokens?: number }
 type MutableModelSelectionOverrides = { -readonly [Key in keyof ModelSelectionOverrides]: ModelSelectionOverrides[Key] }
 
 function legacyModelInfoToOverrides(modelInfo: LegacyModelInfo, fallback: ModelInfo): ModelSelectionOverrides | undefined {
@@ -715,7 +707,6 @@ function legacyModelInfoToOverrides(modelInfo: LegacyModelInfo, fallback: ModelI
 	if (modelInfo.temperature !== undefined && modelInfo.temperature !== fallback.temperature)
 		overrides.temperature = modelInfo.temperature
 	if (modelInfo.apiFormat !== undefined && modelInfo.apiFormat !== fallback.apiFormat) overrides.apiFormat = modelInfo.apiFormat
-	if (modelInfo.isR1FormatRequired === true && fallbackInfo.isR1FormatRequired !== true) overrides.isR1FormatRequired = true
 	return normalizeModelSelectionOverrides(overrides)
 }
 

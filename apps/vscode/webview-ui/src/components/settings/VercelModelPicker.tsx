@@ -8,11 +8,11 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { getModeSpecificFields, supportsReasoningEffortForModelId } from "./utils/providerUtils"
+import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface VercelModelPickerProps {
@@ -22,6 +22,7 @@ interface VercelModelPickerProps {
 
 const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { write } = useProviderConfig("vercel-ai-gateway")
 	const { apiConfiguration, vercelAiGatewayModels, refreshVercelAiGatewayModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	// Vercel AI Gateway uses its own model fields
@@ -161,35 +162,22 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
 	const adaptiveThinkingDefaultEffort = useMemo(
 		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
-	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
-		[selectedModelId, showAdaptiveThinkingEffort],
-	)
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet")
-		)
-	}, [selectedModelIdLower, showReasoningEffort])
+	// Reasoning support comes from the SDK catalog (models.dev), not model-id
+	// heuristics: any reasoning-capable model gets the effort selector. Prefer
+	// the live catalog entry over the committed legacy snapshot — the snapshot
+	// can be cleared by provider-config writes (fallback-source resolutions).
+	const showReasoningEffort =
+		showAdaptiveThinkingEffort || (vercelAiGatewayModels[selectedModelId] ?? selectedModelInfo)?.supportsReasoning === true
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update Vercel AI Gateway reasoning effort:", err))
+	}
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -279,20 +267,17 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 
 			{hasInfo && selectedModelInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
-							allowedEfforts={
-								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
-							}
 							currentMode={currentMode}
-							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
+							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "none"}
 							description={
 								showAdaptiveThinkingEffort
 									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-									: undefined
+									: "Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							onEffortChange={handleReasoningEffortChange}
 						/>
 					)}
 

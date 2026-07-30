@@ -46,6 +46,9 @@ type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 /** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
 export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
+/** Release the agent turn if a foreground command is still running after 300 seconds. */
+export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 300 * 1000
+
 /**
  * Cap on the "Proceed While Running" log file. A detached devserver can log
  * for days; once the cap is hit we stop appending and note the truncation.
@@ -199,9 +202,13 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 	}
 }
 
-function formatDetachedResult(logFilePath: string, output: string): string {
+type DetachReason = "user" | "timeout"
+
+function formatDetachedResult(logFilePath: string, output: string, reason: DetachReason): string {
 	return [
-		"The user chose to proceed while the command is starting or still running in their terminal.",
+		reason === "user"
+			? "The user chose to proceed while the command is starting or still running in their terminal."
+			: `The command was still starting or running after ${FOREGROUND_COMMAND_AUTO_PROCEED_MS / 1000} seconds, so Cline automatically proceeded while leaving it running in the terminal.`,
 		`This is partial output; further output is being redirected to this file, which you can read to check progress: ${logFilePath}`,
 		output.length > 0 ? `Output so far:\n${output}` : "No output so far.",
 	].join("\n")
@@ -221,10 +228,12 @@ export async function executeForeground(
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
 
-	// "Proceed While Running": register a per-invocation handle so the user
-	// can detach this command. Detaching redirects the remaining output to a
-	// log file and resolves the awaited promise; the command keeps running in
-	// the user's terminal (and the terminal stays busy until it completes).
+	// "Proceed While Running": register a per-invocation handle so the user can
+	// detach this command. If they do not act, automatically detach after 300
+	// seconds so a long-running command cannot block the agent turn indefinitely.
+	// Detaching redirects the remaining output to a log file and resolves the
+	// awaited promise; the command keeps running in the user's terminal (and the
+	// terminal stays busy until it completes).
 	//
 	// Registered BEFORE terminal acquisition so every command in a parallel
 	// run_commands batch is registered before the user can click the button.
@@ -233,23 +242,29 @@ export async function executeForeground(
 	// late command would re-block the turn the button just released.
 	const state: { phase: "waiting" | "started" | "detached" | "aborted" } = { phase: "waiting" }
 	let detachedLog: DetachedCommandLog | undefined
-	let applyDetach: (() => void) | undefined
+	let detachReason: DetachReason | undefined
+	let applyDetach: ((reason: DetachReason) => void) | undefined
 	let resolvePreStartControl!: (control: PreStartControl) => void
 	const preStartControl = new Promise<PreStartControl>((resolve) => {
 		resolvePreStartControl = resolve
 	})
-	const unregister = foregroundCommands?.register({
-		detach: () => {
-			if (state.phase === "waiting") {
-				state.phase = "detached"
-				detachedLog = createDetachedCommandLog(terminalCommand, [])
+	const requestDetach = (reason: DetachReason): void => {
+		if (state.phase === "waiting") {
+			state.phase = "detached"
+			detachReason = reason
+			detachedLog = createDetachedCommandLog(terminalCommand, [])
+			if (reason === "user") {
 				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
-				resolvePreStartControl("detach")
-			} else if (state.phase === "started") {
-				applyDetach?.()
 			}
-		},
+			resolvePreStartControl("detach")
+		} else if (state.phase === "started") {
+			applyDetach?.(reason)
+		}
+	}
+	const unregister = foregroundCommands?.register({
+		detach: () => requestDetach("user"),
 	})
+	const autoProceedTimer = setTimeout(() => requestDetach("timeout"), FOREGROUND_COMMAND_AUTO_PROCEED_MS)
 	const onAbort = (): void => {
 		if (state.phase === "waiting") {
 			state.phase = "aborted"
@@ -311,7 +326,7 @@ export async function executeForeground(
 				throw new Error("Detached command log was not initialized")
 			}
 			void acquisition.then((outcome) => finishDetachedAcquisition(outcome, log))
-			return formatDetachedResult(log.path, "")
+			return formatDetachedResult(log.path, "", detachReason ?? "timeout")
 		}
 
 		// Acquisition and a user action can resolve in the same microtask turn.
@@ -328,7 +343,7 @@ export async function executeForeground(
 				throw new Error("Detached command log was not initialized")
 			}
 			finishDetachedAcquisition(firstOutcome, log)
-			return formatDetachedResult(log.path, "")
+			return formatDetachedResult(log.path, "", detachReason ?? "timeout")
 		}
 		if (firstOutcome.type === "error") {
 			throw firstOutcome.error
@@ -381,13 +396,19 @@ export async function executeForeground(
 				process.continue()
 			}
 
-			applyDetach = () => {
+			applyDetach = (reason) => {
 				if (detachedLog !== undefined) {
 					return
 				}
+				detachReason = reason
 				detachedLog = createDetachedCommandLog(terminalCommand, outputLines)
 				detachedLog.attach(process)
-				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
+				if (reason === "user") {
+					telemetryService.captureTerminalUserIntervention(
+						TerminalUserInterventionAction.PROCESS_WHILE_RUNNING,
+						"vscode",
+					)
+				}
 				// detach() flushes any partial line (reaching both bufferLine and
 				// the log) before resolving the awaited promise. After that the
 				// partial output is final: stop buffering so the remaining
@@ -412,7 +433,7 @@ export async function executeForeground(
 			})
 
 			if (detachedLog !== undefined) {
-				return formatDetachedResult(detachedLog.path, output)
+				return formatDetachedResult(detachedLog.path, output, detachReason ?? "timeout")
 			}
 
 			const completionDetails = process.getCompletionDetails?.()
@@ -462,6 +483,7 @@ export async function executeForeground(
 			process.removeListener("line", bufferLine)
 		}
 	} finally {
+		clearTimeout(autoProceedTimer)
 		abortSignal?.removeEventListener("abort", onAbort)
 		unregister?.()
 	}

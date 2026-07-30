@@ -283,6 +283,43 @@ export async function getOrCreateSessionId<
 	return sessionId;
 }
 
+/**
+ * Drops a thread's session mapping without touching the runtime session, but
+ * only when it still points at the session the caller observed as stale.
+ *
+ * Used when the hub reports the mapped session no longer exists: the thread
+ * binding may have been recovered concurrently, so a newer session id must
+ * never be cleared by an older failure.
+ */
+export async function forgetThreadSession<
+	TState extends ConnectorThreadState,
+>(input: {
+	thread: Thread<TState>;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	errorLabel: string;
+	expectedSessionId: string;
+}): Promise<boolean> {
+	const threadState = await loadThreadState(
+		input.thread,
+		input.bindingsPath,
+		input.baseStartRequest,
+	);
+	if (threadState.sessionId?.trim() !== input.expectedSessionId.trim()) {
+		return false;
+	}
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...threadState,
+			sessionId: undefined,
+		},
+		input.errorLabel,
+	);
+	return true;
+}
+
 export async function clearSession<TState extends ConnectorThreadState>(input: {
 	thread: Thread<TState>;
 	client: HubSessionClient;

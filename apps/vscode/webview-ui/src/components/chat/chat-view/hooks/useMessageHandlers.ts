@@ -25,10 +25,12 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
+		setPendingResponse,
 		clineAsk,
 		lastMessage,
 	} = chatState
 	const cancelInFlightRef = useRef(false)
+	const pendingResponseIdRef = useRef(0)
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
@@ -100,33 +102,61 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
+				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
+					const id = ++pendingResponseIdRef.current
+					// A follow-up submitted during an active stream is queued/steering feedback.
+					// The authoritative streaming UI is already current, so forcing a loader could
+					// duplicate it alongside content that is still visibly streaming.
+					if (turnState?.phase !== "streaming") {
+						setPendingResponse({
+							id,
+							turnStateSeq: turnState?.seq,
+							messageCount: messages.length,
+						})
+					}
+					const optimisticMessage = pendingMessage
+						? {
+								afterTs: Math.max(0, ...messages.map((message) => message.ts)),
+								message: pendingMessage,
+							}
+						: undefined
+					if (optimisticMessage) {
+						setPendingUserMessage(optimisticMessage)
+					}
+					return { id, optimisticMessage }
+				}
+				const rollbackPendingResponse = (
+					id: number,
+					optimisticMessage: ReturnType<typeof beginPendingResponse>["optimisticMessage"],
+				) => {
+					setPendingResponse((current) => (current?.id === id ? undefined : current))
+					if (optimisticMessage) {
+						setPendingUserMessage((current) => (current === optimisticMessage ? undefined : current))
+					}
+				}
 				const sendAskResponseWithPendingState = async (
 					request: ReturnType<typeof AskResponseRequest.create>,
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
 					clearSentMessageState()
-					if (options.showPendingMessage) {
-						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
-						setPendingUserMessage({
-							afterTs,
-							message: {
-								ts: Date.now(),
-								type: "say",
-								say: "user_feedback",
-								text: request.text ?? "",
-								images: request.images,
-								files: request.files,
-								partial: false,
-							},
-						})
-					}
+					const { id, optimisticMessage } = beginPendingResponse(
+						options.showPendingMessage
+							? {
+									ts: Date.now(),
+									type: "say",
+									say: "user_feedback",
+									text: request.text ?? "",
+									images: request.images,
+									files: request.files,
+									partial: false,
+								}
+							: undefined,
+					)
 					try {
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
-						if (options.showPendingMessage) {
-							setPendingUserMessage(undefined)
-						}
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
@@ -140,9 +170,19 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "task",
+						text: messageToSend,
+						images,
+						files,
+						partial: false,
+					})
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
@@ -272,6 +312,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingResponse,
 			chatState,
 		],
 	)
