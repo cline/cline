@@ -4,7 +4,10 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSessionCompactionState } from "../../session/models/session-compaction";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+} from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
@@ -1762,6 +1765,196 @@ describe("createContextCompactionPrepareTurn", () => {
 		}
 	});
 
+	it("folds heavy parallel tool results instead of preserving nearly the whole transcript", async () => {
+		// Regression: with one assistant message issuing parallel tool calls
+		// followed by consecutive tool_result-only user messages, the safe-cut
+		// snap used to walk BACKWARD past the whole tool_result block to the
+		// first assistant message — summarizing only the tiny task text while
+		// preserving all of the heavy tool output (a net-zero compaction). The
+		// snap now walks forward, so the tool results are folded into the
+		// summary and the working context actually shrinks.
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-parallel",
+						text: "## Goal\nRead the files\n\n## Next\nAnswer",
+					},
+					{ type: "done", id: "summary-parallel", success: true },
+				]),
+			),
+		});
+
+		const heavyToolOutput = "x".repeat(4_000);
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "<task>Read three files</task>" },
+			{
+				role: "assistant",
+				content: [0, 1, 2].map((i) => ({
+					type: "tool_use" as const,
+					id: `parallel-tool-${i}`,
+					name: "read_files",
+					input: { file_paths: [`/tmp/f${i}.txt`] },
+				})),
+			},
+			...[0, 1, 2].map((i) => ({
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result" as const,
+						tool_use_id: `parallel-tool-${i}`,
+						name: "read_files",
+						content: heavyToolOutput,
+					},
+				],
+			})),
+			{ role: "assistant", content: "All three files read." },
+			{ role: "user", content: "Now summarize them from memory." },
+		];
+
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 200,
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 2_000 },
+			},
+		});
+
+		expect(result?.messages).toBeDefined();
+		const estimateMessageTokens = createTokenEstimator();
+		const beforeTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		const afterTokens = (result?.messages ?? []).reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		// The compaction must genuinely shrink the working context (the old
+		// backward snap kept > 95% of it).
+		expect(afterTokens).toBeLessThan(beforeTokens / 2);
+		// No orphaned halves of tool pairs in the preserved tail.
+		const toolUseIds3 = new Set<string>();
+		const toolResultIds3 = new Set<string>();
+		for (const msg of result?.messages ?? []) {
+			if (!Array.isArray(msg.content)) continue;
+			for (const block of msg.content) {
+				if (block.type === "tool_use") toolUseIds3.add(block.id);
+				if (block.type === "tool_result") {
+					toolResultIds3.add(block.tool_use_id);
+				}
+			}
+		}
+		for (const id of toolUseIds3) {
+			expect(toolResultIds3.has(id)).toBe(true);
+		}
+		for (const id of toolResultIds3) {
+			expect(toolUseIds3.has(id)).toBe(true);
+		}
+		// The completed divider must report a reduction, not growth.
+		const completed = emitStatusNotice.mock.calls.find(
+			([, metadata]) =>
+				(metadata as Record<string, unknown>)?.phase === "completed",
+		);
+		expect(completed).toBeDefined();
+		const completedMeta = completed?.[1] as Record<string, number>;
+		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
+	});
+
+	it("reports before/after tokens on the same baseline when apiMessages is a projection", async () => {
+		// Regression: tokensBefore was estimated over the (truncated) provider
+		// projection while tokensAfter was estimated over the compacted
+		// canonical messages, so the divider could show tokens going UP after
+		// a successful compaction (e.g. "13.2k -> 33.4k").
+		const heavy = "y".repeat(6_000);
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "<task>Do the thing</task>" },
+			{ role: "assistant", content: heavy },
+			{ role: "user", content: "continue" },
+		];
+		// Simulate the message-builder projection: same shape, truncated text
+		// (still large enough that the auto trigger fires against the 300-token
+		// input budget below).
+		const apiMessages: LlmsProviders.Message[] = [
+			messages[0],
+			{ role: "assistant", content: "y".repeat(1_500) },
+			messages[2],
+		];
+		const compact = vi.fn().mockResolvedValue({
+			messages: [
+				{ role: "user", content: "summary of the heavy work" },
+				messages[2],
+			],
+		});
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 300 },
+			},
+		});
+
+		const completed = emitStatusNotice.mock.calls.find(
+			([, metadata]) =>
+				(metadata as Record<string, unknown>)?.phase === "completed",
+		);
+		expect(completed).toBeDefined();
+		const completedMeta = completed?.[1] as Record<string, number>;
+		// "before" must reflect the canonical working context that was
+		// compacted, so a strictly-smaller compacted result reports a
+		// reduction even though the provider projection was tiny.
+		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
+	});
+
 	it("re-compacts a projection that starts with a compaction summary", async () => {
 		// After a successful compaction, the state-aware wrapper re-runs the
 		// strategy on [summary message, ...preserved tail]. The summary is not
@@ -3360,7 +3553,13 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
-	it("reports executed compaction telemetry in full-request token units", async () => {
+	it("reports executed compaction telemetry over the canonical working context", async () => {
+		// tokensBefore/tokensAfter are both measured over the canonical
+		// messages (plus the request overhead), NOT over the provider
+		// projection: the compaction rewrites the canonical transcript, so
+		// pairing an apiMessages-based "before" with a canonical-based
+		// "after" reported nonsense (tokens growing after a compaction) when
+		// the projection differed from the canonical messages.
 		const captureCalls: Array<{
 			event: string;
 			properties?: Record<string, unknown>;
@@ -3427,9 +3626,27 @@ describe("createContextCompactionPrepareTurn", () => {
 			(call) => call.event === "task.compaction_executed",
 		);
 		const props = executed?.properties as Record<string, unknown>;
-		expect(props.tokensBefore as number).toBeGreaterThanOrEqual(
-			props.triggerTokens as number,
+		const estimateMessageTokens = createTokenEstimator();
+		const requestInputTokens = estimateRequestInputTokens({
+			systemPrompt: "",
+			messages: apiMessages,
+			tools: [],
+		});
+		const apiMessageTokens = apiMessages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
 		);
+		const overheadTokens = Math.max(0, requestInputTokens - apiMessageTokens);
+		const canonicalTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		const trimmedTokens = estimateMessageTokens({
+			role: "user",
+			content: "trimmed",
+		});
+		expect(props.tokensBefore).toBe(overheadTokens + canonicalTokens);
+		expect(props.tokensAfter).toBe(overheadTokens + trimmedTokens);
 		expect(props.tokensSaved).toBe(
 			(props.tokensBefore as number) - (props.tokensAfter as number),
 		);
@@ -3766,5 +3983,52 @@ describe("createContextCompactionPrepareTurn", () => {
 			expect.objectContaining({ messages: currentMessages }),
 		);
 		expect(saveState).not.toHaveBeenCalled();
+	});
+
+	it("passes the exact source messages to saveState so hosts can validate against them", async () => {
+		// Regression: local-runtime-host validated the persist by projecting the
+		// state against agent.getMessages(), which mid-turn lacks id/ts on the
+		// just-appended user turn while the prepareTurn context carries
+		// codec-generated identity — so every auto-compaction persist was
+		// spuriously skipped as stale. saveState must receive the same messages
+		// the state's source-prefix hash was computed over.
+		const compact = vi.fn().mockResolvedValue({
+			messages: [{ role: "user", content: "summary" }],
+		});
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => undefined,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "task" },
+			{ role: "assistant", content: "answer" },
+			{ role: "user", content: "follow-up" },
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(saveState).toHaveBeenCalledTimes(1);
+		const [savedState, sourceMessages] = saveState.mock.calls[0];
+		expect(sourceMessages).toBe(currentMessages);
+		expect(
+			projectSessionCompactionState(savedState, currentMessages),
+		).toBeDefined();
 	});
 });

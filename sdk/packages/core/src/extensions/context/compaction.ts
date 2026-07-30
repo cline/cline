@@ -455,6 +455,13 @@ export function createContextCompactionPrepareTurn(
 				0,
 			);
 			const afterRequestTokens = requestOverheadTokens + afterMessageTokens;
+			// Report before/after on the same baseline. `requestInputTokens` is
+			// estimated over the (possibly projected/truncated) apiMessages while
+			// the compaction rewrites the canonical `messages`, so pairing it
+			// with `afterRequestTokens` (canonical-based) can show tokens going
+			// UP after a compaction. Measure "before" over the canonical
+			// messages too so the divider and telemetry compare like with like.
+			const beforeRequestTokens = requestOverheadTokens + messageInputTokens;
 			config.logger?.log("Context compaction completed", {
 				severity: "info",
 				strategy: executedStrategy,
@@ -463,10 +470,11 @@ export function createContextCompactionPrepareTurn(
 				apiInputTokens: apiMessageTokens,
 				requestInputTokens,
 				requestOverheadTokens,
+				beforeRequestTokens,
 				afterMessageTokens,
 				afterRequestTokens,
-				tokensSaved: requestInputTokens - afterRequestTokens,
-				utilizationBefore: `${((requestInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				tokensSaved: beforeRequestTokens - afterRequestTokens,
+				utilizationBefore: `${((beforeRequestTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterRequestTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				thresholdTrigger: `${(COMPACTION_TRIGGER_RATIO * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
@@ -480,7 +488,7 @@ export function createContextCompactionPrepareTurn(
 					reason: statusReason,
 					phase: "completed",
 					iteration: context.iteration,
-					tokensBefore: requestInputTokens,
+					tokensBefore: beforeRequestTokens,
 					tokensAfter: afterRequestTokens,
 					messagesBefore: beforeMessageCount,
 					messagesAfter: result.messages.length,
@@ -494,9 +502,9 @@ export function createContextCompactionPrepareTurn(
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: requestInputTokens,
+				tokensBefore: beforeRequestTokens,
 				tokensAfter: afterRequestTokens,
-				tokensSaved: requestInputTokens - afterRequestTokens,
+				tokensSaved: beforeRequestTokens - afterRequestTokens,
 				triggerTokens: requestTriggerTokens,
 				maxInputTokens,
 				thresholdRatio: COMPACTION_TRIGGER_RATIO,
@@ -566,7 +574,17 @@ export function createContextCompactionPrepareTurn(
 export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
-	saveState?: (state: SessionCompactionState) => void | Promise<void>;
+	/**
+	 * Persist a freshly-computed compaction state. `sourceMessages` are the
+	 * exact canonical messages the state's source-prefix hash was computed
+	 * over; hosts must validate projection against these (not a separately
+	 * derived transcript, which can differ in identity fields like id/ts
+	 * mid-turn and spuriously reject the write).
+	 */
+	saveState?: (
+		state: SessionCompactionState,
+		sourceMessages: CoreCompactionContext["messages"],
+	) => void | Promise<void>;
 }): ContextPipelinePrepareTurn {
 	return async (context) => {
 		const existingState = input.getState?.();
@@ -593,7 +611,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 					conversationId: context.conversationId,
 					systemPrompt,
 				});
-				await input.saveState?.(nextState);
+				await input.saveState?.(nextState, context.messages);
 				return {
 					...result,
 					...(systemPrompt !== undefined ? { systemPrompt } : {}),
@@ -616,7 +634,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				conversationId: context.conversationId,
 				systemPrompt: result.systemPrompt,
 			});
-			await input.saveState?.(nextState);
+			await input.saveState?.(nextState, context.messages);
 		}
 		return result;
 	};

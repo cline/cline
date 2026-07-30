@@ -339,14 +339,35 @@ export function findCutIndex(
 	// task followed by one long tool loop, or a projection that starts
 	// with a compaction summary) still cut at the token-budget candidate.
 	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	let cut =
+	const cut =
 		lastTurnStartIndex > 0
 			? Math.min(candidate, lastTurnStartIndex)
 			: candidate;
-	while (cut > 0 && !isSafeCutBoundary(messages[cut])) {
-		cut -= 1;
+	// Snap to a safe boundary by walking FORWARD (toward the tail) first:
+	// preserving less than the budget asked for always compacts harder,
+	// while walking backward can degenerate into preserving nearly the
+	// whole transcript — e.g. a run of tool_result-only messages from
+	// parallel tool calls right after the first assistant turn walks the
+	// cut all the way back to index 1. The forward walk never passes the
+	// latest typed user turn because that turn is itself a safe boundary.
+	let forwardCut = cut;
+	while (
+		forwardCut < messages.length &&
+		!isSafeCutBoundary(messages[forwardCut])
+	) {
+		forwardCut += 1;
 	}
-	return cut;
+	if (forwardCut < messages.length) {
+		return forwardCut;
+	}
+	// No safe boundary between the cut and the end of the transcript —
+	// fall back to the backward walk so the tool pair stays intact even
+	// though it preserves more than the budget asked for.
+	let backwardCut = cut;
+	while (backwardCut > 0 && !isSafeCutBoundary(messages[backwardCut])) {
+		backwardCut -= 1;
+	}
+	return backwardCut;
 }
 
 export function collectPaths(value: unknown): string[] {

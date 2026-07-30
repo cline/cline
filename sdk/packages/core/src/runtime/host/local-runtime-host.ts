@@ -585,7 +585,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => activeSessionRef?.compactionState,
-			saveState: async (state) => {
+			saveState: async (state, sourceMessages) => {
 				const activeSession = activeSessionRef;
 				if (!activeSession) return;
 				const stateForSession = {
@@ -593,9 +593,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 					conversation_id: activeSession.sessionId,
 				};
 				try {
+					// Validate projection against the exact messages the state was
+					// computed from. Mid-turn, `agent.getMessages()` (the canonical
+					// conversation store) can differ from the runtime's working
+					// transcript in identity fields — the just-appended user turn
+					// only receives its id/ts when the runtime trail is synced back
+					// — so validating against the store spuriously rejected every
+					// auto-compaction persist ("Skipped stale session compaction
+					// state") and forced a full re-compaction on the next turn.
 					const result = await this.persistActiveSessionCompactionState(
 						activeSession,
 						stateForSession,
+						sourceMessages,
 					);
 					if (!result.updated) {
 						configWithProvider.logger?.debug?.(
