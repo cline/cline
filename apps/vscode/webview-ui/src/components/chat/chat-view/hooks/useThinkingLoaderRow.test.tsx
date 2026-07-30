@@ -147,3 +147,42 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		expect(result.current).toBe(false)
 	})
 })
+
+describe("useThinkingLoaderRow forceShow (optimistic new-task submit)", () => {
+	function renderLoader(initial: ThinkingLoaderInputs) {
+		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
+	}
+
+	it("shows immediately while the replica's turnState is still a stale idle", () => {
+		// Right after a new-task submit the replica still holds the pre-task "idle" TurnState;
+		// without the force flag the authoritative gate would hide the loader until the
+		// streaming TurnState round-trips through a full state post.
+		const { result } = renderLoader({ ...inputsFor([], { phase: "idle", seq: 1 }), forceShow: true })
+		expect(result.current).toBe(true)
+	})
+
+	it("does not show for a stale idle turnState without the force flag", () => {
+		const { result } = renderLoader(inputsFor([], { phase: "idle", seq: 1 }))
+		expect(result.current).toBe(false)
+	})
+
+	it("stays visible across the handoff to the authoritative streaming phase", () => {
+		const task = say(1, "task", false, "do the thing")
+		const withTask = (inputs: ThinkingLoaderInputs): ThinkingLoaderInputs => ({
+			...inputs,
+			lastRawMessage: task,
+			groupedMessages: [],
+			lastVisibleRow: undefined,
+			lastVisibleMessage: undefined,
+			modifiedMessages: [],
+		})
+
+		const { result, rerender } = renderLoader({ ...withTask(inputsFor([], { phase: "idle", seq: 1 })), forceShow: true })
+		expect(result.current).toBe(true)
+
+		// The streaming TurnState arrives and ChatView drops the force flag in the same pass:
+		// the loader must remain visible with no gap (now via the authoritative path).
+		rerender({ ...withTask(inputsFor([], streaming(2))), forceShow: false })
+		expect(result.current).toBe(true)
+	})
+})

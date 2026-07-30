@@ -23,6 +23,13 @@ export interface ThinkingLoaderInputs {
 	/** Tail message of lastVisibleRow (last element when it is a group). */
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
+	/**
+	 * Optimistic override: the webview just submitted a new task and the backend's streaming
+	 * TurnState has not round-tripped yet (the replica's turnState is stale, typically "idle").
+	 * Forces the loader on so it renders together with the task message instead of popping in
+	 * after session startup. The owner (ChatView) clears it once a fresher TurnState arrives.
+	 */
+	forceShow?: boolean
 }
 
 /**
@@ -181,7 +188,7 @@ export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number
  * anti-flash debounce for tail-finalization triggers.
  */
 export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
-	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages } = inputs
+	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages, forceShow } = inputs
 
 	const isWaitingForResponse = useMemo(
 		() =>
@@ -205,7 +212,7 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 		lastVisibleMessage?.say !== "reasoning"
 
 	return useDebouncedLoaderVisibility(
-		isWaitingForResponse || handoffToReasoningPending,
+		forceShow === true || isWaitingForResponse || handoffToReasoningPending,
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 	)

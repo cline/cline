@@ -77,6 +77,14 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		return Array.isArray(lastRow) ? lastRow.at(-1) : lastRow
 	}, [lastVisibleRow])
 
+	// A new task was just submitted from this webview but the backend's streaming TurnState has
+	// not round-tripped yet, so the replica's turnState is stale (typically "idle"). Force the
+	// loader so "Thinking..." renders together with the task message instead of popping in after
+	// session startup. The seq guard keeps this from overriding a TurnState that is already
+	// fresher than the one observed at submit (ChatView clears the marker on that same signal).
+	const forceNewTaskLoader =
+		chatState.pendingNewTaskSeq !== undefined && (turnState === undefined || turnState.seq <= chatState.pendingNewTaskSeq)
+
 	// Keep loader in the message flow (not footer). Show/hide logic (waiting heuristic,
 	// waiting -> reasoning handoff guard, and anti-flash debounce on turn end) lives in the hook.
 	const showThinkingLoaderRow = useThinkingLoaderRow({
@@ -86,6 +94,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		lastVisibleRow,
 		lastVisibleMessage,
 		modifiedMessages,
+		forceShow: forceNewTaskLoader,
 	})
 
 	const displayedGroupedMessages = useMemo<(ClineMessage | ClineMessage[])[]>(() => {

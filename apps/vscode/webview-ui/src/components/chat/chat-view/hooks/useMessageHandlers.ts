@@ -25,6 +25,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
+		setPendingNewTaskSeq,
 		clineAsk,
 		lastMessage,
 	} = chatState
@@ -140,9 +141,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
+					// Force the "Thinking..." loader row from the instant of submit until the
+					// backend's fresher TurnState arrives (cleared in ChatView), so the indicator
+					// shows together with the task message instead of after session startup.
+					setPendingNewTaskSeq(turnState?.seq ?? 0)
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
+						setPendingNewTaskSeq(undefined)
 						restorePendingMessageState()
 						throw error
 					}
@@ -272,6 +278,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingNewTaskSeq,
 			chatState,
 		],
 	)

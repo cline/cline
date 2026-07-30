@@ -38,6 +38,15 @@ export interface ChatState {
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 	pendingUserMessage: PendingUserMessage | undefined
 	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
+	/**
+	 * Optimistic "a new task was just submitted" marker: the TurnState seq observed at the
+	 * moment the newTask RPC was sent (0 when none existed). While set, the chat forces the
+	 * "Thinking..." loader row so it appears together with the task message instead of waiting
+	 * for the backend's streaming TurnState to round-trip through a full state post. Cleared
+	 * once a fresher TurnState arrives (any phase) or the RPC fails.
+	 */
+	pendingNewTaskSeq: number | undefined
+	setPendingNewTaskSeq: React.Dispatch<React.SetStateAction<number | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>

@@ -75,6 +75,8 @@ function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> =
 		setExpandedRows: vi.fn(),
 		pendingUserMessage: undefined,
 		setPendingUserMessage: vi.fn(),
+		pendingNewTaskSeq: undefined,
+		setPendingNewTaskSeq: vi.fn(),
 		textAreaRef: { current: null },
 		lastMessage: last,
 		secondLastMessage: messages.at(-2),
@@ -419,7 +421,8 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("an empty transcript still starts a NEW task (unchanged behavior)", async () => {
 		mockTurnState = { phase: "idle", seq: 1 }
-		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+		const setPendingNewTaskSeq = vi.fn()
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([], { setPendingNewTaskSeq })))
 
 		await act(async () => {
 			await result.current.handleSendMessage("brand new task", [], [])
@@ -427,6 +430,8 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+		// The optimistic thinking marker captures the TurnState seq observed at submit.
+		expect(setPendingNewTaskSeq).toHaveBeenCalledWith(1)
 		expect(trackIntent).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: "prompt_submitted",
@@ -449,6 +454,7 @@ describe("useMessageHandlers — send routing", () => {
 		const setSelectedImages = vi.fn()
 		const setSelectedFiles = vi.fn()
 		const setEnableButtons = vi.fn()
+		const setPendingNewTaskSeq = vi.fn()
 		const chatState = makeChatState([], {
 			activeQuote: "selected context",
 			sendingDisabled: false,
@@ -459,6 +465,7 @@ describe("useMessageHandlers — send routing", () => {
 			setSelectedImages,
 			setSelectedFiles,
 			setEnableButtons,
+			setPendingNewTaskSeq,
 		})
 		const { result } = renderHook(() => useMessageHandlers([], chatState))
 		newTask.mockRejectedValueOnce(error)
@@ -492,6 +499,9 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
 		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
 		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
+		// The optimistic thinking marker is set at submit and rolled back on failure.
+		expect(setPendingNewTaskSeq).toHaveBeenNthCalledWith(1, 1)
+		expect(setPendingNewTaskSeq).toHaveBeenLastCalledWith(undefined)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

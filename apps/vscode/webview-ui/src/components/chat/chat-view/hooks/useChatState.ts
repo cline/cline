@@ -21,6 +21,8 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 	const [pendingUserMessage, setPendingUserMessage] = useState<PendingUserMessage | undefined>(undefined)
+	// See ChatState.pendingNewTaskSeq — optimistic thinking indicator for a just-submitted new task.
+	const [pendingNewTaskSeq, setPendingNewTaskSeq] = useState<number | undefined>(undefined)
 
 	// Refs
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -78,6 +80,8 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setExpandedRows,
 		pendingUserMessage,
 		setPendingUserMessage,
+		pendingNewTaskSeq,
+		setPendingNewTaskSeq,
 
 		// Refs
 		textAreaRef,
