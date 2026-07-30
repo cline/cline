@@ -16,6 +16,9 @@ concurrency:
 permissions:
     contents: read
     pull-requests: read
+    # Nested e2e reusable workflow requests id-token: write (OIDC). Callers must
+    # grant at least that max or GitHub fails the workflow at startup.
+    id-token: write
 
 jobs:
     detect:

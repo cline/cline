@@ -81,14 +81,6 @@ export async function handleDriveWebviewCommand(
 					typeof reply.payload.roomId === "string"
 						? reply.payload.roomId
 						: "default",
-				spotlightParticipantId: null,
-				participantAudio: [],
-				director: {
-					activeShowId: null,
-					stickyShowIds: [],
-					spotlightParticipantId: null,
-					showBacklog: [],
-				},
 				chatForks: reply.payload.chatForks,
 				version: 0,
 			},
