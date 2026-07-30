@@ -393,6 +393,10 @@ const ServerRow = ({
 							<VSCodeDropdown className="w-full" onChange={handleTimeoutChange} value={timeoutValue}>
 								{TimeoutOptions}
 							</VSCodeDropdown>
+							<p className="mt-1 mb-0 text-xs text-description">
+								Applies to every request this server handles, in VS Code and the CLI. For other values, set
+								"timeout" (seconds) in cline_mcp_settings.json.
+							</p>
 						</div>
 						<Button
 							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
