@@ -185,7 +185,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 
 	const rawMaxTokens = input.maxTokens
-	if (rawMaxTokens !== undefined && rawMaxTokens !== null && !isFiniteNumber(rawMaxTokens)) {
+	if (!isFiniteNumber(rawMaxTokens)) {
 		throw new CatalogShapeError("SDK model-info `maxTokens` must be a finite number when present.", {
 			details: { receivedType: typeof rawMaxTokens },
 		})
