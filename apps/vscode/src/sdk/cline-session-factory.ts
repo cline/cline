@@ -904,7 +904,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	const stateManager = StateManager.get()
-	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	// Auto compact is on by default; keep this fallback aligned with the
+	// `useAutoCondense` default in shared/storage/state-keys.ts.
+	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? true
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
