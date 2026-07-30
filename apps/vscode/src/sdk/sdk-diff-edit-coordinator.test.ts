@@ -579,6 +579,30 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "patched.ts"))
 	})
 
+	it("reveals the destination after a manually-approved apply_patch move", async () => {
+		await writeFile("source.ts", "line one\nline two\n")
+		const patch = [
+			"*** Begin Patch",
+			"*** Update File: source.ts",
+			"*** Move to: destination.ts",
+			"@@",
+			"-line one",
+			"+line ONE",
+			"*** End Patch",
+		].join("\n")
+
+		await coordinator.openForApproval("tc-move", "apply_patch", { input: patch })
+		expect(previews[0].opened).toMatchObject({
+			absolutePath: path.join(tempDir, "source.ts"),
+			leftContent: "line one\nline two\n",
+			rightContent: "line ONE\nline two\n",
+		})
+
+		await coordinator.executeApplyPatchTool({ input: patch }, tempDir, makeContext("tc-move"))
+
+		expect(showEditedFile).toHaveBeenCalledExactlyOnceWith(path.join(tempDir, "destination.ts"))
+	})
+
 	it("shows a brief preview around auto-approved patches", async () => {
 		await writeFile("patched.ts", "line one\nline two\n")
 		const patch = ["*** Begin Patch", "*** Update File: patched.ts", "@@", "-line one", "+line ONE", "*** End Patch"].join(

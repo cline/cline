@@ -52,6 +52,8 @@ interface DiffEditSession {
 	/** Undefined once the preview has been displaced by a newer same-file preview. */
 	preview: EditPreview | undefined
 	absolutePath: string
+	/** File to show after the write; differs from absolutePath for apply_patch moves. */
+	revealPath: string
 }
 
 /**
@@ -132,7 +134,7 @@ export class SdkDiffEditCoordinator {
 				// just cuts the linger short (the edit has already been applied).
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
-			await this.showEditedFile(this.sessions.get(toolCallId)?.absolutePath)
+			await this.showEditedFile(this.sessions.get(toolCallId)?.revealPath)
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
@@ -149,7 +151,7 @@ export class SdkDiffEditCoordinator {
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		// The pre-approval preview is discarded before the patch applies, so remember
 		// which file it showed for the post-edit reveal.
-		const preApprovalPath = this.sessions.get(toolCallId)?.absolutePath
+		const preApprovalPath = this.sessions.get(toolCallId)?.revealPath
 		try {
 			if (hadPreApprovalPreview) {
 				await this.discardPreview(toolCallId)
@@ -165,7 +167,7 @@ export class SdkDiffEditCoordinator {
 			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
-			await this.showEditedFile(preApprovalPath ?? this.sessions.get(toolCallId)?.absolutePath)
+			await this.showEditedFile(preApprovalPath ?? this.sessions.get(toolCallId)?.revealPath)
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
@@ -272,6 +274,7 @@ export class SdkDiffEditCoordinator {
 		const [filePath, change] = first
 		await this.openPreview(toolCallId, {
 			absolutePath: resolveEditPath(cwd, filePath),
+			revealPath: resolveEditPath(cwd, change.movePath ?? filePath),
 			displayPath: filePath,
 			editType: change.type === PatchActionType.ADD ? "create" : "modify",
 			leftContent: change.oldContent ?? "",
@@ -283,6 +286,7 @@ export class SdkDiffEditCoordinator {
 		toolCallId: string,
 		content: {
 			absolutePath: string
+			revealPath?: string
 			displayPath: string
 			editType: "create" | "modify"
 			leftContent: string
@@ -336,7 +340,11 @@ export class SdkDiffEditCoordinator {
 			void opened.catch(() => {}).finally(() => preview.close().catch(() => {}))
 			throw failure
 		}
-		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
+		this.sessions.set(toolCallId, {
+			preview,
+			absolutePath: content.absolutePath,
+			revealPath: content.revealPath ?? content.absolutePath,
+		})
 	}
 
 	private createPreview(): EditPreview {
