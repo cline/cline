@@ -1,6 +1,6 @@
 import type { ChatForkRecord, ShowBacklogItem } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { isChatForkSession, showIdsForFork } from "./ChatForkAuditPanel";
+import { isChatForkSession, showIdsForFork } from "./chatForkSession";
 
 describe("isChatForkSession", () => {
 	it("detects chatFork metadata", () => {
