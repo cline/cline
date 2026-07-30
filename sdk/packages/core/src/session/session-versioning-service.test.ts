@@ -209,6 +209,82 @@ describe("SessionVersioningService", () => {
 		]);
 	});
 
+	it("validates editable message trimming before mutating the workspace", async () => {
+		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
+		const foldedMessages = [
+			{
+				role: "user" as const,
+				content: "Compacted context",
+				metadata: {
+					kind: "compaction",
+					userRunSpan: 2,
+				},
+			},
+		];
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => foldedMessages,
+				applyWorkspaceCheckpoint,
+				startSession: async () => ({ sessionId: "should-not-start" }),
+				getStartedSessionId: (startResult) => startResult.sessionId,
+			}),
+		).rejects.toThrow("Cannot fork before run 2");
+		expect(applyWorkspaceCheckpoint).not.toHaveBeenCalled();
+	});
+
+	it("rolls the workspace back when replacement session startup fails", async () => {
+		const calls: string[] = [];
+		const rollback = vi.fn(async () => {
+			calls.push("rollback");
+		});
+		const commit = vi.fn(async () => {
+			calls.push("commit");
+		});
+		const startupError = new Error("replacement startup failed");
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => messages,
+				beginWorkspaceRestoreTransaction: async () => {
+					calls.push("begin");
+					return { rollback, commit };
+				},
+				applyWorkspaceCheckpoint: async () => {
+					calls.push("apply");
+				},
+				startSession: async () => {
+					calls.push("start");
+					throw startupError;
+				},
+				getStartedSessionId: (startResult: { sessionId: string }) =>
+					startResult.sessionId,
+			}),
+		).rejects.toBe(startupError);
+
+		expect(calls).toEqual(["begin", "apply", "start", "rollback"]);
+		expect(rollback).toHaveBeenCalledOnce();
+		expect(commit).not.toHaveBeenCalled();
+	});
+
 	it("supports workspace-only restore without starting a new session", async () => {
 		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
 		const result = await new SessionVersioningService().restoreCheckpoint({

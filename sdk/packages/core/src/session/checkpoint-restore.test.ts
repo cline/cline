@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	applyCheckpointToWorktree,
+	beginWorktreeRestoreTransaction,
 	createCheckpointRestorePlan,
 	createRestoredCheckpointMetadata,
 	trimMessagesBeforeUserRun,
@@ -133,6 +134,67 @@ describe("applyCheckpointToWorktree", () => {
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
 		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointRef);
+	});
+
+	it("rolls back HEAD plus staged, unstaged, and untracked changes", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "existing stash\n", "utf8");
+		git(dir, ["stash", "push", "--message", "existing user stash"]);
+		const stashListBefore = git(dir, ["stash", "list"]);
+		const originalHead = git(dir, ["rev-parse", "HEAD"]);
+
+		writeFileSync(join(dir, "tracked.txt"), "staged state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		writeFileSync(join(dir, "tracked.txt"), "unstaged state\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "untracked state\n", "utf8");
+
+		const transaction = await beginWorktreeRestoreTransaction(dir);
+		expect(git(dir, ["status", "--short"])).toBe("");
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+
+		writeFileSync(join(dir, "tracked.txt"), "replacement state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "replacement checkpoint"]);
+		writeFileSync(join(dir, "replacement.txt"), "remove me\n", "utf8");
+
+		await transaction.rollback();
+
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(originalHead);
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"unstaged state\n",
+		);
+		expect(git(dir, ["show", ":tracked.txt"])).toBe("staged state");
+		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe(
+			"untracked state\n",
+		);
+		expect(existsSync(join(dir, "replacement.txt"))).toBe(false);
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(refname)",
+				"refs/cline/restore-transactions",
+			]),
+		).toBe("");
+	});
+
+	it("discards the recovery snapshot after a committed restore", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "discarded untracked\n", "utf8");
+		const stashListBefore = git(dir, ["stash", "list"]);
+
+		const transaction = await beginWorktreeRestoreTransaction(dir);
+		await transaction.commit();
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
+		expect(existsSync(join(dir, "untracked.txt"))).toBe(false);
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(refname)",
+				"refs/cline/restore-transactions",
+			]),
+		).toBe("");
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {

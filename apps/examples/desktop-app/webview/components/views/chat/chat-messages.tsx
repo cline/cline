@@ -350,6 +350,11 @@ function ChatMessagesImpl({
 		messageId: string;
 		runCount: number;
 	} | null>(null);
+	const [editConfirmation, setEditConfirmation] = useState<{
+		messageId: string;
+		content: string;
+		runCount: number;
+	} | null>(null);
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 	const [editErrors, setEditErrors] = useState<Record<string, string>>({});
@@ -380,6 +385,7 @@ function ChatMessagesImpl({
 	useEffect(() => {
 		void sessionId;
 		setCheckpointConfirmation(null);
+		setEditConfirmation(null);
 	}, [sessionId]);
 
 	useEffect(() => {
@@ -571,6 +577,12 @@ function ChatMessagesImpl({
 		},
 		[onEditMessage],
 	);
+	const requestEditMessage = useCallback(
+		(messageId: string, content: string, runCount: number) => {
+			setEditConfirmation({ messageId, content, runCount });
+		},
+		[],
+	);
 
 	const handleExpandImage = useCallback(
 		(image: ChatMessageImage) => {
@@ -686,7 +698,7 @@ function ChatMessagesImpl({
 										onExpandImage={handleExpandImage}
 										onCopyMessage={handleCopyMessage}
 										onEditMessage={
-											onEditMessage ? handleEditMessage : undefined
+											onEditMessage ? requestEditMessage : undefined
 										}
 										editDisabled={
 											!onEditMessage ||
@@ -862,6 +874,44 @@ function ChatMessagesImpl({
 							}}
 						>
 							Revert
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			<AlertDialog
+				open={editConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This creates a new session and restores the workspace to its
+							checkpoint before placing this message in the composer. Workspace
+							and conversation changes after this point will be discarded.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = editConfirmation;
+								setEditConfirmation(null);
+								if (confirmation) {
+									void handleEditMessage(
+										confirmation.messageId,
+										confirmation.content,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Continue
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

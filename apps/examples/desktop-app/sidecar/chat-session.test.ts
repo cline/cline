@@ -146,6 +146,7 @@ describe("pathless session starts", () => {
 		});
 		const ctx = {
 			liveSessions: new Map(),
+			versioningSessionIds: new Set(),
 			sessionManager: { start },
 		} as unknown as SidecarContext;
 
@@ -212,6 +213,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
+			versioningSessionIds: new Set(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -307,6 +309,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
+			versioningSessionIds: new Set(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -338,6 +341,112 @@ describe("session forks", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: sourceMessages }),
 		);
+	});
+
+	it("rejects an edit fork while the source session is running", async () => {
+		const restore = vi.fn();
+		const sourceSessionId = "busy-source-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {},
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: true,
+						startedAt: Date.now(),
+						status: "running",
+					},
+				],
+			]),
+			versioningSessionIds: new Set(),
+			sessionManager: { restore },
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow(
+			"Wait for the current turn to finish before editing a message",
+		);
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("rejects an edit fork when the persisted session is still active", async () => {
+		const restore = vi.fn();
+		const sourceSessionId = "persisted-running-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {},
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			versioningSessionIds: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "running",
+				})),
+				restore,
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow(
+			"Wait for the current turn to finish before editing a message",
+		);
+		expect(restore).not.toHaveBeenCalled();
+		expect(ctx.versioningSessionIds.has(sourceSessionId)).toBe(false);
+	});
+
+	it("blocks concurrent sends while an edit fork owns the workspace", async () => {
+		const send = vi.fn();
+		const sessionId = "versioning-source-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: {},
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			versioningSessionIds: new Set([sessionId]),
+			sessionManager: { send },
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "race",
+			}),
+		).rejects.toThrow(
+			"Cannot send a prompt while the session workspace is being restored",
+		);
+		expect(send).not.toHaveBeenCalled();
 	});
 });
 
@@ -382,6 +491,7 @@ describe("first-send connection updates", () => {
 					},
 				],
 			]),
+			versioningSessionIds: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {

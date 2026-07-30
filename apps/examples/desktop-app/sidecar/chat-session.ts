@@ -715,6 +715,11 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	if (ctx.versioningSessionIds.has(sessionId)) {
+		throw new Error(
+			"Cannot send a prompt while the session workspace is being restored",
+		);
+	}
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -940,6 +945,45 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
+	if (forkBeforeRunCount === undefined) {
+		return handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+		);
+	}
+	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
+	if (
+		ctx.versioningSessionIds.has(sourceSessionId) ||
+		liveSourceSession?.busy ||
+		liveSourceSession?.status === "starting" ||
+		liveSourceSession?.status === "running" ||
+		liveSourceSession?.status === "stopping"
+	) {
+		throw new Error(
+			"Wait for the current turn to finish before editing a message",
+		);
+	}
+	ctx.versioningSessionIds.add(sourceSessionId);
+	try {
+		return await handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+		);
+	} finally {
+		ctx.versioningSessionIds.delete(sourceSessionId);
+	}
+}
+
+async function handleForkUnlocked(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sourceSessionId: string,
+	forkBeforeRunCount: number | undefined,
+): Promise<unknown> {
 	const manager = getSessionManager(ctx);
 	const sourceMessages =
 		readPersistedChatMessages(sourceSessionId) ??
@@ -949,6 +993,14 @@ async function handleFork(
 	}
 
 	const sourceSession = await manager.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		(sourceSession?.status === "running" || sourceSession?.status === "pending")
+	) {
+		throw new Error(
+			"Wait for the current turn to finish before editing a message",
+		);
+	}
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)

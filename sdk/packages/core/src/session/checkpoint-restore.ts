@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
 import type {
@@ -15,6 +16,141 @@ export interface CheckpointRestorePlan {
 	checkpoint: CheckpointEntry;
 	messages?: LlmsProviders.Message[];
 	cwd: string;
+}
+
+export interface WorktreeRestoreTransaction {
+	commit(): Promise<void>;
+	rollback(): Promise<void>;
+}
+
+async function resolveOptionalGitRef(
+	cwd: string,
+	ref: string,
+): Promise<string | undefined> {
+	try {
+		const result = await execFile(
+			"git",
+			["-C", cwd, "rev-parse", "--verify", "--quiet", ref],
+			{ windowsHide: true },
+		);
+		return result.stdout.trim() || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Captures the current worktree before a destructive checkpoint restore.
+ *
+ * `git stash create` omits untracked files, but checkpoint restoration runs
+ * `git clean -fd`. Use a short-lived `stash push --include-untracked`, move
+ * its object behind a private ref, and immediately remove it from the user's
+ * visible stash list. The private ref remains only until commit or rollback.
+ */
+export async function beginWorktreeRestoreTransaction(
+	cwd: string,
+): Promise<WorktreeRestoreTransaction> {
+	const check = await execFile(
+		"git",
+		["-C", cwd, "rev-parse", "--is-inside-work-tree"],
+		{ windowsHide: true },
+	);
+	if (check.stdout.trim() !== "true") {
+		throw new Error(`${cwd} is not a git repository`);
+	}
+	const originalHead = (
+		await execFile("git", ["-C", cwd, "rev-parse", "--verify", "HEAD"], {
+			windowsHide: true,
+		})
+	).stdout.trim();
+	const previousStashRef = await resolveOptionalGitRef(cwd, "refs/stash");
+	const transactionId = randomUUID();
+	const privateRef = `refs/cline/restore-transactions/${transactionId}`;
+
+	await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"stash",
+			"push",
+			"--include-untracked",
+			"--message",
+			`cline restore transaction ${transactionId}`,
+		],
+		{ windowsHide: true },
+	);
+
+	const capturedRef = await resolveOptionalGitRef(cwd, "refs/stash");
+	const hasSnapshot =
+		capturedRef !== undefined && capturedRef !== previousStashRef;
+	if (hasSnapshot) {
+		try {
+			await execFile(
+				"git",
+				["-C", cwd, "update-ref", privateRef, capturedRef],
+				{ windowsHide: true },
+			);
+			await execFile("git", ["-C", cwd, "stash", "drop", "stash@{0}"], {
+				windowsHide: true,
+			});
+		} catch (captureError) {
+			try {
+				await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
+					windowsHide: true,
+				});
+				await execFile("git", ["-C", cwd, "clean", "-fd"], {
+					windowsHide: true,
+				});
+				await execFile(
+					"git",
+					["-C", cwd, "stash", "apply", "--index", capturedRef],
+					{ windowsHide: true },
+				);
+			} catch (rollbackError) {
+				throw new AggregateError(
+					[captureError, rollbackError],
+					"Workspace snapshot and rollback both failed",
+				);
+			}
+			throw captureError;
+		}
+	}
+
+	let completed = false;
+	return {
+		async commit() {
+			if (completed) return;
+			completed = true;
+			if (!hasSnapshot) return;
+			// A cleanup failure must not turn a successfully started replacement
+			// session into a reported failure. The private ref is harmless and
+			// keeps the recovery object reachable if deletion ever fails.
+			await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
+				windowsHide: true,
+			}).catch(() => undefined);
+		},
+		async rollback() {
+			if (completed) return;
+			await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
+				windowsHide: true,
+			});
+			await execFile("git", ["-C", cwd, "clean", "-fd"], {
+				windowsHide: true,
+			});
+			if (hasSnapshot) {
+				await execFile(
+					"git",
+					["-C", cwd, "stash", "apply", "--index", privateRef],
+					{ windowsHide: true },
+				);
+				await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
+					windowsHide: true,
+				});
+			}
+			completed = true;
+		},
+	};
 }
 
 export function readSessionCheckpointHistory(

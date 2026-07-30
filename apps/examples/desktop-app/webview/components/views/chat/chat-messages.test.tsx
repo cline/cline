@@ -529,6 +529,14 @@ describe("ChatMessages tool disclosures", () => {
 		)[1];
 		await act(async () => editButton?.click());
 
+		expect(onEditMessage).not.toHaveBeenCalled();
+		expect(document.body.textContent).toContain("Edit and restart from here?");
+
+		const continueButton = [...document.body.querySelectorAll("button")].find(
+			(button) => button.textContent === "Continue",
+		);
+		await act(async () => continueButton?.click());
+
 		expect(onEditMessage).toHaveBeenCalledOnce();
 		expect(onEditMessage).toHaveBeenCalledWith(
 			"editable-user",
@@ -567,6 +575,10 @@ describe("ChatMessages tool disclosures", () => {
 			'button[aria-label="Edit user message"]',
 		);
 		await act(async () => editButton?.click());
+		const continueButton = [...document.body.querySelectorAll("button")].find(
+			(button) => button.textContent === "Continue",
+		);
+		await act(async () => continueButton?.click());
 
 		expect(onEditMessage).toHaveBeenCalledWith(
 			"post-compaction-user",
@@ -602,6 +614,10 @@ describe("ChatMessages tool disclosures", () => {
 			'button[aria-label="Edit user message"]',
 		);
 		await act(async () => editButton?.click());
+		const continueButton = [...document.body.querySelectorAll("button")].find(
+			(button) => button.textContent === "Continue",
+		);
+		await act(async () => continueButton?.click());
 
 		expect(onEditMessage).toHaveBeenCalledWith(
 			"optimistic-user",
