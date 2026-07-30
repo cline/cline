@@ -8,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 // Sentinel ts for the synthetic "Thinking..." placeholder row. Not a real message; ignored when
@@ -86,15 +87,11 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		}
 		return Array.isArray(lastRow) ? lastRow.at(-1) : lastRow
 	}, [lastVisibleRow])
-
 	// A turn (new task or follow-up) was just started from this webview but the backend's
 	// streaming TurnState has not round-tripped yet, so the replica's turnState is stale
 	// (idle/completed/awaiting_*). Let the loader show optimistically so "Thinking..." renders
-	// the moment the send happens instead of popping in after the state post. The seq guard
-	// keeps this from overriding a TurnState that is already fresher than the one observed at
-	// submit (ChatView clears the marker on that same signal).
-	const optimisticTurnStart =
-		chatState.pendingTurnStartSeq !== undefined && (turnState === undefined || turnState.seq <= chatState.pendingTurnStartSeq)
+	// the moment the send happens instead of popping in after the state post.
+	const forcePendingResponseLoader = isPendingResponseUnconfirmed(chatState.pendingResponse, turnState, clineMessages.length)
 
 	// Keep loader in the message flow (not footer). Show/hide logic (waiting heuristic,
 	// waiting -> reasoning handoff guard, and anti-flash debounce on turn end) lives in the hook.
@@ -105,7 +102,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		lastVisibleRow,
 		lastVisibleMessage,
 		modifiedMessages,
-		optimisticTurnStart,
+		forceShow: forcePendingResponseLoader,
 	})
 
 	// While the list has no visible rows yet (new task just submitted), the loader is rendered as

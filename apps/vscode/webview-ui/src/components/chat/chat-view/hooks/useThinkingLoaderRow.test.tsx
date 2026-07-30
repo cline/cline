@@ -149,7 +149,7 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 	})
 })
 
-describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this webview)", () => {
+describe("useThinkingLoaderRow optimistic response handoff", () => {
 	function renderLoader(initial: ThinkingLoaderInputs) {
 		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
 	}
@@ -161,17 +161,18 @@ describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this 
 	it("shows in the initial render before passive effects run", () => {
 		const inputs = {
 			...inputsFor([say(1, "completion_result", false, "done")], { phase: "completed", seq: 5 }),
-			optimisticTurnStart: true,
+			forceShow: true,
 		}
 
 		expect(renderToString(<LoaderProbe inputs={inputs} />)).toContain("visible")
 	})
 
-	it("shows immediately for a new task while the replica's turnState is still a stale idle", () => {
-		// Right after a new-task submit the replica still holds the pre-task "idle" TurnState;
-		// without the marker the authoritative gate would hide the loader until the streaming
-		// TurnState round-trips through a full state post.
-		const { result } = renderLoader({ ...inputsFor([], { phase: "idle", seq: 1 }), optimisticTurnStart: true })
+	it.each([
+		"idle",
+		"completed",
+		"awaiting_followup",
+	] as const)("shows immediately while the webview still has the stale %s phase", (phase) => {
+		const { result } = renderLoader({ ...inputsFor([], { phase, seq: 1 }), forceShow: true })
 		expect(result.current).toBe(true)
 	})
 
@@ -180,14 +181,14 @@ describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this 
 		expect(result.current).toBe(false)
 	})
 
-	it("shows immediately for a follow-up while the replica's turnState is still the completed phase", () => {
+	it("shows for a follow-up even when the tail is the previous turn's completion_result", () => {
 		// Follow-up after a completed turn: the tail is the previous turn's completion_result and
 		// the phase is still "completed" until the streaming TurnState posts. Both would normally
 		// suppress the loader; the optimistic marker bypasses them at turn START.
 		const conversation = [say(1, "completion_result", false, "done")]
 		const { result } = renderLoader({
 			...inputsFor(conversation, { phase: "completed", seq: 5 }),
-			optimisticTurnStart: true,
+			forceShow: true,
 		})
 		expect(result.current).toBe(true)
 	})
@@ -196,31 +197,33 @@ describe("useThinkingLoaderRow optimisticTurnStart (turn just started from this 
 		const conversation = [say(1, "text", true, "already streaming")]
 		const { result } = renderLoader({
 			...inputsFor(conversation, { phase: "completed", seq: 5 }),
-			optimisticTurnStart: true,
+			forceShow: true,
 		})
 		expect(result.current).toBe(false)
 	})
 
-	it("stays visible across the handoff to the authoritative streaming phase", () => {
+	it("hands off without a gap when the fresh streaming state arrives", () => {
 		const task = say(1, "task", false, "do the thing")
-		const withTask = (inputs: ThinkingLoaderInputs): ThinkingLoaderInputs => ({
-			...inputs,
+		const withoutVisibleRows = (turnState: TurnState, forceShow: boolean): ThinkingLoaderInputs => ({
+			...inputsFor([], turnState),
 			lastRawMessage: task,
-			groupedMessages: [],
-			lastVisibleRow: undefined,
-			lastVisibleMessage: undefined,
-			modifiedMessages: [],
+			forceShow,
 		})
+		const { result, rerender } = renderLoader(withoutVisibleRows({ phase: "idle", seq: 1 }, true))
+		expect(result.current).toBe(true)
 
+		rerender(withoutVisibleRows(streaming(2), false))
+		expect(result.current).toBe(true)
+	})
+
+	it("does not leave a forced loader after a fresh terminal state", () => {
 		const { result, rerender } = renderLoader({
-			...withTask(inputsFor([], { phase: "idle", seq: 1 })),
-			optimisticTurnStart: true,
+			...inputsFor([say(1, "text", false)], { phase: "completed", seq: 1 }),
+			forceShow: true,
 		})
 		expect(result.current).toBe(true)
 
-		// The streaming TurnState arrives and ChatView drops the marker in the same pass:
-		// the loader must remain visible with no gap (now via the authoritative path).
-		rerender({ ...withTask(inputsFor([], streaming(2))), optimisticTurnStart: false })
-		expect(result.current).toBe(true)
+		rerender({ ...inputsFor([say(1, "text", false)], { phase: "error", seq: 2 }), forceShow: false })
+		expect(result.current).toBe(false)
 	})
 })

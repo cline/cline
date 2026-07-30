@@ -24,16 +24,15 @@ export interface ThinkingLoaderInputs {
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
 	/**
-	 * Optimistic override: the webview just started a turn (new task or a follow-up/ask
-	 * response sent outside a streaming phase) and the backend's streaming TurnState has not
-	 * round-tripped yet, so the replica's turnState is stale (idle/completed/awaiting_*).
-	 * Shows the loader immediately — bypassing the phase gate and the turn-end
-	 * completion_result guard, both of which describe the PREVIOUS turn at this moment — but
-	 * never while a visible content row is actively streaming (no duplicate loaders if the
-	 * marker briefly overlaps live output). The owner (ChatView) clears it once a fresher
-	 * TurnState arrives.
+	 * Optimistic override: a turn-starting response RPC (new task or a follow-up sent outside a
+	 * streaming phase) was submitted before the backend published its next TurnState, so the
+	 * replica's turnState is stale (idle/completed/awaiting_*). Shows the loader immediately —
+	 * bypassing the phase gate and the turn-end completion_result guard, both of which describe
+	 * the PREVIOUS turn at this moment — but never while a visible content row is actively
+	 * streaming (no duplicate loaders if the marker briefly overlaps live output). The owner
+	 * clears it once a fresher TurnState arrives.
 	 */
-	optimisticTurnStart?: boolean
+	forceShow?: boolean
 }
 
 /**
@@ -198,15 +197,7 @@ export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number
  * anti-flash debounce for tail-finalization triggers.
  */
 export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
-	const {
-		turnState,
-		lastRawMessage,
-		groupedMessages,
-		lastVisibleRow,
-		lastVisibleMessage,
-		modifiedMessages,
-		optimisticTurnStart,
-	} = inputs
+	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages, forceShow } = inputs
 
 	const isWaitingForResponse = useMemo(
 		() =>
@@ -229,9 +220,9 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 		lastRawMessage.partial === true &&
 		lastVisibleMessage?.say !== "reasoning"
 
-	// See ThinkingLoaderInputs.optimisticTurnStart: show right away for a turn this webview just
+	// See ThinkingLoaderInputs.forceShow: show right away for a turn this webview just
 	// started, unless a visible content row is already streaming.
-	const optimisticShow = optimisticTurnStart === true && lastVisibleMessage?.partial !== true
+	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
 
 	return useDebouncedLoaderVisibility(
 		optimisticShow || isWaitingForResponse || handoffToReasoningPending,

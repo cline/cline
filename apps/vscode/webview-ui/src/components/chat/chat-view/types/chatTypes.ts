@@ -11,6 +11,15 @@ export interface PendingUserMessage {
 	afterTs: number
 }
 
+export interface PendingResponse {
+	/** Locally unique submission id, used to avoid an older RPC clearing newer state. */
+	id: number
+	/** TurnState sequence observed when the RPC was sent. */
+	turnStateSeq: number | undefined
+	/** Raw backend message count observed when the RPC was sent (legacy fallback). */
+	messageCount: number
+}
+
 /**
  * Chat state interface
  */
@@ -38,15 +47,8 @@ export interface ChatState {
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 	pendingUserMessage: PendingUserMessage | undefined
 	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
-	/**
-	 * Optimistic "a turn was just started from this webview" marker: the TurnState seq observed
-	 * at the moment a turn-starting RPC (newTask, or askResponse outside a streaming phase) was
-	 * sent (0 when none existed). While set, the chat shows the "Thinking..." loader row right
-	 * away instead of waiting for the backend's streaming TurnState to round-trip through a
-	 * full state post. Cleared once a fresher TurnState arrives (any phase) or the RPC fails.
-	 */
-	pendingTurnStartSeq: number | undefined
-	setPendingTurnStartSeq: React.Dispatch<React.SetStateAction<number | undefined>>
+	pendingResponse: PendingResponse | undefined
+	setPendingResponse: React.Dispatch<React.SetStateAction<PendingResponse | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
