@@ -41,7 +41,7 @@ describe("SdkModeCoordinator", () => {
 			undefined,
 			undefined,
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it("preserves pending input by returning false when toggling mode without an active session", async () => {
@@ -90,9 +90,38 @@ describe("SdkModeCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
+	it("publishes the new mode before active session replacement finishes", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task })
+		let finishReplacement!: () => void
+		const replacementGate = new Promise<void>((resolve) => {
+			finishReplacement = resolve
+		})
+		options.sessions.replaceActiveSession.mockImplementationOnce(async () => {
+			await replacementGate
+			return {
+				startResult: { sessionId: "new-session" },
+				sdkHost: { send: vi.fn() },
+			}
+		})
+
+		const toggle = coordinator.togglePlanActMode("act")
+		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+
+		expect(state.mode).toBe("act")
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview.mock.invocationCallOrder[0]).toBeLessThan(
+			options.sessions.replaceActiveSession.mock.invocationCallOrder[0],
+		)
+
+		finishReplacement()
+		await toggle
+	})
+
+	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -119,7 +148,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("submits typed chatContent as the continuation when toggling plan -> act on a presented plan", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -151,7 +180,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("forwards attachments alongside the typed message when auto-continuing", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -189,7 +218,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("consumes attachment-only chatContent and sends it with the canned prompt", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -227,7 +256,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("resets the running state and reports an error phase when the continuation send setup fails", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -304,14 +333,16 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
-	it("preserves typed chatContent when the agent has not presented a plan", async () => {
+	it("does not auto-continue an awaiting turn whose last message is not a plan", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "completion_result", text: "Finished the previous act turn.", partial: false },
+		])
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
 			mode: "plan",
-			turnPhase: "completed",
+			turnPhase: "awaiting_followup",
 		})
 
 		await expect(
@@ -347,7 +378,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("does not mark a live continuation as failed when the post-send state post rejects", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
@@ -379,7 +410,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("preserves composer content when the rebuild aborts on a cline auth error", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -411,7 +442,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("rolls back the mode when the rebuild fails before the session is replaced", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
@@ -452,7 +483,7 @@ describe("SdkModeCoordinator", () => {
 
 		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 		expect(state.mode).toBe("plan")
 	})
 
@@ -485,7 +516,7 @@ describe("SdkModeCoordinator", () => {
 
 		it("makes the notice available before the auto-continue send fires", async () => {
 			const activeSession = makeActiveSession()
-			const task = makeTask("old-session")
+			const task = makeTask("old-session", planMessages())
 			const { coordinator, options } = makeCoordinator({
 				activeSession,
 				task,
@@ -698,4 +729,8 @@ function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
 		taskId: string
 		messageStateHandler: { getClineMessages: () => ClineMessage[] }
 	}
+}
+
+function planMessages(): Array<Partial<ClineMessage>> {
+	return [{ ts: 1, type: "say", say: "plan_completion_result", text: "Implement the approved change.", partial: false }]
 }

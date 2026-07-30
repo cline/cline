@@ -158,13 +158,20 @@ export class SdkModeCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession) {
-			// A plan -> act toggle while the agent is idle after presenting its plan
-			// (awaiting_followup) is the user acting on that plan, so continue
-			// automatically. Any other state only updates the session configuration
-			// and waits for an explicit send. A pending ask_question also reports
-			// awaiting_followup but blocks the turn mid-run, so isRunning stays
-			// true and it cannot reach this branch.
-			const planPresented = !activeSession.isRunning && this.options.getTurnPhase() === "awaiting_followup"
+			// awaiting_followup is also used for non-plan turns, so it is not
+			// sufficient evidence that the user has a plan to approve. Require the
+			// latest chat message to be the explicit plan completion row emitted at
+			// the end of a successful plan-mode turn. This prevents an accidental
+			// act -> plan -> act round trip from starting work on a stale/nonexistent
+			// plan.
+			const task = this.options.getTask()
+			const lastMessage = task?.messageStateHandler.getClineMessages().at(-1)
+			const planPresented =
+				!activeSession.isRunning &&
+				this.options.getTurnPhase() === "awaiting_followup" &&
+				lastMessage?.type === "say" &&
+				lastMessage.say === "plan_completion_result" &&
+				!lastMessage.partial
 			const autoContinue = modeToSwitchTo === "act" && planPresented
 			const userPrompt = chatContent?.message?.trim() || undefined
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
@@ -241,6 +248,18 @@ export class SdkModeCoordinator {
 		const wasRunning = activeSession.isRunning
 
 		Logger.log(`[SdkController] Rebuilding session ${oldSessionId} for mode change -> ${newMode} (wasRunning=${wasRunning})`)
+
+		// Reflect the persisted mode immediately. Session replacement can wait on
+		// aborts, provider setup, and MCP initialization, but none of that should
+		// make the toggle feel unresponsive. A failed rebuild posts again after
+		// rolling back to the previous mode.
+		try {
+			await this.options.postStateToWebview()
+		} catch (error) {
+			// A detached webview must not prevent the active session from being
+			// rebuilt with tools matching the newly persisted mode.
+			Logger.warn("[SdkController] Failed to post mode state before session rebuild:", error)
+		}
 
 		if (wasRunning) {
 			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
@@ -339,7 +358,10 @@ export class SdkModeCoordinator {
 				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
 				continuationSent = true
 			}
-			await this.options.postStateToWebview()
+			if (options.autoContinue) {
+				// Publish the running/turn-phase changes made by auto-continuation.
+				await this.options.postStateToWebview()
+			}
 
 			Logger.log(`[SdkController] Session rebuilt for mode ${newMode}: ${oldSessionId} -> ${startResult.sessionId}`)
 		} catch (error) {
