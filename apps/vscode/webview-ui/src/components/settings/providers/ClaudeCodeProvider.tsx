@@ -7,23 +7,8 @@ import { useProviderModels } from "@/hooks/useProviderModels"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
-
-const SUPPORTED_CLAUDE_CODE_THINKING_MODELS = [
-	...SUPPORTED_ANTHROPIC_THINKING_MODELS,
-	"sonnet",
-	"sonnet[1m]",
-	"claude-fable-5[1m]",
-	"claude-opus-4-8[1m]",
-	"claude-opus-4-7[1m]",
-	"claude-sonnet-4-6[1m]",
-	"claude-sonnet-4-5-20250929[1m]",
-	"claude-opus-4-6[1m]",
-	"opus",
-	"opus[1m]",
-]
 
 /**
  * Props for the ClaudeCodeProvider component
@@ -42,7 +27,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const providerId = "claude-code"
 	const { models, defaultModelId } = useProviderModels(providerId)
-	const { config, commitSelection } = useProviderConfig(providerId)
+	const { config, write, commitSelection } = useProviderConfig(providerId)
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
 		defaultModelId,
@@ -101,8 +86,17 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						</p>
 					)}
 
-					{SUPPORTED_CLAUDE_CODE_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					{selectedModelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+								}).catch((err) => console.error("Failed to update Claude Code reasoning effort:", err))
+							}}
+						/>
 					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
