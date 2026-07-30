@@ -8,6 +8,11 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	SearchCombobox,
+	type SearchComboboxOption,
+	type SearchComboboxProps,
+} from "./search-combobox.js";
+export {
 	SessionStatus,
 	type SessionStatusProps,
 	type SessionStatusTone,
