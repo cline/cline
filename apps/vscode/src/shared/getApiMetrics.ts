@@ -77,19 +77,22 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
  * This is used for context window progress display - it shows how much of the
  * context window is used in the current/most recent request, not cumulative totals.
  *
- * A completed compaction divider that postdates the last request shrinks that
+ * A completed compaction divider that postdates the last request rescales that
  * request's total by the compaction's tokensAfter/tokensBefore ratio, so the
- * context-window bar drops immediately instead of waiting for the next request
- * to run. The ratio is used rather than tokensAfter itself because the
+ * context-window bar updates immediately instead of waiting for the next
+ * request to run. The ratio is used rather than tokensAfter itself because the
  * compaction counters are the SDK's estimate (chars/4-class), a different
  * scale from the provider-reported usage that normally drives this value —
  * substituting the estimate would make the bar visibly re-snap when the next
  * request's real usage lands. Both counters come from the same estimator, so
  * their ratio is scale-free. Multiple compactions since the last request
- * compound.
+ * compound. The ratio is deliberately not clamped to 1: compacting a small
+ * conversation can grow the context (the summary outweighs the original
+ * messages), and the header must move in the same direction as the divider row
+ * (e.g. "1k → 1.3k tokens") rather than silently show the stale value.
  *
  * @param messages - An array of ClineMessage objects to process.
- * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, scaled down by any completed compactions that happened after it, or 0 if none found.
+ * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, rescaled by any completed compactions that happened after it, or 0 if none found.
  */
 export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
 	let shrinkFraction: number | undefined
@@ -108,7 +111,7 @@ export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
 					tokensBefore > 0 &&
 					tokensAfter > 0
 				) {
-					shrinkFraction = (shrinkFraction ?? 1) * Math.min(1, tokensAfter / tokensBefore)
+					shrinkFraction = (shrinkFraction ?? 1) * (tokensAfter / tokensBefore)
 				}
 			} catch {
 				// Ignore JSON parse errors, continue searching
