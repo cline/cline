@@ -8,6 +8,11 @@ const ctx: AgentToolContext = {
 	iteration: 1,
 };
 
+const longRunningCommand = {
+	command: process.execPath,
+	args: ["-e", "setInterval(() => {}, 1_000)"],
+};
+
 describe("createShellExecutor", () => {
 	it("runs a simple command and returns stdout", async () => {
 		const shell = createShellExecutor();
@@ -110,7 +115,7 @@ describe("createShellExecutor", () => {
 
 	it("rejects on timeout", async () => {
 		const shell = createShellExecutor({ timeoutMs: 50 });
-		await expect(shell("sleep 10", process.cwd(), ctx)).rejects.toThrow(
+		await expect(shell(longRunningCommand, process.cwd(), ctx)).rejects.toThrow(
 			"timed out",
 		);
 	});
@@ -212,9 +217,18 @@ describe("createShellExecutor", () => {
 		const shell = createShellExecutor();
 
 		setTimeout(() => ac.abort(), 50);
-		await expect(shell("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
-			"aborted",
-		);
+		await expect(
+			shell(longRunningCommand, process.cwd(), abortCtx),
+		).rejects.toThrow("aborted");
+	});
+
+	it("does not spawn a command for an already-aborted signal", async () => {
+		const ac = new AbortController();
+		ac.abort();
+		const shell = createShellExecutor();
+		await expect(
+			shell(longRunningCommand, process.cwd(), { ...ctx, signal: ac.signal }),
+		).rejects.toThrow("aborted");
 	});
 
 	it("flushes a trailing incomplete multibyte sequence instead of dropping it", async () => {

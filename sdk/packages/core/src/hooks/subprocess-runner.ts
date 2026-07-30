@@ -62,13 +62,17 @@ function formatSpawnError(error: unknown, command: string[]): Error {
 	const withCode = err as Error & { code?: string };
 	const commandLabel = command.join(" ");
 	if (withCode.code === "EACCES") {
-		return new Error(
+		const formatted = new Error(
 			`Failed to execute hook command "${commandLabel}" (EACCES). Configure hooks with an explicit interpreter/command array (for example: ["bash", "/path/to/script"]) or make the script executable with a valid shebang.`,
 		);
+		(formatted as Error & { code?: string }).code = withCode.code;
+		return formatted;
 	}
-	return new Error(
+	const formatted = new Error(
 		`Failed to execute hook command "${commandLabel}": ${err.message}`,
 	);
+	(formatted as Error & { code?: string }).code = withCode.code;
+	return formatted;
 }
 
 async function writeToChildStdin(
@@ -129,7 +133,26 @@ export async function runSubprocessEvent(
 		// detached, which would otherwise allocate a new console).
 		windowsHide: true,
 	});
-	const spawned = new Promise<void>((resolve) => {
+	let stdout = "";
+	let stderr = "";
+	let timedOut = false;
+	let timeoutId: NodeJS.Timeout | undefined;
+
+	if (!detached && (!child.stdout || !child.stderr)) {
+		child.kill("SIGKILL");
+		throw new Error("runSubprocessEvent failed to create stdout/stderr pipes");
+	}
+	child.stdout?.on("data", (chunk: Buffer | string) => {
+		stdout += chunk.toString();
+	});
+	child.stderr?.on("data", (chunk: Buffer | string) => {
+		stderr += chunk.toString();
+	});
+
+	// Install all lifecycle listeners before yielding. Fast commands can close
+	// while stdin is being flushed, especially on Windows; attaching the result
+	// listener afterwards loses that event and leaves the caller pending forever.
+	const spawned = new Promise<void>((resolve, reject) => {
 		child.once("spawn", () => {
 			try {
 				options.onSpawn?.({
@@ -142,48 +165,15 @@ export async function runSubprocessEvent(
 			}
 			resolve();
 		});
+		child.once("error", (error) => reject(formatSpawnError(error, command)));
 	});
-	const childError = new Promise<never>((_, reject) => {
+	const completed = new Promise<RunSubprocessEventResult>((resolve, reject) => {
 		child.once("error", (error) => {
+			if (timeoutId) clearTimeout(timeoutId);
 			reject(formatSpawnError(error, command));
 		});
-	});
-
-	await writeToChildStdin(child, JSON.stringify(payload));
-
-	if (detached) {
-		await Promise.race([spawned, childError]);
-		child.unref();
-		return;
-	}
-
-	if (!child.stdout || !child.stderr) {
-		throw new Error("runSubprocessEvent failed to create stdout/stderr pipes");
-	}
-
-	let stdout = "";
-	let stderr = "";
-	let timedOut = false;
-	let timeoutId: NodeJS.Timeout | undefined;
-
-	child.stdout.on("data", (chunk: Buffer | string) => {
-		stdout += chunk.toString();
-	});
-	child.stderr.on("data", (chunk: Buffer | string) => {
-		stderr += chunk.toString();
-	});
-
-	const result = new Promise<RunSubprocessEventResult>((resolve) => {
-		if ((options.timeoutMs ?? 0) > 0) {
-			timeoutId = setTimeout(() => {
-				timedOut = true;
-				child.kill("SIGKILL");
-			}, options.timeoutMs);
-		}
 		child.once("close", (exitCode) => {
-			if (timeoutId) {
-				clearTimeout(timeoutId);
-			}
+			if (timeoutId) clearTimeout(timeoutId);
 			const { parsedJson, parseError } = parseStdout(stdout);
 			resolve({
 				exitCode,
@@ -195,5 +185,25 @@ export async function runSubprocessEvent(
 			});
 		});
 	});
-	return await Promise.race([result, childError]);
+	// Avoid an unhandled rejection from the completion observer when a detached
+	// process reports a late spawn error after ownership has been handed off.
+	if (detached) void completed.catch(() => undefined);
+
+	if (!detached && (options.timeoutMs ?? 0) > 0) {
+		timeoutId = setTimeout(() => {
+			timedOut = true;
+			child.kill("SIGKILL");
+		}, options.timeoutMs);
+	}
+
+	await Promise.race([
+		Promise.all([spawned, writeToChildStdin(child, JSON.stringify(payload))]),
+		completed,
+	]);
+
+	if (detached) {
+		child.unref();
+		return;
+	}
+	return await completed;
 }
