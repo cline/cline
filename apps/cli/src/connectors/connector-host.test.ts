@@ -43,7 +43,22 @@ function createThread(initialState: TestState = {}, isDM = true) {
 				state = { ...nextState };
 			},
 			async post(message: unknown) {
-				posts.push(message);
+				// Real thread implementations drain async-iterable replies; the
+				// connector streams runtime output straight into post() for
+				// transports without a custom final-reply hook.
+				if (
+					message &&
+					typeof message === "object" &&
+					Symbol.asyncIterator in message
+				) {
+					let streamed = "";
+					for await (const chunk of message as AsyncIterable<string>) {
+						streamed += chunk;
+					}
+					posts.push(streamed);
+				} else {
+					posts.push(message);
+				}
 				const sentMessage = {
 					edit: async (nextMessage: unknown) => {
 						posts.push(nextMessage);
@@ -99,13 +114,21 @@ function createRuntimeClient(
 	);
 	const abortRuntimeSession = vi.fn(async () => undefined);
 	const deleteSession = vi.fn(async () => undefined);
-	const sendRuntimeSession = vi.fn(async () => ({
-		result: {
-			text: responseText,
-			finishReason: "stop",
-			iterations: 1,
-		},
-	}));
+	const sendRuntimeSession = vi.fn(
+		async (
+			_sessionId: string,
+			_request?: unknown,
+			_options?: unknown,
+		): Promise<{
+			result?: { text: string; finishReason: string; iterations: number };
+		}> => ({
+			result: {
+				text: responseText,
+				finishReason: "stop",
+				iterations: 1,
+			},
+		}),
+	);
 	const readMessages = vi.fn(async () => messages);
 	return {
 		client: {
@@ -540,6 +563,205 @@ describe("handleConnectorUserTurn", () => {
 		expect(posts.at(-1)).toEqual({
 			raw: "yolo=off (disabled by connector startup)",
 		});
+	});
+
+	it("recovers from a stale thread session mapping by starting a new session", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		// The hub still reports the persisted session row, so the connector reuses
+		// the stale mapping...
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		// ...but sending input to the dead session fails with session_not_found
+		// until a fresh session id is used.
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "dead-session") {
+				throw Object.assign(new Error("session not found: dead-session"), {
+					code: "session_not_found",
+				});
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "are you there?",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(
+			runtime.sendRuntimeSession.mock.calls.map((call) => call[0]),
+		).toEqual(["dead-session", "fresh-session"]);
+		expect(runtime.startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("session not found"),
+			),
+		).toBe(false);
+	});
+
+	it("does not retry forever when the replacement session is also missing", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("never delivered");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "also-dead-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async () => {
+			throw Object.assign(new Error("session not found"), {
+				code: "session_not_found",
+			});
+		});
+
+		await expect(
+			handleConnectorUserTurn({
+				thread: thread as never,
+				text: "are you there?",
+				client: runtime.client as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest() as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "slack",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Slack",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+			}),
+		).rejects.toThrow(/session not found/);
+
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(2);
+	});
+
+	it("starts a new session when steering an active turn hits a dead session", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "dead-session") {
+				throw Object.assign(new Error("session not found: dead-session"), {
+					code: "session_not_found",
+				});
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const activeTurns = new Map([
+			["thread-1", { sessionId: "dead-session", threadId: "thread-1" }],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "actually do this instead",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			activeTurns: activeTurns as never,
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("Steering current task."),
+			),
+		).toBe(false);
 	});
 
 	it("creates schedules with forced-disabled runtime options", async () => {
