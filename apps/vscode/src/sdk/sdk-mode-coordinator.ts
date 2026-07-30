@@ -158,13 +158,28 @@ export class SdkModeCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession) {
-			// A plan -> act toggle while the agent is idle after presenting its plan
-			// (awaiting_followup) is the user acting on that plan, so continue
-			// automatically. Any other state only updates the session configuration
-			// and waits for an explicit send. A pending ask_question also reports
-			// awaiting_followup but blocks the turn mid-run, so isRunning stays
-			// true and it cannot reach this branch.
-			const planPresented = !activeSession.isRunning && this.options.getTurnPhase() === "awaiting_followup"
+			// awaiting_followup is also used for non-plan turns, so it is not
+			// sufficient evidence that the user has a plan to approve. Require the
+			// latest completed assistant result to be the explicit plan completion
+			// row emitted at the end of a successful plan-mode turn. Request usage
+			// bookkeeping can trail that row, so the raw array tail is not reliable.
+			// Comparing both plan and act results prevents an accidental
+			// act -> plan -> act round trip from starting work on a stale plan.
+			const task = this.options.getTask()
+			const clineMessages = task?.messageStateHandler.getClineMessages() ?? []
+			const latestAssistantResult = [...clineMessages]
+				.reverse()
+				.find(
+					(message) =>
+						message.type === "say" &&
+						(message.say === "plan_completion_result" || message.say === "completion_result"),
+				)
+			const turnPhase = this.options.getTurnPhase()
+			const planPresented =
+				!activeSession.isRunning &&
+				(turnPhase === "awaiting_followup" || turnPhase === "completed") &&
+				latestAssistantResult?.say === "plan_completion_result" &&
+				!latestAssistantResult.partial
 			const autoContinue = modeToSwitchTo === "act" && planPresented
 			const userPrompt = chatContent?.message?.trim() || undefined
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
@@ -242,6 +257,18 @@ export class SdkModeCoordinator {
 
 		Logger.log(`[SdkController] Rebuilding session ${oldSessionId} for mode change -> ${newMode} (wasRunning=${wasRunning})`)
 
+		// Reflect the persisted mode immediately. Session replacement can wait on
+		// aborts, provider setup, and MCP initialization, but none of that should
+		// make the toggle feel unresponsive. A failed rebuild posts again after
+		// rolling back to the previous mode.
+		try {
+			await this.options.postStateToWebview()
+		} catch (error) {
+			// A detached webview must not prevent the active session from being
+			// rebuilt with tools matching the newly persisted mode.
+			Logger.warn("[SdkController] Failed to post mode state before session rebuild:", error)
+		}
+
 		if (wasRunning) {
 			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
 		}
@@ -284,6 +311,16 @@ export class SdkModeCoordinator {
 				disposeReason: "modeChange",
 			})
 			if (!rebuildResult) {
+				// Replacement was refused. When the session we tried to replace is
+				// still the active one (e.g. a queued turn started running in the
+				// meantime), it still has the previous mode's tools, so roll the
+				// setting back — same reasoning as the auth guard above. When another
+				// session took over (or none is left), the superseding flow owns the
+				// mode now and the setting must not be clobbered.
+				if (this.options.sessions.getActiveSession() === activeSession) {
+					this.options.stateManager.setGlobalState("mode", previousMode)
+				}
+				await this.options.postStateToWebview()
 				return false
 			}
 
@@ -339,6 +376,11 @@ export class SdkModeCoordinator {
 				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
 				continuationSent = true
 			}
+			// The early pre-rebuild post already showed the new mode, but state can
+			// change during the rebuild: aborting a running turn appends finalized
+			// messages (clineMessages ride on the state post), and auto-continue
+			// flips the running flag and turn phase. Post again so the webview
+			// converges on the post-rebuild state.
 			await this.options.postStateToWebview()
 
 			Logger.log(`[SdkController] Session rebuilt for mode ${newMode}: ${oldSessionId} -> ${startResult.sessionId}`)

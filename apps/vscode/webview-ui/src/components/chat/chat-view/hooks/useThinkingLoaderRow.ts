@@ -23,7 +23,15 @@ export interface ThinkingLoaderInputs {
 	/** Tail message of lastVisibleRow (last element when it is a group). */
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
-	/** A response RPC was submitted before the backend published its next TurnState. */
+	/**
+	 * Optimistic override: a turn-starting response RPC (new task or a follow-up sent outside a
+	 * streaming phase) was submitted before the backend published its next TurnState, so the
+	 * replica's turnState is stale (idle/completed/awaiting_*). Shows the loader immediately —
+	 * bypassing the phase gate and the turn-end completion_result guard, both of which describe
+	 * the PREVIOUS turn at this moment — but never while a visible content row is actively
+	 * streaming (no duplicate loaders if the marker briefly overlaps live output). The owner
+	 * clears it once a fresher TurnState arrives.
+	 */
 	forceShow?: boolean
 }
 
@@ -152,29 +160,35 @@ export function computeIsWaitingForResponse({
  * before the phase flips out of "streaming", and an instant loader would flash in and out.
  */
 export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number | undefined, tailIsPartial: boolean): boolean {
-	const [visible, setVisible] = useState(false)
+	const [debouncedTailTs, setDebouncedTailTs] = useState<number>()
 	const prevTailRef = useRef<{ ts: number | undefined; partial: boolean }>({ ts: undefined, partial: false })
+	const prevTail = prevTailRef.current
+	const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
+	const waitingForDebounce = tailJustFinishedStreaming || (tailTs !== undefined && debouncedTailTs === tailTs)
 
 	useEffect(() => {
-		const prevTail = prevTailRef.current
 		prevTailRef.current = { ts: tailTs, partial: tailIsPartial }
 
 		if (!shouldShow) {
-			setVisible(false)
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
 		if (!tailJustFinishedStreaming) {
-			setVisible(true)
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const timer = setTimeout(() => setVisible(true), THINKING_LOADER_GRACE_MS)
+		setDebouncedTailTs(tailTs)
+		const timer = setTimeout(() => setDebouncedTailTs(undefined), THINKING_LOADER_GRACE_MS)
 		return () => clearTimeout(timer)
 	}, [shouldShow, tailTs, tailIsPartial])
 
-	return visible
+	// Effects run after the browser can paint. Derive ordinary show/hide states directly so an
+	// unambiguous turn start is present in the first render and streaming content removes a stale
+	// loader in that same render. State is only needed to latch the ambiguous partial -> final
+	// transition until its grace timer expires.
+	return shouldShow && !waitingForDebounce
 }
 
 /**
@@ -206,8 +220,12 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 		lastRawMessage.partial === true &&
 		lastVisibleMessage?.say !== "reasoning"
 
+	// See ThinkingLoaderInputs.forceShow: show right away for a turn this webview just
+	// started, unless a visible content row is already streaming.
+	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
+
 	return useDebouncedLoaderVisibility(
-		forceShow === true || isWaitingForResponse || handoffToReasoningPending,
+		optimisticShow || isWaitingForResponse || handoffToReasoningPending,
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 	)
