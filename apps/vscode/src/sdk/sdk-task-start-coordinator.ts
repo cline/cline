@@ -123,6 +123,14 @@ export class SdkTaskStartCoordinator {
 			const task = this.createAndSetTask(taskSessionId)
 			this.emitInitialTaskMessage(taskSessionId, prompt ?? "")
 
+			// The turn phase was already set to "streaming" (in SdkController.initTask), but the
+			// webview only learns the phase through a full state post. Ship one now, in parallel
+			// with the potentially slow session startup below, so the chat shows the thinking
+			// indicator as soon as the task message lands instead of after startNewSession settles.
+			this.options.postStateToWebview().catch((error) => {
+				Logger.error("[SdkController] Failed to post state after emitting initial task message:", error)
+			})
+
 			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
 			if (startResult.sessionId !== taskSessionId) {
 				Logger.warn(
