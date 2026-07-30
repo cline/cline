@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
 	emptyStoredProviderSettings,
@@ -369,14 +370,8 @@ function resolveReasoning(
 	]
 		.map(trimNonEmpty)
 		.find(Boolean);
-	const effort =
-		rawEffort === "none" ||
-		rawEffort === "low" ||
-		rawEffort === "medium" ||
-		rawEffort === "high" ||
-		rawEffort === "xhigh"
-			? rawEffort
-			: undefined;
+	const parsedEffort = ReasoningLevelSchema.safeParse(rawEffort);
+	const effort = parsedEffort.success ? parsedEffort.data : undefined;
 	const normalizedBudget =
 		typeof budgetTokens === "number" &&
 		Number.isInteger(budgetTokens) &&

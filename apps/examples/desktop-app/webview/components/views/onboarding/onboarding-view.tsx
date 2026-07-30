@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentAurora } from "@cline/ui";
 import {
 	ArrowLeft,
 	CheckCircle2,
@@ -9,7 +10,6 @@ import {
 	LogIn,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -696,7 +696,7 @@ export function OnboardingView({
 
 	return (
 		<div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-background p-6">
-			<AuroraBackground />
+			<AgentAurora />
 			{step === "welcome" ? (
 				<WelcomeStep onContinue={() => setStep("connect")} />
 			) : step === "connect" ? (
