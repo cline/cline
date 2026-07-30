@@ -17,7 +17,7 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo, ProviderApiLine } from "@cline/llms"
+import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
@@ -34,14 +34,13 @@ import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -160,6 +159,11 @@ function providerSettingsProviderId(providerId: string): string {
  * Convert SDK provider-level reasoning settings into the SDK session fields that
  * are actually forwarded as model options. Keep `thinking` and
  * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
+ *
+ * A persisted `budgetTokens` without an effort (written by older extension
+ * versions or the legacy-state migration) is honored by mapping the budget
+ * onto the effort scale, so users who had extended thinking enabled keep it
+ * enabled after upgrading to the effort-based control.
  */
 export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
 	if (!reasoning) {
@@ -170,14 +174,23 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 		return { thinking: false }
 	}
 
+	const effort = isReasoningEffort(reasoning.effort)
+		? reasoning.effort
+		: reasoningEffortFromThinkingBudget(reasoning.budgetTokens)
+
 	if (reasoning.enabled === true) {
 		return {
 			thinking: true,
-			...(isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}),
+			...(effort ? { reasoningEffort: effort } : {}),
 		}
 	}
 
-	return isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}
+	if (isReasoningEffort(reasoning.effort)) {
+		return { reasoningEffort: reasoning.effort }
+	}
+
+	// Legacy budget with no explicit enabled/effort: treat as thinking-on.
+	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
@@ -806,7 +819,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings({
-				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+				isClinePassEnabled: true,
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {

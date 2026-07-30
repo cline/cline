@@ -60,7 +60,6 @@ export const StoredModelEntrySchema = z
 		cacheWritesPrice: OptionalNonNegativeFiniteNumberSchema,
 		temperature: OptionalNonNegativeFiniteNumberSchema,
 		apiFormat: ApiFormatSchema.optional(),
-		isR1FormatRequired: z.boolean().optional(),
 	})
 	.passthrough();
 
@@ -323,7 +322,7 @@ function toStoredModelInfo(
 		else capabilities.delete("reasoning");
 	}
 
-	const apiFormat = model?.isR1FormatRequired ? "r1" : model?.apiFormat;
+	const apiFormat = model?.apiFormat;
 	const hasPricing =
 		model?.inputPrice !== undefined ||
 		model?.outputPrice !== undefined ||
