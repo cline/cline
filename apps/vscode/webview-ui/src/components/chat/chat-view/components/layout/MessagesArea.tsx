@@ -7,6 +7,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 // Sentinel ts for the synthetic "Thinking..." placeholder row. Not a real message; ignored when
@@ -76,6 +77,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		}
 		return Array.isArray(lastRow) ? lastRow.at(-1) : lastRow
 	}, [lastVisibleRow])
+	const forcePendingResponseLoader = isPendingResponseUnconfirmed(chatState.pendingResponse, turnState, clineMessages.length)
 
 	// Keep loader in the message flow (not footer). Show/hide logic (waiting heuristic,
 	// waiting -> reasoning handoff guard, and anti-flash debounce on turn end) lives in the hook.
@@ -86,6 +88,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		lastVisibleRow,
 		lastVisibleMessage,
 		modifiedMessages,
+		forceShow: forcePendingResponseLoader,
 	})
 
 	const displayedGroupedMessages = useMemo<(ClineMessage | ClineMessage[])[]>(() => {
