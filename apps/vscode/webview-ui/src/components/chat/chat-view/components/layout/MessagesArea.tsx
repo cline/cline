@@ -141,11 +141,11 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	useEffect(() => {
 		const prevPhase = prevTurnPhaseRef.current
 		prevTurnPhaseRef.current = turnState?.phase
-		if (turnState?.phase === "streaming" && prevPhase !== "streaming") {
+		if (turnState?.phase === "streaming" && prevPhase !== "streaming" && scrollBehavior.isAtBottom) {
 			disableAutoScrollRef.current = false
 			scrollToBottomSmooth()
 		}
-	}, [turnState?.phase, scrollToBottomSmooth, disableAutoScrollRef])
+	}, [turnState?.phase, scrollBehavior.isAtBottom, scrollToBottomSmooth, disableAutoScrollRef])
 
 	const itemContent = useMemo(
 		() =>
@@ -201,9 +201,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {
 						setIsAtBottom(isAtBottom)
-						if (isAtBottom) {
-							disableAutoScrollRef.current = false
-						}
+						disableAutoScrollRef.current = !isAtBottom
 					}}
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"

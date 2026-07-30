@@ -62,8 +62,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				)
 				setInputValue("")
 				setActiveQuote(null)
-				if ("disableAutoScrollRef" in chatState) {
-					;(chatState as any).disableAutoScrollRef.current = false
+				if (chatState.isAtBottom && chatState.disableAutoScrollRef) {
+					chatState.disableAutoScrollRef.current = false
 				}
 				return
 			}
@@ -251,9 +251,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				if (messageSent) {
 					clearSentMessageState()
 
-					// Reset auto-scroll
-					if ("disableAutoScrollRef" in chatState) {
-						;(chatState as any).disableAutoScrollRef.current = false
+					// Keep the reader's position when they sent a follow-up from earlier in the chat.
+					if (chatState.isAtBottom && chatState.disableAutoScrollRef) {
+						chatState.disableAutoScrollRef.current = false
 					}
 				}
 			}
@@ -435,8 +435,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 			}
 
-			if ("disableAutoScrollRef" in chatState) {
-				;(chatState as any).disableAutoScrollRef.current = false
+			if (chatState.disableAutoScrollRef) {
+				chatState.disableAutoScrollRef.current = false
 			}
 		},
 		[

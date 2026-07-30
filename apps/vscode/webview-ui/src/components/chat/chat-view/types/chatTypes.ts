@@ -55,6 +55,7 @@ export interface ChatState {
 
 	// Scroll-related state (will be moved to scroll hook)
 	isAtBottom?: boolean
+	disableAutoScrollRef?: React.MutableRefObject<boolean>
 	pendingScrollToMessage?: number | null
 }
 
