@@ -178,7 +178,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	// unknown limits as explicit nulls; treat null like "missing" (same as
 	// pricing below) so one such model doesn't fail the whole catalog.
 	const rawContextWindow = input.contextWindow
-	if (rawContextWindow !== undefined && rawContextWindow !== null && !isFiniteNumber(rawContextWindow)) {
+	if (!isFiniteNumber(rawContextWindow)) {
 		throw new CatalogShapeError("SDK model-info `contextWindow` must be a finite number when present.", {
 			details: { receivedType: typeof rawContextWindow },
 		})
