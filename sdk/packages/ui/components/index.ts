@@ -1,5 +1,10 @@
 "use client";
 
+export {
+	type AgentApprovalAction,
+	AgentApprovalCard,
+	type AgentApprovalCardProps,
+} from "./agent-approval-card.js";
 export { AgentAurora } from "./agent-aurora.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {

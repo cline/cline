@@ -36,6 +36,8 @@
 		"components.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
+		"components/agent-approval-card.css",
+		"components/agent-approval-card.tsx",
 		"components/agent-aurora.css",
 		"components/agent-aurora.tsx",
 		"components/agent-hero-heading.css",
