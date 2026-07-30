@@ -174,9 +174,10 @@ export class SdkModeCoordinator {
 						message.type === "say" &&
 						(message.say === "plan_completion_result" || message.say === "completion_result"),
 				)
+			const turnPhase = this.options.getTurnPhase()
 			const planPresented =
 				!activeSession.isRunning &&
-				this.options.getTurnPhase() === "awaiting_followup" &&
+				(turnPhase === "awaiting_followup" || turnPhase === "completed") &&
 				latestAssistantResult?.say === "plan_completion_result" &&
 				!latestAssistantResult.partial
 			const autoContinue = modeToSwitchTo === "act" && planPresented

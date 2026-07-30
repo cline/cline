@@ -179,6 +179,31 @@ describe("SdkModeCoordinator", () => {
 		)
 	})
 
+	it("auto-continues a genuine completed plan after the task is reopened", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "task", text: "Create a plan.", partial: false },
+			{ ts: 2, type: "say", say: "plan_completion_result", text: "Implement the plan.", partial: false },
+			{ ts: 3, type: "ask", ask: "resume_completed_task", text: "", partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "completed",
+		})
+
+		await coordinator.togglePlanActMode("act")
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+			undefined,
+			undefined,
+		)
+	})
+
 	it("submits typed chatContent as the continuation when toggling plan -> act on a presented plan", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session", planMessages())
@@ -404,6 +429,44 @@ describe("SdkModeCoordinator", () => {
 			turnPhase: "awaiting_followup",
 		})
 
+		await coordinator.togglePlanActMode("act")
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue a reopened completed act result", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "completion_result", text: "Act work finished.", partial: false },
+			{ ts: 2, type: "ask", ask: "resume_completed_task", text: "", partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "completed",
+		})
+
+		await coordinator.togglePlanActMode("act")
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue an accidental act -> plan -> act round trip on completed act work", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "plan_completion_result", text: "Old plan.", partial: false },
+			{ ts: 2, type: "say", say: "completion_result", text: "Latest act result.", partial: false },
+			{ ts: 3, type: "ask", ask: "resume_completed_task", text: "", partial: false },
+		])
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "act",
+			turnPhase: "completed",
+		})
+
+		await coordinator.togglePlanActMode("plan")
 		await coordinator.togglePlanActMode("act")
 
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
