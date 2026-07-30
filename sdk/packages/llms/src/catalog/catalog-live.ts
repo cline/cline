@@ -13,6 +13,7 @@ export interface ModelsDevModel {
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
+	reasoning_options?: ModelInfo["reasoningOptions"];
 	structured_output?: boolean;
 	temperature?: boolean;
 	release_date?: string;
@@ -242,6 +243,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
+		reasoningOptions: model.reasoning_options,
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,

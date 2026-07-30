@@ -485,6 +485,7 @@ function modelInfoToGateway(
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
 		capabilities: [...capabilities],
+		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }
@@ -888,7 +889,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "anthropic/claude-sonnet-4.6",
+		defaultModelId: "anthropic/claude-sonnet-5",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",

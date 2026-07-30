@@ -4,7 +4,10 @@ import type {
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	hasRuntimeConfigExtension,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
@@ -217,7 +220,13 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
-			createMcpTools({ serverName: r.name, provider: manager }),
+			createMcpTools({
+				serverName: r.name,
+				provider: manager,
+				// Keep the tool wrapper timeout in agreement with the MCP
+				// request timeout: both derive from the server's registration.
+				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
+			}),
 		),
 	);
 	const tools: AgentTool[] = [];
