@@ -2,7 +2,7 @@ import type { SessionHistoryRecord } from "@cline/core";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import React from "react";
-import { deleteSession } from "../session/session";
+import { deleteSession, updateSession } from "../session/session";
 import { HistoryStandaloneContent } from "./views/history-view";
 
 export async function renderHistoryStandalone(input: {
@@ -63,6 +63,10 @@ export async function renderHistoryStandalone(input: {
 				onDelete: async (sessionId: string) => {
 					const result = await deleteSession(sessionId);
 					return result.deleted;
+				},
+				onRename: async (sessionId: string, title: string) => {
+					const result = await updateSession(sessionId, { title });
+					return result.updated;
 				},
 				onDismiss: () => settle(0),
 			}),
