@@ -10,6 +10,7 @@
 import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
@@ -38,6 +39,8 @@ export interface BuildApiHandlerOptions {
  * `reasoning.effort`. Effort is the only reasoning control the extension UI
  * exposes (matching the CLI); the SDK translates it into each provider's wire
  * format, including budget-token mapping where the provider requires one.
+ * Legacy thinking budgets persisted by older versions are honored by mapping
+ * them onto the effort scale when no explicit effort is stored.
  */
 export function buildSdkProviderConfig(
 	configuration: ApiConfiguration,
@@ -51,6 +54,8 @@ export function buildSdkProviderConfig(
 	const baseUrl = resolveBaseUrl(providerId, configuration)
 
 	const reasoningEffort = mode === "plan" ? configuration.planModeReasoningEffort : configuration.actModeReasoningEffort
+	const legacyThinkingBudgetTokens =
+		mode === "plan" ? configuration.planModeThinkingBudgetTokens : configuration.actModeThinkingBudgetTokens
 
 	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
 
@@ -75,6 +80,14 @@ export function buildSdkProviderConfig(
 
 	if (reasoningEffort === "low" || reasoningEffort === "medium" || reasoningEffort === "high" || reasoningEffort === "xhigh") {
 		return { ...base, reasoningEffort }
+	}
+	// An explicit "none" wins over any stored legacy budget.
+	if (reasoningEffort === "none") {
+		return base
+	}
+	const budgetEffort = reasoningEffortFromThinkingBudget(legacyThinkingBudgetTokens)
+	if (budgetEffort) {
+		return { ...base, reasoningEffort: budgetEffort }
 	}
 	return base
 }

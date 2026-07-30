@@ -1,8 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
-import type { ProviderCatalogController } from "./providerCatalogShared"
+import { type ProviderCatalogController, resolveProviderModelsRecord } from "./providerCatalogShared"
 
 /**
  * Refreshes the Hicap models and returns the updated model list.
@@ -16,11 +15,6 @@ export async function refreshHicapModels(
 	controller: ProviderCatalogController,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const result = await controller.getProviderCatalog().resolveModels(parseProviderId("hicap"))
-	if (!result.ok) {
-		throw new Error(result.error.message)
-	}
-	return OpenRouterCompatibleModelInfo.create({
-		models: toProtobufModels(Object.fromEntries(result.models)),
-	})
+	const models = await resolveProviderModelsRecord(controller, "hicap")
+	return OpenRouterCompatibleModelInfo.create({ models: toProtobufModels(models) })
 }

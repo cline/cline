@@ -59,7 +59,7 @@ describe("provider model refresh handlers (SDK catalog delegation)", () => {
 
 		const models = await refresh(controller)
 
-		expect(resolveModels).toHaveBeenCalledWith(providerId)
+		expect(resolveModels).toHaveBeenCalledWith(providerId, undefined)
 		expect(models).toEqual({ "vendor/rich-model": MODEL })
 	})
 
