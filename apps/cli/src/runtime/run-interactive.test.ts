@@ -1,9 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../utils/types";
 import {
 	applyInteractiveModelChange,
+	assertHistorySessionIsDeletable,
 	resolveReasoningForModelChange,
+	resumeInteractiveSession,
 } from "./run-interactive";
+
+describe("assertHistorySessionIsDeletable", () => {
+	it("rejects deleting the active interactive session", () => {
+		expect(() => assertHistorySessionIsDeletable("sess_1", "sess_1")).toThrow(
+			"Cannot delete the active session",
+		);
+	});
+
+	it("allows deleting another or pre-startup session", () => {
+		expect(() =>
+			assertHistorySessionIsDeletable("sess_1", "sess_2"),
+		).not.toThrow();
+		expect(() => assertHistorySessionIsDeletable("sess_1", "")).not.toThrow();
+	});
+});
 
 describe("resolveReasoningForModelChange", () => {
 	it("persists disabled reasoning only when thinking is explicitly false", () => {
@@ -106,5 +123,76 @@ describe("applyInteractiveModelChange", () => {
 		expect(restartWithCurrentMessages.mock.invocationCallOrder[0]).toBeLessThan(
 			updateCurrentSessionConnection.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+});
+
+describe("resumeInteractiveSession", () => {
+	const originalAgentResume = process.env.CLINE_HOOK_AGENT_RESUME;
+
+	afterEach(() => {
+		if (originalAgentResume === undefined) {
+			delete process.env.CLINE_HOOK_AGENT_RESUME;
+		} else {
+			process.env.CLINE_HOOK_AGENT_RESUME = originalAgentResume;
+		}
+	});
+
+	it("starts the selected session directly without ensuring an empty session first", async () => {
+		const messages = [
+			{ id: "message-1", role: "user" as const, content: "hello" },
+		];
+		const ensureReady = vi.fn(async () => {});
+		const resumeSession = vi.fn(async () => {
+			expect(process.env.CLINE_HOOK_AGENT_RESUME).toBe("1");
+			return messages;
+		});
+		const getAccumulatedUsage = vi.fn(async () => ({
+			inputTokens: 12,
+			outputTokens: 3,
+			totalCost: 0.42,
+		}));
+		const sessionRuntime = {
+			ensureReady,
+			resumeSession,
+			getAccumulatedUsage,
+		};
+
+		const result = await resumeInteractiveSession(
+			sessionRuntime,
+			"session-selected",
+		);
+
+		expect(ensureReady).not.toHaveBeenCalled();
+		expect(resumeSession).toHaveBeenCalledOnce();
+		expect(resumeSession).toHaveBeenCalledWith("session-selected");
+		expect(getAccumulatedUsage).toHaveBeenCalledWith({
+			inputTokens: 0,
+			outputTokens: 0,
+		});
+		expect(result).toMatchObject({
+			messages,
+			totalCost: 0.42,
+		});
+		expect(process.env.CLINE_HOOK_AGENT_RESUME).toBe("1");
+	});
+
+	it("restores the hook state when the selected session cannot resume", async () => {
+		delete process.env.CLINE_HOOK_AGENT_RESUME;
+		const resumeSession = vi.fn(async () => {
+			expect(process.env.CLINE_HOOK_AGENT_RESUME).toBe("1");
+			throw new Error("resume failed");
+		});
+
+		await expect(
+			resumeInteractiveSession(
+				{
+					resumeSession,
+					getAccumulatedUsage: vi.fn(),
+				},
+				"session-missing",
+			),
+		).rejects.toThrow("resume failed");
+
+		expect(process.env.CLINE_HOOK_AGENT_RESUME).toBeUndefined();
 	});
 });

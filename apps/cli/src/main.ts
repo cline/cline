@@ -5,6 +5,7 @@ import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
+import { registerHistoryCommand } from "./commands/history-command";
 import {
 	CommanderError,
 	commanderToParsedArgs,
@@ -15,6 +16,7 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import type { TuiStartupTarget } from "./tui/types";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -136,11 +138,19 @@ function writePromptArgError(args: string[]): void {
 	);
 }
 
+function startupTargetTakesPrecedenceOverMigrationNotice(
+	target: TuiStartupTarget | undefined,
+): boolean {
+	return target === "config" || target === "history";
+}
+
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 
 	const cliArgs = process.argv.slice(2);
+	const isFullTTY =
+		process.stdin.isTTY === true && process.stdout.isTTY === true;
 	const configDir = resolveConfigDirArg(cliArgs);
 	const { setClineDir, setHomeDir } = await import("@cline/shared/storage");
 	if (configDir) {
@@ -154,11 +164,13 @@ export async function runCli(): Promise<void> {
 	// `--config <dir>` rather than the default home/config location.
 	captureCliExtensionActivated();
 
-	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 
 	// Subcommand routing via Commander
-	const ctx: { exitCode?: number; resumeSessionId?: string } = {};
+	const ctx: {
+		exitCode?: number;
+		startupTarget?: TuiStartupTarget;
+	} = {};
 	const io = { writeln, writeErr };
 	const program = createProgram();
 	// Re-enable built-in help/version output for the routing program
@@ -249,7 +261,7 @@ export async function runCli(): Promise<void> {
 				ctx.exitCode = code;
 			},
 			() => {
-				launchConfigView = true;
+				ctx.startupTarget = "config";
 			},
 		);
 		return configCmd;
@@ -416,7 +428,7 @@ export async function runCli(): Promise<void> {
 					connectCmd.args.slice(1),
 					io,
 				);
-			} else if (process.stdin.isTTY && process.stdout.isTTY) {
+			} else if (isFullTTY) {
 				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
@@ -428,7 +440,7 @@ export async function runCli(): Promise<void> {
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
-			if (process.stdin.isTTY && process.stdout.isTTY) {
+			if (isFullTTY) {
 				ctx.exitCode = await runMcpWizard();
 			} else {
 				writeln(
@@ -493,107 +505,17 @@ export async function runCli(): Promise<void> {
 			await doctorCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
-	const historyCmd = program
-		.command("history")
-		.alias("h")
-		.description("List session history or manage saved sessions")
-		.option("--json", "Output as JSON")
-		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		.option("--page <number>", "Page number for paginated results")
-		.option("--config <dir>", "configuration directory")
-		.action(async () => {
-			const opts = historyCmd.opts();
-			const limit = Number.parseInt(opts.limit, 10);
-			const outputMode =
-				program.opts().json || opts.json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryList } = await import("./commands/history");
-			const result = await runHistoryList({
-				limit,
-				outputMode,
-				io,
-			});
-			if (typeof result === "string") {
-				ctx.resumeSessionId = result;
-				// JSON listing should never return a session id; if it does, still exit here so
-				// we never fall through to agent bootstrap (which can block on stdin in CI).
-				if (outputMode === "json") {
-					ctx.exitCode = 0;
-				}
-			} else {
-				// Always set exit code for numeric results so `ctx.exitCode` is never left
-				// undefined (that would fall through and load the full CLI runtime).
-				ctx.exitCode = result ?? 0;
-			}
-		});
-
-	const historyDeleteCmd = historyCmd
-		.command("delete")
-		.description("Delete a session from history")
-		.option("--session-id <id>", "Session ID to delete")
-		.action(async () => {
-			const opts = historyDeleteCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history delete requires --session-id <id>");
-				ctx.exitCode = 0;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryDelete } = await import("./commands/history");
-			ctx.exitCode = await runHistoryDelete(opts.sessionId, outputMode, io);
-		});
-
-	const historyUpdateCmd = historyCmd
-		.command("update")
-		.description("Update a session in history")
-		.option("--metadata <json>", "Metadata as JSON string")
-		.option("--prompt <text>", "New prompt text")
-		.option("--session-id <id>", "Session ID to update")
-		.option("--title <text>", "New title")
-		.action(async () => {
-			const opts = historyUpdateCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history update requires --session-id <id>");
-				ctx.exitCode = 1;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryUpdate } = await import("./commands/history");
-			ctx.exitCode = await runHistoryUpdate(
-				opts.sessionId,
-				opts.prompt,
-				opts.title,
-				opts.metadata,
-				outputMode,
-				io,
-			);
-		});
-
-	const historyExportCmd = historyCmd
-		.command("export <sessionId>")
-		.description("Export a session as a standalone HTML file")
-		.option("-o, --output <path>", "Output HTML file path")
-		.action(async (sessionId: string) => {
-			const opts = historyExportCmd.opts();
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryExport } = await import("./commands/history");
-			ctx.exitCode = await runHistoryExport(
-				sessionId,
-				opts.output,
-				outputMode,
-				io,
-			);
-		});
+	registerHistoryCommand({
+		program,
+		io,
+		setExitCode: (code) => {
+			ctx.exitCode = code;
+		},
+		setStartupTarget: (target) => {
+			ctx.startupTarget = target;
+		},
+		isInteractiveTTY: () => isFullTTY,
+	});
 
 	program
 		.command("hook")
@@ -625,11 +547,7 @@ export async function runCli(): Promise<void> {
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
-			if (
-				cmd.args.length === 0 &&
-				process.stdin.isTTY &&
-				process.stdout.isTTY
-			) {
+			if (cmd.args.length === 0 && isFullTTY) {
 				ctx.exitCode = await runScheduleWizard();
 				return;
 			}
@@ -777,30 +695,8 @@ export async function runCli(): Promise<void> {
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
 
-	let resumeSessionId: string | undefined = ctx.resumeSessionId;
-	if (resumeSessionId) {
-		// The history picker already created (and tore down) an OpenTUI renderer
-		// in this process; starting the interactive TUI here would create a
-		// second one, which can crash natively during teardown. Resume in a
-		// fresh `cline --id <session-id>` child process instead.
-		const { spawnHistoryResume } = await import("./utils/history-resume");
-		const childExitCode = await spawnHistoryResume({
-			sessionId: resumeSessionId,
-			normalizedArgs,
-			remainingArgs: program.args,
-			configDir,
-		});
-		if (childExitCode !== undefined) {
-			process.exitCode = childExitCode;
-			return;
-		}
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
-	}
-
+	let startupTarget = ctx.startupTarget;
+	let resumeSessionId: string | undefined;
 	if (args.id !== undefined) {
 		const sessionId = args.id.trim();
 		if (!sessionId) {
@@ -809,16 +705,12 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		resumeSessionId = sessionId;
+		startupTarget = "chat";
 		process.env.CLINE_HOOK_AGENT_RESUME = "1";
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
 	} else {
 		delete process.env.CLINE_HOOK_AGENT_RESUME;
 	}
-	if (launchConfigView) {
+	if (startupTarget) {
 		args = {
 			...args,
 			interactive: true,
@@ -892,7 +784,7 @@ export async function runCli(): Promise<void> {
 			!args.prompt &&
 			!resumeSessionId &&
 			!stdinHasPipedInput() &&
-			(!process.stdin.isTTY || !process.stdout.isTTY)
+			!isFullTTY
 		) {
 			writeErr("--worktree without a prompt requires an interactive terminal.");
 			process.exitCode = 1;
@@ -1239,12 +1131,6 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			const runInteractive = await loadInteractiveRuntimeModule();
-			let initialView: "chat" | "config" | undefined;
-			if (launchConfigView) {
-				initialView = "config";
-			} else if (resumeSessionId) {
-				initialView = "chat";
-			}
 			const initialClineProviderSettings =
 				provider === "cline" ? selectedProviderSettings : undefined;
 			let initialNotice:
@@ -1255,7 +1141,10 @@ export async function runCli(): Promise<void> {
 						notice: import("./kanban-migration/notice").CliMigrationNotice,
 				  ) => void)
 				| undefined;
-			if (!launchConfigView && process.stdin.isTTY && process.stdout.isTTY) {
+			if (
+				!startupTargetTakesPrecedenceOverMigrationNotice(startupTarget) &&
+				isFullTTY
+			) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
 				initialNotice = getClineCliMigrationNotice(undefined, process.env, {
@@ -1271,7 +1160,7 @@ export async function runCli(): Promise<void> {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
 				clineProviderSettings: initialClineProviderSettings,
-				initialView,
+				startupTarget,
 				initialNotice,
 				onInitialNoticeShown: markInitialNoticeShown,
 			});
