@@ -104,6 +104,16 @@ describe("useChatSession", () => {
 				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
 			}),
 		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			{
+				request: expect.objectContaining({
+					action: "send",
+					prompt: "Start the task",
+				}),
+			},
+			{ timeoutMs: null },
+		);
 	});
 
 	it("preserves server validation errors", async () => {
