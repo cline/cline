@@ -312,7 +312,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		foregroundCommandRunning: false,
 		lastDismissedCliBannerVersion: 0,
 		backgroundEditEnabled: false,
-		showFeatureTips: true,
+		showFeatureTips: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 
