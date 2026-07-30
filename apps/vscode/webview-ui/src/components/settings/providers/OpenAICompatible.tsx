@@ -163,6 +163,24 @@ export const OpenAICompatibleProvider = ({
 		[commitOpenAiSelection, currentMode, selectedModelId],
 	)
 
+	// Checkbox-backed overrides render from the pending accumulator only
+	// while this mode has a local commit in flight. Otherwise the committed
+	// snapshot is authoritative (and may have changed externally).
+	// The FAST-based VSCodeCheckbox emits a synthetic `change` whenever its
+	// `checked` property changes — including programmatic React re-syncs
+	// (FormAssociatedCheckbox.checkedChanged fires $emit("change") for any
+	// prev !== undefined transition). Rendering from a stale resolved
+	// snapshot during the commit round-trip would flip the element back,
+	// fire that synthetic change, and re-commit the stale value over the
+	// user's edit (the toggle then appears to "not persist"). Text fields
+	// guard against the same echo class in updateNumericModelOverride.
+	const displayedOverrides = (() => {
+		const pending = selectedModelOverridesRef.current[currentMode]
+		return pendingCommitsRef.current[currentMode] > 0 && pending.modelId === selectedModelId
+			? pending.overrides
+			: selectedModelOverrides
+	})()
+
 	const updateNumericModelOverride = useCallback(
 		(key: NumericModelOverrideKey, label: string, value: string) => {
 			const parsed = parseOptionalFiniteNumber(value)
@@ -555,13 +573,13 @@ export const OpenAICompatibleProvider = ({
 			{modelConfigurationSelected && (
 				<>
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
+						checked={displayedOverrides.supportsVision ?? !!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => updateModelOverride("supportsVision", e.target.checked === true)}>
 						Supports Images
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={selectedModelOverrides.isR1FormatRequired ?? openAiModelInfo.apiFormat === ApiFormat.R1_CHAT}
+						checked={displayedOverrides.isR1FormatRequired ?? openAiModelInfo.apiFormat === ApiFormat.R1_CHAT}
 						onChange={(e: any) => updateModelOverride("isR1FormatRequired", e.target.checked === true)}>
 						Enable R1 messages format
 					</VSCodeCheckbox>

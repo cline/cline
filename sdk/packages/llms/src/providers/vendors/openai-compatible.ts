@@ -6,6 +6,7 @@ import type {
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
+import { r1FormatMiddleware } from "../middleware/r1-format";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -129,6 +130,17 @@ export async function createOpenAICompatibleProviderModule(
 		...(providerFetch ? { fetch: providerFetch } : {}),
 		includeUsage: true,
 	} as never);
+	// DeepSeek-R1-style endpoints (and self-hosted R1-distill chat templates)
+	// reject a system role and non-alternating messages. When the resolved
+	// model declares `apiFormat: "r1"`, prepend the R1 reshape middleware so
+	// the outgoing prompt has its system message demoted to user and
+	// consecutive same-role turns merged. Stacks before splitToolImages; both
+	// are prompt `transformParams` transforms and order is not significant
+	// here (R1 endpoints don't carry multimodal tool results).
+	const useR1Format = context.model.metadata?.apiFormat === "r1";
+	const middleware = useR1Format
+		? [r1FormatMiddleware, splitToolImagesMiddleware]
+		: splitToolImagesMiddleware;
 	return {
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
@@ -146,7 +158,7 @@ export async function createOpenAICompatibleProviderModule(
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware,
 			}),
 	};
 }
