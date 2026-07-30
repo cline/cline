@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	COMPUTER_USE_BROWSER_SERVER_NAME,
 	COMPUTER_USE_DESKTOP_SERVER_NAME,
+	COMPUTER_USE_MCP_TIMEOUT_SECONDS,
 	isAllowedPeekabooTool,
 	isAllowedPlaywrightTool,
 	PEEKABOO_ALLOWED_TOOL_NAMES,
@@ -17,6 +18,10 @@ describe("computer-use routing", () => {
 	test("keeps browser and desktop tools in distinct namespaces", () => {
 		expect(COMPUTER_USE_BROWSER_SERVER_NAME).toBe("computer-use-browser");
 		expect(COMPUTER_USE_DESKTOP_SERVER_NAME).toBe("computer-use-desktop");
+	});
+
+	test("allows computer-use MCP startup and actions to settle", () => {
+		expect(COMPUTER_USE_MCP_TIMEOUT_SECONDS).toBe(60);
 	});
 
 	test("configures Playwright for isolated visual browser control", () => {

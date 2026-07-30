@@ -16,6 +16,7 @@ export type ComputerUseBackend = "peekaboo" | "portable";
 
 export const COMPUTER_USE_BROWSER_SERVER_NAME = "computer-use-browser";
 export const COMPUTER_USE_DESKTOP_SERVER_NAME = "computer-use-desktop";
+export const COMPUTER_USE_MCP_TIMEOUT_SECONDS = 60;
 export const PLAYWRIGHT_MCP_VERSION = "0.0.78";
 export const PEEKABOO_VERSION = "3.9.8";
 export const PEEKABOO_MCP_ARGS = [
@@ -139,6 +140,7 @@ const plugin: AgentPlugin = {
 				command: "npx",
 				args: [...PLAYWRIGHT_MCP_ARGS],
 			},
+			timeoutSeconds: COMPUTER_USE_MCP_TIMEOUT_SECONDS,
 			metadata: {
 				description:
 					"Headed, isolated Chrome controlled through screenshots and coordinates",
@@ -156,6 +158,7 @@ const plugin: AgentPlugin = {
 					args: [...PEEKABOO_MCP_ARGS],
 					env: { ...PEEKABOO_MCP_ENV },
 				},
+				timeoutSeconds: COMPUTER_USE_MCP_TIMEOUT_SECONDS,
 				metadata: {
 					description:
 						"Native macOS screenshots, accessibility inspection, and UI input",
@@ -172,6 +175,7 @@ const plugin: AgentPlugin = {
 					command: "node",
 					args: [serverPath],
 				},
+				timeoutSeconds: COMPUTER_USE_MCP_TIMEOUT_SECONDS,
 				metadata: {
 					description:
 						"Cross-platform screenshots and atomic mouse and keyboard control",

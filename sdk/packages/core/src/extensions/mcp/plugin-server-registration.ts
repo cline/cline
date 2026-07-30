@@ -2,6 +2,10 @@ import type {
 	AgentExtensionMcpEnvValue,
 	AgentExtensionMcpServer,
 } from "@cline/shared";
+import {
+	isMcpTimeoutConfigured,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import type { McpServerRegistration } from "./types";
 
 export interface PluginMcpServerResolution<TOwner> {
@@ -134,6 +138,17 @@ export function normalizePluginMcpServerRegistration(
 	}
 
 	const metadata = isRecord(server.metadata) ? server.metadata : undefined;
+	const rawTimeoutSeconds = server.timeoutSeconds;
+	if (
+		rawTimeoutSeconds !== undefined &&
+		!isMcpTimeoutConfigured(rawTimeoutSeconds)
+	) {
+		return { name, loadError: "MCP server timeoutSeconds must be a number" };
+	}
+	const timeoutSeconds =
+		rawTimeoutSeconds === undefined
+			? undefined
+			: resolveMcpTimeoutSeconds(rawTimeoutSeconds);
 	if (type === "stdio") {
 		const command = transport.command;
 		if (typeof command !== "string" || !command.trim()) {
@@ -186,6 +201,7 @@ export function normalizePluginMcpServerRegistration(
 					cwd,
 					env: resolvedTransportEnv,
 				},
+				...(timeoutSeconds === undefined ? {} : { timeoutSeconds }),
 				metadata,
 			},
 		};
@@ -215,6 +231,7 @@ export function normalizePluginMcpServerRegistration(
 							url: transport.url,
 							headers,
 						},
+			...(timeoutSeconds === undefined ? {} : { timeoutSeconds }),
 			metadata,
 		},
 	};

@@ -63,7 +63,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
-| Render shared hero heading or session status | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
+| Render shared approval, welcome, search, or status UI | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
