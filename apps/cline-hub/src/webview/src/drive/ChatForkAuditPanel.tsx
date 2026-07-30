@@ -1,8 +1,9 @@
 import type { ChatForkRecord, ShowBacklogItem } from "@cline/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { showIdsForFork } from "./chatForkSession";
 
-export { isChatForkSession } from "./chatForkSession";
+export { isChatForkSession, showIdsForFork } from "./chatForkSession";
 
 export type ChatForkAuditPanelProps = {
 	forks: ChatForkRecord[];
@@ -17,18 +18,6 @@ export type ChatForkAuditPanelProps = {
 	onRetain: (workerSessionId: string, retain: boolean) => void;
 	className?: string;
 };
-
-/** Show ids from promote packet plus backlog rows linked to the Do item. */
-export function showIdsForFork(
-	fork: ChatForkRecord,
-	showBacklog: readonly ShowBacklogItem[] = [],
-): string[] {
-	const fromPromote = fork.promote?.showItemIds ?? [];
-	const fromBacklog = showBacklog
-		.filter((item) => item.linkedDoItemId === fork.seed.doItemId)
-		.map((item) => item.id);
-	return [...new Set([...fromPromote, ...fromBacklog])];
-}
 
 export function ChatForkAuditPanel({
 	forks,

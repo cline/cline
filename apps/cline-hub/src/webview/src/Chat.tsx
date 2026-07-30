@@ -171,7 +171,7 @@ export default function Chat({
 		source: "voice" | "text";
 	} | null>(null);
 	/** suggest (default) | auto | manual — auto applies address without a chip (7.4). */
-	const routerMode: RouterUiMode = "suggest";
+	const routerMode = "suggest" as RouterUiMode;
 	const activeAssistantIdRef = useRef<string | undefined>(undefined);
 	const initialSessionIdRef = useRef<string | undefined>(undefined);
 	const hydratingSessionIdRef = useRef<string | undefined>(undefined);

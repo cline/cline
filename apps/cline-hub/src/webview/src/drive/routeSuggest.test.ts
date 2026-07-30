@@ -12,6 +12,7 @@ const partner: Participant = {
 	displayName: "Adam",
 	role: "partner",
 	status: "idle",
+	seatSources: [],
 };
 
 const specialist: Participant = {
@@ -20,6 +21,7 @@ const specialist: Participant = {
 	displayName: "Test",
 	role: "specialist",
 	status: "idle",
+	seatSources: [],
 };
 
 describe("suggestRouteForUtterance", () => {
