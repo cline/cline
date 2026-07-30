@@ -27,6 +27,8 @@ export function useLocalCommandActions(input: {
 	setAppView: (view: AppView) => void;
 	onClearConversation: () => Promise<void>;
 	onResumeSession: TuiProps["onResumeSession"];
+	onExportHistorySession: TuiProps["onExportHistorySession"];
+	onDeleteHistorySession: TuiProps["onDeleteHistorySession"];
 	onCompact: TuiProps["onCompact"];
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
@@ -47,6 +49,8 @@ export function useLocalCommandActions(input: {
 		setAppView,
 		onClearConversation,
 		onResumeSession,
+		onExportHistorySession,
+		onDeleteHistorySession,
 		onCompact,
 		onFork,
 		onUndo,
@@ -58,7 +62,11 @@ export function useLocalCommandActions(input: {
 			size: "large",
 			style: { maxHeight: termHeight - 2 },
 			content: (ctx: ChoiceContext<string>) => (
-				<HistoryDialogContent {...ctx} />
+				<HistoryDialogContent
+					{...ctx}
+					onExport={onExportHistorySession}
+					onDelete={onDeleteHistorySession}
+				/>
 			),
 		});
 		if (sessionId) {
@@ -98,6 +106,8 @@ export function useLocalCommandActions(input: {
 		refocusTextarea();
 	}, [
 		dialog,
+		onDeleteHistorySession,
+		onExportHistorySession,
 		onResumeSession,
 		refocusTextarea,
 		session,
@@ -244,5 +254,5 @@ export function useLocalCommandActions(input: {
 		],
 	);
 
-	return { handleSlashCommand };
+	return { handleSlashCommand, openHistory };
 }
