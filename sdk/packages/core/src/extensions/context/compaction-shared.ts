@@ -287,10 +287,7 @@ export function buildDeterministicToolContext(
 		const fixedChars =
 			heading.length +
 			2 +
-			selected.reduce(
-				(total, fact) => total + toolFactPrefix(fact).length,
-				0,
-			) +
+			selected.reduce((total, fact) => total + toolFactPrefix(fact).length, 0) +
 			Math.max(0, selected.length - 1) * 2;
 		const bodyBudget = Math.min(
 			DETERMINISTIC_RESULT_PER_ENTRY_CHAR_LIMIT,

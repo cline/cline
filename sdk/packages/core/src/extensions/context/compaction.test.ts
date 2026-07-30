@@ -2210,10 +2210,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			),
 		];
 
-		const context = buildDeterministicToolContext(
-			messages,
-			aggregateCharLimit,
-		);
+		const context = buildDeterministicToolContext(messages, aggregateCharLimit);
 
 		expect(context.length).toBeLessThanOrEqual(aggregateCharLimit);
 		for (let index = 0; index < 3; index += 1) {
