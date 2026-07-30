@@ -75,19 +75,25 @@ function assertBoundaryRole(role: MessageWithMetadata["role"]): void {
 
 // Hash the persisted message shape in a fixed top-level field order. Nested
 // objects keep their persisted JSON order because transcript writes are append-only.
+//
+// `id` and `ts` are deliberately NOT hashed: they are transport identity that
+// the message codec regenerates on every wire/storage round-trip (a store's
+// just-appended user turn has no id/ts yet, and consolidated parallel tool
+// results are re-split with freshly minted ids on resume). Hashing them made
+// projection fail for semantically identical prefixes, so persistence was
+// silently rejected every turn. The fingerprint covers what was said — role,
+// content, and durable metadata — not the envelope.
 function sourceMessageHashInput(message: MessageWithMetadata): unknown[] {
 	const normalized = normalizeMessageForSourceHash(message);
 	assertBoundaryRole(normalized.role);
 	return [
 		["role", normalized.role],
 		["content", normalized.content],
-		["id", normalized.id ?? null],
 		["agent", normalized.agent ?? null],
 		["sessionId", normalized.sessionId ?? null],
 		["metadata", normalized.metadata ?? null],
 		["modelInfo", normalized.modelInfo ?? null],
 		["metrics", normalized.metrics ?? null],
-		["ts", normalized.ts ?? null],
 	];
 }
 
@@ -113,7 +119,10 @@ function sourcePrefixHash(
 	count = messages.length,
 ): string {
 	const hash = createHash("sha256");
-	hash.update("cline-session-compaction-source-v1\n");
+	// v2: dropped volatile id/ts from the per-message hash input. Sidecars
+	// written with v1 fail projection once and are replaced by the next
+	// compaction (the stale-write guard permits replacing unprojectable state).
+	hash.update("cline-session-compaction-source-v2\n");
 	hash.update(`${count}\n`);
 	for (const message of messages.slice(0, count)) {
 		hash.update(JSON.stringify(sourceMessageHashInput(message)));

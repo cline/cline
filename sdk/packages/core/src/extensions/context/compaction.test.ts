@@ -4,7 +4,10 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSessionCompactionState } from "../../session/models/session-compaction";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+} from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
@@ -3766,5 +3769,51 @@ describe("createContextCompactionPrepareTurn", () => {
 			expect.objectContaining({ messages: currentMessages }),
 		);
 		expect(saveState).not.toHaveBeenCalled();
+	});
+
+	it("passes the exact source messages to saveState so hosts can validate against them", async () => {
+		// Regression: local-runtime-host validated the persist by projecting the
+		// state against agent.getMessages(), which mid-turn can legally differ
+		// from the transcript the prepareTurn context carries (the state's hash
+		// input) — so auto-compaction persists were spuriously skipped as stale.
+		// saveState must receive the same messages the hash was computed over.
+		const compact = vi.fn().mockResolvedValue({
+			messages: [{ role: "user", content: "summary" }],
+		});
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => undefined,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "task" },
+			{ role: "assistant", content: "answer" },
+			{ role: "user", content: "follow-up" },
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(saveState).toHaveBeenCalledTimes(1);
+		const [savedState, sourceMessages] = saveState.mock.calls[0];
+		expect(sourceMessages).toBe(currentMessages);
+		expect(
+			projectSessionCompactionState(savedState, currentMessages),
+		).toBeDefined();
 	});
 });

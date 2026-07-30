@@ -566,7 +566,17 @@ export function createContextCompactionPrepareTurn(
 export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
-	saveState?: (state: SessionCompactionState) => void | Promise<void>;
+	/**
+	 * Persist a freshly-computed compaction state. `sourceMessages` are the
+	 * exact canonical messages the state's source-prefix hash was computed
+	 * over; hosts must validate projection against these rather than a
+	 * separately derived transcript, which can legally differ mid-turn and
+	 * spuriously reject the write.
+	 */
+	saveState?: (
+		state: SessionCompactionState,
+		sourceMessages: CoreCompactionContext["messages"],
+	) => void | Promise<void>;
 }): ContextPipelinePrepareTurn {
 	return async (context) => {
 		const existingState = input.getState?.();
@@ -593,7 +603,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 					conversationId: context.conversationId,
 					systemPrompt,
 				});
-				await input.saveState?.(nextState);
+				await input.saveState?.(nextState, context.messages);
 				return {
 					...result,
 					...(systemPrompt !== undefined ? { systemPrompt } : {}),
@@ -616,7 +626,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				conversationId: context.conversationId,
 				systemPrompt: result.systemPrompt,
 			});
-			await input.saveState?.(nextState);
+			await input.saveState?.(nextState, context.messages);
 		}
 		return result;
 	};
