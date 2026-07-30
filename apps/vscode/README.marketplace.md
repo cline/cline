@@ -124,6 +124,39 @@ As Cline works through a task, the extension takes a snapshot of your workspace 
 
 For example, when working with a local web server, you can use 'Restore Workspace Only' to quickly test different versions of your app, then use 'Restore Task and Workspace' when you find the version you want to continue building from. This lets you safely explore different approaches without losing progress.
 
+### Embedded Local MCP Server Host & Hybrid Agent Support
+
+Cline features an embedded MCP Server Host (`http://127.0.0.1:3000/mcp`) that exposes your open VS Code workspace tools directly over HTTP / JSON-RPC 2.0.
+
+- 💡 **Massive API Cost Reduction**: Offload heavy long-running tasks, code refactorings, or test runs to local/open-source external agents (Hermes Agent, OpenClaw, Ollama, DeepSeek) while executing tools directly inside your active workspace.
+- 🤝 **Hybrid Model Collaboration**: Run your primary models in Cline alongside external agents working concurrently on the exact same workspace.
+
+#### Quick Agent Setup:
+
+- **Hermes Agent**: Add to `mcp_servers.json`:
+  ```json
+  { "mcpServers": { "cline": { "url": "http://127.0.0.1:3000/mcp", "transport": "http" } } }
+  ```
+  Or run: `hermes run --mcp-url http://127.0.0.1:3000/mcp`
+
+- **OpenClaw**: Add to `openclaw.config.json`:
+  ```json
+  { "tools": [ { "name": "cline", "endpoint": "http://127.0.0.1:3000/mcp", "protocol": "mcp-http" } ] }
+  ```
+
+#### 📋 Ready-to-Use Master Prompt for External Agents:
+
+```markdown
+# AGENT INSTRUCTION DIRECTIVE: CLINE WORKSPACE INTEGRATION
+
+You are an autonomous engineering agent connected to an active VS Code workspace via the Cline MCP Server at http://127.0.0.1:3000/mcp.
+
+## CORE DIRECTIVES
+1. CONNECT: Connect to the HTTP MCP server at http://127.0.0.1:3000/mcp using JSON-RPC 2.0.
+2. WORKSPACE CONTROL: Use the exposed workspace tools (read_file, write_file, apply_diff, run_terminal, search_files, list_files) to execute tasks.
+3. VERIFICATION: Always run test/build commands via run_terminal to verify changes before completing.
+```
+
 <!-- Transparent pixel to create line break after floating image -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>

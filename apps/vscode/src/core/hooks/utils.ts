@@ -58,7 +58,7 @@ export async function resolveHooksDirectory(
 	if (workspaceName) {
 		// Multi-root workspace: find the workspace with this name
 		const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
-		const targetWorkspace = workspacePaths.paths.find((p) => path.basename(p) === workspaceName)
+		const targetWorkspace = workspacePaths.paths.find((p: string) => path.basename(p) === workspaceName)
 		if (!targetWorkspace) {
 			throw new Error(`Workspace "${workspaceName}" not found`)
 		}

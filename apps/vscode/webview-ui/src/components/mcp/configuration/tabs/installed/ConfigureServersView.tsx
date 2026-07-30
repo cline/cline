@@ -5,13 +5,78 @@ import { McpServiceClient } from "@/services/grpc-client"
 import ServersToggleList from "./ServersToggleList"
 
 const ConfigureServersView = () => {
-	const { mcpServers: servers, navigateToSettings, remoteConfigSettings } = useExtensionState()
+	const { mcpServers: servers, navigateToSettings, remoteConfigSettings, mcpServerState } = useExtensionState()
+	const vscode = typeof window !== "undefined" ? (window as any).__clineVsCodeApi : null
 
 	// Check if there are remote MCP servers configured
 	const hasRemoteMCPServers = remoteConfigSettings?.remoteMCPServers && remoteConfigSettings.remoteMCPServers.length > 0
 
 	return (
 		<div style={{ padding: "16px 20px" }}>
+			{/* External Agent MCP Server Host Card */}
+			<div
+				style={{
+					background: "var(--vscode-editor-background)",
+					border: "1px solid var(--vscode-widget-border, rgba(255,255,255,0.15))",
+					borderRadius: "6px",
+					padding: "14px 16px",
+					marginBottom: "20px",
+				}}>
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+						<span
+							className="codicon codicon-radio-tower"
+							style={{
+								fontSize: "16px",
+								color: mcpServerState?.active ? "#4ec9b0" : "var(--vscode-descriptionForeground)",
+							}}
+						/>
+						<span style={{ fontWeight: 600, fontSize: "13px" }}>External Agent MCP Host</span>
+						<span
+							style={{
+								fontSize: "10px",
+								padding: "2px 6px",
+								borderRadius: "10px",
+								background: mcpServerState?.active ? "rgba(78, 201, 176, 0.2)" : "rgba(255, 255, 255, 0.1)",
+								color: mcpServerState?.active ? "#4ec9b0" : "var(--vscode-descriptionForeground)",
+								fontWeight: 600,
+							}}>
+							{mcpServerState?.active ? "ACTIVE" : "OFF"}
+						</span>
+					</div>
+					<VSCodeButton
+						appearance={mcpServerState?.active ? "secondary" : "primary"}
+						onClick={() => vscode?.postMessage({ type: "toggleMcpServer" })}>
+						{mcpServerState?.active ? "Stop Server" : "Start Server"}
+					</VSCodeButton>
+				</div>
+
+				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 10px 0", lineHeight: "1.4" }}>
+					Exposes Cline workspace tools directly to external agents (Hermes, OpenClaw, AutoGPT, Python SDK) via MCP over HTTP.
+				</p>
+
+				{mcpServerState?.active && (
+					<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--vscode-panel-border)" }}>
+						<div>
+							<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)", marginBottom: "4px" }}>
+								Local MCP Endpoint (HTTP / JSON-RPC 2.0):
+							</div>
+							<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+								<code style={{ flex: 1, padding: "6px 10px", background: "var(--vscode-textCodeBlock-background)", borderRadius: "4px", fontSize: "12px", color: "#4ec9b0" }}>
+									http://127.0.0.1:{mcpServerState.port || 3000}/mcp
+								</code>
+								<VSCodeButton
+									appearance="icon"
+									title="Copy Endpoint URL"
+									onClick={() => navigator.clipboard.writeText(`http://127.0.0.1:${mcpServerState.port || 3000}/mcp`)}>
+									<span className="codicon codicon-copy" />
+								</VSCodeButton>
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
+
 			<div
 				style={{
 					color: "var(--vscode-foreground)",

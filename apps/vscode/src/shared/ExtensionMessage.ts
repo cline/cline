@@ -34,8 +34,15 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
+export interface McpServerState {
+	active: boolean
+	port: number
+	publicUrl?: string
+}
+
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
+	mcpServerState?: McpServerState
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
 	onboardingModels: OnboardingModelGroup | undefined

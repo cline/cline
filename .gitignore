@@ -38,6 +38,7 @@ coverage-unit
 .worktrees
 
 ## Generated files ##
+apps/vscode/tmp-protoc/
 apps/vscode/src/generated/
 apps/vscode/src/shared/proto/
 apps/vscode/webview-ui/src/services/grpc-client.ts

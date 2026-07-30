@@ -6,6 +6,29 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "Run Extension (Fast - No Watch / Low CPU)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
+				"--disable-workspace-trust",
+				"--disable-extension",
+				"saoudrizwan.claude-dev",
+				"--disable-extension",
+				"saoudrizwan.cline-nightly",
+				"${workspaceFolder}/apps/vscode"
+			],
+			"outFiles": [
+				"${workspaceFolder}/apps/vscode/dist/**/*.js"
+			],
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
+				"CLINE_ENVIRONMENT": "production"
+			}
+		},
+		{
 			"name": "Run Extension (production)",
 			"type": "extensionHost",
 			"request": "launch",
