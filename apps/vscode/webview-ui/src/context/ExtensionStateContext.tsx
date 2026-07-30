@@ -28,7 +28,7 @@ import {
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
-import { createOptimisticModeTracker } from "./optimisticMode"
+import { createOptimisticModeTracker, type OptimisticModeTracker } from "./optimisticMode"
 
 export type ProviderId = string
 
@@ -453,7 +453,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Lets the Plan/Act toggle paint the new mode on the click's own render while
 	// the extension rebuilds the session; see optimisticMode.ts.
-	const optimisticModeRef = useRef(createOptimisticModeTracker("act"))
+	const optimisticModeRef = useRef<OptimisticModeTracker>(createOptimisticModeTracker("act"))
 
 	const beginModeSwitch = useCallback((targetMode: Mode) => {
 		const settle = optimisticModeRef.current.begin(targetMode)
