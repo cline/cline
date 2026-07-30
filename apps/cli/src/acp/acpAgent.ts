@@ -7,6 +7,8 @@ import type {
 	ContentBlock,
 	InitializeRequest,
 	InitializeResponse,
+	LoadSessionRequest,
+	LoadSessionResponse,
 	NewSessionRequest,
 	NewSessionResponse,
 	PromptRequest,
@@ -44,6 +46,7 @@ import {
 	isAcpAuthMethodId,
 } from "./auth";
 import { requestAcpToolApproval } from "./permissions";
+import { findPersistedModelId, replaySessionHistory } from "./session-load";
 import {
 	forwardAgentEvent,
 	sendConfigOptionUpdate,
@@ -109,7 +112,7 @@ export class AcpAgent implements Agent {
 		};
 	}
 
-	async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+	isSessionReady() {
 		// Require authentication unless an API key is provided via env var.
 		if (!this.authResult && !process.env.CLINE_API_KEY) {
 			// Check for valid persisted credentials from a previous session
@@ -119,11 +122,29 @@ export class AcpAgent implements Agent {
 			if (!this.authResult) {
 				throw RequestError.authRequired(
 					undefined,
-					"Call authenticate before creating a session",
+					"Call authenticate before starting a session",
 				);
 			}
 		}
+	}
 
+	availableModes() {
+		return [
+					{
+						id: "plan",
+						name: "Plan",
+						description:
+							"Explore the codebase and plan changes without modifying files",
+					},
+					{
+						id: "act",
+						name: "Act",
+						description: "Make changes to the codebase",
+					},
+				]
+	}
+
+	async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
 		const sessionId = randomSessionId();
 
 		const defaultMode = "act";
@@ -153,19 +174,7 @@ export class AcpAgent implements Agent {
 		return {
 			sessionId,
 			modes: {
-				availableModes: [
-					{
-						id: "plan",
-						name: "Plan",
-						description:
-							"Explore the codebase and plan changes without modifying files",
-					},
-					{
-						id: "act",
-						name: "Act",
-						description: "Make changes to the codebase",
-					},
-				],
+				availableModes: this.availableModes(),
 				currentModeId: defaultMode,
 			},
 			models: {
@@ -177,6 +186,73 @@ export class AcpAgent implements Agent {
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
 			],
+		};
+	}
+
+	async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+		await this.isSessionReady();
+
+		const providerId =
+			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+
+		let session = this.sessions.get(params.sessionId);
+		let messages: Message[];
+
+		if (session?.sessionManager && session.activeSessionId) {
+			// The session is still live in this connection — replay its current
+			// conversation without restarting anything.
+			messages =
+				(await session.sessionManager.readMessages(session.activeSessionId)) ??
+				[];
+		} else {
+			if (!session) {
+				session = {
+					id: params.sessionId,
+					cwd: params.cwd,
+					mcpServers: params.mcpServers,
+					currentMode: "act",
+					currentProviderId: providerId,
+					currentModelId:
+						process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6",
+				};
+				this.sessions.set(params.sessionId, session);
+			}
+			try {
+				messages =
+					(await this.ensureSessionManager(session, params.sessionId, {
+						resume: true,
+					})) ?? [];
+			} catch (error) {
+				this.sessions.delete(params.sessionId);
+				throw error;
+			}
+		}
+
+		// The ACP spec requires the full conversation to be replayed via
+		// session/update notifications before this request resolves.
+		await replaySessionHistory(this.conn, params.sessionId, messages);
+
+		const providerModels = await Llms.getModelsForProvider(
+			session.currentProviderId,
+		);
+		const availableModels = Object.entries(providerModels).map(
+			([availableModelId, info]) => ({
+				modelId: availableModelId,
+				name: info.name ?? availableModelId,
+				description: info.description,
+			}),
+		);
+
+		return {
+			modes: {
+				availableModes: this.availableModes(),
+				currentModeId: session.currentMode,
+			},
+			models: {
+				availableModels,
+				currentModelId: session.currentModelId,
+			},
+			configOptions: await buildAllConfigOptions(session),
 		};
 	}
 
@@ -467,13 +543,17 @@ export class AcpAgent implements Agent {
 	 * Lazily create and start the session manager for this ACP session.
 	 * After the first call the manager persists across prompt() calls so that
 	 * conversation history is maintained.
+	 *
+	 * With `resume: true` the persisted conversation for `acpSessionId` is read
+	 * back through the session manager.
 	 */
 	private async ensureSessionManager(
 		session: SessionState,
 		acpSessionId: string,
-	): Promise<void> {
+		options?: { resume?: boolean },
+	): Promise<Message[] | undefined> {
 		if (session.sessionManager) {
-			return;
+			return undefined;
 		}
 
 		const config = await this.buildConfig(session);
@@ -488,6 +568,31 @@ export class AcpAgent implements Agent {
 			workspaceRoot: config.workspaceRoot,
 		});
 
+		let initialMessages: Message[] | undefined;
+		if (options?.resume) {
+			initialMessages = await sessionManager
+				.readMessages(acpSessionId)
+				.catch(() => undefined);
+
+			if (!initialMessages || initialMessages.length === 0) {
+				await sessionManager
+					.dispose("acp_load_session_not_found")
+					.catch(() => {});
+				throw RequestError.resourceNotFound(acpSessionId);
+			}
+
+			const persistedModelId = findPersistedModelId(
+				initialMessages,
+				session.currentProviderId,
+			);
+			if (!process.env.CLINE_MODEL && persistedModelId) {
+				session.currentModelId = persistedModelId;
+			}
+		} else {
+			initialMessages = session.pendingInitialMessages;
+			session.pendingInitialMessages = undefined;
+		}
+
 		session.unsubscribe = subscribeToAgentEvents(
 			sessionManager,
 			(event: AgentEvent) => {
@@ -495,18 +600,22 @@ export class AcpAgent implements Agent {
 			},
 		);
 
-		const initialMessages = session.pendingInitialMessages;
-		session.pendingInitialMessages = undefined;
-
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
-			config,
+			// Persist the core session under the ACP session id so that
+			// session/load can find the conversation by the id the client holds.
+			config: {
+				...config,
+				modelId: session.currentModelId,
+				sessionId: acpSessionId,
+			},
 			interactive: true,
 			initialMessages,
 		});
 
 		session.sessionManager = sessionManager;
 		session.activeSessionId = started.sessionId;
+		return initialMessages;
 	}
 
 	private async buildConfig(session: SessionState): Promise<Config> {
