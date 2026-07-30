@@ -612,6 +612,7 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
