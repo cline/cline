@@ -7,6 +7,7 @@ import type {
 } from "@cline/shared";
 import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
+	getPluginDisplayName as getPluginDisplayNameFromShared,
 	resolveConfiguredPluginModulePaths,
 	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
 	SKILLS_CONFIG_DIRECTORY_NAME,
@@ -30,6 +31,13 @@ export function resolvePluginConfigSearchPaths(
 
 export function discoverPluginModulePaths(directoryPath: string): string[] {
 	return discoverPluginModulePathsFromShared(directoryPath);
+}
+
+export function getPluginDisplayName(
+	filePath: string,
+	searchRoot?: string,
+): string {
+	return getPluginDisplayNameFromShared(filePath, searchRoot);
 }
 
 export interface ResolveAgentPluginPathsOptions {

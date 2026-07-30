@@ -1,13 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import {
-	basename,
-	dirname,
-	extname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
+import { existsSync } from "node:fs";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import {
 	createUserInstructionConfigService,
 	type RuleConfig,
@@ -23,6 +15,7 @@ import {
 	setMcpServerDisabled,
 } from "../extensions/mcp";
 import {
+	getPluginDisplayName,
 	resolveAgentPluginPaths,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "../extensions/plugin/plugin-config-loader";
@@ -67,39 +60,6 @@ function isPathWithin(parentPath: string, childPath: string): boolean {
 		relativePath === "" ||
 		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
 	);
-}
-
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			name?: unknown;
-		};
-		return typeof packageJson.name === "string" && packageJson.name.trim()
-			? packageJson.name.trim()
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function getPluginDisplayName(filePath: string): string {
-	let current = dirname(filePath);
-	while (true) {
-		const packageJsonPath = join(current, "package.json");
-		if (existsSync(packageJsonPath)) {
-			const packageName = readPackageName(packageJsonPath);
-			if (packageName) {
-				return packageName;
-			}
-			break;
-		}
-		const parent = dirname(current);
-		if (parent === current) {
-			break;
-		}
-		current = parent;
-	}
-	return basename(filePath, extname(filePath));
 }
 
 type PluginSkillOwner = {
