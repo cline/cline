@@ -237,6 +237,15 @@ export class SdkModeCoordinator {
 			return false
 		}
 
+		// Publish the new mode before the rebuild below. Tearing the session down
+		// and restarting it takes hundreds of milliseconds on a long conversation,
+		// and the Plan/Act toggle is pure display state that must not wait for it.
+		// The rollback paths below post again, so a rebuild that fails still
+		// converges the UI back to the mode the session actually runs with.
+		this.options.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state for mode change:", error)
+		})
+
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 		const wasRunning = activeSession.isRunning
 

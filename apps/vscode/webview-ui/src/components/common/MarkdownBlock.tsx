@@ -1,5 +1,4 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { SquareArrowOutUpRightIcon } from "lucide-react"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
@@ -11,9 +10,9 @@ import type { Node } from "unist"
 import { visit } from "unist-util-visit"
 import MermaidBlock from "@/components/common/MermaidBlock"
 import { Button } from "@/components/ui/button"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useModeSwitch } from "@/hooks/useModeSwitch"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
 import UnsafeImage from "./UnsafeImage"
 
@@ -118,7 +117,7 @@ MemoizedMarkdown.displayName = "MemoizedMarkdown"
  * A component for Act Mode text that contains a clickable toggle and keyboard shortcut hint.
  */
 const ActModeHighlight: React.FC = () => {
-	const { mode } = useExtensionState()
+	const { mode, switchMode } = useModeSwitch()
 
 	return (
 		<span
@@ -129,11 +128,7 @@ const ActModeHighlight: React.FC = () => {
 			onClick={() => {
 				// Only toggle to Act mode if we're currently in Plan mode
 				if (mode === "plan") {
-					StateServiceClient.togglePlanActModeProto(
-						TogglePlanActModeRequest.create({
-							mode: PlanActMode.ACT,
-						}),
-					)
+					void switchMode("act")
 				}
 			}}
 			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}>

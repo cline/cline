@@ -1,7 +1,6 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -18,9 +17,10 @@ import { getModeSpecificFields } from "@/components/settings/utils/providerUtils
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
+import { useModeSwitch } from "@/hooks/useModeSwitch"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptionIndex,
@@ -214,7 +214,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		ref,
 	) => {
 		const {
-			mode,
 			apiConfiguration,
 			openRouterModels,
 			platform,
@@ -225,6 +224,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			navigateToSettingsModelPicker,
 			mcpServers,
 		} = useExtensionState()
+		const { mode, switchMode } = useModeSwitch()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -1020,23 +1020,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const onModeToggle = useCallback(() => {
 			void (async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
 				const submittedText = inputValue
 				const submittedImages = selectedImages
 				const submittedFiles = selectedFiles
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: submittedText.trim() ? submittedText : undefined,
-							images: submittedImages,
-							files: submittedFiles,
-						},
-					}),
-				)
+				const consumedComposer = await switchMode(mode === "plan" ? "act" : "plan", {
+					message: submittedText.trim() ? submittedText : undefined,
+					images: submittedImages,
+					files: submittedFiles,
+				})
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
-					if (response.value) {
+					if (consumedComposer) {
 						// The toggle consumed the composer content as the continuation
 						// message. Clear only what was submitted: the rebuild can take a
 						// moment and the user may have typed or attached new content in
@@ -1050,7 +1044,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
+		}, [mode, switchMode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 

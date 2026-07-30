@@ -41,7 +41,8 @@ describe("SdkModeCoordinator", () => {
 			undefined,
 			undefined,
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// Once up front so the UI reflects the new mode immediately, once after the rebuild.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it("preserves pending input by returning false when toggling mode without an active session", async () => {
@@ -87,7 +88,28 @@ describe("SdkModeCoordinator", () => {
 		expect(task.taskId).toBe("new-session")
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+	})
+
+	it("publishes the new mode before doing any rebuild work", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "act" })
+
+		// The Plan/Act toggle renders from this state, so it must be published
+		// before the session teardown/restart rather than after it.
+		let postsBeforeRebuild = 0
+		let modeAtRebuild: string | undefined
+		options.loadInitialMessages.mockImplementation(async () => {
+			postsBeforeRebuild = options.postStateToWebview.mock.calls.length
+			modeAtRebuild = state.mode
+			return []
+		})
+
+		await coordinator.togglePlanActMode("plan")
+
+		expect(postsBeforeRebuild).toBe(1)
+		expect(modeAtRebuild).toBe("plan")
 	})
 
 	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
@@ -435,6 +457,8 @@ describe("SdkModeCoordinator", () => {
 			[expect.objectContaining({ say: "error" })],
 			expect.anything(),
 		)
+		// The rolled-back mode is re-posted after the up-front optimistic post.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it("emits an auth error and skips replacement when the target cline provider has no token", async () => {
@@ -452,7 +476,8 @@ describe("SdkModeCoordinator", () => {
 
 		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// The rolled-back mode is re-posted, so the optimistic toggle converges back.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 		expect(state.mode).toBe("plan")
 	})
 

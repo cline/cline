@@ -9,6 +9,7 @@ import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import type { Mode } from "@shared/storage/types"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
@@ -27,6 +28,7 @@ import {
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { createOptimisticModeTracker } from "./optimisticMode"
 
 export type ProviderId = string
 
@@ -45,6 +47,15 @@ interface ProviderModelsState {
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
+	/**
+	 * Flips `mode` locally so the Plan/Act toggle reflects the click on the very
+	 * next render instead of waiting for the extension to tear down and restart
+	 * the session. Returns a settle callback the caller must invoke once the
+	 * toggle RPC resolves or rejects; it drops the local override and snaps back
+	 * to whatever mode the extension last reported, so a rebuild that rolled the
+	 * mode back doesn't leave a lying toggle. See `useModeSwitch`.
+	 */
+	beginModeSwitch: (targetMode: Mode) => () => void
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
@@ -440,6 +451,24 @@ export const ExtensionStateContextProvider: React.FC<{
 	// arrival order, duplication, or loss. See messageReducer.ts.
 	const replicaRef = useRef<ReplicaState>(createReplicaState())
 
+	// Lets the Plan/Act toggle paint the new mode on the click's own render while
+	// the extension rebuilds the session; see optimisticMode.ts.
+	const optimisticModeRef = useRef(createOptimisticModeTracker("act"))
+
+	const beginModeSwitch = useCallback((targetMode: Mode) => {
+		const settle = optimisticModeRef.current.begin(targetMode)
+		setState((prevState) => (prevState.mode === targetMode ? prevState : { ...prevState, mode: targetMode }))
+		return () => {
+			const authoritativeMode = settle()
+			if (authoritativeMode === null) {
+				return
+			}
+			setState((prevState) =>
+				prevState.mode === authoritativeMode ? prevState : { ...prevState, mode: authoritativeMode },
+			)
+		}
+	}, [])
+
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
@@ -448,6 +477,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						stateData.mode = optimisticModeRef.current.reconcile(stateData.mode)
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -872,6 +902,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
+		beginModeSwitch,
 		showWelcome,
 		onboardingModels,
 		openRouterModels,
