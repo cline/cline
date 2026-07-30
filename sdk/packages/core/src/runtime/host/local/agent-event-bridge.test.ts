@@ -84,6 +84,28 @@ describe("AgentEventBridge.handlePluginTelemetry", () => {
 		);
 	});
 
+	it("falls back to host telemetry for setup-time events emitted before session registration", () => {
+		const fallback = createTelemetryStub();
+		// Plugin setup() runs during bootstrap, before sessions.set(): the
+		// session lookup misses and only the fallback can receive the event.
+		const bridge = createBridge(undefined);
+
+		bridge.handlePluginTelemetry(
+			"session-1",
+			{
+				pluginName: "weather",
+				kind: "event",
+				event: "plugin_setup",
+			},
+			fallback as never,
+		);
+
+		expect(fallback.capture).toHaveBeenCalledWith({
+			event: "plugin.plugin_setup",
+			properties: { plugin_name: "weather", session_id: "session-1" },
+		});
+	});
+
 	it("drops malformed payloads and missing telemetry without throwing", () => {
 		const telemetry = createTelemetryStub();
 		const bridge = createBridge(telemetry);

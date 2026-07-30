@@ -138,13 +138,18 @@ export class AgentEventBridge {
 		fallbackAutomation?: NonNullable<
 			CoreSessionConfig["extensionContext"]
 		>["automation"],
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
 	): Promise<void> {
 		if (event.name === "plugin_log") {
 			this.handlePluginLog(rootSessionId, event.payload);
 			return;
 		}
 		if (event.name === "plugin_telemetry") {
-			this.handlePluginTelemetry(rootSessionId, event.payload);
+			this.handlePluginTelemetry(
+				rootSessionId,
+				event.payload,
+				fallbackTelemetry,
+			);
 			return;
 		}
 		if (event.name === "automation_event") {
@@ -198,9 +203,17 @@ export class AgentEventBridge {
 	 * namespaced under `plugin.` and stamped with the plugin name so they
 	 * cannot impersonate first-party events.
 	 */
-	handlePluginTelemetry(rootSessionId: string, payload: unknown): void {
+	handlePluginTelemetry(
+		rootSessionId: string,
+		payload: unknown,
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
+	): void {
+		// Plugin setup() runs during session bootstrap, before the session is
+		// registered in the sessions map — the fallback keeps setup-time
+		// telemetry (and any other pre-registration events) from being
+		// silently dropped, mirroring handlePluginLog's fallback logger.
 		const session = this.deps.getSession(rootSessionId);
-		const telemetry = session?.config.telemetry;
+		const telemetry = session?.config.telemetry ?? fallbackTelemetry;
 		if (!telemetry || !payload || typeof payload !== "object") return;
 		const record = payload as Record<string, unknown>;
 		const pluginName =
