@@ -61,15 +61,6 @@ export class SdkSessionLifecycle {
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
 	private sharedHostUnsubscribe: (() => void) | undefined
 	/**
-	 * Monotonic counter of agent-turn starts, bumped by beginTurn(). The SDK can
-	 * start a turn the extension never sent (draining a queued prompt at turn
-	 * end), and the send promise of the PREVIOUS turn settles only after that
-	 * drain has begun — so per-turn bookkeeping keyed to a send promise must
-	 * check the epoch before applying, or it clobbers the newer turn's state
-	 * (see fireAndForgetSend and SdkSessionEventCoordinator's turn-end guard).
-	 */
-	private turnEpoch = 0
-	/**
 	 * Stops still in flight, keyed by sessionId. Mode/MCP rebuilds and
 	 * follow-up resumes reuse the sessionId of the session they replace, and
 	 * core cleanup is keyed by sessionId, so a same-id start that overlaps a
@@ -83,19 +74,6 @@ export class SdkSessionLifecycle {
 
 	getActiveSession(): ActiveSession | undefined {
 		return this.activeSession
-	}
-
-	/**
-	 * Record that a new agent turn is starting. Called by fireAndForgetSend for
-	 * immediate sends and by the session-event coordinator when the SDK
-	 * auto-submits a queued prompt. Returns the new epoch.
-	 */
-	beginTurn(): number {
-		return ++this.turnEpoch
-	}
-
-	getTurnEpoch(): number {
-		return this.turnEpoch
 	}
 
 	setRunning(isRunning: boolean): void {
@@ -394,26 +372,12 @@ export class SdkSessionLifecycle {
 		// auto-continued run to isRunning=false, which makes the event coordinator
 		// treat the new turn's completion as a cancelled-turn straggler).
 		const sessionAtSend = this.activeSession
-		// Immediate sends start a turn now; queued/steered messages don't (the
-		// queue drain's pending_prompt_submitted event marks that turn start).
-		const turnEpochAtSend = delivery === undefined ? this.beginTurn() : this.turnEpoch
 		const isSuperseded = (label: string): boolean => {
-			if (this.activeSession !== sessionAtSend) {
-				Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
-				return true
+			if (this.activeSession === sessionAtSend) {
+				return false
 			}
-			// This send's promise settles when its turn ends, but the SDK may have
-			// already drained a queued prompt into a NEW turn on the same session
-			// by then (the drain microtask runs before this promise chain unwinds).
-			// Applying this turn's completion bookkeeping now would mark the live
-			// queued turn idle, and its own turn-complete event would then be
-			// mistaken for a cancelled-turn straggler — leaving the UI stuck on
-			// the streaming phase (endless "Thinking").
-			if (this.turnEpoch !== turnEpochAtSend) {
-				Logger.debug(`[SdkController] Ignoring ${label} of send superseded by a newer turn for session: ${sessionId}`)
-				return true
-			}
-			return false
+			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
+			return true
 		}
 		// Mark a preceding user-initiated mode switch on this message so the model
 		// sees exactly when the rules changed, instead of only inferring it from
