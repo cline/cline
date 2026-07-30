@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
+import ChatRow from "@/components/chat/ChatRow"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
@@ -12,6 +13,15 @@ import { createMessageRenderer } from "../messages/MessageRenderer"
 // Sentinel ts for the synthetic "Thinking..." placeholder row. Not a real message; ignored when
 // deriving scroll triggers from the tail of the rendered list.
 const WAITING_ROW_TS = Number.MIN_SAFE_INTEGER
+
+// Synthetic placeholder rendered while waiting for the model with no visible rows streaming.
+const WAITING_ROW: ClineMessage = {
+	ts: WAITING_ROW_TS,
+	type: "say",
+	say: "reasoning",
+	partial: true,
+	text: "",
+}
 
 interface MessagesAreaProps {
 	task: ClineMessage
@@ -97,19 +107,19 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		forceShow: forceNewTaskLoader,
 	})
 
+	// While the list has no visible rows yet (new task just submitted), the loader is rendered as
+	// a plain element instead of a Virtuoso item: a cold-mounting virtualized list takes several
+	// frames to measure and paint its first item, which visibly delays the "Thinking..." shimmer
+	// right when the chat view appears. Once any real row exists the list is warm and the loader
+	// goes back to being an in-list row (unchanged behavior).
+	const showEmptyListLoader = showThinkingLoaderRow && groupedMessages.length === 0
+
 	const displayedGroupedMessages = useMemo<(ClineMessage | ClineMessage[])[]>(() => {
-		if (!showThinkingLoaderRow) {
+		if (!showThinkingLoaderRow || showEmptyListLoader) {
 			return groupedMessages
 		}
-		const waitingRow: ClineMessage = {
-			ts: WAITING_ROW_TS,
-			type: "say",
-			say: "reasoning",
-			partial: true,
-			text: "",
-		}
-		return [...groupedMessages, waitingRow]
-	}, [groupedMessages, showThinkingLoaderRow])
+		return [...groupedMessages, WAITING_ROW]
+	}, [groupedMessages, showThinkingLoaderRow, showEmptyListLoader])
 
 	// useScrollBehavior auto-scrolls when groupedMessages.length changes, but rows can change here
 	// without that: the waiting row is turnState-driven (e.g. plan -> act auto-continue adds no
@@ -206,7 +216,29 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				/>
 			</div>
 
-			<div className="grow flex" ref={scrollContainerRef}>
+			<div className="grow flex relative" ref={scrollContainerRef}>
+				{/* Empty-list fast path: paint the loader immediately without waiting for the
+				    virtualized list's initial measure/render cycle. Mirrors the in-list row's
+				    markup (MessageRenderer wrapper + ChatRow) so the swap to a real row later
+				    causes no visual jump. Virtuoso stays mounted (empty) underneath, so it is
+				    already warm when the first real row arrives. */}
+				{showEmptyListLoader && (
+					<div className="absolute inset-0 overflow-hidden">
+						<ChatRow
+							inputValue={inputValue}
+							isExpanded={false}
+							isLast={true}
+							lastModifiedMessage={modifiedMessages.at(-1)}
+							message={WAITING_ROW}
+							onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
+							onHeightChange={handleRowHeightChange}
+							onLastRowContentChange={handleLastRowContentChange}
+							onSetQuote={setActiveQuote}
+							onToggleExpand={toggleRowExpansion}
+							sendMessageFromChatRow={messageHandlers.handleSendMessage}
+						/>
+					</div>
+				)}
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {
 						setIsAtBottom(isAtBottom)
