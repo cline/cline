@@ -87,7 +87,7 @@ export function SearchCombobox({
 				aria-haspopup="dialog"
 				aria-label={`${ariaLabel}: ${displayedValue}`}
 				className={[
-					"cline-ui-search-combobox__trigger inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1 font-medium text-foreground transition-[background-color] duration-150 ease-[ease] enabled:hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
+					"cline-ui-search-combobox__trigger inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1 font-medium text-foreground transition-[background-color] duration-150 ease-[ease] [&:hover:not(:disabled)]:bg-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
 					className,
 				]
 					.filter(Boolean)
@@ -154,7 +154,7 @@ export function SearchCombobox({
 							filtered.map((option) => (
 								<button
 									aria-pressed={option.value === value}
-									className="cline-ui-search-combobox__option flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-foreground transition-[background-color] duration-150 ease-[ease] hover:bg-accent/50 aria-pressed:bg-accent focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none"
+									className="cline-ui-search-combobox__option flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-foreground transition-[background-color] duration-150 ease-[ease] [&:hover]:bg-accent/50 aria-pressed:bg-accent focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none"
 									disabled={disabled}
 									key={option.value}
 									onClick={() => handleSelect(option)}

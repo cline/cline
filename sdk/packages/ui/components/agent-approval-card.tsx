@@ -76,7 +76,7 @@ export function AgentApprovalCard({
 			) : null}
 			<div className="cline-ui-agent-approval-card__actions mt-2 flex items-center gap-2">
 				<button
-					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-0 bg-primary px-3 font-medium text-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] hover:bg-primary/90 focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50"
+					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-0 bg-primary px-3 font-medium text-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-primary/90 focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50"
 					disabled={isPending}
 					onClick={onApprove}
 					type="button"
@@ -91,7 +91,7 @@ export function AgentApprovalCard({
 					)}
 				</button>
 				<button
-					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--reject inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background px-3 font-medium text-foreground shadow-xs transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] hover:bg-accent hover:text-accent-foreground focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--reject inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background px-3 font-medium text-foreground shadow-xs transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-accent [&:hover]:text-accent-foreground focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-ring/50 disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:[&:hover]:bg-input/50"
 					disabled={isPending}
 					onClick={onReject}
 					type="button"
