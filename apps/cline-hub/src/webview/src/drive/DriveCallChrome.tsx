@@ -49,7 +49,7 @@ export function DriveHeaderControls({
 					: "Drive call disconnected.";
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
 			<span
 				aria-atomic="true"
 				aria-live="polite"
@@ -61,7 +61,8 @@ export function DriveHeaderControls({
 			{onCall && drive.active ? (
 				<>
 					<Badge
-						className="gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+						className="max-w-full gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+						title={`Drive · ${drive.partnerName}`}
 						variant="outline"
 					>
 						<span
@@ -71,16 +72,19 @@ export function DriveHeaderControls({
 								!drive.muted && "animate-pulse",
 							)}
 						/>
-						Drive · {drive.partnerName}
+						<span className="max-w-40 truncate">
+							Drive · {drive.partnerName}
+						</span>
 					</Badge>
 					<Button
+						aria-pressed={drive.stageLayout}
 						disabled={disabled}
 						onClick={onToggleSpotlight}
 						size="sm"
 						type="button"
 						variant={drive.stageLayout ? "default" : "outline"}
 					>
-						{drive.stageLayout ? "Spotlight on" : "Spotlight off"}
+						{drive.stageLayout ? "Hide Spotlight" : "Show Spotlight"}
 					</Button>
 				</>
 			) : null}
@@ -149,6 +153,9 @@ export function DriveCallStrip({
 	const spotlightLabel = isDriveHumanId(drive.spotlightParticipantId)
 		? "you"
 		: drive.partnerName;
+	const nextSpotlightLabel = isDriveHumanId(drive.spotlightParticipantId)
+		? drive.partnerName
+		: "you";
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/5 px-4 py-2">
@@ -169,19 +176,26 @@ export function DriveCallStrip({
 				{drive.handRaised ? " · hand raised" : ""}
 			</span>
 			<div className="ml-auto flex flex-wrap items-center gap-1">
-				{SUB_MODES.map((mode) => (
-					<Button
-						disabled={disabled}
-						key={mode}
-						onClick={() => onSubModeChange(mode)}
-						size="sm"
-						type="button"
-						variant={drive.subMode === mode ? "default" : "ghost"}
-						className="h-7 px-2 text-xs capitalize"
-					>
-						{mode}
-					</Button>
-				))}
+				<div
+					aria-label="Drive working mode"
+					className="flex flex-wrap items-center gap-1"
+					role="group"
+				>
+					{SUB_MODES.map((mode) => (
+						<Button
+							aria-pressed={drive.subMode === mode}
+							className="h-7 px-2 text-xs capitalize"
+							disabled={disabled}
+							key={mode}
+							onClick={() => onSubModeChange(mode)}
+							size="sm"
+							type="button"
+							variant={drive.subMode === mode ? "default" : "ghost"}
+						>
+							{mode}
+						</Button>
+					))}
+				</div>
 				{drive.postureOverride ? (
 					<Button
 						disabled={disabled}
@@ -195,7 +209,7 @@ export function DriveCallStrip({
 					</Button>
 				) : null}
 				<Button
-					aria-label={`Spotlight ${spotlightLabel}`}
+					aria-label={`Move Spotlight to ${nextSpotlightLabel}`}
 					disabled={disabled}
 					onClick={() => onToggleSpotlight?.()}
 					size="icon-sm"
@@ -209,6 +223,7 @@ export function DriveCallStrip({
 					aria-label={
 						drive.partnerMuted ? "Unmute partner" : "Mute partner"
 					}
+					aria-pressed={drive.partnerMuted}
 					disabled={disabled}
 					onClick={() => onTogglePartnerMute?.()}
 					size="icon-sm"
@@ -224,6 +239,7 @@ export function DriveCallStrip({
 							? "Undeafen partner"
 							: "Deafen partner"
 					}
+					aria-pressed={drive.partnerDeafened}
 					disabled={disabled}
 					onClick={() => onTogglePartnerDeafen?.()}
 					size="icon-sm"
@@ -246,6 +262,7 @@ export function DriveCallStrip({
 				{onToggleWorkers ? (
 					<Button
 						aria-label="Workers audit"
+						aria-pressed={workersOpen}
 						disabled={disabled}
 						onClick={() => onToggleWorkers()}
 						size="sm"
@@ -263,6 +280,7 @@ export function DriveCallStrip({
 				) : null}
 				<Button
 					aria-label={drive.muted ? "Unmute" : "Mute"}
+					aria-pressed={drive.muted}
 					disabled={disabled}
 					onClick={onMuteToggle}
 					size="icon-sm"
@@ -276,7 +294,8 @@ export function DriveCallStrip({
 					)}
 				</Button>
 				<Button
-					aria-label="Raise hand"
+					aria-label={drive.handRaised ? "Lower hand" : "Raise hand"}
+					aria-pressed={drive.handRaised}
 					disabled={disabled}
 					onClick={onHandToggle}
 					size="icon-sm"

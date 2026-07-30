@@ -43,6 +43,7 @@ import {
 	isChatForkSession,
 } from "./drive/ChatForkAuditPanel";
 import { RouteSuggestChip } from "./drive/RouteSuggestChip";
+import type { DriveLaunchRequest } from "./drive/driveLaunch";
 import {
 	type RouteSuggestion,
 	type RouterUiMode,
@@ -121,13 +122,6 @@ type ChatProps = {
 	initialSessionId?: string;
 	onDriveLaunchHandled?: (requestId: number) => void;
 	onSessionSelected?: (sessionId?: string) => void;
-};
-
-export type DriveLaunchAction = "join" | "focus";
-
-export type DriveLaunchRequest = {
-	id: number;
-	action: DriveLaunchAction;
 };
 
 export default function Chat({
@@ -246,9 +240,9 @@ export default function Chat({
 			driveLaunchRequest.action === "join" ||
 			connectionPhase !== "on"
 		) {
-			joinDrive();
+			joinDrive(driveLaunchRequest.roomId);
 		} else {
-			refreshDriveRoom();
+			refreshDriveRoom(driveLaunchRequest.roomId);
 		}
 		onDriveLaunchHandled?.(driveLaunchRequest.id);
 	}, [

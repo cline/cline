@@ -67,12 +67,15 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
-import type { DriveLaunchAction, DriveLaunchRequest } from "./Chat";
 import { DriveMarkIcon } from "./components/icons/drive-mark";
 import { DriveView } from "./components/views/drive-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
+import type {
+	DriveLaunchRequest,
+	DriveOpenCallRequest,
+} from "./drive/driveLaunch";
 import { ShareScreenSpotlightDemo } from "./drive/ShareScreenSpotlightDemo";
 import { ChatForkDemo } from "./drive/ChatForkDemo";
 import { syncHubTheme } from "./lib/theme";
@@ -1165,6 +1168,7 @@ function App() {
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
 	>(() => readCurrentChatSessionId());
+	const lastChatSessionIdRef = useRef<string | undefined>(selectedSessionId);
 	const [recentSessions, setRecentSessions] = useState<WebviewSessionSummary[]>(
 		[],
 	);
@@ -1195,13 +1199,16 @@ function App() {
 		const handlePopState = () => {
 			replaceLegacyCustomizationRoute();
 			const nextView = readCurrentView();
+			const nextSessionId =
+				nextView === "chat" ? readCurrentChatSessionId() : undefined;
 			setView(nextView);
 			if (nextView !== "chat") {
 				setDriveLaunchRequest(null);
 			}
-			setSelectedSessionId(
-				nextView === "chat" ? readCurrentChatSessionId() : undefined,
-			);
+			if (nextSessionId) {
+				lastChatSessionIdRef.current = nextSessionId;
+			}
+			setSelectedSessionId(nextSessionId);
 			setSettingsSection(readCurrentSettingsSection());
 			setLocationSearch(window.location.search);
 		};
@@ -1254,17 +1261,21 @@ function App() {
 		setView(nextView);
 	}, []);
 
-	const openDriveCall = useCallback(
-		(action: DriveLaunchAction = "join") => {
+	const openDriveCall = useCallback((request: DriveOpenCallRequest) => {
 			nextDriveLaunchRequestIdRef.current += 1;
 			setDriveLaunchRequest({
 				id: nextDriveLaunchRequestIdRef.current,
-				action,
+				...request,
 			});
-			navigate("chat");
-		},
-		[navigate],
-	);
+			const sessionId =
+				request.action === "focus" ? lastChatSessionIdRef.current : undefined;
+			setSelectedSessionId(sessionId);
+			const nextPath = chatPath(sessionId);
+			if (currentPathWithSearch() !== nextPath) {
+				window.history.pushState(null, "", nextPath);
+			}
+			setView("chat");
+		}, []);
 
 	const acknowledgeDriveLaunch = useCallback((requestId: number) => {
 		setDriveLaunchRequest((current) =>
@@ -1273,6 +1284,7 @@ function App() {
 	}, []);
 
 	const openSession = useCallback((sessionId: string) => {
+		lastChatSessionIdRef.current = sessionId;
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
 		if (currentPathWithSearch() !== nextPath) {
@@ -1282,6 +1294,9 @@ function App() {
 	}, []);
 
 	const updateChatSessionRoute = useCallback((sessionId?: string) => {
+		if (sessionId) {
+			lastChatSessionIdRef.current = sessionId;
+		}
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
 		if (currentPathWithSearch() !== nextPath) {

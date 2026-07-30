@@ -106,6 +106,24 @@ describe("projectDriveRoomPreview", () => {
 
 		expect(preview.state).toBe("available");
 	});
+
+	it("does not treat another human participant as the local seat", () => {
+		const preview = projectDriveRoomPreview(
+			roomSnapshot({
+				participants: [
+					{
+						id: "human:guest",
+						kind: "human",
+						displayName: "Guest",
+						role: "observer",
+						status: "idle",
+					},
+				],
+			}),
+		);
+
+		expect(preview.state).toBe("available");
+	});
 });
 
 describe("applyDriveRoomPreviewMessage", () => {
