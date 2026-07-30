@@ -92,7 +92,7 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
  * (e.g. "1k → 1.3k tokens") rather than silently show the stale value.
  *
  * @param messages - An array of ClineMessage objects to process.
- * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, scaled down by any completed compactions that happened after it, or 0 if none found.
+ * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, rescaled by any completed compactions that happened after it, or 0 if none found.
  */
 export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
 	let shrinkFraction: number | undefined
