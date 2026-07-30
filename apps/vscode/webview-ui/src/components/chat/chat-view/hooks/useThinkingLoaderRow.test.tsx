@@ -147,3 +147,43 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		expect(result.current).toBe(false)
 	})
 })
+
+describe("useThinkingLoaderRow optimistic response handoff", () => {
+	function renderLoader(initial: ThinkingLoaderInputs) {
+		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
+	}
+
+	it.each([
+		"idle",
+		"completed",
+		"awaiting_followup",
+	] as const)("shows immediately while the webview still has the stale %s phase", (phase) => {
+		const { result } = renderLoader({ ...inputsFor([], { phase, seq: 1 }), forceShow: true })
+		expect(result.current).toBe(true)
+	})
+
+	it("hands off without a gap when the fresh streaming state arrives", () => {
+		const task = say(1, "task", false, "do the thing")
+		const withoutVisibleRows = (turnState: TurnState, forceShow: boolean): ThinkingLoaderInputs => ({
+			...inputsFor([], turnState),
+			lastRawMessage: task,
+			forceShow,
+		})
+		const { result, rerender } = renderLoader(withoutVisibleRows({ phase: "idle", seq: 1 }, true))
+		expect(result.current).toBe(true)
+
+		rerender(withoutVisibleRows(streaming(2), false))
+		expect(result.current).toBe(true)
+	})
+
+	it("does not leave a forced loader after a fresh terminal state", () => {
+		const { result, rerender } = renderLoader({
+			...inputsFor([say(1, "text", false)], { phase: "completed", seq: 1 }),
+			forceShow: true,
+		})
+		expect(result.current).toBe(true)
+
+		rerender({ ...inputsFor([say(1, "text", false)], { phase: "error", seq: 2 }), forceShow: false })
+		expect(result.current).toBe(false)
+	})
+})
