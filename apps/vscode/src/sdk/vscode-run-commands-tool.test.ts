@@ -9,6 +9,7 @@ import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordi
 import {
 	createVscodeRunCommandsTool,
 	executeForeground,
+	FOREGROUND_COMMAND_AUTO_PROCEED_MS,
 	formatCommandForTerminal,
 	PROCEED_LOG_MAX_BYTES,
 } from "./vscode-run-commands-tool"
@@ -44,6 +45,7 @@ const originalEnv = { ...process.env }
 const originalGetConfiguration = vscode.workspace.getConfiguration
 
 afterEach(() => {
+	vi.useRealTimers()
 	Object.defineProperty(process, "platform", { value: originalPlatform })
 	process.env = { ...originalEnv }
 	vscode.workspace.getConfiguration = originalGetConfiguration
@@ -497,6 +499,53 @@ describe("executeForeground", () => {
 })
 
 describe("executeForeground — Proceed While Running", () => {
+	it("automatically proceeds after 300 seconds instead of blocking the agent turn", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+		const coordinator = new SdkForegroundCommandCoordinator()
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const resultPromise = executeForeground(
+			"devserver",
+			"/workspace",
+			createFakeTerminalManager(process),
+			100_000,
+			undefined,
+			coordinator,
+		)
+
+		// Let terminal acquisition finish and output listeners attach without
+		// advancing the auto-proceed clock.
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		emitLine("listening on :3000")
+
+		let settled = false
+		void resultPromise.then(() => {
+			settled = true
+		})
+		await vi.advanceTimersByTimeAsync(FOREGROUND_COMMAND_AUTO_PROCEED_MS - 1)
+		expect(settled).toBe(false)
+
+		await vi.advanceTimersByTimeAsync(1)
+		const result = await resultPromise
+		expect(result).toContain("automatically proceeded")
+		expect(result).toContain("after 300 seconds")
+		expect(result).not.toContain("The user chose")
+		expect(result).toContain("listening on :3000")
+		expect(coordinator.isRunning).toBe(false)
+
+		const logFilePath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+		expect(logFilePath).toBeTruthy()
+		vi.useRealTimers()
+		complete({ exitCode: 0 })
+		await waitFor(() => {
+			try {
+				return fs.readFileSync(logFilePath!, "utf8").includes("[Command completed with exit code 0]")
+			} catch {
+				return false
+			}
+		})
+		fs.rmSync(logFilePath!, { force: true })
+	})
+
 	it("detach returns the partial output with the log file path, and later output lands in the log", async () => {
 		const coordinator = new SdkForegroundCommandCoordinator()
 		const { process, emitLine, complete } = createControllableTerminalProcess()
