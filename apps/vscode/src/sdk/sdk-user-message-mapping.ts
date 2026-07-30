@@ -4,6 +4,7 @@ import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 export type SdkUserMessage = {
 	role?: unknown
 	content?: unknown
+	metadata?: unknown
 }
 
 export function extractSdkUserText(message: SdkUserMessage): string {
@@ -101,4 +102,32 @@ export function findSdkUserMessageIndexByOrdinal(sdkMessages: SdkUserMessage[], 
 		seenUsers += 1
 		return seenUsers === userOrdinal
 	})
+}
+
+/**
+ * Returns the checkpoint run number for a persisted SDK user message.
+ * This intentionally mirrors the core checkpoint counter: every root user
+ * message starts a run except recovery notices. Hidden mode/resume prompts
+ * therefore still advance the counter even though they have no webview row.
+ */
+export function getSdkCheckpointRunCountForMessageIndex(sdkMessages: SdkUserMessage[], targetIndex: number): number | undefined {
+	if (sdkMessages[targetIndex]?.role !== "user") {
+		return undefined
+	}
+
+	let runCount = 0
+	for (let index = 0; index <= targetIndex; index += 1) {
+		const message = sdkMessages[index]
+		if (message?.role !== "user") {
+			continue
+		}
+		const metadata =
+			message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+				? (message.metadata as Record<string, unknown>)
+				: undefined
+		if (metadata?.kind !== "recovery_notice") {
+			runCount += 1
+		}
+	}
+	return runCount
 }

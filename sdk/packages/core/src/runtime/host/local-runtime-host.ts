@@ -526,7 +526,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		});
 		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			{
+				...(resumedArtifacts?.manifest.metadata ?? {}),
+				...(startInput.sessionMetadata ?? {}),
+			},
 			bootstrap.gitState,
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
