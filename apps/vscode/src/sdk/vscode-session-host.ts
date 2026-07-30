@@ -51,7 +51,7 @@ import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-m
 // "plugins" from every VS Code session so installed plugin files are not
 // discovered or loaded here. Keep in sync with RuntimeConfigExtensionKind in
 // @cline/shared when new extension kinds are added.
-const VSCODE_CONFIG_EXTENSIONS: readonly RuntimeConfigExtensionKind[] = ["rules", "skills", "workflows"]
+const VSCODE_CONFIG_EXTENSIONS: RuntimeConfigExtensionKind[] = ["rules", "skills", "workflows"]
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
