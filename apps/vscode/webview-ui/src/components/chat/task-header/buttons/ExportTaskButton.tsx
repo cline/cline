@@ -5,11 +5,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 
-const OpenDiskConversationHistoryButton: React.FC<{
+const ExportTaskButton: React.FC<{
 	taskId?: string
 	className?: string
 }> = ({ taskId, className }) => {
-	const handleOpenDiskConversationHistory = () => {
+	const handleExportTask = () => {
 		if (!taskId) {
 			return
 		}
@@ -21,14 +21,14 @@ const OpenDiskConversationHistoryButton: React.FC<{
 
 	return (
 		<Tooltip>
-			<TooltipContent>Open Conversation History File</TooltipContent>
+			<TooltipContent>Export Task</TooltipContent>
 			<TooltipTrigger className={cn("flex items-center", className)}>
 				<Button
-					aria-label="Open Disk Conversation History"
+					aria-label="Export Task"
 					onClick={(e) => {
 						e.preventDefault()
 						e.stopPropagation()
-						handleOpenDiskConversationHistory()
+						handleExportTask()
 					}}
 					size="icon"
 					variant="icon">
@@ -39,5 +39,5 @@ const OpenDiskConversationHistoryButton: React.FC<{
 	)
 }
 
-OpenDiskConversationHistoryButton.displayName = "OpenDiskConversationHistoryButton"
-export default OpenDiskConversationHistoryButton
+ExportTaskButton.displayName = "ExportTaskButton"
+export default ExportTaskButton

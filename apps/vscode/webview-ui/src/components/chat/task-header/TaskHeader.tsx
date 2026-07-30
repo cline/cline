@@ -10,13 +10,12 @@ import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
+import ExportTaskButton from "./buttons/ExportTaskButton"
 import NewTaskButton from "./buttons/NewTaskButton"
-import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import ContextWindow from "./ContextWindow"
 import { highlightText } from "./Highlights"
 import TaskWorkingDirectoryBadge from "./TaskWorkingDirectoryBadge"
 
-const IS_DEV = process.env.IS_DEV === "true"
 interface TaskHeaderProps {
 	task: ClineMessage
 	tokensIn: number
@@ -149,10 +148,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									taskId={currentTaskItem?.id}
 									taskSize={currentTaskItem?.size}
 								/>
-								{/* Only visible in development mode */}
-								{IS_DEV && (
-									<OpenDiskConversationHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
-								)}
+								<ExportTaskButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
 							</div>
 						)}
 					</div>

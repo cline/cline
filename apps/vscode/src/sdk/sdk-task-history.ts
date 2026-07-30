@@ -8,7 +8,7 @@ import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages, taskDirPath } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import {
 	appendLegacyResumeWarning,
 	legacyApiHistoryToSdkMessages,
@@ -474,6 +474,22 @@ export class SdkTaskHistory {
 	}
 
 	/**
+	 * The task's conversation history in SDK message form, for export to markdown.
+	 * Legacy (pre-SDK) tasks are read from their on-disk api_conversation_history.json;
+	 * SDK tasks are read from the session's persisted messages, sanitized for display.
+	 */
+	async getMessagesForExport(taskId: string): Promise<SdkMessage[]> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		const legacyTask = this.findLegacyTask(taskId)
+		if (!sdkRecord && legacyTask) {
+			return legacyApiHistoryToSdkMessages(readApiConversationHistory(taskId, legacyTask.dataDir), legacyTask.item)
+		}
+
+		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
+		return sanitizeSdkUserMessagesForDisplay(sdkMessages)
+	}
+
+	/**
 	 * The persisted session status ("completed" | "cancelled" | "failed" | ...).
 	 * Persisted messages cannot distinguish a completed conversation from one
 	 * interrupted mid-stream (both just end with assistant text), so reopening a
@@ -511,11 +527,6 @@ export class SdkTaskHistory {
 			return undefined
 		}
 		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
-	}
-
-	getLegacyTaskDirPath(taskId: string): string | undefined {
-		const legacyTask = this.findLegacyTask(taskId)
-		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
