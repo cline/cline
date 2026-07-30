@@ -14,6 +14,10 @@ export {
 	type ConformanceReport,
 } from "./conformance/fakeHost.js";
 export {
+	memoryDriveHost,
+	type MemoryDriveHost,
+} from "./conformance/memoryHost.js";
+export {
 	CLINE_HOST_CAPABILITIES,
 	CLINE_HUB_WRITER_ENDPOINT,
 	type DriveHostPort,
@@ -21,6 +25,18 @@ export {
 	type PromptRewriteDecision,
 	type RoomOp,
 } from "./hostPort.js";
+export {
+	createDriveHarness,
+	DRIVE_HARNESS_DEFAULT_ROOM_ID,
+	DRIVE_HARNESS_HUMAN_ID,
+	DRIVE_HARNESS_PARTNER_ID,
+	type CreateDriveHarnessOptions,
+	type CreateOrAttachInput,
+	type DriveHarness,
+	type DriveHarnessDirector,
+	type DriveHarnessRooms,
+	type RosterPackMember,
+} from "./harness.js";
 export {
 	classifyInterrupt,
 	decideReviseOrRestart,

@@ -49,6 +49,9 @@ export function fakeHost(capabilities: HostCapabilities): DriveHostPort {
 		async commitRoomOp() {
 			return refuse("roomOps");
 		},
+		async getRoom() {
+			return refuse("roomOps");
+		},
 		async broadcast() {
 			return refuse("eventsFirstStage");
 		},
@@ -143,6 +146,7 @@ export async function assertFakeHostFailClosed(
 			run: async () => {
 				await host.commitRoomOp({
 					type: "leave",
+					roomId: "__conformance__",
 					participantId: "__conformance__",
 				});
 			},

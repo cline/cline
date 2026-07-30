@@ -1,6 +1,6 @@
 # drivecode-sdk · Plan index
 
-Planning only. No implementation lives here and none was written for this wave.
+Planning docs plus the harness implementation in `sdk/packages/drive` (`createDriveHarness`, host port, conformance). This folder is the plan index; code lives under `sdk/packages/drive`.
 
 **`drivecode-sdk` is a host-agnostic TypeScript meta harness for live pair-programming rooms: it owns the Drive domain model, the pure policies that run a call, and the adapter port that binds a room to whatever agent runtime is underneath, so the same product logic runs on Cline today and on another host later without a rewrite.**
 
@@ -18,6 +18,7 @@ Repo-level continuation brief. [HANDOFF.md](../../HANDOFF.md).
 | [03-phased-plan.md](03-phased-plan.md) | Phases with verifiable acceptance criteria. No time estimates. |
 | [04-relationship-to-cline-drivecode.md](04-relationship-to-cline-drivecode.md) | How the product consumes the SDK and the Cline SDK together. What changes in the existing drivemode plan. |
 | [05-alignment-with-driveagent.md](05-alignment-with-driveagent.md) | How host port + `.driveagent/` compile coexist; reconciles older “no Drive-owned definition” wording. |
+| [06-sdk-leverage.md](06-sdk-leverage.md) | How product code should use `createDriveHarness` vs `@cline/sdk`; gaps and migration order. |
 | [decisions.tsv](decisions.tsv) | The decision trail for this wave. One row per decision, with evidence pointers. |
 
 ## Reading order

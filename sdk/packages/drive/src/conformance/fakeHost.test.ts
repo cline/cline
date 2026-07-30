@@ -45,7 +45,11 @@ describe("host port conformance", () => {
 			promptRewrite: true,
 		});
 		await expect(
-			host.commitRoomOp({ type: "leave", participantId: "x" }),
+			host.commitRoomOp({
+				type: "leave",
+				roomId: "r",
+				participantId: "x",
+			}),
 		).rejects.toBeInstanceOf(FakeHostCapabilityError);
 		await expect(
 			host.applyPromptRewrite({ turnId: "t", rewrite: "x" }),
