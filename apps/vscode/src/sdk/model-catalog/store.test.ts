@@ -316,7 +316,6 @@ describe("createProviderConfigStore", () => {
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
-			isR1FormatRequired: true,
 		}
 		mocks.setApiConfiguration({
 			actModeOpenAiModelId: "legacy-custom",
@@ -342,7 +341,6 @@ describe("createProviderConfigStore", () => {
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
 			apiFormat: "openai-responses",
-			isR1FormatRequired: true,
 		})
 		expect(first?.overrides).toEqual(second?.overrides)
 		expect(first?.modelInfo).toMatchObject({
@@ -357,7 +355,7 @@ describe("createProviderConfigStore", () => {
 			cacheReadsPrice: 0.25,
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
-			apiFormat: ApiFormat.R1_CHAT,
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
 		})
 		expect(syncStoredProviderRegistration).toHaveBeenCalledTimes(1)
 	})
@@ -454,7 +452,6 @@ describe("createProviderConfigStore", () => {
 			actModeOpenAiModelInfo: {
 				...openAiModelInfoSafeDefaults,
 				maxTokens: 2_048,
-				isR1FormatRequired: true,
 			},
 		})
 		const { createProviderConfigStore } = await import("./store")
@@ -468,10 +465,10 @@ describe("createProviderConfigStore", () => {
 
 		expect(mocks.getModelsFile().providers["openai-compatible"]?.models).toMatchObject({
 			"legacy-plan": { contextWindow: 64_000, apiFormat: "openai-responses" },
-			"legacy-act": { maxTokens: 2_048, isR1FormatRequired: true },
+			"legacy-act": { maxTokens: 2_048 },
 		})
 		expect(plan?.modelInfo).toMatchObject({ contextWindow: 64_000, apiFormat: ApiFormat.OPENAI_RESPONSES })
-		expect(act?.modelInfo).toMatchObject({ maxTokens: 2_048, apiFormat: ApiFormat.R1_CHAT })
+		expect(act?.modelInfo).toMatchObject({ maxTokens: 2_048 })
 		expect(syncStoredProviderRegistration).toHaveBeenCalledTimes(2)
 	})
 
@@ -690,7 +687,7 @@ describe("createProviderConfigStore", () => {
 		expect(syncStoredProviderRegistration).not.toHaveBeenCalled()
 	})
 
-	it("lets explicit capability booleans win and applies the R1 alias deterministically", async () => {
+	it("lets explicit capability booleans win over capability arrays", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openai")
@@ -703,7 +700,6 @@ describe("createProviderConfigStore", () => {
 				capabilities: ["images", "prompt-cache", "reasoning"],
 				supportsVision: false,
 				supportsReasoning: false,
-				isR1FormatRequired: false,
 			},
 		})
 		let selection = store.readSelection(providerId, "act")
@@ -721,14 +717,13 @@ describe("createProviderConfigStore", () => {
 				apiFormat: ApiFormat.OPENAI_RESPONSES,
 				capabilities: ["prompt-cache"],
 				supportsVision: true,
-				isR1FormatRequired: true,
 			},
 		})
 		selection = store.readSelection(providerId, "act")
 		expect(selection?.modelInfo).toMatchObject({
 			supportsImages: true,
 			supportsPromptCache: true,
-			apiFormat: ApiFormat.R1_CHAT,
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
 		})
 	})
 
@@ -977,7 +972,6 @@ describe("createProviderConfigStore", () => {
 				cacheWritesPrice: 0.2,
 				temperature: 0.7,
 				apiFormat: ApiFormat.OPENAI_RESPONSES,
-				isR1FormatRequired: true,
 			},
 		})
 
