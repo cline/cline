@@ -27,8 +27,8 @@
  * | extension ModelInfo field | source | default if missing |
  * | --- | --- | --- |
  * | name | `sdk.name ?? sdk.id` | n/a (id is required) |
- * | contextWindow | `sdk.contextWindow` if finite number | SD.contextWindow (128_000) |
- * | maxTokens | `sdk.maxTokens` if finite number | SD.maxTokens (-1) |
+ * | contextWindow | `sdk.contextWindow` if finite number (null = missing) | SD.contextWindow (128_000) |
+ * | maxTokens | `sdk.maxTokens` if finite number (null = missing) | SD.maxTokens (-1) |
  * | supportsImages | capabilities includes `images` or `vision` | SD.supportsImages (true) when capabilities absent |
  * | supportsPromptCache | capabilities includes `prompt-cache`; if capabilities absent, use SD | SD.supportsPromptCache (false) |
  * | supportsReasoning | capabilities includes `reasoning` | omitted (undefined) |
@@ -174,15 +174,18 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		})
 	}
 
+	// Live provider catalogs (e.g. a LiteLLM proxy's /model/info) report
+	// unknown limits as explicit nulls; treat null like "missing" (same as
+	// pricing below) so one such model doesn't fail the whole catalog.
 	const rawContextWindow = input.contextWindow
-	if (rawContextWindow !== undefined && !isFiniteNumber(rawContextWindow)) {
+	if (rawContextWindow !== undefined && rawContextWindow !== null && !isFiniteNumber(rawContextWindow)) {
 		throw new CatalogShapeError("SDK model-info `contextWindow` must be a finite number when present.", {
 			details: { receivedType: typeof rawContextWindow },
 		})
 	}
 
 	const rawMaxTokens = input.maxTokens
-	if (rawMaxTokens !== undefined && !isFiniteNumber(rawMaxTokens)) {
+	if (rawMaxTokens !== undefined && rawMaxTokens !== null && !isFiniteNumber(rawMaxTokens)) {
 		throw new CatalogShapeError("SDK model-info `maxTokens` must be a finite number when present.", {
 			details: { receivedType: typeof rawMaxTokens },
 		})
