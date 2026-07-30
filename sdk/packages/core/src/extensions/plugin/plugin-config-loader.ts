@@ -294,6 +294,7 @@ export async function resolveAndLoadAgentPlugins(
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
 		onEvent: options.onEvent,
+		telemetryAvailable: Boolean(options.telemetry),
 		providerId: options.providerId,
 		modelId: options.modelId,
 		cwd: options.cwd,
