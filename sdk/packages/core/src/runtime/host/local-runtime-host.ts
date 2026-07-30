@@ -585,7 +585,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => activeSessionRef?.compactionState,
-			saveState: async (state) => {
+			saveState: async (state, sourceMessages) => {
 				const activeSession = activeSessionRef;
 				if (!activeSession) return;
 				const stateForSession = {
@@ -593,9 +593,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 					conversation_id: activeSession.sessionId,
 				};
 				try {
+					// Validate against the exact messages the state's hash was
+					// computed from. Mid-turn, `agent.getMessages()` (the
+					// conversation store) can legally differ from the runtime's
+					// working transcript, so validating against the store would
+					// spuriously reject the write.
 					const result = await this.persistActiveSessionCompactionState(
 						activeSession,
 						stateForSession,
+						sourceMessages,
 					);
 					if (!result.updated) {
 						configWithProvider.logger?.debug?.(
@@ -1283,7 +1289,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return { updated: false };
 		}
 		return await this.enqueueCompactionStateWrite(session, async () => {
-			if (isIncomingCompactionStateStale(state, session.compactionState)) {
+			const currentState = session.compactionState;
+			const currentStateStillProjects =
+				currentState !== undefined &&
+				projectSessionCompactionState(
+					currentState,
+					sourceMessages ?? session.agent.getMessages(),
+				) !== undefined;
+			// The count-based stale guard exists to stop an old write from
+			// clobbering a newer one, which only makes sense while the stored
+			// state is still valid. An unprojectable state (e.g. invalidated by
+			// message-identity churn on resume, or a hash-format change) must
+			// not permanently block its replacement, so fall back to comparing
+			// timestamps and let the newer state win.
+			if (
+				currentState &&
+				(currentStateStillProjects
+					? isIncomingCompactionStateStale(state, currentState)
+					: Date.parse(state.updated_at) < Date.parse(currentState.updated_at))
+			) {
 				return { updated: false };
 			}
 			await this.invoke<void>(

@@ -5094,6 +5094,153 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("persists auto-compaction state against runtime messages and replaces an invalid older sidecar", async () => {
+		// Regression: the orchestrator appends the follow-up user turn to the
+		// conversation store WITHOUT id/ts while the runtime's working
+		// transcript (which prepareTurn sees, and which the compaction state's
+		// source-prefix hash is computed over) carries codec-generated id/ts.
+		// Validating the persist against agent.getMessages() therefore skipped
+		// every auto-compaction write ("Skipped stale session compaction
+		// state") and forced a full re-compaction on every subsequent turn.
+		// Additionally, an unprojectable older sidecar (e.g. invalidated by
+		// resume-time identity churn) must not permanently block a newer valid
+		// state just because its source count is larger.
+		const sessionId = "sess-compaction-auto-persist";
+		const manifest = createManifest(sessionId);
+		const priorMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "task", id: "m1", ts: 1 },
+			{ role: "assistant", content: "working", id: "m2", ts: 2 },
+		];
+		// What the conversation store holds mid-turn: prior transcript plus the
+		// just-appended follow-up WITHOUT identity fields.
+		const storeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{ role: "user", content: [{ type: "text", text: "follow-up" }] },
+		];
+		// What the runtime's prepareTurn context carries: the same transcript
+		// with codec-assigned id/ts on the follow-up.
+		const runtimeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "follow-up" }],
+				id: "msg_generated_1",
+				ts: 3,
+			},
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction-auto-persist.json",
+				messagesPath: "/tmp/messages-compaction-auto-persist.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const createAgent = vi.fn().mockReturnValue({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue(storeMessages),
+			messages: storeMessages,
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: {
+						enabled: true,
+						strategy: "basic",
+						compact: vi.fn().mockResolvedValue({
+							messages: [{ role: "user", content: "summary" }],
+						}),
+					},
+				}),
+				initialMessages: priorMessages,
+				interactive: true,
+			}),
+		);
+
+		// Simulate an invalid older sidecar squatting in the session: it covers
+		// MORE messages than the live transcript (so it can never project), and
+		// under a count-first stale guard it would block every replacement.
+		const staleState = createSessionCompactionState({
+			sourceMessages: [
+				...runtimeMessages,
+				{ role: "assistant", content: "old extra message", id: "m4", ts: 4 },
+			],
+			compactedMessages: [{ role: "user", content: "stale summary" }],
+			conversationId: sessionId,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const activeSessions = Reflect.get(manager as object, "sessions") as Map<
+			string,
+			{ compactionState?: typeof staleState }
+		>;
+		const activeSession = activeSessions.get(sessionId);
+		expect(activeSession).toBeDefined();
+		if (!activeSession) {
+			throw new Error("expected active session");
+		}
+		activeSession.compactionState = staleState;
+
+		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+		expect(prepareTurn).toBeDefined();
+
+		const result = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: runtimeMessages,
+			apiMessages: runtimeMessages,
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				// Tiny budget so the auto trigger always fires.
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+		expect(result?.messages).toEqual([{ role: "user", content: "summary" }]);
+
+		// The sidecar write must validate against the exact source messages the
+		// state was computed from, not the store's id-less mid-turn shapes.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				source_message_count: runtimeMessages.length,
+				messages: [{ role: "user", content: "summary" }],
+			}),
+		);
+	});
+
 	it("orders equal-length compaction updates by parsed timestamp", async () => {
 		const sessionId = "inactive-session";
 		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-stale-"));
