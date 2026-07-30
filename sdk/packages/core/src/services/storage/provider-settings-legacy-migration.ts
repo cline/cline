@@ -31,7 +31,6 @@ interface LegacyOpenAiModelInfo {
 	inputPrice?: number;
 	outputPrice?: number;
 	temperature?: number;
-	isR1FormatRequired?: boolean;
 }
 
 interface LegacyGlobalState {
@@ -723,9 +722,6 @@ function resolveLegacyCustomProviderRegistration(
 				...(inputPrice !== undefined ? { inputPrice } : {}),
 				...(outputPrice !== undefined ? { outputPrice } : {}),
 				...(temperature !== undefined ? { temperature } : {}),
-				...(legacyModelInfo?.isR1FormatRequired === true
-					? { isR1FormatRequired: true }
-					: {}),
 			},
 		},
 	};

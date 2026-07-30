@@ -634,7 +634,6 @@ describe("migrateLegacyProviderSettings", () => {
 			inputPrice: 12.5,
 			outputPrice: 25.5,
 			temperature: 0.55,
-			isR1FormatRequired: true,
 		});
 	});
 
