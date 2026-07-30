@@ -66,6 +66,7 @@ describe("SearchCombobox", () => {
 
 		expect(onValueChange).toHaveBeenCalledWith("core-platform");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(document.activeElement).toBe(trigger);
 	});
 
 	it("renders loading and disabled states", async () => {
@@ -95,5 +96,39 @@ describe("SearchCombobox", () => {
 		await act(async () => render(true, true));
 		expect(container.textContent).toContain("Loading models…");
 		expect(container.querySelector("button")?.disabled).toBe(true);
+	});
+
+	it("closes on Escape without dismissing an ancestor overlay", async () => {
+		const onValueChange = vi.fn();
+		const ancestorEscape = vi.fn();
+		document.addEventListener("keydown", ancestorEscape);
+		try {
+			await act(async () =>
+				root.render(
+					<SearchCombobox
+						ariaLabel="Repository"
+						onValueChange={onValueChange}
+						options={options}
+					/>,
+				),
+			);
+
+			const trigger = container.querySelector("button");
+			await act(async () => trigger?.click());
+			const search = container.querySelector("input");
+			expect(search).not.toBeNull();
+			await act(async () =>
+				search?.dispatchEvent(
+					new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+				),
+			);
+
+			expect(ancestorEscape).not.toHaveBeenCalled();
+			expect(container.querySelector('[role="dialog"]')).toBeNull();
+			expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+			expect(document.activeElement).toBe(trigger);
+		} finally {
+			document.removeEventListener("keydown", ancestorEscape);
+		}
 	});
 });

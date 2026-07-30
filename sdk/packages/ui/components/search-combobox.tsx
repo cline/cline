@@ -1,6 +1,13 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 export interface SearchComboboxOption {
 	description?: string;
@@ -43,6 +50,7 @@ export function SearchCombobox({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const containerRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (!open) {
@@ -74,6 +82,15 @@ export function SearchCombobox({
 		if (disabled) return;
 		if (option.value !== value) onValueChange(option.value);
 		setOpen(false);
+		triggerRef.current?.focus();
+	};
+
+	const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+		if (event.key !== "Escape") return;
+		event.preventDefault();
+		event.stopPropagation();
+		setOpen(false);
+		triggerRef.current?.focus();
 	};
 
 	return (
@@ -88,6 +105,7 @@ export function SearchCombobox({
 					.join(" ")}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
+				ref={triggerRef}
 				title={displayedValue}
 				type="button"
 			>
@@ -105,6 +123,7 @@ export function SearchCombobox({
 						`cline-ui-search-combobox__panel--${align}`,
 						`cline-ui-search-combobox__panel--${placement}`,
 					].join(" ")}
+					onKeyDown={handlePanelKeyDown}
 					role="dialog"
 				>
 					<div className="cline-ui-search-combobox__search-row">
@@ -124,11 +143,13 @@ export function SearchCombobox({
 							</svg>
 							<input
 								aria-label={searchPlaceholder}
+								autoComplete="off"
 								// biome-ignore lint/a11y/noAutofocus: opening the picker focuses search
 								autoFocus
 								className="cline-ui-search-combobox__search"
 								onChange={(event) => setSearch(event.target.value)}
 								placeholder={searchPlaceholder}
+								spellCheck={false}
 								value={search}
 							/>
 						</div>

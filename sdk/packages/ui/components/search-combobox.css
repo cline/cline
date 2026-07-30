@@ -121,6 +121,7 @@
 	flex-direction: column;
 	gap: 0.125rem;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 0.375rem;
 }
 
@@ -134,6 +135,8 @@
 	border-radius: var(--radius-md);
 	background: transparent;
 	color: var(--foreground);
+	contain-intrinsic-block-size: auto 2rem;
+	content-visibility: auto;
 	font: inherit;
 	padding: 0.375rem 0.5rem;
 	text-align: left;

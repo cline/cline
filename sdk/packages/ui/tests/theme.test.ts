@@ -235,4 +235,14 @@ describe("@cline/ui theme contract", () => {
 			expect(existsSync(join(packageRoot, target ?? ""))).toBe(true);
 		}
 	});
+
+	it("contains large combobox option lists", () => {
+		const combobox = readComponent("search-combobox.css");
+		expect(block(combobox, ".cline-ui-search-combobox__options")).toContain(
+			"overscroll-behavior: contain",
+		);
+		expect(block(combobox, ".cline-ui-search-combobox__option")).toContain(
+			"content-visibility: auto",
+		);
+	});
 });
