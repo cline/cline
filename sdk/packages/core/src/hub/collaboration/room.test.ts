@@ -97,6 +97,7 @@ describe("DriveRoomStore", () => {
 				displayName: "Adam",
 				role: "partner",
 				status: "idle",
+				seatSources: [],
 			},
 		});
 		store.setStage({
