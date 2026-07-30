@@ -80,24 +80,30 @@ beforeEach(() => {
 	} as never)
 })
 
-// The reasoning-effort selector must be driven by the catalog's
-// `supportsReasoning` flag for providers with dedicated settings components,
-// the same as GenericProviderSettings-backed providers.
-describe.each([
-	["XaiProvider", XaiProvider],
-	["ZAiProvider", ZAiProvider],
-	["MoonshotProvider", MoonshotProvider],
-] as const)("%s reasoning controls", (_name, Provider) => {
+describe("XaiProvider reasoning controls", () => {
 	it("shows the reasoning effort selector for reasoning-capable models", () => {
 		mockModels(REASONING_MODELS, "reasoning-model")
 
-		render(<Provider currentMode="act" showModelOptions={true} />)
+		render(<XaiProvider currentMode="act" showModelOptions={true} />)
 
 		expect(screen.getByText("Reasoning Effort")).toBeInTheDocument()
 	})
 
 	it("hides the reasoning effort selector for non-reasoning models", () => {
 		mockModels(REASONING_MODELS, "plain-model")
+
+		render(<XaiProvider currentMode="act" showModelOptions={true} />)
+
+		expect(screen.queryByText("Reasoning Effort")).not.toBeInTheDocument()
+	})
+})
+
+describe.each([
+	["ZAiProvider", ZAiProvider],
+	["MoonshotProvider", MoonshotProvider],
+] as const)("%s reasoning controls", (_name, Provider) => {
+	it("does not offer effort levels that the native provider routing cannot honor", () => {
+		mockModels(REASONING_MODELS, "reasoning-model")
 
 		render(<Provider currentMode="act" showModelOptions={true} />)
 
