@@ -52,6 +52,23 @@ export function hasProviderCatalogStateController(
 	return typeof candidate.stateManager?.setGlobalStateBatch === "function"
 }
 
+/**
+ * Resolve a provider's models through the SDK provider catalog and return
+ * them as a plain record, throwing on catalog errors. Shared by the
+ * per-provider refresh handlers, which are thin RPC adapters over this call.
+ */
+export async function resolveProviderModelsRecord(
+	controller: ProviderCatalogController,
+	providerId: string,
+	options?: { readonly forceRefresh?: boolean },
+): Promise<Record<string, ModelInfo>> {
+	const result = await controller.getProviderCatalog().resolveModels(parseProviderId(providerId), options)
+	if (!result.ok) {
+		throw new Error(result.error.message)
+	}
+	return Object.fromEntries(result.models)
+}
+
 export function parseProviderIdRequest(rawProviderId: string | undefined, fieldName = "provider_id"): ProviderId {
 	const providerId = rawProviderId?.trim()
 	if (!providerId) {

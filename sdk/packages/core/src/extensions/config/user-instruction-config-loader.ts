@@ -108,6 +108,10 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	const nodeError = error as NodeJS.ErrnoException;
 	return (
 		nodeError?.code === "ENOENT" ||
+		// ENOTDIR: a path component is a file, e.g. `.clinerules/workflows`
+		// when `.clinerules` is a legacy single-file ruleset. Treat it like a
+		// missing directory instead of aborting the whole config scan.
+		nodeError?.code === "ENOTDIR" ||
 		nodeError?.code === "EACCES" ||
 		nodeError?.code === "EPERM" ||
 		nodeError?.code === "ELOOP"

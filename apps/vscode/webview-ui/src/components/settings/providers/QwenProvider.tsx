@@ -2,26 +2,14 @@ import { QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
-const SUPPORTED_THINKING_MODELS = [
-	"qwen3-235b-a22b",
-	"qwen3-32b",
-	"qwen3-30b-a3b",
-	"qwen3-14b",
-	"qwen3-8b",
-	"qwen3-4b",
-	"qwen3-1.7b",
-	"qwen3-0.6b",
-	"qwen-plus-latest",
-	"qwen-turbo-latest",
-]
 
 /**
  * Props for the QwenProvider component
@@ -51,6 +39,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 		apiConfiguration,
 		currentMode,
 	)
+	const { write } = useProviderConfig("qwen")
 
 	return (
 		<div>
@@ -106,8 +95,17 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					{selectedModelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+								}).catch((err) => console.error("Failed to update Qwen reasoning effort:", err))
+							}}
+						/>
 					)}
 
 					<ModelInfoView
