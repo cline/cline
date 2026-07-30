@@ -5,7 +5,6 @@ import React, { useMemo } from "react"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
 import { ModelInfoView } from "../common/ModelInfoView"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 interface OcaModelPickerProps {
@@ -114,12 +113,6 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 		return Object.keys(ocaModels || []).sort((a, b) => a.localeCompare(b))
 	}, [ocaModels])
 
-	const showBudgetSlider = useMemo(() => {
-		if (ocaModels && selectedModelId && ocaModels[selectedModelId]?.thinkingConfig) {
-			return true
-		}
-	}, [selectedModelId, ocaModels])
-
 	const lastRefreshedText = useMemo(() => {
 		return typeof lastRefreshedAt === "number" ? new Date(lastRefreshedAt).toLocaleTimeString() : null
 	}, [lastRefreshedAt])
@@ -219,10 +212,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 				</React.Fragment>
 			)}
 			{selectedModelInfo && (
-				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
-				</>
+				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			)}
 		</div>
 	)
