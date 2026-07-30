@@ -7,6 +7,7 @@ import MarketplaceView from "./components/marketplace/MarketplaceView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
+import { captureOnboardingCompletionIfPending } from "./components/onboarding/onboardingCompletion"
 import SettingsView from "./components/settings/SettingsView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
@@ -60,10 +61,12 @@ const AppContent = () => {
 		showUpdateAnnouncementModal()
 	}, [didHydrateState, showWelcome, shouldShowAnnouncement, showAnnouncement, showUpdateAnnouncementModal])
 
-	// Open the ClinePass subscription page once auth completes. Lives here (not in OnboardingView)
-	// because handleAuthCallback unmounts onboarding before the clineUser update arrives.
+	// Fire pending onboarding side effects once auth completes. They live here (not in
+	// OnboardingView) because completing the welcome view unmounts onboarding before
+	// the clineUser update arrives.
 	useEffect(() => {
 		if (clineUser?.uid) {
+			captureOnboardingCompletionIfPending()
 			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
 		}
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
