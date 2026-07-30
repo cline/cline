@@ -23,6 +23,8 @@ export interface ThinkingLoaderInputs {
 	/** Tail message of lastVisibleRow (last element when it is a group). */
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
+	/** A response RPC was submitted before the backend published its next TurnState. */
+	forceShow?: boolean
 }
 
 /**
@@ -181,7 +183,7 @@ export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number
  * anti-flash debounce for tail-finalization triggers.
  */
 export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
-	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages } = inputs
+	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages, forceShow } = inputs
 
 	const isWaitingForResponse = useMemo(
 		() =>
@@ -205,7 +207,7 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 		lastVisibleMessage?.say !== "reasoning"
 
 	return useDebouncedLoaderVisibility(
-		isWaitingForResponse || handoffToReasoningPending,
+		forceShow === true || isWaitingForResponse || handoffToReasoningPending,
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 	)
