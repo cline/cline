@@ -26,6 +26,7 @@ describe("models-dev-catalog", () => {
 					"gpt-test": {
 						tool_call: true,
 						reasoning: true,
+						reasoning_options: [{ type: "effort", values: ["medium", "high"] }],
 						cost: { cache_read: 1 },
 					},
 				},
@@ -117,6 +118,9 @@ describe("models-dev-catalog", () => {
 		});
 		expect(providerSpecs.cohere).toBeUndefined();
 		expect(providerModels.cohere).toBeUndefined();
+		expect(
+			providerModels["openai-native"]?.["gpt-test"]?.reasoningOptions,
+		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
 	});
 
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
@@ -143,6 +147,9 @@ describe("models-dev-catalog", () => {
 					maxInputTokens: 180_000,
 					maxTokens: 16_384,
 					capabilities: ["tools", "reasoning", "images"],
+					reasoningOptions: [
+						{ type: "effort", values: ["low", "medium", "high"] },
+					],
 					pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
 					releaseDate: "2026-01-01",
 					family: "base-family",
@@ -159,6 +166,9 @@ describe("models-dev-catalog", () => {
 				maxInputTokens: 180_000,
 				maxTokens: 16_384,
 				capabilities: ["tools", "reasoning", "images"],
+				reasoningOptions: [
+					{ type: "effort", values: ["low", "medium", "high"] },
+				],
 				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
 				releaseDate: "2026-01-01",
 				family: "base-family",

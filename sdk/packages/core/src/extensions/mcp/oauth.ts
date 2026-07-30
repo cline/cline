@@ -23,6 +23,7 @@ import {
 	normalizeMcpServerOAuthState,
 	updateMcpServerOAuthState,
 } from "./config-loader";
+import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type { McpServerOAuthState, McpServerRegistration } from "./types";
 
 const DEFAULT_MCP_OAUTH_CALLBACK_PATH = "/mcp/oauth/callback";
@@ -297,6 +298,9 @@ export async function authorizeMcpServerOAuth(
 			`MCP server "${serverName}" uses stdio transport and does not support OAuth browser flow.`,
 		);
 	}
+	const requestTimeoutMs = resolveMcpRequestTimeoutMs(
+		registration.timeoutSeconds,
+	);
 
 	const callbackServer = await startLocalOAuthServer({
 		host: options.callbackHost,
@@ -332,8 +336,8 @@ export async function authorizeMcpServerOAuth(
 			fetch: options.fetch,
 		});
 		try {
-			await client.connect(transport);
-			await client.listTools();
+			await client.connect(transport, { timeout: requestTimeoutMs });
+			await client.listTools(undefined, { timeout: requestTimeoutMs });
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -381,8 +385,10 @@ export async function authorizeMcpServerOAuth(
 				oauthProvider: oauthContext.provider,
 				fetch: options.fetch,
 			});
-			await retryClient.connect(retryTransport);
-			await retryClient.listTools();
+			await retryClient.connect(retryTransport, {
+				timeout: requestTimeoutMs,
+			});
+			await retryClient.listTools(undefined, { timeout: requestTimeoutMs });
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -391,7 +397,9 @@ export async function authorizeMcpServerOAuth(
 			};
 		}
 	} catch (error) {
-		const message = toErrorMessage(error);
+		const message = toErrorMessage(
+			augmentMcpTimeoutError(error, serverName, requestTimeoutMs),
+		);
 		await oauthContext.markError(message);
 		throw new Error(message);
 	} finally {

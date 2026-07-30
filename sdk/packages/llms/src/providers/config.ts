@@ -5,7 +5,11 @@
  * This replaces the per-provider config chaos with a single structure.
  */
 
-import type { BasicLogger, ExtensionContext } from "@cline/shared";
+import type {
+	BasicLogger,
+	ExtensionContext,
+	ReasoningEffort,
+} from "@cline/shared";
 import type { ModelInfo, ProviderClient } from "../catalog/types";
 import {
 	BUILT_IN_PROVIDER,
@@ -129,7 +133,7 @@ export interface TokenConfig {
  */
 export interface ReasoningConfig {
 	/** Reasoning effort level */
-	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	reasoningEffort?: ReasoningEffort;
 	/** Extended thinking budget in tokens */
 	thinkingBudgetTokens?: number;
 	/** Enable thinking with provider/model defaults when supported */

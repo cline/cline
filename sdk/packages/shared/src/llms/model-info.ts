@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { ModelReasoningOptionSchema } from "./reasoning-options";
 
 export const ApiFormatSchema = z.enum(["default", "openai-responses", "r1"]);
 
@@ -77,6 +78,7 @@ export const ModelInfoSchema = z.object({
 	contextWindow: z.number().optional(),
 	maxInputTokens: z.number().optional(),
 	capabilities: z.array(ModelCapabilitySchema).optional(),
+	reasoningOptions: z.array(ModelReasoningOptionSchema).optional(),
 	apiFormat: ApiFormatSchema.optional(),
 	systemRole: z.enum(["system", "developer"]).optional(),
 	temperature: z.number().optional(),

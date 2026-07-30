@@ -16,13 +16,13 @@ import {
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpSettingsMutatorPurityError,
 	registerMcpServersFromSettingsFile,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsMutatorPurityError,
 } from "./config-loader";
 
 describe("mcp config loader", () => {
@@ -97,6 +97,94 @@ describe("mcp config loader", () => {
 				oauth: undefined,
 			},
 		]);
+	});
+
+	it("parses per-server timeout (seconds) in nested and legacy formats", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					nested: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 120,
+					},
+					legacy: {
+						type: "stdio",
+						command: "npx",
+						timeout: 45,
+					},
+					unset: {
+						transport: { type: "stdio", command: "npx" },
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		const byName = new Map(registrations.map((r) => [r.name, r]));
+		expect(byName.get("nested")?.timeoutSeconds).toBe(120);
+		expect(byName.get("legacy")?.timeoutSeconds).toBe(45);
+		expect(byName.get("unset")?.timeoutSeconds).toBeUndefined();
+	});
+
+	it("clamps out-of-range timeout values instead of failing the file", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					// A milliseconds/seconds mix-up clamps to the max.
+					milliseconds: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 60000,
+					},
+					tooSmall: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 0,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		const byName = new Map(registrations.map((r) => [r.name, r]));
+		expect(byName.get("milliseconds")?.timeoutSeconds).toBe(3600);
+		expect(byName.get("tooSmall")?.timeoutSeconds).toBe(1);
+	});
+
+	it("preserves malformed timeout values as unconfigured without rejecting valid sibling servers", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					malformed: {
+						transport: { type: "stdio", command: "node" },
+						timeout: "120",
+					},
+					valid: {
+						command: "node",
+						timeout: null,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		expect(registrations).toHaveLength(2);
+		expect(
+			registrations.map((registration) => registration.timeoutSeconds),
+		).toEqual([undefined, undefined]);
 	});
 
 	it("registers loaded servers with an mcp manager", async () => {

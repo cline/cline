@@ -1,4 +1,5 @@
 import * as Llms from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { z } from "zod";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
@@ -67,8 +68,6 @@ export const AuthSettingsSchema = z.object({
 });
 
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
-
-const ReasoningLevelSchema = z.enum(["none", "low", "medium", "high", "xhigh"]);
 
 export const ReasoningSettingsSchema = z.object({
 	enabled: z.boolean().optional(),

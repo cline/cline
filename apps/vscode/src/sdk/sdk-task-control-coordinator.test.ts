@@ -32,6 +32,26 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("cancels a running Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
+
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("session-123")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+	})
+
+	it("does not cancel a non-Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(false)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+	})
+
 	it("raises the cancel fence BEFORE aborting the session (so stragglers are fenced)", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
