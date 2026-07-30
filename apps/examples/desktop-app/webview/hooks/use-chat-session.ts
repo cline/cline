@@ -18,6 +18,7 @@ import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
 	ChatApiResult,
+	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
 	CoreLogChunk,
@@ -329,18 +330,18 @@ export function useChatSession() {
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		return await desktopClient.invoke<{
-			sessionId?: string;
-			cwd?: string;
-			workspaceRoot?: string;
-			result?: ChatApiResult;
-			ok?: boolean;
-			queued?: boolean;
-			promptsInQueue?: PromptInQueue[];
-			prompt?: PromptInQueue;
-			updated?: boolean;
-			removed?: boolean;
-		}>("chat_session_command", { request: body });
+		const request = { request: body };
+		if (body.action === "send") {
+			return await desktopClient.invoke<ChatSessionCommandResponse>(
+				"chat_session_command",
+				request,
+				{ timeoutMs: null },
+			);
+		}
+		return await desktopClient.invoke<ChatSessionCommandResponse>(
+			"chat_session_command",
+			request,
+		);
 	}, []);
 
 	const refreshPromptsInQueue = useCallback(
