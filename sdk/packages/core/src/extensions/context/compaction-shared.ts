@@ -21,6 +21,13 @@ export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;
+export const DETERMINISTIC_RESULT_PER_ENTRY_CHAR_LIMIT = 800;
+export const DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT = 3_200;
+/** Commands longer than this are truncated in compacted summaries. */
+export const COMMAND_SUMMARY_CHAR_LIMIT = 100;
+const DETERMINISTIC_RESULT_MAX_ENTRIES = 12;
+const DETERMINISTIC_RESULT_MIN_BODY_CHARS = 80;
+const DETERMINISTIC_RESULT_HEADING = "## Deterministic completed tool facts";
 
 export interface FileOperationSummary {
 	readFiles: string[];
@@ -33,6 +40,13 @@ export interface CompactionSummaryMetadata {
 	details: FileOperationSummary;
 	tokensBefore: number;
 	generatedAt: number;
+}
+
+interface CompletedToolFact {
+	toolName: string;
+	label: string;
+	body: string;
+	success: boolean;
 }
 
 export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
@@ -105,6 +119,232 @@ function serializeStructuredToolResultBlock(block: unknown): string {
 	} catch {
 		return String(block);
 	}
+}
+
+function boundedToolFactLabel(value: string): string {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	return normalized.length <= COMMAND_SUMMARY_CHAR_LIMIT
+		? normalized
+		: `${normalized.slice(0, COMMAND_SUMMARY_CHAR_LIMIT)}...`;
+}
+
+function toolUseLabel(name: string, input: Record<string, unknown>): string {
+	if (name === "run_commands") {
+		const commands = Array.isArray(input.commands)
+			? input.commands.filter(
+					(command): command is string =>
+						typeof command === "string" && command.trim().length > 0,
+				)
+			: typeof input.command === "string"
+				? [input.command]
+				: [];
+		if (commands.length > 0) {
+			return commands.map(boundedToolFactLabel).join(" | ");
+		}
+	}
+	const paths = collectPaths(input);
+	if (paths.length > 0) {
+		return paths.map(boundedToolFactLabel).join(", ");
+	}
+	return boundedToolFactLabel(formatToolInput(input));
+}
+
+function contentFacts(
+	content: ToolResultContent["content"],
+	fallbackLabel: string,
+): Array<{ label: string; body: string; success?: boolean }> {
+	if (typeof content === "string") {
+		return [{ label: fallbackLabel, body: content }];
+	}
+	const facts: Array<{ label: string; body: string; success?: boolean }> = [];
+	const fallbackParts: string[] = [];
+	for (const block of content as unknown[]) {
+		if (block && typeof block === "object" && !Array.isArray(block)) {
+			const record = block as Record<string, unknown>;
+			if (typeof record.result === "string") {
+				facts.push({
+					label:
+						typeof record.query === "string" && record.query.trim()
+							? record.query.trim()
+							: fallbackLabel,
+					body: record.result,
+					success:
+						typeof record.success === "boolean" ? record.success : undefined,
+				});
+				continue;
+			}
+			if (record.type === "text" && typeof record.text === "string") {
+				fallbackParts.push(record.text);
+				continue;
+			}
+			if (record.type === "file" && typeof record.content === "string") {
+				const path =
+					typeof record.path === "string" ? record.path : fallbackLabel;
+				facts.push({ label: path, body: record.content });
+				continue;
+			}
+			if (record.type === "image") {
+				fallbackParts.push("[image result]");
+				continue;
+			}
+		}
+		fallbackParts.push(serializeStructuredToolResultBlock(block));
+	}
+	if (fallbackParts.length > 0 || facts.length === 0) {
+		facts.push({
+			label: fallbackLabel,
+			body: fallbackParts.join("\n") || "(completed with no textual output)",
+		});
+	}
+	return facts;
+}
+
+/**
+ * Extract completed, paired tool outputs as plain text for deterministic
+ * preservation in an agentic summary. Newest results come first so aggregate
+ * truncation favors the active completed tool block.
+ */
+function collectCompletedToolFacts(
+	messages: MessageWithMetadata[],
+): CompletedToolFact[] {
+	const uses = new Map<
+		string,
+		{ name: string; input: Record<string, unknown> }
+	>();
+	for (const message of messages) {
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "tool_use") {
+				uses.set(block.id, {
+					name: block.name,
+					input: block.input ?? {},
+				});
+			}
+		}
+	}
+
+	const facts: CompletedToolFact[] = [];
+	for (
+		let messageIndex = messages.length - 1;
+		messageIndex >= 0;
+		messageIndex -= 1
+	) {
+		const message = messages[messageIndex];
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (
+			let blockIndex = message.content.length - 1;
+			blockIndex >= 0;
+			blockIndex -= 1
+		) {
+			const block = message.content[blockIndex];
+			if (block.type !== "tool_result") {
+				continue;
+			}
+			const use = uses.get(block.tool_use_id);
+			if (!use) {
+				continue;
+			}
+			const fallbackLabel = toolUseLabel(use.name, use.input);
+			for (const fact of contentFacts(block.content, fallbackLabel)) {
+				facts.push({
+					toolName: use.name,
+					label: fact.label,
+					body: fact.body,
+					success: fact.success !== false && block.is_error !== true,
+				});
+			}
+		}
+	}
+	return facts;
+}
+
+function toolFactPrefix(fact: CompletedToolFact): string {
+	const label = fact.label ? ` — ${boundedToolFactLabel(fact.label)}` : "";
+	return `- ${fact.toolName}${label} (${fact.success ? "completed" : "failed"}):\n`;
+}
+
+export function buildDeterministicToolContext(
+	messages: MessageWithMetadata[],
+	aggregateCharLimit = DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
+): string {
+	const instruction =
+		"Use these completed results to finish the user's task now. Do not ask for this content or repeat these tool calls unless a result is marked failed.";
+	const heading = `${DETERMINISTIC_RESULT_HEADING}\n${instruction}`;
+	const facts = collectCompletedToolFacts(messages).slice(
+		0,
+		DETERMINISTIC_RESULT_MAX_ENTRIES,
+	);
+	if (facts.length === 0 || aggregateCharLimit <= heading.length + 2) {
+		return "";
+	}
+
+	let selected = facts;
+	while (selected.length > 0) {
+		const fixedChars =
+			heading.length +
+			2 +
+			selected.reduce(
+				(total, fact) => total + toolFactPrefix(fact).length + 1,
+				0,
+			);
+		const bodyBudget = Math.min(
+			DETERMINISTIC_RESULT_PER_ENTRY_CHAR_LIMIT,
+			Math.floor((aggregateCharLimit - fixedChars) / selected.length),
+		);
+		if (bodyBudget >= DETERMINISTIC_RESULT_MIN_BODY_CHARS) {
+			const entries = selected.map(
+				(fact) =>
+					`${toolFactPrefix(fact)}${truncateRepresentativeText(fact.body, bodyBudget)}`,
+			);
+			return `${heading}\n\n${entries.join("\n\n")}`;
+		}
+		// The aggregate cap is authoritative. Drop the oldest result first;
+		// current completed tool-block facts were collected newest-first.
+		selected = selected.slice(0, -1);
+	}
+	return "";
+}
+
+export function mergeDeterministicToolContext(options: {
+	current: string;
+	previous?: string;
+	aggregateCharLimit?: number;
+}): string {
+	const limit =
+		options.aggregateCharLimit ?? DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT;
+	const current = options.current.trim();
+	const previous = options.previous?.trim() ?? "";
+	if (!current) {
+		return truncateRepresentativeText(previous, limit);
+	}
+	if (!previous) {
+		return truncateRepresentativeText(current, limit);
+	}
+	return truncateRepresentativeText(
+		`${current}\n\nEarlier preserved tool facts:\n${previous}`,
+		limit,
+	);
+}
+
+export function appendDeterministicToolContext(
+	summary: string,
+	deterministicContext: string,
+): string {
+	const withoutCopiedContext = summary
+		.split(new RegExp(`^${DETERMINISTIC_RESULT_HEADING}$`, "m"))[0]
+		.trim();
+	return deterministicContext.trim()
+		? `${withoutCopiedContext}\n\n${deterministicContext.trim()}`.trim()
+		: withoutCopiedContext;
+}
+
+export function extractDeterministicToolContext(summary: string): string {
+	const markerIndex = summary.indexOf(DETERMINISTIC_RESULT_HEADING);
+	return markerIndex >= 0 ? summary.slice(markerIndex).trim() : "";
 }
 
 export function flattenToolResultContent(
@@ -542,9 +782,6 @@ export function extractFileOps(
 	return { readFiles, modifiedFiles };
 }
 
-/** Commands longer than this are truncated in dropped-work summaries. */
-export const COMMAND_SUMMARY_CHAR_LIMIT = 100;
-
 /**
  * Compact record of the tool work performed inside a span of dropped
  * messages: which files were read and edited (with line ranges when
@@ -759,7 +996,8 @@ Treat successful tool results as completed work. Preserve the task goal and
 the key facts from tool outputs needed to finish it. If the requested
 information is already present, say that it was obtained and make the next
 step answer or synthesize it directly; never ask the user to provide content
-that a tool result already supplied.
+that a tool result already supplied. Record concrete findings, not a plan to
+record or synthesize them later.
 
 ## Goal
 One sentence: what is being built or fixed.

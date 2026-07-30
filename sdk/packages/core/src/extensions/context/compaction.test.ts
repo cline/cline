@@ -16,7 +16,9 @@ import {
 	createContextCompactionPrepareTurn,
 } from "./compaction";
 import {
+	buildDeterministicToolContext,
 	createTokenEstimator,
+	DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
 	estimateTokens,
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
@@ -1985,35 +1987,94 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
 	});
 
-	it("folds a trailing parallel tool block when no later safe boundary exists", async () => {
+	it("preserves facts from a trailing parallel read block when the summarizer is generic", async () => {
 		// Live VS Code repro: one assistant emits parallel reads and the runtime
 		// invokes prepareTurn immediately after the separate tool-result messages.
 		// The end of the transcript is the only forward safe boundary; walking
-		// backward preserves the entire heavy block and grows context by adding a
-		// summary in front of it.
+		// backward preserves the entire heavy block, while summary-only folding
+		// lets a generic summarizer discard every fact needed for the final answer.
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>
 				streamChunks([
 					{
 						type: "text",
 						id: "summary-trailing-parallel",
-						text: "## Goal\nRead three files\n\n## Next\nAnswer from memory",
+						text: "## Goal\nContinue the task\n\n## State\n- In Progress: Prepare the answer\n\n## Next\n- Produce the final response",
 					},
 					{ type: "done", id: "summary-trailing-parallel", success: true },
 				]),
 			),
 		});
-		const heavyToolOutput = "x".repeat(4_000);
+		const makeStructuredResult = (
+			id: string,
+			path: string,
+			head: string,
+			tail: string,
+		): LlmsProviders.Message =>
+			({
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: id,
+						name: "read_files",
+						content: [
+							{
+								query: path,
+								result: `${head}\n${"filler ".repeat(600)}\n${tail}`,
+								success: true,
+							},
+						],
+					},
+				],
+			}) as unknown as LlmsProviders.Message;
 		const messages: LlmsProviders.Message[] = [
-			{ role: "user", content: "Read three files" },
-			assistantMultiToolUseMessage([
-				"trailing-tool-0",
-				"trailing-tool-1",
-				"trailing-tool-2",
-			]),
-			toolResultMessage("trailing-tool-0", heavyToolOutput),
-			toolResultMessage("trailing-tool-1", heavyToolOutput),
-			toolResultMessage("trailing-tool-2", heavyToolOutput),
+			{
+				role: "user",
+				content:
+					"Read architecture, incidents, and roadmap notes, then give one theme for each.",
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "trailing-architecture",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_architecture.txt" }] },
+					},
+					{
+						type: "tool_use",
+						id: "trailing-incidents",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_incidents.txt" }] },
+					},
+					{
+						type: "tool_use",
+						id: "trailing-roadmap",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/notes_roadmap.txt" }] },
+					},
+				],
+			},
+			makeStructuredResult(
+				"trailing-architecture",
+				"/tmp/notes_architecture.txt",
+				"event-sourced billing ledger",
+				"append-only invoice events",
+			),
+			makeStructuredResult(
+				"trailing-incidents",
+				"/tmp/notes_incidents.txt",
+				"stale DNS cache incident",
+				"postmortem reliability backlog",
+			),
+			makeStructuredResult(
+				"trailing-roadmap",
+				"/tmp/notes_roadmap.txt",
+				"Kotlin Multiplatform sync engine",
+				"automated latency regression gates",
+			),
 		];
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -2054,12 +2115,72 @@ describe("createContextCompactionPrepareTurn", () => {
 			metadata: expect.objectContaining({ kind: "compaction_summary" }),
 		});
 		expect(collectToolPairPresence(result?.messages ?? []).size).toBe(0);
+		const summaryContent =
+			Array.isArray(result?.messages[0]?.content) &&
+			result.messages[0].content[0]?.type === "text"
+				? result.messages[0].content[0].text
+				: "";
+		expect(summaryContent).toContain("## Deterministic completed tool facts");
+		expect(summaryContent).toContain("/tmp/notes_architecture.txt");
+		expect(summaryContent).toContain("event-sourced billing ledger");
+		expect(summaryContent).toContain("append-only invoice events");
+		expect(summaryContent).toContain("/tmp/notes_incidents.txt");
+		expect(summaryContent).toContain("stale DNS cache incident");
+		expect(summaryContent).toContain("postmortem reliability backlog");
+		expect(summaryContent).toContain("/tmp/notes_roadmap.txt");
+		expect(summaryContent).toContain("Kotlin Multiplatform sync engine");
+		expect(summaryContent).toContain("automated latency regression gates");
+		expect(summaryContent).toContain("finish the user's task now");
+		expect(summaryContent).toContain("Do not ask for this content or repeat");
 		const completed = emitStatusNotice.mock.calls.find(
 			([, metadata]) =>
 				(metadata as Record<string, unknown>)?.phase === "completed",
 		);
 		const completedMeta = completed?.[1] as Record<string, number>;
 		expect(completedMeta.tokensAfter).toBeLessThan(completedMeta.tokensBefore);
+		const started = emitStatusNotice.mock.calls.find(
+			([, metadata]) =>
+				(metadata as Record<string, unknown>)?.phase === "started",
+		);
+		const startedMeta = started?.[1] as Record<string, number>;
+		expect(completedMeta.tokensAfter).toBeLessThan(startedMeta.targetTokens);
+	});
+
+	it("bounds deterministic command output while retaining command and head/tail facts", () => {
+		const context = buildDeterministicToolContext(
+			[
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "command-1",
+							name: "run_commands",
+							input: { commands: ["bun test focused-compaction"] },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "command-1",
+							name: "run_commands",
+							content: `COMMAND_HEAD\n${"x".repeat(10_000)}\nCOMMAND_TAIL`,
+						},
+					],
+				},
+			],
+			DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
+		);
+
+		expect(context.length).toBeLessThanOrEqual(
+			DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
+		);
+		expect(context).toContain("bun test focused-compaction");
+		expect(context).toContain("COMMAND_HEAD");
+		expect(context).toContain("COMMAND_TAIL");
 	});
 
 	it("reports before/after tokens on the same baseline when apiMessages is a projection", async () => {

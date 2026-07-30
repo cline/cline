@@ -11,18 +11,24 @@ import {
 	buildBudgetProjection,
 } from "./budget-projection";
 import {
+	appendDeterministicToolContext,
+	buildDeterministicToolContext,
 	buildSummaryMessage,
 	buildSummaryRequest,
+	DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
 	type EstimateMessageTokens,
 	ensureFilesSection,
 	estimateTokens,
+	extractDeterministicToolContext,
 	extractFileOps,
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
+	mergeDeterministicToolContext,
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
+	truncateText,
 	truncateToolResultsForCompaction,
 } from "./compaction-shared";
 
@@ -67,7 +73,7 @@ async function generateSummary(options: {
 	const handler = await createHandlerAsync(options.providerConfig);
 	let text = "";
 	for await (const chunk of handler.createMessage(
-		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
+		"Write a factual continuation note. Preserve concrete completed results and direct the next model to finish the user's task now, not merely plan it.",
 		[{ role: "user", content: options.request }],
 	)) {
 		if (chunk.type === "text") {
@@ -118,11 +124,11 @@ export async function runAgenticCompaction(options: {
 
 	const messagesToSummarize = messages.slice(0, cutIndex);
 	const latestSummaryIndex = findLatestSummaryIndex(messagesToSummarize);
-	const previousSummary =
+	const previousSummaryMetadata =
 		latestSummaryIndex >= 0
 			? getCompactionSummaryMetadata(messagesToSummarize[latestSummaryIndex])
-					?.summary
 			: undefined;
+	const previousSummary = previousSummaryMetadata?.summary;
 	const newMessagesToFold =
 		latestSummaryIndex >= 0
 			? messagesToSummarize.slice(latestSummaryIndex + 1)
@@ -244,23 +250,82 @@ export async function runAgenticCompaction(options: {
 		return undefined;
 	}
 
-	const summary = ensureFilesSection(rawSummary, fileOps);
+	const preservedTailTokens = messages
+		.slice(cutIndex)
+		.reduce(
+			(total, message) => total + options.estimateMessageTokens(message),
+			0,
+		);
+	let deterministicCharLimit = Math.min(
+		DETERMINISTIC_RESULT_AGGREGATE_CHAR_LIMIT,
+		Math.max(
+			600,
+			Math.floor(
+				(options.context.budget.messages.targetTokens - preservedTailTokens) *
+					1.25,
+			),
+		),
+	);
 	const tokensBefore = messages.reduce(
 		(total, message) => total + options.estimateMessageTokens(message),
 		0,
 	);
-	const resultMessages = [
-		buildSummaryMessage({
-			summary,
-			fileOps,
-			tokensBefore,
-		}),
-		...messages.slice(cutIndex),
-	];
-	const tokensAfter = resultMessages.reduce(
-		(total, message) => total + options.estimateMessageTokens(message),
-		0,
+	const previousDeterministicContext = extractDeterministicToolContext(
+		previousSummaryMetadata?.summary ?? "",
 	);
+	let rawSummaryCharLimit = rawSummary.length;
+	let deterministicContext = "";
+	let resultMessages: CoreCompactionContext["messages"] = [];
+	let tokensAfter = Number.POSITIVE_INFINITY;
+	for (let attempt = 0; attempt < 8; attempt += 1) {
+		const currentDeterministicContext = buildDeterministicToolContext(
+			newMessagesToFold,
+			deterministicCharLimit,
+		);
+		deterministicContext = mergeDeterministicToolContext({
+			current: currentDeterministicContext,
+			previous: previousDeterministicContext,
+			aggregateCharLimit: deterministicCharLimit,
+		});
+		const summary = appendDeterministicToolContext(
+			ensureFilesSection(
+				truncateText(rawSummary, rawSummaryCharLimit),
+				fileOps,
+			),
+			deterministicContext,
+		);
+		resultMessages = [
+			buildSummaryMessage({
+				summary,
+				fileOps,
+				tokensBefore,
+			}),
+			...messages.slice(cutIndex),
+		];
+		tokensAfter = resultMessages.reduce(
+			(total, message) => total + options.estimateMessageTokens(message),
+			0,
+		);
+		const excess = tokensAfter - options.context.budget.messages.targetTokens;
+		if (excess <= 0) {
+			break;
+		}
+		if (rawSummaryCharLimit > 160) {
+			rawSummaryCharLimit = Math.max(
+				160,
+				rawSummaryCharLimit - Math.ceil(excess * 2),
+			);
+			continue;
+		}
+		if (deterministicCharLimit > 600) {
+			deterministicCharLimit = Math.max(
+				600,
+				deterministicCharLimit - Math.ceil(excess * 2),
+			);
+			continue;
+		}
+		break;
+	}
 	options.logger?.debug("Performed agentic compaction", {
 		messagesBefore: messages.length,
 		messagesAfter: resultMessages.length,
@@ -268,6 +333,7 @@ export async function runAgenticCompaction(options: {
 		messagesPreserved: messages.length - cutIndex,
 		tokensBefore,
 		tokensAfter,
+		deterministicContextChars: deterministicContext.length,
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 	});
 	const budgetActionCount = summaryInputBudget.actions.filter(
