@@ -56,6 +56,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 	writeBindings,
 } from "../thread-bindings";
 import type {
@@ -845,7 +846,7 @@ class SlackConnector extends ConnectorBase<
 				bindingsPath,
 				startRequest,
 			);
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {

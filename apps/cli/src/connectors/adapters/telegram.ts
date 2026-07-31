@@ -47,6 +47,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
@@ -833,7 +834,7 @@ class TelegramConnector extends ConnectorBase<
 			thread: Thread<TelegramThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {

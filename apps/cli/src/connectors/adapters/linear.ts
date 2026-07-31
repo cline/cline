@@ -47,6 +47,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
@@ -650,7 +651,7 @@ class LinearConnector extends ConnectorBase<
 			thread: Thread<LinearThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
