@@ -1,10 +1,10 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import open from "open";
 import { useCallback, useMemo, useState } from "react";
 import { palette } from "../tui/palette";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
+import { openUrlInBrowser } from "../utils/open-url";
 import type { CliMigrationNotice } from "./notice";
 
 export function MigrationNoticeContent(
@@ -18,15 +18,15 @@ export function MigrationNoticeContent(
 
 	const openSubscriptionPage = useCallback(() => {
 		setStatus("Opening ClinePass in your browser...");
-		void open(subscriptionUrl, { wait: false })
-			.then(() => {
+		void openUrlInBrowser(subscriptionUrl).then((opened) => {
+			if (opened) {
 				setStatus("Opened ClinePass in your browser.");
-			})
-			.catch(() => {
+			} else {
 				setStatus(
 					"Could not open the browser automatically. Use the URL below.",
 				);
-			});
+			}
+		});
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {

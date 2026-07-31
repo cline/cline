@@ -18,10 +18,10 @@ import {
 	resolveClineBuildEnv,
 } from "@cline/shared";
 import { Command } from "commander";
-import open from "open";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
+import { openUrlInBrowser } from "../utils/open-url";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
 
@@ -123,7 +123,9 @@ function resolveCliLogPath(): string {
 }
 
 async function defaultOpenPath(target: string): Promise<void> {
-	await open(target, { wait: false });
+	if (!(await openUrlInBrowser(target))) {
+		throw new Error("no browser opener available");
+	}
 }
 
 function listListeningPids(port: number | undefined): number[] {
