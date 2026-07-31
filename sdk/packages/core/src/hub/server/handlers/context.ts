@@ -33,6 +33,8 @@ export type PendingCapabilityRequest = {
 	sessionId: string;
 	targetClientId: string;
 	capabilityName: string;
+	payload?: Record<string, unknown>;
+	disconnectTimer?: ReturnType<typeof setTimeout>;
 	onProgress?: (payload: Record<string, unknown>) => void;
 	resolve: (result: {
 		ok: boolean;

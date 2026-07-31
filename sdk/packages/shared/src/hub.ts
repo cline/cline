@@ -409,6 +409,7 @@ export type HubCommandName =
 	| "session.list"
 	| "session.create"
 	| "session.attach"
+	| "session.claim_client_contributions"
 	| "session.detach"
 	| "session.get"
 	| "session.messages"

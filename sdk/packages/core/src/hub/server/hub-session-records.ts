@@ -8,6 +8,7 @@ import type { SessionRecord as LocalSessionRecord } from "../../types/sessions";
 
 export type HubSessionState = {
 	createdByClientId?: string;
+	clientContributionOwners?: Map<string, string>;
 	interactive: boolean;
 	participants: Map<string, SessionParticipant>;
 };

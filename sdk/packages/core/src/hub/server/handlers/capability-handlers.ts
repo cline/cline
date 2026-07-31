@@ -1,7 +1,16 @@
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+import {
+	createSessionId,
+	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
+} from "@cline/shared";
 import { logHubMessage } from "../hub-server-logging";
 import { errorReply, type HubTransportContext, okReply } from "./context";
+
+export const CAPABILITY_RECONNECT_GRACE_MS = 30_000;
+
+export function isReconnectableCapability(capabilityName: string): boolean {
+	return capabilityName === `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}askQuestion`;
+}
 
 export async function requestCapability(
 	ctx: HubTransportContext,
@@ -24,6 +33,7 @@ export async function requestCapability(
 			sessionId,
 			targetClientId,
 			capabilityName,
+			payload,
 			onProgress,
 			resolve: (result) => {
 				logHubMessage(result.ok ? "info" : "warn", "capability.request.end", {
@@ -65,6 +75,17 @@ export async function requestCapability(
 			capabilityName,
 			targetClientId,
 		});
+		if (
+			!ctx.clients.has(targetClientId) &&
+			isReconnectableCapability(capabilityName)
+		) {
+			retainPendingCapabilityRequestsForReconnect(
+				ctx,
+				(request) => request.requestId === requestId,
+				CAPABILITY_RECONNECT_GRACE_MS,
+				`Capability owner client ${targetClientId} did not reconnect before the grace period expired.`,
+			);
+		}
 	});
 }
 
@@ -130,6 +151,7 @@ export function cancelPendingCapabilityRequests(
 			continue;
 		}
 		ctx.pendingCapabilityRequests.delete(requestId);
+		if (pending.disconnectTimer) clearTimeout(pending.disconnectTimer);
 		logHubMessage("warn", "capability.request.cancelled", {
 			requestId,
 			sessionId: pending.sessionId,
@@ -155,6 +177,71 @@ export function cancelPendingCapabilityRequests(
 		cancelled += 1;
 	}
 	return cancelled;
+}
+
+export function retainPendingCapabilityRequestsForReconnect(
+	ctx: HubTransportContext,
+	filter: (request: {
+		requestId: string;
+		sessionId: string;
+		targetClientId: string;
+		capabilityName: string;
+	}) => boolean,
+	timeoutMs: number,
+	reason: string,
+): number {
+	let retained = 0;
+	for (const [requestId, pending] of ctx.pendingCapabilityRequests.entries()) {
+		if (!filter({ requestId, ...pending }) || pending.disconnectTimer) continue;
+		pending.disconnectTimer = setTimeout(() => {
+			cancelPendingCapabilityRequests(
+				ctx,
+				(request) => request.requestId === requestId,
+				reason,
+			);
+		}, timeoutMs);
+		retained += 1;
+	}
+	return retained;
+}
+
+export function claimPendingCapabilityRequests(
+	ctx: HubTransportContext,
+	sessionId: string,
+	capabilityNames: ReadonlySet<string>,
+	targetClientId: string,
+): number {
+	let claimed = 0;
+	for (const [requestId, pending] of ctx.pendingCapabilityRequests.entries()) {
+		if (
+			pending.sessionId !== sessionId ||
+			!capabilityNames.has(pending.capabilityName)
+		) {
+			continue;
+		}
+		const shouldReplay =
+			pending.targetClientId !== targetClientId || !!pending.disconnectTimer;
+		if (pending.disconnectTimer) {
+			clearTimeout(pending.disconnectTimer);
+			pending.disconnectTimer = undefined;
+		}
+		pending.targetClientId = targetClientId;
+		if (!shouldReplay) continue;
+		ctx.publish(
+			ctx.buildEvent(
+				"capability.requested",
+				{
+					requestId,
+					targetClientId,
+					capabilityName: pending.capabilityName,
+					payload: pending.payload ?? {},
+				},
+				sessionId,
+			),
+		);
+		claimed += 1;
+	}
+	return claimed;
 }
 
 export async function handleCapabilityRequest(
@@ -238,6 +325,7 @@ export function handleCapabilityRespond(
 		);
 	}
 	ctx.pendingCapabilityRequests.delete(requestId);
+	if (pending.disconnectTimer) clearTimeout(pending.disconnectTimer);
 	const payload =
 		envelope.payload?.payload &&
 		typeof envelope.payload.payload === "object" &&

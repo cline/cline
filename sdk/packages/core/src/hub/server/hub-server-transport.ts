@@ -29,11 +29,14 @@ import {
 	resolvePendingApproval,
 } from "./handlers/approval-handlers";
 import {
+	CAPABILITY_RECONNECT_GRACE_MS,
 	cancelPendingCapabilityRequests,
 	handleCapabilityProgress,
 	handleCapabilityRequest,
 	handleCapabilityRespond,
+	isReconnectableCapability,
 	requestCapability as requestCapabilityHandler,
+	retainPendingCapabilityRequestsForReconnect,
 } from "./handlers/capability-handlers";
 import {
 	handleClientList,
@@ -57,6 +60,7 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
+	handleSessionClaimClientContributions,
 	handleSessionCompactionGet,
 	handleSessionCompactionUpdate,
 	handleSessionCreate,
@@ -359,6 +363,8 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			case "session.attach":
 				return await handleSessionAttach(this.ctx, envelope);
+			case "session.claim_client_contributions":
+				return await handleSessionClaimClientContributions(this.ctx, envelope);
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
 			case "session.get":
@@ -560,13 +566,26 @@ export class HubServerTransport implements NativeHubTransport {
 			if (state.createdByClientId === clientId) {
 				state.createdByClientId = undefined;
 			}
-			if (state.participants.size === 0) {
+			if (
+				state.participants.size === 0 &&
+				!state.clientContributionOwners?.size
+			) {
 				this.sessionState.delete(sessionId);
 			}
 		}
+		retainPendingCapabilityRequestsForReconnect(
+			this.ctx,
+			(request) =>
+				request.targetClientId === clientId &&
+				isReconnectableCapability(request.capabilityName),
+			CAPABILITY_RECONNECT_GRACE_MS,
+			`Capability owner client ${clientId} did not reconnect before the grace period expired.`,
+		);
 		cancelPendingCapabilityRequests(
 			this.ctx,
-			(request) => request.targetClientId === clientId,
+			(request) =>
+				request.targetClientId === clientId &&
+				!isReconnectableCapability(request.capabilityName),
 			`Capability owner client ${clientId} disconnected before request was resolved.`,
 		);
 	}

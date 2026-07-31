@@ -744,7 +744,7 @@ describe("HubServerTransport boundaries", () => {
 		await expect(answerPromise).resolves.toBe("Use hub");
 	});
 
-	it("does not transfer capability ownership to attached clients", async () => {
+	it("transfers client contribution ownership only after an explicit claim", async () => {
 		let createdSessionId = "";
 		const startSession = vi.fn(async (input: StartSessionInput) => {
 			createdSessionId = input.config.sessionId?.trim() || "missing-session";
@@ -797,6 +797,15 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("owner-client", (event) => events.push(event));
+		for (const clientId of ["owner-client", "viewer-client"]) {
+			await transport.handleCommand({
+				version: "v1",
+				requestId: `req-register-${clientId}`,
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "web" },
+			});
+		}
 
 		await transport.handleCommand({
 			version: "v1",
@@ -858,6 +867,190 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		await expect(answerPromise).resolves.toBe("Use hub");
+
+		const claimReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-claim",
+			command: "session.claim_client_contributions",
+			clientId: "viewer-client",
+			sessionId: createdSessionId,
+			payload: {
+				capabilityNames: ["tool_executor.askQuestion", "missing.capability"],
+			},
+		});
+		expect(claimReply).toMatchObject({
+			ok: true,
+			payload: {
+				sessionId: createdSessionId,
+				capabilityNames: ["tool_executor.askQuestion"],
+			},
+		});
+
+		const claimedAnswerPromise = askQuestion("Continue?", ["Yes"], {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+		await Promise.resolve();
+		const claimedRequest = [...events]
+			.reverse()
+			.find((event) => event.event === "capability.requested");
+		expect(claimedRequest?.payload?.targetClientId).toBe("viewer-client");
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-claimed-response",
+			command: "capability.respond",
+			clientId: "viewer-client",
+			sessionId: createdSessionId,
+			payload: {
+				requestId: String(claimedRequest?.payload?.requestId ?? ""),
+				ok: true,
+				payload: { result: "Yes" },
+			},
+		});
+		await expect(claimedAnswerPromise).resolves.toBe("Yes");
+	});
+
+	it("retains and replays askQuestion while a new client claims the session", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		const state = ensureSessionState(
+			ctx,
+			"session-1",
+			"owner-client",
+			"creator",
+		);
+		state.clientContributionOwners = new Map([
+			["tool_executor.askQuestion", "owner-client"],
+		]);
+		for (const clientId of ["owner-client", "reconnected-client"]) {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "web" },
+			});
+		}
+		const resolve = vi.fn();
+		ctx.pendingCapabilityRequests.set("capreq-reload", {
+			sessionId: "session-1",
+			targetClientId: "owner-client",
+			capabilityName: "tool_executor.askQuestion",
+			payload: { question: "Continue?", options: ["Yes"] },
+			resolve,
+		});
+		const replayed: HubEventEnvelope[] = [];
+		transport.subscribe("reconnected-client", (event) => replayed.push(event));
+
+		await transport.handleCommand({
+			version: "v1",
+			command: "client.unregister",
+			clientId: "owner-client",
+		});
+		expect(ctx.pendingCapabilityRequests.has("capreq-reload")).toBe(true);
+		expect(ctx.clients.has("reconnected-client")).toBe(true);
+
+		const claimReply = await transport.handleCommand({
+			version: "v1",
+			command: "session.claim_client_contributions",
+			clientId: "reconnected-client",
+			sessionId: "session-1",
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
+		});
+		expect(claimReply.ok).toBe(true);
+		expect(replayed).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "capability.requested",
+					payload: expect.objectContaining({
+						requestId: "capreq-reload",
+						targetClientId: "reconnected-client",
+						payload: { question: "Continue?", options: ["Yes"] },
+					}),
+				}),
+			]),
+		);
+		const replayCount = replayed.filter(
+			(event) => event.event === "capability.requested",
+		).length;
+		await transport.handleCommand({
+			version: "v1",
+			command: "session.claim_client_contributions",
+			clientId: "reconnected-client",
+			sessionId: "session-1",
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
+		});
+		expect(
+			replayed.filter((event) => event.event === "capability.requested"),
+		).toHaveLength(replayCount);
+
+		const response = await transport.handleCommand({
+			version: "v1",
+			command: "capability.respond",
+			clientId: "reconnected-client",
+			sessionId: "session-1",
+			payload: {
+				requestId: "capreq-reload",
+				ok: true,
+				payload: { result: "Yes" },
+			},
+		});
+		expect(response.ok).toBe(true);
+		expect(resolve).toHaveBeenCalledWith({
+			ok: true,
+			payload: { result: "Yes" },
+			error: undefined,
+		});
+	});
+
+	it("allows claims against sessions without registered contributions", async () => {
+		const transport = createTransport();
+		await transport.handleCommand({
+			version: "v1",
+			command: "client.register",
+			clientId: "viewer-client",
+			payload: { clientId: "viewer-client", clientType: "web" },
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			command: "session.claim_client_contributions",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", capabilityNames: [] },
+		});
+	});
+
+	it("bounds askQuestion requests targeting a disconnected owner", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "remaining-client",
+				payload: { clientId: "remaining-client", clientType: "web" },
+			});
+
+			const response = getContext(transport).requestCapability(
+				"session-1",
+				"tool_executor.askQuestion",
+				{ question: "Continue?" },
+				"disconnected-owner",
+			);
+			const rejection = expect(response).rejects.toThrow(
+				"did not reconnect before the grace period expired",
+			);
+			await vi.advanceTimersByTimeAsync(30_000);
+			await rejection;
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("rejects capability responses from non-owner clients", async () => {
