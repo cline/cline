@@ -1,6 +1,7 @@
 import type { ProviderSettingsManager } from "@cline/core";
 import { loginAndSaveProviderOAuthCredentials } from "@cline/core";
 import { getPersistedProviderApiKey } from "../commands/auth";
+import { openUrlInBrowser } from "../utils/open-url";
 import { writeDiagnostic } from "../utils/output";
 
 /**
@@ -21,7 +22,7 @@ export function isAcpAuthMethodId(id: string): id is AcpAuthMethodId {
  * Perform an OAuth login for the given provider in ACP mode.
  *
  * Since stdin/stdout are used for the JSON-RPC transport, all user-facing
- * output is written to stderr and URLs are opened via the `open` package.
+ * output is written to stderr and URLs are opened via the default browser.
  * If the OAuth flow requires interactive prompts (rare), defaults are used
  * when available; otherwise an error is thrown.
  */
@@ -29,9 +30,7 @@ async function performOAuthLogin(input: {
 	providerId: AcpAuthMethodId;
 	providerSettingsManager: ProviderSettingsManager;
 }): Promise<string> {
-	const [{ createOAuthClientCallbacks }, { default: open }] = await Promise.all(
-		[import("@cline/core"), import("open")],
-	);
+	const { createOAuthClientCallbacks } = await import("@cline/core");
 
 	const callbacks = createOAuthClientCallbacks({
 		onPrompt: ({ defaultValue }) => {
@@ -45,7 +44,11 @@ async function performOAuthLogin(input: {
 			);
 		},
 		onOutput: (message) => writeDiagnostic(`[acp/auth] ${message}`),
-		openUrl: (url) => open(url, { wait: false }).then(() => undefined),
+		openUrl: async (url) => {
+			if (!(await openUrlInBrowser(url))) {
+				throw new Error("no browser opener available");
+			}
+		},
 		onOpenUrlError: ({ url }) => {
 			writeDiagnostic(
 				`[acp/auth] Could not open browser automatically. Open this URL manually:\n${url}`,

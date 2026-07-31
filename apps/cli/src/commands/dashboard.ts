@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import open from "open";
 import { configureSandboxEnvironment } from "../utils/helpers";
+import { openUrlInBrowser } from "../utils/open-url";
 import { c } from "../utils/output";
 
 export interface DashboardServerHandle {
@@ -146,7 +146,9 @@ async function startDefaultDashboardServer(): Promise<DashboardServerHandle> {
 }
 
 async function openDefaultUrl(url: string): Promise<void> {
-	await open(url, { wait: false });
+	if (!(await openUrlInBrowser(url))) {
+		throw new Error("no browser opener available");
+	}
 }
 
 export function waitForProcessShutdown(
