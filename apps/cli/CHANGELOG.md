@@ -1,5 +1,22 @@
 # Cline CLI Changelog
 
+## 3.0.48
+
+- `cline history` now opens inside the existing TUI, with resume and delete actions, instead of rendering a second view in the same process
+- Connector threads (Slack, Discord, Telegram, Linear, Google Chat, WhatsApp) now recover when the session they were bound to is gone — the stale binding is dropped and the turn replays against a new session, instead of failing with "session not found" until `threads.json` is edited by hand
+- `cline --help` now reports the real default `--config` and `--data-dir` paths
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored for `initialize`, `tools/list`, and `tools/call`, so slow MCP servers no longer fail against a hardcoded 5s limit (from SDK v0.0.67)
+- Reasoning controls are now routed from the models.dev catalog across providers, with clamped budgets and correct per-provider encoding (from SDK v0.0.67)
+- OpenRouter now defaults to `anthropic/claude-sonnet-5` (from SDK v0.0.67)
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI (from SDK v0.0.67)
+- Legacy API keys are now migrated for every secret-backed provider (from SDK v0.0.67)
+- Legacy OpenAI Compatible model-info overrides now survive into the seeded `models.json` (from SDK v0.0.67)
+- Fixed auto-compaction state being rejected as stale, which added a redundant summarizer call on every turn past the compaction trigger (from SDK v0.0.67)
+- Fixed checkpoint restores across session resumes (from SDK v0.0.67)
+- Tool calls that pass line numbers as strings (`insert_line`, `read_files` bounds) are now accepted instead of erroring (from SDK v0.0.67)
+- A legacy single-file `.clinerules` no longer aborts the config scan (from SDK v0.0.67)
+- Plugins can now emit telemetry through `ctx.telemetry` (from SDK v0.0.67)
+
 ## 3.0.47
 
 - Free Cline models are now supported end to end: free models show as "(free)", and hitting the free limit renders a dedicated card with the reset time (from SDK v0.0.66)

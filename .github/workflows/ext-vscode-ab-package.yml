@@ -37,22 +37,142 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # Gate the build/publish on BOTH bundles' own test suites, mirroring the two
+    # standalone publish paths (nightly gates on the bun suite via the same
+    # reusable workflow; the legacy publish inlines the npm suite). The gated
+    # `package` job requests its `publish` environment approval only after both
+    # suites pass.
+    #
+    # Caveat (shared with the nightly workflow): the reusable bun suite tests the
+    # DISPATCH revision — main's tip at dispatch, since this workflow is only
+    # dispatched from main — not `next-ref`. The package job therefore pins the
+    # default next-ref checkout to that same revision (tested == built) and
+    # refuses publish=true for any other next-ref; build-only artifact runs may
+    # still build untested refs.
+    test-next:
+        name: Test next (SDK) bundle
+        permissions:
+            contents: read
+            pull-requests: read
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    # The legacy branch is the npm codebase, so the bun-based reusable workflow
+    # cannot test it. Inlined npm steps, kept in sync with the `test` job in
+    # ext-vscode-publish-legacy.yml (same suite, different ref input name).
+    test-legacy:
+        name: Test legacy bundle
+        runs-on: ubuntu-latest
+        # The tested revision, exported so the package job builds EXACTLY what
+        # this suite ran against. legacy-ref is a mutable branch name and the
+        # package job starts much later (test phase + environment-approval wait,
+        # potentially days) — re-resolving the name there could pick up commits
+        # this gate never saw.
+        outputs:
+            tested-sha: ${{ steps.rev.outputs.sha }}
+        defaults:
+            run:
+                working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.legacy-ref }}
+
+            - name: Record tested revision
+              id: rev
+              run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: "npm"
+                  cache-dependency-path: |
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
     package:
         name: Build combined (legacy + next) VSIX
+        needs: [test-next, test-legacy]
         runs-on: ubuntu-latest
         environment: publish
+        # contents: write is required by the post-publish bookkeeping (tag +
+        # GitHub Release), mirroring the standalone publish workflows.
+        permissions:
+            contents: write
         steps:
+            # Refuse to publish a next bundle the test-next gate did not cover.
+            # The reusable suite tests the dispatch revision (main), so publishing
+            # any other next-ref would ship an untested bundle. Build-only runs
+            # (publish=false) may still use arbitrary next-refs for artifact
+            # rehearsals.
+            - name: Refuse to publish an untested next-ref
+              if: ${{ github.event.inputs.publish == 'true' && github.event.inputs.next-ref != 'main' }}
+              run: |
+                  echo "Error: publish=true requires next-ref=main — the test gate only covers main."
+                  exit 1
+
+            # For the default next-ref (main), pin the checkout to the exact
+            # revision the test-next gate ran against: a moving branch name could
+            # otherwise drift past the tested commit during the test phase.
             - name: Checkout next (SDK) source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.next-ref }}
+                  ref: ${{ github.event.inputs.next-ref == 'main' && github.sha || github.event.inputs.next-ref }}
                   path: next-src
                   lfs: true
 
+            # Fail fast (before the ~20-min build) if a real publish is missing
+            # its changelog entry — same contract the standalone publish
+            # workflows enforce. Build-only rehearsals are exempt.
+            - name: Verify changelog entry
+              if: ${{ github.event.inputs.publish == 'true' }}
+              working-directory: next-src
+              run: |
+                  EXPECTED_HEADING="## [${{ github.event.inputs.version }}]"
+                  FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
+                  if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
+                    echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing (found '$FIRST_HEADING')."
+                    exit 1
+                  fi
+                  echo "Found changelog entry for ${{ github.event.inputs.version }}"
+
+            # Pin to the revision test-legacy actually tested (see that job's
+            # outputs comment) — never re-resolve the mutable branch name here.
             - name: Checkout legacy source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.legacy-ref }}
+                  ref: ${{ needs.test-legacy.outputs.tested-sha }}
                   path: legacy-src
                   lfs: true
 
@@ -203,3 +323,88 @@ jobs:
                     exit 1
                   fi
                   vsce publish --no-dependencies --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix"
+
+            # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
+            # Mirrors the standalone publish workflows. Every step here is
+            # continue-on-error: the Marketplace publish above already happened,
+            # and a red run after a successful publish is exactly the confusion
+            # the nightly workflow taught us to avoid (tag pushes fail whenever
+            # the built commit touches .github/workflows/** — no grantable
+            # permission fixes that; push the tag manually in that case, see
+            # the publish-extension skill).
+
+            - name: Extract changelog entry
+              id: changelog
+              if: ${{ github.event.inputs.publish == 'true' }}
+              continue-on-error: true
+              working-directory: next-src
+              run: |
+                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  {
+                    echo "content<<CHANGELOG_EOF"
+                    echo "$CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Resolve previous release tag
+              id: prev_tag
+              if: ${{ github.event.inputs.publish == 'true' }}
+              continue-on-error: true
+              working-directory: next-src
+              run: |
+                  # ls-remote needs no local tag objects; take the highest v* tag
+                  # below the one being released.
+                  PREV=$(git ls-remote --tags origin 'v*' \
+                    | awk -F/ '{print $NF}' | grep -v '\^{}' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                    | grep -vx "v${{ github.event.inputs.version }}" \
+                    | sort -V | tail -1)
+                  echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
+
+            - name: Create and push release tag
+              if: ${{ github.event.inputs.publish == 'true' }}
+              continue-on-error: true
+              working-directory: next-src
+              run: |
+                  TAG="v${{ github.event.inputs.version }}"
+                  git tag "$TAG" HEAD
+                  git push origin "refs/tags/$TAG"
+                  echo "Pushed $TAG at $(git rev-parse HEAD)"
+
+            - name: Create GitHub Release
+              if: ${{ github.event.inputs.publish == 'true' }}
+              continue-on-error: true
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ github.event.inputs.version }}
+                  files: staging/claude-dev-${{ github.event.inputs.version }}.vsix
+                  body: |
+                      ${{ steps.changelog.outputs.content }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              if: ${{ github.event.inputs.publish == 'true' }}
+              continue-on-error: true
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline v${{ github.event.inputs.version }}"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline v${{ github.event.inputs.version }}*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}"

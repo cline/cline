@@ -27,6 +27,7 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
+import { PATCH_MARKERS } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
@@ -44,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
+import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -601,17 +603,10 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "apply_patch": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			// The SDK sends apply_patch input as { input: 'apply_patch <<"EOF"\n*** Begin Patch\n...' }
-			// Also check the "patch" and "diff" fields for compatibility.
-			const patch =
-				getStringField(parsedInput, "patch") ??
-				getStringField(parsedInput, "diff") ??
-				getStringField(parsedInput, "input")
+			const patch = getApplyPatchString(input)
 			return {
 				tool: "editedExistingFile",
 				path: filePath,
-				// ChatRow passes `content` to DiffEditRow's `patch` prop,
-				// so we must populate `content` for the diff to render.
 				content: patch,
 				diff: patch,
 			}
@@ -818,6 +813,67 @@ function getNumberField(input: Record<string, unknown> | undefined, field: strin
 	const value = input[field]
 	if (typeof value === "number" && Number.isFinite(value)) return value
 	return undefined
+}
+
+function getApplyPatchString(input: unknown): string | undefined {
+	const parsed = parseToolInput(input)
+	const fromFields = getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
+	if (fromFields !== undefined) {
+		return fromFields
+	}
+	return typeof input === "string" ? input : undefined
+}
+
+/**
+ * Split a multi-file apply_patch string into one ClineSayTool per file so each
+ * "Cline wants to edit this file" row renders only that file's diff (cline#9904).
+ *
+ * Returns [] for single-file (or unparseable) patches so callers keep the existing
+ * single-message behavior — only genuinely multi-file patches are split.
+ */
+function splitApplyPatchByFile(patch: string): ClineSayTool[] {
+	const lines = patch.split("\n")
+	const blocks: { tool: ClineSayTool["tool"]; path: string; lines: string[] }[] = []
+	let current: { tool: ClineSayTool["tool"]; path: string; lines: string[] } | undefined
+
+	for (const line of lines) {
+		if (line === PATCH_MARKERS.END) {
+			break
+		}
+		const marker = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE].find((m) => line.startsWith(m))
+		if (marker) {
+			if (current) {
+				blocks.push(current)
+			}
+			const tool: ClineSayTool["tool"] =
+				marker === PATCH_MARKERS.ADD
+					? "newFileCreated"
+					: marker === PATCH_MARKERS.DELETE
+						? "fileDeleted"
+						: "editedExistingFile"
+			current = { tool, path: line.substring(marker.length).trim(), lines: [line] }
+		} else if (current) {
+			current.lines.push(line)
+		}
+	}
+	if (current) {
+		blocks.push(current)
+	}
+
+	// Only split genuine multi-file patches. Bail out (→ single whole-patch
+	// message) if fewer than two files, or if any block has an empty path — a
+	// pathless row can't route to the per-file diff view (cline#9904).
+	if (blocks.length < 2 || blocks.some((block) => block.path === "")) {
+		return []
+	}
+
+	return blocks.map((block) => {
+		if (block.tool === "fileDeleted") {
+			return { tool: block.tool, path: block.path }
+		}
+		const subPatch = [PATCH_MARKERS.BEGIN, ...block.lines, PATCH_MARKERS.END].join("\n")
+		return { tool: block.tool, path: block.path, content: subPatch, diff: subPatch }
+	})
 }
 
 /** Get an array field from a parsed input object */
@@ -1239,6 +1295,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// All other tools → say="tool" with ClineSayTool JSON
+					// apply_patch is intentionally NOT split per-file here: the streaming
+					// (partial) row shows the whole patch, and the per-file split happens
+					// only at content_end (see below), mirroring read_files. Splitting at
+					// content_start would mint streaming ids that content_end cannot
+					// reproduce for files ≥2, orphaning those partial rows (cline#9904).
 					const sayTool = sdkToolToClineSayTool(toolName, input)
 					messages.push({
 						ts: state.getStreamingToolTs(),
@@ -1517,6 +1578,27 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 										path: fileRead.path,
 										...readLineRangeFields(fileRead),
 									} satisfies ClineSayTool),
+									partial: false,
+								})
+							})
+							break
+						}
+					}
+
+					// apply_patch may edit multiple files in one call. Emit one tool
+					// message per file so each diff row shows only that file's changes
+					// instead of the whole multi-file patch (cline#9904). Single-file
+					// patches fall through to the single-message path below.
+					if (toolName === "apply_patch" && !event.error) {
+						const patch = getApplyPatchString(storedInput)
+						const perFileTools = patch ? splitApplyPatchByFile(patch) : []
+						if (perFileTools.length > 1) {
+							perFileTools.forEach((sayTool, index) => {
+								messages.push({
+									ts: index === 0 ? ts : state.nextTs(),
+									type: "say",
+									say: "tool",
+									text: JSON.stringify(sayTool),
 									partial: false,
 								})
 							})
@@ -2157,18 +2239,22 @@ export function sdkMessagesToClineMessages(
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
-				// Visible user text marks a turn boundary: drop the preceding turn's outcome
+				// User text marks a turn boundary: drop the preceding turn's outcome
 				// signals (its text is NOT retagged — see endFinalTurn) and pick up the mode
-				// of the NEW turn from this message's wrapper.
+				// of the NEW turn from this message's wrapper. Synthetic runtime prompts
+				// (task resumption, plan -> act auto-continue) still advance the turn/mode
+				// state but never had a visible bubble live, so don't emit one here either.
 				state.clearTurnOutcome()
 				currentMode = message.uiMode ?? currentMode
-				clineMessages.push({
-					ts: state.nextTs(),
-					type: "say",
-					say: clineMessages.length === 0 ? "task" : "user_feedback",
-					text,
-					partial: false,
-				})
+				if (!isSyntheticSdkUserMessage(message)) {
+					clineMessages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: clineMessages.length === 0 ? "task" : "user_feedback",
+						text,
+						partial: false,
+					})
+				}
 			}
 			continue
 		}
@@ -2177,13 +2263,15 @@ export function sdkMessagesToClineMessages(
 		if (userText) {
 			state.clearTurnOutcome()
 			currentMode = message.uiMode ?? currentMode
-			clineMessages.push({
-				ts: state.nextTs(),
-				type: "say",
-				say: clineMessages.length === 0 ? "task" : "user_feedback",
-				text: userText,
-				partial: false,
-			})
+			if (!isSyntheticSdkUserMessage(message)) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: clineMessages.length === 0 ? "task" : "user_feedback",
+					text: userText,
+					partial: false,
+				})
+			}
 		}
 
 		for (const block of message.content) {

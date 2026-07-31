@@ -615,6 +615,13 @@ export async function handleSessionRestore(
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
+			cleanupStartedSession: async (started) => {
+				if (!(await ctx.sessionHost.deleteSession(started.sessionId))) {
+					throw new Error(
+						`Failed to clean up restored session ${started.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
 		});
 		if (!restoreMessages) {
