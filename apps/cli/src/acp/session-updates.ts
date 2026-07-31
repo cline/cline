@@ -4,6 +4,7 @@ import type {
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
 import type { AgentEvent } from "@cline/core";
+import { getErrorMessage } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 /**
@@ -79,6 +80,11 @@ function translateContentStart(
 		default:
 			return [];
 	}
+}
+
+export function describeAgentError(error: unknown): string {
+	const message = getErrorMessage(error).trim();
+	return message || "The agent reported an unknown error.";
 }
 
 function translateContentEnd(
