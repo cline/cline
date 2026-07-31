@@ -190,7 +190,6 @@ export abstract class ConnectorBase<Options, State>
 		const claim = tryClaimConnectorStateFile(
 			input.statePath,
 			input.createState,
-			isProcessRunning,
 		);
 		if (!claim) {
 			const raced = input.readState(input.statePath);

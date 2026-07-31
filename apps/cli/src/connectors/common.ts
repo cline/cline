@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
 	closeSync,
@@ -74,6 +74,70 @@ export function isProcessRunning(pid: number): boolean {
 		return false;
 	}
 }
+
+type ProcessProbe = {
+	isRunning: (pid: number) => boolean;
+	getStartToken: (pid: number) => string | undefined;
+};
+
+function getProcessStartToken(pid: number): string | undefined {
+	if (!Number.isInteger(pid) || pid <= 0) {
+		return undefined;
+	}
+	try {
+		if (process.platform === "linux") {
+			const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+			const commandEnd = stat.lastIndexOf(")");
+			if (commandEnd < 0) {
+				return undefined;
+			}
+			// Fields after the command name begin at field 3 (state), so field
+			// 22 (starttime) is index 19.
+			const startTime = stat
+				.slice(commandEnd + 1)
+				.trim()
+				.split(/\s+/)[19];
+			const bootId = readFileSync(
+				"/proc/sys/kernel/random/boot_id",
+				"utf8",
+			).trim();
+			return startTime && bootId ? `linux:${bootId}:${startTime}` : undefined;
+		}
+
+		const result =
+			process.platform === "win32"
+				? spawnSync(
+						"powershell.exe",
+						[
+							"-NoLogo",
+							"-NoProfile",
+							"-NonInteractive",
+							"-Command",
+							`(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().Ticks`,
+						],
+						{
+							encoding: "utf8",
+							stdio: ["ignore", "pipe", "ignore"],
+							windowsHide: true,
+						},
+					)
+				: spawnSync("ps", ["-p", String(pid), "-o", "lstart="], {
+						encoding: "utf8",
+						env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+						stdio: ["ignore", "pipe", "ignore"],
+						windowsHide: true,
+					});
+		const startTime = result.status === 0 ? result.stdout.trim() : "";
+		return startTime ? `${process.platform}:${startTime}` : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+const defaultProcessProbe: ProcessProbe = {
+	isRunning: isProcessRunning,
+	getStartToken: getProcessStartToken,
+};
 
 export async function terminateProcess(pid: number): Promise<boolean> {
 	if (!isProcessRunning(pid)) {
@@ -304,7 +368,7 @@ export function tryClaimConnectorStateFile(
 	createState: (
 		claimId: string,
 	) => { claimId: string; pid: number } & Record<string, unknown>,
-	isRunning: (pid: number) => boolean = isProcessRunning,
+	processProbe: ProcessProbe = defaultProcessProbe,
 ): { claimId: string } | undefined {
 	ensureParentDir(statePath);
 	const claimId = randomUUID();
@@ -326,7 +390,7 @@ export function tryClaimConnectorStateFile(
 		const existing = JSON.parse(observedPayload) as { pid?: unknown };
 		const existingPid =
 			typeof existing.pid === "number" ? existing.pid : undefined;
-		if (existingPid !== undefined && isRunning(existingPid)) {
+		if (existingPid !== undefined && processProbe.isRunning(existingPid)) {
 			return undefined;
 		}
 	} catch (error) {
@@ -339,7 +403,7 @@ export function tryClaimConnectorStateFile(
 		statePath,
 		observedPayload,
 		payload,
-		isRunning,
+		processProbe,
 	)
 		? { claimId }
 		: undefined;
@@ -382,7 +446,7 @@ function tryReplaceStaleConnectorStateFile(
 	statePath: string,
 	observedPayload: string,
 	replacementPayload: string,
-	isRunning: (pid: number) => boolean = isProcessRunning,
+	processProbe: ProcessProbe = defaultProcessProbe,
 ): boolean {
 	let replacement: { claimId?: unknown; pid?: unknown };
 	try {
@@ -402,7 +466,11 @@ function tryReplaceStaleConnectorStateFile(
 
 	const generation = createHash("sha256").update(observedPayload).digest("hex");
 	const ownerPayload = `${JSON.stringify(
-		{ claimId: replacement.claimId, pid: replacement.pid },
+		{
+			claimId: replacement.claimId,
+			pid: replacement.pid,
+			processStartToken: processProbe.getStartToken(replacement.pid),
+		},
 		null,
 		2,
 	)}
@@ -439,9 +507,22 @@ function tryReplaceStaleConnectorStateFile(
 				return false;
 			}
 			try {
-				const guardOwner = JSON.parse(guardPayload) as { pid?: unknown };
-				if (typeof guardOwner.pid === "number" && isRunning(guardOwner.pid)) {
-					return false;
+				const guardOwner = JSON.parse(guardPayload) as {
+					pid?: unknown;
+					processStartToken?: unknown;
+				};
+				if (
+					typeof guardOwner.pid === "number" &&
+					processProbe.isRunning(guardOwner.pid)
+				) {
+					const runningStartToken = processProbe.getStartToken(guardOwner.pid);
+					if (
+						typeof guardOwner.processStartToken !== "string" ||
+						runningStartToken === undefined ||
+						runningStartToken === guardOwner.processStartToken
+					) {
+						return false;
+					}
 				}
 			} catch {
 				// Invalid ownership metadata cannot identify a live owner.

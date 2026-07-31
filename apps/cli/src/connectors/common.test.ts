@@ -203,7 +203,10 @@ describe("tryClaimConnectorStateFile", () => {
 			const first = tryClaimConnectorStateFile(
 				statePath,
 				(claimId) => ({ claimId, pid: process.pid, userName: "bot" }),
-				() => true,
+				{
+					isRunning: () => true,
+					getStartToken: (pid) => `process-${pid}`,
+				},
 			);
 			expect(first).toBeDefined();
 			const parsed = JSON.parse(readFileSync(statePath, "utf8")) as {
@@ -220,7 +223,10 @@ describe("tryClaimConnectorStateFile", () => {
 					pid: process.pid + 1,
 					userName: "bot",
 				}),
-				() => true,
+				{
+					isRunning: () => true,
+					getStartToken: (pid) => `process-${pid}`,
+				},
 			);
 			expect(second).toBeUndefined();
 			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
@@ -248,7 +254,10 @@ describe("tryClaimConnectorStateFile", () => {
 			const claimed = tryClaimConnectorStateFile(
 				statePath,
 				(claimId) => ({ claimId, pid: process.pid, userName: "bot" }),
-				(pid) => pid === process.pid,
+				{
+					isRunning: (pid) => pid === process.pid,
+					getStartToken: (pid) => `process-${pid}`,
+				},
 			);
 			expect(claimed).toBeDefined();
 			expect(JSON.parse(readFileSync(statePath, "utf8")).pid).toBe(process.pid);
@@ -292,7 +301,10 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					firstPayload,
-					() => false,
+					{
+						isRunning: () => false,
+						getStartToken: (pid) => `process-${pid}`,
+					},
 				),
 			).toBe(true);
 			expect(
@@ -300,7 +312,10 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					secondPayload,
-					() => false,
+					{
+						isRunning: () => false,
+						getStartToken: (pid) => `process-${pid}`,
+					},
 				),
 			).toBe(false);
 			expect(readFileSync(statePath, "utf8")).toBe(firstPayload);
@@ -336,7 +351,15 @@ describe("tryClaimConnectorStateFile", () => {
 		writeFileSync(statePath, stalePayload, "utf8");
 		writeFileSync(
 			orphanedGuardPath,
-			`${JSON.stringify({ claimId: "orphaned", pid: 3 }, null, 2)}
+			`${JSON.stringify(
+				{
+					claimId: "orphaned",
+					pid: 3,
+					processStartToken: "process-3",
+				},
+				null,
+				2,
+			)}
 `,
 			"utf8",
 		);
@@ -347,7 +370,10 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					replacementPayload,
-					() => false,
+					{
+						isRunning: () => false,
+						getStartToken: (pid) => `process-${pid}`,
+					},
 				),
 			).toBe(true);
 			expect(readFileSync(statePath, "utf8")).toBe(replacementPayload);
@@ -382,7 +408,15 @@ describe("tryClaimConnectorStateFile", () => {
 		writeFileSync(statePath, stalePayload, "utf8");
 		writeFileSync(
 			`${statePath}.${generation}.claim`,
-			`${JSON.stringify({ claimId: "live", pid: 3 }, null, 2)}
+			`${JSON.stringify(
+				{
+					claimId: "live",
+					pid: 3,
+					processStartToken: "process-3",
+				},
+				null,
+				2,
+			)}
 `,
 			"utf8",
 		);
@@ -393,10 +427,71 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					replacementPayload,
-					(pid) => pid === 3,
+					{
+						isRunning: (pid) => pid === 3,
+						getStartToken: (pid) => `process-${pid}`,
+					},
 				),
 			).toBe(false);
 			expect(readFileSync(statePath, "utf8")).toBe(stalePayload);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("recovers when an orphaned guard pid belongs to a different process", async () => {
+		const { createHash } = await import("node:crypto");
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import(
+			"node:fs"
+		);
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		const stalePayload = `${JSON.stringify({
+			claimId: "stale",
+			pid: 1,
+			userName: "stale",
+		})}
+`;
+		const replacementPayload = `${JSON.stringify({
+			claimId: "replacement",
+			pid: 2,
+			userName: "bot",
+		})}
+`;
+		const generation = createHash("sha256").update(stalePayload).digest("hex");
+		writeFileSync(statePath, stalePayload, "utf8");
+		writeFileSync(
+			`${statePath}.${generation}.claim`,
+			`${JSON.stringify(
+				{
+					claimId: "orphaned",
+					pid: 3,
+					processStartToken: "original-process-3",
+				},
+				null,
+				2,
+			)}
+`,
+			"utf8",
+		);
+
+		try {
+			expect(
+				__test__.tryReplaceStaleConnectorStateFile(
+					statePath,
+					stalePayload,
+					replacementPayload,
+					{
+						isRunning: (pid) => pid === 3,
+						getStartToken: (pid) =>
+							pid === 3 ? "reused-process-3" : `process-${pid}`,
+					},
+				),
+			).toBe(true);
+			expect(readFileSync(statePath, "utf8")).toBe(replacementPayload);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
