@@ -1661,7 +1661,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<SwitchContainer
+								data-testid="mode-switch"
+								disabled={false}
+								onClick={onModeToggle}
+								role="radiogroup"
+								aria-label="Plan or Act mode"
+								tabIndex={0}
+								onKeyDown={(e: React.KeyboardEvent) => {
+									const modes = ["plan", "act"]
+									const current = mode as string
+									const idx = modes.indexOf(current)
+									if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+										const next = modes[(idx + 1) % modes.length]
+										if (next !== current) onModeToggle()
+									} else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+										const next = modes[(idx - 1 + modes.length) % modes.length]
+										if (next !== current) onModeToggle()
+									}
+								}}
+							>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
@@ -1673,7 +1692,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										key={m}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
+										role="radio"
+										tabIndex={mode === m.toLowerCase() ? 0 : -1}
+										aria-label={`${m} mode`}>
 										{m}
 									</div>
 								))}
