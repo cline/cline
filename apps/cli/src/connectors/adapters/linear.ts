@@ -290,51 +290,54 @@ class LinearConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Linear bot display name")
-			.option("--api-key <key>", "Linear personal API key")
-			.option("--client-id <id>", "Linear OAuth client id")
-			.option("--client-secret <secret>", "Linear OAuth client secret")
-			.option("--access-token <token>", "Pre-obtained Linear access token")
-			.option("--webhook-secret <secret>", "Linear webhook signing secret")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--provider-api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--no-tools", "Disable tools for Linear sessions")
-			// Retained so existing invocations and persisted autostart arguments
-			// keep parsing; tools are on unless --no-tools is passed.
-			.option("--enable-tools", "Enable tools (default)")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option("--base-url <url>", "Public base URL for webhook configuration")
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  LINEAR_API_KEY             Personal API key",
-					"  LINEAR_CLIENT_ID           OAuth client id",
-					"  LINEAR_CLIENT_SECRET       OAuth client secret",
-					"  LINEAR_ACCESS_TOKEN        Pre-obtained access token",
-					"  LINEAR_WEBHOOK_SECRET      Webhook signing secret",
-					"  LINEAR_BOT_USERNAME        Bot display name (default: linear-bot)",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Linear bot display name")
+				.option("--api-key <key>", "Linear personal API key")
+				.option("--client-id <id>", "Linear OAuth client id")
+				.option("--client-secret <secret>", "Linear OAuth client secret")
+				.option("--access-token <token>", "Pre-obtained Linear access token")
+				.option("--webhook-secret <secret>", "Linear webhook signing secret")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--provider-api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Linear sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option("--base-url <url>", "Public base URL for webhook configuration")
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  LINEAR_API_KEY             Personal API key",
+						"  LINEAR_CLIENT_ID           OAuth client id",
+						"  LINEAR_CLIENT_SECRET       OAuth client secret",
+						"  LINEAR_ACCESS_TOKEN        Pre-obtained access token",
+						"  LINEAR_WEBHOOK_SECRET      Webhook signing secret",
+						"  LINEAR_BOT_USERNAME        Bot display name (default: linear-bot)",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectLinearOptions {

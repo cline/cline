@@ -178,6 +178,52 @@ describe("handleConnectorUserTurn", () => {
 		}
 	});
 
+	it("posts no greeting when the adapter configures none", async () => {
+		// Slack deliberately configures no first-contact message: the greeting is
+		// gated on per-thread state, so a restart or a cleared history replayed it
+		// on the user's next message.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:user:alice",
+			participantLabel: "alice",
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "cline-slack",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			text: "/whereami",
+		});
+
+		expect(
+			posts.filter((message) => messageText(message).includes("Connected")),
+		).toEqual([]);
+		// The turn itself still answers.
+		expect(messageText(posts.at(-1))).toContain(
+			"participantKey=slack:user:alice",
+		);
+	});
+
 	it("sends a first-contact message only once per persisted thread state", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);

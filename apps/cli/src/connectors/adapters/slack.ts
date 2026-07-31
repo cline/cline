@@ -64,18 +64,12 @@ import type {
 	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
-import {
-	getConnectorFirstContactMessage,
-	getConnectorSystemPrompt,
-	getConnectorSystemRules,
-} from "./prompts";
+import { getConnectorSystemPrompt, getConnectorSystemRules } from "./prompts";
 
 const SLACK_SYSTEM_RULES = getConnectorSystemRules(
 	"Slack",
 	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
 );
-
-const SLACK_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type SlackThreadState = ConnectorThreadState & {
 	teamId?: string;
@@ -447,65 +441,68 @@ class SlackConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Slack bot username label")
-			.option(
-				"--bot-token <token>",
-				"Slack bot token for single-workspace mode",
-			)
-			.option("--signing-secret <secret>", "Slack signing secret")
-			.option("--app-token <token>", "Slack app-level token for socket mode")
-			.option("--client-id <id>", "Slack OAuth client id")
-			.option("--client-secret <secret>", "Slack OAuth client secret")
-			.option(
-				"--encryption-key <key>",
-				"Base64 32-byte key for encrypted installations",
-			)
-			.option(
-				"--installation-key-prefix <prefix>",
-				"Override stored installation key prefix",
-			)
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--no-tools", "Disable tools for Slack sessions")
-			// Retained so existing invocations and persisted autostart arguments
-			// keep parsing; tools are on unless --no-tools is passed.
-			.option("--enable-tools", "Enable tools (default)")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option(
-				"--base-url <url>",
-				"Public base URL for webhooks and OAuth callback",
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  SLACK_BOT_TOKEN             Single-workspace bot token",
-					"  SLACK_SIGNING_SECRET        Slack signing secret",
-					"  SLACK_APP_TOKEN             App-level token for socket mode",
-					"  SLACK_CLIENT_ID             OAuth client id",
-					"  SLACK_CLIENT_SECRET         OAuth client secret",
-					"  SLACK_ENCRYPTION_KEY        Optional installation encryption key",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Slack bot username label")
+				.option(
+					"--bot-token <token>",
+					"Slack bot token for single-workspace mode",
+				)
+				.option("--signing-secret <secret>", "Slack signing secret")
+				.option("--app-token <token>", "Slack app-level token for socket mode")
+				.option("--client-id <id>", "Slack OAuth client id")
+				.option("--client-secret <secret>", "Slack OAuth client secret")
+				.option(
+					"--encryption-key <key>",
+					"Base64 32-byte key for encrypted installations",
+				)
+				.option(
+					"--installation-key-prefix <prefix>",
+					"Override stored installation key prefix",
+				)
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Slack sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option(
+					"--base-url <url>",
+					"Public base URL for webhooks and OAuth callback",
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  SLACK_BOT_TOKEN             Single-workspace bot token",
+						"  SLACK_SIGNING_SECRET        Slack signing secret",
+						"  SLACK_APP_TOKEN             App-level token for socket mode",
+						"  SLACK_CLIENT_ID             OAuth client id",
+						"  SLACK_CLIENT_SECRET         OAuth client secret",
+						"  SLACK_ENCRYPTION_KEY        Optional installation encryption key",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectSlackOptions {
@@ -875,7 +872,6 @@ class SlackConnector extends ConnectorBase<
 								hookCommand: options.hookCommand,
 								systemRules: SLACK_SYSTEM_RULES,
 								errorLabel: "Slack",
-								firstContactMessage: SLACK_FIRST_CONTACT_MESSAGE,
 								userInstructionService,
 								chatCommandHost,
 								activeTurns,

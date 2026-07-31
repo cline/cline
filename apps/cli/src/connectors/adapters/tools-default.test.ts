@@ -17,7 +17,11 @@ const connectors: Array<{
 	/** Minimal arguments that parse for this adapter. */
 	baseArgs: string[];
 }> = [
-	{ name: "slack", connector: slackConnector, baseArgs: ["--user-name", "bot"] },
+	{
+		name: "slack",
+		connector: slackConnector,
+		baseArgs: ["--user-name", "bot"],
+	},
 	{
 		name: "discord",
 		connector: discordConnector,
@@ -26,9 +30,20 @@ const connectors: Array<{
 	{
 		name: "linear",
 		connector: linearConnector,
-		baseArgs: ["--user-name", "bot", "--api-key", "key"],
+		baseArgs: [
+			"--user-name",
+			"bot",
+			"--api-key",
+			"key",
+			"--webhook-secret",
+			"secret",
+		],
 	},
-	{ name: "gchat", connector: gchatConnector, baseArgs: ["--user-name", "bot"] },
+	{
+		name: "gchat",
+		connector: gchatConnector,
+		baseArgs: ["--user-name", "bot"],
+	},
 	{
 		name: "whatsapp",
 		connector: whatsappConnector,
@@ -41,7 +56,10 @@ const connectors: Array<{
 	},
 ];
 
-function parse(connector: unknown, rawArgs: string[]): { enableTools: boolean } {
+function parse(
+	connector: unknown,
+	rawArgs: string[],
+): { enableTools: boolean } {
 	return (
 		connector as {
 			parseArgs(rawArgs: string[]): { enableTools: boolean };

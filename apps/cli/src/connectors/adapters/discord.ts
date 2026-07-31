@@ -729,63 +729,69 @@ class DiscordConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Discord bot username label")
-			.option("--application-id <id>", "Discord application id")
-			.option("--app-id <id>", "Alias for --application-id")
-			.option("--bot-token <token>", "Discord bot token")
-			.option("--token <token>", "Alias for --bot-token")
-			.option("--public-key <key>", "Discord application public key")
-			.option(
-				"--owner-user-id <id>",
-				"Discord user id that should be marked as connector owner",
-			)
-			.option("--ignore-bot-authors", "Ignore messages from other Discord bots")
-			.option(
-				"--mention-role-ids <ids>",
-				"Comma-separated role IDs that should trigger mention handlers",
-			)
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--no-tools", "Disable tools for Discord sessions")
-			// Retained so existing invocations and persisted autostart arguments
-			// keep parsing; tools are on unless --no-tools is passed.
-			.option("--enable-tools", "Enable tools (default)")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option(
-				"--base-url <url>",
-				"Public base URL for Discord interactions webhook",
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  DISCORD_APPLICATION_ID      Discord application id",
-					"  DISCORD_BOT_TOKEN           Discord bot token",
-					"  DISCORD_PUBLIC_KEY          Discord application public key",
-					"  DISCORD_OWNER_USER_ID       Optional connector owner user id",
-					"  DISCORD_IGNORE_BOT_AUTHORS  Set to 1 to ignore messages from other bots",
-					"  DISCORD_MENTION_ROLE_IDS    Optional comma-separated role ids",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Discord bot username label")
+				.option("--application-id <id>", "Discord application id")
+				.option("--app-id <id>", "Alias for --application-id")
+				.option("--bot-token <token>", "Discord bot token")
+				.option("--token <token>", "Alias for --bot-token")
+				.option("--public-key <key>", "Discord application public key")
+				.option(
+					"--owner-user-id <id>",
+					"Discord user id that should be marked as connector owner",
+				)
+				.option(
+					"--ignore-bot-authors",
+					"Ignore messages from other Discord bots",
+				)
+				.option(
+					"--mention-role-ids <ids>",
+					"Comma-separated role IDs that should trigger mention handlers",
+				)
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Discord sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option(
+					"--base-url <url>",
+					"Public base URL for Discord interactions webhook",
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  DISCORD_APPLICATION_ID      Discord application id",
+						"  DISCORD_BOT_TOKEN           Discord bot token",
+						"  DISCORD_PUBLIC_KEY          Discord application public key",
+						"  DISCORD_OWNER_USER_ID       Optional connector owner user id",
+						"  DISCORD_IGNORE_BOT_AUTHORS  Set to 1 to ignore messages from other bots",
+						"  DISCORD_MENTION_ROLE_IDS    Optional comma-separated role ids",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectDiscordOptions {
