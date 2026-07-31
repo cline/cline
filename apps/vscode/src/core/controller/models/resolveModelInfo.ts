@@ -72,6 +72,12 @@ export async function resolveModelInfo(
 		// providers.json when the state field is empty) before substituting a
 		// catalog default, so the settings UI reflects the model that will
 		// actually run instead of the hardcoded openRouterDefaultModelId.
+		//
+		// The act-then-plan order mirrors the matching loop above. It cannot
+		// misattribute a mode-specific selection: the request only omits the id
+		// when the asking mode has no committed state field, and in that state
+		// readSelection falls through to the single provider-level entry in
+		// providers.json — the same answer for both modes.
 		for (const mode of ["act", "plan"] as const) {
 			const selection = store.readSelection(providerId, mode)
 			if (selection) {
