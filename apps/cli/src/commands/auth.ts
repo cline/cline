@@ -10,9 +10,9 @@ import {
 	saveProviderOAuthCredentials,
 } from "@cline/core";
 import { Command } from "commander";
-import open from "open";
 import React from "react";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
+import { openUrlInBrowser } from "../utils/open-url";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -227,7 +227,11 @@ function createOAuthCallbacks(io: AuthIo): {
 		onOutput: (message) => {
 			io.writeln(`${c.dim}[auth] ${message}${c.reset}`);
 		},
-		openUrl: (url) => open(url, { wait: false }).then(() => undefined),
+		openUrl: async (url) => {
+			if (!(await openUrlInBrowser(url))) {
+				throw new Error("no browser opener available");
+			}
+		},
 		onOpenUrlError: ({ error }) => {
 			io.writeln(
 				`${c.dim}[auth] Could not open browser automatically; open the URL above manually.${c.reset}`,

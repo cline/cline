@@ -3,7 +3,7 @@ import {
 	authorizeMcpServerOAuth,
 	resolveDefaultMcpSettingsPath,
 } from "@cline/core";
-import open from "open";
+import { openUrlInBrowser } from "../../utils/open-url";
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error) {
@@ -26,7 +26,11 @@ export async function authorizeMcpServerOAuthWithBrowser(
 			filePath: resolveDefaultMcpSettingsPath(),
 			openUrl: async (url) => {
 				p.log.message(`Authorization URL: ${url}`);
-				await open(url, { wait: false });
+				if (!(await openUrlInBrowser(url))) {
+					p.log.message(
+						"Could not open browser automatically. Open the URL above.",
+					);
+				}
 			},
 			onServerListening: (info) => {
 				p.log.message(`Waiting for OAuth callback at ${info.callbackUrl}`);

@@ -6,7 +6,7 @@ const hoisted = vi.hoisted(() => ({
 	completeClineDeviceAuth: vi.fn(),
 	saveLocalProviderOAuthCredentials: vi.fn(),
 	identifyFeatureFlagsAccount: vi.fn(async () => {}),
-	openMock: vi.fn(() => Promise.resolve()),
+	openUrlMock: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock("@cline/core", () => ({
@@ -21,7 +21,9 @@ vi.mock("@cline/shared", () => ({
 	getClineEnvironmentConfig: () => ({ apiBaseUrl: "https://api.example" }),
 }));
 
-vi.mock("open", () => ({ default: hoisted.openMock }));
+vi.mock("../../../utils/open-url", () => ({
+	openUrlInBrowser: hoisted.openUrlMock,
+}));
 
 vi.mock("../../../utils/feature-flags", () => ({
 	identifyFeatureFlagsAccount: hoisted.identifyFeatureFlagsAccount,
@@ -52,8 +54,8 @@ describe("onboarding auth telemetry forwarding", () => {
 		hoisted.saveLocalProviderOAuthCredentials.mockReset();
 		hoisted.identifyFeatureFlagsAccount.mockReset();
 		hoisted.identifyFeatureFlagsAccount.mockResolvedValue(undefined);
-		hoisted.openMock.mockReset();
-		hoisted.openMock.mockResolvedValue(undefined);
+		hoisted.openUrlMock.mockReset();
+		hoisted.openUrlMock.mockResolvedValue(true);
 	});
 
 	afterEach(() => {
@@ -160,14 +162,13 @@ describe("onboarding auth telemetry forwarding", () => {
 			id: "acct-1",
 			email: "user@example.com",
 		});
-		expect(hoisted.openMock).toHaveBeenCalledWith(
+		expect(hoisted.openUrlMock).toHaveBeenCalledWith(
 			"https://verify?user_code=uc",
-			{ wait: false },
 		);
 	});
 
 	it("falls back to displaying the device auth URL when browser open fails", async () => {
-		hoisted.openMock.mockRejectedValueOnce(new Error("no browser"));
+		hoisted.openUrlMock.mockResolvedValueOnce(false);
 		hoisted.startClineDeviceAuth.mockResolvedValueOnce({
 			deviceCode: "dc",
 			userCode: "uc",
@@ -198,9 +199,8 @@ describe("onboarding auth telemetry forwarding", () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(hoisted.openMock).toHaveBeenCalledWith(
+		expect(hoisted.openUrlMock).toHaveBeenCalledWith(
 			"https://verify?user_code=uc",
-			{ wait: false },
 		);
 		expect(setStatus).toHaveBeenCalledWith(
 			"Could not open browser. Visit the URL below.",

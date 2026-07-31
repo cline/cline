@@ -13,7 +13,6 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	CODEX_CLI_INSTALL_URL,
@@ -21,6 +20,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import { openUrlInBrowser } from "../../../utils/open-url";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { palette } from "../../palette";
 import {
@@ -353,13 +353,13 @@ function ClinePassBrowserPageContent(
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
-		void open(url, { wait: false })
-			.then(() => {
+		void openUrlInBrowser(url).then((opened) => {
+			if (opened) {
 				setStatus(openedStatus);
-			})
-			.catch(() => {
+			} else {
 				setStatus("Could not open browser automatically. Open the URL below.");
-			});
+			}
+		});
 	}, [url, openedStatus]);
 
 	useDialogKeyboard((key) => {
@@ -847,15 +847,13 @@ export function OAuthLoginContent(
 		loginLocalProvider(providerId, existing, (url: string) => {
 			setAuthUrl(url);
 			setStatus("Waiting for authentication in browser...");
-			try {
-				void open(url, { wait: false }).catch(() => {
+			void openUrlInBrowser(url).then((opened) => {
+				if (!opened) {
 					setStatus(
 						"Could not open browser automatically. Open the URL below.",
 					);
-				});
-			} catch {
-				setStatus("Could not open browser automatically. Open the URL below.");
-			}
+				}
+			});
 		})
 			.then((credentials) => {
 				if (!isActiveAuthAttempt(attempt)) return;
