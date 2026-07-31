@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+	COMPUTER_USE_ALLOW_FOREGROUND_ENV,
 	COMPUTER_USE_BROWSER_SERVER_NAME,
 	COMPUTER_USE_DESKTOP_SERVER_NAME,
 	COMPUTER_USE_MCP_TIMEOUT_SECONDS,
+	enforcePeekabooBackgroundPolicy,
 	isAllowedPeekabooTool,
 	isAllowedPlaywrightTool,
+	isForegroundComputerUseAllowed,
 	PEEKABOO_ALLOWED_TOOL_NAMES,
 	PEEKABOO_MCP_ARGS,
 	PEEKABOO_MCP_ENV,
@@ -153,5 +156,80 @@ describe("Peekaboo tool policy", () => {
 	test("does not affect tools from other providers", () => {
 		expect(isAllowedPeekabooTool("run_commands")).toBe(true);
 		expect(isAllowedPeekabooTool("another-server__click")).toBe(true);
+	});
+
+	test("blocks focus-stealing macOS actions by default", () => {
+		for (const [name, input] of [
+			["window", { action: "focus", app: "Slack" }],
+			["app", { action: "launch", name: "Slack" }],
+			["space", { action: "switch", to: 2 }],
+			["move", { to: "100,200" }],
+			["click", { on: "elem_1", foreground: true }],
+		] as const) {
+			expect(
+				enforcePeekabooBackgroundPolicy(
+					`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
+					input,
+				),
+			).toEqual({
+				skip: true,
+				reason: expect.stringContaining("background-only macOS"),
+			});
+		}
+	});
+
+	test("blocks input without a background target", () => {
+		for (const [name, input] of [
+			["click", { coords: "100,200" }],
+			["type", { text: "hello" }],
+			["hotkey", { keys: "cmd,k" }],
+			["paste", { text: "hello" }],
+			["scroll", { direction: "down" }],
+		] as const) {
+			expect(
+				enforcePeekabooBackgroundPolicy(
+					`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
+					input,
+				),
+			).toEqual({
+				skip: true,
+				reason: expect.stringContaining("no "),
+			});
+		}
+	});
+
+	test("allows targeted background accessibility and input actions", () => {
+		for (const [name, input] of [
+			["click", { on: "elem_1", snapshot: "snapshot-1" }],
+			["set_value", { on: "elem_2", value: "hello" }],
+			["perform_action", { on: "elem_3", action: "AXPress" }],
+			["type", { app: "Slack", text: "hello" }],
+			["hotkey", { window_id: 42, keys: "cmd,k" }],
+			["paste", { pid: 123, text: "hello" }],
+			["scroll", { on: "elem_4", direction: "down" }],
+		] as const) {
+			expect(
+				enforcePeekabooBackgroundPolicy(
+					`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
+					input,
+				),
+			).toBeUndefined();
+		}
+	});
+
+	test("supports an explicit foreground-control escape hatch", () => {
+		expect(COMPUTER_USE_ALLOW_FOREGROUND_ENV).toBe(
+			"CLINE_COMPUTER_USE_ALLOW_FOREGROUND",
+		);
+		expect(isForegroundComputerUseAllowed("true")).toBe(true);
+		expect(isForegroundComputerUseAllowed("1")).toBe(true);
+		expect(isForegroundComputerUseAllowed("false")).toBe(false);
+		expect(
+			enforcePeekabooBackgroundPolicy(
+				`${COMPUTER_USE_DESKTOP_SERVER_NAME}__window`,
+				{ action: "focus", app: "Slack" },
+				true,
+			),
+		).toBeUndefined();
 	});
 });

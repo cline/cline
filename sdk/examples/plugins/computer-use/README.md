@@ -46,6 +46,26 @@ Peekaboo's accessibility inspection and semantic element actions.
 On macOS, set `CLINE_COMPUTER_USE_BACKEND=portable` before launching Cline to
 use the pixel backend instead of Peekaboo.
 
+### Background control on macOS
+
+Peekaboo desktop control is background-only by default. The plugin blocks app
+and window focus, foreground input, Space switches, real-pointer movement, and
+keyboard or scroll actions that do not identify a target. Prefer `see` or
+`inspect_ui`, then use element IDs with `click`, `set_value`, or
+`perform_action`; targeted `type`, `hotkey`, `paste`, and `scroll` are also
+allowed.
+
+Some applications do not accept background input. If foreground control is
+essential, explain why and get the user's approval first. The user can then
+enable it for that Cline process:
+
+```bash
+CLINE_COMPUTER_USE_ALLOW_FOREGROUND=true cline
+```
+
+This escape hatch permits the model to activate applications and move the real
+macOS pointer for that session.
+
 ## Tools
 
 Browser tools are exposed under `computer-use-browser` and desktop tools under
