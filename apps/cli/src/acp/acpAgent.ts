@@ -28,7 +28,7 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import { isLikelyAuthError, type Message } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
@@ -608,6 +608,7 @@ export class AcpAgent implements Agent {
 function toAcpPromptError(error: Error): RequestError {
 	const message = describeAgentError(error);
 	const isAuthProblem =
+		isLikelyAuthError(error) ||
 		isClinePassSubscriptionError(error) ||
 		isClineOrgIndividualInferenceSubscriptionErrorMessage(error);
 	return isAuthProblem
