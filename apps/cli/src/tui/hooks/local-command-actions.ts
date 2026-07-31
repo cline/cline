@@ -8,6 +8,7 @@ export interface LocalSlashCommandActionInput {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	switchToFastModel: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	invocation?: LocalSlashCommandInvocation;
 	runCompact: () => void;
@@ -44,6 +45,10 @@ export function runLocalSlashCommandAction(
 	}
 	if (normalized === "model") {
 		input.openModelSelector();
+		return true;
+	}
+	if (normalized === "fast") {
+		input.switchToFastModel();
 		return true;
 	}
 	if (normalized === "compact") {

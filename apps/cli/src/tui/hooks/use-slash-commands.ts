@@ -11,8 +11,14 @@ export function useSlashCommands(input: {
 	workflowSlashCommands: TuiProps["workflowSlashCommands"];
 	loadAdditionalSlashCommands: TuiProps["loadAdditionalSlashCommands"];
 	canFork: boolean;
+	canUseFastModel: boolean;
 }) {
-	const { workflowSlashCommands, loadAdditionalSlashCommands, canFork } = input;
+	const {
+		workflowSlashCommands,
+		loadAdditionalSlashCommands,
+		canFork,
+		canUseFastModel,
+	} = input;
 	const [additionalSlashCommands, setAdditionalSlashCommands] = useState<
 		TuiProps["workflowSlashCommands"] | undefined
 	>(loadAdditionalSlashCommands ? [] : undefined);
@@ -44,8 +50,14 @@ export function useSlashCommands(input: {
 			workflowSlashCommands,
 			additionalSlashCommands,
 			canFork,
+			canUseFastModel,
 		});
-	}, [workflowSlashCommands, additionalSlashCommands, canFork]);
+	}, [
+		workflowSlashCommands,
+		additionalSlashCommands,
+		canFork,
+		canUseFastModel,
+	]);
 
 	const systemCommands = useMemo(
 		() => getVisibleSystemSlashCommands(registry),

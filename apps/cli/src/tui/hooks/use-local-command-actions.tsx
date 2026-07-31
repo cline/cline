@@ -22,6 +22,7 @@ export function useLocalCommandActions(input: {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	switchToFastModel: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	refocusTextarea: () => void;
 	setAppView: (view: AppView) => void;
@@ -44,6 +45,7 @@ export function useLocalCommandActions(input: {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		switchToFastModel,
 		openSkills,
 		refocusTextarea,
 		setAppView,
@@ -226,6 +228,7 @@ export function useLocalCommandActions(input: {
 				openConfig,
 				openMcpManager,
 				openModelSelector,
+				switchToFastModel,
 				openSkills,
 				runCompact,
 				runFork,
@@ -251,6 +254,7 @@ export function useLocalCommandActions(input: {
 			runFork,
 			session.isRunning,
 			slashCommandRegistry,
+			switchToFastModel,
 		],
 	);
 

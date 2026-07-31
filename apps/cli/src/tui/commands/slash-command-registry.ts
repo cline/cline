@@ -17,6 +17,7 @@ export type LocalSlashCommandName =
 	| "plugins"
 	| "account"
 	| "model"
+	| "fast"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -61,6 +62,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 	{
 		name: "model",
 		description: "Switch model or provider",
+	},
+	{
+		name: "fast",
+		description: "Switch to Claude Opus 5 (Fast)",
 	},
 	{
 		name: "account",
@@ -112,6 +117,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 const SYSTEM_COMMAND_ORDER = [
 	"settings",
 	"model",
+	"fast",
 	"account",
 	"mcp",
 	"plugins",
@@ -181,13 +187,17 @@ export function buildSlashCommandRegistry(input: {
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	additionalSlashCommands?: InteractiveSlashCommand[];
 	canFork?: boolean;
+	canUseFastModel?: boolean;
 }): SlashCommandRegistry {
 	const byName = new Map<string, SlashCommandRegistryEntry>();
 
 	for (const command of TUI_LOCAL_COMMANDS) {
 		const isFork = command.name === "fork";
+		const isFast = command.name === "fast";
 		const visible =
-			(command.visible ?? true) && (!isFork || input.canFork === true);
+			(command.visible ?? true) &&
+			(!isFork || input.canFork === true) &&
+			(!isFast || input.canUseFastModel === true);
 		addEntry(byName, {
 			name: command.name,
 			description: command.description,

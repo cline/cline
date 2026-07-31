@@ -216,6 +216,41 @@ describe("slash command registry", () => {
 		).toContain("fork");
 	});
 
+	it("shows fast only for Cline usage-based billing users", () => {
+		const otherProviderRegistry = buildSlashCommandRegistry({
+			canUseFastModel: false,
+		});
+		const usageBillingRegistry = buildSlashCommandRegistry({
+			canUseFastModel: true,
+		});
+
+		expect(resolveSlashCommand(otherProviderRegistry, "fast")).toMatchObject({
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+		expect(
+			getVisibleSystemSlashCommands(otherProviderRegistry).map(
+				(command) => command.name,
+			),
+		).not.toContain("fast");
+
+		expect(resolveSlashCommand(usageBillingRegistry, "fast")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			description: "Switch to Claude Opus 5 (Fast)",
+			visible: true,
+			selectable: true,
+		});
+		const visibleNames = getVisibleSystemSlashCommands(
+			usageBillingRegistry,
+		).map((command) => command.name);
+		expect(visibleNames).toContain("fast");
+		expect(visibleNames.indexOf("fast")).toBe(
+			visibleNames.indexOf("model") + 1,
+		);
+	});
+
 	it("keeps skills visible even when no invokable skills are installed", () => {
 		const emptyRegistry = buildSlashCommandRegistry({});
 

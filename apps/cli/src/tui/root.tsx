@@ -32,6 +32,7 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
+import { withLoadingDialog } from "./components/dialogs/loading-dialog";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -55,6 +56,11 @@ import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
 import type { AppView, TuiProps, TuiStartupTarget } from "./types";
+import {
+	FAST_MODEL_DISPLAY_NAME,
+	FAST_MODEL_ID,
+	isFastModelSwitchAvailable,
+} from "./utils/fast-model";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
 import { createSelectionCopyHandler } from "./utils/selection-copy";
@@ -128,6 +134,7 @@ function App(props: TuiProps) {
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
+		canUseFastModel: isFastModelSwitchAvailable(props.config.providerId),
 	});
 
 	const autocomplete = useAutocomplete({
@@ -196,6 +203,42 @@ function App(props: TuiProps) {
 		onModelChange: handleModelChange,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+
+	const propsConfig = props.config;
+	const switchToFastModel = useCallback(async () => {
+		if (!isFastModelSwitchAvailable(propsConfig.providerId)) {
+			showToast(
+				"/fast requires the Cline usage-based billing provider",
+				"info",
+			);
+			refocusTextareaRef.current();
+			return;
+		}
+		if (propsConfig.modelId === FAST_MODEL_ID) {
+			showToast(`Already using ${FAST_MODEL_DISPLAY_NAME}`, "info");
+			refocusTextareaRef.current();
+			return;
+		}
+		const previousModelId = propsConfig.modelId;
+		propsConfig.modelId = FAST_MODEL_ID;
+		try {
+			await withLoadingDialog(
+				dialog,
+				`Switching to ${FAST_MODEL_DISPLAY_NAME}...`,
+				async () => {
+					await handleModelChange();
+				},
+			);
+			showToast(`Switched to ${FAST_MODEL_DISPLAY_NAME}`, "success");
+		} catch (error) {
+			propsConfig.modelId = previousModelId;
+			showToast(
+				`Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+				"error",
+			);
+		}
+		refocusTextareaRef.current();
+	}, [dialog, handleModelChange, propsConfig, showToast]);
 
 	const openMcpManager = useMcpManager({
 		dialog,
@@ -642,6 +685,9 @@ function App(props: TuiProps) {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		switchToFastModel: () => {
+			void switchToFastModel();
+		},
 		openSkills,
 		refocusTextarea: () => refocusTextareaRef.current(),
 		setAppView,

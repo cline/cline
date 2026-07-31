@@ -14,6 +14,7 @@ function makeActions(
 		openConfig: vi.fn(),
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
+		switchToFastModel: vi.fn(),
 		openSkills: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
@@ -57,6 +58,19 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(handled).toBe(true);
 		expect(openConfig).toHaveBeenCalledWith({ initialTab: "plugins" });
+	});
+
+	it("switches to the fast model with fast", () => {
+		const switchToFastModel = vi.fn();
+		const actions = makeActions({ switchToFastModel });
+
+		const handled = runLocalSlashCommandAction({
+			name: "fast",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(switchToFastModel).toHaveBeenCalledOnce();
 	});
 
 	it("does not start compaction while a turn is running", () => {
