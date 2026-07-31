@@ -1004,11 +1004,10 @@ export async function handleConnectorUserTurn<
 			);
 			return;
 		}
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			"Steering current task.",
-		);
+		// No acknowledgement: the follow-up is handed to the running session and its
+		// effect shows up in the answer. Announcing it added a line to every thread
+		// and overstated what happens, since the prompt is queued for the session
+		// rather than injected into the loop already running.
 		return;
 	}
 

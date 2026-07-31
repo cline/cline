@@ -1898,7 +1898,11 @@ describe("handleConnectorUserTurn", () => {
 			}),
 			{ timeoutMs: null },
 		);
-		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
+		// Handing the follow-up to the running session is silent: no acknowledgement
+		// line is added to the thread.
+		expect(
+			posts.some((message) => messageText(message).includes("Steering")),
+		).toBe(false);
 	});
 
 	it("steers when the same session is active under a different turn key", async () => {
@@ -1950,7 +1954,11 @@ describe("handleConnectorUserTurn", () => {
 			}),
 			{ timeoutMs: null },
 		);
-		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
+		// Handing the follow-up to the running session is silent: no acknowledgement
+		// line is added to the thread.
+		expect(
+			posts.some((message) => messageText(message).includes("Steering")),
+		).toBe(false);
 	});
 
 	it("starts a normal turn when the active session is in a different thread", async () => {
