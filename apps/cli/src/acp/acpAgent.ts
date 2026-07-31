@@ -238,18 +238,22 @@ export class AcpAgent implements Agent {
 			if (!session) {
 				// Provider/model are not persisted per session — a session
 				// loaded on a fresh connection starts from the same defaults
-				// as a new session.
+				// as a new session, with the model resolved against the
+				// provider's own catalog just like newSession.
+				const providerId =
+					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+				const providerModels = await Llms.getModelsForProvider(providerId);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
 					mcpServers: params.mcpServers,
 					currentMode: "act",
-					currentProviderId:
-						process.env.CLINE_PROVIDER ??
-						this.authResult?.providerId ??
-						"cline",
-					currentModelId:
-						process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6",
+					currentProviderId: providerId,
+					currentModelId: await resolveDefaultModelId(
+						providerId,
+						process.env.CLINE_MODEL,
+						providerModels,
+					),
 				};
 				this.sessions.set(params.sessionId, session);
 			}
