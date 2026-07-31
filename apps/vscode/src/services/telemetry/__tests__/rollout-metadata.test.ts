@@ -1,5 +1,10 @@
 import * as assert from "assert"
-import { getRolloutErrorProperties, getRolloutTelemetryMetadata, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
+import {
+	getExtensionVariant,
+	getRolloutErrorProperties,
+	getRolloutTelemetryMetadata,
+	ROLLOUT_ERROR_MESSAGE_LIMIT,
+} from "../rollout-metadata"
 
 const originalVariant = process.env.CLINE_ROLLOUT_VARIANT
 
@@ -22,6 +27,20 @@ describe("rollout telemetry metadata", () => {
 
 		process.env.CLINE_ROLLOUT_VARIANT = "invalid"
 		assert.deepStrictEqual(getRolloutTelemetryMetadata(), {})
+	})
+
+	it("exposes the variant for rollout builds only", () => {
+		process.env.CLINE_ROLLOUT_VARIANT = "legacy"
+		assert.strictEqual(getExtensionVariant(), "legacy")
+
+		process.env.CLINE_ROLLOUT_VARIANT = "next"
+		assert.strictEqual(getExtensionVariant(), "next")
+
+		delete process.env.CLINE_ROLLOUT_VARIANT
+		assert.strictEqual(getExtensionVariant(), undefined)
+
+		process.env.CLINE_ROLLOUT_VARIANT = "invalid"
+		assert.strictEqual(getExtensionVariant(), undefined)
 	})
 
 	it("bounds fallback errors without including stacks", () => {
