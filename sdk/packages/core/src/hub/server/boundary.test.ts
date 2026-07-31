@@ -797,7 +797,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("owner-client", (event) => events.push(event));
-		for (const clientId of ["owner-client", "viewer-client"]) {
+		for (const clientId of ["owner-client", "viewer-client", "last-client"]) {
 			await transport.handleCommand({
 				version: "v1",
 				requestId: `req-register-${clientId}`,
@@ -829,6 +829,11 @@ describe("HubServerTransport boundaries", () => {
 							kind: "toolExecutor",
 							executor: "askQuestion",
 							capabilityName: "tool_executor.askQuestion",
+						},
+						{
+							kind: "hook",
+							name: "beforeRun",
+							capabilityName: "hook.beforeRun",
 						},
 					],
 				},
@@ -875,7 +880,11 @@ describe("HubServerTransport boundaries", () => {
 			clientId: "viewer-client",
 			sessionId: createdSessionId,
 			payload: {
-				capabilityNames: ["tool_executor.askQuestion", "missing.capability"],
+				capabilityNames: [
+					"tool_executor.askQuestion",
+					"hook.beforeRun",
+					"missing.capability",
+				],
 			},
 		});
 		expect(claimReply).toMatchObject({
@@ -884,6 +893,24 @@ describe("HubServerTransport boundaries", () => {
 				sessionId: createdSessionId,
 				capabilityNames: ["tool_executor.askQuestion"],
 			},
+		});
+		expect(
+			getContext(transport)
+				.sessionState.get(createdSessionId)
+				?.clientContributionOwners?.get("hook.beforeRun"),
+		).toBe("owner-client");
+
+		const lastClaimReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-last-claim",
+			command: "session.claim_client_contributions",
+			clientId: "last-client",
+			sessionId: createdSessionId,
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
+		});
+		expect(lastClaimReply).toMatchObject({
+			ok: true,
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
 		});
 
 		const claimedAnswerPromise = askQuestion("Continue?", ["Yes"], {
@@ -895,12 +922,12 @@ describe("HubServerTransport boundaries", () => {
 		const claimedRequest = [...events]
 			.reverse()
 			.find((event) => event.event === "capability.requested");
-		expect(claimedRequest?.payload?.targetClientId).toBe("viewer-client");
+		expect(claimedRequest?.payload?.targetClientId).toBe("last-client");
 		await transport.handleCommand({
 			version: "v1",
 			requestId: "req-claimed-response",
 			command: "capability.respond",
-			clientId: "viewer-client",
+			clientId: "last-client",
 			sessionId: createdSessionId,
 			payload: {
 				requestId: String(claimedRequest?.payload?.requestId ?? ""),
@@ -1509,6 +1536,51 @@ describe("HubServerTransport boundaries", () => {
 				}),
 			]),
 		);
+	});
+
+	it("clears retained capability requests when a session is deleted", async () => {
+		vi.useFakeTimers();
+		try {
+			const deleteSession = vi.fn().mockResolvedValue(true);
+			const transport = createTransport({ sessionHost: { deleteSession } });
+			const ctx = getContext(transport);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "owner-client",
+				payload: { clientId: "owner-client", clientType: "web" },
+			});
+			const resolved = vi.fn();
+			ctx.pendingCapabilityRequests.set("capreq-delete", {
+				sessionId: "session-1",
+				targetClientId: "owner-client",
+				capabilityName: "tool_executor.askQuestion",
+				resolve: resolved,
+			});
+
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			expect(
+				ctx.pendingCapabilityRequests.get("capreq-delete")?.disconnectTimer,
+			).toBeDefined();
+
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.delete",
+				sessionId: "session-1",
+			});
+			expect(reply).toMatchObject({ ok: true, payload: { deleted: true } });
+			expect(ctx.pendingCapabilityRequests.has("capreq-delete")).toBe(false);
+			expect(resolved).toHaveBeenCalledOnce();
+
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(resolved).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("returns session_not_found when a run starts against a stale active session", async () => {

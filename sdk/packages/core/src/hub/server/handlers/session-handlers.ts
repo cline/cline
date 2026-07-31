@@ -28,6 +28,7 @@ import { toHubSessionRecord } from "../hub-session-records";
 import {
 	cancelPendingCapabilityRequests,
 	claimPendingCapabilityRequests,
+	isReconnectableCapability,
 } from "./capability-handlers";
 import {
 	asPlainRecord,
@@ -812,8 +813,10 @@ export async function handleSessionClaimClientContributions(
 		clientId,
 		"participant",
 	);
-	const claimedCapabilityNames = capabilityNames.filter((capabilityName) =>
-		state.clientContributionOwners?.has(capabilityName),
+	const claimedCapabilityNames = capabilityNames.filter(
+		(capabilityName) =>
+			isReconnectableCapability(capabilityName) &&
+			state.clientContributionOwners?.has(capabilityName),
 	);
 	for (const capabilityName of claimedCapabilityNames) {
 		state.clientContributionOwners?.set(capabilityName, clientId);
@@ -1114,6 +1117,11 @@ export async function handleSessionDelete(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	cancelPendingCapabilityRequests(
+		ctx,
+		(request) => request.sessionId === sessionId,
+		`Session ${sessionId} was deleted before capability request was resolved.`,
+	);
 	ctx.sessionState.delete(sessionId);
 	return okReply(envelope, { deleted });
 }
