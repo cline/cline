@@ -10,6 +10,7 @@
  * by agent iteration before `SessionRuntime` decides whether to warn or abort.
  */
 
+import { createHash } from "node:crypto";
 import type { LoopDetectionConfig } from "@cline/shared";
 
 // =============================================================================
@@ -62,11 +63,17 @@ function toolOutputSignature(output: unknown): string {
 		output === null ? "null" : Array.isArray(output) ? "array" : typeof output;
 	try {
 		const serialized = JSON.stringify(output);
-		if (serialized === undefined) return `${type}:undefined`;
-		return `${type}:${JSON.stringify(sortKeys(JSON.parse(serialized)))}`;
+		if (serialized === undefined) return signatureHash(`${type}:undefined`);
+		return signatureHash(
+			`${type}:${JSON.stringify(sortKeys(JSON.parse(serialized)))}`,
+		);
 	} catch {
-		return `${type}:${String(output)}`;
+		return signatureHash(`${type}:${String(output)}`);
 	}
+}
+
+function signatureHash(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
 }
 
 export interface LoopCheckResult {
@@ -133,9 +140,14 @@ const ABSOLUTE_LIMIT_MULTIPLIER = 4;
 // Progress is normalized to the integer range 0..100. Permit the same bounded
 // number of renewals even when a multi-phase operation restarts at zero.
 const MAX_PROGRESS_CHANGES = 101;
+const MAX_SIGNATURE_STATES = 128;
 
 function callKey(toolName: string, toolSignature: string): string {
-	return JSON.stringify([toolName, toolSignature]);
+	return signatureHash(JSON.stringify([toolName, toolSignature]));
+}
+
+function hashedToolCallSignature(input: unknown): string {
+	return signatureHash(toolCallSignature(input));
 }
 
 function explicitProgressStep(
@@ -239,7 +251,7 @@ export class LoopDetectionTracker {
 
 	inspect(call: LoopDetectionCall): LoopDetectionVerdict {
 		this.finalizeCompletedBatchesBefore(call.iteration);
-		const signature = toolCallSignature(call.input);
+		const signature = hashedToolCallSignature(call.input);
 		const key = callKey(call.name, signature);
 		const signatureState = this.getSignature(key);
 		if (signatureState.hasProgress) {
@@ -260,6 +272,7 @@ export class LoopDetectionTracker {
 			this.pendingBatches.set(batchId, batch);
 		}
 		batch.pendingCount++;
+		this.pruneSignatures();
 
 		const absoluteHardLimit =
 			this.config.hardThreshold * ABSOLUTE_LIMIT_MULTIPLIER;
@@ -302,7 +315,7 @@ export class LoopDetectionTracker {
 		call: LoopDetectionCall,
 		outcome: { successful: boolean; output?: unknown },
 	): void {
-		const key = callKey(call.name, toolCallSignature(call.input));
+		const key = callKey(call.name, hashedToolCallSignature(call.input));
 		const batchId = JSON.stringify([call.iteration, key]);
 		const batch = this.pendingBatches.get(batchId);
 		if (batch === undefined) return;
@@ -334,6 +347,7 @@ export class LoopDetectionTracker {
 			}
 		}
 		this.pendingBatches.clear();
+		this.pruneSignatures();
 	}
 
 	reset(): void {
@@ -350,9 +364,24 @@ export class LoopDetectionTracker {
 				progressChangeCount: 0,
 				hasProgress: false,
 			};
-			this.signatures.set(key, state);
+		} else {
+			this.signatures.delete(key);
 		}
+		this.signatures.set(key, state);
 		return state;
+	}
+
+	private pruneSignatures(): void {
+		if (this.signatures.size <= MAX_SIGNATURE_STATES) return;
+		const pendingKeys = new Set(
+			[...this.pendingBatches.values()].map((batch) => batch.key),
+		);
+		for (const key of this.signatures.keys()) {
+			if (this.signatures.size <= MAX_SIGNATURE_STATES) break;
+			if (!pendingKeys.has(key)) {
+				this.signatures.delete(key);
+			}
+		}
 	}
 
 	private finalizeCompletedBatchesBefore(iteration: number): void {
@@ -366,10 +395,14 @@ export class LoopDetectionTracker {
 	private finalizeBatch(batch: ToolBatch): void {
 		const signatureState = this.signatures.get(batch.key);
 		if (signatureState === undefined) return;
+		this.signatures.delete(batch.key);
+		this.signatures.set(batch.key, signatureState);
 		signatureState.totalBatchCount++;
 		if (batch.outcomes.size === 0) return;
 
-		const outputSignature = JSON.stringify([...batch.outcomes].sort());
+		const outputSignature = signatureHash(
+			JSON.stringify([...batch.outcomes].sort()),
+		);
 		if (
 			signatureState.lastOutputSignature !== undefined &&
 			signatureState.lastOutputSignature !== outputSignature

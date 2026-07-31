@@ -38,6 +38,16 @@ function completeBatch(
 	return verdicts;
 }
 
+type TrackerInternals = {
+	state: { lastToolSignature: string };
+	pendingBatches: Map<string, unknown>;
+	signatures: Map<string, { lastOutputSignature?: string }>;
+};
+
+function internals(tracker: LoopDetectionTracker): TrackerInternals {
+	return tracker as unknown as TrackerInternals;
+}
+
 describe("LoopDetectionTracker", () => {
 	it("resets the ordinary counter after changed successful output", () => {
 		const tracker = createTracker();
@@ -239,5 +249,68 @@ describe("LoopDetectionTracker", () => {
 			]),
 		).toEqual(["soft"]);
 		expect(inspect(tracker, 3)).toBe("ok");
+	});
+
+	it("retains fixed-size hashes instead of raw input and output", () => {
+		const tracker = createTracker();
+		const input = { secret: "input-marker".repeat(10_000) };
+		const output = { content: "output-marker".repeat(10_000) };
+
+		completeBatch(tracker, 1, [output], { input });
+		tracker.clearPendingCalls();
+
+		const state = internals(tracker);
+		const [[key, signatureState]] = [...state.signatures];
+		expect(key).toHaveLength(64);
+		expect(state.state.lastToolSignature).toHaveLength(64);
+		expect(signatureState.lastOutputSignature).toHaveLength(64);
+		expect(
+			`${key}${state.state.lastToolSignature}${signatureState.lastOutputSignature}`,
+		).not.toContain("marker");
+	});
+
+	it("caps completed signature history with least-recently-used eviction", () => {
+		const tracker = createTracker();
+
+		for (let index = 0; index < 128; index++) {
+			completeBatch(tracker, index + 1, ["done"], {
+				input: { job: index },
+			});
+		}
+		tracker.clearPendingCalls();
+		const state = internals(tracker);
+		const [oldestKey, secondOldestKey] = state.signatures.keys();
+
+		completeBatch(tracker, 129, ["done"], { input: { job: 0 } });
+		completeBatch(tracker, 130, ["done"], { input: { job: 128 } });
+		tracker.clearPendingCalls();
+
+		expect(state.signatures.size).toBe(128);
+		expect(state.signatures.has(oldestKey)).toBe(true);
+		expect(state.signatures.has(secondOldestKey)).toBe(false);
+	});
+
+	it("never evicts signatures that still have pending batches", () => {
+		const tracker = createTracker();
+		const calls = Array.from({ length: 129 }, (_, index) =>
+			call(1, "poll", { job: index }),
+		);
+
+		for (const pendingCall of calls) {
+			tracker.inspect(pendingCall);
+		}
+		const state = internals(tracker);
+		expect(state.pendingBatches.size).toBe(129);
+		expect(state.signatures.size).toBe(129);
+
+		for (const pendingCall of calls) {
+			tracker.observeOutcome(pendingCall, {
+				successful: true,
+				output: "done",
+			});
+		}
+		tracker.clearPendingCalls();
+		expect(state.pendingBatches.size).toBe(0);
+		expect(state.signatures.size).toBe(128);
 	});
 });
