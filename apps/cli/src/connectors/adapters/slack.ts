@@ -206,6 +206,52 @@ function extractSlackChannelFromId(id: string): string | undefined {
 	return parts[0] === "slack" ? readString(parts[1]) : undefined;
 }
 
+/**
+ * Slack delivers `@cline hi` as `<@U0B8E8H3U1F> hi`, and the chat SDK
+ * deliberately leaves the bot's own mention unresolved (so mention detection
+ * keeps working), flattening it to `@U0B8E8H3U1F hi`. Strip that leading
+ * self-mention so the agent receives `hi`.
+ *
+ * Only leading mentions of the bot itself are removed; mentions of other users
+ * (already resolved to `@display-name`) and inline mentions are preserved so
+ * the agent still sees who was addressed. A bare mention with no other content
+ * is left untouched so the turn still reaches the agent instead of being
+ * dropped as empty input.
+ */
+function stripSlackBotMention(
+	text: string,
+	botUserId: string | undefined,
+): string {
+	const botId = botUserId?.trim();
+	if (!botId || !text) {
+		return text;
+	}
+	const escapedBotId = botId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	// Matches `<@U123>`, `<@U123|name>` and the SDK-flattened `@U123` form,
+	// repeated when a user mentions the bot more than once up front.
+	const leadingMention = new RegExp(
+		`^(?:\\s*(?:<@${escapedBotId}(?:\\|[^<>]*)?>|@${escapedBotId})[\\s,:]*)+`,
+	);
+	const stripped = text.replace(leadingMention, "");
+	return stripped.trim() ? stripped.trimStart() : text;
+}
+
+/**
+ * The adapter exposes the authenticated bot user id (request-scoped in
+ * multi-workspace mode). When it is not yet known, fall back to the id Slack
+ * reports as the authorized app user on the event envelope.
+ */
+function resolveSlackBotUserId(
+	slack: Pick<SlackAdapter, "botUserId">,
+	rawMessage?: unknown,
+): string | undefined {
+	const raw = asRecord(rawMessage);
+	return (
+		readString(slack.botUserId) ??
+		readString(firstRecord(raw?.authorizations)?.user_id)
+	);
+}
+
 function resolveSlackChannelMentionThread(
 	thread: Thread<SlackThreadState>,
 	message: Message,
@@ -966,10 +1012,14 @@ class SlackConnector extends ConnectorBase<
 				rawMessage: message.raw,
 				errorLabel: "Slack",
 			});
+			const text = stripSlackBotMention(
+				message.text,
+				resolveSlackBotUserId(slack, message.raw),
+			);
 			if (
 				await maybeHandleConnectorApprovalReply({
 					thread: mentionThread,
-					text: message.text,
+					text,
 					client,
 					clientId,
 					pendingApprovals,
@@ -978,7 +1028,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(mentionThread, message.text);
+			await handleTurn(mentionThread, text);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -989,10 +1039,14 @@ class SlackConnector extends ConnectorBase<
 				rawMessage: message.raw,
 				errorLabel: "Slack",
 			});
+			const text = stripSlackBotMention(
+				message.text,
+				resolveSlackBotUserId(slack, message.raw),
+			);
 			if (
 				await maybeHandleConnectorApprovalReply({
 					thread,
-					text: message.text,
+					text,
 					client,
 					clientId,
 					pendingApprovals,
@@ -1001,7 +1055,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, text);
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -1214,7 +1268,9 @@ export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,
+	resolveSlackBotUserId,
 	resolveSlackChannelMentionThread,
+	stripSlackBotMention,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (
