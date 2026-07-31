@@ -202,8 +202,9 @@ describe("StreamableHttpReconnectHandler", () => {
 		const cbs = makeCallbacks(conn)
 		// An OAuth-required connection is "disconnected" but retains its
 		// client/transport/authProvider for when the user authenticates —
-		// unlike our own failed-connect husk, which has client: null
-		const oauthReplacement = { server: { status: "disconnected" }, client: {} }
+		// oauthRequired: true is what distinguishes it from an ordinary
+		// failed connection
+		const oauthReplacement = { server: { status: "disconnected", oauthRequired: true }, client: {} }
 		let deleted = false
 		let attempts = 0
 		cbs.stubs.findConnection.callsFake(() => {
@@ -285,10 +286,11 @@ describe("StreamableHttpReconnectHandler", () => {
 
 		// After deleteConnection, findConnection returns undefined (old conn deleted)
 		// but connectToServer may leave a partial connection, so simulate that.
-		// A partial connection from a failed connectToServer is always marked
-		// "disconnected" (its error path sets that before throwing) — which is
-		// also what lets the retry loop distinguish it from a live replacement.
-		const partialConn = makeConnection({ status: "disconnected" })
+		// A partial connection from a failed connectToServer is marked
+		// "disconnected" with its (already-closed) client still attached and
+		// oauthRequired false — the retry loop must keep retrying past it, not
+		// mistake it for an OAuth-required replacement.
+		const partialConn = { ...makeConnection({ status: "disconnected" }), client: {} }
 		let deleted = false
 		cbs.stubs.findConnection.callsFake(() => {
 			if (!deleted) return conn
