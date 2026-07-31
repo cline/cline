@@ -216,6 +216,42 @@ describe("slash command registry", () => {
 		).toContain("fork");
 	});
 
+	it("shows fast only for Cline usage-based billing and unfast only in fast mode", () => {
+		const ineligibleRegistry = buildSlashCommandRegistry({});
+		const eligibleRegistry = buildSlashCommandRegistry({
+			canEnterFastMode: true,
+		});
+		const fastModeRegistry = buildSlashCommandRegistry({
+			canExitFastMode: true,
+		});
+
+		expect(resolveSlashCommand(ineligibleRegistry, "fast")).toMatchObject({
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+		expect(resolveSlashCommand(ineligibleRegistry, "unfast")).toMatchObject({
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+
+		const eligibleNames = getVisibleSystemSlashCommands(eligibleRegistry).map(
+			(command) => command.name,
+		);
+		expect(eligibleNames).toContain("fast");
+		expect(eligibleNames).not.toContain("unfast");
+		expect(eligibleNames.indexOf("fast")).toBeGreaterThan(
+			eligibleNames.indexOf("model"),
+		);
+
+		const fastModeNames = getVisibleSystemSlashCommands(fastModeRegistry).map(
+			(command) => command.name,
+		);
+		expect(fastModeNames).toContain("unfast");
+		expect(fastModeNames).not.toContain("fast");
+	});
+
 	it("keeps skills visible even when no invokable skills are installed", () => {
 		const emptyRegistry = buildSlashCommandRegistry({});
 

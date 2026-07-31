@@ -1,5 +1,6 @@
 import { formatUserCommandBlock } from "@cline/shared";
 import type { InteractiveSlashCommand } from "../interactive-welcome";
+import { FAST_MODE_MODEL_NAME } from "./fast-mode";
 
 export type SlashCommandSource =
 	| "tui"
@@ -17,6 +18,8 @@ export type LocalSlashCommandName =
 	| "plugins"
 	| "account"
 	| "model"
+	| "fast"
+	| "unfast"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -61,6 +64,14 @@ const TUI_LOCAL_COMMANDS: Array<{
 	{
 		name: "model",
 		description: "Switch model or provider",
+	},
+	{
+		name: "fast",
+		description: `Switch to ${FAST_MODE_MODEL_NAME}`,
+	},
+	{
+		name: "unfast",
+		description: "Switch back to your previous model",
 	},
 	{
 		name: "account",
@@ -112,6 +123,8 @@ const TUI_LOCAL_COMMANDS: Array<{
 const SYSTEM_COMMAND_ORDER = [
 	"settings",
 	"model",
+	"fast",
+	"unfast",
 	"account",
 	"mcp",
 	"plugins",
@@ -177,17 +190,32 @@ function entryFromRuntimeCommand(
 	};
 }
 
+function localCommandGate(
+	name: LocalSlashCommandName,
+	input: {
+		canFork?: boolean;
+		canEnterFastMode?: boolean;
+		canExitFastMode?: boolean;
+	},
+): boolean {
+	if (name === "fork") return input.canFork === true;
+	if (name === "fast") return input.canEnterFastMode === true;
+	if (name === "unfast") return input.canExitFastMode === true;
+	return true;
+}
+
 export function buildSlashCommandRegistry(input: {
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	additionalSlashCommands?: InteractiveSlashCommand[];
 	canFork?: boolean;
+	canEnterFastMode?: boolean;
+	canExitFastMode?: boolean;
 }): SlashCommandRegistry {
 	const byName = new Map<string, SlashCommandRegistryEntry>();
 
 	for (const command of TUI_LOCAL_COMMANDS) {
-		const isFork = command.name === "fork";
 		const visible =
-			(command.visible ?? true) && (!isFork || input.canFork === true);
+			(command.visible ?? true) && localCommandGate(command.name, input);
 		addEntry(byName, {
 			name: command.name,
 			description: command.description,

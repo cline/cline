@@ -14,6 +14,13 @@ import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanba
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
+import {
+	canUseFastMode,
+	enterFastMode,
+	exitFastMode,
+	type FastModeRestoreState,
+	isFastModeActive,
+} from "./commands/fast-mode";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
 	CheckpointConfirmContent,
@@ -32,6 +39,7 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
+import { withLoadingDialog } from "./components/dialogs/loading-dialog";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -105,6 +113,12 @@ function App(props: TuiProps) {
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
+	// /fast is a shortcut reserved for Cline usage-based billing accounts;
+	// /unfast only makes sense while the fast-mode model is active.
+	const fastModeActive = isFastModeActive(props.config);
+	const canEnterFastMode =
+		canUseFastMode(props.config.providerId) && !fastModeActive;
+	const fastModeRestoreRef = useRef<FastModeRestoreState | null>(null);
 	const terminalTitle = useMemo(
 		() =>
 			deriveTerminalTitle({
@@ -128,6 +142,8 @@ function App(props: TuiProps) {
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
+		canEnterFastMode,
+		canExitFastMode: fastModeActive,
 	});
 
 	const autocomplete = useAutocomplete({
@@ -196,6 +212,40 @@ function App(props: TuiProps) {
 		onModelChange: handleModelChange,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+
+	const runFastMode = useCallback(async () => {
+		await enterFastMode({
+			config: props.config,
+			applyModelChange: () =>
+				withLoadingDialog(dialog, "Switching model...", handleModelChange),
+			notify: session.appendEntry,
+			setRestoreState: (state) => {
+				fastModeRestoreRef.current = state;
+			},
+		});
+		refocusTextareaRef.current();
+	}, [dialog, handleModelChange, props.config, session.appendEntry]);
+
+	const runUnfastMode = useCallback(async () => {
+		await exitFastMode({
+			config: props.config,
+			restoreState: fastModeRestoreRef.current,
+			applyModelChange: () =>
+				withLoadingDialog(dialog, "Switching model...", handleModelChange),
+			notify: session.appendEntry,
+			setRestoreState: (state) => {
+				fastModeRestoreRef.current = state;
+			},
+			openModelSelector: () => openModelSelector(),
+		});
+		refocusTextareaRef.current();
+	}, [
+		dialog,
+		handleModelChange,
+		openModelSelector,
+		props.config,
+		session.appendEntry,
+	]);
 
 	const openMcpManager = useMcpManager({
 		dialog,
@@ -643,6 +693,8 @@ function App(props: TuiProps) {
 		openMcpManager,
 		openModelSelector,
 		openSkills,
+		runFastMode,
+		runUnfastMode,
 		refocusTextarea: () => refocusTextareaRef.current(),
 		setAppView,
 		onClearConversation: clearConversation,

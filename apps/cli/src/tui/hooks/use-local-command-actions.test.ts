@@ -15,6 +15,8 @@ function makeActions(
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
 		openSkills: vi.fn(),
+		runFastMode: vi.fn(async () => {}),
+		runUnfastMode: vi.fn(async () => {}),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
 		runUndo: vi.fn(async () => {}),
@@ -145,6 +147,32 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(await handledPromise).toBe(true);
 		expect(settled).toBe(true);
+	});
+
+	it("runs fast mode with fast", async () => {
+		const runFastMode = vi.fn(async () => {});
+		const actions = makeActions({ runFastMode });
+
+		const handled = await runLocalSlashCommandAction({
+			name: "fast",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(runFastMode).toHaveBeenCalledOnce();
+	});
+
+	it("leaves fast mode with unfast", async () => {
+		const runUnfastMode = vi.fn(async () => {});
+		const actions = makeActions({ runUnfastMode });
+
+		const handled = await runLocalSlashCommandAction({
+			name: "unfast",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(runUnfastMode).toHaveBeenCalledOnce();
 	});
 
 	it("exits Cline with quit", () => {

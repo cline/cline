@@ -10,6 +10,8 @@ export interface LocalSlashCommandActionInput {
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	invocation?: LocalSlashCommandInvocation;
+	runFastMode: () => Promise<void>;
+	runUnfastMode: () => Promise<void>;
 	runCompact: () => void;
 	runFork: () => void;
 	runUndo: () => Promise<void>;
@@ -45,6 +47,12 @@ export function runLocalSlashCommandAction(
 	if (normalized === "model") {
 		input.openModelSelector();
 		return true;
+	}
+	if (normalized === "fast") {
+		return input.runFastMode().then(() => true);
+	}
+	if (normalized === "unfast") {
+		return input.runUnfastMode().then(() => true);
 	}
 	if (normalized === "compact") {
 		// Autocomplete can invoke local commands while a turn is running. Keep

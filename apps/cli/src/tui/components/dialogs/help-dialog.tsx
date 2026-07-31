@@ -123,6 +123,18 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-fast",
+		key: "/fast",
+		desc: "Switch to Claude Opus 5 (Fast) (Cline usage-based billing)",
+	},
+	{
+		kind: "entry",
+		id: "c-unfast",
+		key: "/unfast",
+		desc: "Switch back to the model used before /fast",
+	},
+	{
+		kind: "entry",
 		id: "c-settings",
 		key: "/settings",
 		desc: "Open interactive config browser",

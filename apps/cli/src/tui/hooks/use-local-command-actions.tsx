@@ -23,6 +23,8 @@ export function useLocalCommandActions(input: {
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
+	runFastMode: () => Promise<void>;
+	runUnfastMode: () => Promise<void>;
 	refocusTextarea: () => void;
 	setAppView: (view: AppView) => void;
 	onClearConversation: () => Promise<void>;
@@ -45,6 +47,8 @@ export function useLocalCommandActions(input: {
 		openMcpManager,
 		openModelSelector,
 		openSkills,
+		runFastMode,
+		runUnfastMode,
 		refocusTextarea,
 		setAppView,
 		onClearConversation,
@@ -227,6 +231,8 @@ export function useLocalCommandActions(input: {
 				openMcpManager,
 				openModelSelector,
 				openSkills,
+				runFastMode,
+				runUnfastMode,
 				runCompact,
 				runFork,
 				runUndo: onUndo,
@@ -248,6 +254,8 @@ export function useLocalCommandActions(input: {
 			openModelSelector,
 			openSkills,
 			runCompact,
+			runFastMode,
+			runUnfastMode,
 			runFork,
 			session.isRunning,
 			slashCommandRegistry,
