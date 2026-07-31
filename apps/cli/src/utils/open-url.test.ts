@@ -3,11 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
 	spawnMock: vi.fn(),
-	openMock: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({ spawn: hoisted.spawnMock }));
-vi.mock("open", () => ({ default: hoisted.openMock }));
 
 import { openUrlInBrowser } from "./open-url";
 
@@ -31,7 +29,6 @@ function setPlatform(platform: NodeJS.Platform): () => void {
 
 afterEach(() => {
 	hoisted.spawnMock.mockReset();
-	hoisted.openMock.mockReset();
 });
 
 describe("openUrlInBrowser (direct opener: darwin / non-WSL linux)", () => {
@@ -86,29 +83,43 @@ describe("openUrlInBrowser (direct opener: darwin / non-WSL linux)", () => {
 	});
 });
 
-describe("openUrlInBrowser (open package: win32)", () => {
-	it("delegates to open() and resolves true on spawn", async () => {
+describe("openUrlInBrowser (win32: powershell -EncodedCommand)", () => {
+	it("spawns powershell with the URL base64-encoded, never shell-interpolated", async () => {
 		const restore = setPlatform("win32");
 		try {
 			const child = makeChild();
-			hoisted.openMock.mockResolvedValue(child);
-			const result = openUrlInBrowser("https://example.com");
-			await new Promise((resolve) => setImmediate(resolve));
+			hoisted.spawnMock.mockReturnValue(child);
+			const url = "https://example.com/device?user_code=ABCD-EFGH&x=1";
+			const result = openUrlInBrowser(url);
 			child.emit("spawn");
 			await expect(result).resolves.toBe(true);
-			expect(hoisted.spawnMock).not.toHaveBeenCalled();
+			const [command, args] = hoisted.spawnMock.mock.calls[0];
+			expect(command).toBe("powershell");
+			const encoded = args[args.indexOf("-EncodedCommand") + 1];
+			expect(Buffer.from(encoded, "base64").toString("utf16le")).toBe(
+				`Start-Process '${url}'`,
+			);
+			expect(args).not.toContain(url);
 		} finally {
 			restore();
 		}
 	});
 
-	it("resolves false when open() rejects", async () => {
+	it("survives a pre-microtask error on win32 too", async () => {
 		const restore = setPlatform("win32");
 		try {
-			hoisted.openMock.mockRejectedValue(new Error("no opener"));
-			await expect(openUrlInBrowser("https://example.com")).resolves.toBe(
-				false,
-			);
+			const child = makeChild();
+			hoisted.spawnMock.mockReturnValue(child);
+			const result = openUrlInBrowser("https://example.com");
+			process.nextTick(() => {
+				child.emit(
+					"error",
+					Object.assign(new Error("spawn powershell EPERM"), {
+						code: "EPERM",
+					}),
+				);
+			});
+			await expect(result).resolves.toBe(false);
 		} finally {
 			restore();
 		}
