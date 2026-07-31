@@ -50,6 +50,13 @@ export type ClineTokenResolution = {
 	forceRefresh?: boolean;
 	refreshBufferMs?: number;
 	retryableTokenGraceMs?: number;
+	/**
+	 * When false, suppresses the AUTH_LOGGED_OUT telemetry event on an
+	 * invalid-grant refresh failure. Callers that recover from invalid_grant
+	 * (e.g. by adopting credentials another process rotated on disk) own the
+	 * logged-out decision and emit the event themselves.
+	 */
+	emitLoggedOutTelemetry?: boolean;
 };
 
 interface ClineAuthApiUser {
@@ -822,17 +829,19 @@ export async function getValidClineCredentials(
 			sdkDebug(
 				`cline.getCredentials outcome=invalid_grant status=${error.status} errorCode=${error.errorCode ?? "none"}`,
 			);
-			captureAuthLoggedOut(
-				providerOptions.telemetry,
-				providerOptions.provider ?? "cline",
-				"invalid_grant",
-				{
-					status: error.status,
-					errorCode: error.errorCode,
-					...requestIdDetails,
-					...authTelemetryDetails,
-				},
-			);
+			if (options?.emitLoggedOutTelemetry !== false) {
+				captureAuthLoggedOut(
+					providerOptions.telemetry,
+					providerOptions.provider ?? "cline",
+					"invalid_grant",
+					{
+						status: error.status,
+						errorCode: error.errorCode,
+						...requestIdDetails,
+						...authTelemetryDetails,
+					},
+				);
+			}
 			return null;
 		}
 		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
