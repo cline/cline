@@ -140,6 +140,23 @@ describe("EntitlementError", () => {
 		expect(await screen.findByText("Switched to Usage-Based billing")).toBeInTheDocument()
 	})
 
+	// Committing the switch rewrites the config the target is derived from, so
+	// the confirmation has to survive the selection no longer being gated.
+	it("keeps the confirmation visible after the committed config stops being ClinePass", async () => {
+		useClinePassSelection()
+		handleModeFieldsChangeMock.mockImplementation(async () => {
+			mockApiConfiguration.actModeApiProvider = "cline"
+			mockApiConfiguration.actModeClineModelId = "deepseek/deepseek-v4-flash"
+			delete mockApiConfiguration.actModeClinePassModelId
+		})
+
+		render(<EntitlementError />)
+		fireEvent.click(screen.getByText("Switch to Usage-Based billing"))
+
+		expect(await screen.findByText("Switched to Usage-Based billing")).toBeInTheDocument()
+		expect(screen.getByText("Retry the request after switching.")).toBeInTheDocument()
+	})
+
 	it("hides the switch action when the catalog has no usage-billed twin", () => {
 		mockApiConfiguration.actModeApiProvider = "cline-pass"
 		mockApiConfiguration.actModeClinePassModelId = "cline-pass/subscription-only-model"
