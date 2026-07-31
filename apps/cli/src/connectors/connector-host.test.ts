@@ -690,6 +690,81 @@ describe("handleConnectorUserTurn", () => {
 		).toBe(false);
 	});
 
+	it("recovers when the bound session is wedged on a run that never drained", async () => {
+		// Cline Mom's failure: the thread pointed at a session whose runtime still
+		// had a run in flight, so every message came back as "SessionRuntime.shutdown
+		// called while a run is in progress" instead of answering.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "wedged-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "wedged-session") {
+				// Crossing the hub's JSON boundary strips the error class, so only the
+				// message survives — which is exactly what the connector sees.
+				throw new Error(
+					"SessionRuntime.shutdown called while a run is in progress (agentId=agent_123)",
+				);
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "are you there?",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(
+			runtime.sendRuntimeSession.mock.calls.map((call) => call[0]),
+		).toEqual(["wedged-session", "fresh-session"]);
+		// The stale mapping is replaced, so the thread is not wedged next time.
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("run is in progress"),
+			),
+		).toBe(false);
+	});
+
 	it("does not retry forever when the replacement session is also missing", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
