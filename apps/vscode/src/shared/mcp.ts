@@ -24,7 +24,6 @@ export type McpServer = {
 	prompts?: McpPrompt[]
 	disabled?: boolean
 	timeout?: number
-	uid?: string
 	oauthRequired?: boolean
 	oauthAuthStatus?: McpOAuthAuthStatus
 }
