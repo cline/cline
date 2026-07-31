@@ -8,6 +8,31 @@ function normalizeShellName(shell: string): string {
 	return baseName.toLowerCase();
 }
 
+export function windowsCodePageToEncoding(codePage: number): string {
+	switch (codePage) {
+		case 437:
+			return "cp437";
+		case 850:
+			return "cp850";
+		case 866:
+			return "cp866";
+		case 932:
+			return "shift_jis";
+		case 936:
+			return "gbk";
+		case 949:
+			return "cp949";
+		case 950:
+			return "big5";
+		case 1252:
+			return "windows1252";
+		case 65001:
+			return "utf8";
+		default:
+			return "utf8";
+	}
+}
+
 export function getDefaultShell(platform: string): string {
 	return platform === "win32" ? "powershell" : "/bin/bash";
 }
@@ -47,6 +72,28 @@ export function getShellKind(shell: string): ShellKind {
 	}
 
 	return "posix";
+}
+
+export function getShellOutputEncoding(
+	shell: string,
+	platform: string,
+	resolveCodePage: () => number,
+): string {
+	if (platform !== "win32") return "utf8";
+
+	const shellName = normalizeShellName(shell);
+	if (
+		getShellKind(shell) !== "cmd" &&
+		shellName !== "powershell" &&
+		shellName !== "powershell.exe"
+	) {
+		return "utf8";
+	}
+	try {
+		return windowsCodePageToEncoding(resolveCodePage());
+	} catch {
+		return "utf8";
+	}
 }
 
 export function getShellArgs(shell: string, command: string): string[] {
