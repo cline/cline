@@ -3,6 +3,7 @@ import type {
 	ContentBlock,
 	MessageWithMetadata,
 } from "@cline/shared";
+import { getUserRunSpan } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
@@ -202,7 +203,9 @@ function mergeAdjacentUserTurns(
 		let message = messages[index];
 		if (runEnd > index) {
 			const blocks: ContentBlock[] = [];
+			let userRunSpan = 0;
 			for (let member = index; member <= runEnd; member += 1) {
+				userRunSpan += getUserRunSpan(messages[member]);
 				if (member > index) {
 					const previousIndex = resolveOriginalIndex(messages[member - 1]);
 					const currentIndex = resolveOriginalIndex(messages[member]);
@@ -227,7 +230,14 @@ function mergeAdjacentUserTurns(
 					...userContentBlocks(messages[member], member === latestTypedIndex),
 				);
 			}
-			message = { ...messages[index], content: blocks };
+			message = {
+				...messages[index],
+				content: blocks,
+				metadata: {
+					...messages[index].metadata,
+					userRunSpan,
+				},
+			};
 		} else {
 			const blocks = userContentBlocks(message, index === latestTypedIndex);
 			if (
@@ -650,7 +660,11 @@ export function runBasicCompaction(options: {
 		if (index === 0 && isTurnStartMessage(message)) {
 			return stripStaleMetrics({
 				...message,
-				metadata: { ...message.metadata, ...compactionMetadata },
+				metadata: {
+					...message.metadata,
+					...compactionMetadata,
+					userRunSpan: getUserRunSpan(message),
+				},
 			});
 		}
 		// Non-typed survivors (kept tool pairs and preserved answers) are
