@@ -1,6 +1,6 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ChatState, PendingUserMessage } from "../types/chatTypes"
+import { ChatState, PendingResponse, PendingUserMessage } from "../types/chatTypes"
 
 /**
  * Custom hook for managing chat state
@@ -21,6 +21,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 	const [pendingUserMessage, setPendingUserMessage] = useState<PendingUserMessage | undefined>(undefined)
+	const [pendingResponse, setPendingResponse] = useState<PendingResponse | undefined>(undefined)
 
 	// Refs
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -78,6 +79,8 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setExpandedRows,
 		pendingUserMessage,
 		setPendingUserMessage,
+		pendingResponse,
+		setPendingResponse,
 
 		// Refs
 		textAreaRef,

@@ -582,7 +582,9 @@ export class AgentRuntime {
 	}
 
 	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
-		const reminderMessage = createMessage("user", [{ type: "text", text }]);
+		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			userRunSpan: 0,
+		});
 		this.state.messages.push(reminderMessage);
 		await this.emit({
 			type: "message-added",
@@ -1258,7 +1260,9 @@ export class AgentRuntime {
 		if (!pending) {
 			return undefined;
 		}
-		const message = createMessage("user", [{ type: "text", text: pending }]);
+		const message = createMessage("user", [{ type: "text", text: pending }], {
+			userRunSpan: 0,
+		});
 		this.state.messages.push(message);
 		await this.emit({
 			type: "message-added",

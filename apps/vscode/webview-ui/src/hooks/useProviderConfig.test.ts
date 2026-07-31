@@ -132,7 +132,6 @@ describe("useProviderConfig", () => {
 			cacheWritesPrice: 4,
 			temperature: 0.2,
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
-			isR1FormatRequired: false,
 		}
 
 		expect(fromProtobufProviderModelOverrides(toProtobufProviderModelOverrides(overrides))).toEqual(overrides)

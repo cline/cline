@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
+	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
@@ -16,7 +17,7 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
-import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -90,6 +91,7 @@ import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
+	getSdkCheckpointRunCountForMessageIndex,
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
@@ -610,6 +612,7 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
@@ -1323,6 +1326,12 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
+		// The webview only learns the phase through a full state post. Without one here it would
+		// keep the stale terminal phase (and hide the thinking indicator) until the first session
+		// event of the new turn posts state — a visible delay after every follow-up/approval.
+		this.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
+		})
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
@@ -1357,7 +1366,7 @@ export class Controller {
 		const userOrdinal = clineMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-		const checkpointRunCount = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const canRestoreWorkspace = getCheckpointRunCountForMessage(clineMessages, targetIndex) !== undefined
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
@@ -1368,6 +1377,7 @@ export class Controller {
 			if (sdkTargetIndex === -1) {
 				throw new Error("Could not map edited message to persisted conversation history")
 			}
+			const checkpointRunCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkTargetIndex)
 
 			const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
 				VscodeSessionHost["start"]
@@ -1403,6 +1413,9 @@ export class Controller {
 				sessionMetadata: {
 					title: historyTitle,
 					modelId: config.modelId,
+					...(checkpointRunCount
+						? { checkpoint: createRestoredCheckpointMetadata(sessionRecord, checkpointRunCount) }
+						: {}),
 				},
 			}
 
@@ -1410,7 +1423,7 @@ export class Controller {
 				if (activeSession?.isRunning) {
 					throw new Error("Wait for the current run to finish before restoring workspace changes")
 				}
-				if (checkpointRunCount === undefined) {
+				if (!canRestoreWorkspace || checkpointRunCount === undefined) {
 					throw new Error("Workspace restore is only available for messages that started an agent run")
 				}
 				await sessionHost.restore({
@@ -1667,11 +1680,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-		stubWarn("readOpenRouterModels")
-		return undefined
-	}
-
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
@@ -1791,16 +1799,9 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const historyItem = (await this.taskHistory.listHistory({ hydrate: false })).find((item) => item.sessionId === id)
-		if (!historyItem) {
-			throw new Error(`Task not found in history: ${id}`)
-		}
-
-		const taskDirPath = historyItem.messagesPath
-			? path.dirname(historyItem.messagesPath)
-			: this.taskHistory.getLegacyTaskDirPath(id)
+		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no artifact path: ${id}`)
+			throw new Error(`Task not found in history: ${id}`)
 		}
 
 		await fs.access(taskDirPath)

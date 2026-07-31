@@ -28,7 +28,6 @@ import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mc
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
@@ -94,11 +93,6 @@ export class McpHub {
 	 */
 	private lastConnectionFingerprint?: string
 
-	/**
-	 * Map of unique keys to each connected server names
-	 */
-	private static mcpServerKeys = new Map<string, string>()
-
 	// Store notifications for display in chat
 	private pendingNotifications: Array<{
 		serverName: string
@@ -141,33 +135,6 @@ export class McpHub {
 		// Only return enabled servers
 
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
-	}
-
-	/**
-	 * Get the MCP server name from its unique key.
-	 * If the key is not found, return the key itself.
-	 */
-	public static getMcpServerByKey(key: string): string {
-		return McpHub.mcpServerKeys.get(key) || key
-	}
-
-	/**
-	 * Create a unique key for an MCP server based on its name.
-	 * This avoids making a tool name too long while still ensuring uniqueness.
-	 */
-	private getMcpServerKey(server: string): string {
-		// Reuse existing key if server is already registered
-		for (const [existingKey, existingServer] of McpHub.mcpServerKeys.entries()) {
-			if (existingServer === server) {
-				return existingKey
-			}
-		}
-		// Generate a short 6-character unique ID for the server
-		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
-		McpHub.mcpServerKeys.set(uid, server)
-		return uid
 	}
 
 	/**
@@ -497,7 +464,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 						}
 						await this.notifyWebviewOfServerChanges()
@@ -507,7 +473,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 						}
 						await this.notifyWebviewOfServerChanges()
 					}
@@ -579,7 +544,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 						}
 						await this.notifyWebviewOfServerChanges()
@@ -622,7 +586,6 @@ export class McpHub {
 						connectToServer: () => this.connectToServer(name, config, source),
 						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
 						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
-						deleteServerKey: (uid) => McpHub.mcpServerKeys.delete(uid),
 						delay: (ms) => setTimeoutPromise(ms),
 					})
 
@@ -639,7 +602,6 @@ export class McpHub {
 					config: configForStorage,
 					status: "connecting",
 					disabled: config.disabled,
-					uid: this.getMcpServerKey(name),
 					oauthRequired: false,
 					oauthAuthStatus: "authenticated",
 				},
@@ -666,7 +628,6 @@ export class McpHub {
 							oauthRequired: true,
 							oauthAuthStatus: "unauthenticated",
 							error: "This MCP server requires authentication to get started.",
-							uid: this.getMcpServerKey(name),
 						},
 						client,
 						transport,
@@ -771,7 +732,6 @@ export class McpHub {
 						config: JSON.stringify(config),
 						status: "disconnected",
 						disabled: config.disabled,
-						uid: this.getMcpServerKey(name),
 					},
 					client: null as unknown as Client,
 					transport: null as unknown as Transport,
