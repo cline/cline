@@ -21,6 +21,7 @@ export const ApiFormat = {
 
 export const ModelCapabilitySchema = z.enum([
 	"images",
+	"video",
 	"tools",
 	"streaming",
 	"prompt-cache",
