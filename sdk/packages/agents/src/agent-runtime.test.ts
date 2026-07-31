@@ -281,6 +281,13 @@ describe("AgentRuntime", () => {
 					),
 			),
 		).toBe(true);
+		expect(
+			addedMessages.find((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === "steer now",
+				),
+			)?.metadata?.userRunSpan,
+		).toBe(0);
 	});
 
 	it("injects pending user messages before prepareTurn projects the provider request", async () => {
@@ -430,6 +437,7 @@ describe("AgentRuntime", () => {
 						(part) => part.type === "text" && part.text.includes("submit"),
 					),
 				).toBe(true);
+				expect(reminder?.metadata?.userRunSpan).toBe(0);
 				return [
 					{
 						type: "tool-call-delta",

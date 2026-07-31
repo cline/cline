@@ -463,6 +463,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.extensionContext?.logger ?? inputLocalConfig?.logger;
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
+		const pluginEventFallbackTelemetry =
+			inputLocalConfig?.extensionContext?.telemetry ??
+			inputLocalConfig?.telemetry ??
+			this.defaultTelemetry;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
@@ -498,6 +502,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
+					pluginEventFallbackTelemetry,
 				);
 			},
 			onTeamEvent: (event: TeamEvent) => {
@@ -927,6 +932,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			startSession: (startInput) => this.startSession(startInput),
 			getStartedSessionId: (startResult) => startResult.sessionId,
+			cleanupStartedSession: async (startResult) => {
+				if (!(await this.deleteSession(startResult.sessionId))) {
+					throw new Error(
+						`Failed to clean up restored session ${startResult.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => this.getSession(sessionId),
 		});
 	}

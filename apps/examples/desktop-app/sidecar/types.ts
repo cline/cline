@@ -32,6 +32,7 @@ export type ChatSessionCommandRequest = {
 	prompt?: string;
 	promptId?: string;
 	checkpointRunCount?: number;
+	forkBeforeRunCount?: number;
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
@@ -105,6 +106,7 @@ export type SidecarWebSocketClient = {
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
+	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
