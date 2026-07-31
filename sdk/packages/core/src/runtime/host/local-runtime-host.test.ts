@@ -2167,7 +2167,26 @@ describe("LocalRuntimeHost", () => {
 							parentAgentId: null,
 							status: "running" as const,
 							iteration: 1,
-							messages: [],
+							messages: [
+								{
+									id: "user-first",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "first" }],
+									createdAt: 1,
+								},
+								{
+									id: "user-second",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "second" }],
+									createdAt: 2,
+								},
+								{
+									id: "user-current",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "hello" }],
+									createdAt: 3,
+								},
+							],
 							pendingToolCalls: [],
 							usage: {
 								inputTokens: 0,
@@ -2177,7 +2196,11 @@ describe("LocalRuntimeHost", () => {
 							},
 						};
 						await config.hooks?.beforeRun?.({
-							snapshot: { ...snapshot, iteration: 0 },
+							snapshot: {
+								...snapshot,
+								iteration: 0,
+								messages: snapshot.messages.slice(0, -1),
+							},
 						});
 						await config.hooks?.beforeModel?.({
 							snapshot,
