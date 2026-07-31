@@ -1299,6 +1299,109 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("prefers configured pricing over an upstream cost for openai-compatible", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 17714,
+						completion_tokens: 3,
+						// OpenRouter-style self-reported cost behind a BYO endpoint;
+						// the user's configured pricing is the billing contract.
+						cost: 0.0017726,
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "byo-key",
+					baseUrl: "https://openrouter.ai/api/v1",
+					defaultModelId: "openai/gpt-4.1-nano",
+					models: [
+						{
+							id: "openai/gpt-4.1-nano",
+							name: "openai/gpt-4.1-nano",
+							metadata: {
+								pricing: { input: 12.34, output: 56.78 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "openai/gpt-4.1-nano",
+				messages: baseMessages,
+			}),
+		);
+
+		const usageEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "usage" }> =>
+				event.type === "usage",
+		);
+		expect(usageEvent?.usage.inputTokens).toBe(17714);
+		expect(usageEvent?.usage.outputTokens).toBe(3);
+		expect(usageEvent?.usage.totalCost).toBeCloseTo(
+			(17714 / 1_000_000) * 12.34 + (3 / 1_000_000) * 56.78,
+			12,
+		);
+	});
+
+	it("keeps the upstream cost for openai-compatible when no pricing is configured", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 17714,
+						completion_tokens: 3,
+						cost: 0.0017726,
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "byo-key",
+					baseUrl: "https://openrouter.ai/api/v1",
+					defaultModelId: "openai/gpt-4.1-nano",
+					models: [
+						{
+							id: "openai/gpt-4.1-nano",
+							name: "openai/gpt-4.1-nano",
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "openai/gpt-4.1-nano",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				totalCost: 0.0017726,
+			}),
+		});
+	});
+
 	it("falls back to catalog pricing when upstream cost is missing", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

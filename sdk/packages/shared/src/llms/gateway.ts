@@ -39,6 +39,18 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
+/**
+ * Which source is authoritative for per-request cost accounting.
+ *
+ * - `upstream` (default): trust an explicit cost reported by the endpoint,
+ *   falling back to configured model pricing when the wire carries none.
+ * - `configured-pricing`: user-configured model pricing is the billing
+ *   contract; compute cost from it even when the endpoint self-reports a
+ *   cost (bring-your-own-endpoint providers, where the wire cost is not
+ *   necessarily in the user's billing terms).
+ */
+export const USAGE_COST_SOURCES = ["upstream", "configured-pricing"] as const;
+export type GatewayUsageCostSource = (typeof USAGE_COST_SOURCES)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
@@ -83,6 +95,7 @@ export interface GatewayStickySessionMetadata {
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
+	usageCostSource?: GatewayUsageCostSource;
 	routing?: GatewayProviderRouting;
 	stickySession?: GatewayStickySessionMetadata;
 	configFields?: readonly ProviderConfigField[];

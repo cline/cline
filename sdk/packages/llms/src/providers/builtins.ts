@@ -653,6 +653,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		// The endpoint is user-defined, so user-configured model pricing is the
+		// billing contract; a self-reported wire cost (e.g. OpenRouter behind
+		// this provider) must not override it.
+		metadata: { usageCostSource: "configured-pricing" },
 	},
 	cline,
 	clinePass,

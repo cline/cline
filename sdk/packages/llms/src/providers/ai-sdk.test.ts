@@ -282,6 +282,38 @@ describe("ai-sdk usage normalization", () => {
 			// (1000/1M) * 2.5 + (100/1M) * 10 = 0.0025 + 0.001 = 0.0035
 			expect(normalized.totalCost).toBeCloseTo(0.0035, 5);
 		});
+
+		it("prefers configured pricing over an explicit wire cost when requested", () => {
+			const normalized = normalizeUsage(
+				{ prompt_tokens: 17714, completion_tokens: 3, cost: 0.0017726 },
+				undefined,
+				{ input: 12.34, output: 56.78 },
+				{ preferConfiguredPricing: true },
+			);
+			expect(normalized.totalCost).toBeCloseTo(
+				(17714 / 1_000_000) * 12.34 + (3 / 1_000_000) * 56.78,
+				12,
+			);
+		});
+
+		it("keeps the explicit wire cost when preferConfiguredPricing is set without pricing", () => {
+			const normalized = normalizeUsage(
+				{ prompt_tokens: 17714, completion_tokens: 3, cost: 0.0017726 },
+				undefined,
+				undefined,
+				{ preferConfiguredPricing: true },
+			);
+			expect(normalized.totalCost).toBe(0.0017726);
+		});
+
+		it("keeps the explicit wire cost over pricing when preferConfiguredPricing is not set", () => {
+			const normalized = normalizeUsage(
+				{ prompt_tokens: 17714, completion_tokens: 3, cost: 0.0017726 },
+				undefined,
+				{ input: 12.34, output: 56.78 },
+			);
+			expect(normalized.totalCost).toBe(0.0017726);
+		});
 	});
 
 	describe("field mapping across providers", () => {

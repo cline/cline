@@ -681,7 +681,11 @@ function calculateUsageCostFromPricing(
  *
  * @param usageValue - AI SDK normalized usage or raw provider response object
  * @param providerMetadata - Provider-specific metadata for cost extraction
- * @param pricingValue - Fallback pricing config (per 1M tokens) when no explicit cost found
+ * @param pricingValue - Pricing config (per 1M tokens); a fallback when no explicit cost is
+ *   found, or authoritative when `options.preferConfiguredPricing` is set
+ * @param options.preferConfiguredPricing - When true (provider metadata
+ *   `usageCostSource: "configured-pricing"`), a cost computed from `pricingValue` wins over
+ *   an explicit wire-reported cost
  */
 export function normalizeUsage(
 	usageValue:
@@ -691,6 +695,7 @@ export function normalizeUsage(
 		| undefined,
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
+	options?: { preferConfiguredPricing?: boolean },
 ): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
@@ -811,12 +816,17 @@ export function normalizeUsage(
 		[usage, rawUsage, providerUsage ?? {}],
 		REASONING_TOKEN_PATHS,
 	);
+	const configuredPricingCost = options?.preferConfiguredPricing
+		? calculateUsageCostFromPricing(normalizedUsage, pricingValue)
+		: undefined;
 	const resolvedTotalCost =
-		totalCost !== undefined
-			? totalCost
-			: hasExplicitCost
-				? undefined
-				: calculateUsageCostFromPricing(normalizedUsage, pricingValue);
+		configuredPricingCost !== undefined
+			? configuredPricingCost
+			: totalCost !== undefined
+				? totalCost
+				: hasExplicitCost
+					? undefined
+					: calculateUsageCostFromPricing(normalizedUsage, pricingValue);
 
 	return {
 		...normalizedUsage,
@@ -1070,7 +1080,10 @@ async function* emitAiSdkEvents(
 	if (usageToEmit) {
 		yield {
 			type: "usage",
-			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
+			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, {
+				preferConfiguredPricing:
+					context.provider.metadata?.usageCostSource === "configured-pricing",
+			}),
 		};
 	}
 
