@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs"
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
+import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
@@ -474,6 +476,33 @@ export class SdkTaskHistory {
 	}
 
 	/**
+	 * Absolute path of the directory holding the task's on-disk artifacts: the SDK
+	 * session folder (manifest json + messages json) for SDK tasks, or the legacy
+	 * tasks/<id> folder for pre-SDK tasks. Undefined when the task is unknown.
+	 */
+	async getTaskDirPath(taskId: string): Promise<string | undefined> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		if (sdkRecord) {
+			const messagesPath = typeof sdkRecord.messagesPath === "string" ? sdkRecord.messagesPath.trim() : ""
+			if (messagesPath) {
+				return path.dirname(messagesPath)
+			}
+			// Older records may lack messagesPath; fall back to the canonical
+			// session directory when it exists on disk.
+			const sessionDir = path.join(resolveSessionDataDir(), taskId)
+			if (existsSync(sessionDir)) {
+				return sessionDir
+			}
+		}
+		return this.getLegacyTaskDirPath(taskId)
+	}
+
+	getLegacyTaskDirPath(taskId: string): string | undefined {
+		const legacyTask = this.findLegacyTask(taskId)
+		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
+	}
+
+	/**
 	 * The persisted session status ("completed" | "cancelled" | "failed" | ...).
 	 * Persisted messages cannot distinguish a completed conversation from one
 	 * interrupted mid-stream (both just end with assistant text), so reopening a
@@ -511,11 +540,6 @@ export class SdkTaskHistory {
 			return undefined
 		}
 		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
-	}
-
-	getLegacyTaskDirPath(taskId: string): string | undefined {
-		const legacyTask = this.findLegacyTask(taskId)
-		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {

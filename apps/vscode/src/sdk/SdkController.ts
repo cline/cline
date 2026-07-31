@@ -1799,16 +1799,9 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const historyItem = (await this.taskHistory.listHistory({ hydrate: false })).find((item) => item.sessionId === id)
-		if (!historyItem) {
-			throw new Error(`Task not found in history: ${id}`)
-		}
-
-		const taskDirPath = historyItem.messagesPath
-			? path.dirname(historyItem.messagesPath)
-			: this.taskHistory.getLegacyTaskDirPath(id)
+		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no artifact path: ${id}`)
+			throw new Error(`Task not found in history: ${id}`)
 		}
 
 		await fs.access(taskDirPath)
