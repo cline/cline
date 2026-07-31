@@ -632,7 +632,7 @@
 		},
 		{
 			"source": "/features/customization/opening-cline-in-sidebar",
-			"destination": "/getting-started/installing-cline"
+			"destination": "/usage/ide#move-cline-to-the-right-sidebar"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",

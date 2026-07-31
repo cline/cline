@@ -35,6 +35,8 @@ export interface SdkSessionEventCoordinatorOptions {
 	 * error. Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	/** Current authoritative UI turn phase, from the controller's TurnStateTracker. */
+	getTurnPhase?: () => TurnPhase
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
@@ -101,12 +103,17 @@ export class SdkSessionEventCoordinator {
 				// simply stopped and is waiting for the user ("awaiting_followup"). Error turns
 				// are surfaced as the error phase. The webview reads this, not the array tail.
 				//
-				// EXCEPTION: if the session is already not running, this turn-complete is a
-				// straggler from a turn that was cancelled (cancelTask already set phase
-				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
-				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
-				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
-				if (!activeSession.isRunning) {
+				// EXCEPTION: a turn-complete from a turn that was cancelled (cancelTask set phase
+				// "resumable" and aborted) is a straggler. Overwriting it here would clobber
+				// "resumable" with "awaiting_followup"/"completed" and the footer would lose the
+				// Resume Task button (showing the scroll-arrow default instead), so the cancel-set
+				// phase is preserved. Check the phase itself, not just isRunning: when the SDK
+				// drains a queued prompt at turn end, the PREVIOUS turn's send promise settles
+				// after the new turn already started and its completion bookkeeping flips
+				// isRunning back to false mid-turn (see fireAndForgetSend). Keying on isRunning
+				// alone made the queued turn's real completion look like this straggler, leaving
+				// the phase stuck on "streaming" (endless Thinking).
+				if (!activeSession.isRunning && this.options.getTurnPhase?.() === "resumable") {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
 				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
 					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —

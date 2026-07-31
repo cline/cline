@@ -1937,44 +1937,50 @@ export function useChatSession() {
 		],
 	);
 
-	const forkSession = useCallback(async (): Promise<{
-		newSessionId: string;
-		forkedFromSessionId: string;
-		messages: ChatMessage[];
-	}> => {
-		const activeSessionId = activeSessionIdRef.current;
-		if (!activeSessionId) {
-			throw new Error("No active session to fork.");
-		}
-		if (BUSY_STATUSES.has(status)) {
-			throw new Error("Wait for the current turn to finish before forking.");
-		}
-		const payload = (await postSession({
-			action: "fork",
-			sessionId: activeSessionId,
-			config,
-		})) as {
-			sessionId?: string;
-			forkedFromSessionId?: string;
-			messages?: ChatMessage[];
-		};
-		const newSessionId =
-			typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
-		if (!newSessionId) {
-			throw new Error("Fork did not return a new session id.");
-		}
-		const forkedFromSessionId =
-			typeof payload.forkedFromSessionId === "string"
-				? payload.forkedFromSessionId
-				: activeSessionId;
-		const nextMessages = Array.isArray(payload.messages)
-			? (payload.messages as ChatMessage[])
-			: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-					sessionId: newSessionId,
-					maxMessages: MAX_MESSAGES,
-				});
-		return { newSessionId, forkedFromSessionId, messages: nextMessages };
-	}, [config, postSession, status]);
+	const forkSession = useCallback(
+		async (options?: {
+			beforeRunCount?: number;
+		}): Promise<{
+			newSessionId: string;
+			forkedFromSessionId: string;
+			messages: ChatMessage[];
+		}> => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId) {
+				throw new Error("No active session to fork.");
+			}
+			if (BUSY_STATUSES.has(status)) {
+				throw new Error("Wait for the current turn to finish before forking.");
+			}
+			const payload = (await postSession({
+				action: "fork",
+				sessionId: activeSessionId,
+				config,
+				forkBeforeRunCount: options?.beforeRunCount,
+			})) as {
+				sessionId?: string;
+				forkedFromSessionId?: string;
+				messages?: ChatMessage[];
+			};
+			const newSessionId =
+				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+			if (!newSessionId) {
+				throw new Error("Fork did not return a new session id.");
+			}
+			const forkedFromSessionId =
+				typeof payload.forkedFromSessionId === "string"
+					? payload.forkedFromSessionId
+					: activeSessionId;
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: newSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
+			return { newSessionId, forkedFromSessionId, messages: nextMessages };
+		},
+		[config, postSession, status],
+	);
 
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {

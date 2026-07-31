@@ -37,22 +37,123 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # Gate the build/publish on BOTH bundles' own test suites, mirroring the two
+    # standalone publish paths (nightly gates on the bun suite via the same
+    # reusable workflow; the legacy publish inlines the npm suite). The gated
+    # `package` job requests its `publish` environment approval only after both
+    # suites pass.
+    #
+    # Caveat (shared with the nightly workflow): the reusable bun suite tests the
+    # DISPATCH revision — main's tip at dispatch, since this workflow is only
+    # dispatched from main — not `next-ref`. The package job therefore pins the
+    # default next-ref checkout to that same revision (tested == built) and
+    # refuses publish=true for any other next-ref; build-only artifact runs may
+    # still build untested refs.
+    test-next:
+        name: Test next (SDK) bundle
+        permissions:
+            contents: read
+            pull-requests: read
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    # The legacy branch is the npm codebase, so the bun-based reusable workflow
+    # cannot test it. Inlined npm steps, kept in sync with the `test` job in
+    # ext-vscode-publish-legacy.yml (same suite, different ref input name).
+    test-legacy:
+        name: Test legacy bundle
+        runs-on: ubuntu-latest
+        # The tested revision, exported so the package job builds EXACTLY what
+        # this suite ran against. legacy-ref is a mutable branch name and the
+        # package job starts much later (test phase + environment-approval wait,
+        # potentially days) — re-resolving the name there could pick up commits
+        # this gate never saw.
+        outputs:
+            tested-sha: ${{ steps.rev.outputs.sha }}
+        defaults:
+            run:
+                working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.legacy-ref }}
+
+            - name: Record tested revision
+              id: rev
+              run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: "npm"
+                  cache-dependency-path: |
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
     package:
         name: Build combined (legacy + next) VSIX
+        needs: [test-next, test-legacy]
         runs-on: ubuntu-latest
         environment: publish
         steps:
+            # Refuse to publish a next bundle the test-next gate did not cover.
+            # The reusable suite tests the dispatch revision (main), so publishing
+            # any other next-ref would ship an untested bundle. Build-only runs
+            # (publish=false) may still use arbitrary next-refs for artifact
+            # rehearsals.
+            - name: Refuse to publish an untested next-ref
+              if: ${{ github.event.inputs.publish == 'true' && github.event.inputs.next-ref != 'main' }}
+              run: |
+                  echo "Error: publish=true requires next-ref=main — the test gate only covers main."
+                  exit 1
+
+            # For the default next-ref (main), pin the checkout to the exact
+            # revision the test-next gate ran against: a moving branch name could
+            # otherwise drift past the tested commit during the test phase.
             - name: Checkout next (SDK) source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.next-ref }}
+                  ref: ${{ github.event.inputs.next-ref == 'main' && github.sha || github.event.inputs.next-ref }}
                   path: next-src
                   lfs: true
 
+            # Pin to the revision test-legacy actually tested (see that job's
+            # outputs comment) — never re-resolve the mutable branch name here.
             - name: Checkout legacy source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.legacy-ref }}
+                  ref: ${{ needs.test-legacy.outputs.tested-sha }}
                   path: legacy-src
                   lfs: true
 

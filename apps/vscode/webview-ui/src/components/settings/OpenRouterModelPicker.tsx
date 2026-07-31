@@ -1,4 +1,4 @@
-import { openAiModelInfoSafeDefaults, openRouterDefaultModelId } from "@shared/api"
+import { openAiModelInfoSafeDefaults, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -9,7 +9,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
@@ -81,7 +81,25 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("openrouter", apiConfiguration, currentMode)
+	// The mode-specific fields are the primary source, but they can be empty
+	// even when a model is committed — e.g. right after the SDK provider
+	// migration, which records the model in providers.json but not in the
+	// openRouterModelId/Info state this picker reads. In that case fall back to
+	// the authoritative resolver (which reads the committed providers.json
+	// selection) instead of the hardcoded openRouterDefaultModelId, so the
+	// picker shows the model that will actually run. Committed-field users are
+	// unaffected: their field wins and the resolver is never consulted for id.
+	const { selectedModelId: resolvedModelId, selectedModelInfo: resolvedModelInfo } = useNormalizedApiConfiguration(currentMode)
+	const selectedModelId = modeFields.openRouterModelId || resolvedModelId || openRouterDefaultModelId
+	// The resolver substitutes its provider default for ids it cannot resolve,
+	// so its info is only trustworthy when it answered for the id actually
+	// shown. Prefer the live catalog entry for the displayed id (synchronous
+	// once fetched), then the matching resolver answer; never render another
+	// model's metadata under the displayed model's name.
+	const selectedModelInfo =
+		modeFields.openRouterModelInfo ??
+		openRouterModels[selectedModelId] ??
+		(resolvedModelId === selectedModelId ? resolvedModelInfo : openRouterDefaultModelInfo)
 
 	useMount(() => {
 		refreshOpenRouterModels()
@@ -89,9 +107,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		const currentModelId = modeFields.openRouterModelId || resolvedModelId || openRouterDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.openRouterModelId])
+	}, [modeFields.openRouterModelId, resolvedModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
