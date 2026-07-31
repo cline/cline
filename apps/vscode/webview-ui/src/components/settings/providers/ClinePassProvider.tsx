@@ -1,5 +1,5 @@
 import type { ModelInfo } from "@shared/api"
-import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { openAiModelInfoSafeDefaults, resolveDisplayModelName } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -46,28 +46,35 @@ function clinePassFallbackModelInfo(modelId: string): ModelInfo {
 	}
 }
 
-function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "description">): FeaturedTabEntry | null {
+function toSubscribedEntry(
+	model: Pick<ClineRecommendedModel, "id" | "description">,
+	models?: Record<string, ModelInfo>,
+): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
-	// The whole list is included with the plan, so no per-card label chip
+	// The whole list is included with the plan, so no per-card label chip.
+	// The endpoint sends slug-like names, so resolve the display name from the
+	// provider catalog, falling back to the id without its cline-pass/ prefix.
 	return {
 		id: model.id,
-		displayName: model.id.replace(CLINE_PASS_MODEL_ID_PREFIX, ""),
+		displayName: resolveDisplayModelName(model.id, models, model.id.replace(CLINE_PASS_MODEL_ID_PREFIX, "")),
 		description: model.description || "",
 		label: "",
 	}
 }
 
-function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">): FeaturedTabEntry | null {
+function toFreeEntry(
+	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
+	models?: Record<string, ModelInfo>,
+): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
 	const firstTag = model.tags?.[0]
 	return {
 		id: model.id,
-		// The FREE chip already says it, so drop OpenRouter's :free marker
-		displayName: (model.name || model.id).replace(/:free$/i, ""),
+		displayName: resolveDisplayModelName(model.id, models, model.name),
 		description: model.description || "",
 		label: typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : "FREE",
 	}
@@ -94,8 +101,8 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 		customModelInfo: clinePassFallbackModelInfo,
 	})
 	const { clineUser } = useClineAuth()
-	const [subscribedEntries, setSubscribedEntries] = useState<FeaturedTabEntry[]>([])
-	const [freeEntries, setFreeEntries] = useState<FeaturedTabEntry[]>([])
+	const [subscribedModels, setSubscribedModels] = useState<ClineRecommendedModel[]>([])
+	const [freeModels, setFreeModels] = useState<ClineRecommendedModel[]>([])
 	const [activeTab, setActiveTab] = useState<"subscribed" | "free">("subscribed")
 
 	useEffect(() => {
@@ -111,14 +118,8 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 				if (cancelled) {
 					return
 				}
-				setSubscribedEntries(
-					(response.clinePass ?? [])
-						.map(toSubscribedEntry)
-						.filter((entry): entry is FeaturedTabEntry => entry !== null),
-				)
-				setFreeEntries(
-					(response.free ?? []).map(toFreeEntry).filter((entry): entry is FeaturedTabEntry => entry !== null),
-				)
+				setSubscribedModels(response.clinePass ?? [])
+				setFreeModels(response.free ?? [])
 			} catch (err) {
 				console.error("Failed to refresh ClinePass recommended models:", err)
 			}
@@ -130,25 +131,24 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 	}, [])
 
 	// Fall back to the provider catalog (subscribed) and the bundled free list
-	// until the endpoint responds
+	// until the endpoint responds. Cards are built here (not at fetch time) so
+	// display names re-resolve once the provider model catalog loads.
 	const subscribedCards = useMemo(() => {
-		if (subscribedEntries.length > 0) {
-			return subscribedEntries
+		if (subscribedModels.length > 0) {
+			return subscribedModels
+				.map((model) => toSubscribedEntry(model, models))
+				.filter((entry): entry is FeaturedTabEntry => entry !== null)
 		}
 		return Object.keys(models ?? {})
 			.filter((id) => id.startsWith(CLINE_PASS_MODEL_ID_PREFIX))
-			.map((id) => toSubscribedEntry({ id, description: models[id]?.description ?? "" }))
+			.map((id) => toSubscribedEntry({ id, description: models[id]?.description ?? "" }, models))
 			.filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [subscribedEntries, models])
+	}, [subscribedModels, models])
 
 	const freeCards = useMemo(() => {
-		if (freeEntries.length > 0) {
-			return freeEntries
-		}
-		return CLINE_RECOMMENDED_MODELS_FALLBACK.free
-			.map(toFreeEntry)
-			.filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [freeEntries])
+		const source = freeModels.length > 0 ? freeModels : CLINE_RECOMMENDED_MODELS_FALLBACK.free
+		return source.map((model) => toFreeEntry(model, models)).filter((entry): entry is FeaturedTabEntry => entry !== null)
+	}, [freeModels, models])
 
 	// Land on the tab containing the configured model
 	useEffect(() => {
@@ -201,10 +201,10 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 						{activeCards.map((entry) => (
 							<FeaturedModelCard
 								description={entry.description}
+								displayName={entry.displayName}
 								isSelected={selectedModel.modelId === entry.id}
 								key={entry.id}
 								label={entry.label}
-								modelId={entry.displayName}
 								onClick={() => handleFeaturedModelSelect(entry.id)}
 							/>
 						))}

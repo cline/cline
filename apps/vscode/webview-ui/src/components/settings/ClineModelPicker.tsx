@@ -1,4 +1,4 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { openAiModelInfoSafeDefaults, resolveDisplayModelName } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -442,10 +442,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						recommendedModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}
+								displayName={resolveDisplayModelName(model.id, effectiveClineModels)}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
@@ -456,10 +456,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						freeModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}
+								displayName={resolveDisplayModelName(model.id, effectiveClineModels)}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
