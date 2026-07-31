@@ -6,7 +6,7 @@ import { Logger } from "@/shared/services/Logger"
  */
 export interface ReconnectCallbacks {
 	/** Returns the current connection object, or undefined if it no longer exists */
-	findConnection: () => { server: { status: string; disabled?: boolean } } | undefined
+	findConnection: () => { server: { status: string; disabled?: boolean }; client?: unknown } | undefined
 	/** Tears down the existing connection */
 	deleteConnection: () => Promise<void>
 	/** Establishes a new connection */
@@ -167,9 +167,13 @@ export class StreamableHttpReconnectHandler {
 			// transport) or resurrect a server the user removed. Our own
 			// original connection and the "disconnected" husk left behind by
 			// our own failed connectToServer() attempt are not replacements —
-			// keep retrying past those.
+			// keep retrying past those. The husk is recognized by having no
+			// client (its creation sites set client: null); a "disconnected"
+			// connection that HOLDS a client is an OAuth-required replacement
+			// retaining its client/transport/authProvider for authentication,
+			// and displacing it would orphan that session.
 			const existing = this.callbacks.findConnection()
-			if (existing && existing !== connection && existing.server.status !== "disconnected") {
+			if (existing && existing !== connection && (existing.server.status !== "disconnected" || existing.client != null)) {
 				Logger.log(
 					`StreamableHTTP reconnect aborted for "${this.serverName}": ` +
 						`another path installed a replacement connection (status: ${existing.server.status})`,

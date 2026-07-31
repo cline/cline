@@ -197,6 +197,35 @@ describe("StreamableHttpReconnectHandler", () => {
 		replacement.server.status.should.equal("connected")
 	})
 
+	it("should abort retries when a disconnected OAuth-required replacement holds a live client", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// An OAuth-required connection is "disconnected" but retains its
+		// client/transport/authProvider for when the user authenticates —
+		// unlike our own failed-connect husk, which has client: null
+		const oauthReplacement = { server: { status: "disconnected" }, client: {} }
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? oauthReplacement : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			throw new Error("still broken")
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry must not displace the OAuth replacement — connectToServer
+		// would drop it without closing, orphaning its session and auth state
+		attempts.should.equal(1)
+	})
+
 	it("should retry a transiently failing post-reconnect publication", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
