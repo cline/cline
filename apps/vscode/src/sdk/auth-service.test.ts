@@ -507,10 +507,11 @@ describe("AuthService", () => {
 			expect(
 				(mockProviderSettings.get("cline")?.auth as { metadata?: Record<string, unknown> } | undefined)?.metadata,
 			).toBeUndefined()
-			expect(getValidClineCredentials).toHaveBeenCalledWith(
-				expect.any(Object),
-				expect.objectContaining({ telemetry: mockSdkTelemetry }),
-				expect.any(Object),
+			expect(mockRefreshFromStore).toHaveBeenCalledWith(
+				expect.objectContaining({
+					providerId: "cline",
+					telemetry: mockSdkTelemetry,
+				}),
 			)
 		})
 

@@ -391,6 +391,7 @@ export class AuthService {
 					providerId: "cline",
 					forceRefresh: true,
 					apiBaseUrl: ClineEnv.config().apiBaseUrl,
+					telemetry: this._telemetry,
 				})
 				if (outcome.status !== "ok") {
 					sdkDebug(`[SdkAuthService] refreshAccessToken: ${outcome.status} — clearing credentials`)
@@ -966,6 +967,7 @@ export class AuthService {
 				manager: getProviderSettingsManager(),
 				providerId: "cline",
 				apiBaseUrl: ClineEnv.config().apiBaseUrl,
+				telemetry: this._telemetry,
 			})
 			if (outcome.status !== "ok") {
 				this._authenticated = false
