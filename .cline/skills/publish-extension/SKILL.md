@@ -107,14 +107,16 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
 
 ### Post-publish
 
-1. Verify the marketplace serves the new version (query from rule 1).
-2. This workflow does **not** tag or create a GitHub release — do it manually:
+1. Verify the marketplace serves the new version (query from rule 1) — expect minutes-to-an-hour of validation lag after "Published" appears in the logs.
+2. Tag, GitHub Release (with the .vsix attached), and the Slack release-bot post happen **automatically** after a real publish (all `continue-on-error` — the publish itself already succeeded, so bookkeeping failures leave the run green). Verify they landed; the known failure is the tag push when the built commit touches `.github/workflows/**` (default token cannot create such refs — no grantable permission fixes it). Manual fallback:
 
    ```bash
    git tag v<VERSION> <main-sha-built>   # ask before pushing
    git push origin v<VERSION>
-   gh release create v<VERSION> --title "v<VERSION>" --notes "<curated notes from CHANGELOG>"
+   gh release create v<VERSION> --title "v<VERSION>" --notes "<changelog section>" <path-to.vsix>
    ```
+
+   A real publish also **hard-fails early** if root `CHANGELOG.md` on the built main revision doesn't start with `## [<VERSION>]` — the release prep PR must be merged before dispatching.
 
 3. Thorough artifact check (`gh run download <run-id>`): union `package.json` is `saoudrizwan.claude-dev@<VERSION>`, `next/package.json` and `legacy/package.json` carry the SAME version, `grep -c 'phc_' extension/extension.js` ≥ 1 (loader key inlined), no leftover `process.env.TELEMETRY_SERVICE_API_KEY` / `process.env.CLINE_ROLLOUT_VARIANT` literals in either bundle's dist (leftovers = a build ran without its env and telemetry is silently dead).
 4. Monitor: `extension.rollout.bundle_activated` in `otel.otel_logs` filtered to `extension_version = '<VERSION>'` (stable cohort is cleanly separable — nightly versions are timestamps). Watch the next/legacy ratio and the crash-fallback rate; Metabase dashboards 17 (rollout + task error rate) and 19 (error deep dive). `extension.rollout.loader_decision` (incl. `double_failure`) is PostHog-only, not in ClickHouse.
