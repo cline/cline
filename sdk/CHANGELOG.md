@@ -1,5 +1,24 @@
 # Cline SDK Changelog
 
+## 0.0.67
+
+- Reasoning controls (effort, budget, on/off) are now driven by the models.dev catalog and normalized once before provider encoding, so requests match what each provider actually advertises; Anthropic's mandatory and impossible thinking modes are handled explicitly, and out-of-range budgets are clamped
+- OpenRouter now defaults to `anthropic/claude-sonnet-5`
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored by the SDK's MCP clients for `initialize`, `tools/list`, and `tools/call` instead of hardcoded 1.5s and 5s limits — it defaults to 60 seconds and is clamped to 1–3600 seconds
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI
+- Legacy API keys are now migrated for every secret-backed provider instead of a subset
+- Legacy OpenAI Compatible model-info overrides are now carried into the seeded `models.json` instead of being dropped
+- Removed the "Enable R1 messages format" option from the OpenAI Compatible provider
+- Fixed checkpoint restores across session resumes
+- Added session forking and user-run message APIs so a host can edit an earlier prompt: fork the session before a selected user run, trim checkpoint history, and restore the prior messages
+- Fixed auto-compaction state being rejected as stale on every save, which forced a full re-compaction — an extra summarizer call — on every turn past the trigger, and could leave a dead sidecar permanently blocking replacements after a resume
+- Added `ClineCore.readLiveMessages` for reading a resident session's in-memory transcript, so a plan/act rebuild during an in-flight turn no longer starts from an empty history
+- `insert_line` and the `read_files` line bounds now accept numbers emitted as JSON strings instead of failing the whole tool call
+- Plugins can now emit telemetry through `ctx.telemetry`, from both the subprocess sandbox and in-process execution
+- A legacy single-file `.clinerules` no longer aborts the config scan
+- Telemetry events now carry `device_id`
+- A malformed OTEL header entry no longer discards the valid ones
+
 ## 0.0.66
 
 - Support for free Cline models (`cline-free`): free models are labeled "(free)", priced at zero, and hitting the free tier now raises a dedicated limit error that includes the reset time
