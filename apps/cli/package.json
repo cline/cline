@@ -84,7 +84,6 @@
 		"commander": "^14.0.3",
 		"fzf": "^0.5.2",
 		"marked": "^15.0.12",
-		"open": "^10.2.0",
 		"opentui-spinner": "^0.0.7",
 		"pino": "^10.3.1",
 		"posthog-node": "^5.8.0",
