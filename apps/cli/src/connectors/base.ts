@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { basename, join } from "node:path";
 import { resolveClineDataDir } from "@cline/core";
+import { isSupervisedConnectorProcess } from "@cline/shared";
 import { Command, CommanderError } from "commander";
 import {
 	CONNECT_ALREADY_RUNNING_EXIT_CODE,
@@ -154,6 +155,31 @@ export abstract class ConnectorBase<Options, State>
 		return this.runWithOptions(options, rawArgs, io, context);
 	}
 
+	/**
+	 * The instance id `rawArgs` would run as, when that is knowable from the
+	 * arguments alone.
+	 *
+	 * The hub keys supervision by (channel, instanceId), so it needs the id
+	 * before anything is spawned. Adapters that can only determine it with a side
+	 * effect — Telegram resolves its bot username from the API when the flag is
+	 * omitted — return undefined, and the caller falls back to starting the
+	 * connector locally.
+	 */
+	resolveInstanceId(rawArgs: string[]): string | undefined {
+		let options: Options;
+		try {
+			options = this.parseArgs(rawArgs);
+		} catch {
+			return undefined;
+		}
+		const instanceId = this.instanceIdFromOptions(options);
+		return instanceId?.trim() ? instanceId.trim() : undefined;
+	}
+
+	protected instanceIdFromOptions(_options: Options): string | undefined {
+		return undefined;
+	}
+
 	async validate(rawArgs: string[], io: ConnectIo): Promise<number> {
 		let options: Options;
 		try {
@@ -264,7 +290,13 @@ export abstract class ConnectorBase<Options, State>
 		launchFailureMessage: string;
 		startupTimeoutMs?: number;
 	}): Promise<number | undefined> {
-		if (input.interactive || process.env[input.childEnvVar] === "1") {
+		if (
+			input.interactive ||
+			process.env[input.childEnvVar] === "1" ||
+			// A supervised connector is the process the hub is tracking, so it must
+			// run the adapter here instead of handing off to a detached child.
+			isSupervisedConnectorProcess()
+		) {
 			return undefined;
 		}
 		const runningState = input.readState(input.statePath);

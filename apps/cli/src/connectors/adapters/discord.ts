@@ -754,7 +754,10 @@ class DiscordConnector extends ConnectorBase<
 			.option("--cwd <path>", "Workspace / cwd for runtime")
 			.option("--mode <act|plan>", "Agent mode", "act")
 			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Discord sessions")
+			.option("--no-tools", "Disable tools for Discord sessions")
+			// Retained so existing invocations and persisted autostart arguments
+			// keep parsing; tools are on unless --no-tools is passed.
+			.option("--enable-tools", "Enable tools (default)")
 			.option(
 				"--hook-command <command>",
 				"Run a shell command for connector events",
@@ -804,6 +807,7 @@ class DiscordConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -856,7 +860,7 @@ class DiscordConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -971,6 +975,12 @@ class DiscordConnector extends ConnectorBase<
 			return 1;
 		}
 		return 0;
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectDiscordOptions,
+	): string | undefined {
+		return options.applicationId;
 	}
 
 	protected override async runWithOptions(

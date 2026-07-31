@@ -631,6 +631,17 @@ class TelegramConnector extends ConnectorBase<
 		}
 	}
 
+	/**
+	 * Only knowable up front when `--bot-username` was supplied; otherwise the
+	 * username is resolved from Telegram's API during startup, and the caller
+	 * has to start this connector locally instead of through the hub.
+	 */
+	protected override instanceIdFromOptions(
+		options: ConnectTelegramOptions,
+	): string | undefined {
+		return options.botUsername;
+	}
+
 	protected override async runWithOptions(
 		inputOptions: ConnectTelegramOptions,
 		rawArgs: string[],

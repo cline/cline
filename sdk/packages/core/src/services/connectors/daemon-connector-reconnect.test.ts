@@ -1,36 +1,11 @@
-import { EventEmitter } from "node:events";
-import {
-	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
-	CLINE_RUN_AS_HUB_DAEMON_ENV,
-	type ConnectorCliLaunchSpec,
-} from "@cline/shared";
+import { CLINE_CONNECTOR_STARTING_INSTANCE_ENV } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	__test__,
-	reconnectDaemonConnectors,
-} from "./daemon-connector-reconnect";
+import type { ConnectorSupervisor } from "./connector-supervisor";
+import { reconnectDaemonConnectors } from "./daemon-connector-reconnect";
 
 const mocks = vi.hoisted(() => ({
-	listActiveConnectors: vi.fn(),
-	readConnectorCliLaunchSpec: vi.fn(),
 	reconnectPersistedConnectors: vi.fn(),
-	spawnProcess: vi.fn(),
-}));
-
-vi.mock("node:child_process", () => ({
-	spawn: mocks.spawnProcess,
-}));
-
-vi.mock("@cline/shared", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@cline/shared")>();
-	return {
-		...actual,
-		readConnectorCliLaunchSpec: mocks.readConnectorCliLaunchSpec,
-	};
-});
-
-vi.mock("./active-connectors", () => ({
-	listActiveConnectors: mocks.listActiveConnectors,
+	getActiveConnectorSupervisor: vi.fn(),
 }));
 
 vi.mock("./connector-autostart", async (importOriginal) => {
@@ -41,113 +16,120 @@ vi.mock("./connector-autostart", async (importOriginal) => {
 	};
 });
 
-class FakeConnectorCliChild extends EventEmitter {
-	stderr = new EventEmitter() as EventEmitter & {
-		setEncoding: (encoding: string) => void;
+vi.mock("./connector-supervisor", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("./connector-supervisor")>();
+	return {
+		...actual,
+		getActiveConnectorSupervisor: mocks.getActiveConnectorSupervisor,
 	};
+});
 
-	constructor() {
-		super();
-		this.stderr.setEncoding = vi.fn();
-	}
+type StartArgs = {
+	channel: string;
+	instanceId: string;
+	args: string[];
+	restart?: boolean;
+};
+
+function createSupervisor(
+	options: {
+		supervised?: Array<{ channel: string; instanceId: string }>;
+		started?: boolean;
+		reason?: "already_running";
+	} = {},
+) {
+	const starts: StartArgs[] = [];
+	const supervisor = {
+		list: () =>
+			(options.supervised ?? []).map((entry) => ({
+				...entry,
+				state: "running" as const,
+				origin: "adopted" as const,
+				restarts: 0,
+			})),
+		start: vi.fn(async (request: StartArgs) => {
+			starts.push(request);
+			return {
+				started: options.started ?? true,
+				...(options.reason ? { reason: options.reason } : {}),
+				record: {
+					channel: request.channel,
+					instanceId: request.instanceId,
+					state: "running" as const,
+					origin: "spawned" as const,
+					restarts: 0,
+				},
+			};
+		}),
+	} as unknown as ConnectorSupervisor;
+	return { supervisor, starts };
 }
 
-describe("daemon connector CLI launcher", () => {
-	const originalDaemonFlag = process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
-	const spec: ConnectorCliLaunchSpec = {
-		launcher: "/usr/local/bin/bun",
-		connectArgsPrefix: ["/repo/apps/cli/src/index.ts", "connect"],
-		cwd: "/workspace",
-	};
-
+describe("reconnectDaemonConnectors", () => {
 	const originalStartingInstance =
 		process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
 
 	afterEach(() => {
 		vi.clearAllMocks();
-		if (originalDaemonFlag === undefined) {
-			delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
-		} else {
-			process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = originalDaemonFlag;
-		}
 		if (originalStartingInstance === undefined) {
 			delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
 		} else {
 			process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV] =
 				originalStartingInstance;
 		}
-		delete process.env.CLINE_TELEGRAM_CONNECT_CHILD;
-		delete process.env.CLINE_CONNECTOR_DETACHED_CHILD;
 	});
 
-	it("launches reconnect through the CLI without the daemon sentinel", async () => {
-		process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = "1";
-		const child = new FakeConnectorCliChild();
-		const spawnProcess = vi.fn(() => child);
-		const log = vi.fn();
-
-		const pending = __test__.runConnectorCli(
-			spec,
-			"telegram",
-			["-k", "token"],
-			{ log, spawnProcess },
-		);
-		child.emit("close", 0);
-
-		await expect(pending).resolves.toBe(true);
-		expect(spawnProcess).toHaveBeenCalledWith(
-			"/usr/local/bin/bun",
-			["/repo/apps/cli/src/index.ts", "connect", "telegram", "-k", "token"],
-			expect.objectContaining({
-				cwd: "/workspace",
-				env: expect.not.objectContaining({
-					[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
-				}),
-			}),
-		);
-		expect(log).not.toHaveBeenCalled();
-	});
-
-	it("strips connector child markers so the relaunch runs the normal launch path", async () => {
-		// The daemon inherits these from the connector that spawned it. Passing
-		// them on tells the new connector "you are the detached child", which
-		// makes it skip the already-running check and double up on the token.
-		process.env.CLINE_TELEGRAM_CONNECT_CHILD = "1";
-		process.env.CLINE_CONNECTOR_DETACHED_CHILD = "1";
-		process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV] = JSON.stringify({
-			channel: "telegram",
-			instanceId: "other_bot",
+	it("starts a persisted connector through the supervisor", async () => {
+		delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+		const { supervisor, starts } = createSupervisor();
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			const ok = await options.start({
+				channel: "telegram",
+				instanceId: "cline_bot",
+				args: ["-k", "token"],
+			});
+			return [{ channel: "telegram", instanceId: "cline_bot", ok }];
 		});
-		const child = new FakeConnectorCliChild();
-		let childEnv: NodeJS.ProcessEnv = {};
-		const spawnProcess = vi.fn(
-			(
-				_launcher: string,
-				_args: string[],
-				options: { env: NodeJS.ProcessEnv },
-			) => {
-				childEnv = options.env;
-				return child;
-			},
-		);
 
-		const pending = __test__.runConnectorCli(
-			spec,
-			"telegram",
-			["-k", "token"],
+		await expect(
+			reconnectDaemonConnectors(vi.fn(), supervisor),
+		).resolves.toEqual([
+			{ channel: "telegram", instanceId: "cline_bot", ok: true },
+		]);
+		expect(starts).toEqual([
 			{
-				log: vi.fn(),
-				spawnProcess,
+				channel: "telegram",
+				instanceId: "cline_bot",
+				args: ["-k", "token"],
+				restart: false,
 			},
-		);
-		child.emit("close", 0);
-		await pending;
+		]);
+	});
 
-		expect(childEnv.CLINE_TELEGRAM_CONNECT_CHILD).toBeUndefined();
-		expect(childEnv.CLINE_CONNECTOR_DETACHED_CHILD).toBeUndefined();
-		expect(childEnv[CLINE_CONNECTOR_STARTING_INSTANCE_ENV]).toBeUndefined();
-		// Unrelated environment still reaches the relaunched connector.
-		expect(childEnv.PATH).toBe(process.env.PATH);
+	it("restarts a connector that survived the previous hub", async () => {
+		delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+		const { supervisor, starts } = createSupervisor({
+			supervised: [{ channel: "telegram", instanceId: "cline_bot" }],
+		});
+		const log = vi.fn();
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			await options.start({
+				channel: "telegram",
+				instanceId: "cline_bot",
+				args: ["-k", "token"],
+			});
+			return [];
+		});
+
+		await reconnectDaemonConnectors(log, supervisor);
+
+		// A survivor authenticated against the dead hub's token, so it has to come
+		// back rather than keep running.
+		expect(starts[0]?.restart).toBe(true);
+		expect(log).toHaveBeenCalledWith(
+			"[connect] restarting surviving telegram connector cline_bot for the new hub session",
+		);
 	});
 
 	it("does not reconnect the connector instance that is starting this daemon", async () => {
@@ -155,8 +137,7 @@ describe("daemon connector CLI launcher", () => {
 			channel: "telegram",
 			instanceId: "cline_bot",
 		});
-		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
-		mocks.listActiveConnectors.mockReturnValue([]);
+		const { supervisor } = createSupervisor();
 		let isHealthy:
 			| ((target: { channel: string; instanceId: string }) => boolean)
 			| undefined;
@@ -165,7 +146,7 @@ describe("daemon connector CLI launcher", () => {
 			return [];
 		});
 
-		await reconnectDaemonConnectors(vi.fn());
+		await reconnectDaemonConnectors(vi.fn(), supervisor);
 
 		expect(isHealthy?.({ channel: "telegram", instanceId: "cline_bot" })).toBe(
 			true,
@@ -181,8 +162,7 @@ describe("daemon connector CLI launcher", () => {
 
 	it("reconnects every persisted instance when no connector is starting", async () => {
 		delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
-		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
-		mocks.listActiveConnectors.mockReturnValue([]);
+		const { supervisor } = createSupervisor();
 		let isHealthy:
 			| ((target: { channel: string; instanceId: string }) => boolean)
 			| undefined;
@@ -191,163 +171,45 @@ describe("daemon connector CLI launcher", () => {
 			return [];
 		});
 
-		await reconnectDaemonConnectors(vi.fn());
+		await reconnectDaemonConnectors(vi.fn(), supervisor);
 
 		expect(isHealthy?.({ channel: "telegram", instanceId: "cline_bot" })).toBe(
 			false,
 		);
 	});
 
-	it("reports non-zero CLI reconnect exits", async () => {
-		const child = new FakeConnectorCliChild();
-		const spawnProcess = vi.fn(() => child);
+	it("reports an already-running instance without treating it as started", async () => {
+		delete process.env[CLINE_CONNECTOR_STARTING_INSTANCE_ENV];
+		const { supervisor } = createSupervisor({
+			started: false,
+			reason: "already_running",
+		});
 		const log = vi.fn();
+		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
+			const ok = await options.start({
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: [],
+			});
+			return [{ channel: "slack", instanceId: "cline-slack", ok }];
+		});
 
-		const pending = __test__.runConnectorCli(
-			spec,
-			"telegram",
-			["-k", "token"],
-			{ log, spawnProcess },
-		);
-		child.stderr.emit("data", "invalid token");
-		child.emit("close", 1);
-
-		await expect(pending).resolves.toBe(false);
+		await expect(reconnectDaemonConnectors(log, supervisor)).resolves.toEqual([
+			{ channel: "slack", instanceId: "cline-slack", ok: false },
+		]);
 		expect(log).toHaveBeenCalledWith(
-			"[connect] telegram reconnect exited with code 1: invalid token",
+			"[connect] slack connector cline-slack is already running under this hub",
 		);
 	});
 
-	it("restarts a surviving connector so it binds to the new hub session", async () => {
-		const child = new FakeConnectorCliChild();
-		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
-		mocks.listActiveConnectors.mockReturnValue([
-			{
-				id: "telegram:cline_bot",
-				type: "telegram",
-				instanceId: "cline_bot",
-				pid: 123,
-				hubUrl: "ws://127.0.0.1:4317",
-				botUsername: "cline_bot",
-			},
-		]);
-		mocks.spawnProcess.mockImplementation(() => {
-			queueMicrotask(() => child.emit("close", 0));
-			return child;
-		});
-		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
-			const target = {
-				channel: "telegram",
-				instanceId: "cline_bot",
-				args: ["-k", "token"],
-			};
-			const ok = await options.start(target);
-			return [{ channel: "telegram", instanceId: "cline_bot", ok }];
-		});
+	it("does nothing when no supervisor is active", async () => {
 		const log = vi.fn();
+		mocks.getActiveConnectorSupervisor.mockReturnValue(undefined);
 
-		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([
-			{ channel: "telegram", instanceId: "cline_bot", ok: true },
-		]);
-
-		expect(mocks.spawnProcess).toHaveBeenCalledWith(
-			"/usr/local/bin/bun",
-			[
-				"/repo/apps/cli/src/index.ts",
-				"connect",
-				"--restart-instance",
-				"cline_bot",
-				"telegram",
-				"-k",
-				"token",
-			],
-			expect.objectContaining({ cwd: "/workspace" }),
-		);
+		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([]);
+		expect(mocks.reconnectPersistedConnectors).not.toHaveBeenCalled();
 		expect(log).toHaveBeenCalledWith(
-			"[connect] restarting surviving telegram connector cline_bot for the new hub session",
-		);
-	});
-
-	it("restarts multiple surviving instances independently", async () => {
-		mocks.readConnectorCliLaunchSpec.mockReturnValue(spec);
-		mocks.listActiveConnectors.mockReturnValue([
-			{
-				id: "telegram:first_bot",
-				type: "telegram",
-				instanceId: "first_bot",
-				pid: 123,
-				hubUrl: "ws://127.0.0.1:4317",
-				botUsername: "first_bot",
-			},
-			{
-				id: "telegram:second_bot",
-				type: "telegram",
-				instanceId: "second_bot",
-				pid: 456,
-				hubUrl: "ws://127.0.0.1:4317",
-				botUsername: "second_bot",
-			},
-		]);
-		mocks.spawnProcess.mockImplementation(() => {
-			const child = new FakeConnectorCliChild();
-			queueMicrotask(() => child.emit("close", 0));
-			return child;
-		});
-		mocks.reconnectPersistedConnectors.mockImplementation(async (options) => {
-			const targets = [
-				{
-					channel: "telegram",
-					instanceId: "first_bot",
-					args: ["-k", "first-token"],
-				},
-				{
-					channel: "telegram",
-					instanceId: "second_bot",
-					args: ["-k", "second-token"],
-				},
-			];
-			return await Promise.all(
-				targets.map(async (target) => ({
-					channel: target.channel,
-					instanceId: target.instanceId,
-					ok: await options.start(target),
-				})),
-			);
-		});
-		const log = vi.fn();
-
-		await expect(reconnectDaemonConnectors(log)).resolves.toEqual([
-			{ channel: "telegram", instanceId: "first_bot", ok: true },
-			{ channel: "telegram", instanceId: "second_bot", ok: true },
-		]);
-
-		expect(mocks.spawnProcess).toHaveBeenNthCalledWith(
-			1,
-			"/usr/local/bin/bun",
-			[
-				"/repo/apps/cli/src/index.ts",
-				"connect",
-				"--restart-instance",
-				"first_bot",
-				"telegram",
-				"-k",
-				"first-token",
-			],
-			expect.any(Object),
-		);
-		expect(mocks.spawnProcess).toHaveBeenNthCalledWith(
-			2,
-			"/usr/local/bin/bun",
-			[
-				"/repo/apps/cli/src/index.ts",
-				"connect",
-				"--restart-instance",
-				"second_bot",
-				"telegram",
-				"-k",
-				"second-token",
-			],
-			expect.any(Object),
+			"[connect] cannot reconnect connectors: no connector supervisor is active",
 		);
 	});
 });

@@ -16,6 +16,7 @@ import {
 	type ActiveConnectorRecord,
 	formatUptime,
 	resolveClineBuildEnv,
+	type SupervisedConnectorRecord,
 } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
@@ -24,6 +25,7 @@ import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
+import { listSupervisedConnectorsViaHub } from "./connect-via-hub";
 
 type DoctorIo = {
 	writeln: (text?: string) => void;
@@ -64,6 +66,8 @@ type DoctorStatus = {
 	staleCliPids: number[];
 	staleSidecarPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
+	/** Undefined when the running hub cannot report supervision. */
+	supervisedConnectors?: SupervisedConnectorRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
 
@@ -433,6 +437,7 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
 		activeConnectors: listActiveConnectors(),
+		...((await listSupervisedConnectorsSafely()) ?? {}),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
 }
@@ -455,6 +460,39 @@ function formatRecentSpawnedProcess(record: SpawnedProcessRecord): string {
 		record.command,
 	].filter(Boolean);
 	return pieces.join(" | ");
+}
+
+/**
+ * Supervision is reported by the running hub, so it is unavailable whenever
+ * there is no hub or it predates supervision. Diagnostics must degrade quietly
+ * rather than fail.
+ */
+async function listSupervisedConnectorsSafely(): Promise<
+	{ supervisedConnectors: SupervisedConnectorRecord[] } | undefined
+> {
+	try {
+		const supervised = await listSupervisedConnectorsViaHub();
+		return supervised ? { supervisedConnectors: supervised } : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function formatSupervisedConnector(record: SupervisedConnectorRecord): string {
+	const pieces = [
+		record.channel,
+		`instance=${record.instanceId}`,
+		`state=${record.state}`,
+		`origin=${record.origin}`,
+		record.pid === undefined ? undefined : `pid=${record.pid}`,
+		record.restarts > 0 ? `restarts=${record.restarts}` : undefined,
+		record.nextRestartAt ? `nextRestart=${record.nextRestartAt}` : undefined,
+		record.lastExitCode === undefined
+			? undefined
+			: `lastExit=${record.lastExitCode}`,
+		record.lastError ? `error=${record.lastError}` : undefined,
+	];
+	return pieces.filter(Boolean).join(" | ");
 }
 
 function formatActiveConnector(record: ActiveConnectorRecord): string {
@@ -493,6 +531,7 @@ function killPids(pids: number[]): number {
 export const __test__ = {
 	decideForeignContainer,
 	CONTAINER_CGROUP_PATTERN,
+	formatSupervisedConnector,
 };
 
 export async function runDoctorCommand(
@@ -532,6 +571,12 @@ export async function runDoctorCommand(
 			writeln("active connectors:");
 			for (const record of before.activeConnectors) {
 				writeln(`- ${c.dim}${formatActiveConnector(record)}${c.reset}`);
+			}
+		}
+		if (before.supervisedConnectors?.length) {
+			writeln("hub-supervised connectors:");
+			for (const record of before.supervisedConnectors) {
+				writeln(`- ${c.dim}${formatSupervisedConnector(record)}${c.reset}`);
 			}
 		}
 		if (verbose && before.recentSpawnedProcesses.length > 0) {

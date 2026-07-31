@@ -289,7 +289,10 @@ class WhatsAppConnector extends ConnectorBase<
 			.option("--cwd <path>", "Workspace / cwd for runtime")
 			.option("--mode <act|plan>", "Agent mode", "act")
 			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for WhatsApp sessions")
+			.option("--no-tools", "Disable tools for WhatsApp sessions")
+			// Retained so existing invocations and persisted autostart arguments
+			// keep parsing; tools are on unless --no-tools is passed.
+			.option("--enable-tools", "Enable tools (default)")
 			.option(
 				"--hook-command <command>",
 				"Run a shell command for connector events",
@@ -332,6 +335,7 @@ class WhatsAppConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -364,7 +368,7 @@ class WhatsAppConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -453,6 +457,15 @@ class WhatsAppConnector extends ConnectorBase<
 			this.resolveConnectorStatePath(instanceId),
 			io,
 		);
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectWhatsAppOptions,
+	): string | undefined {
+		return resolveInstanceKey({
+			phoneNumberId: options.phoneNumberId,
+			userName: options.userName,
+		});
 	}
 
 	protected override async runWithOptions(

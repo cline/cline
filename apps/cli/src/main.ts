@@ -384,6 +384,10 @@ export async function runCli(): Promise<void> {
 			"--restart-instance <id>",
 			"Restart one connector instance (used by daemon recovery)",
 		)
+		.option(
+			"--cleanup-instance <id>",
+			"Reap one dead connector instance, preserving autostart (used by hub supervision)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -393,15 +397,34 @@ export async function runCli(): Promise<void> {
 		.action(async (adapter: string | undefined) => {
 			const {
 				formatAdapterList,
+				runCleanupConnectorInstance,
 				runConnectAdapter,
 				runRestartConnector,
 				runStopAllConnectors,
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop && (opts.restart || opts.restartInstance)) {
-				io.writeErr("connect accepts only one of --stop or --restart");
+			const exclusiveModes = [
+				opts.stop,
+				opts.restart || opts.restartInstance,
+				opts.cleanupInstance,
+			].filter(Boolean).length;
+			if (exclusiveModes > 1) {
+				io.writeErr(
+					"connect accepts only one of --stop, --restart or --cleanup-instance",
+				);
 				ctx.exitCode = 1;
+			} else if (opts.cleanupInstance) {
+				if (!adapter) {
+					io.writeErr("connect --cleanup-instance requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runCleanupConnectorInstance(
+						adapter,
+						opts.cleanupInstance,
+						io,
+					);
+				}
 			} else if (opts.stop) {
 				if (adapter) {
 					ctx.exitCode = await runStopConnector(adapter, io);

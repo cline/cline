@@ -16,6 +16,7 @@ import {
 } from "@cline/shared";
 import { withConnectorStore } from "@cline/shared/db";
 import { listActiveConnectors } from "../../../services/connectors/active-connectors";
+import { getActiveConnectorSupervisor } from "../../../services/connectors/connector-supervisor";
 import { captureToolUsage } from "../../../services/telemetry/core-events";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
@@ -165,11 +166,75 @@ function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
 	return connectorChannelsPayload();
 }
 
+function asStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((entry): entry is string => typeof entry === "string")
+		: [];
+}
+
+/**
+ * The hub is the single authority on which connector processes may run, so the
+ * supervisor has to exist before these commands mean anything. It is absent in
+ * hosts that embed the hub server without the daemon entrypoint.
+ */
+function requireSupervisor() {
+	const supervisor = getActiveConnectorSupervisor();
+	if (!supervisor) {
+		throw new Error(
+			"connector supervision is unavailable in this hub; start connectors with the CLI instead",
+		);
+	}
+	return supervisor;
+}
+
+function parseInstanceTarget(payload: unknown): {
+	channel: string;
+	instanceId: string;
+} {
+	if (!isRecord(payload)) {
+		throw new Error("payload must be an object.");
+	}
+	const channel = asString(payload.channel);
+	if (!channel) {
+		throw new Error("channel is required");
+	}
+	const instanceId = asString(payload.instanceId);
+	if (!instanceId) {
+		throw new Error("instanceId is required");
+	}
+	return { channel, instanceId };
+}
+
+async function startSupervisedConnector(payload: unknown) {
+	const { channel, instanceId } = parseInstanceTarget(payload);
+	const record = isRecord(payload) ? payload : {};
+	return await requireSupervisor().start({
+		channel,
+		instanceId,
+		args: asStringArray(record.args),
+		restart: record.restart === true,
+	});
+}
+
+async function stopSupervisedConnector(payload: unknown) {
+	const { channel, instanceId } = parseInstanceTarget(payload);
+	const record = isRecord(payload) ? payload : {};
+	const stopped = await requireSupervisor().stop({
+		channel,
+		instanceId,
+		disableAutostart: record.disableAutostart !== false,
+	});
+	return { stopped, channel, instanceId };
+}
+
 function isStateMutatingConnectorCommand(
 	command: HubCommandEnvelope["command"],
 ) {
 	return (
-		command === "connector.configure" || command === "connector.delete_config"
+		command === "connector.configure" ||
+		command === "connector.delete_config" ||
+		command === "connector.start" ||
+		command === "connector.stop"
 	);
 }
 
@@ -206,6 +271,19 @@ export async function handleConnectorCommand(
 			captureConnectorCommandUsage(ctx, envelope, true);
 			return okReply(envelope, payload);
 		}
+		if (envelope.command === "connector.start") {
+			const payload = await startSupervisedConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.stop") {
+			const payload = await stopSupervisedConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.supervised") {
+			return okReply(envelope, { supervised: requireSupervisor().list() });
+		}
 		return errorReply(
 			envelope,
 			"unsupported_connector_command",
@@ -225,4 +303,6 @@ export const __test__ = {
 	configureConnector,
 	connectorChannelsPayload,
 	deleteConnectorConfig,
+	startSupervisedConnector,
+	stopSupervisedConnector,
 };

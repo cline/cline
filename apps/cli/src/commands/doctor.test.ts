@@ -24,6 +24,7 @@ const {
 	mockEnsureFileExists,
 	mockListActiveConnectors,
 	mockStopAllConnectors,
+	mockListSupervisedConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
@@ -58,6 +59,7 @@ const {
 		stoppedSessions: 0,
 		executed: 0,
 	})),
+	mockListSupervisedConnectors: vi.fn(async () => undefined as unknown),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -82,6 +84,10 @@ vi.mock("../connectors/common", () => ({
 
 vi.mock("./connect", () => ({
 	stopAllConnectors: mockStopAllConnectors,
+}));
+
+vi.mock("./connect-via-hub", () => ({
+	listSupervisedConnectorsViaHub: mockListSupervisedConnectors,
 }));
 
 import { __test__, createDoctorCommand, runDoctorCommand } from "./doctor";
@@ -525,5 +531,96 @@ describe("container-aware process filtering", () => {
 				CONTAINER_CGROUP_PATTERN,
 			),
 		).toBeNull();
+	});
+});
+
+describe("doctor supervision reporting", () => {
+	const { formatSupervisedConnector } = __test__;
+
+	afterEach(() => {
+		vi.clearAllMocks();
+		mockListSupervisedConnectors.mockResolvedValue(undefined);
+	});
+
+	async function runDoctorJson(): Promise<Record<string, unknown>> {
+		const output: string[] = [];
+		await runDoctorCommand(
+			{ cwd: "/workspace", json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+		return JSON.parse(output[0] || "{}") as Record<string, unknown>;
+	}
+
+	it("reports what the hub is supervising", async () => {
+		mockListSupervisedConnectors.mockResolvedValue([
+			{
+				channel: "slack",
+				instanceId: "cline-slack",
+				state: "backoff",
+				origin: "spawned",
+				restarts: 3,
+			},
+		]);
+
+		await expect(runDoctorJson()).resolves.toMatchObject({
+			supervisedConnectors: [
+				{ channel: "slack", instanceId: "cline-slack", state: "backoff" },
+			],
+		});
+	});
+
+	it("omits supervision when the hub cannot report it", async () => {
+		mockListSupervisedConnectors.mockResolvedValue(undefined);
+
+		const status = await runDoctorJson();
+
+		expect(status.supervisedConnectors).toBeUndefined();
+	});
+
+	it("stays usable when the supervision query fails", async () => {
+		mockListSupervisedConnectors.mockRejectedValue(new Error("hub gone"));
+
+		// Diagnostics must degrade quietly rather than fail.
+		const status = await runDoctorJson();
+
+		expect(status.supervisedConnectors).toBeUndefined();
+		expect(status).toHaveProperty("hubHealthy");
+	});
+
+	it("formats restart and failure state so a crash loop is visible", () => {
+		expect(
+			formatSupervisedConnector({
+				channel: "slack",
+				instanceId: "cline-slack",
+				state: "failed",
+				origin: "adopted",
+				pid: 42,
+				restarts: 5,
+				lastExitCode: 1,
+				lastError: "invalid token",
+			}),
+		).toBe(
+			"slack | instance=cline-slack | state=failed | origin=adopted | pid=42 | restarts=5 | lastExit=1 | error=invalid token",
+		);
+	});
+
+	it("leaves out fields that do not apply to a healthy connector", () => {
+		expect(
+			formatSupervisedConnector({
+				channel: "telegram",
+				instanceId: "cline_bot",
+				state: "running",
+				origin: "spawned",
+				pid: 7,
+				restarts: 0,
+			}),
+		).toBe(
+			"telegram | instance=cline_bot | state=running | origin=spawned | pid=7",
+		);
 	});
 });

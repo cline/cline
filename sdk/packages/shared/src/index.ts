@@ -39,6 +39,15 @@ export {
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type {
+	ConnectorStartRequest,
+	ConnectorStartResult,
+	ConnectorStopRequest,
+	ConnectorStopResultPayload,
+	SupervisedConnectorOrigin,
+	SupervisedConnectorRecord,
+	SupervisedConnectorState,
+} from "./connectors/supervision";
+export type {
 	AutomationEventEnvelope,
 	CronEventSpec,
 	CronOneOffSpec,
@@ -445,8 +454,12 @@ export type {
 export {
 	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
+	CLINE_CONNECTOR_SUPERVISED_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	claimHubDaemonProcess,
+	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
+	isSupervisedConnectorProcess,
 	readConnectorCliLaunchSpec,
 	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
