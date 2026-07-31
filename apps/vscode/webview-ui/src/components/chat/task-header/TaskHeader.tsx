@@ -16,6 +16,7 @@ import ContextWindow from "./ContextWindow"
 import { highlightText } from "./Highlights"
 import TaskWorkingDirectoryBadge from "./TaskWorkingDirectoryBadge"
 
+const IS_DEV = process.env.IS_DEV === "true"
 interface TaskHeaderProps {
 	task: ClineMessage
 	tokensIn: number
@@ -148,7 +149,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									taskId={currentTaskItem?.id}
 									taskSize={currentTaskItem?.size}
 								/>
-								<OpenDiskConversationHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
+								{/* Only visible in development mode */}
+								{IS_DEV && (
+									<OpenDiskConversationHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
+								)}
 							</div>
 						)}
 					</div>
