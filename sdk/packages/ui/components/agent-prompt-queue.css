@@ -1,0 +1,189 @@
+.cline-ui-agent-prompt-queue {
+	margin-bottom: 0.5rem;
+}
+
+.cline-ui-agent-prompt-queue__toggle {
+	display: flex;
+	width: 100%;
+	align-items: center;
+	gap: 0.5rem;
+	box-sizing: border-box;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	padding: 0.25rem 0.375rem;
+	color: var(--foreground);
+	font: inherit;
+	font-size: var(--text-xs);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 150ms;
+}
+
+.cline-ui-agent-prompt-queue__toggle:focus-visible,
+.cline-ui-agent-prompt-queue__action:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 0;
+}
+
+.cline-ui-agent-prompt-queue__toggle svg {
+	width: 1rem;
+	height: 1rem;
+	flex-shrink: 0;
+}
+
+.cline-ui-agent-prompt-queue__toggle .cline-ui-agent-prompt-queue__icon--small {
+	width: 0.875rem;
+	height: 0.875rem;
+}
+
+.cline-ui-agent-prompt-queue__items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	padding-block: 0.25rem;
+}
+
+.cline-ui-agent-prompt-queue__items[hidden] {
+	display: none;
+}
+
+.cline-ui-agent-prompt-queue__item {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 0.5rem;
+	border-radius: var(--radius-md);
+	padding: 0.375rem;
+}
+
+.cline-ui-agent-prompt-queue__item[data-steer="true"] {
+	background: color-mix(in oklab, var(--primary) 5%, transparent);
+}
+
+.cline-ui-agent-prompt-queue__status-icon {
+	display: inline-flex;
+	width: 1rem;
+	height: 1rem;
+	flex-shrink: 0;
+	color: var(--muted-foreground);
+}
+
+.cline-ui-agent-prompt-queue__status-icon[data-steer="true"] {
+	color: var(--primary);
+}
+
+.cline-ui-agent-prompt-queue__status-icon svg,
+.cline-ui-agent-prompt-queue__action svg {
+	width: 1rem;
+	height: 1rem;
+}
+
+.cline-ui-agent-prompt-queue__content {
+	min-width: 0;
+	flex: 1;
+}
+
+.cline-ui-agent-prompt-queue__summary {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.cline-ui-agent-prompt-queue__prompt {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--foreground);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cline-ui-agent-prompt-queue__attachments {
+	flex-shrink: 0;
+	color: var(--muted-foreground);
+	font-size: 10px;
+}
+
+.cline-ui-agent-prompt-queue__badge {
+	flex-shrink: 0;
+	border-radius: 9999px;
+	background: color-mix(in oklab, var(--primary) 10%, transparent);
+	padding: 0.125rem 0.375rem;
+	color: var(--primary);
+	font-size: 10px;
+	font-weight: var(--font-weight-medium);
+}
+
+.cline-ui-agent-prompt-queue__editor {
+	display: block;
+	width: 100%;
+	min-height: 2rem;
+	box-sizing: border-box;
+	resize: none;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: var(--background);
+	padding: 0.375rem 0.5rem;
+	color: var(--foreground);
+	font: inherit;
+	font-size: var(--text-xs);
+	line-height: 1rem;
+	letter-spacing: var(--text-xs--letter-spacing);
+	outline: none;
+}
+
+.cline-ui-agent-prompt-queue__editor:focus {
+	border-color: color-mix(in oklab, var(--primary) 50%, transparent);
+	box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+.cline-ui-agent-prompt-queue__actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 0.125rem;
+}
+
+.cline-ui-agent-prompt-queue__action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	padding: 0.375rem;
+	color: var(--muted-foreground);
+	font: inherit;
+	cursor: pointer;
+	transition:
+		color 150ms,
+		background-color 150ms;
+}
+
+.cline-ui-agent-prompt-queue__action:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+@media (hover: hover) {
+	.cline-ui-agent-prompt-queue__toggle:hover {
+		background: color-mix(in oklab, var(--accent) 60%, transparent);
+	}
+
+	.cline-ui-agent-prompt-queue__item:hover {
+		background: color-mix(in oklab, var(--accent) 35%, transparent);
+	}
+
+	.cline-ui-agent-prompt-queue__action:hover {
+		background: var(--accent);
+		color: var(--foreground);
+	}
+}
