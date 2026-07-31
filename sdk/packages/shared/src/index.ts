@@ -238,6 +238,7 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,

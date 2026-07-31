@@ -4,6 +4,7 @@ import type {
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
 import type { AgentEvent } from "@cline/core";
+import { getErrorMessage } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 /**
@@ -82,13 +83,8 @@ function translateContentStart(
 }
 
 export function describeAgentError(error: unknown): string {
-	if (error instanceof Error && error.message.trim()) {
-		return error.message;
-	}
-	if (typeof error === "string" && error.trim()) {
-		return error;
-	}
-	return "The agent reported an unknown error.";
+	const message = getErrorMessage(error).trim();
+	return message || "The agent reported an unknown error.";
 }
 
 function translateContentEnd(
