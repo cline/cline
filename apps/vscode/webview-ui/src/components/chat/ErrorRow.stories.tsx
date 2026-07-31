@@ -231,6 +231,52 @@ export const ClinePassEntitlementError: Story = {
 	},
 }
 
+// Same entitlement error, but the selected ClinePass model has a usage-billed
+// counterpart in the Cline catalog, so the card offers the cheaper way out.
+export const ClinePassEntitlementErrorWithUsageBasedFallback: Story = {
+	...ClinePassEntitlementError,
+	decorators: [
+		createStoryDecorator(
+			{
+				clineUser: { id: "user123", email: "user@example.com", appBaseUrl: "https://app.cline.bot" },
+				isAuthenticated: true,
+			},
+			{
+				apiConfiguration: {
+					planModeApiProvider: "cline-pass",
+					actModeApiProvider: "cline-pass",
+					planModeClinePassModelId: "cline-pass/deepseek-v4-flash",
+					actModeClinePassModelId: "cline-pass/deepseek-v4-flash",
+				},
+				mode: "act",
+				providerModelsByProvider: {
+					cline: {
+						models: {
+							"deepseek/deepseek-v4-flash": {
+								maxTokens: 393_216,
+								contextWindow: 1_048_576,
+								supportsImages: false,
+								supportsPromptCache: true,
+								inputPrice: 0.14,
+								outputPrice: 0.28,
+							},
+						},
+					},
+				},
+				applyProviderModelsResponse: () => {},
+				startProviderModelsRequest: () => {},
+			},
+		),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "A ClinePass-gated model that is also served through usage-based billing. The card offers 'Switch to Usage-Based billing' alongside the subscribe link so a Cline account without ClinePass is not dead-ended.",
+			},
+		},
+	},
+}
+
 // Authentication-related errors with configurable scenarios
 export const AuthenticationErrors: Story = {
 	args: {
