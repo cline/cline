@@ -101,6 +101,43 @@ describe("agent message codec", () => {
 		]);
 	});
 
+	it("assigns a persisted user-run span to only one split segment", () => {
+		const messages = messageToAgentMessages({
+			id: "compacted-mixed",
+			role: "user",
+			ts: 1,
+			content: [
+				{ type: "text", text: "Earlier user context" },
+				{
+					type: "tool_result",
+					tool_use_id: "toolu_1",
+					name: "read_files",
+					content: "Tool output",
+				},
+				{ type: "text", text: "Later user context" },
+			],
+			metadata: {
+				kind: "compaction",
+				userRunSpan: 3,
+			},
+		});
+
+		expect(messages.map((message) => message.role)).toEqual([
+			"user",
+			"tool",
+			"user",
+		]);
+		expect(messages.map((message) => message.metadata?.userRunSpan)).toEqual([
+			3, 0, 0,
+		]);
+
+		const persistedParts = messages.map(agentMessageToMessageWithMetadata);
+		const restored = messagesToAgentMessages(persistedParts);
+		expect(restored.map((message) => message.metadata?.userRunSpan)).toEqual([
+			3, 0, 0,
+		]);
+	});
+
 	it("keeps user text before later tool results", () => {
 		const messages = messageToAgentMessages({
 			id: "msg_text_first",

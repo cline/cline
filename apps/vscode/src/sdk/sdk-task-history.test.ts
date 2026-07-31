@@ -259,6 +259,49 @@ describe("SdkTaskHistory", () => {
 		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Built." }))
 	})
 
+	it("hides the plan -> act auto-continuation prompt when rehydrating from history", async () => {
+		// Live, the canned continuation is sent with fireAndForgetSend and never echoed
+		// as user_feedback; reopening the task from history must not resurface it.
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="plan">plan the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Here is the plan." }] },
+			{
+				role: "user",
+				content:
+					'<user_input mode="act"><mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>The user approved switching to act mode. Continue with the approved plan now.</user_input>',
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Implemented." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result.filter((m) => m.say === "user_feedback")).toHaveLength(0)
+		expect(result.map((m) => m.text).join("\n")).not.toContain("The user approved switching to act mode")
+		// The hidden prompt still carries the turn's mode: the final completion row
+		// must render as an act-mode completion, not a plan box.
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Implemented." }))
+	})
+
+	it("hides [TASK RESUMPTION] prompts when rehydrating from history", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="act">build the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Partway done." }] },
+			{
+				role: "user",
+				content: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Finished." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result.filter((m) => m.say === "user_feedback")).toHaveLength(0)
+		expect(result.map((m) => m.text).join("\n")).not.toContain("[TASK RESUMPTION]")
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Finished." }))
+	})
+
 	it("retags the terminal text of a session whose record says it completed", async () => {
 		// "completed" is written by the runtime host when the session is released after a
 		// clean final turn (task switch / clear / extension dispose).

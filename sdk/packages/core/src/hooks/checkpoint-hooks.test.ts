@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import type { AgentMessage } from "@cline/shared";
+import { describe, expect, it, vi } from "vitest";
 import {
 	type CheckpointEntry,
 	type CheckpointMetadata,
@@ -30,10 +31,28 @@ async function createGitRepo(): Promise<string> {
 	return cwd;
 }
 
+function userMessage(
+	text: string,
+	metadata?: Record<string, unknown>,
+): AgentMessage {
+	return {
+		id: `user-${text}`,
+		role: "user",
+		content: [{ type: "text", text }],
+		createdAt: 1,
+		metadata,
+	};
+}
+
 async function runCheckpointHooks(
 	hooks: ReturnType<typeof createCheckpointHooks>,
-	options: { parentAgentId?: string | null } = {},
+	options: {
+		messages?: AgentMessage[];
+		messagesBeforeRun?: AgentMessage[];
+		parentAgentId?: string | null;
+	} = {},
 ): Promise<void> {
+	const messages = options.messages ?? [userMessage("first request")];
 	const snapshot = {
 		agentId: options.parentAgentId ? "agent_child" : "agent_1",
 		parentAgentId: options.parentAgentId,
@@ -41,7 +60,7 @@ async function runCheckpointHooks(
 		runId: options.parentAgentId ? "run_child" : "run_1",
 		status: "running" as const,
 		iteration: 1,
-		messages: [],
+		messages,
 		pendingToolCalls: [],
 		usage: {
 			inputTokens: 0,
@@ -50,7 +69,13 @@ async function runCheckpointHooks(
 			cacheWriteTokens: 0,
 		},
 	};
-	await hooks.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
+	await hooks.beforeRun?.({
+		snapshot: {
+			...snapshot,
+			iteration: 0,
+			messages: options.messagesBeforeRun ?? messages.slice(0, -1),
+		},
+	});
 	await hooks.beforeModel?.({
 		snapshot,
 		request: {
@@ -83,7 +108,9 @@ describe("createCheckpointHooks", () => {
 			expect(first.latest.ref).toMatch(/^[0-9a-f]{40}$/);
 
 			await writeFile(join(cwd, "note.txt"), "run-two\n", "utf8");
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(2);
@@ -197,14 +224,13 @@ describe("createCheckpointHooks", () => {
 		expect(checkpoint.history.map((entry) => entry.runCount)).toEqual([1]);
 	});
 
-	it("continues checkpoint numbering after seeded messages", async () => {
+	it("derives checkpoint numbering from compacted and seeded messages", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;
 		try {
 			const hooks = createCheckpointHooks({
 				cwd,
 				sessionId: "sess_seeded",
-				initialRunCount: 2,
 				readSessionMetadata: async () => metadata,
 				writeSessionMetadata: async (next) => {
 					metadata = next;
@@ -212,7 +238,16 @@ describe("createCheckpointHooks", () => {
 			});
 
 			await writeFile(join(cwd, "note.txt"), "run-three\n", "utf8");
-			await runCheckpointHooks(hooks);
+			await runCheckpointHooks(hooks, {
+				messages: [
+					userMessage("Compacted context", {
+						kind: "compaction",
+						displayRole: "system",
+						userRunSpan: 2,
+					}),
+					userMessage("third request"),
+				],
+			});
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(3);
@@ -245,7 +280,6 @@ describe("createCheckpointHooks", () => {
 		const hooks = createCheckpointHooks({
 			cwd: "/tmp",
 			sessionId: "sess_replace",
-			initialRunCount: 2,
 			createCheckpoint: ({ runCount }) => ({
 				ref: "new-three",
 				createdAt: 4,
@@ -258,7 +292,13 @@ describe("createCheckpointHooks", () => {
 			},
 		});
 
-		await runCheckpointHooks(hooks);
+		await runCheckpointHooks(hooks, {
+			messages: [
+				userMessage("first request"),
+				userMessage("second request"),
+				userMessage("third request"),
+			],
+		});
 
 		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 		expect(checkpoint.latest).toMatchObject({
@@ -272,5 +312,79 @@ describe("createCheckpointHooks", () => {
 			ref: "new-three",
 			runCount: 3,
 		});
+	});
+
+	it("does not overwrite a checkpoint for synthetic continuations", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const createCheckpoint = vi.fn(({ runCount }: { runCount: number }) => ({
+			ref: `checkpoint-${runCount}`,
+			createdAt: runCount,
+			runCount,
+			kind: "commit" as const,
+		}));
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_continuation",
+			createCheckpoint,
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+		const firstRequest = userMessage("first request");
+
+		await runCheckpointHooks(hooks, { messages: [firstRequest] });
+		await runCheckpointHooks(hooks, {
+			messages: [
+				firstRequest,
+				userMessage(
+					'<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				),
+			],
+		});
+
+		expect(createCheckpoint).toHaveBeenCalledTimes(1);
+		expect(
+			(metadata?.checkpoint as CheckpointMetadata).history.map(
+				(entry) => entry.runCount,
+			),
+		).toEqual([1]);
+	});
+
+	it("creates the run checkpoint before trailing internal reminders", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const createCheckpoint = vi.fn(({ runCount }: { runCount: number }) => ({
+			ref: `checkpoint-${runCount}`,
+			createdAt: runCount,
+			runCount,
+			kind: "commit" as const,
+		}));
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_reminder",
+			createCheckpoint,
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+
+		const firstRunMessages = [
+			userMessage("first request"),
+			userMessage("Internal completion reminder", { userRunSpan: 0 }),
+		];
+		await runCheckpointHooks(hooks, {
+			messages: firstRunMessages,
+			messagesBeforeRun: [],
+		});
+		await runCheckpointHooks(hooks, {
+			messages: [...firstRunMessages, userMessage("second request")],
+			messagesBeforeRun: firstRunMessages,
+		});
+
+		expect(createCheckpoint).toHaveBeenCalledTimes(2);
+		expect(
+			createCheckpoint.mock.calls.map(([input]) => input.runCount),
+		).toEqual([1, 2]);
 	});
 });
