@@ -227,6 +227,39 @@ describe("StreamableHttpReconnectHandler", () => {
 		attempts.should.equal(1)
 	})
 
+	it("should retry past its own failed attempt's registered connection and succeed", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// A failed non-OAuth connectToServer() registers a connection, closes
+		// its client on failure, but leaves the (closed) client attached and
+		// the connection in the list, marked "disconnected". The guard must
+		// recognize it as our own failed attempt — not a replacement — and
+		// let the next retry proceed.
+		const failedAttempt = { ...makeConnection({ status: "disconnected" }), client: {} }
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? failedAttempt : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			if (attempts === 1) {
+				throw new Error("connect failed")
+			}
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// Second attempt ran and succeeded; counter reset
+		cbs.stubs.connectToServer.callCount.should.equal(2)
+		handler.attemptCount.should.equal(0)
+	})
+
 	it("should retry a transiently failing post-reconnect publication", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
