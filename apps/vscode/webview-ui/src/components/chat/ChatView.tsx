@@ -346,11 +346,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// chat row is added, so the list-length-based auto-scroll never fires — re-pin to the
 	// bottom here so the latest content stays visible.
 	const queuedPromptCount = queuedPrompts?.length ?? 0
+	const taskTs = task?.ts
 	const prevQueuedPromptCountRef = useRef(queuedPromptCount)
+	const prevQueuedPromptTaskTsRef = useRef(taskTs)
 	useEffect(() => {
 		const previousCount = prevQueuedPromptCountRef.current
+		const previousTaskTs = prevQueuedPromptTaskTsRef.current
 		prevQueuedPromptCountRef.current = queuedPromptCount
-		if (queuedPromptCount <= previousCount) {
+		prevQueuedPromptTaskTsRef.current = taskTs
+		// A task switch can grow the count without a send from this webview (the newly
+		// displayed task may already have queued prompts) — don't hijack its scroll position.
+		if (taskTs !== previousTaskTs || queuedPromptCount <= previousCount) {
 			return
 		}
 		// Queueing is a deliberate send, so re-engage bottom pinning like handleSendMessage does.
@@ -362,7 +368,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				scrollToBottomAuto()
 			}
 		}, 50)
-	}, [queuedPromptCount, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
+	}, [queuedPromptCount, taskTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
