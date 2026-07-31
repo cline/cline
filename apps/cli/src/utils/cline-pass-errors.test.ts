@@ -6,7 +6,6 @@ import {
 	getCliNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,
-	getCliSubscriptionUrl,
 	isClineFreeModelLimitErrorMessage,
 	isClineFreePromotionEndedErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
