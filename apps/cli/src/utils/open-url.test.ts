@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const hoisted = vi.hoisted(() => ({
 	openMock: vi.fn<(url: string, options?: object) => Promise<unknown>>(),
 	readFileSyncMock: vi.fn<(path: string, encoding: string) => string>(),
-	existsSyncMock: vi.fn<(path: string) => boolean>(),
 	accessSyncMock: vi.fn<(path: string, mode?: number) => void>(),
 }));
 
@@ -11,7 +10,6 @@ vi.mock("open", () => ({ default: hoisted.openMock }));
 
 vi.mock("node:fs", () => ({
 	readFileSync: hoisted.readFileSyncMock,
-	existsSync: hoisted.existsSyncMock,
 	accessSync: hoisted.accessSyncMock,
 	constants: { X_OK: 1 },
 }));
@@ -35,10 +33,9 @@ function usePlatform(platform: NodeJS.Platform): void {
 	restores.push(setPlatform(platform));
 }
 
-/** Makes exactly the given file paths "executable" for the preflight. */
-function mockExecutables(...paths: string[]): void {
+function mockXdgOpenPresent(present: boolean): void {
 	hoisted.accessSyncMock.mockImplementation((path: string) => {
-		if (!paths.includes(path)) {
+		if (!(present && path.endsWith("/xdg-open"))) {
 			throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
 		}
 	});
@@ -47,12 +44,11 @@ function mockExecutables(...paths: string[]): void {
 beforeEach(() => {
 	originalPath = process.env.PATH;
 	process.env.PATH = "/usr/local/bin:/usr/bin";
-	// Defaults: not WSL, not a container, no executables anywhere.
+	// Defaults: not WSL, no xdg-open anywhere.
 	hoisted.readFileSyncMock.mockImplementation(() => {
 		throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
 	});
-	hoisted.existsSyncMock.mockReturnValue(false);
-	mockExecutables();
+	mockXdgOpenPresent(false);
 	hoisted.openMock.mockResolvedValue(undefined);
 });
 
@@ -63,14 +59,13 @@ afterEach(() => {
 	}
 	hoisted.openMock.mockReset();
 	hoisted.readFileSyncMock.mockReset();
-	hoisted.existsSyncMock.mockReset();
 	hoisted.accessSyncMock.mockReset();
 });
 
 describe("openUrlInBrowser (linux)", () => {
 	it("delegates to open() when xdg-open is on PATH", async () => {
 		usePlatform("linux");
-		mockExecutables("/usr/bin/xdg-open");
+		mockXdgOpenPresent(true);
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
 		expect(hoisted.openMock).toHaveBeenCalledWith("https://example.com", {
 			wait: false,
@@ -81,22 +76,32 @@ describe("openUrlInBrowser (linux)", () => {
 		// A missing opener binary surfaces as an async `error` event on the
 		// detached, listenerless child that open() returns; under Bun it fires
 		// before the microtask queue drains, so no try/catch or .catch around
-		// open() can intercept it. The preflight must prevent the call.
+		// open() can intercept it. The check must prevent the call entirely.
 		usePlatform("linux");
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(false);
 		expect(hoisted.openMock).not.toHaveBeenCalled();
 	});
 
+	it("skips the xdg-open check on WSL, where open uses powershell.exe", async () => {
+		usePlatform("linux");
+		hoisted.readFileSyncMock.mockReturnValue(
+			"Linux version 5.15.90.1-microsoft-standard-WSL2",
+		);
+		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
+		expect(hoisted.openMock).toHaveBeenCalled();
+		expect(hoisted.accessSyncMock).not.toHaveBeenCalled();
+	});
+
 	it("resolves false when open() rejects", async () => {
 		usePlatform("linux");
-		mockExecutables("/usr/bin/xdg-open");
+		mockXdgOpenPresent(true);
 		hoisted.openMock.mockRejectedValue(new Error("boom"));
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(false);
 	});
 
 	it("resolves false when open() throws synchronously", async () => {
 		usePlatform("linux");
-		mockExecutables("/usr/bin/xdg-open");
+		mockXdgOpenPresent(true);
 		hoisted.openMock.mockImplementation(() => {
 			throw new Error("boom");
 		});
@@ -104,8 +109,8 @@ describe("openUrlInBrowser (linux)", () => {
 	});
 });
 
-describe("openUrlInBrowser (darwin / win32)", () => {
-	it("skips the preflight on macOS — /usr/bin/open ships with the OS", async () => {
+describe("openUrlInBrowser (other platforms)", () => {
+	it("delegates unconditionally on macOS", async () => {
 		usePlatform("darwin");
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
 		expect(hoisted.openMock).toHaveBeenCalledWith("https://example.com", {
@@ -114,65 +119,10 @@ describe("openUrlInBrowser (darwin / win32)", () => {
 		expect(hoisted.accessSyncMock).not.toHaveBeenCalled();
 	});
 
-	it("skips the preflight on Windows — PowerShell ships with the OS", async () => {
+	it("delegates unconditionally on Windows", async () => {
 		usePlatform("win32");
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
 		expect(hoisted.openMock).toHaveBeenCalled();
 		expect(hoisted.accessSyncMock).not.toHaveBeenCalled();
-	});
-});
-
-describe("openUrlInBrowser (WSL)", () => {
-	function mockWslKernel(wslConf?: string): void {
-		hoisted.readFileSyncMock.mockImplementation((path: string) => {
-			if (path === "/proc/version") {
-				return "Linux version 5.15.90.1-microsoft-standard-WSL2";
-			}
-			if (path === "/etc/wsl.conf" && wslConf !== undefined) {
-				return wslConf;
-			}
-			throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-		});
-	}
-
-	it("delegates to open() when the mounted PowerShell exists", async () => {
-		usePlatform("linux");
-		mockWslKernel();
-		mockExecutables(
-			"/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
-		);
-		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
-		expect(hoisted.openMock).toHaveBeenCalled();
-	});
-
-	it("never calls open() when Windows interop is unavailable", async () => {
-		usePlatform("linux");
-		mockWslKernel();
-		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(false);
-		expect(hoisted.openMock).not.toHaveBeenCalled();
-	});
-
-	it("honors a custom drive mount root from /etc/wsl.conf", async () => {
-		usePlatform("linux");
-		mockWslKernel("[automount]\nroot = /custom\n");
-		mockExecutables(
-			"/custom/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
-		);
-		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
-		expect(hoisted.openMock).toHaveBeenCalled();
-	});
-
-	it("treats containers on a WSL kernel as plain Linux (xdg-open preflight)", async () => {
-		usePlatform("linux");
-		mockWslKernel();
-		hoisted.existsSyncMock.mockImplementation(
-			(path: string) => path === "/.dockerenv",
-		);
-		mockExecutables("/usr/bin/xdg-open");
-		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
-		expect(hoisted.accessSyncMock).toHaveBeenCalledWith(
-			"/usr/bin/xdg-open",
-			expect.anything(),
-		);
 	});
 });
