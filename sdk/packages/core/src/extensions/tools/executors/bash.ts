@@ -134,12 +134,13 @@ function spawnAndCollect(
 	timeoutMs: number,
 	maxOutputChars: number,
 	combineOutput: boolean,
-	encoding: string,
+	getEncoding: () => string,
 ): Promise<string> {
 	if (context.signal?.aborted) {
 		return Promise.reject(new Error("Command was aborted"));
 	}
 	return new Promise((resolve, reject) => {
+		const encoding = getEncoding();
 		const isWindows = process.platform === "win32";
 
 		const child = childProcess.spawn(config.executable, config.args, {
@@ -345,12 +346,8 @@ export function createShellExecutor(
 		options.maxOutputChars ??
 		options.maxOutputBytes ??
 		MAX_COMMAND_OUTPUT_CHARS;
-	const getOutputEncoding = (executable: string) =>
-		getShellOutputEncoding(
-			executable,
-			process.platform,
-			resolveWindowsCodePage,
-		);
+	const getOutputEncoding = () =>
+		getShellOutputEncoding(shell, process.platform, resolveWindowsCodePage);
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
@@ -368,7 +365,7 @@ export function createShellExecutor(
 			timeoutMs,
 			maxOutputChars,
 			combineOutput,
-			getOutputEncoding(executable),
+			isStructured ? () => "utf8" : getOutputEncoding,
 		);
 	};
 }

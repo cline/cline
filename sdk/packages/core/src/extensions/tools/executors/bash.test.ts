@@ -178,11 +178,8 @@ describe("createShellExecutor", () => {
 	);
 
 	it.runIf(process.platform === "win32")(
-		"classifies structured shell executables from command.command",
+		"keeps structured executables on UTF-8 without probing shell state",
 		async () => {
-			childProcessMocks.execFileSync.mockReturnValue(
-				"Aktive Codepage: 936\r\n",
-			);
 			childProcessMocks.spawn.mockImplementation(() => {
 				const stdout = new EventEmitter();
 				const stderr = new EventEmitter();
@@ -197,7 +194,7 @@ describe("createShellExecutor", () => {
 				child.stderr = stderr;
 				child.kill = () => {};
 				queueMicrotask(() => {
-					stdout.emit("data", Buffer.from(iconv.encode("输出", "gbk")));
+					stdout.emit("data", Buffer.from("direct output"));
 					child.emit("close", 0);
 				});
 				return child as never;
@@ -213,7 +210,8 @@ describe("createShellExecutor", () => {
 					process.cwd(),
 					ctx,
 				),
-			).resolves.toBe("输出");
+			).resolves.toBe("direct output");
+			expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
 		},
 	);
 
@@ -450,6 +448,21 @@ describe("createShellExecutor", () => {
 			await rm(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it.runIf(process.platform === "win32")(
+		"does not probe the code page for an already-aborted string command",
+		async () => {
+			const ac = new AbortController();
+			ac.abort();
+			const shell = createShellExecutor({ shell: "cmd.exe" });
+
+			await expect(
+				shell("echo never", process.cwd(), { ...ctx, signal: ac.signal }),
+			).rejects.toThrow("aborted");
+			expect(childProcessMocks.execFileSync).not.toHaveBeenCalled();
+			expect(childProcessMocks.spawn).not.toHaveBeenCalled();
+		},
+	);
 
 	it("finishes abort cleanup before a descendant can outlive the command", async () => {
 		const tempDir = await mkdtemp(join(tmpdir(), "shell-abort-tree-"));
