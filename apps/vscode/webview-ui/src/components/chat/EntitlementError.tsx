@@ -1,8 +1,15 @@
+import { openRouterDefaultModelInfo } from "@shared/api";
+import { findUsageBasedClineModelId } from "@shared/cline/cline-pass-models";
 import { AskResponseRequest } from "@shared/proto/cline/task";
+import type { Mode } from "@shared/storage/types";
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
-import React from "react";
+import type React from "react";
+import { useMemo, useState } from "react";
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink";
+import { getModeSpecificFields } from "@/components/settings/utils/providerUtils";
+import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers";
 import { useClineAuth } from "@/context/ClineAuthContext";
+import { useExtensionState } from "@/context/ExtensionStateContext";
 import { TaskServiceClient } from "@/services/grpc-client";
 
 interface EntitlementErrorProps {
@@ -11,6 +18,8 @@ interface EntitlementErrorProps {
 
 // Relative (no leading slash) so it appends to path-prefixed app URLs (e.g. self-hosted/proxy) instead of resetting to origin.
 const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription";
+
+const CLINE_PROVIDER_ID = "cline";
 
 const HEADLINE = "This model requires a ClinePass subscription.";
 
@@ -31,16 +40,99 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth();
+	const { apiConfiguration, mode, clineModels } = useExtensionState();
+	const { handleModeFieldsChange } = useApiConfigurationHandlers();
+	const [isSwitching, setIsSwitching] = useState(false);
+	const [switchedModelId, setSwitchedModelId] = useState<string | undefined>();
+	const [switchError, setSwitchError] = useState<string | undefined>();
+
 	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl);
 	const backendDetail = message && message !== HEADLINE ? message : undefined;
 
+	const currentMode: Mode = mode ?? "act";
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode);
+	const selectedClinePassModelId =
+		modeFields.apiProvider === "cline-pass"
+			? modeFields.clinePassModelId
+			: undefined;
+	// Every ClinePass model is also served through usage-based billing under its
+	// lab-prefixed id, so offer that route instead of dead-ending on "subscribe".
+	const selectedUsageBasedModelId = useMemo(
+		() =>
+			findUsageBasedClineModelId(
+				selectedClinePassModelId,
+				Object.keys(clineModels ?? {}),
+			),
+		[selectedClinePassModelId, clineModels],
+	);
+	// Switching moves the config off cline-pass, which clears the resolved
+	// counterpart; keep showing it so the confirmation and retry hint survive.
+	const usageBasedModelId = selectedUsageBasedModelId ?? switchedModelId;
+	const didSwitch = switchedModelId !== undefined;
+
+	const handleSwitchToUsageBasedBilling = async () => {
+		if (!usageBasedModelId) {
+			return;
+		}
+		setIsSwitching(true);
+		setSwitchError(undefined);
+		try {
+			const modelInfo = clineModels?.[usageBasedModelId] ?? {
+				...openRouterDefaultModelInfo,
+				name: usageBasedModelId,
+			};
+
+			await handleModeFieldsChange(
+				{
+					apiProvider: {
+						plan: "planModeApiProvider",
+						act: "actModeApiProvider",
+					},
+					clineModelId: {
+						plan: "planModeClineModelId",
+						act: "actModeClineModelId",
+					},
+					clineModelInfo: {
+						plan: "planModeClineModelInfo",
+						act: "actModeClineModelInfo",
+					},
+				},
+				{
+					apiProvider: CLINE_PROVIDER_ID,
+					clineModelId: usageBasedModelId,
+					clineModelInfo: modelInfo,
+				},
+				currentMode,
+			);
+			setSwitchedModelId(usageBasedModelId);
+		} catch (error) {
+			console.error("Failed to switch to usage-based billing:", error);
+			setSwitchError(
+				`Failed to switch model. Select ${usageBasedModelId} in API Configuration settings.`,
+			);
+		} finally {
+			setIsSwitching(false);
+		}
+	};
+
 	return (
-		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)">
+		<div
+			className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)"
+			data-testid="entitlement-error"
+		>
 			<div className="mb-3">
 				<div className="text-error mb-2">{HEADLINE}</div>
 				<div className="text-(--vscode-descriptionForeground) text-xs">
-					Subscribe to ClinePass to use this model, then retry your request.
+					{usageBasedModelId
+						? "Subscribe to ClinePass to use this model, or run the same model with usage-based billing."
+						: "Subscribe to ClinePass to use this model, then retry your request."}
 				</div>
+				{usageBasedModelId && (
+					<div className="text-(--vscode-descriptionForeground) text-xs mt-2 wrap-anywhere">
+						Usage-based billing runs this model as {usageBasedModelId}, charged
+						to your Cline account balance.
+					</div>
+				)}
 				{backendDetail && (
 					<div className="text-(--vscode-descriptionForeground) text-xs mt-1 opacity-80 wrap-anywhere">
 						{backendDetail}
@@ -48,8 +140,37 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 				)}
 			</div>
 
+			{usageBasedModelId && (
+				<>
+					<VSCodeButton
+						appearance="primary"
+						className="w-full mb-2"
+						disabled={isSwitching || didSwitch}
+						onClick={handleSwitchToUsageBasedBilling}
+					>
+						{isSwitching
+							? "Switching..."
+							: didSwitch
+								? "Switched to Usage-Based billing"
+								: "Switch to Usage-Based billing"}
+					</VSCodeButton>
+					{didSwitch && (
+						<div className="text-(--vscode-descriptionForeground) text-xs mb-2">
+							Retry the request after switching.
+						</div>
+					)}
+					{switchError && (
+						<div className="text-error text-xs mb-2">{switchError}</div>
+					)}
+				</>
+			)}
+
 			{subscribeUrl && (
-				<VSCodeButtonLink className="w-full mb-2" href={subscribeUrl}>
+				<VSCodeButtonLink
+					appearance={usageBasedModelId ? "secondary" : "primary"}
+					className="w-full mb-2"
+					href={subscribeUrl}
+				>
 					<span className="codicon codicon-rocket mr-[6px] text-[14px]" />
 					Get ClinePass
 				</VSCodeButtonLink>

@@ -1,0 +1,100 @@
+import { expect } from "chai";
+import {
+	findUsageBasedClineModelId,
+	getClinePassModelSlug,
+	isClinePassModelId,
+} from "../cline/cline-pass-models";
+
+const CLINE_CATALOG_MODEL_IDS = [
+	"anthropic/claude-opus-4.6",
+	"deepseek/deepseek-v4-flash",
+	"deepseek/deepseek-v4-pro",
+	"z-ai/glm-5.2",
+	"moonshotai/kimi-k3",
+	"cline-free/deepseek-v4-flash",
+];
+
+describe("ClinePass models", () => {
+	describe("isClinePassModelId", () => {
+		it("matches only cline-pass ids", () => {
+			expect(isClinePassModelId("cline-pass/deepseek-v4-flash")).to.equal(true);
+			expect(isClinePassModelId("  CLINE-PASS/GLM-5.2 ")).to.equal(true);
+			expect(isClinePassModelId("deepseek/deepseek-v4-flash")).to.equal(false);
+			expect(isClinePassModelId("cline-free/deepseek-v4-flash")).to.equal(
+				false,
+			);
+			expect(isClinePassModelId(undefined)).to.equal(false);
+		});
+	});
+
+	describe("getClinePassModelSlug", () => {
+		it("returns the slug after the prefix", () => {
+			expect(getClinePassModelSlug("cline-pass/deepseek-v4-flash")).to.equal(
+				"deepseek-v4-flash",
+			);
+		});
+
+		it("returns undefined for non-ClinePass or empty slugs", () => {
+			expect(getClinePassModelSlug("cline-pass/")).to.equal(undefined);
+			expect(getClinePassModelSlug("deepseek/deepseek-v4-flash")).to.equal(
+				undefined,
+			);
+		});
+	});
+
+	describe("findUsageBasedClineModelId", () => {
+		it("resolves the lab-prefixed counterpart of a ClinePass model", () => {
+			expect(
+				findUsageBasedClineModelId(
+					"cline-pass/deepseek-v4-flash",
+					CLINE_CATALOG_MODEL_IDS,
+				),
+			).to.equal("deepseek/deepseek-v4-flash");
+			expect(
+				findUsageBasedClineModelId(
+					"cline-pass/glm-5.2",
+					CLINE_CATALOG_MODEL_IDS,
+				),
+			).to.equal("z-ai/glm-5.2");
+			expect(
+				findUsageBasedClineModelId(
+					"cline-pass/kimi-k3",
+					CLINE_CATALOG_MODEL_IDS,
+				),
+			).to.equal("moonshotai/kimi-k3");
+		});
+
+		it("matches an unprefixed catalog id with the same slug", () => {
+			expect(
+				findUsageBasedClineModelId("cline-pass/glm-5.2", ["glm-5.2"]),
+			).to.equal("glm-5.2");
+		});
+
+		it("never resolves to another gated or promotional id", () => {
+			expect(
+				findUsageBasedClineModelId("cline-pass/deepseek-v4-flash", [
+					"cline-free/deepseek-v4-flash",
+					"cline-pass/deepseek-v4-flash",
+				]),
+			).to.equal(undefined);
+		});
+
+		it("returns undefined when the model is not a ClinePass id or has no counterpart", () => {
+			expect(
+				findUsageBasedClineModelId(
+					"deepseek/deepseek-v4-flash",
+					CLINE_CATALOG_MODEL_IDS,
+				),
+			).to.equal(undefined);
+			expect(
+				findUsageBasedClineModelId(
+					"cline-pass/unlisted-model",
+					CLINE_CATALOG_MODEL_IDS,
+				),
+			).to.equal(undefined);
+			expect(
+				findUsageBasedClineModelId(undefined, CLINE_CATALOG_MODEL_IDS),
+			).to.equal(undefined);
+		});
+	});
+});
