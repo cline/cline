@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.1]
+
+### Changed
+
+- Remove vestigial MCP server-key machinery from McpHub — native MCP tool calls now route by server name instead of a random in-memory uid, so routing survives restarts and server list changes.
+
 ## [4.1.0]
 
 ### Changed
