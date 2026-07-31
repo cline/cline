@@ -172,8 +172,16 @@ export class AcpAgent implements Agent {
 		const defaultMode = "act";
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-		const defaultModelId =
-			process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6";
+
+		const providerModels = await Llms.getModelsForProvider(providerId);
+		// Model ids are provider-scoped, so the default must come from the
+		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
+		// nothing to `cline`, and vice versa.
+		const defaultModelId = await resolveDefaultModelId(
+			providerId,
+			process.env.CLINE_MODEL,
+			providerModels,
+		);
 
 		this.sessions.set(sessionId, {
 			id: sessionId,
@@ -184,7 +192,6 @@ export class AcpAgent implements Agent {
 			currentModelId: defaultModelId,
 		});
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
 		const availableModels = Object.entries(providerModels).map(
 			([modelId, info]) => ({
 				modelId,
@@ -443,16 +450,16 @@ export class AcpAgent implements Agent {
 				// creates a fresh one with the new provider on the next prompt().
 				await this.teardownSessionManager(session);
 
-				// If current model doesn't exist in new provider, reset to first available
+				// Re-resolve the model against the new provider's catalog: keep the
+				// current one when it's offered there too, otherwise fall back to the
+				// provider's declared default rather than whichever model happens to
+				// be listed first (for cline-pass that is an unrelated free model).
 				const providerModels = await Llms.getModelsForProvider(value);
-				const modelIds = Object.keys(providerModels);
-				const fallbackModelId = modelIds[0];
-				if (
-					!modelIds.includes(session.currentModelId) &&
-					fallbackModelId !== undefined
-				) {
-					session.currentModelId = fallbackModelId;
-				}
+				session.currentModelId = await resolveDefaultModelId(
+					value,
+					session.currentModelId,
+					providerModels,
+				);
 				break;
 			}
 
@@ -753,6 +760,23 @@ export class AcpAgent implements Agent {
 			},
 		};
 	}
+}
+
+async function resolveDefaultModelId(
+	providerId: string,
+	preferredModelId: string | undefined,
+	providerModels: Record<string, unknown>,
+): Promise<string> {
+	const modelIds = Object.keys(providerModels);
+	const preferred = preferredModelId?.trim();
+	if (preferred && modelIds.includes(preferred)) {
+		return preferred;
+	}
+	const providerDefault = (await Llms.getProvider(providerId))?.defaultModelId;
+	if (providerDefault && modelIds.includes(providerDefault)) {
+		return providerDefault;
+	}
+	return modelIds[0] ?? "";
 }
 
 /**
