@@ -79,6 +79,60 @@
 	font-size: 0.8125rem;
 }
 
+/* Running reasoning/tool titles use their inherited text color as the bright
+ * band, so the same shimmer fits muted thinking text and primary tool text. */
+.cline-chat-streaming-title {
+	display: inline-block;
+	background-image: linear-gradient(
+		90deg,
+		color-mix(in oklab, currentcolor 55%, transparent) 0%,
+		currentcolor 50%,
+		color-mix(in oklab, currentcolor 55%, transparent) 100%
+	);
+	background-position: 200% 0;
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: cline-chat-title-shimmer 2.25s linear infinite;
+}
+
+@keyframes cline-chat-title-shimmer {
+	to {
+		background-position: -200% 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-chat-streaming-title {
+		background: none;
+		-webkit-text-fill-color: currentcolor;
+		animation: none;
+	}
+}
+
+/* Tool panels scroll on both axes, but a horizontal thumb inside a short
+ * disclosure eats a whole detail row. Keep the axis scrollable (wheel, trackpad,
+ * keyboard, drag-select) and hide only its bar; the vertical one stays visible.
+ * `:horizontal` is the one selector that separates the two axes — the standard
+ * `scrollbar-width: none` would take out both. */
+.cline-chat-scroll-x-bare::-webkit-scrollbar:horizontal {
+	display: none;
+}
+
+/* The shared reveal rule is `.cline-chat-message:hover`, so hovering anywhere in
+ * the message pops the action row — including the reasoning disclosure nested in
+ * the message content. The actions act on the message body, so suppress the
+ * reveal while the pointer is inside the thinking panel. `[data-visible]` still
+ * wins, keeping the pending/error states pinned open. */
+.cline-chat-message:has(
+	> .cline-chat-message-content .cline-chat-reasoning:hover
+)
+> .cline-chat-message-actions:not([data-visible="true"]) {
+	pointer-events: none;
+	opacity: 0;
+}
+
 /*
  * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
  * holding a language header row plus an inner bordered body. Collapse it to a
@@ -167,170 +221,6 @@
 	overflow: hidden;
 	border-radius: 0.5rem;
 	background: var(--card);
-}
-
-/*
- * Aurora background (components/ui/aurora-bg.tsx).
- *
- * Performance contract: no `filter: blur` and no animated properties beyond
- * `opacity` + `transform`, so the layers rasterize once and every animation
- * frame is compositor-only. Blurred full-viewport layers used to be
- * re-rendered on every frame of their drift animations, which alone dropped
- * the whole app below 10fps on modest hardware.
- */
-@keyframes aurora-drift {
-	0% {
-		opacity: 0.55;
-		transform: translate3d(-8%, 5%, 0) scale(0.94);
-	}
-	50% {
-		opacity: 0.92;
-		transform: translate3d(13%, -10%, 0) scale(1.11);
-	}
-	100% {
-		opacity: 0.62;
-		transform: translate3d(-5%, -2%, 0) scale(1.02);
-	}
-}
-
-@keyframes aurora-drift-reverse {
-	0% {
-		opacity: 0.62;
-		transform: translate3d(10%, -6%, 0) scale(1.08);
-	}
-	50% {
-		opacity: 0.9;
-		transform: translate3d(-12%, -12%, 0) scale(0.96);
-	}
-	100% {
-		opacity: 0.58;
-		transform: translate3d(6%, 2%, 0) scale(1.04);
-	}
-}
-
-@keyframes aurora-horizon-breathe {
-	0% {
-		opacity: 0.48;
-		transform: translate3d(-3%, 9%, 0) scale(0.96, 0.84);
-	}
-	50% {
-		opacity: 0.88;
-		transform: translate3d(3%, -5%, 0) scale(1.08, 1.16);
-	}
-	100% {
-		opacity: 0.58;
-		transform: translate3d(-1%, 2%, 0) scale(1.02, 0.96);
-	}
-}
-
-@keyframes aurora-current-sweep {
-	0% {
-		opacity: 0.28;
-		transform: translate3d(-16%, 8%, 0) scaleX(0.84);
-	}
-	50% {
-		opacity: 0.72;
-		transform: translate3d(17%, -8%, 0) scaleX(1.08);
-	}
-	100% {
-		opacity: 0.38;
-		transform: translate3d(28%, 4%, 0) scaleX(0.94);
-	}
-}
-
-@keyframes aurora-twinkle {
-	0%,
-	100% {
-		opacity: 0.15;
-	}
-	50% {
-		opacity: 0.78;
-	}
-}
-
-/*
- * Static vertical fade replacing the old `filter: blur(46-64px)` on the big
- * gradient bands: the mask rasterizes once with the layer, so soft edges no
- * longer cost anything per animation frame.
- */
-.aurora-soft-band {
-	-webkit-mask-image: linear-gradient(
-		to bottom,
-		transparent,
-		black 32%,
-		black 68%,
-		transparent
-	);
-	mask-image: linear-gradient(
-		to bottom,
-		transparent,
-		black 32%,
-		black 68%,
-		transparent
-	);
-}
-
-.aurora-horizon {
-	animation: aurora-horizon-breathe 8s ease-in-out -3s infinite alternate;
-	transform-origin: center bottom;
-	will-change: opacity, transform;
-}
-
-.aurora-current {
-	animation-name: aurora-current-sweep;
-	animation-timing-function: ease-in-out;
-	animation-iteration-count: infinite;
-	animation-direction: alternate;
-	will-change: opacity, transform;
-}
-
-.aurora-current-reverse {
-	animation-direction: alternate-reverse;
-}
-
-.aurora-motion {
-	animation-name: aurora-drift;
-	animation-timing-function: ease-in-out;
-	animation-iteration-count: infinite;
-	animation-direction: alternate;
-	will-change: opacity, transform;
-}
-
-.aurora-motion-reverse {
-	animation-name: aurora-drift-reverse;
-}
-
-.aurora-star {
-	animation-name: aurora-twinkle;
-	animation-timing-function: ease-in-out;
-	animation-iteration-count: infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.aurora-current,
-	.aurora-horizon,
-	.aurora-motion,
-	.aurora-star {
-		/* biome-ignore lint/complexity/noImportantStyles: reduced motion must override inline animation timing */
-		animation: none !important;
-	}
-
-	.aurora-horizon {
-		opacity: 0.68;
-		transform: translate3d(0, -1%, 0) scale(1.05);
-	}
-
-	.aurora-current,
-	.aurora-motion {
-		opacity: 0.58;
-		transform: none;
-	}
-
-	.aurora-current,
-	.aurora-horizon,
-	.aurora-motion {
-		will-change: auto;
-	}
 }
 
 /*

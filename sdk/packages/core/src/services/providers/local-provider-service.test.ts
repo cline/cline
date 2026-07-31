@@ -77,7 +77,6 @@ describe("models registry parsing", () => {
 							cacheReadsPrice: 0.25,
 							cacheWritesPrice: 1.5,
 							temperature: 0.2,
-							isR1FormatRequired: true,
 						},
 					},
 				},
@@ -110,7 +109,6 @@ describe("models registry parsing", () => {
 					cacheWrite: 1.5,
 				},
 				temperature: 0.2,
-				apiFormat: "r1",
 			},
 		});
 	});
@@ -138,7 +136,6 @@ describe("models registry parsing", () => {
 							cacheReadsPrice: -1,
 							temperature: -1,
 							apiFormat: "openai-responses",
-							isR1FormatRequired: false,
 						},
 					},
 				},
@@ -153,7 +150,6 @@ describe("models registry parsing", () => {
 			supportsReasoning: false,
 			outputPrice: 2,
 			apiFormat: "openai-responses",
-			isR1FormatRequired: false,
 		});
 		if (!entry) {
 			throw new Error("expected normalized provider entry");

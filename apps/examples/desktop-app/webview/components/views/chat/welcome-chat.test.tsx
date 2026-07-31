@@ -30,6 +30,7 @@ afterEach(async () => {
 async function renderWelcomeScreen({
 	workspaceRoot,
 	workspaces,
+	onStartChat = vi.fn(),
 	selectChat = vi.fn(async () => true),
 	onListGitBranches = vi.fn(async () => ({
 		current: "main",
@@ -38,6 +39,7 @@ async function renderWelcomeScreen({
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
+	onStartChat?: (prompt: string) => void;
 	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
 		current: string;
@@ -63,7 +65,7 @@ async function renderWelcomeScreen({
 					composer={null}
 					gitBranch="main"
 					onListGitBranches={onListGitBranches}
-					onStartChat={vi.fn()}
+					onStartChat={onStartChat}
 					onSwitchGitBranch={vi.fn(async () => true)}
 					quickActions={[]}
 				/>
@@ -86,6 +88,21 @@ async function clickButton(text: string, last = false): Promise<void> {
 }
 
 describe("WelcomeScreen", () => {
+	it("starts chat with the selected quick-action prompt", async () => {
+		const onStartChat = vi.fn();
+		await renderWelcomeScreen({
+			onStartChat,
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		await clickButton("Check for build errors");
+
+		expect(onStartChat).toHaveBeenCalledWith(
+			"Check this project for build errors and help me fix any failures.",
+		);
+	});
+
 	it("renders every known project in the opened workspace menu", async () => {
 		const workspaces = Array.from(
 			{ length: 6 },
@@ -96,6 +113,9 @@ describe("WelcomeScreen", () => {
 			workspaces,
 		});
 
+		expect(
+			container.querySelectorAll(".cline-ui-agent-aurora__star"),
+		).toHaveLength(32);
 		expect(
 			container.querySelector(".cline-ui-agent-hero-heading"),
 		).not.toBeNull();

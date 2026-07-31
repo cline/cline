@@ -1,33 +1,29 @@
 "use client";
 
-import { AgentHeroHeading } from "@cline/ui";
-import { ArrowRight } from "lucide-react";
+import {
+	AgentAurora,
+	AgentHeroHeading,
+	type AgentQuickAction,
+	AgentQuickActions,
+} from "@cline/ui";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
-interface QuickAction {
-	id: string;
-	label: string;
-	description: string;
-	prompt: string;
-}
-
-const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
+const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
 	{
 		id: "review-changes",
 		label: "Review changes",
 		description: "Review the current changes and call out anything risky.",
-		prompt: "Review the current changes and call out anything risky.",
+		value: "Review the current changes and call out anything risky.",
 	},
 	{
 		id: "check-build",
 		label: "Check for build errors",
 		description: "Run the relevant checks and help me fix any failures.",
-		prompt: "Check this project for build errors and help me fix any failures.",
+		value: "Check this project for build errors and help me fix any failures.",
 	},
 ];
 
@@ -45,7 +41,7 @@ export function WelcomeScreen({
 	body: ReactNode;
 	composer: ReactNode;
 	onStartChat: (prompt: string) => void;
-	quickActions: QuickAction[];
+	quickActions: AgentQuickAction[];
 	gitBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
@@ -73,7 +69,7 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AuroraBackground /> : null}
+			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active
@@ -123,28 +119,11 @@ export function WelcomeScreen({
 					</div>
 
 					{active ? (
-						<div className="mt-11 w-full divide-y divide-border/80 overflow-hidden rounded-xl border border-border/60 bg-background/95 px-2 shadow-sm">
-							{actions.map((action) => (
-								<button
-									className="group flex w-full items-center justify-between gap-5 px-3 py-3 text-left transition-colors hover:bg-background/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-									key={action.id}
-									onClick={() => onStartChat(action.prompt)}
-									type="button"
-								>
-									<span className="min-w-0">
-										<span className="block text-[15px] font-medium text-foreground">
-											{action.label}
-										</span>
-										<span className="mt-0.5 block truncate text-sm text-muted-foreground">
-											{action.description}
-										</span>
-									</span>
-									<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										<ArrowRight className="size-3" />
-									</span>
-								</button>
-							))}
-						</div>
+						<AgentQuickActions
+							actions={actions}
+							className="mt-11"
+							onSelect={(action) => onStartChat(action.value)}
+						/>
 					) : null}
 				</div>
 			</div>
