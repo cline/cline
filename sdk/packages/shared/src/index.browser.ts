@@ -235,7 +235,9 @@ export {
 	getDefaultShell,
 	getShellArgs,
 	getShellKind,
+	getShellOutputEncoding,
 	type ShellKind,
+	windowsCodePageToEncoding,
 } from "./parse/shell";
 export {
 	maskSecret,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultShell, getShellArgs, getShellKind } from "./shell";
+import {
+	getDefaultShell,
+	getShellArgs,
+	getShellKind,
+	getShellOutputEncoding,
+	windowsCodePageToEncoding,
+} from "./shell";
 
 describe("shell helpers", () => {
 	it("selects PowerShell on Windows and bash elsewhere", () => {
@@ -73,5 +79,73 @@ describe("shell helpers", () => {
 		expect(getShellKind("/bin/bash")).toBe("posix");
 		expect(getShellKind("/bin/zsh")).toBe("posix");
 		expect(getShellKind("C:\\Program Files\\Git\\bin\\bash.exe")).toBe("posix");
+	});
+
+	it("maps supported Windows code pages to iconv labels", () => {
+		expect(windowsCodePageToEncoding(437)).toBe("cp437");
+		expect(windowsCodePageToEncoding(850)).toBe("cp850");
+		expect(windowsCodePageToEncoding(866)).toBe("cp866");
+		expect(windowsCodePageToEncoding(932)).toBe("shift_jis");
+		expect(windowsCodePageToEncoding(936)).toBe("gbk");
+		expect(windowsCodePageToEncoding(949)).toBe("cp949");
+		expect(windowsCodePageToEncoding(950)).toBe("big5");
+		expect(windowsCodePageToEncoding(1252)).toBe("windows1252");
+		expect(windowsCodePageToEncoding(65001)).toBe("utf8");
+		expect(windowsCodePageToEncoding(99999)).toBe("utf8");
+	});
+
+	it("selects legacy encodings only for exact Windows legacy shells", () => {
+		const resolveCodePage = () => 936;
+		expect(getShellOutputEncoding("cmd.exe", "win32", resolveCodePage)).toBe(
+			"gbk",
+		);
+		expect(
+			getShellOutputEncoding(
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+				"win32",
+				resolveCodePage,
+			),
+		).toBe("gbk");
+		expect(getShellOutputEncoding("pwsh.exe", "win32", resolveCodePage)).toBe(
+			"utf8",
+		);
+		expect(getShellOutputEncoding("/bin/bash", "win32", resolveCodePage)).toBe(
+			"utf8",
+		);
+		expect(getShellOutputEncoding("mycmd.exe", "win32", resolveCodePage)).toBe(
+			"utf8",
+		);
+		expect(
+			getShellOutputEncoding("powershell-helper.exe", "win32", resolveCodePage),
+		).toBe("utf8");
+		expect(
+			getShellOutputEncoding(
+				"C:\\PowerShell\\tools\\pwsh-helper.exe",
+				"win32",
+				resolveCodePage,
+			),
+		).toBe("utf8");
+	});
+
+	it("falls back to UTF-8 and avoids probing when it does not apply", () => {
+		let calls = 0;
+		const resolveCodePage = () => {
+			calls++;
+			return 65001;
+		};
+		expect(getShellOutputEncoding("cmd.exe", "win32", resolveCodePage)).toBe(
+			"utf8",
+		);
+		expect(calls).toBe(1);
+		expect(
+			getShellOutputEncoding("powershell.exe", "linux", () => {
+				throw new Error("must not probe");
+			}),
+		).toBe("utf8");
+		expect(
+			getShellOutputEncoding("cmd.exe", "win32", () => {
+				throw new Error("probe failed");
+			}),
+		).toBe("utf8");
 	});
 });

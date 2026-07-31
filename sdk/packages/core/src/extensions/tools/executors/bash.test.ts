@@ -1,9 +1,41 @@
+import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
-import { describe, expect, it } from "vitest";
-import { CommandExitError, createShellExecutor } from "./bash";
+import * as iconv from "iconv-lite";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	CommandExitError,
+	createRollingCollector,
+	createShellExecutor,
+	parseWindowsCodePage,
+} from "./bash";
+
+const childProcessMocks = vi.hoisted(() => ({
+	execFileSync: vi.fn(),
+	spawn: vi.fn(),
+	actualExecFileSync: undefined as
+		| typeof import("node:child_process").execFileSync
+		| undefined,
+	actualSpawn: undefined as
+		| typeof import("node:child_process").spawn
+		| undefined,
+}));
+
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	childProcessMocks.actualExecFileSync = actual.execFileSync;
+	childProcessMocks.actualSpawn = actual.spawn;
+	childProcessMocks.execFileSync.mockImplementation(actual.execFileSync);
+	childProcessMocks.spawn.mockImplementation(actual.spawn);
+	return {
+		...actual,
+		execFileSync: childProcessMocks.execFileSync,
+		spawn: childProcessMocks.spawn,
+	};
+});
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -24,8 +56,167 @@ async function fileExists(path: string): Promise<boolean> {
 		return false;
 	}
 }
+afterEach(() => {
+	vi.restoreAllMocks();
+	childProcessMocks.execFileSync.mockReset();
+	childProcessMocks.spawn.mockReset();
+	if (!childProcessMocks.actualExecFileSync || !childProcessMocks.actualSpawn) {
+		throw new Error("child_process mocks were not initialized");
+	}
+	childProcessMocks.execFileSync.mockImplementation(
+		childProcessMocks.actualExecFileSync,
+	);
+	childProcessMocks.spawn.mockImplementation(childProcessMocks.actualSpawn);
+});
 
 describe("createShellExecutor", () => {
+	it("decodes the issue literal from split GBK bytes", () => {
+		const expected = readFileSync(
+			new URL("./__fixtures__/issue-10378-repro.txt", import.meta.url),
+			"utf8",
+		);
+		const bytes = Buffer.from(expected, "utf8");
+		const gbkBytes = Buffer.from(iconv.encode(expected, "gbk"));
+		const collector = createRollingCollector(1000, "gbk");
+		for (const byte of gbkBytes) collector.append(Buffer.from([byte]));
+		const utf8Text = new TextDecoder().decode(gbkBytes);
+
+		expect(utf8Text).not.toBe(expected);
+		expect(collector.snapshot().text).toBe(expected);
+		expect(bytes.length).toBeGreaterThan(0);
+	});
+
+	it("parses localized code-page output and falls back on malformed output", () => {
+		expect(parseWindowsCodePage("Aktive Codepage: 936\r\n")).toBe(936);
+		expect(parseWindowsCodePage("代码页: 950\n")).toBe(950);
+		expect(parseWindowsCodePage("not available")).toBe(65001);
+	});
+
+	it("keeps stdout and stderr decoder state independent", () => {
+		const stdout = createRollingCollector(1000, "big5");
+		const stderr = createRollingCollector(1000, "big5");
+		const stdoutBytes = iconv.encode("输出", "big5");
+		const stderrBytes = iconv.encode("錯誤", "big5");
+		stdout.append(stdoutBytes.subarray(0, 1));
+		stderr.append(stderrBytes.subarray(0, 1));
+		stdout.append(stdoutBytes.subarray(1));
+		stderr.append(stderrBytes.subarray(1));
+		expect(stdout.snapshot().text).toBe("输出");
+		expect(stderr.snapshot().text).toBe("錯誤");
+	});
+
+	it("decodes representative OEM and ANSI single-byte encodings", () => {
+		const cases = [
+			["cp437", "Café"],
+			["cp850", "Çafé"],
+			["cp866", "Привет"],
+			["windows1252", "Café €"],
+		] as const;
+
+		for (const [encoding, expected] of cases) {
+			const collector = createRollingCollector(1000, encoding);
+			collector.append(iconv.encode(expected, encoding));
+			expect(collector.snapshot().text).toBe(expected);
+		}
+	});
+
+	it.runIf(process.platform === "win32")(
+		"re-resolves the configured shell code page for each command",
+		async () => {
+			const fixture = readFileSync(
+				new URL("./__fixtures__/issue-10378-repro.txt", import.meta.url),
+				"utf8",
+			);
+			const outputs = [
+				iconv.encode(fixture, "gbk"),
+				iconv.encode("輸出", "big5"),
+			];
+			const codePages = [
+				"Active code page: 936\r\n",
+				"Active code page: 950\r\n",
+			];
+			childProcessMocks.execFileSync.mockImplementation(() => {
+				const codePage = codePages.shift();
+				if (!codePage) throw new Error("unexpected code-page probe");
+				return codePage;
+			});
+			childProcessMocks.spawn.mockImplementation(
+				(() => {
+					let call = 0;
+					return () => {
+						const stdout = new EventEmitter();
+						const stderr = new EventEmitter();
+						const child = new EventEmitter() as EventEmitter & {
+							pid: number;
+							stdout: EventEmitter;
+							stderr: EventEmitter;
+							kill: () => void;
+						};
+						child.pid = 100 + call;
+						child.stdout = stdout;
+						child.stderr = stderr;
+						child.kill = () => {};
+						const bytes = outputs[call++];
+						queueMicrotask(() => {
+							stdout.emit("data", Buffer.from(bytes));
+							child.emit("close", 0);
+						});
+						return child as never;
+					};
+				})(),
+			);
+
+			const executor = createShellExecutor({ shell: "cmd.exe" });
+			await expect(executor("echo first", process.cwd(), ctx)).resolves.toBe(
+				fixture,
+			);
+			await expect(executor("echo second", process.cwd(), ctx)).resolves.toBe(
+				"輸出",
+			);
+			expect(childProcessMocks.execFileSync).toHaveBeenCalledTimes(2);
+		},
+	);
+
+	it.runIf(process.platform === "win32")(
+		"classifies structured shell executables from command.command",
+		async () => {
+			childProcessMocks.execFileSync.mockReturnValue(
+				"Aktive Codepage: 936\r\n",
+			);
+			childProcessMocks.spawn.mockImplementation(() => {
+				const stdout = new EventEmitter();
+				const stderr = new EventEmitter();
+				const child = new EventEmitter() as EventEmitter & {
+					pid: number;
+					stdout: EventEmitter;
+					stderr: EventEmitter;
+					kill: () => void;
+				};
+				child.pid = 200;
+				child.stdout = stdout;
+				child.stderr = stderr;
+				child.kill = () => {};
+				queueMicrotask(() => {
+					stdout.emit("data", Buffer.from(iconv.encode("输出", "gbk")));
+					child.emit("close", 0);
+				});
+				return child as never;
+			});
+
+			const executor = createShellExecutor();
+			await expect(
+				executor(
+					{
+						command: "powershell.exe",
+						args: ["-NoProfile", "-Command", "Write-Output output"],
+					},
+					process.cwd(),
+					ctx,
+				),
+			).resolves.toBe("输出");
+		},
+	);
+
 	it("runs a simple command and returns stdout", async () => {
 		const shell = createShellExecutor();
 		const output = await shell("echo hello", process.cwd(), ctx);

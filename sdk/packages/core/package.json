@@ -51,6 +51,7 @@
 	"dependencies": {
 		"@cline/agents": "workspace:*",
 		"@cline/shared": "workspace:*",
+		"iconv-lite": "^0.6.3",
 		"@cline/llms": "workspace:*",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@opentelemetry/api": "^1.9.0",
