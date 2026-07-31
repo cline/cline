@@ -9,12 +9,11 @@ import {
 } from "../StreamableHttpReconnectHandler"
 
 /** Build a mock connection object whose status can be inspected. */
-function makeConnection(overrides: Partial<{ status: string; disabled: boolean; uid: string }> = {}) {
+function makeConnection(overrides: Partial<{ status: string; disabled: boolean }> = {}) {
 	return {
 		server: {
 			status: overrides.status ?? "connected",
 			disabled: overrides.disabled ?? false,
-			uid: overrides.uid ?? "uid-123",
 		},
 	}
 }
@@ -31,7 +30,6 @@ function makeCallbacks(connection?: ReturnType<typeof makeConnection>): Reconnec
 		connectToServer: sinon.stub().resolves(),
 		notifyWebviewOfServerChanges: sinon.stub().resolves(),
 		appendErrorMessage: sinon.stub(),
-		deleteServerKey: sinon.stub(),
 		delay: sinon.stub().resolves(), // instant — no real waiting in tests
 	}
 	return { ...(stubs as unknown as ReconnectCallbacks), stubs }
@@ -148,7 +146,7 @@ describe("StreamableHttpReconnectHandler", () => {
 
 		// After deleteConnection, findConnection returns undefined (old conn deleted)
 		// but connectToServer may leave a partial connection, so simulate that
-		const partialConn = makeConnection({ uid: "uid-partial" })
+		const partialConn = makeConnection()
 		let deleted = false
 		cbs.stubs.findConnection.callsFake(() => {
 			if (!deleted) return conn
@@ -170,7 +168,6 @@ describe("StreamableHttpReconnectHandler", () => {
 
 		// The partial connection should be marked disconnected
 		partialConn.server.status.should.equal("disconnected")
-		cbs.stubs.deleteServerKey.calledWith("uid-partial").should.be.true()
 		cbs.stubs.appendErrorMessage.calledOnce.should.be.true()
 		cbs.stubs.appendErrorMessage.firstCall.args[1].should.equal("transport error")
 	})
@@ -207,7 +204,6 @@ describe("StreamableHttpReconnectHandler", () => {
 		await handler.handleError(new Error("final error"))
 
 		conn.server.status.should.equal("disconnected")
-		cbs.stubs.deleteServerKey.calledWith("uid-123").should.be.true()
 		cbs.stubs.appendErrorMessage.calledOnce.should.be.true()
 		cbs.stubs.connectToServer.called.should.be.false()
 	})
@@ -240,7 +236,7 @@ describe("StreamableHttpReconnectHandler", () => {
 
 	it("should abort reconnect if connection was replaced during delay", async () => {
 		const conn = makeConnection()
-		const differentConn = makeConnection({ uid: "uid-replaced" })
+		const differentConn = makeConnection()
 		const cbs = makeCallbacks(conn)
 		// After the delay, findConnection returns a different object
 		cbs.stubs.findConnection.onFirstCall().returns(conn)

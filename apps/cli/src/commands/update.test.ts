@@ -1,10 +1,31 @@
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { mockEnsureCliHubServer, mockSpawn } = vi.hoisted(() => ({
+	mockEnsureCliHubServer: vi.fn(),
+	mockSpawn: vi.fn(),
+}));
+
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	return {
+		...actual,
+		spawn: mockSpawn,
+	};
+});
+
+vi.mock("../utils/hub-runtime", () => ({
+	ensureCliHubServer: mockEnsureCliHubServer,
+}));
+
 import {
 	autoUpdateOnStartup,
 	checkForUpdates,
+	ensureCliHubServerAfterUpdate,
 	getInstallationInfo,
 	PackageManager,
 	resolveCliHubOwnerContext,
@@ -20,6 +41,14 @@ const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const originalIsDev = process.env.IS_DEV;
 const originalNoAutoUpdate = process.env.CLINE_NO_AUTO_UPDATE;
 const tempDirs: string[] = [];
+
+function createChildProcessThatCloses(exitCode: number): ChildProcess {
+	const child = new EventEmitter();
+	queueMicrotask(() => {
+		child.emit("close", exitCode);
+	});
+	return child as ChildProcess;
+}
 
 function createFile(path: string): string {
 	mkdirSync(dirname(path), { recursive: true });
@@ -232,6 +261,70 @@ describe("hub restart owner selection", () => {
 		expect(owner.discoveryPath).toContain("/locks/hub/owners/");
 		expect(owner.discoveryPath).not.toBe(
 			"/tmp/cline-update-test-data/locks/hub/production.json",
+		);
+	});
+});
+
+describe("post-update hub launch", () => {
+	afterEach(() => {
+		mockEnsureCliHubServer.mockReset();
+		mockSpawn.mockReset();
+	});
+
+	it("uses the freshly installed wrapper instead of the current executable", async () => {
+		mockSpawn.mockReturnValue(createChildProcessThatCloses(0));
+		const env = {
+			CLINE_WRAPPER_PATH: "/opt/cline/lib/node_modules/cline/bin/cline",
+			CLINE_NO_AUTO_UPDATE: "0",
+		};
+
+		await ensureCliHubServerAfterUpdate("/workspace/project", env, "linux");
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"/opt/cline/lib/node_modules/cline/bin/cline",
+			["hub", "ensure"],
+			{
+				cwd: "/workspace/project",
+				env: {
+					...env,
+					CLINE_NO_AUTO_UPDATE: "1",
+				},
+				stdio: "ignore",
+				windowsHide: true,
+			},
+		);
+		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
+	});
+
+	it("uses the in-process ensure path when no executable cache can be deleted", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		await ensureCliHubServerAfterUpdate(
+			"C:\\workspace\\project",
+			{ CLINE_WRAPPER_PATH: "C:\\npm\\node_modules\\cline\\bin\\cline" },
+			"win32",
+		);
+
+		expect(mockEnsureCliHubServer).toHaveBeenCalledWith(
+			"C:\\workspace\\project",
+		);
+		expect(mockSpawn).not.toHaveBeenCalled();
+	});
+
+	it("surfaces a failure from the freshly installed CLI", async () => {
+		mockSpawn.mockReturnValue(createChildProcessThatCloses(1));
+
+		await expect(
+			ensureCliHubServerAfterUpdate(
+				"/workspace/project",
+				{ CLINE_WRAPPER_PATH: "/opt/cline/bin/cline" },
+				"linux",
+			),
+		).rejects.toThrow(
+			"freshly installed Cline failed to start the hub (exit code 1)",
 		);
 	});
 });

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -11,9 +12,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	applyCheckpointToWorktree,
+	beginWorktreeRestoreTransaction,
 	createCheckpointRestorePlan,
 	createRestoredCheckpointMetadata,
-	trimMessagesBeforeCheckpoint,
+	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
 
@@ -28,6 +30,9 @@ function createRepo(cwd: string): void {
 	git(cwd, ["init"]);
 	git(cwd, ["config", "user.name", "Codex Test"]);
 	git(cwd, ["config", "user.email", "codex@example.com"]);
+	// Keep fixture contents stable regardless of the runner's global Windows
+	// checkout settings. These tests validate restoration, not autocrlf.
+	git(cwd, ["config", "core.autocrlf", "false"]);
 	writeFileSync(join(cwd, "tracked.txt"), "base\n", "utf8");
 	git(cwd, ["add", "tracked.txt"]);
 	git(cwd, ["commit", "-m", "initial"]);
@@ -61,6 +66,138 @@ describe("applyCheckpointToWorktree", () => {
 
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("dirty\n");
 		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe("keep me\n");
+	});
+
+	it("restores a stash checkpoint on its original base after later commits", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"checkpoint before edited run",
+		]);
+		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
+
+		writeFileSync(join(dir, "tracked.txt"), "discarded later state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded later commit"]);
+		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 2,
+			kind: "stash",
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"checkpoint state\n",
+		);
+		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
+	it("infers a kindless stash checkpoint without treating it as a commit", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"cline checkpoint session=legacy run=1",
+		]);
+		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
+
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded commit"]);
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"checkpoint state\n",
+		);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
+	it("restores a kindless root commit without reading a nonexistent parent", async () => {
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "discarded commit"]);
+		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+		});
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
+		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointRef);
+	});
+
+	it("rolls back HEAD plus staged, unstaged, and untracked changes", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "existing stash\n", "utf8");
+		git(dir, ["stash", "push", "--message", "existing user stash"]);
+		const stashListBefore = git(dir, ["stash", "list"]);
+		const originalHead = git(dir, ["rev-parse", "HEAD"]);
+
+		writeFileSync(join(dir, "tracked.txt"), "staged state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		writeFileSync(join(dir, "tracked.txt"), "unstaged state\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "untracked state\n", "utf8");
+
+		const transaction = await beginWorktreeRestoreTransaction(dir);
+		expect(git(dir, ["status", "--short"])).toBe("");
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+
+		writeFileSync(join(dir, "tracked.txt"), "replacement state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "replacement checkpoint"]);
+		writeFileSync(join(dir, "replacement.txt"), "remove me\n", "utf8");
+
+		await transaction.rollback();
+
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(originalHead);
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"unstaged state\n",
+		);
+		expect(git(dir, ["show", ":tracked.txt"])).toBe("staged state");
+		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe(
+			"untracked state\n",
+		);
+		expect(existsSync(join(dir, "replacement.txt"))).toBe(false);
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(refname)",
+				"refs/cline/restore-transactions",
+			]),
+		).toBe("");
+	});
+
+	it("discards the recovery snapshot after a committed restore", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "discarded untracked\n", "utf8");
+		const stashListBefore = git(dir, ["stash", "list"]);
+
+		const transaction = await beginWorktreeRestoreTransaction(dir);
+		await transaction.commit();
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
+		expect(existsSync(join(dir, "untracked.txt"))).toBe(false);
+		expect(git(dir, ["stash", "list"])).toBe(stashListBefore);
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(refname)",
+				"refs/cline/restore-transactions",
+			]),
+		).toBe("");
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {
@@ -99,10 +236,55 @@ describe("checkpoint message trimming", () => {
 			{ role: "assistant", content: "first response" },
 			{ role: "user", content: "second" },
 		]);
-		expect(trimMessagesBeforeCheckpoint(messages, 2)).toEqual([
+		expect(trimMessagesBeforeUserRun(messages, 2)).toEqual([
 			{ role: "user", content: "first" },
 			{ role: "assistant", content: "first response" },
 		]);
+		expect(trimMessagesBeforeUserRun(messages, 1)).toEqual([]);
+	});
+
+	it("preserves absolute run positions across system-displayed compaction messages", () => {
+		const compactedContext = {
+			role: "user" as const,
+			content: "Compacted context",
+			metadata: {
+				kind: "compaction",
+				displayRole: "system",
+				userRunSpan: 3,
+			},
+		};
+		const recoveryNotice = {
+			role: "user" as const,
+			content: "Recovered context",
+			metadata: {
+				kind: "recovery_notice",
+			},
+		};
+		const messages = [
+			compactedContext,
+			recoveryNotice,
+			{ role: "user" as const, content: "first visible prompt" },
+			{ role: "assistant" as const, content: "first response" },
+			{ role: "user" as const, content: "second visible prompt" },
+		];
+
+		expect(trimMessagesBeforeUserRun(messages, 4)).toEqual([
+			compactedContext,
+			recoveryNotice,
+		]);
+		expect(trimMessagesBeforeUserRun(messages, 5)).toEqual([
+			compactedContext,
+			recoveryNotice,
+			{ role: "user", content: "first visible prompt" },
+			{ role: "assistant", content: "first response" },
+		]);
+		expect(trimMessagesToCheckpoint(messages, 5)).toEqual(messages);
+		expect(() => trimMessagesToCheckpoint(messages, 2)).toThrow(
+			"folded into a compacted message spanning runs 1-3",
+		);
+		expect(() => trimMessagesBeforeUserRun(messages, 3)).toThrow(
+			"Cannot fork before run 3",
+		);
 	});
 
 	it("uses the nearest earlier checkpoint when an identical snapshot was deduplicated", () => {

@@ -1,5 +1,6 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
+import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	computeIsWaitingForResponse,
@@ -136,6 +137,47 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		expect(result.current).toBe(false)
 	})
 
+	it("shows immediately when a reasoning tail finalizes mid-turn (no grace gap before the next tool call)", () => {
+		// Reasoning streaming: the reasoning row's own shimmer is visible, loader hidden.
+		const { result, rerender } = renderLoader(inputsFor([say(1, "reasoning", true, "hmm")], streaming()))
+		expect(result.current).toBe(false)
+
+		// Reasoning finalizes while the turn keeps streaming (model is now assembling a tool
+		// call). Reasoning never ends a turn, so the loader must take over without the grace
+		// gap that made the thinking indicator disappear and reappear before the tool row.
+		rerender(inputsFor([say(1, "reasoning", false, "hmm")], streaming()))
+		expect(result.current).toBe(true)
+	})
+
+	it("keeps an already-visible loader shown when a tool group tail finalizes", () => {
+		const toolAsk = (partial: boolean): ClineMessage => ({
+			ts: 2,
+			type: "ask",
+			ask: "tool",
+			text: JSON.stringify({ tool: "readFile", path: "a.ts" }),
+			partial,
+		})
+		const toolGroupInputs = (tail: ClineMessage): ThinkingLoaderInputs => {
+			const group = Object.assign([tail], { _isToolGroup: true }) as ClineMessage[]
+			return {
+				turnState: streaming(),
+				lastRawMessage: tail,
+				groupedMessages: [group],
+				lastVisibleRow: group,
+				lastVisibleMessage: tail,
+				modifiedMessages: [tail],
+			}
+		}
+
+		// Loader is visible below the streaming tool group.
+		const { result, rerender } = renderLoader(toolGroupInputs(toolAsk(true)))
+		expect(result.current).toBe(true)
+
+		// The group's tail finalizing must not blink the visible loader off for the grace period.
+		rerender(toolGroupInputs(toolAsk(false)))
+		expect(result.current).toBe(true)
+	})
+
 	it("does not flash on attempt_completion turns even without the debounce timing", () => {
 		const { result, rerender } = renderLoader(inputsFor([say(1, "completion_result", true)], streaming()))
 		expect(result.current).toBe(false)
@@ -144,6 +186,85 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 		act(() => {
 			vi.advanceTimersByTime(THINKING_LOADER_GRACE_MS)
 		})
+		expect(result.current).toBe(false)
+	})
+})
+
+describe("useThinkingLoaderRow optimistic response handoff", () => {
+	function renderLoader(initial: ThinkingLoaderInputs) {
+		return renderHook((inputs: ThinkingLoaderInputs) => useThinkingLoaderRow(inputs), { initialProps: initial })
+	}
+
+	function LoaderProbe({ inputs }: { inputs: ThinkingLoaderInputs }) {
+		return <span>{useThinkingLoaderRow(inputs) ? "visible" : "hidden"}</span>
+	}
+
+	it("shows in the initial render before passive effects run", () => {
+		const inputs = {
+			...inputsFor([say(1, "completion_result", false, "done")], { phase: "completed", seq: 5 }),
+			forceShow: true,
+		}
+
+		expect(renderToString(<LoaderProbe inputs={inputs} />)).toContain("visible")
+	})
+
+	it.each([
+		"idle",
+		"completed",
+		"awaiting_followup",
+	] as const)("shows immediately while the webview still has the stale %s phase", (phase) => {
+		const { result } = renderLoader({ ...inputsFor([], { phase, seq: 1 }), forceShow: true })
+		expect(result.current).toBe(true)
+	})
+
+	it("does not show for a stale idle turnState without the marker", () => {
+		const { result } = renderLoader(inputsFor([], { phase: "idle", seq: 1 }))
+		expect(result.current).toBe(false)
+	})
+
+	it("shows for a follow-up even when the tail is the previous turn's completion_result", () => {
+		// Follow-up after a completed turn: the tail is the previous turn's completion_result and
+		// the phase is still "completed" until the streaming TurnState posts. Both would normally
+		// suppress the loader; the optimistic marker bypasses them at turn START.
+		const conversation = [say(1, "completion_result", false, "done")]
+		const { result } = renderLoader({
+			...inputsFor(conversation, { phase: "completed", seq: 5 }),
+			forceShow: true,
+		})
+		expect(result.current).toBe(true)
+	})
+
+	it("never shows while a visible content row is actively streaming, even with the marker", () => {
+		const conversation = [say(1, "text", true, "already streaming")]
+		const { result } = renderLoader({
+			...inputsFor(conversation, { phase: "completed", seq: 5 }),
+			forceShow: true,
+		})
+		expect(result.current).toBe(false)
+	})
+
+	it("hands off without a gap when the fresh streaming state arrives", () => {
+		const task = say(1, "task", false, "do the thing")
+		const withoutVisibleRows = (turnState: TurnState, forceShow: boolean): ThinkingLoaderInputs => ({
+			...inputsFor([], turnState),
+			lastRawMessage: task,
+			forceShow,
+		})
+		const { result, rerender } = renderLoader(withoutVisibleRows({ phase: "idle", seq: 1 }, true))
+		expect(result.current).toBe(true)
+
+		rerender(withoutVisibleRows(streaming(2), false))
+		expect(result.current).toBe(true)
+	})
+
+	it("does not leave a forced loader after a fresh terminal state", () => {
+		const { result, rerender } = renderLoader({
+			...inputsFor([say(1, "text", false)], { phase: "completed", seq: 1 }),
+			forceShow: true,
+		})
+		expect(result.current).toBe(true)
+
+		rerender({ ...inputsFor([say(1, "text", false)], { phase: "error", seq: 2 }), forceShow: false })
 		expect(result.current).toBe(false)
 	})
 })

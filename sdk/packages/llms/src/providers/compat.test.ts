@@ -402,6 +402,40 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
+	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "reasoning-model",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "max",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "high" },
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
@@ -804,6 +838,31 @@ describe("buildGatewayModels", () => {
 				id: "llama3.1",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
+			}),
+		]);
+	});
+
+	it("preserves catalog reasoning controls on projected gateway models", () => {
+		const reasoningOptions = [
+			{ type: "effort" as const, values: ["medium", "high", "max"] as const },
+		];
+		const models = buildGatewayModels("openrouter", {
+			providerId: "openrouter",
+			modelId: "openai/gpt-5.6",
+			knownModels: {
+				"openai/gpt-5.6": {
+					id: "openai/gpt-5.6",
+					name: "GPT-5.6",
+					contextWindow: 400_000,
+					reasoningOptions,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "openai/gpt-5.6",
+				reasoningOptions,
 			}),
 		]);
 	});

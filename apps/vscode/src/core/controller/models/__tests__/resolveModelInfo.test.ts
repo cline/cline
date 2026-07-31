@@ -139,6 +139,48 @@ describe("resolveModelInfo", () => {
 		expect(catalog.resolveModels).not.toHaveBeenCalled()
 	})
 
+	it("returns the committed selection when the request omits a model id (post-migration cold start)", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const providerId = parseProviderId("openrouter")
+		const store = makeStore({ providerId })
+		// The mode-specific state field is empty (migration wrote providers.json
+		// only), so readSelection falls through to the committed providers.json
+		// selection. The handler must surface that instead of a catalog default.
+		vi.mocked(store.readSelection).mockImplementation((_, mode) =>
+			mode === "act"
+				? {
+						providerId,
+						modelId: "anthropic/claude-sonnet-5",
+						modelInfo: { name: "Claude Sonnet 5", supportsPromptCache: true, contextWindow: 200_000 },
+					}
+				: undefined,
+		)
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult(
+				"openrouter",
+				[
+					[
+						"anthropic/claude-sonnet-4.5",
+						{ name: "Claude Sonnet 4.5", supportsPromptCache: true, contextWindow: 1_000_000 },
+					],
+				],
+				"anthropic/claude-sonnet-4.5",
+			),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openrouter",
+		})
+
+		expect(response.source).toBe("committed-selection")
+		expect(response.modelId).toBe("anthropic/claude-sonnet-5")
+		expect(response.modelInfo?.contextWindow).toBe(200_000)
+		// The committed selection short-circuits before any catalog lookup.
+		expect(catalog.peekModels).not.toHaveBeenCalled()
+		expect(catalog.resolveModels).not.toHaveBeenCalled()
+	})
+
 	it("returns sdk-default when the request omits a model id and the catalog has a default", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("deepseek") })
