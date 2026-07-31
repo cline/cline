@@ -62,6 +62,13 @@ jobs:
     test-legacy:
         name: Test legacy bundle
         runs-on: ubuntu-latest
+        # The tested revision, exported so the package job builds EXACTLY what
+        # this suite ran against. legacy-ref is a mutable branch name and the
+        # package job starts much later (test phase + environment-approval wait,
+        # potentially days) — re-resolving the name there could pick up commits
+        # this gate never saw.
+        outputs:
+            tested-sha: ${{ steps.rev.outputs.sha }}
         defaults:
             run:
                 working-directory: apps/vscode
@@ -69,6 +76,10 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ github.event.inputs.legacy-ref }}
+
+            - name: Record tested revision
+              id: rev
+              run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -137,10 +148,12 @@ jobs:
                   path: next-src
                   lfs: true
 
+            # Pin to the revision test-legacy actually tested (see that job's
+            # outputs comment) — never re-resolve the mutable branch name here.
             - name: Checkout legacy source
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.legacy-ref }}
+                  ref: ${{ needs.test-legacy.outputs.tested-sha }}
                   path: legacy-src
                   lfs: true
 

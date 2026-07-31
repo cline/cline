@@ -99,7 +99,7 @@ gh workflow run ext-vscode-ab-package.yml --ref main \
 gh run list --workflow=ext-vscode-ab-package.yml --limit 1
 ```
 
-Both test suites run first (no approval needed); the gated `package` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). The next bundle builds the exact revision the test gate ran against; `publish=true` is refused for any `next-ref` other than `main` (the gate only tests main — non-main next-refs are for build-only artifact rehearsals). Check what a run is waiting on:
+Both test suites run first (no approval needed); the gated `package` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). Both bundles build the exact revisions their test gates ran against (branch names are resolved once — commits landing on either branch mid-run or during the approval wait are not picked up); `publish=true` is additionally refused for any `next-ref` other than `main` (the bun gate only tests main — non-main next-refs are for build-only artifact rehearsals). Check what a run is waiting on:
 
 ```bash
 gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
