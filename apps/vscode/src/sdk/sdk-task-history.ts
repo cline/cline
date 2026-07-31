@@ -1,14 +1,16 @@
+import { existsSync } from "node:fs"
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
+import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
-import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages, taskDirPath } from "./legacy-state-reader"
 import {
 	appendLegacyResumeWarning,
 	legacyApiHistoryToSdkMessages,
@@ -474,19 +476,30 @@ export class SdkTaskHistory {
 	}
 
 	/**
-	 * The task's conversation history in SDK message form, for export to markdown.
-	 * Legacy (pre-SDK) tasks are read from their on-disk api_conversation_history.json;
-	 * SDK tasks are read from the session's persisted messages, sanitized for display.
+	 * Absolute path of the directory holding the task's on-disk artifacts: the SDK
+	 * session folder (manifest json + messages json) for SDK tasks, or the legacy
+	 * tasks/<id> folder for pre-SDK tasks. Undefined when the task is unknown.
 	 */
-	async getMessagesForExport(taskId: string): Promise<SdkMessage[]> {
+	async getTaskDirPath(taskId: string): Promise<string | undefined> {
 		const sdkRecord = await this.getSdkRecord(taskId)
-		const legacyTask = this.findLegacyTask(taskId)
-		if (!sdkRecord && legacyTask) {
-			return legacyApiHistoryToSdkMessages(readApiConversationHistory(taskId, legacyTask.dataDir), legacyTask.item)
+		if (sdkRecord) {
+			const messagesPath = typeof sdkRecord.messagesPath === "string" ? sdkRecord.messagesPath.trim() : ""
+			if (messagesPath) {
+				return path.dirname(messagesPath)
+			}
+			// Older records may lack messagesPath; fall back to the canonical
+			// session directory when it exists on disk.
+			const sessionDir = path.join(resolveSessionDataDir(), taskId)
+			if (existsSync(sessionDir)) {
+				return sessionDir
+			}
 		}
+		return this.getLegacyTaskDirPath(taskId)
+	}
 
-		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
-		return sanitizeSdkUserMessagesForDisplay(sdkMessages)
+	getLegacyTaskDirPath(taskId: string): string | undefined {
+		const legacyTask = this.findLegacyTask(taskId)
+		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
 	}
 
 	/**

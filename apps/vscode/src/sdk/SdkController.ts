@@ -36,7 +36,6 @@ import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
-import { downloadTask } from "@/integrations/misc/export-markdown"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -1800,17 +1799,15 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const historyItem = await this.taskHistory.findHistoryItem(id)
-		if (!historyItem) {
+		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
+		if (!taskDirPath) {
 			throw new Error(`Task not found in history: ${id}`)
 		}
 
-		const messages = await this.taskHistory.getMessagesForExport(id)
-		if (messages.length === 0) {
-			throw new Error(`Task has no conversation history to export: ${id}`)
-		}
-
-		await downloadTask(historyItem.ts, messages)
+		await fs.access(taskDirPath)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		const open = (await import("open")).default
+		await open(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
