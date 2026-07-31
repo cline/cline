@@ -292,6 +292,7 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					firstPayload,
+					() => false,
 				),
 			).toBe(true);
 			expect(
@@ -299,9 +300,103 @@ describe("tryClaimConnectorStateFile", () => {
 					statePath,
 					stalePayload,
 					secondPayload,
+					() => false,
 				),
 			).toBe(false);
 			expect(readFileSync(statePath, "utf8")).toBe(firstPayload);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("recovers when a stale-generation guard owner exits before replacement", async () => {
+		const { createHash } = await import("node:crypto");
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import(
+			"node:fs"
+		);
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		const stalePayload = `${JSON.stringify({
+			claimId: "stale",
+			pid: 1,
+			userName: "stale",
+		})}
+`;
+		const replacementPayload = `${JSON.stringify({
+			claimId: "replacement",
+			pid: 2,
+			userName: "bot",
+		})}
+`;
+		const generation = createHash("sha256").update(stalePayload).digest("hex");
+		const orphanedGuardPath = `${statePath}.${generation}.claim`;
+		writeFileSync(statePath, stalePayload, "utf8");
+		writeFileSync(
+			orphanedGuardPath,
+			`${JSON.stringify({ claimId: "orphaned", pid: 3 }, null, 2)}
+`,
+			"utf8",
+		);
+
+		try {
+			expect(
+				__test__.tryReplaceStaleConnectorStateFile(
+					statePath,
+					stalePayload,
+					replacementPayload,
+					() => false,
+				),
+			).toBe(true);
+			expect(readFileSync(statePath, "utf8")).toBe(replacementPayload);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("does not succeed a live stale-generation guard owner", async () => {
+		const { createHash } = await import("node:crypto");
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import(
+			"node:fs"
+		);
+		const { join } = await import("node:path");
+		const { tmpdir } = await import("node:os");
+
+		const dir = mkdtempSync(join(tmpdir(), "connector-claim-"));
+		const statePath = join(dir, "instance.json");
+		const stalePayload = `${JSON.stringify({
+			claimId: "stale",
+			pid: 1,
+			userName: "stale",
+		})}
+`;
+		const replacementPayload = `${JSON.stringify({
+			claimId: "replacement",
+			pid: 2,
+			userName: "bot",
+		})}
+`;
+		const generation = createHash("sha256").update(stalePayload).digest("hex");
+		writeFileSync(statePath, stalePayload, "utf8");
+		writeFileSync(
+			`${statePath}.${generation}.claim`,
+			`${JSON.stringify({ claimId: "live", pid: 3 }, null, 2)}
+`,
+			"utf8",
+		);
+
+		try {
+			expect(
+				__test__.tryReplaceStaleConnectorStateFile(
+					statePath,
+					stalePayload,
+					replacementPayload,
+					(pid) => pid === 3,
+				),
+			).toBe(false);
+			expect(readFileSync(statePath, "utf8")).toBe(stalePayload);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}

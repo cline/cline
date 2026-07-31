@@ -335,7 +335,12 @@ export function tryClaimConnectorStateFile(
 		}
 	}
 
-	return tryReplaceStaleConnectorStateFile(statePath, observedPayload, payload)
+	return tryReplaceStaleConnectorStateFile(
+		statePath,
+		observedPayload,
+		payload,
+		isRunning,
+	)
 		? { claimId }
 		: undefined;
 }
@@ -368,39 +373,102 @@ function tryCreateConnectorStateFile(
 /**
  * Replaces exactly the stale generation that the caller observed.
  *
- * The permanent hard-link guard is keyed by the observed payload. Only one
- * contender can create it, and delayed contenders cannot unlink the winner's
- * newer claim. Keeping the guard also protects against a contender that was
- * suspended after reading the stale generation.
+ * Each contender atomically links its ownership record into a guard keyed by
+ * the observed generation. A live guard owner blocks replacement. If an owner
+ * dies in the critical section, contenders append a successor guard rather
+ * than deleting the existing one, so stale recovery remains crash-safe.
  */
 function tryReplaceStaleConnectorStateFile(
 	statePath: string,
 	observedPayload: string,
 	replacementPayload: string,
+	isRunning: (pid: number) => boolean = isProcessRunning,
 ): boolean {
-	const generation = createHash("sha256").update(observedPayload).digest("hex");
-	const replacementGuardPath = `${statePath}.${generation}.stale`;
+	let replacement: { claimId?: unknown; pid?: unknown };
 	try {
-		linkSync(statePath, replacementGuardPath);
-	} catch (error) {
-		const code =
-			error && typeof error === "object" && "code" in error
-				? String((error as NodeJS.ErrnoException).code)
-				: undefined;
-		if (code === "EEXIST" || code === "ENOENT") {
-			return false;
-		}
-		throw error;
+		replacement = JSON.parse(replacementPayload) as {
+			claimId?: unknown;
+			pid?: unknown;
+		};
+	} catch {
+		return false;
+	}
+	if (
+		typeof replacement.claimId !== "string" ||
+		typeof replacement.pid !== "number"
+	) {
+		return false;
 	}
 
+	const generation = createHash("sha256").update(observedPayload).digest("hex");
+	const ownerPayload = `${JSON.stringify(
+		{ claimId: replacement.claimId, pid: replacement.pid },
+		null,
+		2,
+	)}
+`;
+	const candidatePath = `${statePath}.${replacement.claimId}.candidate`;
+	if (!tryCreateConnectorStateFile(candidatePath, ownerPayload)) {
+		return false;
+	}
+
+	const guardPaths: string[] = [];
+	let acquiredGuard = false;
 	try {
-		if (readFileSync(replacementGuardPath, "utf8") !== observedPayload) {
+		let guardPath = `${statePath}.${generation}.claim`;
+		while (true) {
+			guardPaths.push(guardPath);
+			try {
+				linkSync(candidatePath, guardPath);
+				acquiredGuard = true;
+				break;
+			} catch (error) {
+				const code =
+					error && typeof error === "object" && "code" in error
+						? String((error as NodeJS.ErrnoException).code)
+						: undefined;
+				if (code !== "EEXIST") {
+					throw error;
+				}
+			}
+
+			let guardPayload: string;
+			try {
+				guardPayload = readFileSync(guardPath, "utf8");
+			} catch {
+				return false;
+			}
+			try {
+				const guardOwner = JSON.parse(guardPayload) as { pid?: unknown };
+				if (typeof guardOwner.pid === "number" && isRunning(guardOwner.pid)) {
+					return false;
+				}
+			} catch {
+				// Invalid ownership metadata cannot identify a live owner.
+			}
+
+			const successor = createHash("sha256")
+				.update(guardPath)
+				.update("\0")
+				.update(guardPayload)
+				.digest("hex");
+			guardPath = `${statePath}.${generation}.${successor}.claim`;
+		}
+
+		if (readFileSync(statePath, "utf8") !== observedPayload) {
 			return false;
 		}
 		rmSync(statePath);
 		return tryCreateConnectorStateFile(statePath, replacementPayload);
 	} catch {
 		return false;
+	} finally {
+		rmSync(candidatePath, { force: true });
+		if (acquiredGuard) {
+			for (const guardPath of guardPaths) {
+				rmSync(guardPath, { force: true });
+			}
+		}
 	}
 }
 
