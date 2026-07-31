@@ -38,6 +38,8 @@
 		"components/agent-chat/index.tsx",
 		"components/agent-approval-card.css",
 		"components/agent-approval-card.tsx",
+		"components/agent-ask-question.css",
+		"components/agent-ask-question.tsx",
 		"components/agent-aurora.css",
 		"components/agent-aurora.tsx",
 		"components/agent-hero-heading.css",

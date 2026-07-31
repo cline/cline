@@ -1,0 +1,177 @@
+.cline-ui-agent-ask-question {
+	box-sizing: border-box;
+	border: 1px solid
+		color-mix(in oklab, oklch(70.7% 0.165 254.624) 40%, transparent);
+	border-radius: var(--radius-xl);
+	background: color-mix(in oklab, oklch(62.3% 0.214 259.815) 5%, transparent);
+	padding: 0.75rem;
+}
+
+.cline-ui-agent-ask-question__heading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	color: var(--foreground);
+	font-size: var(--text-sm);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--text-sm--line-height);
+	letter-spacing: var(--text-sm--letter-spacing);
+}
+
+.cline-ui-agent-ask-question__icon {
+	width: 1rem;
+	height: 1rem;
+	fill: none;
+	stroke: oklch(62.3% 0.214 259.815);
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2;
+}
+
+.cline-ui-agent-ask-question__intro {
+	margin: 0.25rem 0 0;
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-ask-question__items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.cline-ui-agent-ask-question__item {
+	box-sizing: border-box;
+	border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+	border-radius: var(--radius-lg);
+	background: color-mix(in oklab, var(--background) 70%, transparent);
+	padding: 0.75rem;
+}
+
+.cline-ui-agent-ask-question__item-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.cline-ui-agent-ask-question__question {
+	color: var(--foreground);
+	font-size: var(--text-sm);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--text-sm--line-height);
+	letter-spacing: var(--text-sm--letter-spacing);
+}
+
+.cline-ui-agent-ask-question__meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--muted-foreground);
+	font-size: 11px;
+}
+
+.cline-ui-agent-ask-question__description {
+	margin-top: 0.25rem;
+	color: var(--muted-foreground);
+	font-size: 11px;
+}
+
+.cline-ui-agent-ask-question__error {
+	margin-top: 0.5rem;
+	color: var(--destructive);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-ask-question__options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.cline-ui-agent-ask-question__option {
+	display: inline-flex;
+	height: 2rem;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	box-sizing: border-box;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: var(--background);
+	padding: 0 0.75rem;
+	color: var(--foreground);
+	font: inherit;
+	font-weight: var(--font-weight-medium);
+	white-space: nowrap;
+	cursor: pointer;
+	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 5%);
+	transition:
+		color 150ms,
+		background-color 150ms,
+		border-color 150ms,
+		box-shadow 150ms;
+}
+
+.cline-ui-agent-ask-question__option:hover {
+	background: var(--accent);
+	color: var(--accent-foreground);
+}
+
+.cline-ui-agent-ask-question__option:focus-visible {
+	outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent);
+	outline-offset: 0;
+}
+
+.cline-ui-agent-ask-question__option:disabled {
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.dark .cline-ui-agent-ask-question__option {
+	border-color: var(--input);
+	background: color-mix(in oklab, var(--input) 30%, transparent);
+}
+
+.dark .cline-ui-agent-ask-question__option:hover {
+	background: color-mix(in oklab, var(--input) 50%, transparent);
+}
+
+.cline-ui-agent-ask-question__spinner {
+	width: 0.875rem;
+	height: 0.875rem;
+	flex: none;
+	margin-right: 0.25rem;
+	animation: cline-ui-agent-ask-question-spin 1s linear infinite;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2;
+}
+
+.cline-ui-agent-ask-question__option:has(
+		> .cline-ui-agent-ask-question__spinner
+	) {
+	padding-inline: 0.625rem;
+}
+
+@keyframes cline-ui-agent-ask-question-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-agent-ask-question__spinner {
+		animation: none;
+	}
+}

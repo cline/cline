@@ -5,6 +5,11 @@ export {
 	AgentApprovalCard,
 	type AgentApprovalCardProps,
 } from "./agent-approval-card.js";
+export {
+	AgentAskQuestion,
+	type AgentAskQuestionItem,
+	type AgentAskQuestionProps,
+} from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
