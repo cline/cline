@@ -42,8 +42,10 @@
 
 .cline-ui-agent-prompt-queue__items {
 	display: flex;
+	max-height: 40dvh;
 	flex-direction: column;
 	gap: 0.125rem;
+	overflow-y: auto;
 	padding-block: 0.25rem;
 }
 

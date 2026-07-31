@@ -118,6 +118,63 @@ describe("AgentPromptQueue", () => {
 		expect(container.textContent).toContain("Original");
 	});
 
+	it("keeps the edit open when the host rejects it", async () => {
+		const onEdit = vi.fn(async () => {
+			throw new Error("Could not edit prompt");
+		});
+		await act(async () =>
+			root.render(
+				<AgentPromptQueue
+					items={[{ id: "one", prompt: "Original", steer: false }]}
+					onEdit={onEdit}
+					onRemove={vi.fn()}
+					onSteer={vi.fn()}
+				/>,
+			),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>("button[aria-expanded]")
+				?.click(),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Edit queued prompt"]')
+				?.click(),
+		);
+
+		const editor = container.querySelector<HTMLTextAreaElement>(
+			'[aria-label="Edit queued prompt"]',
+		);
+		await act(async () => {
+			if (!editor) return;
+			const valueSetter = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			valueSetter?.call(editor, "Keep this draft");
+			editor.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Save queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onEdit).toHaveBeenCalledWith("one", "Keep this draft");
+		expect(
+			container.querySelector<HTMLTextAreaElement>(
+				'[aria-label="Edit queued prompt"]',
+			)?.value,
+		).toBe("Keep this draft");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Save queued prompt"]',
+			)?.disabled,
+		).toBe(false);
+	});
+
 	it("renders nothing without queued prompts", async () => {
 		await act(async () =>
 			root.render(

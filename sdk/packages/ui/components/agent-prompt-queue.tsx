@@ -78,6 +78,15 @@ function Icon({ name, small = false }: { name: IconName; small?: boolean }) {
 	);
 }
 
+async function runHostCallback(callback: () => Promise<void> | void) {
+	try {
+		await callback();
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function AgentPromptQueue({
 	items,
 	onEdit,
@@ -101,8 +110,7 @@ export function AgentPromptQueue({
 			if (!prompt || pendingId) return;
 			setPendingId(item.id);
 			try {
-				await onEdit(item.id, prompt);
-				cancelEdit();
+				if (await runHostCallback(() => onEdit(item.id, prompt))) cancelEdit();
 			} finally {
 				setPendingId(null);
 			}
@@ -115,7 +123,9 @@ export function AgentPromptQueue({
 			if (pendingId) return;
 			setPendingId(item.id);
 			try {
-				await (action === "steer" ? onSteer(item.id) : onRemove(item.id));
+				await runHostCallback(() =>
+					action === "steer" ? onSteer(item.id) : onRemove(item.id),
+				);
 			} finally {
 				setPendingId(null);
 			}
