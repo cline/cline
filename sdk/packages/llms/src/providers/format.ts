@@ -16,6 +16,7 @@ export function extractErrorMessage(error: unknown): string {
 			errors?: unknown;
 			detail?: string;
 			responseBody?: unknown;
+			value?: unknown;
 		};
 		if (typeof payload.error === "string" && payload.error.trim()) {
 			return payload.error;
@@ -37,6 +38,23 @@ export function extractErrorMessage(error: unknown): string {
 				if (nested) {
 					return nested;
 				}
+			}
+		}
+		// Some gateways forward the upstream provider's rejection under `value`,
+		// with the original response body JSON-encoded in `value.error_message`
+		// (e.g. Vercel AI Gateway relaying Alibaba Qwen context-length errors,
+		// where the top-level message is just "Stream error occurred" and the
+		// cause is an unrelated internal ZodError).
+		if (
+			payload.value &&
+			typeof payload.value === "object" &&
+			"error_message" in payload.value
+		) {
+			const nested = extractStructuredMessage(
+				(payload.value as { error_message?: unknown }).error_message,
+			);
+			if (nested) {
+				return nested;
 			}
 		}
 		if ("responseBody" in payload && payload.responseBody !== value) {
@@ -123,5 +141,17 @@ export function extractErrorMessage(error: unknown): string {
 		return structuredMessage;
 	}
 
+	// String() on a plain object yields "[object Object]" — JSON is at least
+	// actionable for the user and for error-classification downstream.
+	if (typeof error === "object" && error !== null) {
+		try {
+			const json = JSON.stringify(error);
+			if (json && json !== "{}") {
+				return json;
+			}
+		} catch {
+			// Circular payload — fall through to String(error).
+		}
+	}
 	return String(error);
 }
