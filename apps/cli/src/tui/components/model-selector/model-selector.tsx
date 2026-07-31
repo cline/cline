@@ -286,6 +286,13 @@ export function ModelSelectorContent(
 				/>
 			</box>
 
+			{models.length === 0 && (
+				<text fg="yellow" paddingX={1}>
+					No models found for {currentProviderName}. Create a custom model ID to
+					enter one manually.
+				</text>
+			)}
+
 			<ModelList
 				items={filtered}
 				selected={safeSelected}

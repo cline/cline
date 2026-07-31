@@ -1,3 +1,4 @@
+import { registerProvider, unregisterProvider } from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -434,6 +435,121 @@ describe("resolveProviderConfig", () => {
 			{ method: "GET" },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
+	});
+
+	it("keeps a failing built-in model source authoritative (no bundled fallback)", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response("server down", { status: 500 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "ollama",
+				modelId: "",
+				baseUrl: "http://localhost:11434/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalled();
+		expect(resolved?.knownModels).toEqual({});
+	});
+
+	it("falls back to the bundled catalog when a runtime-registered model source fails", async () => {
+		// A models.json overlay entry (or an SDK/plugin registration) can shadow
+		// a catalog-backed built-in provider with a modelsSourceUrl. DeepSeek's
+		// /models endpoint rejects the keyless fetch (HTTP 401), which must not
+		// blank the picker: the bundled catalog stays available.
+		registerProvider({
+			provider: {
+				id: "deepseek",
+				name: "DeepSeek",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				baseUrl: "https://api.deepseek.com",
+				modelsSourceUrl: "https://api.deepseek.com/models",
+				defaultModelId: "deepseek-chat",
+				source: "file",
+			},
+			models: {},
+		});
+		const fetchMock = vi.fn(
+			async () =>
+				new Response("Authentication Fails (governor)", { status: 401 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			const resolved = await resolveProviderConfig(
+				"deepseek",
+				{ failOnError: false, cacheTtlMs: 0 },
+				{
+					providerId: "deepseek",
+					modelId: "",
+					apiKey: "sk-deepseek-key",
+					baseUrl: "https://api.deepseek.com",
+				},
+			);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"https://api.deepseek.com/models",
+				{
+					method: "GET",
+				},
+			);
+			const modelIds = Object.keys(resolved?.knownModels ?? {});
+			expect(modelIds.length).toBeGreaterThan(0);
+			expect(modelIds).toEqual(
+				expect.arrayContaining(["deepseek-chat", "deepseek-reasoner"]),
+			);
+		} finally {
+			unregisterProvider("deepseek");
+		}
+	});
+
+	it("prefers a runtime-registered model source when it returns models", async () => {
+		registerProvider({
+			provider: {
+				id: "deepseek",
+				name: "DeepSeek",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				baseUrl: "https://api.deepseek.com",
+				modelsSourceUrl: "https://api.deepseek.com/models",
+				defaultModelId: "deepseek-chat",
+				source: "file",
+			},
+			models: {},
+		});
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ data: [{ id: "deepseek-live-model" }] }),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			const resolved = await resolveProviderConfig(
+				"deepseek",
+				{ failOnError: false, cacheTtlMs: 0 },
+				{
+					providerId: "deepseek",
+					modelId: "",
+					apiKey: "sk-deepseek-key",
+					baseUrl: "https://api.deepseek.com",
+				},
+			);
+
+			expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+				"deepseek-live-model",
+			]);
+		} finally {
+			unregisterProvider("deepseek");
+		}
 	});
 
 	it("loads Poolside models from the authenticated models endpoint", async () => {
