@@ -35,6 +35,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
 import { ClineExtensionContext } from "@/shared/cline"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -928,6 +929,7 @@ export class Controller {
 
 		return {
 			version,
+			extensionVariant: getExtensionVariant(),
 			apiConfiguration,
 			currentTaskItem,
 			clineMessages,

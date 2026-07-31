@@ -164,7 +164,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	); // Empty deps - these imports never change
 
-	const { version, environment, settingsInitialModelTab } = useExtensionState();
+	const { version, extensionVariant, environment, settingsInitialModelTab } =
+		useExtensionState();
 	const { activeOrganization, clineUser } = useClineAuth();
 
 	const [activeTab, setActiveTab] = useState<string>(
@@ -278,6 +279,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			props.onResetState = handleResetState;
 		} else if (activeTab === "about") {
 			props.version = version;
+			props.extensionVariant = extensionVariant;
 		} else if (activeTab === "api-config") {
 			props.initialModelTab = settingsInitialModelTab;
 		}
@@ -288,6 +290,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		handleResetState,
 		settingsInitialModelTab,
 		version,
+		extensionVariant,
 		TAB_CONTENT_MAP,
 	]);
 
