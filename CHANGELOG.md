@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.2]
+
+### Added
+
+- Show which extension variant is active — "Legacy" or "Next" — next to the version in the settings About page, in both bundles of the combined rollout package.
+
 ## [4.1.1]
 
 ### Changed
