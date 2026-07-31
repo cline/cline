@@ -1,8 +1,6 @@
 import type { AgentSideConnection } from "@agentclientprotocol/sdk";
-import type { Message } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
-	findPersistedModelId,
 	replaySessionHistory,
 	translateHistoricalMessage,
 } from "./session-load";
@@ -135,34 +133,6 @@ describe("translateHistoricalMessage", () => {
 				content: { type: "image", data: "abc", mimeType: "image/png" },
 			},
 		]);
-	});
-});
-
-describe("findPersistedModelId", () => {
-	const messages: Message[] = [
-		{ role: "user", content: "hi" },
-		{
-			role: "assistant",
-			content: "hello",
-			modelInfo: { id: "anthropic/claude-sonnet-4.6", provider: "cline" },
-		} as Message,
-		{ role: "user", content: "more" },
-	];
-
-	it("returns the last assistant message's model for a matching provider", () => {
-		expect(findPersistedModelId(messages, "cline")).toBe(
-			"anthropic/claude-sonnet-4.6",
-		);
-	});
-
-	it("returns undefined when the recorded provider differs", () => {
-		expect(findPersistedModelId(messages, "anthropic")).toBeUndefined();
-	});
-
-	it("returns undefined when no assistant message has model info", () => {
-		expect(
-			findPersistedModelId([{ role: "user", content: "hi" }], "cline"),
-		).toBeUndefined();
 	});
 });
 

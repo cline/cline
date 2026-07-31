@@ -2,12 +2,7 @@ import type {
 	AgentSideConnection,
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import type {
-	ContentBlock,
-	Message,
-	MessageWithMetadata,
-	ToolResultContent,
-} from "@cline/shared";
+import type { ContentBlock, Message, ToolResultContent } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 /**
@@ -26,22 +21,6 @@ export async function replaySessionHistory(
 			await conn.sessionUpdate({ sessionId, update });
 		}
 	}
-}
-
-export function findPersistedModelId(
-	messages: Message[],
-	providerId: string,
-): string | undefined {
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const message = messages[i] as MessageWithMetadata;
-		if (message.role !== "assistant" || !message.modelInfo?.id) {
-			continue;
-		}
-		return message.modelInfo.provider === providerId
-			? message.modelInfo.id
-			: undefined;
-	}
-	return undefined;
 }
 
 export function translateHistoricalMessage(message: Message): SessionUpdate[] {

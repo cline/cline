@@ -46,7 +46,7 @@ import {
 	isAcpAuthMethodId,
 } from "./auth";
 import { requestAcpToolApproval } from "./permissions";
-import { findPersistedModelId, replaySessionHistory } from "./session-load";
+import { replaySessionHistory } from "./session-load";
 import {
 	forwardAgentEvent,
 	sendConfigOptionUpdate,
@@ -130,21 +130,23 @@ export class AcpAgent implements Agent {
 
 	availableModes() {
 		return [
-					{
-						id: "plan",
-						name: "Plan",
-						description:
-							"Explore the codebase and plan changes without modifying files",
-					},
-					{
-						id: "act",
-						name: "Act",
-						description: "Make changes to the codebase",
-					},
-				]
+			{
+				id: "plan",
+				name: "Plan",
+				description:
+					"Explore the codebase and plan changes without modifying files",
+			},
+			{
+				id: "act",
+				name: "Act",
+				description: "Make changes to the codebase",
+			},
+		];
 	}
 
 	async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+		this.isSessionReady();
+
 		const sessionId = randomSessionId();
 
 		const defaultMode = "act";
@@ -190,10 +192,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
-		await this.isSessionReady();
-
-		const providerId =
-			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+		this.isSessionReady();
 
 		let session = this.sessions.get(params.sessionId);
 		let messages: Message[];
@@ -206,12 +205,18 @@ export class AcpAgent implements Agent {
 				[];
 		} else {
 			if (!session) {
+				// Provider/model are not persisted per session — a session
+				// loaded on a fresh connection starts from the same defaults
+				// as a new session.
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
 					mcpServers: params.mcpServers,
 					currentMode: "act",
-					currentProviderId: providerId,
+					currentProviderId:
+						process.env.CLINE_PROVIDER ??
+						this.authResult?.providerId ??
+						"cline",
 					currentModelId:
 						process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6",
 				};
@@ -579,14 +584,6 @@ export class AcpAgent implements Agent {
 					.dispose("acp_load_session_not_found")
 					.catch(() => {});
 				throw RequestError.resourceNotFound(acpSessionId);
-			}
-
-			const persistedModelId = findPersistedModelId(
-				initialMessages,
-				session.currentProviderId,
-			);
-			if (!process.env.CLINE_MODEL && persistedModelId) {
-				session.currentModelId = persistedModelId;
 			}
 		} else {
 			initialMessages = session.pendingInitialMessages;
