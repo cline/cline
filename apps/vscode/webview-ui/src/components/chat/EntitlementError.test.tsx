@@ -144,6 +144,24 @@ describe("EntitlementError", () => {
 		await screen.findByText("Switched to Usage-Based billing")
 	})
 
+	it("keeps the confirmation visible after the config moves off cline-pass", async () => {
+		useClinePassSelection()
+		// The real switch rewrites the provider, which clears the ClinePass
+		// selection the counterpart was resolved from.
+		handleModeFieldsChangeMock.mockImplementation(async () => {
+			mockExtensionState.apiConfiguration = {
+				actModeApiProvider: "cline",
+				actModeClineModelId: "deepseek/deepseek-v4-flash",
+			}
+		})
+		render(<EntitlementError />)
+
+		fireEvent.click(screen.getByText("Switch to Usage-Based billing"))
+
+		await screen.findByText("Switched to Usage-Based billing")
+		expect(screen.getByText("Retry the request after switching.")).toBeInTheDocument()
+	})
+
 	it("hides the switch action when the catalog has no usage-billed counterpart", () => {
 		mockExtensionState.apiConfiguration = {
 			actModeApiProvider: "cline-pass",

@@ -45,7 +45,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { models: clineModels } = useProviderModels(CLINE_PROVIDER_ID)
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const [isSwitching, setIsSwitching] = useState(false)
-	const [didSwitch, setDidSwitch] = useState(false)
+	const [switchedModelId, setSwitchedModelId] = useState<string | undefined>()
 	const [switchError, setSwitchError] = useState<string | undefined>()
 
 	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl)
@@ -56,10 +56,14 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const selectedClinePassModelId = modeFields.apiProvider === "cline-pass" ? modeFields.clinePassModelId : undefined
 	// Every ClinePass model is also served through usage-based billing under its
 	// lab-prefixed id, so offer that route instead of dead-ending on "subscribe".
-	const usageBasedModelId = useMemo(
+	const selectedUsageBasedModelId = useMemo(
 		() => findUsageBasedClineModelId(selectedClinePassModelId, Object.keys(clineModels ?? {})),
 		[selectedClinePassModelId, clineModels],
 	)
+	// Switching moves the config off cline-pass, which clears the resolved
+	// counterpart; keep showing it so the confirmation and retry hint survive.
+	const usageBasedModelId = selectedUsageBasedModelId ?? switchedModelId
+	const didSwitch = switchedModelId !== undefined
 
 	const handleSwitchToUsageBasedBilling = async () => {
 		if (!usageBasedModelId) {
@@ -103,7 +107,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 				},
 				currentMode,
 			)
-			setDidSwitch(true)
+			setSwitchedModelId(usageBasedModelId)
 		} catch (error) {
 			console.error("Failed to switch to usage-based billing:", error)
 			setSwitchError(`Failed to switch model. Select ${usageBasedModelId} in API Configuration settings.`)
