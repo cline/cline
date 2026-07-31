@@ -35,10 +35,7 @@ import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
-import {
-	isClineOrgIndividualInferenceSubscriptionErrorMessage,
-	isClinePassSubscriptionError,
-} from "../utils/cline-pass-errors";
+import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
 import type { Config } from "../utils/types";
@@ -770,7 +767,7 @@ export class AcpAgent implements Agent {
  * as it forwards them across the event boundary, so `instanceof` alone fails on
  * the object ACP actually receives.
  */
-function toAcpPromptError(error: Error): RequestError {	
+function toAcpPromptError(error: Error): RequestError {
 	if (isClineOrgIndividualInferenceSubscriptionErrorMessage(error)) {
 		const message = getAcpOrgSubscriptionMessage();
 		return RequestError.internalError({ message }, message);
