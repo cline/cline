@@ -2,20 +2,10 @@ import type { ProviderSettingsManager } from "@cline/core";
 import { loginAndSaveProviderOAuthCredentials } from "@cline/core";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { writeDiagnostic } from "../utils/output";
+import type { AcpAuthMethodId } from "./auth-methods";
 
-/**
- * Supported ACP OAuth provider IDs.
- */
-export const ACP_AUTH_METHODS = [
-	{ id: "cline", name: "Sign in with Cline" },
-	{ id: "openai-codex", name: "Sign in with ChatGPT Subscription" },
-] as const;
-
-export type AcpAuthMethodId = (typeof ACP_AUTH_METHODS)[number]["id"];
-
-export function isAcpAuthMethodId(id: string): id is AcpAuthMethodId {
-	return ACP_AUTH_METHODS.some((m) => m.id === id);
-}
+export type { AcpAuthMethodId } from "./auth-methods";
+export { ACP_AUTH_METHODS, isAcpAuthMethodId } from "./auth-methods";
 
 /**
  * Perform an OAuth login for the given provider in ACP mode.
