@@ -1,7 +1,7 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
+import open from "open";
 import { useCallback } from "react";
-import { openUrlInBrowser } from "../../utils/open-url";
 import type { ClineAccountSnapshot } from "../cline-account";
 import {
 	type AccountDialogAction,
@@ -58,7 +58,7 @@ export function useAccountDialog(opts: {
 			return;
 		}
 		if (action === "learn-more") {
-			await openUrlInBrowser("https://cline.bot");
+			await open("https://cline.bot", { wait: false }).catch(() => {});
 			refocusTextarea();
 			return;
 		}

@@ -10,6 +10,7 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
+import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	getCliSubscriptionUrl,
@@ -20,7 +21,6 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { openUrlInBrowser } from "../../../utils/open-url";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -479,17 +479,17 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const openClinePassSubscriptionPage = useCallback(() => {
 		setClinePassSubscriptionOpenStatus("Opening subscription page...");
-		void openUrlInBrowser(clinePassSubscriptionUrl).then((opened) => {
-			if (opened) {
+		void open(clinePassSubscriptionUrl, { wait: false })
+			.then(() => {
 				setClinePassSubscriptionOpenStatus(
 					"Opened subscription page in your browser.",
 				);
-			} else {
+			})
+			.catch(() => {
 				setClinePassSubscriptionOpenStatus(
 					`Could not open browser automatically. Open ${clinePassSubscriptionUrl}`,
 				);
-			}
-		});
+			});
 	}, [clinePassSubscriptionUrl]);
 
 	useEffect(() => {
