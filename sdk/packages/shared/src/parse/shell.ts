@@ -89,8 +89,6 @@ export function getShellOutputEncoding(
 	) {
 		return "utf8";
 	}
-	if (shellName === "pwsh" || shellName === "pwsh.exe") return "utf8";
-
 	try {
 		return windowsCodePageToEncoding(resolveCodePage());
 	} catch {

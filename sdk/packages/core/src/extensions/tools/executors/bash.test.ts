@@ -120,6 +120,13 @@ describe("createShellExecutor", () => {
 		}
 	});
 
+	it("preserves valid UTF-8 output under a single-byte code page", () => {
+		const expected = "native UTF-8 output: café ✓ └─";
+		const collector = createRollingCollector(1000, "cp437");
+		collector.append(Buffer.from(expected, "utf8"));
+		expect(collector.snapshot().text).toBe(expected);
+	});
+
 	it.runIf(process.platform === "win32")(
 		"re-resolves the configured shell code page for each command",
 		async () => {
@@ -174,6 +181,12 @@ describe("createShellExecutor", () => {
 				"輸出",
 			);
 			expect(childProcessMocks.execFileSync).toHaveBeenCalledTimes(2);
+			expect(childProcessMocks.execFileSync).toHaveBeenNthCalledWith(
+				1,
+				"cmd.exe",
+				["/d", "/s", "/c", "chcp"],
+				expect.objectContaining({ encoding: "utf8", windowsHide: true }),
+			);
 		},
 	);
 

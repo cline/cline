@@ -81,19 +81,16 @@ interface SpawnConfig {
 	env: Record<string, string>;
 }
 
-/**
- * Collects stream output with bounded memory: the first half of the budget
- * is kept verbatim, the rest rolls so the latest output always survives.
- */
-export function createRollingCollector(maxChars: number, encoding = "utf8") {
+const SINGLE_BYTE_ENCODINGS = new Set([
+	"cp437",
+	"cp850",
+	"cp866",
+	"windows1252",
+]);
+
+function createTextAccumulator(maxChars: number) {
 	const headLimit = Math.ceil(maxChars / 2);
 	const tailLimit = Math.max(1, maxChars - headLimit);
-	// StringDecoder keeps multibyte UTF-8 sequences split across stream
-	// chunks intact instead of corrupting them at chunk boundaries.
-	const decoder =
-		encoding === "utf8"
-			? new StringDecoder("utf8")
-			: iconv.getDecoder(encoding);
 	let head = "";
 	let tail = "";
 	let totalChars = 0;
@@ -111,19 +108,64 @@ export function createRollingCollector(maxChars: number, encoding = "utf8") {
 	};
 
 	return {
-		append(data: Buffer): void {
-			appendText(decoder.write(data));
-		},
+		appendText,
 		snapshot() {
-			// Flush bytes the decoder buffered for an incomplete multibyte
-			// sequence at end-of-stream; otherwise the final characters of
-			// non-ASCII output are silently dropped.
-			appendText(decoder.end() ?? "");
 			return {
 				text: head + tail,
 				totalChars,
 				dropped: totalChars > head.length + tail.length,
 			};
+		},
+	};
+}
+
+/**
+ * Collects stream output with bounded memory: the first half of the budget
+ * is kept verbatim, the rest rolls so the latest output always survives.
+ */
+export function createRollingCollector(maxChars: number, encoding = "utf8") {
+	if (SINGLE_BYTE_ENCODINGS.has(encoding)) {
+		// Prefer UTF-8 for single-byte code pages when child tools emit valid UTF-8.
+		const utf8Decoder = new StringDecoder("utf8");
+		const legacyDecoder = iconv.getDecoder(encoding);
+		const utf8 = createTextAccumulator(maxChars);
+		const legacy = createTextAccumulator(maxChars);
+		let utf8Invalid = false;
+
+		return {
+			append(data: Buffer): void {
+				const utf8Text = utf8Decoder.write(data);
+				utf8Invalid ||= utf8Text.includes("\uFFFD");
+				utf8.appendText(utf8Text);
+				legacy.appendText(legacyDecoder.write(data));
+			},
+			snapshot() {
+				const utf8End = utf8Decoder.end() ?? "";
+				const legacyEnd = legacyDecoder.end() ?? "";
+				utf8Invalid ||= utf8End.includes("\uFFFD");
+				utf8.appendText(utf8End);
+				legacy.appendText(legacyEnd);
+				return (utf8Invalid ? legacy : utf8).snapshot();
+			},
+		};
+	}
+
+	const decoder =
+		encoding === "utf8"
+			? new StringDecoder("utf8")
+			: iconv.getDecoder(encoding);
+	const accumulator = createTextAccumulator(maxChars);
+
+	return {
+		append(data: Buffer): void {
+			accumulator.appendText(decoder.write(data));
+		},
+		snapshot() {
+			// Flush bytes the decoder buffered for an incomplete multibyte
+			// sequence at end-of-stream; otherwise the final characters of
+			// non-ASCII output are silently dropped.
+			accumulator.appendText(decoder.end() ?? "");
+			return accumulator.snapshot();
 		},
 	};
 }
@@ -308,12 +350,16 @@ export function parseWindowsCodePage(output: string): number {
 
 function resolveWindowsCodePage(): number {
 	try {
-		const output = childProcess.execFileSync("chcp", [], {
-			encoding: "utf8",
-			maxBuffer: 4096,
-			timeout: 1000,
-			windowsHide: true,
-		});
+		const output = childProcess.execFileSync(
+			"cmd.exe",
+			["/d", "/s", "/c", "chcp"],
+			{
+				encoding: "utf8",
+				maxBuffer: 4096,
+				timeout: 1000,
+				windowsHide: true,
+			},
+		);
 		return parseWindowsCodePage(output);
 	} catch {
 		return 65001;
