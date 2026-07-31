@@ -45,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
+import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -2238,18 +2239,22 @@ export function sdkMessagesToClineMessages(
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
-				// Visible user text marks a turn boundary: drop the preceding turn's outcome
+				// User text marks a turn boundary: drop the preceding turn's outcome
 				// signals (its text is NOT retagged — see endFinalTurn) and pick up the mode
-				// of the NEW turn from this message's wrapper.
+				// of the NEW turn from this message's wrapper. Synthetic runtime prompts
+				// (task resumption, plan -> act auto-continue) still advance the turn/mode
+				// state but never had a visible bubble live, so don't emit one here either.
 				state.clearTurnOutcome()
 				currentMode = message.uiMode ?? currentMode
-				clineMessages.push({
-					ts: state.nextTs(),
-					type: "say",
-					say: clineMessages.length === 0 ? "task" : "user_feedback",
-					text,
-					partial: false,
-				})
+				if (!isSyntheticSdkUserMessage(message)) {
+					clineMessages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: clineMessages.length === 0 ? "task" : "user_feedback",
+						text,
+						partial: false,
+					})
+				}
 			}
 			continue
 		}
@@ -2258,13 +2263,15 @@ export function sdkMessagesToClineMessages(
 		if (userText) {
 			state.clearTurnOutcome()
 			currentMode = message.uiMode ?? currentMode
-			clineMessages.push({
-				ts: state.nextTs(),
-				type: "say",
-				say: clineMessages.length === 0 ? "task" : "user_feedback",
-				text: userText,
-				partial: false,
-			})
+			if (!isSyntheticSdkUserMessage(message)) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: clineMessages.length === 0 ? "task" : "user_feedback",
+					text: userText,
+					partial: false,
+				})
+			}
 		}
 
 		for (const block of message.content) {

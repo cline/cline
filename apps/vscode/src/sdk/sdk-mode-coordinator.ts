@@ -10,6 +10,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
+import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-user-message-mapping"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -22,7 +23,7 @@ function usesClineAccountAuth(providerId: string): boolean {
 	return getProviderAuthStorageId(providerId) === "cline"
 }
 
-export const ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
+export { ACT_MODE_CONTINUATION_PROMPT }
 
 export interface SdkModeCoordinatorOptions {
 	stateManager: StateManager
