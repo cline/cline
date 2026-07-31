@@ -31,6 +31,14 @@ describe("cline-pass-errors", () => {
 		expect(formatCliErrorMessage(new Error(formatted))).toBe(formatted);
 	});
 
+	it("points ClinePass subscription errors at Cline usage-based billing", () => {
+		const formatted = getCliNotSubscribedMessage();
+
+		expect(formatted).toContain("switch to Cline usage-based billing");
+		expect(formatted).toContain("/model");
+		expect(formatted).toContain("--provider cline");
+	});
+
 	it("formats the ClinePass subscription URL", () => {
 		expect(getCliSubscriptionUrl()).toBe(
 			"https://app.cline.bot/promo?code=CLI-8OFF&personal=true",

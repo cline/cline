@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import EntitlementError from "./EntitlementError"
 
@@ -6,24 +6,65 @@ const mockAuth: { clineUser: { appBaseUrl?: string } | null } = {
 	clineUser: null,
 }
 
+const mockApiConfiguration: Record<string, unknown> = {}
+const mockClineModels: { models: Record<string, { name?: string }> } = { models: {} }
+
 vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => mockAuth,
 }))
 
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({
+		apiConfiguration: mockApiConfiguration,
+		mode: "act",
+	}),
+}))
+
+vi.mock("@/hooks/useProviderModels", () => ({
+	useProviderModels: () => mockClineModels,
+}))
+
+const handleModeFieldsChangeMock = vi.fn()
+vi.mock("@/components/settings/utils/useApiConfigurationHandlers", () => ({
+	useApiConfigurationHandlers: () => ({
+		handleModeFieldsChange: (...args: unknown[]) => handleModeFieldsChangeMock(...args),
+	}),
+}))
+
 const askResponseMock = vi.fn()
+const commitModelSelectionMock = vi.fn()
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
 		askResponse: (...args: unknown[]) => askResponseMock(...args),
+	},
+	ModelsServiceClient: {
+		commitModelSelection: (...args: unknown[]) => commitModelSelectionMock(...args),
 	},
 }))
 
 const getSubscribeHref = () => screen.getByRole("link", { name: /get clinepass/i }).getAttribute("href")
 const querySubscribeLink = () => screen.queryByRole("link", { name: /get clinepass/i })
+const querySwitchButton = () => screen.queryByText("Switch to Usage-Based billing")
+
+function useClinePassSelection() {
+	mockApiConfiguration.actModeApiProvider = "cline-pass"
+	mockApiConfiguration.actModeClinePassModelId = "cline-pass/deepseek-v4-flash"
+	mockClineModels.models = {
+		"deepseek/deepseek-v4-flash": { name: "DeepSeek V4 Flash" },
+		"anthropic/claude-opus-5": { name: "Claude Opus 5" },
+	}
+}
 
 describe("EntitlementError", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockAuth.clineUser = null
+		for (const key of Object.keys(mockApiConfiguration)) {
+			delete mockApiConfiguration[key]
+		}
+		mockClineModels.models = {}
+		commitModelSelectionMock.mockResolvedValue({})
+		handleModeFieldsChangeMock.mockResolvedValue(undefined)
 	})
 
 	it("shows friendly copy with the backend detail as muted support text", () => {
@@ -66,5 +107,47 @@ describe("EntitlementError", () => {
 		expect(askResponseMock.mock.calls[0][0]).toMatchObject({
 			responseType: "yesButtonClicked",
 		})
+	})
+
+	it("offers the usage-billed twin of the subscription-gated model", () => {
+		useClinePassSelection()
+		render(<EntitlementError />)
+
+		expect(screen.getByText(/deepseek\/deepseek-v4-flash is billed per token/)).toBeInTheDocument()
+		expect(querySwitchButton()).toBeInTheDocument()
+	})
+
+	it("switches the provider and model to Cline usage-based billing", async () => {
+		useClinePassSelection()
+		render(<EntitlementError />)
+
+		fireEvent.click(screen.getByText("Switch to Usage-Based billing"))
+
+		await waitFor(() => expect(commitModelSelectionMock).toHaveBeenCalledTimes(1))
+		expect(commitModelSelectionMock.mock.calls[0][0]).toMatchObject({
+			providerId: "cline",
+			mode: "act",
+			modelId: "deepseek/deepseek-v4-flash",
+		})
+
+		await waitFor(() => expect(handleModeFieldsChangeMock).toHaveBeenCalledTimes(1))
+		expect(handleModeFieldsChangeMock.mock.calls[0][1]).toMatchObject({
+			apiProvider: "cline",
+			clineModelId: "deepseek/deepseek-v4-flash",
+		})
+		expect(handleModeFieldsChangeMock.mock.calls[0][2]).toBe("act")
+
+		expect(await screen.findByText("Switched to Usage-Based billing")).toBeInTheDocument()
+	})
+
+	it("hides the switch action when the catalog has no usage-billed twin", () => {
+		mockApiConfiguration.actModeApiProvider = "cline-pass"
+		mockApiConfiguration.actModeClinePassModelId = "cline-pass/subscription-only-model"
+		mockClineModels.models = { "deepseek/deepseek-v4-flash": {} }
+
+		render(<EntitlementError />)
+
+		expect(querySwitchButton()).toBeNull()
+		expect(screen.getByText("Subscribe to ClinePass to use this model, then retry your request.")).toBeInTheDocument()
 	})
 })

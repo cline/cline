@@ -7,6 +7,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
+	CLINE_PASS_USAGE_BILLING_ALTERNATIVE,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
@@ -396,6 +397,19 @@ function ClinePassSubscriptionErrorView(props: {
 					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
+				</box>
+				<box flexDirection="column" marginTop={1}>
+					<text
+						fg={props.defaultFg}
+						selectable
+						content={CLINE_PASS_USAGE_BILLING_ALTERNATIVE}
+					/>
+					<box flexDirection="row">
+						<text fg="gray">Switch: </text>
+						<text fg="gray">
+							type /model in CLI and pick the same model under Cline
+						</text>
+					</box>
 				</box>
 			</box>
 		</box>

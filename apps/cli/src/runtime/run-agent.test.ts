@@ -42,7 +42,12 @@ const CLINE_PASS_SUBSCRIPTION_URL =
 const CLI_SUBSCRIPTION_URL =
 	"https://app.cline.bot/promo?code=CLI-8OFF&personal=true";
 const SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
-const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLI_SUBSCRIPTION_URL}`;
+const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = [
+	`No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLI_SUBSCRIPTION_URL}`,
+	"Or switch to Cline usage-based billing, where the same models are billed per token with no subscription.",
+	"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
+	"Headless CLI: rerun with --provider cline.",
+].join("\n");
 const CLINE_PASS_LIMIT_DETAIL_MESSAGE =
 	"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
 const CLI_CLINE_PASS_LIMIT_MESSAGE = [

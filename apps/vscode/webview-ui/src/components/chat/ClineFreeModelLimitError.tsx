@@ -1,6 +1,7 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
+import { CLINE_PASS_PROVIDER_ID, CLINE_PROVIDER_ID, findUsageBilledModelId } from "@shared/utils/cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useMemo, useState } from "react"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
@@ -13,8 +14,6 @@ interface ClineFreeModelLimitErrorProps {
 	message: string
 }
 
-const CLINE_PROVIDER_ID = "cline"
-const CLINE_FREE_MODEL_PREFIX = "cline-free/"
 const FREE_MODEL_LIMIT_RETRY_MARKER = "try again in "
 
 function extractFreeModelLimitResetTime(message: string): string | undefined {
@@ -26,24 +25,6 @@ function extractFreeModelLimitResetTime(message: string): string | undefined {
 
 	const resetTime = backendMessage.slice(resetStart + FREE_MODEL_LIMIT_RETRY_MARKER.length).trim()
 	return resetTime || undefined
-}
-
-// Free model ids are cline-free/<model-slug>; their paid counterpart is the
-// catalog model with the same slug under its lab prefix (e.g.
-// cline-free/deepseek-v4-flash -> deepseek/deepseek-v4-flash).
-function findPaidModelId(freeModelId: string | undefined, clineModelIds: string[]): string | undefined {
-	if (!freeModelId?.startsWith(CLINE_FREE_MODEL_PREFIX)) {
-		return undefined
-	}
-
-	const modelSlug = freeModelId.slice(CLINE_FREE_MODEL_PREFIX.length)
-	if (!modelSlug) {
-		return undefined
-	}
-
-	return clineModelIds.find(
-		(modelId) => !modelId.startsWith(CLINE_FREE_MODEL_PREFIX) && (modelId === modelSlug || modelId.endsWith(`/${modelSlug}`)),
-	)
 }
 
 const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) => {
@@ -60,13 +41,13 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 	// Free models are selectable on both the cline and cline-pass providers, so
 	// read the model id from whichever provider is currently selected.
 	const selectedFreeModelId =
-		modeFields.apiProvider === "cline-pass"
+		modeFields.apiProvider === CLINE_PASS_PROVIDER_ID
 			? modeFields.clinePassModelId
 			: modeFields.apiProvider === CLINE_PROVIDER_ID
 				? modeFields.clineModelId
 				: undefined
 	const paidModelId = useMemo(
-		() => findPaidModelId(selectedFreeModelId, Object.keys(clineModels ?? {})),
+		() => findUsageBilledModelId(selectedFreeModelId, Object.keys(clineModels ?? {})),
 		[selectedFreeModelId, clineModels],
 	)
 
