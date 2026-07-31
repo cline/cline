@@ -9,7 +9,7 @@ import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import { setDistinctId } from "../logging/distinctId"
+import { getDeviceId, setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
@@ -508,6 +508,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(event.properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event.event, propertiesWithMetadata, false)
 	}
@@ -521,6 +522,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event, propertiesWithMetadata, true)
 	}
@@ -548,10 +550,16 @@ export class TelemetryService {
 	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
 		return {
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 			...(this.userId ? { userId: this.userId } : {}),
 			...this.activeOrg,
 			...(extra ?? {}),
 		}
+	}
+
+	private getDeviceIdProperty(): TelemetryProperties {
+		const deviceId = getDeviceId()
+		return deviceId ? { device_id: deviceId } : {}
 	}
 
 	private recordCounter(

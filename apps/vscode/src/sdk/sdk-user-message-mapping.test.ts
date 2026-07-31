@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
 import {
+	ACT_MODE_CONTINUATION_PROMPT,
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
 	getSdkCheckpointRunCountForMessageIndex,

@@ -441,8 +441,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		[currentPage, stepNumber, userType],
 	)
 
+	// `markCompleted: false` saves the selection but leaves the welcome view open:
+	// for OAuth sign-ups the host marks it completed once authentication actually
+	// succeeds, which switches this view to chat automatically.
 	const finishOnboarding = useCallback(
-		async (updateModelId: boolean, step: number) => {
+		async (updateModelId: boolean, step: number, markCompleted = true) => {
 			const modelSelected = (updateModelId && selectedModelId) || undefined
 			// Guard: never save a non-ClinePass model id under the cline-pass provider.
 			const isClinePassModel = selectedModelId.startsWith("cline-pass/")
@@ -490,10 +493,12 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				}
 			}
 
-			await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
-			setShowWelcome(false)
-			hideAccount()
-			hideSettings()
+			if (markCompleted) {
+				await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+				setShowWelcome(false)
+				hideAccount()
+				hideSettings()
+			}
 			StateServiceClient.captureOnboardingProgress({
 				step,
 				action: "completed",
@@ -549,7 +554,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					}
 				})
 
-			await finishOnboarding(updateModelId, step)
+			// Save the selection but stay on the "Almost there!" step — the host
+			// completes the welcome view once the browser sign-in succeeds.
+			await finishOnboarding(updateModelId, step, false)
 			setIsActionLoading(false)
 		},
 		[finishOnboarding],

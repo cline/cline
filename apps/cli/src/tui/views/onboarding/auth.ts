@@ -8,8 +8,8 @@ import {
 	startClineDeviceAuth,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
-import open from "open";
 import { identifyFeatureFlagsAccount } from "../../../utils/feature-flags";
+import { openUrlInBrowser } from "../../../utils/open-url";
 
 export type OnboardingOAuthProviderId = string;
 
@@ -43,13 +43,11 @@ export function runOAuthAuthFlow(input: {
 		(url: string) => {
 			input.setAuthUrl(url);
 			input.setStatus("Waiting for sign-in...");
-			try {
-				void open(url, { wait: false }).catch(() => {
+			void openUrlInBrowser(url).then((opened) => {
+				if (!opened) {
 					input.setStatus("Could not open browser. Visit the URL below.");
-				});
-			} catch {
-				input.setStatus("Could not open browser. Visit the URL below.");
-			}
+				}
+			});
 		},
 		input.telemetry,
 	)
@@ -105,13 +103,11 @@ export function runDeviceCodeAuthFlow(input: {
 			input.setUserCode(result.userCode);
 			input.setVerifyUrl(verifyUrl);
 			input.setStatus("Enter the code at the URL below");
-			try {
-				void open(verifyUrl, { wait: false }).catch(() => {
+			void openUrlInBrowser(verifyUrl).then((opened) => {
+				if (!opened) {
 					input.setStatus("Could not open browser. Visit the URL below.");
-				});
-			} catch {
-				input.setStatus("Could not open browser. Visit the URL below.");
-			}
+				}
+			});
 
 			completeClineDeviceAuth({
 				deviceCode: result.deviceCode,

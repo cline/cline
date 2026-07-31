@@ -21,19 +21,19 @@
  * }
  * ```
  *
- * Field mapping (extension <- SDK), with defaults sourced from
- * `openAiModelInfoSafeDefaults` ("SD"):
+ * Field mapping (extension <- SDK), with safe defaults sourced from
+ * `openAiModelInfoSafeDefaults`:
  *
  * | extension ModelInfo field | source | default if missing |
  * | --- | --- | --- |
  * | name | `sdk.name ?? sdk.id` | n/a (id is required) |
- * | contextWindow | `sdk.contextWindow` if finite number | SD.contextWindow (128_000) |
- * | maxTokens | `sdk.maxTokens` if finite number | SD.maxTokens (-1) |
- * | supportsImages | capabilities includes `images` or `vision` | SD.supportsImages (true) when capabilities absent |
- * | supportsPromptCache | capabilities includes `prompt-cache`; if capabilities absent, use SD | SD.supportsPromptCache (false) |
+ * | contextWindow | `sdk.contextWindow` if finite number (null = missing) | safe default: 128_000 |
+ * | maxTokens | `sdk.maxTokens` if finite number (null = missing) | safe default: -1 |
+ * | supportsImages | capabilities includes `images` or `vision` | safe default: true when capabilities absent |
+ * | supportsPromptCache | capabilities includes `prompt-cache` | safe default: false when capabilities absent |
  * | supportsReasoning | capabilities includes `reasoning` | omitted (undefined) |
- * | inputPrice | `sdk.pricing.input` if finite number | SD.inputPrice (0) |
- * | outputPrice | `sdk.pricing.output` if finite number | SD.outputPrice (0) |
+ * | inputPrice | `sdk.pricing.input` if finite number | safe default: 0 |
+ * | outputPrice | `sdk.pricing.output` if finite number | safe default: 0 |
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
@@ -174,15 +174,18 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		})
 	}
 
+	// Live provider catalogs (e.g. a LiteLLM proxy's /model/info) report
+	// unknown limits as explicit nulls; treat null like "missing" (same as
+	// pricing below) so one such model doesn't fail the whole catalog.
 	const rawContextWindow = input.contextWindow
-	if (rawContextWindow !== undefined && !isFiniteNumber(rawContextWindow)) {
+	if (rawContextWindow !== undefined && rawContextWindow !== null && !isFiniteNumber(rawContextWindow)) {
 		throw new CatalogShapeError("SDK model-info `contextWindow` must be a finite number when present.", {
 			details: { receivedType: typeof rawContextWindow },
 		})
 	}
 
 	const rawMaxTokens = input.maxTokens
-	if (rawMaxTokens !== undefined && !isFiniteNumber(rawMaxTokens)) {
+	if (rawMaxTokens !== undefined && rawMaxTokens !== null && !isFiniteNumber(rawMaxTokens)) {
 		throw new CatalogShapeError("SDK model-info `maxTokens` must be a finite number when present.", {
 			details: { receivedType: typeof rawMaxTokens },
 		})

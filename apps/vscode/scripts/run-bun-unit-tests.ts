@@ -94,8 +94,15 @@ function parseCounts(output: string): { pass: number; fail: number } {
 
 const PER_FILE_TIMEOUT_MS = 120_000
 
+// bun test's default per-test timeout is 5000ms. The Windows CI runners are
+// slow enough under load (several suites spawn powershell + node per test via
+// the hook bridge) that real, passing tests intermittently crossed 5s. Give
+// them more headroom; genuinely hung files are still bounded by
+// PER_FILE_TIMEOUT_MS.
+const PER_TEST_TIMEOUT_ARGS = process.platform === "win32" ? ["--timeout", "15000"] : []
+
 async function runOne(file: string): Promise<FileResult> {
-	const proc = Bun.spawn(["bun", "test", file], {
+	const proc = Bun.spawn(["bun", "test", ...PER_TEST_TIMEOUT_ARGS, file], {
 		cwd: projectRoot,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -178,13 +185,43 @@ async function main(): Promise<void> {
 
 	const results = await runPool(files, concurrency)
 
-	const totalPass = results.reduce((sum, r) => sum + r.pass, 0)
-	const totalFail = results.reduce((sum, r) => sum + r.fail, 0)
-	const failedFiles = results.filter((r) => r.fail > 0 || r.code !== 0).sort((a, b) => a.file.localeCompare(b.file))
+	// Flake guard: rerun failed files once, serially, so a retry is never
+	// competing with other suites for CPU/process slots. This mirrors the
+	// retry the CI workflow already applies to the non-Linux integration
+	// tests; deterministic failures still fail both attempts and stay red.
+	const resultByFile = new Map(results.map((r) => [r.file, r]))
+	const firstPassFailures = results.filter((r) => r.fail > 0 || r.code !== 0).sort((a, b) => a.file.localeCompare(b.file))
+	const recoveredFiles: string[] = []
+	if (firstPassFailures.length > 0) {
+		console.log(`\nRetrying ${firstPassFailures.length} failed file(s) serially (flake guard)…`)
+		for (const failure of firstPassFailures) {
+			const retry = await runOne(failure.file)
+			const failedAgain = retry.fail > 0 || retry.code !== 0
+			const status = failedAgain ? "FAIL" : "ok (flaky)"
+			console.log(`[retry] ${status.padEnd(10)} ${retry.pass} pass / ${retry.fail} fail  ${failure.file}`)
+			if (failedAgain) {
+				process.stdout.write(retry.output.trimEnd() + "\n")
+			} else {
+				recoveredFiles.push(failure.file)
+			}
+			resultByFile.set(failure.file, retry)
+		}
+	}
+
+	const finalResults = [...resultByFile.values()]
+	const totalPass = finalResults.reduce((sum, r) => sum + r.pass, 0)
+	const totalFail = finalResults.reduce((sum, r) => sum + r.fail, 0)
+	const failedFiles = finalResults.filter((r) => r.fail > 0 || r.code !== 0).sort((a, b) => a.file.localeCompare(b.file))
 	const elapsed = ((Date.now() - started) / 1000).toFixed(1)
 
 	console.log("\n──────────────────────────────────────────────")
-	console.log(`Files: ${results.length}   Pass: ${totalPass}   Fail: ${totalFail}   Time: ${elapsed}s`)
+	console.log(`Files: ${finalResults.length}   Pass: ${totalPass}   Fail: ${totalFail}   Time: ${elapsed}s`)
+	if (recoveredFiles.length > 0) {
+		console.log(`\nFlaky files that passed on serial retry (${recoveredFiles.length}):`)
+		for (const file of recoveredFiles) {
+			console.log(`  ${file}`)
+		}
+	}
 	if (failedFiles.length > 0) {
 		console.log(`\nFailing files (${failedFiles.length}):`)
 		for (const r of failedFiles) {

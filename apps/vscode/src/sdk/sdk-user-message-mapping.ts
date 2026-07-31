@@ -1,5 +1,12 @@
 import { normalizeUserInput, stripModeNotices } from "@cline/shared"
-import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
+
+/**
+ * Canned prompt SdkModeCoordinator sends to drive the plan -> act
+ * auto-continuation. Defined here (a leaf module) rather than in the
+ * coordinator so display-layer consumers (message-translator, ordinal
+ * mapping) don't pull the coordinator's heavy import graph into their tests.
+ */
+export const ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
 
 export type SdkUserMessage = {
 	role?: unknown

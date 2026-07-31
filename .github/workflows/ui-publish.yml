@@ -44,7 +44,7 @@ jobs:
           node-version: "24.x"
 
       - name: Install dependencies
-        run: bun install --filter @cline/ui --filter @cline/code --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Typecheck UI
         run: bun -F @cline/ui typecheck
@@ -57,6 +57,11 @@ jobs:
 
       - name: Build UI package
         run: bun -F @cline/ui build
+
+      # The desktop chat test imports @cline/shared/browser, which resolves to
+      # dist output that nothing else in this job builds.
+      - name: Build shared package
+        run: bun -F @cline/shared build
 
       - name: Test desktop chat integration
         run: bun -F @cline/code test:chat-ui
