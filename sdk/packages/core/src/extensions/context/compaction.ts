@@ -374,6 +374,7 @@ export function createContextCompactionPrepareTurn(
 			messages: context.messages,
 			model: context.model,
 			mode: effectiveMode,
+			abortSignal: context.abortSignal,
 			budget: {
 				request: {
 					inputTokens: requestInputTokens,

@@ -2327,9 +2327,13 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it("uses a successful custom compactor during overflow recovery", async () => {
+		const abortSignal = new AbortController().signal;
 		const compacted = [{ role: "user" as const, content: "custom fold" }];
 		const compact = vi.fn(async (context: CoreCompactionContext) => {
 			expect(context.mode).toBe("overflow_recovery");
+			// Custom compactors receive the turn's abort signal so a stalled
+			// external call can be cancelled instead of blocking recovery.
+			expect(context.abortSignal).toBe(abortSignal);
 			return { messages: compacted };
 		});
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -2348,7 +2352,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
-			abortSignal: new AbortController().signal,
+			abortSignal,
 			overflowRecovery: true,
 			systemPrompt: "You are helpful.",
 			tools: [],
