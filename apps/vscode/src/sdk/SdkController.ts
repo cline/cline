@@ -1053,13 +1053,12 @@ export class Controller {
 			requestId: clineError.requestId,
 			errorType: event.errorType,
 			failurePhase: event.failurePhase,
-			// The SDK extension only ever reports fatal failures: transient
+			// Every event here is a failure the user actually saw: transient
 			// errors are retried inside the provider layer before any event
 			// reaches this adapter, and recoverable in-run notices are filtered
-			// out upstream. Stamped explicitly so cross-cohort dashboard
-			// queries can filter fatal = true on both bundles (the legacy
-			// extension reports auto-retried attempts with fatal = false).
-			fatal: true,
+			// out upstream. The legacy extension applies the same
+			// surfaced-failures-only rule at its emission sites, so the A/B
+			// cohorts compare directly with no query-side filtering.
 		})
 	}
 
