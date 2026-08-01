@@ -33,6 +33,12 @@ interface AgentEventDeps {
 	modelId?: string;
 }
 
+// Streamed text/reasoning deltas are buffered and flushed to React state at
+// most once per interval. Committing every delta re-renders the transcript
+// (and re-parses the streaming markdown entry) hundreds of times per second,
+// which wastes CPU and permanently grows native renderer memory.
+const STREAM_DELTA_FLUSH_MS = 50;
+
 export function useAgentEventHandlers(deps: AgentEventDeps) {
 	const openCompactionEntryRef = useRef(false);
 	const {
@@ -48,6 +54,48 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		verbose,
 		modelId,
 	} = deps;
+
+	const pendingDeltaRef = useRef<{
+		kind: "assistant_text" | "reasoning";
+		buffer: string;
+	} | null>(null);
+	const deltaFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	const flushPendingDelta = useCallback(() => {
+		if (deltaFlushTimerRef.current !== null) {
+			clearTimeout(deltaFlushTimerRef.current);
+			deltaFlushTimerRef.current = null;
+		}
+		const pending = pendingDeltaRef.current;
+		pendingDeltaRef.current = null;
+		if (!pending || pending.buffer.length === 0) return;
+		updateLastEntry((prev) =>
+			prev.kind === pending.kind
+				? { ...prev, text: prev.text + pending.buffer }
+				: prev,
+		);
+	}, [updateLastEntry]);
+
+	const queuePendingDelta = useCallback(
+		(kind: "assistant_text" | "reasoning", chunk: string) => {
+			const pending = pendingDeltaRef.current;
+			if (pending && pending.kind === kind) {
+				pending.buffer += chunk;
+			} else {
+				flushPendingDelta();
+				pendingDeltaRef.current = { kind, buffer: chunk };
+			}
+			if (deltaFlushTimerRef.current === null) {
+				deltaFlushTimerRef.current = setTimeout(() => {
+					deltaFlushTimerRef.current = null;
+					flushPendingDelta();
+				}, STREAM_DELTA_FLUSH_MS);
+			}
+		},
+		[flushPendingDelta],
+	);
 
 	// Compaction dividers that arrived while an assistant message was still
 	// streaming. Appending them immediately would split the message in two, so
@@ -124,6 +172,15 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 
 	const handleAgentEvent = useCallback(
 		(event: AgentEvent) => {
+			// Any event other than an inline text/reasoning delta must observe
+			// the transcript with all buffered deltas applied, otherwise
+			// entries would be appended out of order.
+			const isInlineDelta =
+				event.type === "content_start" &&
+				(event.contentType === "text" || event.contentType === "reasoning");
+			if (!isInlineDelta) {
+				flushPendingDelta();
+			}
 			switch (event.type) {
 				case "iteration_start":
 					setIsRunning(true);
@@ -140,6 +197,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					switch (event.contentType) {
 						case "text": {
 							if (activeInlineStreamRef.current !== "text") {
+								flushPendingDelta();
 								closeInlineStream();
 								activeInlineStreamRef.current = "text";
 								appendEntry({
@@ -148,11 +206,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 									streaming: true,
 								});
 							} else {
-								updateLastEntry((prev) =>
-									prev.kind === "assistant_text"
-										? { ...prev, text: prev.text + (event.text ?? "") }
-										: prev,
-								);
+								queuePendingDelta("assistant_text", event.text ?? "");
 							}
 							break;
 						}
@@ -162,6 +216,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 									? "[redacted]"
 									: (event.reasoning ?? "");
 							if (activeInlineStreamRef.current !== "reasoning") {
+								flushPendingDelta();
 								closeInlineStream();
 								activeInlineStreamRef.current = "reasoning";
 								appendEntry({
@@ -170,11 +225,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 									streaming: true,
 								});
 							} else {
-								updateLastEntry((prev) =>
-									prev.kind === "reasoning"
-										? { ...prev, text: prev.text + chunk }
-										: prev,
-								);
+								queuePendingDelta("reasoning", chunk);
 							}
 							break;
 						}
@@ -282,7 +333,6 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		},
 		[
 			appendEntry,
-			updateLastEntry,
 			updateEntry,
 			closeInlineStream,
 			activeInlineStreamRef,
@@ -295,12 +345,15 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 			closeToolEntry,
 			finalizeDanglingCompactionEntry,
 			flushPendingCompactionEntries,
+			flushPendingDelta,
+			queuePendingDelta,
 		],
 	);
 
 	const handleTeamEvent = useCallback(
 		(event: TeamEvent) => {
 			const team = (text: string) => {
+				flushPendingDelta();
 				closeInlineStream();
 				appendEntry({ kind: "team", text });
 			};
@@ -374,7 +427,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					break;
 			}
 		},
-		[appendEntry, closeInlineStream],
+		[appendEntry, closeInlineStream, flushPendingDelta],
 	);
 
 	const handlePendingPrompts = useCallback((event: PendingPromptSnapshot) => {
@@ -384,6 +437,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 	const handlePendingPromptSubmitted = useCallback(
 		(event: PendingPromptSubmittedEvent) => {
 			knownPendingPromptIdsRef.current.delete(event.id);
+			flushPendingDelta();
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
@@ -392,7 +446,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 				text: formatDisplayUserInput(event.prompt),
 			});
 		},
-		[appendEntry],
+		[appendEntry, flushPendingDelta],
 	);
 
 	return {

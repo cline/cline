@@ -31,6 +31,7 @@ import {
 } from "../palette";
 import type { ChatEntry } from "../types";
 import { formatCompactionDividerLabel } from "../utils/compaction-status";
+import { splitStreamingMarkdown } from "../utils/streaming-markdown";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
@@ -621,22 +622,52 @@ export function ChatEntryView(props: {
 		case "assistant_text": {
 			const content = trimLeading(entry.text);
 			if (!content.trim()) return null;
+			if (!entry.streaming) {
+				return (
+					<box flexDirection="row">
+						<box width={2}>
+							<text fg={accent}>*</text>
+						</box>
+						<box flexGrow={1}>
+							<markdown
+								content={content}
+								syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
+								fg={defaultFg}
+							/>
+						</box>
+					</box>
+				);
+			}
+			// While streaming, split off the stable prefix so only the active
+			// tail re-parses per update. Re-parsing the whole document per
+			// streamed chunk grows native memory unboundedly and costs
+			// O(document) CPU per token (see streaming-markdown.ts).
+			const { stable, tail } = splitStreamingMarkdown(content);
 			return (
 				<box flexDirection="row">
 					<box width={2}>
-						{entry.streaming ? (
-							<spinner name="dots" color={accent} />
-						) : (
-							<text fg={accent}>*</text>
-						)}
+						<spinner name="dots" color={accent} />
 					</box>
-					<box flexGrow={1}>
-						<markdown
-							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
-							streaming={entry.streaming}
-							fg={defaultFg}
-						/>
+					<box flexGrow={1} flexDirection="column">
+						{stable.trim().length > 0 && (
+							<markdown
+								content={stable}
+								syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
+								fg={defaultFg}
+							/>
+						)}
+						{tail.trim().length > 0 && (
+							<markdown
+								content={tail}
+								syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
+								streaming
+								fg={defaultFg}
+								// The block separator (blank line) lives at the end of the
+								// stable prefix, which the markdown renderer trims; restore
+								// it so the junction matches single-document rendering.
+								marginTop={stable.trim().length > 0 ? 1 : 0}
+							/>
+						)}
 					</box>
 				</box>
 			);
