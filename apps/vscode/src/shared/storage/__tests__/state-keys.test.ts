@@ -130,6 +130,10 @@ describe("State Keys Type Safety", () => {
 			}
 		})
 
+		it("defaults terminal execution to the VS Code terminal", () => {
+			expect(getDefaultValue("vscodeTerminalExecutionMode")).to.equal("vscodeTerminal")
+		})
+
 		it("should have Settings defaults with correct runtime types", () => {
 			const defaults = SETTINGS_DEFAULTS as Record<string, unknown>
 

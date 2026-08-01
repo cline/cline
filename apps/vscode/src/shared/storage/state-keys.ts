@@ -76,10 +76,9 @@ const GLOBAL_STATE_FIELDS = {
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {
-		// Default to background execution to match the CLI's behavior. Users who
-		// previously chose a mode keep their saved value (we can't distinguish an
-		// explicit choice from a coincidentally-saved old default, so we honor it).
-		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
+		// Defaults only apply when no value is stored, so users who previously
+		// chose either mode keep their saved preference.
+		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
@@ -275,7 +274,7 @@ const USER_SETTINGS_FIELDS = {
 	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
-	useAutoCondense: { default: false as boolean },
+	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
@@ -283,7 +282,7 @@ const USER_SETTINGS_FIELDS = {
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	showFeatureTips: { default: true as boolean },
+	showFeatureTips: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

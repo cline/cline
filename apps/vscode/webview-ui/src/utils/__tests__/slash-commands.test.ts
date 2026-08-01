@@ -139,6 +139,19 @@ describe("slash-commands", () => {
 		})
 	})
 
+	describe("getMatchingSlashCommands with default commands", () => {
+		it("shows /compact for the comp prefix", () => {
+			const result = getMatchingSlashCommands("comp")
+
+			expect(result).toContainEqual({
+				name: "compact",
+				description: "Condenses your current context window",
+				section: "default",
+				cliCompatible: true,
+			})
+		})
+	})
+
 	describe("getMatchingSlashCommands with MCP servers", () => {
 		const mcpServers = [
 			createMockMcpServer({

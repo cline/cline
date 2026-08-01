@@ -1,5 +1,17 @@
 # Cline Code Desktop Changelog
 
+## 0.0.7
+
+- New system tray icon showing app status and how many agent sessions are currently running.
+- Session history is now paginated in ten-session pages, fetching older history only when you reach the end.
+- You can favorite sessions, and sessions are now ordered by most recent activity with consistent status dot colors across views.
+- Subagent and teammate runs from a session now show up in the app with their status and results.
+- Chat polish: tool-specific icons on tool disclosures, elapsed thinking time and restyled reasoning sections, aligned timestamps, and message actions that no longer shift the layout while scrolling stays anchored to the conversation viewport.
+- Free Cline models are now supported and labeled "(free)" in model pickers, with a clear message — including reset time — when you hit the free-tier limit.
+- Fixed the China/international endpoint toggles for Qwen, Moonshot, Z AI, and MiniMax being ignored, which silently routed regional users to the wrong host.
+- Fixed tool calls failing when a model emitted a line number as a string (e.g. `insert_line: "3"`), forcing the agent to waste a round trip retrying.
+- Refreshed the bundled provider and model catalog.
+
 ## 0.0.6
 
 - Queued messages now appear in a collapsible list above the composer with a count — expand it to edit, send-now, or delete individual queued turns.

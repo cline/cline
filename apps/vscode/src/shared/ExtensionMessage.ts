@@ -103,6 +103,11 @@ export interface ExtensionState {
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
+	/**
+	 * Which rollout bundle this build is ("legacy" or "next"). Only present for
+	 * bundles built by the combined rollout workflow; undefined for ordinary builds.
+	 */
+	extensionVariant?: "legacy" | "next"
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
@@ -228,6 +233,7 @@ export type ClineSay =
 	| "text"
 	| "reasoning"
 	| "completion_result"
+	| "plan_completion_result" // turn-final plan-mode response inferred at turn end (SDK path)
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "command"

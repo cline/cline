@@ -1240,6 +1240,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
+							errorMessage: msg,
 							severity: "error",
 							handled: true,
 							context: {
@@ -1285,6 +1286,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
+					errorMessage: msg,
 					severity: "error",
 					handled: true,
 					context: {

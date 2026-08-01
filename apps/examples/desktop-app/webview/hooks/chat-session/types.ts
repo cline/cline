@@ -87,6 +87,19 @@ export type ChatApiResult = {
 	messages?: unknown[];
 };
 
+export type ChatSessionCommandResponse = {
+	sessionId?: string;
+	cwd?: string;
+	workspaceRoot?: string;
+	result?: ChatApiResult;
+	ok?: boolean;
+	queued?: boolean;
+	promptsInQueue?: PromptInQueue[];
+	prompt?: PromptInQueue;
+	updated?: boolean;
+	removed?: boolean;
+};
+
 export type ChatWsResponseEvent = {
 	type: "chat_response";
 	requestId: string;

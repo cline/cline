@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { getUserRunSpan, resolveMessageDisplayRole } from "@cline/core";
 import { validateImageMedia } from "@cline/shared";
 import {
 	readSessionManifest,
@@ -46,24 +47,6 @@ function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 		: undefined;
 }
 
-function resolveDisplayRole(
-	role: string,
-	metadata: JsonRecord | undefined,
-): string {
-	const displayRole =
-		typeof metadata?.displayRole === "string"
-			? metadata.displayRole.trim().toLowerCase()
-			: "";
-	if (
-		displayRole === "system" ||
-		displayRole === "status" ||
-		displayRole === "error"
-	) {
-		return displayRole;
-	}
-	return role;
-}
-
 function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 	const metadata = readMessageMetadata(message);
 	if (!metadata) {
@@ -77,7 +60,19 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		typeof metadata.displayRole === "string" ? metadata.displayRole : undefined;
 	const reason =
 		typeof metadata.reason === "string" ? metadata.reason : undefined;
-	if (!hookEventName && !messageKind && !displayRole && !reason) {
+	const userRunSpan =
+		typeof metadata.userRunSpan === "number" &&
+		Number.isInteger(metadata.userRunSpan) &&
+		metadata.userRunSpan >= 0
+			? metadata.userRunSpan
+			: undefined;
+	if (
+		!hookEventName &&
+		!messageKind &&
+		!displayRole &&
+		!reason &&
+		userRunSpan === undefined
+	) {
 		return undefined;
 	}
 	return {
@@ -85,6 +80,7 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		messageKind,
 		displayRole,
 		reason,
+		userRunSpan,
 	};
 }
 
@@ -345,6 +341,19 @@ export async function readSessionMessages(
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
+	for (let idx = 0; idx < start; idx += 1) {
+		const rawMessage = messages[idx];
+		if (!rawMessage || typeof rawMessage !== "object") {
+			continue;
+		}
+		const message = rawMessage as JsonRecord;
+		const metadata = readMessageMetadata(message);
+		userRunCount += getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+	}
 
 	for (let idx = start; idx < messages.length; idx += 1) {
 		const rawMessage = messages[idx];
@@ -358,15 +367,28 @@ export async function readSessionMessages(
 		if (storedMeta) {
 			textMeta = { ...(textMeta ?? {}), ...storedMeta };
 		}
-		const role = resolveDisplayRole(
-			normalizeRole(message.role),
-			readMessageMetadata(message),
-		);
 		const metadata = readMessageMetadata(message);
-		const isRecoveryNotice =
-			typeof metadata?.kind === "string" && metadata.kind === "recovery_notice";
-		if (role === "user" && !isRecoveryNotice) {
-			userRunCount += 1;
+		const userRunSpan = getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+		userRunCount += userRunSpan;
+		const role = resolveMessageDisplayRole({
+			role: normalizeRole(message.role),
+			metadata,
+		});
+		if (role === "user" && userRunSpan !== 1) {
+			textMeta = {
+				...(textMeta ?? {}),
+				userRunSpan,
+			};
+		}
+		if (userRunSpan === 1 && role === "user") {
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 			const checkpoint = checkpointsByRunCount.get(userRunCount);
 			if (checkpoint) {
 				textMeta = {
@@ -374,6 +396,14 @@ export async function readSessionMessages(
 					checkpoint,
 				};
 			}
+		} else if (userRunCount > 0) {
+			// This also anchors truncated histories whose visible window starts
+			// with an assistant/tool/system message. The webview can then number
+			// a newly appended optimistic user message from the absolute count.
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 		}
 		const messageIdBase =
 			(typeof message.id === "string" && message.id.trim()) ||
@@ -419,7 +449,11 @@ export async function readSessionMessages(
 				role,
 				content: joined,
 				createdAt,
-				meta: textMeta,
+				// A persisted user message can project into more than one text
+				// segment around tool blocks. Only its first segment represents
+				// the run; later segments must not acquire a fallback ordinal in
+				// the webview.
+				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
 			});
 			textSegmentIndex += 1;
 			textMeta = undefined;

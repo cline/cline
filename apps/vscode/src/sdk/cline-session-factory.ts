@@ -17,10 +17,11 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
+	isProviderApiLine,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
@@ -33,14 +34,13 @@ import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -159,6 +159,11 @@ function providerSettingsProviderId(providerId: string): string {
  * Convert SDK provider-level reasoning settings into the SDK session fields that
  * are actually forwarded as model options. Keep `thinking` and
  * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
+ *
+ * A persisted `budgetTokens` without an effort (written by older extension
+ * versions or the legacy-state migration) is honored by mapping the budget
+ * onto the effort scale, so users who had extended thinking enabled keep it
+ * enabled after upgrading to the effort-based control.
  */
 export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
 	if (!reasoning) {
@@ -169,14 +174,23 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 		return { thinking: false }
 	}
 
+	const effort = isReasoningEffort(reasoning.effort)
+		? reasoning.effort
+		: reasoningEffortFromThinkingBudget(reasoning.budgetTokens)
+
 	if (reasoning.enabled === true) {
 		return {
 			thinking: true,
-			...(isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}),
+			...(effort ? { reasoningEffort: effort } : {}),
 		}
 	}
 
-	return isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}
+	if (isReasoningEffort(reasoning.effort)) {
+		return { reasoningEffort: reasoning.effort }
+	}
+
+	// Legacy budget with no explicit enabled/effort: treat as thinking-on.
+	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
@@ -649,6 +663,61 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 	return undefined
 }
 
+/**
+ * Resolve the regional API line ("china" | "international") for providers with
+ * regional endpoints (Qwen, Moonshot, Z AI, MiniMax and their coding
+ * variants). Resolution order:
+ *
+ * 1. The provider's own legacy StateManager field (mirroring resolveBaseUrl).
+ * 2. The provider's own providers.json `apiLine` (SDK-store fallback).
+ * 3. For coding variants without their own legacy field or stored line, the
+ *    base provider's legacy field (qwen-code shares Qwen's DashScope region,
+ *    zai-coding-plan shares Z AI's account region) — so a variant-specific
+ *    providers.json setting still wins over the shared field.
+ *
+ * The SDK gateway maps the line to the provider's regional base URL when no
+ * explicit base URL is configured.
+ */
+export function resolveApiLine(providerId: string, config: ApiConfiguration): ProviderApiLine | undefined {
+	const apiLineMap: Record<string, keyof ApiConfiguration> = {
+		qwen: "qwenApiLine",
+		moonshot: "moonshotApiLine",
+		zai: "zaiApiLine",
+		minimax: "minimaxApiLine",
+	}
+	const sharedApiLineMap: Record<string, keyof ApiConfiguration> = {
+		"qwen-code": "qwenApiLine",
+		"zai-coding-plan": "zaiApiLine",
+	}
+
+	const field = apiLineMap[providerId]
+	if (field) {
+		const fromState = config[field]
+		if (isProviderApiLine(fromState)) {
+			return fromState
+		}
+	}
+
+	try {
+		const settingsApiLine = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.apiLine
+		if (isProviderApiLine(settingsApiLine)) {
+			return settingsApiLine
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	const sharedField = sharedApiLineMap[providerId]
+	if (sharedField) {
+		const fromSharedState = config[sharedField]
+		if (isProviderApiLine(fromSharedState)) {
+			return fromSharedState
+		}
+	}
+
+	return undefined
+}
+
 // ---------------------------------------------------------------------------
 // Session config builder
 // ---------------------------------------------------------------------------
@@ -677,6 +746,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let apiLine: ProviderApiLine | undefined
 	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
@@ -706,6 +776,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
+
+			// Resolve the regional API line (Qwen/Moonshot/Z AI/MiniMax). The
+			// SDK gateway routes to the line's regional endpoint when no
+			// explicit base URL is set.
+			apiLine = resolveApiLine(providerId, apiConfig)
 
 			// Resolve Bedrock region + AWS authentication options from the legacy
 			// ApiConfiguration (StateManager is the VSCode source of truth, not
@@ -744,7 +819,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings({
-				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+				isClinePassEnabled: true,
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
@@ -754,6 +829,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
+				apiLine = isProviderApiLine(lastUsed.apiLine) ? lastUsed.apiLine : undefined
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
 			}
 		} catch (error) {
@@ -828,7 +904,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	const stateManager = StateManager.get()
-	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	// Auto compact is on by default; keep this fallback aligned with the
+	// `useAutoCondense` default in shared/storage/state-keys.ts.
+	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? true
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
@@ -875,6 +953,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		fetch,
 	}

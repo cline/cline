@@ -11,6 +11,15 @@ export interface PendingUserMessage {
 	afterTs: number
 }
 
+export interface PendingResponse {
+	/** Locally unique submission id, used to avoid an older RPC clearing newer state. */
+	id: number
+	/** TurnState sequence observed when the RPC was sent. */
+	turnStateSeq: number | undefined
+	/** Raw backend message count observed when the RPC was sent (legacy fallback). */
+	messageCount: number
+}
+
 /**
  * Chat state interface
  */
@@ -38,6 +47,8 @@ export interface ChatState {
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 	pendingUserMessage: PendingUserMessage | undefined
 	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
+	pendingResponse: PendingResponse | undefined
+	setPendingResponse: React.Dispatch<React.SetStateAction<PendingResponse | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>

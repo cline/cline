@@ -2,11 +2,13 @@ import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 
 /**
  * Props for the MoonshotProvider component
@@ -22,6 +24,7 @@ interface MoonshotProviderProps {
  */
 export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: MoonshotProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const { write } = useProviderConfig("moonshot")
 
 	// Get the normalized configuration
 	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
@@ -107,6 +110,17 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 						}}
 						selectedModelId={selectedModelId}
 					/>
+
+					{selectedModelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+								}).catch((err) => console.error("Failed to update Moonshot reasoning effort:", err))
+							}}
+						/>
+					)}
 
 					<ModelInfoView
 						hideUsageCost={hideUsageCost}

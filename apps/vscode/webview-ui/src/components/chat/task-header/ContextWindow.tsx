@@ -29,9 +29,12 @@ const ConfirmationDialog = memo<{
 	onConfirm: (e: React.MouseEvent) => void
 	onCancel: (e: React.MouseEvent) => void
 }>(({ onConfirm, onCancel }) => (
-	<div className="text-sm my-2 flex items-center gap-0 justify-between">
-		<span className="font-semibold text-sm">Compact the current task?</span>
-		<span className="flex gap-1">
+	<div className="mt-2 flex flex-col gap-2 rounded-sm border border-border-panel bg-code p-2 text-sm">
+		<span className="font-semibold">Compact the current task?</span>
+		<span className="text-xs text-description">
+			Replaces the conversation history with a summary to free up context window space.
+		</span>
+		<span className="flex justify-end gap-1.5">
 			<VSCodeButton
 				appearance="secondary"
 				className="text-sm"
@@ -47,7 +50,7 @@ const ConfirmationDialog = memo<{
 				onClick={onConfirm}
 				title="Yes, compact the task"
 				type="button">
-				Yes
+				Compact
 			</VSCodeButton>
 		</span>
 	</div>
@@ -144,7 +147,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col my-1.5" onMouseLeave={debounceCloseHover}>
+		<div className="flex flex-col mt-1.5" onMouseLeave={debounceCloseHover}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap">
 					<span className="cursor-pointer text-sm" title="Current tokens used in this request">

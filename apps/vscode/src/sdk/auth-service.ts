@@ -518,6 +518,20 @@ export class AuthService {
 	// ---- Login flows ----
 
 	/**
+	 * A successful login completes onboarding. The onboarding webview does NOT
+	 * set this flag for OAuth sign-ups — it waits on the "Almost there!" step
+	 * until the host confirms authentication (parity with the classic
+	 * extension, where Controller.handleAuthCallback set it post-exchange).
+	 */
+	private markWelcomeViewCompleted(): void {
+		try {
+			StateManager.get().setGlobalState("welcomeViewCompleted", true)
+		} catch (error) {
+			Logger.error("[SdkAuthService] Failed to mark welcome view completed:", error)
+		}
+	}
+
+	/**
 	 * Initiate Cline OAuth login.
 	 * Uses SDK's loginClineOAuth() which spawns a local callback server.
 	 * Persists credentials to providers.json.
@@ -581,6 +595,10 @@ export class AuthService {
 					metadata: credentials.metadata,
 					sessionStartedAtMs: authInfo.startedAt,
 				})
+
+				// Set before pushing state so the same update moves the webview
+				// from the welcome view to chat.
+				this.markWelcomeViewCompleted()
 
 				// Push auth state update
 				await this.sendAuthStatusUpdate()
@@ -660,6 +678,8 @@ export class AuthService {
 			metadata: { sessionStartedAtMs },
 			sessionStartedAtMs,
 		})
+
+		this.markWelcomeViewCompleted()
 
 		await this.sendAuthStatusUpdate()
 		Logger.log(`[SdkAuthService] E2E mock login completed as ${this._clineAuthInfo.userInfo.email}`)
@@ -891,6 +911,8 @@ export class AuthService {
 				},
 				sessionStartedAtMs,
 			})
+
+			this.markWelcomeViewCompleted()
 
 			await this.sendAuthStatusUpdate()
 		} catch (error) {

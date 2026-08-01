@@ -9,7 +9,7 @@ import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	getDefaultShell,
-	getShellArgs,
+	getShellInvocation,
 } from "@cline/shared";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
@@ -77,6 +77,7 @@ interface SpawnConfig {
 	args: string[];
 	cwd: string;
 	env: Record<string, string>;
+	input?: string;
 }
 
 /**
@@ -130,6 +131,9 @@ function spawnAndCollect(
 	maxOutputChars: number,
 	combineOutput: boolean,
 ): Promise<string> {
+	if (context.signal?.aborted) {
+		return Promise.reject(new Error("Command was aborted"));
+	}
 	return new Promise((resolve, reject) => {
 		const isWindows = process.platform === "win32";
 
@@ -156,15 +160,43 @@ function spawnAndCollect(
 			fn();
 		};
 
-		const killProcessTree = () => {
+		const killProcessTree = async (): Promise<void> => {
 			if (!childPid) return;
 			if (isWindows) {
-				const killer = spawn(
-					"taskkill",
-					["/pid", String(childPid), "/T", "/F"],
-					{ stdio: "ignore", shell: true, windowsHide: true },
-				);
-				killer.unref();
+				await new Promise<void>((done) => {
+					let finished = false;
+					let killer: ReturnType<typeof spawn>;
+					const finish = () => {
+						if (finished) return;
+						finished = true;
+						clearTimeout(watchdog);
+						done();
+					};
+					try {
+						killer = spawn(
+							"taskkill.exe",
+							["/PID", String(childPid), "/T", "/F"],
+							{ stdio: "ignore", shell: false, windowsHide: true },
+						);
+					} catch {
+						child.kill();
+						done();
+						return;
+					}
+					const watchdog = setTimeout(() => {
+						killer.kill();
+						child.kill();
+						finish();
+					}, 5_000);
+					killer.once("error", () => {
+						child.kill();
+						finish();
+					});
+					killer.once("close", (code) => {
+						if (code !== 0) child.kill();
+						finish();
+					});
+				});
 				return;
 			}
 			try {
@@ -174,13 +206,20 @@ function spawnAndCollect(
 			}
 		};
 
+		let timeout: NodeJS.Timeout;
+		const abortHandler = () => killAndReject(new Error("Command was aborted"));
+		const cleanup = () => {
+			clearTimeout(timeout);
+			context.signal?.removeEventListener("abort", abortHandler);
+		};
 		const killAndReject = (error: Error) => {
+			if (killed || settled) return;
 			killed = true;
-			killProcessTree();
-			settle(() => reject(error));
+			cleanup();
+			void killProcessTree().finally(() => settle(() => reject(error)));
 		};
 
-		const timeout = setTimeout(
+		timeout = setTimeout(
 			() =>
 				killAndReject(
 					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
@@ -188,16 +227,10 @@ function spawnAndCollect(
 			timeoutMs,
 		);
 
-		const abortHandler = () => killAndReject(new Error("Command was aborted"));
-
 		if (context.signal) {
-			context.signal.addEventListener("abort", abortHandler);
+			context.signal.addEventListener("abort", abortHandler, { once: true });
+			if (context.signal.aborted) abortHandler();
 		}
-
-		const cleanup = () => {
-			clearTimeout(timeout);
-			context.signal?.removeEventListener("abort", abortHandler);
-		};
 
 		child.stdout?.on("data", (data: Buffer) => {
 			stdout.append(data);
@@ -254,10 +287,19 @@ function spawnAndCollect(
 
 		child.on("error", (error) => {
 			cleanup();
+			if (killed) return;
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
 		});
+
+		child.stdin?.on("error", (error) => {
+			if (killed || settled) return;
+			killAndReject(
+				new Error(`Failed to write command input: ${error.message}`),
+			);
+		});
+		child.stdin?.end(config.input, "utf8");
 	});
 }
 
@@ -290,14 +332,16 @@ export function createShellExecutor(
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
+		const invocation = isStructured
+			? { args: command.args ?? [] }
+			: getShellInvocation(shell, command);
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
-				args: isStructured
-					? (command.args ?? [])
-					: getShellArgs(shell, command),
+				args: invocation.args,
 				cwd,
 				env,
+				input: invocation.input,
 			},
 			context,
 			timeoutMs,

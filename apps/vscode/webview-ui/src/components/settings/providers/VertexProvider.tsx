@@ -14,7 +14,6 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields } from "../utils/providerUtils"
 
 /**
@@ -80,12 +79,14 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 		return Object.fromEntries(Object.entries(allVertexModels).filter(([, info]) => info.supportsGlobalEndpoint === true))
 	}, [allVertexModels, vertexRegion])
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
-	const supportsThinkingBudget =
-		selectedModelInfo.supportsReasoning === true &&
-		selectedModelInfo.thinkingConfig !== undefined &&
-		selectedModelInfo.thinkingConfig.supportsThinkingLevel !== true
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
+	const handleReasoningEffortChange = (effort: string) => {
+		writeProviderConfig(
+			{ reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined } },
+			"reasoning effort",
+		)
+	}
 
 	return (
 		<div
@@ -176,14 +177,16 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
+							onEffortChange={handleReasoningEffortChange}
 						/>
-					) : supportsThinkingBudget ? (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					) : selectedModelInfo.supportsReasoning === true ? (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
 					) : null}
-
-					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
-						<ReasoningEffortSelector currentMode={currentMode} />
-					)}
 
 					<ModelInfoView
 						hideUsageCost={hideUsageCost}

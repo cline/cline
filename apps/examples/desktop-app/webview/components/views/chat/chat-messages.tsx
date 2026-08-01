@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentApprovalCard } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -47,6 +48,16 @@ import {
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -80,6 +91,11 @@ type ChatMessagesProps = {
 		answer: string,
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 };
 
@@ -143,6 +159,33 @@ function buildPreviousTimestampMap(
 	}
 
 	return previousTimestampByMessage;
+}
+
+function buildUserRunCountMap(
+	messages: ChatMessage[],
+): Map<ChatMessage, number> {
+	const runCountByMessage = new Map<ChatMessage, number>();
+	let lastRunCount = 0;
+
+	for (const message of messages) {
+		const userRunSpan =
+			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+		const storedRunCount =
+			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
+		if (storedRunCount !== undefined) {
+			lastRunCount = Math.max(lastRunCount, storedRunCount);
+			if (message.role === "user" && userRunSpan === 1) {
+				runCountByMessage.set(message, storedRunCount);
+			}
+			continue;
+		}
+		lastRunCount += userRunSpan;
+		if (message.role === "user" && userRunSpan === 1) {
+			runCountByMessage.set(message, lastRunCount);
+		}
+	}
+
+	return runCountByMessage;
 }
 
 function getThoughtDurationMilliseconds(
@@ -232,6 +275,23 @@ function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 }
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
+const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
+/** Keeps a scroller's X axis live while hiding its horizontal bar (globals.css). */
+const SCROLL_X_BARE_CLASS = "cline-chat-scroll-x-bare";
+
+/**
+ * Expanded reasoning and tool panels hang off a shared left rail: the border
+ * sits 8px in, centered under the 16px trigger icon, and the content is padded
+ * 16px so panel text lines up with the trigger label above it. Both panels must
+ * use this verbatim, and it overrides the panel chrome (border box, radius,
+ * background, inset) that `agent-chat.css` gives each of them by default.
+ *
+ * Both panels are capped on both axes so a long thought or a wide command list
+ * can never stretch the conversation column; each panel then picks which axes
+ * scroll (reasoning wraps and scrolls Y only, tools scroll both).
+ */
+const EXPANDED_PANEL_RAIL_CLASS =
+	"ml-1 mt-0 max-h-48 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
 
 function ChatMessagesImpl({
 	sessionId,
@@ -247,6 +307,7 @@ function ChatMessagesImpl({
 	onRejectToolApproval,
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
+	onEditMessage,
 	onForkSession,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
@@ -286,13 +347,28 @@ function ChatMessagesImpl({
 	const [checkpointErrors, setCheckpointErrors] = useState<
 		Record<string, string>
 	>({});
+	const [checkpointConfirmation, setCheckpointConfirmation] = useState<{
+		messageId: string;
+		runCount: number;
+	} | null>(null);
+	const [editConfirmation, setEditConfirmation] = useState<{
+		messageId: string;
+		content: string;
+		runCount: number;
+	} | null>(null);
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+	const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const sessionVersioningPending =
+		editingMessageId !== null ||
+		forkingMessageId !== null ||
+		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
@@ -302,6 +378,16 @@ function ChatMessagesImpl({
 		() => buildPreviousTimestampMap(messages),
 		[messages],
 	);
+	const userRunCountByMessage = useMemo(
+		() => buildUserRunCountMap(messages),
+		[messages],
+	);
+
+	useEffect(() => {
+		void sessionId;
+		setCheckpointConfirmation(null);
+		setEditConfirmation(null);
+	}, [sessionId]);
 
 	useEffect(() => {
 		if (!visibleExpandedImage) {
@@ -462,6 +548,43 @@ function ChatMessagesImpl({
 		[onRestoreCheckpoint],
 	);
 
+	const handleEditMessage = useCallback(
+		async (messageId: string, content: string, runCount: number) => {
+			if (!onEditMessage) {
+				return;
+			}
+			setEditingMessageId(messageId);
+			setEditErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onEditMessage(messageId, content, runCount));
+			} catch (err) {
+				const message =
+					err instanceof Error
+						? err.message
+						: "Could not restart from this message.";
+				setEditErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setEditingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[onEditMessage],
+	);
+	const requestEditMessage = useCallback(
+		(messageId: string, content: string, runCount: number) => {
+			setEditConfirmation({ messageId, content, runCount });
+		},
+		[],
+	);
+
 	const handleExpandImage = useCallback(
 		(image: ChatMessageImage) => {
 			setExpandedImage({ sessionId, image });
@@ -572,23 +695,51 @@ function ChatMessagesImpl({
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
+										runCount={userRunCountByMessage.get(message)}
 										onExpandImage={handleExpandImage}
 										onCopyMessage={handleCopyMessage}
+										onEditMessage={
+											onEditMessage ? requestEditMessage : undefined
+										}
+										editDisabled={
+											!onEditMessage ||
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
+										}
+										editError={editErrors[message.id]}
+										editPending={editingMessageId === message.id}
 										onRestoreCheckpoint={
-											onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
+											onRestoreCheckpoint
+												? (messageId, runCount) =>
+														setCheckpointConfirmation({
+															messageId,
+															runCount,
+														})
+												: undefined
 										}
 										restoreDisabled={
 											!onRestoreCheckpoint ||
 											status === "starting" ||
 											status === "running" ||
 											status === "stopping" ||
-											isSessionSwitching
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										restoreError={checkpointErrors[message.id]}
 										restorePending={checkpointActions[message.id] === "undoing"}
 										wasCopied={copiedMessageId === message.id}
 										onForkSession={
 											onForkSession ? handleForkSession : undefined
+										}
+										forkDisabled={
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
@@ -638,7 +789,7 @@ function ChatMessagesImpl({
 					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							Thinking...
+							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
 					) : null}
 					{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
@@ -692,6 +843,80 @@ function ChatMessagesImpl({
 					</div>
 				</div>
 			) : null}
+			<AlertDialog
+				open={checkpointConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setCheckpointConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Revert to this checkpoint?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Workspace files and conversation history after this point will be
+							discarded. This cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = checkpointConfirmation;
+								setCheckpointConfirmation(null);
+								if (confirmation) {
+									void handleRestoreCheckpoint(
+										confirmation.messageId,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Revert
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			<AlertDialog
+				open={editConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This creates a new session and restores the workspace to its
+							checkpoint before placing this message in the composer. Workspace
+							and conversation changes after this point will be discarded.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = editConfirmation;
+								setEditConfirmation(null);
+								if (confirmation) {
+									void handleEditMessage(
+										confirmation.messageId,
+										confirmation.content,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Continue
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</Conversation>
 	);
 }
@@ -745,67 +970,37 @@ function ToolApprovalPanel({
 			<div className="mt-3 flex flex-col gap-2">
 				{items.map((item) => {
 					const pendingAction = pendingActions[item.requestId];
-					const isPending = Boolean(pendingAction);
 					const error = requestErrors[item.requestId];
 					return (
-						<div
-							className="rounded-lg border border-border/80 bg-background/70 p-3"
+						<AgentApprovalCard
+							description={
+								<>
+									Request {item.requestId}
+									{item.iteration != null
+										? ` · Iteration ${item.iteration}`
+										: ""}
+								</>
+							}
+							detail={formatApprovalInput(item.input)}
+							error={error}
 							key={item.requestId}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="text-sm font-medium text-foreground">
-									{item.toolName}
-								</div>
-								<div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+							meta={
+								<>
 									<Clock3 className="h-3 w-3" />
 									{formatApprovalTimestamp(item.createdAt)}
-								</div>
-							</div>
-							<div className="mt-1 text-[11px] text-muted-foreground">
-								Request {item.requestId}
-								{item.iteration != null ? ` · Iteration ${item.iteration}` : ""}
-							</div>
-							<pre className="mt-2 max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
-								{formatApprovalInput(item.input)}
-							</pre>
-							{error ? (
-								<div className="mt-2 text-xs text-destructive">{error}</div>
-							) : null}
-							<div className="mt-2 flex items-center gap-2">
-								<Button
-									disabled={isPending}
-									onClick={() => onApprove(item.requestId)}
-									size="sm"
-									type="button"
-									variant="default"
-								>
-									{pendingAction === "approving" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Approving...
-										</>
-									) : (
-										"Approve"
-									)}
-								</Button>
-								<Button
-									disabled={isPending}
-									onClick={() => onReject(item.requestId)}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									{pendingAction === "rejecting" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Rejecting...
-										</>
-									) : (
-										"Reject"
-									)}
-								</Button>
-							</div>
-						</div>
+								</>
+							}
+							onApprove={() => onApprove(item.requestId)}
+							onReject={() => onReject(item.requestId)}
+							responding={
+								pendingAction === "approving"
+									? "approve"
+									: pendingAction === "rejecting"
+										? "reject"
+										: undefined
+							}
+							title={item.toolName}
+						/>
 					);
 				})}
 			</div>
@@ -896,15 +1091,21 @@ function AskQuestionPanel({
 const MessageBubble = memo(function MessageBubble({
 	agentRole,
 	message,
+	runCount,
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onEditMessage,
+	editDisabled = false,
+	editPending = false,
+	editError,
 	onRestoreCheckpoint,
 	restoreDisabled = false,
 	restorePending = false,
 	restoreError,
 	wasCopied = false,
 	onForkSession,
+	forkDisabled = false,
 	forkPending = false,
 	forkError,
 	isLastAssistantMessage = false,
@@ -914,9 +1115,18 @@ const MessageBubble = memo(function MessageBubble({
 }: {
 	agentRole: AgentMessageRole;
 	message: ChatMessage;
+	runCount?: number;
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
+	editDisabled?: boolean;
+	editPending?: boolean;
+	editError?: string;
 	onRestoreCheckpoint?: (
 		messageId: string,
 		runCount: number,
@@ -926,6 +1136,7 @@ const MessageBubble = memo(function MessageBubble({
 	restoreError?: string;
 	wasCopied?: boolean;
 	onForkSession?: (messageId: string) => void | Promise<void>;
+	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
 	isLastAssistantMessage?: boolean;
@@ -947,8 +1158,17 @@ const MessageBubble = memo(function MessageBubble({
 		Boolean(displayContent.trim()) &&
 		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
-		isUser && Boolean(onCopyMessage || checkpoint);
-	const keepUserActionsVisible = restorePending || Boolean(restoreError);
+		isUser &&
+		Boolean(
+			onCopyMessage ||
+				checkpoint ||
+				(onEditMessage && runCount && displayContent.trim()),
+		);
+	const keepUserActionsVisible =
+		restorePending ||
+		editPending ||
+		Boolean(restoreError) ||
+		Boolean(editError);
 	const keepAssistantActionsVisible =
 		isLastAssistantMessage || forkPending || Boolean(forkError);
 
@@ -970,9 +1190,11 @@ const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
+	// Spacing between blocks comes solely from the conversation list's `gap-2`
+	// and this content column's `gap-2`; blocks must not add their own margins.
 	return (
-		<AgentMessage className="relative" from={agentRole}>
-			<MessageContent className="space-y-2 wrap-break-word">
+		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
@@ -1004,7 +1226,7 @@ const MessageBubble = memo(function MessageBubble({
 				) : null}
 
 				{displayContent ? (
-					<div className="my-1 min-w-0 max-w-full wrap-break-word">
+					<div className="min-w-0 max-w-full wrap-break-word">
 						<MemoizedMarkdown
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}
@@ -1033,6 +1255,23 @@ const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
+						{onEditMessage && runCount && displayContent.trim() ? (
+							<MessageAction
+								className="min-w-0 p-0"
+								disabled={editDisabled || editPending}
+								label="Edit user message"
+								onClick={() =>
+									void onEditMessage(message.id, displayContent, runCount)
+								}
+								title="Edit message and restart from this point"
+							>
+								{editPending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<PencilIcon className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
 						{checkpoint ? (
 							<MessageAction
 								className="min-w-0 p-0"
@@ -1055,6 +1294,11 @@ const MessageBubble = memo(function MessageBubble({
 					{restoreError ? (
 						<div className="text-right text-xs text-destructive">
 							{restoreError}
+						</div>
+					) : null}
+					{editError ? (
+						<div className="text-right text-xs text-destructive">
+							{editError}
 						</div>
 					) : null}
 				</>
@@ -1086,7 +1330,7 @@ const MessageBubble = memo(function MessageBubble({
 					{onForkSession ? (
 						<MessageAction
 							className="min-w-0 p-0"
-							disabled={forkPending}
+							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
@@ -1094,7 +1338,7 @@ const MessageBubble = memo(function MessageBubble({
 							{forkPending ? (
 								<Loader2 className="h-3 w-3 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3" />
+								<SplitIcon className="h-3 w-3 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
@@ -1134,10 +1378,25 @@ function ReasoningBlock({
 				className="gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-				<span className="font-medium">{label}</span>
+				<span className={cn("font-medium", streaming && STREAMING_TITLE_CLASS)}>
+					{label}
+				</span>
 			</ReasoningTrigger>
-			<ReasoningContent className="ml-2 mt-2 max-h-48 overflow-y-auto rounded-none border-0 border-l border-border bg-transparent p-0 py-1 pl-4 text-sm leading-relaxed text-muted-foreground">
-				<MemoizedMarkdown content={displayContent} streaming={streaming} />
+			<ReasoningContent
+				className={cn(
+					EXPANDED_PANEL_RAIL_CLASS,
+					// Prose reflows, so the X axis is pinned shut: `overflow-y-auto`
+					// alone would compute overflow-x to `auto` and let a long
+					// unbreakable token add a horizontal scrollbar.
+					"overflow-x-hidden overflow-y-auto",
+					"text-sm leading-relaxed text-muted-foreground",
+				)}
+			>
+				<MemoizedMarkdown
+					classNames="text-sm font-thin"
+					content={displayContent}
+					streaming={streaming}
+				/>
 			</ReasoningContent>
 		</Reasoning>
 	);
@@ -1707,6 +1966,7 @@ const ToolMessageBlock = memo(
 		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
+		const label = buildGroupedToolLabel(presentations);
 		const icons = presentations.map(({ toolName }) =>
 			getToolNameIcon(toolName),
 		);
@@ -1760,12 +2020,29 @@ const ToolMessageBlock = memo(
 							<Icon className="size-4" />
 						)
 					}
-					label={buildGroupedToolLabel(presentations)}
+					label={
+						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+							{label}
+						</span>
+					}
+					showDisclosureIcon={false}
 					status={hasError ? "error" : isRunning ? "running" : "success"}
 				/>
-				<ToolActivityContent>
+				{/* `overflow-auto` (not just `-y`) overrides the `overflow-x: hidden`
+				    that agent-chat.css pins on this panel; the bare-scrollbar class
+				    then hides the horizontal bar without disabling the axis. */}
+				<ToolActivityContent
+					className={cn(
+						EXPANDED_PANEL_RAIL_CLASS,
+						"overflow-auto",
+						SCROLL_X_BARE_CLASS,
+					)}
+				>
 					{details.length > 0 ? (
-						<ToolActivityDetails>
+						// Commands and paths stay on one line and scroll with the panel;
+						// the stylesheet's `overflow-wrap: anywhere` would otherwise break
+						// them mid-token and leave the X axis unreachable.
+						<ToolActivityDetails className="w-max whitespace-pre">
 							{details.map(({ detail, key }) => (
 								<div key={key}>{detail}</div>
 							))}
@@ -1778,7 +2055,9 @@ const ToolMessageBlock = memo(
 									? `${preview.toolName} input`
 									: "Input"}
 							</div>
-							<ToolActivityCode className="text-sm">
+							{/* Drop the stylesheet's own 13rem scroller so the panel above
+							    is the single scroll container on both axes. */}
+							<ToolActivityCode className="max-h-none overflow-visible text-sm">
 								{preview.value}
 							</ToolActivityCode>
 						</div>

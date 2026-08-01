@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
 	emptyStoredProviderSettings,
@@ -9,12 +10,28 @@ import {
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
+	type StoredModelEntry,
 	type StoredModelsFile,
 	writeModelsFileSync,
 } from "../providers/local-provider-registry";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
+
+/**
+ * Legacy `OpenAiCompatibleModelInfo` snapshot persisted by the old extension
+ * under `planModeOpenAiModelInfo` / `actModeOpenAiModelInfo`. Only the
+ * user-editable fields the legacy settings form exposed are read here.
+ */
+interface LegacyOpenAiModelInfo {
+	maxTokens?: number;
+	contextWindow?: number;
+	supportsImages?: boolean;
+	supportsPromptCache?: boolean;
+	inputPrice?: number;
+	outputPrice?: number;
+	temperature?: number;
+}
 
 interface LegacyGlobalState {
 	mode?: LegacyMode;
@@ -72,6 +89,8 @@ interface LegacyGlobalState {
 	actModeClineModelId?: string;
 	planModeOpenAiModelId?: string;
 	actModeOpenAiModelId?: string;
+	planModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
+	actModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
 	planModeOllamaModelId?: string;
 	actModeOllamaModelId?: string;
 	planModeLmStudioModelId?: string;
@@ -279,10 +298,22 @@ function resolveLegacyStorage(
 }
 
 function resolveMigratedProviderId(providerId: string): string {
+	// normalizeProviderId maps "openai" -> "openai-compatible" and collapses
+	// the remaining declared aliases (e.g. "togetherai" -> "together").
+	return LlmsModels.normalizeProviderId(providerId);
+}
+
+/**
+ * Collapses declared provider-id aliases (e.g. "togetherai" -> "together") to
+ * the ids used by this module's legacy lookup tables. "openai" is kept as-is:
+ * it is the legacy id for the OpenAI-compatible provider and only becomes
+ * "openai-compatible" at the final resolveMigratedProviderId boundary.
+ */
+function normalizeLegacyProviderId(providerId: string): string {
 	if (providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
-		return OPENAI_COMPATIBLE_PROVIDER_ID;
+		return providerId;
 	}
-	return providerId;
+	return LlmsModels.normalizeProviderId(providerId);
 }
 
 function resolveModelForProvider(
@@ -357,14 +388,8 @@ function resolveReasoning(
 	]
 		.map(trimNonEmpty)
 		.find(Boolean);
-	const effort =
-		rawEffort === "none" ||
-		rawEffort === "low" ||
-		rawEffort === "medium" ||
-		rawEffort === "high" ||
-		rawEffort === "xhigh"
-			? rawEffort
-			: undefined;
+	const parsedEffort = ReasoningLevelSchema.safeParse(rawEffort);
+	const effort = parsedEffort.success ? parsedEffort.data : undefined;
 	const normalizedBudget =
 		typeof budgetTokens === "number" &&
 		Number.isInteger(budgetTokens) &&
@@ -433,11 +458,14 @@ function buildLegacyProviderSettings(
 	mode: LegacyMode,
 ): ProviderSettings | undefined {
 	const targetProviderId = resolveMigratedProviderId(providerId);
-	const activeProviderForMode = trimNonEmpty(
+	const rawActiveProviderForMode = trimNonEmpty(
 		mode === "plan"
 			? legacyGlobalState.planModeApiProvider
 			: legacyGlobalState.actModeApiProvider,
 	);
+	const activeProviderForMode = rawActiveProviderForMode
+		? normalizeLegacyProviderId(rawActiveProviderForMode)
+		: undefined;
 	const model =
 		resolveModelForProvider(
 			legacyGlobalState,
@@ -638,15 +666,44 @@ function buildLegacyProviderSettings(
 	return hasNonProviderFields ? parsed.data : undefined;
 }
 
+function positiveFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: undefined;
+}
+
 function resolveLegacyCustomProviderRegistration(
 	providerId: string,
 	settings: ProviderSettings,
+	legacyModelInfo?: LegacyOpenAiModelInfo,
 ): StoredModelsFile["providers"][string] | undefined {
 	if (providerId !== OPENAI_COMPATIBLE_PROVIDER_ID) {
 		return undefined;
 	}
 	if (!settings.baseUrl || !settings.model) {
 		return undefined;
+	}
+	// Carry the user-authored legacy model overrides into the seeded entry.
+	// This entry becomes the source of truth for openai-compatible models, and
+	// later override migrations skip models that already exist here — so
+	// seeding bare defaults would silently discard the user's configuration.
+	// Legacy treated maxTokens -1, temperature 0, and prices 0 as unset.
+	const contextWindow =
+		positiveFiniteNumber(legacyModelInfo?.contextWindow) ??
+		LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW;
+	const maxTokens = positiveFiniteNumber(legacyModelInfo?.maxTokens);
+	const inputPrice = positiveFiniteNumber(legacyModelInfo?.inputPrice);
+	const outputPrice = positiveFiniteNumber(legacyModelInfo?.outputPrice);
+	const temperature = positiveFiniteNumber(legacyModelInfo?.temperature);
+	const capabilities: NonNullable<StoredModelEntry["capabilities"]> = [
+		"streaming",
+		"tools",
+	];
+	if (legacyModelInfo?.supportsImages !== false) {
+		capabilities.push("images");
+	}
+	if (legacyModelInfo?.supportsPromptCache === true) {
+		capabilities.push("prompt-cache");
 	}
 	return {
 		provider: {
@@ -658,9 +715,13 @@ function resolveLegacyCustomProviderRegistration(
 			[settings.model]: {
 				id: settings.model,
 				name: settings.model,
-				contextWindow: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				maxInputTokens: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				capabilities: ["streaming", "tools", "images"],
+				contextWindow,
+				maxInputTokens: contextWindow,
+				capabilities,
+				...(maxTokens !== undefined ? { maxTokens } : {}),
+				...(inputPrice !== undefined ? { inputPrice } : {}),
+				...(outputPrice !== undefined ? { outputPrice } : {}),
+				...(temperature !== undefined ? { temperature } : {}),
 			},
 		},
 	};
@@ -677,7 +738,7 @@ function collectCandidateProviderIds(
 	]) {
 		const provider = trimNonEmpty(maybeProvider);
 		if (provider) {
-			candidates.add(provider);
+			candidates.add(normalizeLegacyProviderId(provider));
 		}
 	}
 	if (trimNonEmpty(legacySecrets.apiKey)) candidates.add("anthropic");
@@ -692,6 +753,35 @@ function collectCandidateProviderIds(
 		candidates.add("openai-codex");
 	if (trimNonEmpty(legacySecrets.geminiApiKey)) candidates.add("gemini");
 	if (trimNonEmpty(legacySecrets.ollamaApiKey)) candidates.add("ollama");
+	if (trimNonEmpty(legacySecrets.deepSeekApiKey)) candidates.add("deepseek");
+	if (trimNonEmpty(legacySecrets.requestyApiKey)) candidates.add("requesty");
+	if (trimNonEmpty(legacySecrets.togetherApiKey)) candidates.add("together");
+	if (trimNonEmpty(legacySecrets.fireworksApiKey)) candidates.add("fireworks");
+	if (trimNonEmpty(legacySecrets.qwenApiKey)) candidates.add("qwen");
+	if (trimNonEmpty(legacySecrets.doubaoApiKey)) candidates.add("doubao");
+	if (trimNonEmpty(legacySecrets.mistralApiKey)) candidates.add("mistral");
+	if (trimNonEmpty(legacySecrets.liteLlmApiKey)) candidates.add("litellm");
+	if (trimNonEmpty(legacySecrets.asksageApiKey)) candidates.add("asksage");
+	if (trimNonEmpty(legacySecrets.xaiApiKey)) candidates.add("xai");
+	if (trimNonEmpty(legacySecrets.moonshotApiKey)) candidates.add("moonshot");
+	if (trimNonEmpty(legacySecrets.zaiApiKey)) candidates.add("zai");
+	if (trimNonEmpty(legacySecrets.huggingFaceApiKey))
+		candidates.add("huggingface");
+	if (trimNonEmpty(legacySecrets.nebiusApiKey)) candidates.add("nebius");
+	if (trimNonEmpty(legacySecrets.sambanovaApiKey)) candidates.add("sambanova");
+	if (trimNonEmpty(legacySecrets.cerebrasApiKey)) candidates.add("cerebras");
+	if (trimNonEmpty(legacySecrets.groqApiKey)) candidates.add("groq");
+	if (trimNonEmpty(legacySecrets.huaweiCloudMaasApiKey))
+		candidates.add("huawei-cloud-maas");
+	if (trimNonEmpty(legacySecrets.basetenApiKey)) candidates.add("baseten");
+	if (trimNonEmpty(legacySecrets.vercelAiGatewayApiKey))
+		candidates.add("vercel-ai-gateway");
+	if (trimNonEmpty(legacySecrets.difyApiKey)) candidates.add("dify");
+	if (trimNonEmpty(legacySecrets.minimaxApiKey)) candidates.add("minimax");
+	if (trimNonEmpty(legacySecrets.hicapApiKey)) candidates.add("hicap");
+	if (trimNonEmpty(legacySecrets.aihubmixApiKey)) candidates.add("aihubmix");
+	if (trimNonEmpty(legacySecrets.nousResearchApiKey))
+		candidates.add("nousResearch");
 	if (
 		trimNonEmpty(legacySecrets.awsAccessKey) ||
 		trimNonEmpty(legacySecrets.awsBedrockApiKey) ||
@@ -746,6 +836,23 @@ export function migrateLegacyProviderSettings(
 
 	const { globalState, secrets } = legacyStorage;
 	const mode: LegacyMode = globalState.mode === "plan" ? "plan" : "act";
+	const otherMode: LegacyMode = mode === "plan" ? "act" : "plan";
+	const rawCurrentModeProvider = trimNonEmpty(
+		mode === "plan"
+			? globalState.planModeApiProvider
+			: globalState.actModeApiProvider,
+	);
+	const currentModeProvider = rawCurrentModeProvider
+		? normalizeLegacyProviderId(rawCurrentModeProvider)
+		: undefined;
+	const rawOtherModeProvider = trimNonEmpty(
+		mode === "plan"
+			? globalState.actModeApiProvider
+			: globalState.planModeApiProvider,
+	);
+	const otherModeProvider = rawOtherModeProvider
+		? normalizeLegacyProviderId(rawOtherModeProvider)
+		: undefined;
 	const candidates = collectCandidateProviderIds(globalState, secrets);
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
@@ -764,11 +871,18 @@ export function migrateLegacyProviderSettings(
 		if (next.providers[providerId]) {
 			continue;
 		}
+		// A provider selected only in the non-current mode must be read through
+		// that mode, or its per-mode model falls back to the catalog default.
+		const modeForProvider =
+			legacyProviderId !== currentModeProvider &&
+			legacyProviderId === otherModeProvider
+				? otherMode
+				: mode;
 		const settings = buildLegacyProviderSettings(
 			legacyProviderId,
 			globalState,
 			secrets,
-			mode,
+			modeForProvider,
 		);
 		if (!settings) {
 			continue;
@@ -782,6 +896,9 @@ export function migrateLegacyProviderSettings(
 		const registration = resolveLegacyCustomProviderRegistration(
 			providerId,
 			settings,
+			modeForProvider === "plan"
+				? globalState.planModeOpenAiModelInfo
+				: globalState.actModeOpenAiModelInfo,
 		);
 		if (registration && !modelsState.providers[providerId]) {
 			modelsState.providers[providerId] = registration;
