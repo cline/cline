@@ -74,8 +74,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
 	// Give the rollout stand-down check access to the loader's cohort memento
-	// (no-op outside combined rollout builds — see rollout-standdown.ts).
-	initializeRolloutStanddown(context)
+	// (no-op outside combined rollout builds — see rollout-standdown.ts). The
+	// reload action is injected here because direct vscode.commands usage is
+	// restricted to this file by the host-bridge lint rules.
+	initializeRolloutStanddown(context, () => {
+		vscode.commands.executeCommand("workbench.action.reloadWindow")
+	})
 
 	// 2. Clean up legacy data patterns within VSCode's native storage.
 	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.

@@ -2,7 +2,9 @@ import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 
 // ---------------------------------------------------------------------------
@@ -130,11 +132,18 @@ export function nextBundleOwnsClineAccount(): boolean {
 }
 
 let extensionContext: vscode.ExtensionContext | undefined
+let reloadWindowCallback: (() => void) | undefined
 let notified = false
 
-/** Called once from activate() so the cohort memento can be read later. */
-export function initializeRolloutStanddown(context: vscode.ExtensionContext): void {
+/**
+ * Called once from activate() so the cohort memento can be read later.
+ * The window reload is injected as a callback because direct
+ * vscode.commands usage is restricted to extension.ts by the host-bridge
+ * lint rules (src/dev/grit/vscode-api.grit).
+ */
+export function initializeRolloutStanddown(context: vscode.ExtensionContext, reloadWindow?: () => void): void {
 	extensionContext = context
+	reloadWindowCallback = reloadWindow
 }
 
 function readInputs(context: vscode.ExtensionContext): StanddownInputs {
@@ -192,21 +201,27 @@ export function notifyRolloutStanddown(): void {
 	}
 	notified = true
 	const reload = "Reload Window"
-	vscode.window
-		.showWarningMessage(
-			"You've been signed out in this window because this machine was upgraded to the new version of Cline. " +
+	HostProvider.window
+		.showMessage({
+			type: ShowMessageType.WARNING,
+			message:
+				"You've been signed out in this window because this machine was upgraded to the new version of Cline. " +
 				"Reload the window to keep using your account on the new version.",
-			reload,
-		)
-		.then((choice) => {
-			if (choice === reload) {
-				vscode.commands.executeCommand("workbench.action.reloadWindow")
+			options: { items: [reload] },
+		})
+		.then((response) => {
+			if (response.selectedOption === reload) {
+				reloadWindowCallback?.()
 			}
+		})
+		.catch((error) => {
+			Logger.error("[RolloutStanddown] Failed to show stand-down notice:", error)
 		})
 }
 
 /** Test-only: reset module state between tests. */
 export function resetRolloutStanddownForTests(): void {
 	extensionContext = undefined
+	reloadWindowCallback = undefined
 	notified = false
 }
