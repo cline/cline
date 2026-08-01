@@ -268,19 +268,33 @@ export function createCheckpointHooks(
 				rootRunMessageStart ?? Math.max(0, snapshot.messages.length - 1),
 			);
 			rootRunMessageStart = undefined;
-			if (countUserRunMessages(currentRunMessages) < 1) {
-				return undefined;
-			}
 			const runCount = countUserRunMessages(snapshot.messages);
 			if (runCount < 1) {
+				return undefined;
+			}
+			const metadata = await options.readSessionMetadata();
+			const existing = readCheckpointMetadata(metadata);
+			// A run warrants a checkpoint when it introduces a new user turn.
+			// When the runtime pushes the user message *after* beforeRun (e.g.
+			// `AgentRuntime.run(input)`), the delta since beforeRun holds that
+			// message and detects it directly — this path also refreshes the
+			// entry on edit-and-regenerate. `SessionRuntime` instead seeds the
+			// user message into `initialMessages` *before* the run and calls
+			// `run("")`, so the delta is always empty there; for that path an
+			// unseen run count identifies the new turn. Skip only when neither
+			// holds: a continuation/resumption (auth retry, task resumption)
+			// re-running an already-checkpointed run.
+			const introducedUserRun = countUserRunMessages(currentRunMessages) >= 1;
+			const alreadyCheckpointed =
+				existing?.history.some((entry) => entry.runCount === runCount) ??
+				false;
+			if (!introducedUserRun && alreadyCheckpointed) {
 				return undefined;
 			}
 			const entry = await createCheckpoint(runCount);
 			if (!entry) {
 				return undefined;
 			}
-			const metadata = await options.readSessionMetadata();
-			const existing = readCheckpointMetadata(metadata);
 			if (existing?.latest.ref === entry.ref) {
 				return undefined;
 			}
