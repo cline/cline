@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -10,6 +10,7 @@ import type {
 	AgentModelEvent,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { applyCheckpointToWorktree } from "../session/checkpoint-restore";
 import {
 	type CheckpointEntry,
 	type CheckpointMetadata,
@@ -256,6 +257,48 @@ describe("createCheckpointHooks", () => {
 			expect(checkpoint).toBeDefined();
 			expect(checkpoint.latest.runCount).toBe(1);
 			expect(checkpoint.latest.kind).toBe("stash");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("captures untracked files so restore brings them back", async () => {
+		// The plain `git stash create` omits untracked files, but restore runs
+		// `git clean -fd`, so a file the agent creates would be deleted on
+		// restore instead of reverted. The checkpoint must snapshot untracked
+		// files too.
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_untracked",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			// The run starts with an untracked file present ("v2" content).
+			const newFile = join(cwd, "created.txt");
+			await writeFile(newFile, "v2\n", "utf8");
+			const firstRun = [userMessage("first request")];
+			await runCheckpointHooks(hooks, {
+				messages: firstRun,
+				messagesBeforeRun: firstRun,
+			});
+			const runCheckpoint = (metadata?.checkpoint as CheckpointMetadata)
+				.latest;
+			expect(runCheckpoint.kind).toBe("stash");
+
+			// The agent then overwrites the untracked file during the run.
+			await writeFile(newFile, "v3\n", "utf8");
+			expect(await readFile(newFile, "utf8")).toBe("v3\n");
+
+			// Restoring the checkpoint must bring the file back to "v2",
+			// not delete it via `git clean -fd`.
+			await applyCheckpointToWorktree(cwd, runCheckpoint);
+			expect(await readFile(newFile, "utf8")).toBe("v2\n");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
