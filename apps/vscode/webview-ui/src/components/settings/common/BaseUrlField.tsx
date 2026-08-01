@@ -50,25 +50,29 @@ export const BaseUrlField = ({
 		userToggledRef.current = true
 		setIsEnabled(checked)
 		if (!checked) {
+			// Cancel any pending debounced edit before starting the clear. Otherwise
+			// its timer or unmount cleanup could restore the non-empty URL while the
+			// clear write is in flight.
+			syncLocalValue("")
 			let clearResult: Promise<void> | undefined
 			try {
 				clearResult = onClear?.()
 			} catch {
 				userToggledRef.current = false
 				setIsEnabled(!!initialValue)
+				syncLocalValue(initialValue || "")
 				return
 			}
 			if (clearResult) {
 				setIsClearing(true)
 				void clearResult
-					.then(() => syncLocalValue(""))
 					.catch(() => {
 						userToggledRef.current = false
 						setIsEnabled(!!initialValue)
+						syncLocalValue(initialValue || "")
 					})
 					.finally(() => setIsClearing(false))
 			} else {
-				syncLocalValue("")
 				onChange("")
 			}
 		}

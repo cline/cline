@@ -97,6 +97,30 @@ describe("BaseUrlField", () => {
 		expect(onChange).not.toHaveBeenCalled()
 	})
 
+	it("cancels a pending URL edit before clearing", async () => {
+		const onChange = vi.fn()
+		let resolveClear: () => void = () => {}
+		const onClear = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveClear = resolve
+				}),
+		)
+		const { unmount } = render(
+			<BaseUrlField initialValue="https://saved.example.com" onChange={onChange} onClear={onClear} />,
+		)
+
+		fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://pending.example.com" } })
+		fireEvent.click(screen.getByRole("checkbox"))
+		await flushDebounce()
+		unmount()
+
+		expect(onClear).toHaveBeenCalledTimes(1)
+		expect(onChange).not.toHaveBeenCalled()
+
+		await act(async () => resolveClear())
+	})
+
 	it("saves the trimmed URL after typing", async () => {
 		const onChange = vi.fn()
 		render(<BaseUrlField initialValue={undefined} onChange={onChange} />)
