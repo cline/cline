@@ -8,8 +8,8 @@ import {
 	startClineDeviceAuth,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
-import open from "open";
 import { identifyFeatureFlagsAccount } from "../../../utils/feature-flags";
+import open from "../../../utils/open";
 
 export type OnboardingOAuthProviderId = string;
 
