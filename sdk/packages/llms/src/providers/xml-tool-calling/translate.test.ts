@@ -387,6 +387,27 @@ describe("translateXmlToolCallingStream", () => {
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "max-tokens" });
 	});
 
+	it("keeps streaming prose that contains angle brackets", async () => {
+		const events = await collect(
+			translateXmlToolCallingStream(
+				stream(
+					{ type: "text-delta", text: "Note that 5 < 6 and " },
+					{ type: "text-delta", text: "7 > 6, so the check holds.\n\n<read_f" },
+					{ type: "text-delta", text: "ile>\n<path>a.ts</path>\n</read_file>" },
+					{ type: "finish", reason: "stop" },
+				),
+				translation(),
+			),
+		);
+		expect(joinText(events)).toBe(
+			"Note that 5 < 6 and 7 > 6, so the check holds.",
+		);
+		const toolEvent = events.find((event) => event.type === "tool-call-delta");
+		expect(toolEvent?.type === "tool-call-delta" && toolEvent.input).toEqual({
+			path: "a.ts",
+		});
+	});
+
 	it("never streams a partially formed tool tag as text", async () => {
 		const events = await collect(
 			translateXmlToolCallingStream(

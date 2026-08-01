@@ -245,31 +245,51 @@ export function extractExecutableXmlCall(
 // ---------------------------------------------------------------------------
 
 /**
- * How much of the assistant text so far can be shown to the user without
- * risking a leak of tool XML: everything before the first tool opening tag,
- * and — while no tag has appeared — everything before the last `<`, which is
- * the only place a tag could still be forming. Trailing whitespace stays
- * buffered so the blank line before a tool call never reaches the UI.
+ * Tracks how much of the assistant text so far can be shown to the user
+ * without risking a leak of tool XML: everything before the first tool
+ * opening tag, and — while no tag has appeared — everything before the last
+ * `<`, which is the only place a tag could still be forming. Trailing
+ * whitespace stays buffered so the blank line before a tool call never
+ * reaches the UI.
+ *
+ * State is carried across deltas so each one costs its own length rather than
+ * a rescan of the whole message.
  */
-function streamableBoundary(text: string, openTags: readonly string[]): number {
+function createStreamBoundaryTracker(openTags: readonly string[]) {
+	const maxTagLength = openTags.reduce(
+		(max, tag) => Math.max(max, tag.length),
+		0,
+	);
 	let firstTag = -1;
-	for (const tag of openTags) {
-		const index = text.indexOf(tag);
-		if (index !== -1 && (firstTag === -1 || index < firstTag)) {
-			firstTag = index;
+	let lastOpenAngle = -1;
+
+	return (text: string, delta: string): number => {
+		const deltaStart = text.length - delta.length;
+		const angleInDelta = delta.lastIndexOf("<");
+		if (angleInDelta !== -1) {
+			lastOpenAngle = deltaStart + angleInDelta;
 		}
-	}
-	const lastOpenAngle = text.lastIndexOf("<");
-	let boundary =
-		firstTag !== -1
-			? firstTag
-			: lastOpenAngle === -1
-				? text.length
-				: lastOpenAngle;
-	while (boundary > 0 && /\s/.test(text[boundary - 1] ?? "")) {
-		boundary--;
-	}
-	return boundary;
+		if (firstTag === -1) {
+			// A tag can straddle the delta boundary, so back up one tag length.
+			const from = Math.max(0, deltaStart - maxTagLength + 1);
+			for (const tag of openTags) {
+				const index = text.indexOf(tag, from);
+				if (index !== -1 && (firstTag === -1 || index < firstTag)) {
+					firstTag = index;
+				}
+			}
+		}
+		let boundary =
+			firstTag !== -1
+				? firstTag
+				: lastOpenAngle === -1
+					? text.length
+					: lastOpenAngle;
+		while (boundary > 0 && /\s/.test(text[boundary - 1] ?? "")) {
+			boundary--;
+		}
+		return boundary;
+	};
 }
 
 /**
@@ -283,7 +303,9 @@ export async function* translateXmlToolCallingStream(
 	inner: AsyncIterable<AgentModelEvent>,
 	translation: XmlToolCallingTranslation,
 ): AsyncIterable<AgentModelEvent> {
-	const openTags = [...translation.specs.keys()].map((name) => `<${name}>`);
+	const boundaryOf = createStreamBoundaryTracker(
+		[...translation.specs.keys()].map((name) => `<${name}>`),
+	);
 	let text = "";
 	let emitted = 0;
 	let finishEvent: Extract<AgentModelEvent, { type: "finish" }> | undefined;
@@ -291,7 +313,7 @@ export async function* translateXmlToolCallingStream(
 	for await (const event of inner) {
 		if (event.type === "text-delta") {
 			text += event.text;
-			const boundary = streamableBoundary(text, openTags);
+			const boundary = boundaryOf(text, event.text);
 			if (boundary > emitted) {
 				yield { type: "text-delta", text: text.slice(emitted, boundary) };
 				emitted = boundary;
