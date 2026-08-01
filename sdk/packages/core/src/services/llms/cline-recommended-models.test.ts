@@ -31,6 +31,8 @@ const ENDPOINT_PAYLOAD = {
 		},
 		{ id: "vendor/named-model", name: "named-model", description: "" },
 		{ id: "vendor/unnamed-model", description: "" },
+		// Vercel-style id; the catalog keys this model under "z-ai/glm-5.2"
+		{ id: "zai/glm-5.2", name: "glm-5.2", description: "" },
 	],
 	free: [
 		{
@@ -54,6 +56,7 @@ const ENDPOINT_PAYLOAD = {
 const CATALOG = {
 	openrouter: {
 		"anthropic/claude-opus-5": model("anthropic/claude-opus-5", "Claude Opus 5"),
+		"z-ai/glm-5.2": model("z-ai/glm-5.2", "GLM-5.2"),
 	},
 	cline: {
 		"deepseek/deepseek-v4-flash": model(
@@ -88,9 +91,10 @@ describe("fetchClineRecommendedModels", () => {
 		});
 
 		expect(namesOf(data)).toEqual({
-			// Catalog name first; endpoint name when the catalog misses; the id
-			// slug when the endpoint name is just the id.
-			recommended: ["Claude Opus 5", "named-model", "unnamed-model"],
+			// Catalog name first (including via id aliases like zai/ -> z-ai/);
+			// endpoint name when the catalog misses; the id slug when the
+			// endpoint name is just the id.
+			recommended: ["Claude Opus 5", "named-model", "unnamed-model", "GLM-5.2"],
 			// Free markers are redundant next to the pickers' FREE chips.
 			free: ["DeepSeek V4 Flash", "GLM-5.2", "Laguna S 2.1"],
 			clinePass: ["GLM-5.2", "mystery"],
@@ -113,7 +117,7 @@ describe("fetchClineRecommendedModels", () => {
 		});
 
 		expect(namesOf(data)).toEqual({
-			recommended: ["claude-opus-5", "named-model", "unnamed-model"],
+			recommended: ["claude-opus-5", "named-model", "unnamed-model", "glm-5.2"],
 			free: ["deepseek-v4-flash", "glm-5.2", "laguna-s-2.1"],
 			clinePass: ["glm-5.2", "mystery"],
 		});

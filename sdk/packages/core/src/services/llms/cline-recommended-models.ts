@@ -1,3 +1,4 @@
+import { VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES } from "@cline/llms";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { getLiveModelsCatalog } from "./provider-defaults";
@@ -177,14 +178,31 @@ function stripFreeMarkers(name: string): string {
 		.trim();
 }
 
+// The recommendation feed can use Vercel-style ids (e.g. "zai/glm-5.2") while
+// the catalog keys the same model under its OpenRouter alias ("z-ai/glm-5.2"),
+// so look up both spellings.
+function catalogLookupIds(modelId: string): string[] {
+	const ids = [modelId];
+	for (const rule of VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES) {
+		if (modelId.startsWith(rule.canonicalPrefix)) {
+			ids.push(`${rule.aliasPrefix}${modelId.slice(rule.canonicalPrefix.length)}`);
+		} else if (modelId.startsWith(rule.aliasPrefix)) {
+			ids.push(`${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`);
+		}
+	}
+	return ids;
+}
+
 function resolveEntryDisplayName(
 	entry: ClineRecommendedModel,
 	catalogs: Array<Record<string, ModelInfo> | undefined>,
 ): string {
 	for (const catalog of catalogs) {
-		const catalogName = catalog?.[entry.id]?.name?.trim();
-		if (catalogName) {
-			return stripFreeMarkers(catalogName);
+		for (const lookupId of catalogLookupIds(entry.id)) {
+			const catalogName = catalog?.[lookupId]?.name?.trim();
+			if (catalogName) {
+				return stripFreeMarkers(catalogName);
+			}
 		}
 	}
 	// The endpoint's own names are slug-like; still better than a full id.
