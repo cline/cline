@@ -9,7 +9,11 @@
 // `options.num_ctx` per request; this boundary maps the provider-neutral
 // model `contextWindow` onto it.
 
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type {
+	LanguageModelV3,
+	LanguageModelV3Middleware,
+} from "@ai-sdk/provider";
+import { APICallError } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
@@ -85,6 +89,17 @@ export function readOllamaTimeoutMs(
  * arrive the timer is cleared — streaming the body is never interrupted.
  * Mirrors the legacy handler, which raced the chat call (stream start)
  * against a timeout rather than bounding the whole generation.
+ *
+ * A timeout rejects with a **retryable `APICallError`** so the AI SDK's
+ * built-in `streamText` retry (default 2 retries with backoff) re-issues the
+ * request. This matters for local servers: Ollama holds `/api/chat` open
+ * while it cold-loads the model and only sends response headers once loading
+ * finishes, so a large model routinely blows the response-start budget on the
+ * first attempt. A timed-out attempt doesn't cancel the server-side load —
+ * retrying converges on the loaded model, which is how the pre-SDK handler
+ * (`withRetry({ retryAllErrors: true })`) rode out cold loads without ever
+ * surfacing an error. Only OUR timer is converted: upstream aborts (user
+ * cancellation) propagate untouched and stay non-retryable.
  */
 export function withOllamaResponseTimeout(
 	baseFetch: typeof fetch,
@@ -92,15 +107,7 @@ export function withOllamaResponseTimeout(
 ): typeof fetch {
 	return (async (input, init) => {
 		const timeoutController = new AbortController();
-		const timer = setTimeout(
-			() =>
-				timeoutController.abort(
-					new Error(
-						`Ollama request timed out after ${timeoutMs / 1000} seconds`,
-					),
-				),
-			timeoutMs,
-		);
+		const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
 		// AbortSignal.any keeps upstream cancellation live for the entire
 		// request (including body streaming after the timer is cleared) and
 		// cleans up its own listeners — no manual listener management.
@@ -110,11 +117,70 @@ export function withOllamaResponseTimeout(
 			: timeoutController.signal;
 		try {
 			return await baseFetch(input, { ...init, signal });
+		} catch (error) {
+			// Convert only when our timer fired and the caller didn't abort
+			// (checked instead of matching the thrown error because abort-reason
+			// propagation differs across fetch implementations).
+			if (timeoutController.signal.aborted && !upstreamSignal?.aborted) {
+				throw new APICallError({
+					message: `Ollama request timed out after ${timeoutMs / 1000} seconds`,
+					url: typeof input === "string" ? input : String(input),
+					requestBodyValues: {},
+					isRetryable: true,
+					cause: error,
+				});
+			}
+			throw error;
 		} finally {
 			clearTimeout(timer);
 		}
 	}) as typeof fetch;
 }
+
+/**
+ * Restore the innermost `APICallError` from an error's `cause` chain.
+ *
+ * `ai-sdk-ollama` wraps every `doStream`/`doGenerate` failure in its own
+ * `OllamaError` (a plain `Error` subclass, original error as `cause`). The
+ * AI SDK's retry predicate only retries `APICallError` instances with
+ * `isRetryable === true`, so the wrapper would otherwise hide the retryable
+ * timeout produced by {@link withOllamaResponseTimeout} and no retry would
+ * ever happen. Returns the original error unchanged when no `APICallError`
+ * is buried in the chain.
+ */
+export function restoreApiCallError(error: unknown): unknown {
+	let candidate: unknown = error;
+	for (let depth = 0; depth < 5 && candidate; depth++) {
+		if (APICallError.isInstance(candidate)) {
+			return candidate;
+		}
+		candidate = (candidate as { cause?: unknown }).cause;
+	}
+	return error;
+}
+
+/**
+ * Middleware applying {@link restoreApiCallError} to model call failures, so
+ * retryable errors reach the AI SDK retry loop as themselves rather than
+ * wrapped in `OllamaError`.
+ */
+export const restoreOllamaApiCallErrorMiddleware: LanguageModelV3Middleware = {
+	specificationVersion: "v3",
+	wrapStream: async ({ doStream }) => {
+		try {
+			return await doStream();
+		} catch (error) {
+			throw restoreApiCallError(error);
+		}
+	},
+	wrapGenerate: async ({ doGenerate }) => {
+		try {
+			return await doGenerate();
+		} catch (error) {
+			throw restoreApiCallError(error);
+		}
+	},
+};
 
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
@@ -136,15 +202,20 @@ export async function createOllamaProviderModule(
 	});
 	const numCtx = readOllamaNumCtx(context);
 	return {
-		// `splitToolImagesMiddleware` for the same reason as the
-		// OpenAI-compatible vendor: the downstream converter stringifies
+		// `restoreOllamaApiCallErrorMiddleware` so retryable response-start
+		// timeouts survive ai-sdk-ollama's OllamaError wrapping and engage the
+		// AI SDK retry loop. `splitToolImagesMiddleware` for the same reason as
+		// the OpenAI-compatible vendor: the downstream converter stringifies
 		// multimodal tool-result content, losing image bytes.
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId, {
 					options: { num_ctx: numCtx },
 				}) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware: [
+					restoreOllamaApiCallErrorMiddleware,
+					splitToolImagesMiddleware,
+				],
 			}),
 	};
 }

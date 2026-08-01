@@ -1,3 +1,4 @@
+import { APICallError } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
@@ -10,6 +11,8 @@ import {
 	OLLAMA_DEFAULT_TIMEOUT_MS,
 	readOllamaNumCtx,
 	readOllamaTimeoutMs,
+	restoreApiCallError,
+	restoreOllamaApiCallErrorMiddleware,
 	withOllamaResponseTimeout,
 } from "./ollama";
 
@@ -122,6 +125,28 @@ describe("withOllamaResponseTimeout", () => {
 		await assertion;
 	});
 
+	it("rejects timeouts as retryable APICallErrors so the AI SDK retries them", async () => {
+		const hangingFetch = ((_input, init) =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () =>
+					reject(init.signal?.reason),
+				);
+			})) as typeof fetch;
+
+		const wrapped = withOllamaResponseTimeout(hangingFetch, 1000);
+		const pending = wrapped("http://localhost:11434/api/chat").catch(
+			(error) => error,
+		);
+		await vi.advanceTimersByTimeAsync(1001);
+		const error = await pending;
+
+		expect(APICallError.isInstance(error)).toBe(true);
+		expect((error as APICallError).isRetryable).toBe(true);
+		expect((error as APICallError).url).toBe(
+			"http://localhost:11434/api/chat",
+		);
+	});
+
 	it("does not abort once the response has started", async () => {
 		let requestSignal: AbortSignal | undefined;
 		const immediateFetch = (async (_input, init) => {
@@ -154,6 +179,75 @@ describe("withOllamaResponseTimeout", () => {
 		const assertion = expect(pending).rejects.toThrow("user cancelled");
 		upstream.abort(new Error("user cancelled"));
 		await assertion;
+	});
+
+	it("does not convert upstream aborts into retryable errors", async () => {
+		const hangingFetch = ((_input, init) =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () =>
+					reject(init.signal?.reason),
+				);
+			})) as typeof fetch;
+
+		const upstream = new AbortController();
+		const wrapped = withOllamaResponseTimeout(hangingFetch, 60_000);
+		const pending = wrapped("http://localhost:11434/api/chat", {
+			signal: upstream.signal,
+		}).catch((error) => error);
+		upstream.abort(new Error("user cancelled"));
+		const error = await pending;
+
+		expect(APICallError.isInstance(error)).toBe(false);
+		expect((error as Error).message).toBe("user cancelled");
+	});
+});
+
+describe("restoreApiCallError", () => {
+	it("returns a bare APICallError as-is", () => {
+		const apiError = retryableApiCallError();
+		expect(restoreApiCallError(apiError)).toBe(apiError);
+	});
+
+	it("restores an APICallError buried in a cause chain (OllamaError wrapping)", () => {
+		const apiError = retryableApiCallError();
+		const wrapped = new Error("Ollama request failed", { cause: apiError });
+		expect(restoreApiCallError(wrapped)).toBe(apiError);
+	});
+
+	it("returns the original error when no APICallError is present", () => {
+		const plain = new Error("connection refused");
+		expect(restoreApiCallError(plain)).toBe(plain);
+	});
+
+	it("handles non-Error values", () => {
+		expect(restoreApiCallError("boom")).toBe("boom");
+		expect(restoreApiCallError(undefined)).toBeUndefined();
+	});
+});
+
+describe("restoreOllamaApiCallErrorMiddleware", () => {
+	it("rethrows the buried APICallError from wrapStream failures", async () => {
+		const apiError = retryableApiCallError();
+		const doStream = vi
+			.fn()
+			.mockRejectedValue(new Error("wrapped", { cause: apiError }));
+
+		await expect(
+			restoreOllamaApiCallErrorMiddleware.wrapStream?.({
+				doStream,
+			} as never),
+		).rejects.toBe(apiError);
+	});
+
+	it("passes successful streams through untouched", async () => {
+		const result = { stream: "stream" };
+		const doStream = vi.fn().mockResolvedValue(result);
+
+		await expect(
+			restoreOllamaApiCallErrorMiddleware.wrapStream?.({
+				doStream,
+			} as never),
+		).resolves.toBe(result);
 	});
 });
 
@@ -212,6 +306,15 @@ describe("createOllamaProviderModule", () => {
 		expect(call.apiKey).toBeUndefined();
 	});
 });
+
+function retryableApiCallError(): APICallError {
+	return new APICallError({
+		message: "Ollama request timed out after 30 seconds",
+		url: "http://localhost:11434/api/chat",
+		requestBodyValues: {},
+		isRetryable: true,
+	});
+}
 
 function config(
 	overrides: Partial<GatewayResolvedProviderConfig>,
