@@ -443,12 +443,37 @@ function getDefaultModelForProvider(providerId: string): string | undefined {
 	const builtInModels = LlmsModels.getGeneratedModelsForProvider(providerId);
 	const providerCollection = LlmsModels.getProviderCollectionSync(providerId);
 	const defaultModelId = providerCollection?.provider.defaultModelId;
-	if (defaultModelId && builtInModels[defaultModelId]) {
+	// The declared default may live only in the collection's model list (e.g.
+	// Cline's generated block holds a few free models while its default,
+	// anthropic/claude-sonnet-5, comes from the collection catalog).
+	if (
+		defaultModelId &&
+		(builtInModels[defaultModelId] ||
+			providerCollection?.models?.[defaultModelId])
+	) {
 		return defaultModelId;
 	}
 
 	const firstModelId = Object.keys(builtInModels)[0];
 	return firstModelId ?? undefined;
+}
+
+/**
+ * Cline is a fixed-catalog provider: an unknown legacy model id (retired
+ * model, corrupted state) would otherwise be carried into inference requests
+ * as-is. Drop it so the caller falls back to the catalog default.
+ */
+function dropUnknownClineModel(
+	providerId: string,
+	modelId: string | undefined,
+): string | undefined {
+	if (!modelId || providerId !== "cline") {
+		return modelId;
+	}
+	const isKnown =
+		LlmsModels.getGeneratedModelsForProvider(providerId)[modelId] ||
+		LlmsModels.getProviderCollectionSync(providerId)?.models?.[modelId];
+	return isKnown ? modelId : undefined;
 }
 
 function buildLegacyProviderSettings(
@@ -467,11 +492,14 @@ function buildLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawActiveProviderForMode)
 		: undefined;
 	const model =
-		resolveModelForProvider(
-			legacyGlobalState,
-			providerId,
-			mode,
-			activeProviderForMode,
+		dropUnknownClineModel(
+			targetProviderId,
+			resolveModelForProvider(
+				legacyGlobalState,
+				providerId,
+				mode,
+				activeProviderForMode,
+			),
 		) ?? getDefaultModelForProvider(targetProviderId);
 	const reasoning = resolveReasoning(legacyGlobalState, targetProviderId, mode);
 	const timeout =
