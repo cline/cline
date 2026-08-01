@@ -312,7 +312,7 @@ describe("SdkModeCoordinator", () => {
 
 	it("executes plugin commands in the typed continuation and skips the send when handled", async () => {
 		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
+		const task = makeTask("old-session", planMessages())
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
