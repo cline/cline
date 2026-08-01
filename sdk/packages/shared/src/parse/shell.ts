@@ -71,7 +71,9 @@ export function getShellInvocation(
 					"-Command",
 					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
 						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
-						"$c=[Console]::In.ReadToEnd();& ([ScriptBlock]::Create($c))",
+						"$c=[Console]::In.ReadToEnd();" +
+						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
+						"& ([ScriptBlock]::Create($c))",
 				],
 				input: command,
 			};
@@ -88,6 +90,10 @@ export function getShellInvocation(
 	}
 }
 
+/**
+ * @deprecated Use getShellInvocation() when executing commands so PowerShell
+ * source can travel through Unicode-safe stdin.
+ */
 export function getShellArgs(shell: string, command: string): string[] {
 	if (getShellKind(shell) === "powershell") {
 		// Preserve the public helper's self-contained argument contract. Callers

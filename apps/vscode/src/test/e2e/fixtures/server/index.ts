@@ -484,7 +484,7 @@ export class ClineApiServerMock {
 						// Scope tool-result routing to the mock scenarios that issued a tool
 						// call so unrelated conversations retain the default response.
 						const hasToolResult =
-							(body.includes("edit_request") || body.includes("powershell_store_request")) &&
+							(body.includes("edit_request") || body.includes("powershell_background_request")) &&
 							Array.isArray(messages) &&
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
@@ -492,11 +492,11 @@ export class ClineApiServerMock {
 						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
 						log("Chat completion mock selection:", {
 							isEditRequest: body.includes("edit_request"),
-							isPowerShellRequest: body.includes("powershell_store_request"),
+							isPowerShellRequest: body.includes("powershell_background_request"),
 							hasToolResult,
 						})
 						if (hasToolResult) {
-							responseText = body.includes("powershell_store_request")
+							responseText = body.includes("powershell_background_request")
 								? E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_COMPLETE
 								: E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
 						} else if (body.includes("edit_request")) {
@@ -505,7 +505,7 @@ export class ClineApiServerMock {
 							// the SDK runtime executes.
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
 							toolCall = E2E_MOCK_EDITOR_TOOL_CALL
-						} else if (body.includes("powershell_store_request")) {
+						} else if (body.includes("powershell_background_request")) {
 							responseText = E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_LEAD_IN
 							toolCall = E2E_MOCK_POWERSHELL_TOOL_CALL
 						}
