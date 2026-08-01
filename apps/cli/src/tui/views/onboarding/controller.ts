@@ -219,13 +219,11 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
 		Set<string>
 	>(new Set());
-	const [clineKnownModels, setClineKnownModels] = useState<
-		Record<string, unknown> | undefined
-	>(undefined);
 
 	useEffect(() => {
-		// The featured picker serves both cline and cline-pass, so pool reasoning
-		// support and display names from both catalogs
+		// The featured picker serves both cline and cline-pass, so pool
+		// reasoning support from both catalogs. Display names need no catalog
+		// here: fetchClineRecommendedModels resolves them.
 		void Promise.allSettled(
 			["cline", "cline-pass"].map((providerId) =>
 				getLocalProviderModels(providerId),
@@ -239,21 +237,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				}
 			}
 			setClineModelReasoningIds(ids);
-		});
-		void Promise.allSettled(
-			["cline", "cline-pass"].map((providerId) =>
-				resolveProviderConfig(providerId),
-			),
-		).then((results) => {
-			const merged: Record<string, unknown> = {};
-			for (const result of results) {
-				if (result.status === "fulfilled" && result.value?.knownModels) {
-					Object.assign(merged, result.value.knownModels);
-				}
-			}
-			if (Object.keys(merged).length > 0) {
-				setClineKnownModels(merged);
-			}
 		});
 	}, []);
 
@@ -838,7 +821,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		codexCliChecking,
 		codexCliStatus,
 		clineEntries,
-		clineKnownModels,
 		clineModelSelected,
 		clinePassCurrentPlanName,
 		clinePassPlanFeatures,
