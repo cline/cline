@@ -360,7 +360,11 @@ function App(props: TuiProps) {
 			session.replaceEntries(entries);
 			session.setHasSubmitted(entries.length > 0);
 			setAppView(entries.length > 0 ? "chat" : "home");
-			populateInputRef.current(picked.fullText);
+			// Prefill the display form of the rewound message, not the raw
+			// stored text: the runtime wraps outbound prompts in a
+			// <user_input mode="..."> envelope, which must not leak into the
+			// input box the user is about to edit and re-send.
+			populateInputRef.current(formatDisplayUserInput(picked.fullText));
 			showToast("Restored to checkpoint", "success");
 		} catch (error) {
 			const message = `Checkpoint restore failed: ${error instanceof Error ? error.message : String(error)}`;
