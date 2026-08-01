@@ -76,6 +76,13 @@ async function* stream(
 	}
 }
 
+function joinText(events: readonly AgentModelEvent[]): string {
+	return events
+		.filter((event) => event.type === "text-delta")
+		.map((event) => event.text)
+		.join("");
+}
+
 function translation(): XmlToolCallingTranslation {
 	const result = translateXmlToolCallingRequest(baseRequest());
 	if (!result) throw new Error("expected translation");
@@ -216,7 +223,7 @@ describe("extractExecutableXmlCall", () => {
 		expect(call).toEqual({
 			toolName: "read_file",
 			input: { path: "src/app.ts" },
-			prose: "I'll read the file now.",
+			start: "I'll read the file now.\n".length,
 		});
 	});
 
@@ -254,7 +261,7 @@ describe("extractExecutableXmlCall", () => {
 		expect(call).toEqual({
 			toolName: "read_file",
 			input: { path: "a.ts" },
-			prose: "",
+			start: 0,
 		});
 	});
 
@@ -282,7 +289,7 @@ describe("extractExecutableXmlCall", () => {
 			specs,
 		);
 		expect(call?.input).toEqual({ path: "b.ts" });
-		expect(call?.prose).toContain("For example:");
+		expect(call?.start).toBeGreaterThan(0);
 	});
 
 	it("skips an inline mention and runs the real call that follows", () => {
@@ -295,7 +302,7 @@ describe("extractExecutableXmlCall", () => {
 });
 
 describe("translateXmlToolCallingStream", () => {
-	it("buffers text and emits prose plus a native tool call", async () => {
+	it("streams prose as it arrives and emits a native tool call", async () => {
 		const events = await collect(
 			translateXmlToolCallingStream(
 				stream(
@@ -309,12 +316,12 @@ describe("translateXmlToolCallingStream", () => {
 			),
 		);
 		expect(events.map((event) => event.type)).toEqual([
-			"usage",
 			"text-delta",
+			"usage",
 			"tool-call-delta",
 			"finish",
 		]);
-		const textEvent = events[1];
+		const textEvent = events[0];
 		if (textEvent?.type !== "text-delta") throw new Error("expected text");
 		expect(textEvent.text).toBe("Let me look.");
 		const toolEvent = events[2];
@@ -358,10 +365,8 @@ describe("translateXmlToolCallingStream", () => {
 				translation(),
 			),
 		);
-		expect(events).toEqual([
-			{ type: "text-delta", text: raw },
-			{ type: "finish", reason: "stop" },
-		]);
+		expect(joinText(events)).toBe(raw);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
 	it("keeps truncated tool calls as text instead of executing them", async () => {
@@ -375,10 +380,28 @@ describe("translateXmlToolCallingStream", () => {
 				translation(),
 			),
 		);
-		expect(events).toEqual([
-			{ type: "text-delta", text: raw },
-			{ type: "finish", reason: "max-tokens" },
-		]);
+		expect(joinText(events)).toBe(raw);
+		expect(events.some((event) => event.type === "tool-call-delta")).toBe(
+			false,
+		);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "max-tokens" });
+	});
+
+	it("never streams a partially formed tool tag as text", async () => {
+		const events = await collect(
+			translateXmlToolCallingStream(
+				stream(
+					{ type: "text-delta", text: "Reading now.\n\n<read" },
+					{ type: "text-delta", text: "_file>\n<path>a.ts</path></read_file>" },
+					{ type: "finish", reason: "stop" },
+				),
+				translation(),
+			),
+		);
+		expect(joinText(events)).toBe("Reading now.");
+		expect(
+			events.filter((event) => event.type === "tool-call-delta"),
+		).toHaveLength(1);
 	});
 
 	it("preserves stream errors while still surfacing buffered text", async () => {

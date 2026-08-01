@@ -9,14 +9,14 @@
  * - Request: tool schemas are stripped, XML tool-use instructions plus
  *   per-turn tool documentation are appended to the system prompt, and prior
  *   native tool calls/results in history are rewritten into XML/plain text.
- * - Response: assistant text is buffered while the provider streams (reasoning
- *   and usage events pass through live), then parsed once at end of stream; the
- *   first well-formed tool use is emitted as a native `tool-call-delta` so
- *   everything downstream — approvals, executors, persistence, UI — sees an
- *   ordinary native tool call. Text that fails the executability gates is
- *   emitted verbatim as text.
+ * - Response: assistant prose streams through as it arrives, holding back only
+ *   text that could still turn into a tool use; the buffered remainder is
+ *   parsed once at end of stream, and the first well-formed tool use is
+ *   emitted as a native `tool-call-delta` so everything downstream —
+ *   approvals, executors, persistence, UI — sees an ordinary native tool call.
+ *   Text that fails the executability gates is emitted verbatim as text.
  *
- * Deliberately non-streaming on the text channel: parsing complete text keeps
+ * Tool arguments are deliberately not streamed: parsing complete text keeps
  * the parser simple and never leaks raw XML into the UI. The native path does
  * not stream partial tool-call arguments to the UI either, so tool rendering
  * is identical to native mode.
@@ -204,8 +204,8 @@ function isExecutableXmlCall(text: string, callStart: number): boolean {
 interface ExecutableXmlCall {
 	toolName: string;
 	input: Record<string, unknown>;
-	/** Text preceding the tool call, trimmed of trailing whitespace. */
-	prose: string;
+	/** Index in the assistant text where the tool use starts. */
+	start: number;
 }
 
 /**
@@ -234,7 +234,7 @@ export function extractExecutableXmlCall(
 		return {
 			toolName: block.name,
 			input: coerceToolInput(block.params, spec),
-			prose: text.slice(0, block.start).trimEnd(),
+			start: block.start,
 		};
 	}
 	return undefined;
@@ -245,22 +245,57 @@ export function extractExecutableXmlCall(
 // ---------------------------------------------------------------------------
 
 /**
- * Buffer the provider's text deltas, pass everything else through live, and
- * at end of stream emit either prose + a native tool call (when the text
- * carries exactly one well-formed terminal tool use) or the raw text
- * verbatim. The finish reason becomes `"tool-calls"` when a call was
- * converted so the runtime treats the turn like any native tool turn.
+ * How much of the assistant text so far can be shown to the user without
+ * risking a leak of tool XML: everything before the first tool opening tag,
+ * and — while no tag has appeared — everything before the last `<`, which is
+ * the only place a tag could still be forming. Trailing whitespace stays
+ * buffered so the blank line before a tool call never reaches the UI.
+ */
+function streamableBoundary(text: string, openTags: readonly string[]): number {
+	let firstTag = -1;
+	for (const tag of openTags) {
+		const index = text.indexOf(tag);
+		if (index !== -1 && (firstTag === -1 || index < firstTag)) {
+			firstTag = index;
+		}
+	}
+	const lastOpenAngle = text.lastIndexOf("<");
+	let boundary =
+		firstTag !== -1
+			? firstTag
+			: lastOpenAngle === -1
+				? text.length
+				: lastOpenAngle;
+	while (boundary > 0 && /\s/.test(text[boundary - 1] ?? "")) {
+		boundary--;
+	}
+	return boundary;
+}
+
+/**
+ * Stream the assistant's prose as it arrives, holding back only what could
+ * still turn into a tool use, and at end of stream emit either the remaining
+ * prose plus a native tool call or the withheld text verbatim. The finish
+ * reason becomes `"tool-calls"` when a call was converted so the runtime
+ * treats the turn like any native tool turn.
  */
 export async function* translateXmlToolCallingStream(
 	inner: AsyncIterable<AgentModelEvent>,
 	translation: XmlToolCallingTranslation,
 ): AsyncIterable<AgentModelEvent> {
+	const openTags = [...translation.specs.keys()].map((name) => `<${name}>`);
 	let text = "";
+	let emitted = 0;
 	let finishEvent: Extract<AgentModelEvent, { type: "finish" }> | undefined;
 
 	for await (const event of inner) {
 		if (event.type === "text-delta") {
 			text += event.text;
+			const boundary = streamableBoundary(text, openTags);
+			if (boundary > emitted) {
+				yield { type: "text-delta", text: text.slice(emitted, boundary) };
+				emitted = boundary;
+			}
 			continue;
 		}
 		if (event.type === "finish") {
@@ -274,8 +309,9 @@ export async function* translateXmlToolCallingStream(
 		? extractExecutableXmlCall(text, translation.specs)
 		: undefined;
 	if (call) {
-		if (call.prose) {
-			yield { type: "text-delta", text: call.prose };
+		const prose = text.slice(emitted, call.start).trimEnd();
+		if (prose) {
+			yield { type: "text-delta", text: prose };
 		}
 		yield {
 			type: "tool-call-delta",
@@ -292,8 +328,8 @@ export async function* translateXmlToolCallingStream(
 				},
 			},
 		};
-	} else if (text) {
-		yield { type: "text-delta", text };
+	} else if (text.length > emitted) {
+		yield { type: "text-delta", text: text.slice(emitted) };
 	}
 
 	if (finishEvent) {
