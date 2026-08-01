@@ -3,7 +3,7 @@ import {
 	authorizeMcpServerOAuth,
 	resolveDefaultMcpSettingsPath,
 } from "@cline/core";
-import open from "open";
+import open from "../../utils/open";
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error) {

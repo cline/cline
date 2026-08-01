@@ -391,7 +391,7 @@ function App(props: TuiProps) {
 				),
 			});
 			if (selected === SKILLS_MARKETPLACE_ACTION) {
-				await import("open")
+				await import("../utils/open")
 					.then(({ default: open }) => open(SKILLS_MARKETPLACE_URL))
 					.catch(() => {
 						showToast(`Visit ${SKILLS_MARKETPLACE_URL}`, "info");
