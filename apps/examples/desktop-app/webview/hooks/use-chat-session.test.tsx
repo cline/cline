@@ -585,6 +585,102 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("does not add completed turn cost after receiving its streamed deltas", async () => {
+		type SendResponse = {
+			ok: true;
+			result: {
+				text: string;
+				finishReason: "completed";
+				usage: {
+					inputTokens: number;
+					outputTokens: number;
+					totalCost: number;
+				};
+			};
+		};
+		let resolveSend: ((response: SendResponse) => void) | undefined;
+		const sendResponse = new Promise<SendResponse>((resolve) => {
+			resolveSend = resolve;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await sendResponse;
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("Track this completed turn");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 12_000,
+					outputTokens: 500,
+					cost: 0.01,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 13_000,
+					outputTokens: 700,
+					cost: 0.02,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					text: "",
+					finishReason: "completed",
+					usage: {
+						inputTokens: 13_000,
+						outputTokens: 700,
+						totalCost: 0.03,
+					},
+				},
+			});
+			await sendTask;
+		});
+
+		expect(current.summary).toMatchObject({
+			tokensIn: 13_000,
+			tokensOut: 700,
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
 	it("hydrates current token usage and cumulative cost from messages", async () => {
 		const hydratedSessionId = "session-with-usage";
 		invokeMock.mockImplementation(

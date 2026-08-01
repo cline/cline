@@ -306,6 +306,7 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const streamedTurnCostUsdRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -383,6 +384,7 @@ export function useChatSession() {
 	}, []);
 
 	const resetCounters = useCallback(() => {
+		streamedTurnCostUsdRef.current = 0;
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
@@ -901,7 +903,9 @@ export function useChatSession() {
 			flushPendingStream();
 
 			if (payload.stream === "chat_queued_prompt_start") {
+				streamedTurnCostUsdRef.current = 0;
 				let parsed: {
+					promptId?: string;
 					prompt?: string;
 					attachmentCount?: number;
 					userImages?: string[];
@@ -985,6 +989,7 @@ export function useChatSession() {
 				}
 				const cost = usage.cost;
 				if (typeof cost === "number") {
+					streamedTurnCostUsdRef.current += cost;
 					setTotalCostUsd((previous) => previous + cost);
 				}
 				return;
@@ -1457,6 +1462,7 @@ export function useChatSession() {
 				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
+					streamedTurnCostUsdRef.current = 0;
 					setStatus("starting");
 				}
 				await precedingPromptDispatch;
@@ -1604,8 +1610,12 @@ export function useChatSession() {
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
 						: undefined;
+				const streamedTurnCostUsd = streamedTurnCostUsdRef.current;
+				streamedTurnCostUsdRef.current = 0;
 				if (typeof totalCost === "number") {
-					setTotalCostUsd((prev) => prev + totalCost);
+					setTotalCostUsd(
+						(previous) => previous + totalCost - streamedTurnCostUsd,
+					);
 				}
 				const assistantMessageId = activeAssistantMessageIdRef.current;
 				if (
