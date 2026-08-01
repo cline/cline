@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
@@ -344,6 +344,20 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 			ctx,
 		);
 		expect(output.trim()).toBe("40000");
+	});
+
+	it("rejects safely when PowerShell exits without reading command input", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "shell-stdin-error-"));
+		const fakePowerShell = join(tempDir, "pwsh.exe");
+		try {
+			await copyFile(process.execPath, fakePowerShell);
+			const executor = createShellExecutor({ shell: fakePowerShell });
+			await expect(
+				executor(`Write-Output '${"x".repeat(5_000_000)}'`, process.cwd(), ctx),
+			).rejects.toThrow();
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it("runs structured commands without shell parsing", async () => {

@@ -148,7 +148,6 @@ function spawnAndCollect(
 			windowsHide: true,
 		});
 		const childPid = child.pid;
-		child.stdin?.end(config.input, "utf8");
 
 		const stdout = createRollingCollector(maxOutputChars);
 		const stderr = createRollingCollector(maxOutputChars);
@@ -293,6 +292,14 @@ function spawnAndCollect(
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
 		});
+
+		child.stdin?.on("error", (error) => {
+			if (killed || settled) return;
+			killAndReject(
+				new Error(`Failed to write command input: ${error.message}`),
+			);
+		});
+		child.stdin?.end(config.input, "utf8");
 	});
 }
 
