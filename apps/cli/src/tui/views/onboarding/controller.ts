@@ -20,7 +20,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { openUrlInBrowser } from "../../../utils/open-url";
+import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -479,17 +479,17 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const openClinePassSubscriptionPage = useCallback(() => {
 		setClinePassSubscriptionOpenStatus("Opening subscription page...");
-		void openUrlInBrowser(clinePassSubscriptionUrl).then((opened) => {
-			if (opened) {
+		void open(clinePassSubscriptionUrl, { wait: false })
+			.then(() => {
 				setClinePassSubscriptionOpenStatus(
 					"Opened subscription page in your browser.",
 				);
-			} else {
+			})
+			.catch(() => {
 				setClinePassSubscriptionOpenStatus(
 					`Could not open browser automatically. Open ${clinePassSubscriptionUrl}`,
 				);
-			}
-		});
+			});
 	}, [clinePassSubscriptionUrl]);
 
 	useEffect(() => {

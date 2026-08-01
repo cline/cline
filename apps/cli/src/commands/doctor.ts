@@ -21,7 +21,7 @@ import { Command } from "commander";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
-import { openUrlInBrowser } from "../utils/open-url";
+import open from "../utils/open";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
 
@@ -123,9 +123,7 @@ function resolveCliLogPath(): string {
 }
 
 async function defaultOpenPath(target: string): Promise<void> {
-	if (!(await openUrlInBrowser(target))) {
-		throw new Error("no browser opener available");
-	}
+	await open(target, { wait: false });
 }
 
 function listListeningPids(port: number | undefined): number[] {
