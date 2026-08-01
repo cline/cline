@@ -13,7 +13,6 @@ import {
 	type ClineModelPickerEntry,
 	freeTierDescriptionFor,
 	resolveClineModelDisplayName,
-	stripFreeMarker,
 } from "./cline-model-entries";
 
 export {
