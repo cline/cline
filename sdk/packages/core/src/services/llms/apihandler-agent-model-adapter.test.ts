@@ -10,7 +10,7 @@ import { createAgentModelFromApiHandler } from "./apihandler-agent-model-adapter
 
 function fakeHandler(
 	chunks: ApiStreamChunk[],
-	opts?: { throwAfter?: number },
+	opts?: { throwAfter?: number; error?: unknown },
 ): ApiHandler & { aborts: (AbortSignal | undefined)[] } {
 	const aborts: (AbortSignal | undefined)[] = [];
 	return {
@@ -28,7 +28,7 @@ function fakeHandler(
 			let i = 0;
 			for (const chunk of chunks) {
 				if (opts?.throwAfter !== undefined && i === opts.throwAfter) {
-					throw new Error("boom");
+					throw opts.error ?? new Error("boom");
 				}
 				yield chunk;
 				i++;
@@ -206,14 +206,10 @@ describe("createAgentModelFromApiHandler", () => {
 				},
 			}),
 		});
-		const handler: ApiHandler = {
-			getMessages: () => [],
-			getModel: (): HandlerModelInfo => ({ id: "m", info: { id: "m" } }),
-			// eslint-disable-next-line require-yield
-			async *createMessage(): AsyncGenerator<ApiStreamChunk> {
-				throw overflow;
-			},
-		};
+		const handler = fakeHandler([{ type: "text", text: "x", id: "x" }], {
+			throwAfter: 0,
+			error: overflow,
+		});
 		const model = createAgentModelFromApiHandler(handler);
 		const events = await collect(model.stream(baseRequest));
 		expect(events.at(-1)).toMatchObject({
