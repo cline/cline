@@ -1,4 +1,4 @@
-import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo, resolveDisplayModelName } from "@shared/api"
+import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
 import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
@@ -28,8 +28,8 @@ function toOnboardingModel(
 
 	return {
 		id: rec.id,
-		// The endpoint sends slug-like names, so prefer the catalog display name
-		name: resolveDisplayModelName(rec.id, modelCatalog, rec.name),
+		// Names arrive display-ready from the recommended-models RPC
+		name: rec.name || rec.id,
 		group,
 		badge,
 		score: 0,

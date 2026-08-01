@@ -34,7 +34,7 @@ async function performOAuthLogin(input: {
 	providerSettingsManager: ProviderSettingsManager;
 }): Promise<string> {
 	const [{ createOAuthClientCallbacks }, { default: open }] = await Promise.all(
-		[import("@cline/core"), import("open")],
+		[import("@cline/core"), import("../utils/open")],
 	);
 
 	const callbacks = createOAuthClientCallbacks({

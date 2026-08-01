@@ -7,7 +7,6 @@ import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
 	freeTierDescriptionFor,
-	stripFreeMarker,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
@@ -25,29 +24,10 @@ function tagColor(tag: string): string {
 	return palette.act;
 }
 
-function resolveDisplayName(
-	modelId: string,
-	knownModels?: Record<string, unknown>,
-): string {
-	if (knownModels) {
-		const candidates = [modelId, modelId.split("/").pop()];
-		for (const key of candidates) {
-			if (!key) continue;
-			const hit = knownModels[key] as { name?: string } | undefined;
-			if (hit?.name) return stripFreeMarker(hit.name);
-		}
-	}
-	const fallback = modelId.includes("/")
-		? (modelId.split("/").pop() ?? modelId)
-		: modelId;
-	return stripFreeMarker(fallback);
-}
-
 export function ClineModelSelectorContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
 		entries: ClineModelPickerEntry[];
 	},
 ) {
@@ -57,7 +37,6 @@ export function ClineModelSelectorContent(
 		dialogId,
 		currentModel,
 		currentProviderName,
-		knownModels,
 		entries,
 	} = props;
 	const [selected, setSelected] = useState(0);
@@ -95,7 +74,8 @@ export function ClineModelSelectorContent(
 				rows.push({
 					key: entry.model.id,
 					kind: "model",
-					label: resolveDisplayName(entry.model.id, knownModels),
+					// Names arrive display-ready from fetchClineRecommendedModels
+					label: entry.model.name || entry.model.id,
 					tags: entry.model.tags,
 					isCurrent: currentModel === entry.model.id,
 					entryIndex: i,
@@ -112,7 +92,7 @@ export function ClineModelSelectorContent(
 			}
 		}
 		return rows;
-	}, [entries, knownModels, currentModel]);
+	}, [entries, currentModel]);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -238,7 +218,6 @@ export function ClineModelSelectorDialogContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
 		loadEntries: () => Promise<ClineModelPickerEntry[]>;
 	},
 ) {
