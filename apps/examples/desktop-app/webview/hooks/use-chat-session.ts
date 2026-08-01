@@ -21,6 +21,7 @@ import type {
 	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
+	ChatUsageEvent,
 	CoreLogChunk,
 	ProcessContext,
 	PromptInQueue,
@@ -186,6 +187,54 @@ function updateMessageById(
 	return changed ? next : messages;
 }
 
+type SessionUsageSummary = {
+	tokensIn: number;
+	tokensOut: number;
+	totalCostUsd: number;
+};
+
+/**
+ * Read current context usage and cumulative cost from persisted chat messages.
+ *
+ * Each assistant message contains metrics for one model request. The latest
+ * request represents current context-window pressure; summing every request's
+ * input would instead measure lifetime traffic and make the ring saturate even
+ * after context compaction. Cost remains a session-wide sum.
+ */
+function summarizeSessionUsage(
+	messages: ChatMessage[],
+): SessionUsageSummary | undefined {
+	let tokensIn: number | undefined;
+	let tokensOut: number | undefined;
+	let totalCostUsd = 0;
+	let hasCost = false;
+
+	for (const message of messages) {
+		const meta = message.meta;
+		if (!meta) continue;
+		if (
+			typeof meta.inputTokens === "number" ||
+			typeof meta.outputTokens === "number"
+		) {
+			tokensIn = meta.inputTokens ?? 0;
+			tokensOut = meta.outputTokens ?? 0;
+		}
+		if (typeof meta.totalCost === "number") {
+			totalCostUsd += meta.totalCost;
+			hasCost = true;
+		}
+	}
+
+	if (tokensIn === undefined && tokensOut === undefined && !hasCost) {
+		return undefined;
+	}
+	return {
+		tokensIn: tokensIn ?? 0,
+		tokensOut: tokensOut ?? 0,
+		totalCostUsd,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Core log dispatcher — avoids repeated if/else chains
 // ---------------------------------------------------------------------------
@@ -224,6 +273,7 @@ export function useChatSession() {
 	const [toolCalls, setToolCalls] = useState(0);
 	const [tokensIn, setTokensIn] = useState(0);
 	const [tokensOut, setTokensOut] = useState(0);
+	const [totalCostUsd, setTotalCostUsd] = useState(0);
 	const [fileDiffs, setFileDiffs] = useState<SessionFileDiff[]>([]);
 	const [diffSummary, setDiffSummary] =
 		useState<SessionDiffSummary>(EMPTY_DIFF_SUMMARY);
@@ -261,6 +311,18 @@ export function useChatSession() {
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
 		desktopClient.getTransportError(),
 	);
+	const persistedUsage = useMemo(
+		() =>
+			sessionId
+				? summarizeSessionUsage(
+						messages.filter((message) => message.sessionId === sessionId),
+					)
+				: undefined,
+		[messages, sessionId],
+	);
+	const persistedTokensIn = persistedUsage?.tokensIn;
+	const persistedTokensOut = persistedUsage?.tokensOut;
+	const persistedTotalCostUsd = persistedUsage?.totalCostUsd;
 	// ---- Ref syncs ----
 
 	useEffect(() => {
@@ -272,6 +334,18 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		if (
+			persistedTokensIn === undefined ||
+			persistedTokensOut === undefined ||
+			persistedTotalCostUsd === undefined
+		) {
+			return;
+		}
+		setTokensIn(persistedTokensIn);
+		setTokensOut(persistedTokensOut);
+		setTotalCostUsd(persistedTotalCostUsd);
+	}, [persistedTokensIn, persistedTokensOut, persistedTotalCostUsd]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
@@ -312,6 +386,7 @@ export function useChatSession() {
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
+		setTotalCostUsd(0);
 		setFileDiffs([]);
 		setDiffSummary(EMPTY_DIFF_SUMMARY);
 	}, []);
@@ -388,8 +463,6 @@ export function useChatSession() {
 							e.hookEventName === "tool_call" || e.hookName === "tool_call",
 					).length,
 				);
-				setTokensIn(events.reduce((sum, e) => sum + (e.inputTokens ?? 0), 0));
-				setTokensOut(events.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0));
 			} catch {
 				// Ignore in non-Tauri mode.
 			}
@@ -898,8 +971,22 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_usage") {
-				// Usage is still finalized from the send() response to avoid
-				// double-counting when both stream and response include it.
+				let usage: ChatUsageEvent;
+				try {
+					usage = JSON.parse(payload.chunk) as ChatUsageEvent;
+				} catch {
+					return;
+				}
+				if (typeof usage.inputTokens === "number") {
+					setTokensIn(usage.inputTokens);
+				}
+				if (typeof usage.outputTokens === "number") {
+					setTokensOut(usage.outputTokens);
+				}
+				const cost = usage.cost;
+				if (typeof cost === "number") {
+					setTotalCostUsd((previous) => previous + cost);
+				}
 				return;
 			}
 
@@ -1506,17 +1593,20 @@ export function useChatSession() {
 				// Token / cost bookkeeping
 				const inputTokens = result?.usage?.inputTokens ?? result?.inputTokens;
 				if (typeof inputTokens === "number") {
-					setTokensIn((prev) => prev + inputTokens);
+					setTokensIn(inputTokens);
 				}
 				const outputTokens =
 					result?.usage?.outputTokens ?? result?.outputTokens;
 				if (typeof outputTokens === "number") {
-					setTokensOut((prev) => prev + outputTokens);
+					setTokensOut(outputTokens);
 				}
 				const totalCost =
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
 						: undefined;
+				if (typeof totalCost === "number") {
+					setTotalCostUsd((prev) => prev + totalCost);
+				}
 				const assistantMessageId = activeAssistantMessageIdRef.current;
 				if (
 					assistantMessageId &&
@@ -2043,6 +2133,7 @@ export function useChatSession() {
 			toolCalls,
 			tokensIn,
 			tokensOut,
+			totalCostUsd,
 			additions: diffSummary.additions,
 			deletions: diffSummary.deletions,
 		}),
@@ -2051,6 +2142,7 @@ export function useChatSession() {
 			diffSummary.deletions,
 			tokensIn,
 			tokensOut,
+			totalCostUsd,
 			toolCalls,
 		],
 	);
