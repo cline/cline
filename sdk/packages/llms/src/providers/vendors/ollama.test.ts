@@ -142,9 +142,7 @@ describe("withOllamaResponseTimeout", () => {
 
 		expect(APICallError.isInstance(error)).toBe(true);
 		expect((error as APICallError).isRetryable).toBe(true);
-		expect((error as APICallError).url).toBe(
-			"http://localhost:11434/api/chat",
-		);
+		expect((error as APICallError).url).toBe("http://localhost:11434/api/chat");
 	});
 
 	it("does not abort once the response has started", async () => {
