@@ -1487,9 +1487,9 @@ export class TelemetryService {
 		// Whether this failure surfaced to the user rather than being
 		// auto-retried. Always true from the SDK adapter (transient errors are
 		// retried inside the provider layer before any event fires); the
-		// legacy extension emits per-attempt with terminal=false on attempts
-		// that will auto-retry. Cross-cohort comparisons filter terminal=true.
-		terminal?: boolean
+		// legacy extension emits per-attempt with fatal=false on attempts
+		// that will auto-retry. Cross-cohort comparisons filter fatal=true.
+		fatal?: boolean
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
