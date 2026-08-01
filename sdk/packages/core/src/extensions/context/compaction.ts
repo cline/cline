@@ -41,6 +41,14 @@ export interface ContextPipelinePrepareTurnInput {
 	systemPrompt: string;
 	tools: unknown[];
 	model: CoreCompactionContext["model"];
+	/**
+	 * Set by the runtime when the provider rejected the previous request as
+	 * exceeding the model's context window. Forces a compaction regardless of
+	 * the token-estimate trigger (the estimate just proved wrong) and uses the
+	 * deterministic basic strategy — recovery must not depend on another
+	 * successful LLM request.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -282,6 +290,9 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
+		const effectiveMode: CoreCompactionMode = context.overflowRecovery
+			? "overflow_recovery"
+			: mode;
 		const apiMessageTokens = context.apiMessages.reduce(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
@@ -311,7 +322,7 @@ export function createContextCompactionPrepareTurn(
 		);
 		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
-			mode,
+			mode: effectiveMode,
 			strategy,
 			iteration: context.iteration,
 			providerId: config.providerId,
@@ -330,12 +341,12 @@ export function createContextCompactionPrepareTurn(
 			apiMessagesJsonChars: safeJsonSize(context.apiMessages),
 			...summarizeToolResults(context.apiMessages),
 		});
-		if (mode === "auto" && !shouldCompact) {
+		if (effectiveMode === "auto" && !shouldCompact) {
 			return undefined;
 		}
 		let requestTargetTokens: number;
 		let messageTargetTokens: number;
-		if (mode === "auto") {
+		if (effectiveMode === "auto") {
 			requestTargetTokens = resolveAutoRequestTargetTokens({
 				maxInputTokens,
 				modelMaxTokens: context.model.info?.maxTokens,
@@ -362,7 +373,7 @@ export function createContextCompactionPrepareTurn(
 			iteration: context.iteration,
 			messages: context.messages,
 			model: context.model,
-			mode,
+			mode: effectiveMode,
 			budget: {
 				request: {
 					inputTokens: requestInputTokens,
@@ -383,20 +394,27 @@ export function createContextCompactionPrepareTurn(
 		};
 
 		const statusReason =
-			mode === "manual" ? "manual_compaction" : "auto_compaction";
-		context.emitStatusNotice?.(
-			mode === "manual" ? "compacting" : "auto-compacting",
-			{
-				kind: statusReason,
-				reason: statusReason,
-				phase: "started",
-				iteration: context.iteration,
-				triggerTokens: requestTriggerTokens,
-				targetTokens: requestTargetTokens,
-				maxInputTokens,
-				messageTargetTokens,
-			},
-		);
+			effectiveMode === "manual"
+				? "manual_compaction"
+				: effectiveMode === "overflow_recovery"
+					? "overflow_recovery_compaction"
+					: "auto_compaction";
+		const noticePrefix =
+			effectiveMode === "manual"
+				? ""
+				: effectiveMode === "overflow_recovery"
+					? "overflow-recovery-"
+					: "auto-";
+		context.emitStatusNotice?.(`${noticePrefix}compacting`, {
+			kind: statusReason,
+			reason: statusReason,
+			phase: "started",
+			iteration: context.iteration,
+			triggerTokens: requestTriggerTokens,
+			targetTokens: requestTargetTokens,
+			maxInputTokens,
+			messageTargetTokens,
+		});
 
 		const beforeMessageCount = context.messages.length;
 		const startedAt = Date.now();
@@ -415,6 +433,13 @@ export function createContextCompactionPrepareTurn(
 		let result: CoreCompactionResult | undefined;
 		if (userCompaction?.compact) {
 			result = await userCompaction.compact(compactionContext);
+		} else if (effectiveMode === "overflow_recovery") {
+			// The provider already rejected the request, so recovery must be
+			// deterministic: the agentic strategy's own summarizer call could
+			// overflow the same window (its input budgeting trusts the same
+			// estimator that just undercounted).
+			executedStrategy = "basic";
+			result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
 		} else {
 			try {
 				result = await runBuiltinStrategy(builtinOptions);
@@ -473,24 +498,21 @@ export function createContextCompactionPrepareTurn(
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
 			} as Record<string, unknown>);
-			context.emitStatusNotice?.(
-				mode === "manual" ? "compacted" : "auto-compacted",
-				{
-					kind: statusReason,
-					reason: statusReason,
-					phase: "completed",
-					iteration: context.iteration,
-					tokensBefore: requestInputTokens,
-					tokensAfter: afterRequestTokens,
-					messagesBefore: beforeMessageCount,
-					messagesAfter: result.messages.length,
-					maxInputTokens,
-				},
-			);
+			context.emitStatusNotice?.(`${noticePrefix}compacted`, {
+				kind: statusReason,
+				reason: statusReason,
+				phase: "completed",
+				iteration: context.iteration,
+				tokensBefore: requestInputTokens,
+				tokensAfter: afterRequestTokens,
+				messagesBefore: beforeMessageCount,
+				messagesAfter: result.messages.length,
+				maxInputTokens,
+			});
 			captureCompactionExecuted(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: executedStrategy,
-				mode,
+				mode: effectiveMode,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
@@ -514,7 +536,7 @@ export function createContextCompactionPrepareTurn(
 				captureCompactionBudgetEmergency(config.telemetry, {
 					ulid: telemetryUlid,
 					strategy: executedStrategy,
-					mode,
+					mode: effectiveMode,
 					policyIntent: result.budget.policyIntent,
 					actionCount: result.budget.actionCount,
 					warningCount: result.budget.warningCount,
@@ -533,20 +555,17 @@ export function createContextCompactionPrepareTurn(
 				});
 			}
 		} else {
-			context.emitStatusNotice?.(
-				mode === "manual" ? "compaction-skipped" : "auto-compaction-skipped",
-				{
-					kind: statusReason,
-					reason: statusReason,
-					phase: "skipped",
-					iteration: context.iteration,
-					maxInputTokens,
-				},
-			);
+			context.emitStatusNotice?.(`${noticePrefix}compaction-skipped`, {
+				kind: statusReason,
+				reason: statusReason,
+				phase: "skipped",
+				iteration: context.iteration,
+				maxInputTokens,
+			});
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: executedStrategy,
-				mode,
+				mode: effectiveMode,
 				reason: "no_result",
 				tokensBefore: requestInputTokens,
 				triggerTokens: requestTriggerTokens,

@@ -757,6 +757,7 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Invalid API key",
+			errorClass: "unknown",
 		});
 	});
 
@@ -871,8 +872,48 @@ describe("sdk-gateway", () => {
 				type: "finish",
 				reason: "error",
 				error: "Invalid API key",
+				errorClass: "unknown",
 			},
 		]);
+	});
+
+	it("classifies context-window overflow errors on the finish event", async () => {
+		const overflowError = Object.assign(new Error("Bad Request"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long: 213462 tokens > 200000 maximum",
+					type: "invalid_request_error",
+				},
+			}),
+		});
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "error", error: overflowError }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		});
 	});
 
 	it("surfaces API detail fields from OpenAI-compatible error bodies", async () => {
@@ -907,6 +948,7 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Instructions are required",
+			errorClass: "unknown",
 		});
 	});
 
@@ -4065,35 +4107,32 @@ describe("sdk-gateway", () => {
 			"qwen-plus-latest",
 			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		],
-	])(
-		"routes %s to the %s regional endpoint when options.apiLine is set",
-		async (providerId, apiLine, modelId, expectedBaseUrl) => {
-			streamTextSpy.mockReturnValue({
-				fullStream: makeStreamParts([
-					{ type: "text-delta", textDelta: "Regional" },
-					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
-				]),
-			});
+	])("routes %s to the %s regional endpoint when options.apiLine is set", async (providerId, apiLine, modelId, expectedBaseUrl) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Regional" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
 
-			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId, apiKey: "test-key", options: { apiLine } },
-				],
-			});
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId, apiKey: "test-key", options: { apiLine } },
+			],
+		});
 
-			await collect(
-				await gateway.stream({
-					providerId,
-					modelId,
-					messages: baseMessages,
-				}),
-			);
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
 
-			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
-				expect.objectContaining({ baseURL: expectedBaseUrl }),
-			);
-		},
-	);
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: expectedBaseUrl }),
+		);
+	});
 
 	it("lets an explicit base URL win over options.apiLine", async () => {
 		streamTextSpy.mockReturnValue({

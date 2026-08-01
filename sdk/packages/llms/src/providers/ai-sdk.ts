@@ -6,6 +6,7 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
+	ProviderErrorClass,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
@@ -17,6 +18,7 @@ import {
 } from "@cline/shared";
 import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
+import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
@@ -905,17 +907,35 @@ function extractGoogleThoughtMetadata(
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
+/**
+ * A stream error captured while the raw provider error object is still in
+ * hand: the flattened display message plus its classification. Both are
+ * derived here because the structure needed to classify does not survive
+ * `extractErrorMessage`.
+ */
+interface CapturedStreamError {
+	message: string;
+	errorClass: ProviderErrorClass;
+}
+
+function captureStreamError(error: unknown): CapturedStreamError {
+	return {
+		message: extractErrorMessage(error),
+		errorClass: classifyProviderError(error),
+	};
+}
+
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
-	capturedError?: { current: string | undefined },
+	capturedError?: { current: CapturedStreamError | undefined },
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
-	let streamError: string | undefined;
+	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 
@@ -1025,7 +1045,7 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? extractErrorMessage(part.error);
+						capturedError?.current ?? captureStreamError(part.error);
 					break;
 				}
 
@@ -1042,7 +1062,7 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? extractErrorMessage(error);
+		streamError = capturedError?.current ?? captureStreamError(error);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -1057,7 +1077,7 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? extractErrorMessage(error);
+				streamError = capturedError?.current ?? captureStreamError(error);
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -1077,7 +1097,8 @@ async function* emitAiSdkEvents(
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
-		error: streamError,
+		error: streamError?.message,
+		errorClass: streamError?.errorClass,
 	};
 }
 
@@ -1159,7 +1180,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 		async *stream(request, context) {
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
-			const capturedError: { current: string | undefined } = {
+			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
 			try {
@@ -1222,8 +1243,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					providerOptions,
 					...requestConfig,
 					onError: ({ error: streamError }) => {
-						const msg = extractErrorMessage(streamError);
-						capturedError.current = msg;
+						const captured = captureStreamError(streamError);
+						const msg = captured.message;
+						capturedError.current = captured;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
@@ -1269,7 +1291,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const msg = capturedError.current ?? extractErrorMessage(error);
+				const captured = capturedError.current ?? captureStreamError(error);
+				const msg = captured.message;
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -1299,6 +1322,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					type: "finish",
 					reason: "error",
 					error: msg,
+					errorClass: captured.errorClass,
 				};
 			}
 		},

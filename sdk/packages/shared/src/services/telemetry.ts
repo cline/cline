@@ -82,6 +82,11 @@ export interface CaptureTaskLifecycleEventInput {
 	durationMs?: number;
 	eventType?: string;
 	error?: unknown;
+	/**
+	 * Classification of `error` (e.g. context_window_exceeded), emitted as
+	 * `error_class` alongside the normalized error fields.
+	 */
+	errorClass?: string;
 	messageLimit?: number;
 }
 
@@ -183,6 +188,7 @@ export function captureTaskLifecycleEvent(
 			...(input.error === undefined
 				? {}
 				: normalizeSdkError(input.error, input.messageLimit)),
+			error_class: input.errorClass,
 		}),
 	});
 }

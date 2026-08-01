@@ -48,6 +48,64 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 	);
 }
 
+/** Multi-turn transcript with prunable tool output for basic-compaction tests. */
+function overflowRecoveryTranscript(): MessageWithMetadata[] {
+	return [
+		{ role: "user", content: "Initial request that should survive" },
+		{
+			role: "assistant",
+			content: [
+				{ type: "text", text: "Older assistant explanation" },
+				{
+					type: "tool_use",
+					id: "tool-1",
+					name: "read_files",
+					input: { file_paths: ["/tmp/example.ts"] },
+				},
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-1",
+					name: "tool",
+					content: "tool output that should be removed",
+				},
+			],
+		},
+		{ role: "user", content: "Most recent user turn" },
+		{
+			role: "assistant",
+			content: [{ type: "text", text: "Most recent assistant reply" }],
+		},
+	];
+}
+
+/** The compaction produced messages and pruned the marked tool output. */
+function assertBasicCompactionResult(
+	result: { messages: MessageWithMetadata[] } | undefined,
+): void {
+	expect(result?.messages).toBeDefined();
+	expect(result?.messages.length).toBeGreaterThan(0);
+	for (const message of result?.messages ?? []) {
+		if (typeof message.content === "string") {
+			expect(message.content).not.toContain(
+				"tool output that should be removed",
+			);
+		} else {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					expect(block.text).not.toContain(
+						"tool output that should be removed",
+					);
+				}
+			}
+		}
+	}
+}
+
 describe("createTokenEstimator", () => {
 	it("does not treat cumulative request metrics as per-message token counts", () => {
 		const estimateMessageTokens = createTokenEstimator();
@@ -2159,24 +2217,113 @@ describe("createContextCompactionPrepareTurn", () => {
 				reason: "auto_compaction",
 			}),
 		);
-		expect(result?.messages).toBeDefined();
-		expect(result?.messages.length).toBeGreaterThan(0);
-		// Compacted messages should not contain tool_result content that was pruned.
-		for (const message of result?.messages ?? []) {
-			if (typeof message.content === "string") {
-				expect(message.content).not.toContain(
-					"tool output that should be removed",
-				);
-			} else {
-				for (const block of message.content) {
-					if (block.type === "text") {
-						expect(block.text).not.toContain(
-							"tool output that should be removed",
-						);
-					}
-				}
-			}
-		}
+		assertBasicCompactionResult(result);
+	});
+
+	it("forces a basic compaction on overflow recovery, bypassing the estimate gate", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				// Agentic is configured, but recovery must not depend on a
+				// summarizer call succeeding.
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				// Large window: the estimate-based trigger would not fire, yet
+				// the provider said otherwise — recovery must compact anyway.
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacting",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				reason: "overflow_recovery_compaction",
+			}),
+		);
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacted",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "completed",
+			}),
+		);
+		assertBasicCompactionResult(result);
+	});
+
+	it("skips overflow-recovery compaction when there is nothing to remove", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "A single oversized first prompt" },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compaction-skipped",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "skipped",
+			}),
+		);
 	});
 
 	it("triggers compaction when input reaches exactly 90 percent", async () => {

@@ -59,7 +59,7 @@ export interface CoreRuntimeFeatures {
 	yolo?: boolean;
 }
 
-export type CoreCompactionMode = "auto" | "manual";
+export type CoreCompactionMode = "auto" | "manual" | "overflow_recovery";
 
 export interface CoreCompactionBudget {
 	request: {
