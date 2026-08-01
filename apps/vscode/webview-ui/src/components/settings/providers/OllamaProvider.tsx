@@ -195,9 +195,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						<span className="font-semibold">Request Timeout (ms)</span>
 					</DebouncedTextField>
 					<p className="text-xs mt-0 text-description">
-						Maximum time in milliseconds to wait for the response to start. The default is generous because
-						Ollama loads the model into memory on the first request, which can take minutes for large
-						models.
+						Maximum time in milliseconds to wait for API responses before timing out.
 					</p>
 				</>
 			)}
