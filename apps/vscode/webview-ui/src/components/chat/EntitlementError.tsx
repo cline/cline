@@ -1,5 +1,5 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
-import { findUsageBasedClineModelId } from "@shared/cline/cline-pass-models"
+import { findUsageBasedClineModelId } from "@shared/cline/cline-model-namespaces"
 import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import type { Mode } from "@shared/storage/types"

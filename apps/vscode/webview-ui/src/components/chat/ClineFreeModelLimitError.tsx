@@ -1,4 +1,5 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { findUsageBasedClineModelId } from "@shared/cline/cline-model-namespaces"
 import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -14,7 +15,6 @@ interface ClineFreeModelLimitErrorProps {
 }
 
 const CLINE_PROVIDER_ID = "cline"
-const CLINE_FREE_MODEL_PREFIX = "cline-free/"
 const FREE_MODEL_LIMIT_RETRY_MARKER = "try again in "
 
 function extractFreeModelLimitResetTime(message: string): string | undefined {
@@ -26,24 +26,6 @@ function extractFreeModelLimitResetTime(message: string): string | undefined {
 
 	const resetTime = backendMessage.slice(resetStart + FREE_MODEL_LIMIT_RETRY_MARKER.length).trim()
 	return resetTime || undefined
-}
-
-// Free model ids are cline-free/<model-slug>; their paid counterpart is the
-// catalog model with the same slug under its lab prefix (e.g.
-// cline-free/deepseek-v4-flash -> deepseek/deepseek-v4-flash).
-function findPaidModelId(freeModelId: string | undefined, clineModelIds: string[]): string | undefined {
-	if (!freeModelId?.startsWith(CLINE_FREE_MODEL_PREFIX)) {
-		return undefined
-	}
-
-	const modelSlug = freeModelId.slice(CLINE_FREE_MODEL_PREFIX.length)
-	if (!modelSlug) {
-		return undefined
-	}
-
-	return clineModelIds.find(
-		(modelId) => !modelId.startsWith(CLINE_FREE_MODEL_PREFIX) && (modelId === modelSlug || modelId.endsWith(`/${modelSlug}`)),
-	)
 }
 
 const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) => {
@@ -65,8 +47,11 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 			: modeFields.apiProvider === CLINE_PROVIDER_ID
 				? modeFields.clineModelId
 				: undefined
+	// Free model ids are cline-free/<model-slug>; their paid counterpart is the
+	// catalog model with the same slug under its lab prefix (e.g.
+	// cline-free/deepseek-v4-flash -> deepseek/deepseek-v4-flash).
 	const paidModelId = useMemo(
-		() => findPaidModelId(selectedFreeModelId, Object.keys(clineModels ?? {})),
+		() => findUsageBasedClineModelId(selectedFreeModelId, Object.keys(clineModels ?? {})),
 		[selectedFreeModelId, clineModels],
 	)
 
