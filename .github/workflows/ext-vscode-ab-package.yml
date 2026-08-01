@@ -49,9 +49,16 @@ jobs:
         name: Validate inputs
         runs-on: ubuntu-latest
         steps:
+            # The input reaches the shell ONLY via env here (never inline
+            # expression interpolation, which is evaluated before bash runs and
+            # would allow script injection from the dispatch form). Because
+            # every later job `needs` preflight, passing this regex is what
+            # makes the plain-string `${{ inputs.version }}` interpolations
+            # downstream safe.
             - name: Validate version format
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
-                  VERSION="${{ github.event.inputs.version }}"
                   if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                     echo "Error: version must be plain X.Y.Z with no leading 'v' and no suffix (got '$VERSION')."
                     echo "It is stamped verbatim into the union manifest and both bundle manifests."
@@ -77,8 +84,9 @@ jobs:
             # land in between. Keep both copies of this check in sync.
             - name: Verify version exceeds the live Marketplace version
               if: ${{ github.event.inputs.publish == 'true' }}
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
-                  VERSION="${{ github.event.inputs.version }}"
                   LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
                     -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
                     --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
@@ -406,8 +414,9 @@ jobs:
             # would otherwise be silently superseded by this older code line.
             # Keep in sync with the preflight copy of this check.
             - name: Re-verify version exceeds the live Marketplace version
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
-                  VERSION="${{ github.event.inputs.version }}"
                   LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
                     -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
                     --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
@@ -427,7 +436,15 @@ jobs:
                   ' "$VERSION" "$LIVE"
                   echo "Version ok: $VERSION exceeds live Marketplace version $LIVE"
 
-            - name: Publish to Marketplace and Open VSX
+            # Both PATs are verified BEFORE the first irreversible publish so a
+            # missing Open VSX token can't strand us half-published. The two
+            # registries are separate steps: if Open VSX fails after the
+            # Marketplace accepted the VSIX, the run goes red (so the operator
+            # notices Open VSX lagged) but the bookkeeping below still runs —
+            # it is keyed off the Marketplace outcome, which is what "shipped"
+            # means for this listing.
+            - name: Publish to Marketplace
+              id: publish_marketplace
               working-directory: staging
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -442,19 +459,27 @@ jobs:
                     exit 1
                   fi
                   vsce publish --no-dependencies --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix"
-                  npx ovsx publish --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
+
+            - name: Publish to Open VSX
+              working-directory: staging
+              env:
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: npx ovsx publish --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
 
             # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
             # Mirrors the standalone publish workflows. Every step here is
-            # continue-on-error: the Marketplace publish above already happened,
-            # and a red run after a successful publish is exactly the confusion
-            # the nightly workflow taught us to avoid (tag pushes fail whenever
-            # the built commit touches .github/workflows/** — no grantable
-            # permission fixes that; push the tag manually in that case, see
-            # the publish-extension skill).
+            # continue-on-error, and gated on the MARKETPLACE outcome rather
+            # than plain step ordering: the Marketplace publish already
+            # happened, so bookkeeping must still run when only the Open VSX
+            # step failed, and a red run after a successful publish is exactly
+            # the confusion the nightly workflow taught us to avoid (tag pushes
+            # fail whenever the built commit touches .github/workflows/** — no
+            # grantable permission fixes that; push the tag manually in that
+            # case, see the publish-extension skill).
 
             - name: Extract changelog entry
               id: changelog
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
               run: |
                   CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
@@ -466,6 +491,7 @@ jobs:
 
             - name: Resolve previous release tag
               id: prev_tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
               run: |
                   # ls-remote needs no local tag objects; take the highest v* tag
@@ -478,6 +504,7 @@ jobs:
                   echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
 
             - name: Create and push release tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
               run: |
                   TAG="v${{ github.event.inputs.version }}"
@@ -486,6 +513,7 @@ jobs:
                   echo "Pushed $TAG at $(git rev-parse HEAD)"
 
             - name: Create GitHub Release
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
               uses: softprops/action-gh-release@v1
               with:
@@ -499,6 +527,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Post release to Slack
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
               uses: slackapi/slack-github-action@v3.0.1
               with:
