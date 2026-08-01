@@ -7,7 +7,10 @@ import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
-	subscribeMock: vi.fn(() => () => undefined),
+	subscribeMock: vi.fn(
+		(_eventName: string, _handler: (payload: unknown) => void) => () =>
+			undefined,
+	),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -585,7 +588,7 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
-	it("does not add completed turn cost after receiving its streamed deltas", async () => {
+	it("preserves queued usage while the preceding turn is persisted", async () => {
 		type SendResponse = {
 			ok: true;
 			result: {
@@ -686,7 +689,7 @@ describe("useChatSession", () => {
 			resolveSend?.({
 				ok: true,
 				result: {
-					text: "",
+					text: "Completed turn",
 					finishReason: "completed",
 					usage: {
 						inputTokens: 13_000,

@@ -349,7 +349,12 @@ export function useChatSession() {
 		}
 		setTokensIn(persistedTokensIn);
 		setTokensOut(persistedTokensOut);
-		setTotalCostUsd(persistedTotalCostUsd);
+		// A queued turn may already be streaming when the preceding turn's
+		// message metadata is persisted. Preserve that newer, unpersisted cost.
+		setTotalCostUsd(
+			persistedTotalCostUsd +
+				(activeTurnCostTrackerRef.current?.streamedCostUsd ?? 0),
+		);
 	}, [persistedTokensIn, persistedTokensOut, persistedTotalCostUsd]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;

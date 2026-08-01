@@ -1156,7 +1156,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
