@@ -1200,7 +1200,7 @@ export function ChatInputBar({
 
 				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
 					{variant === "conversation" ? (
-						<>
+						<div className="flex min-w-0 items-center gap-0">
 							<TokenUsageRing
 								usage={{
 									contextWindow: modelContextWindow,
@@ -1222,7 +1222,7 @@ export function ChatInputBar({
 									workspaceRoot={workspaceRoot}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 					<div className="flex shrink-0 items-center gap-2">
 						{canAbort && (
@@ -1652,7 +1652,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 				>
 					<svg
 						aria-hidden="true"
-						className="-rotate-90"
+						className="-rotate-90 size-3.5"
 						height="22"
 						viewBox="0 0 22 22"
 						width="22"

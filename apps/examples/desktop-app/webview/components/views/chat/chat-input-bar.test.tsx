@@ -186,7 +186,7 @@ describe("ChatInputBar", () => {
 		expect(workspaceFooterSlot?.className).not.toContain("truncate");
 		expect(workspaceFooterSlot?.className).not.toContain("hidden");
 		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
-		const rightControls = workspaceFooterSlot?.parentElement;
+		const rightControls = workspaceFooterSlot?.parentElement?.parentElement;
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
 		expect(
 			rightControls?.contains(
@@ -483,6 +483,7 @@ describe("ChatInputBar token ring", () => {
 		);
 		expect(trigger?.textContent).toBe("");
 		const ring = trigger?.querySelector("svg");
+		expect(ring?.classList.contains("size-5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
 		const progressCircle = trigger?.querySelector("circle.stroke-primary");
@@ -494,6 +495,8 @@ describe("ChatInputBar token ring", () => {
 
 		const workspaceSelector = container.querySelector("#git-branch-btn");
 		expect(workspaceSelector).not.toBeNull();
+		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
+		expect(trigger?.parentElement?.contains(workspaceSelector)).toBe(true);
 		expect(
 			Boolean(
 				trigger?.compareDocumentPosition(workspaceSelector as Node) &
