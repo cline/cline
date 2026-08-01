@@ -7,7 +7,6 @@ import { serializeAgentEvent } from "./session-data";
 import {
 	captureConversationTurnEvent,
 	captureDiffEditFailure,
-	captureProviderApiError,
 	captureSkillUsed,
 	captureTokenUsage,
 	captureToolUsage,
@@ -206,16 +205,6 @@ export function handleAgentEvent(
 				...agentIdentity,
 			});
 		}
-	}
-
-	if (event.type === "notice" && event.reason === "api_error") {
-		captureProviderApiError(telemetry, {
-			ulid: sessionId,
-			model: config.modelId,
-			provider: config.providerId,
-			errorMessage: event.message,
-			...agentIdentity,
-		});
 	}
 
 	if (event.type === "usage" && liveSession?.turnUsageBaseline) {
