@@ -2,6 +2,7 @@ import { type ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -31,6 +32,12 @@ const askSageDefaultURL = "https://api.asksage.ai/server"
 export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	// The effective config merges the legacy StateManager field with the SDK
+	// providers.json store (legacy wins), so URLs configured from other hosts
+	// (CLI/desktop) surface here too. Fall back to the legacy field while the
+	// async config read is still in flight.
+	const { config, write } = useProviderConfig("asksage")
+	const apiUrl = config?.baseUrl || apiConfiguration?.asksageApiUrl || askSageDefaultURL
 	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
 		"asksage",
 		apiConfiguration,
@@ -38,10 +45,17 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 	)
 	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(models)
 
+	const handleApiUrlChange = (value: string) => {
+		// Writes both the SDK providers.json store and the legacy
+		// asksageApiUrl state key (the store mirrors baseUrl writes back to
+		// legacy state). Partially-typed URLs can fail the store's URL
+		// validation; the debounced field settles on the final value.
+		void write({ baseUrl: value }).catch((err) => console.error("Failed to update AskSage API URL:", err))
+	}
+
 	useEffect(() => {
 		const fetchModels = async () => {
 			try {
-				const apiUrl = apiConfiguration?.asksageApiUrl || askSageDefaultURL
 				const response = await fetch(`${apiUrl}/get-models`)
 
 				if (!response.ok) {
@@ -74,7 +88,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 		}
 
 		fetchModels()
-	}, [apiConfiguration?.asksageApiUrl, models])
+	}, [apiUrl, models])
 
 	return (
 		<div>
@@ -86,8 +100,8 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 			/>
 
 			<DebouncedTextField
-				initialValue={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
-				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
+				initialValue={apiUrl}
+				onChange={handleApiUrlChange}
 				placeholder="Enter AskSage API URL..."
 				style={{ width: "100%" }}
 				type="text">

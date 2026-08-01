@@ -16,6 +16,7 @@ import {
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
+	resolveBaseUrl,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -263,6 +264,50 @@ describe("normalizeSdkBaseUrl", () => {
 
 	it("preserves explicit user paths", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
+	})
+
+	it("inherits the AskSage default /server path when a custom URL has no path", () => {
+		expect(normalizeSdkBaseUrl("asksage", "https://sage.example.com")).toBe("https://sage.example.com/server")
+		expect(normalizeSdkBaseUrl("asksage", "https://sage.example.com/custom-server")).toBe(
+			"https://sage.example.com/custom-server",
+		)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// resolveBaseUrl
+// ---------------------------------------------------------------------------
+
+describe("resolveBaseUrl", () => {
+	it("resolves the AskSage API URL from the legacy asksageApiUrl state field", () => {
+		// The settings UI persists the URL to the legacy StateManager field, so
+		// the runtime must read it back from there; without the map entry the
+		// SDK gateway silently used the builtin default endpoint.
+		expect(
+			resolveBaseUrl("asksage", {
+				asksageApiUrl: "https://sage.example.com/server",
+			} as any),
+		).toBe("https://sage.example.com/server")
+		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("falls back to the AskSage providers.json base URL when legacy state has none", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "asksage") {
+				return undefined
+			}
+			return {
+				provider: "asksage",
+				baseUrl: "https://migrated.example.com/server",
+			} as any
+		})
+
+		expect(resolveBaseUrl("asksage", {} as any)).toBe("https://migrated.example.com/server")
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("asksage")
+	})
+
+	it("returns undefined for AskSage when neither store has a URL so the SDK default applies", () => {
+		expect(resolveBaseUrl("asksage", {} as any)).toBeUndefined()
 	})
 })
 
