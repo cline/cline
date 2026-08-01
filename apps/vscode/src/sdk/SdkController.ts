@@ -873,13 +873,18 @@ export class Controller {
 						return true
 					})
 				if (isPluginCommand) {
+					// The whole submission is discarded, so name everything the
+					// user must resend — including attachments, which command
+					// handlers never receive.
 					this.messages.appendAndEmit(
 						[
 							{
 								ts: Date.now(),
 								type: "say",
 								say: "text",
-								text: "Plugin commands can run after the current turn finishes.",
+								text: options.hasAttachments
+									? "Plugin commands can run after the current turn finishes. The attached images and files were not sent; resend them with your next message."
+									: "Plugin commands can run after the current turn finishes.",
 								partial: false,
 							},
 						],
