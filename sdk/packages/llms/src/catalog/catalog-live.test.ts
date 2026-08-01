@@ -367,6 +367,52 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("resolves OpenRouter display names for free models with full catalog ids", () => {
+		// The recommended-models endpoint sends slug-like names (e.g.
+		// "deepseek-v4-flash"); the overlay must keep the OpenRouter display
+		// name so merged cline/cline-pass catalogs don't show raw ids.
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				free: [
+					{ id: "deepseek/deepseek-v4-flash", name: "deepseek-v4-flash" },
+					{ id: "poolside/laguna-s-2.1:free", name: "laguna-s-2.1:free" },
+					{ id: "unknown/mystery-model", name: "mystery-model" },
+				],
+			},
+			{
+				"deepseek/deepseek-v4-flash": {
+					id: "deepseek/deepseek-v4-flash",
+					name: "DeepSeek V4 Flash",
+					contextWindow: 1_000_000,
+					maxInputTokens: 800_000,
+					maxTokens: 128_000,
+					capabilities: ["tools", "reasoning"],
+					pricing: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				},
+				"poolside/laguna-s-2.1:free": {
+					id: "poolside/laguna-s-2.1:free",
+					name: "Laguna S 2.1 (free)",
+					contextWindow: 262_144,
+					maxInputTokens: 262_144,
+					maxTokens: 32_768,
+					capabilities: ["tools"],
+					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				},
+			},
+		);
+
+		expect(result.cline?.["deepseek/deepseek-v4-flash"]).toMatchObject({
+			id: "deepseek/deepseek-v4-flash",
+			name: "DeepSeek V4 Flash",
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+		expect(result.cline?.["poolside/laguna-s-2.1:free"]?.name).toBe(
+			"Laguna S 2.1 (free)",
+		);
+		// Without a catalog match, fall back to the endpoint-provided name.
+		expect(result.cline?.["unknown/mystery-model"]?.name).toBe("mystery-model");
+	});
+
 	it("uses input limits as the model request context window", () => {
 		expect(resolveMaxInputTokens(undefined)).toBe(128_000);
 		expect(

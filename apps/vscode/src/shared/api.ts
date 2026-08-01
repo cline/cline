@@ -175,6 +175,22 @@ export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Rec
 	return modelInfoByName?.[getModelSlug(modelId)] ?? clinePassModelInfoSaneDefaults
 }
 
+/**
+ * Resolves a human-readable model name for featured model cards. The Cline
+ * recommended-models endpoint only sends slug-like names (e.g.
+ * "deepseek-v4-flash"), so prefer the display name from the provider model
+ * catalog, then any endpoint-provided fallback, then the raw id. Featured
+ * sections render their own FREE chip, so OpenRouter's "(free)" / ":free"
+ * markers are stripped as redundant.
+ */
+export function resolveDisplayModelName(modelId: string, models?: Record<string, ModelInfo>, fallbackName?: string): string {
+	const displayName = models?.[modelId]?.name?.trim() || fallbackName?.trim() || modelId
+	return displayName
+		.replace(/\s*\(free\)\s*$/i, "")
+		.replace(/:free$/i, "")
+		.trim()
+}
+
 export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,

@@ -99,13 +99,54 @@ describe("ClineModelPicker", () => {
 	it("commits Cline model selections through provider config so providers.json is updated", async () => {
 		render(<ClineModelPicker currentMode="act" />)
 
-		fireEvent.click(await screen.findByText("cline-next"))
+		// Featured cards render the catalog display name, but selection still
+		// commits the underlying model id.
+		fireEvent.click(await screen.findByText("Cline Next"))
 
 		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1))
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "cline",
 			modelId: "cline-next",
 		})
+	})
+
+	it("resolves featured model display names from the provider catalog", async () => {
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [{ id: "anthropic/claude-opus-5", description: "Frontier model", tags: ["NEW"] }],
+			free: [
+				{ id: "deepseek/deepseek-v4-flash", description: "Fast and efficient", tags: [] },
+				{ id: "poolside/laguna-s-2.1:free", description: "Latest coding agent model", tags: [] },
+				{ id: "unknown/named-model", name: "named-model", description: "Not in the catalog", tags: [] },
+				{ id: "unknown/mystery-model", description: "No catalog or endpoint name", tags: [] },
+			],
+		})
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"anthropic/claude-opus-5": { name: "Claude Opus 5", supportsPromptCache: true },
+				"deepseek/deepseek-v4-flash": { name: "DeepSeek V4 Flash", supportsPromptCache: true },
+				"poolside/laguna-s-2.1:free": { name: "Laguna S 2.1 (free)", supportsPromptCache: false },
+			},
+			defaultModelId: "anthropic/claude-opus-5",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+
+		render(<ClineModelPicker currentMode="act" />)
+
+		expect(await screen.findByText("Claude Opus 5")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByText("Free"))
+
+		expect(await screen.findByText("DeepSeek V4 Flash")).toBeInTheDocument()
+		// The FREE chip already says it, so the "(free)" marker is stripped
+		expect(screen.getByText("Laguna S 2.1")).toBeInTheDocument()
+		// Models missing from the catalog fall back to the endpoint-provided name
+		expect(screen.getByText("named-model")).toBeInTheDocument()
+		// ...and to the raw id only when there is no endpoint name either
+		expect(screen.getByText("unknown/mystery-model")).toBeInTheDocument()
 	})
 
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {
