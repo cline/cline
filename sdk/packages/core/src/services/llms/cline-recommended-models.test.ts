@@ -55,7 +55,10 @@ const ENDPOINT_PAYLOAD = {
 
 const CATALOG = {
 	openrouter: {
-		"anthropic/claude-opus-5": model("anthropic/claude-opus-5", "Claude Opus 5"),
+		"anthropic/claude-opus-5": model(
+			"anthropic/claude-opus-5",
+			"Claude Opus 5",
+		),
 		"z-ai/glm-5.2": model("z-ai/glm-5.2", "GLM-5.2"),
 	},
 	cline: {
@@ -132,6 +135,57 @@ describe("fetchClineRecommendedModels", () => {
 		});
 
 		expect(data.recommended[0]?.name).toBe("claude-opus-5");
+	});
+
+	it("shares one timeout budget between the feed request and the catalog lookup", async () => {
+		// A feed response that consumes most of the window must not grant the
+		// hung catalog loader a fresh full window on top (which would roughly
+		// double the worst-case loading time).
+		const feedDelayMs = 400;
+		const timeoutMs = 500;
+		const slowFeed: typeof fetch = async () => {
+			await new Promise((resolve) => setTimeout(resolve, feedDelayMs));
+			return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		};
+
+		const startedAt = Date.now();
+		const data = await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: slowFeed,
+			timeoutMs,
+			catalogLoader: () => new Promise(() => {}),
+		});
+		const elapsedMs = Date.now() - startedAt;
+
+		// Stacked windows would take ~feedDelayMs + timeoutMs (~900ms).
+		expect(elapsedMs).toBeLessThan(feedDelayMs + timeoutMs - 100);
+		expect(data.recommended[0]?.name).toBe("claude-opus-5");
+	});
+
+	it("still applies an instantly-resolving catalog when the budget is exhausted", async () => {
+		// Simulates a cached catalog: getLiveModelsCatalog resolves cached data
+		// on a microtask, which beats the zero-delay degradation timer even
+		// when the feed request consumed the whole window.
+		const timeoutMs = 50;
+		const slowFeed: typeof fetch = async () => {
+			await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+			return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		};
+
+		const data = await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: slowFeed,
+			timeoutMs,
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(data.recommended[0]?.name).toBe("Claude Opus 5");
 	});
 
 	it("returns the bundled fallback untouched when the endpoint fails", async () => {

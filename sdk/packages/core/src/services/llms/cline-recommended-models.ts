@@ -185,9 +185,13 @@ function catalogLookupIds(modelId: string): string[] {
 	const ids = [modelId];
 	for (const rule of VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES) {
 		if (modelId.startsWith(rule.canonicalPrefix)) {
-			ids.push(`${rule.aliasPrefix}${modelId.slice(rule.canonicalPrefix.length)}`);
+			ids.push(
+				`${rule.aliasPrefix}${modelId.slice(rule.canonicalPrefix.length)}`,
+			);
 		} else if (modelId.startsWith(rule.aliasPrefix)) {
-			ids.push(`${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`);
+			ids.push(
+				`${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`,
+			);
 		}
 	}
 	return ids;
@@ -267,13 +271,19 @@ async function resolveDisplayNames(
 export async function fetchClineRecommendedModels(
 	options: FetchClineRecommendedModelsOptions = {},
 ): Promise<ClineRecommendedModelsData> {
+	const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+	// The feed request and the catalog lookup share one deadline so a slow
+	// endpoint plus a cold catalog cannot stack two full timeout windows. An
+	// already-cached catalog still applies with an exhausted budget: its
+	// promise resolves on a microtask, ahead of the zero-delay timer.
+	const deadline = Date.now() + timeoutMs;
 	try {
 		const base = getConfiguredApiBaseUrl(options);
 		const fetchImpl = options.fetchImpl ?? fetch;
 		const resp = await fetchWithTimeout(
 			fetchImpl,
 			`${base}/api/v1/ai/cline/recommended-models`,
-			options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+			timeoutMs,
 		);
 		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 		const json: unknown = await resp.json();
@@ -282,7 +292,7 @@ export async function fetchClineRecommendedModels(
 			return await resolveDisplayNames(
 				data,
 				options.catalogLoader ?? getLiveModelsCatalog,
-				options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+				Math.max(0, deadline - Date.now()),
 			);
 		}
 	} catch {
