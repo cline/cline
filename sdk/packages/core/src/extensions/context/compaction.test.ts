@@ -2442,6 +2442,43 @@ describe("createContextCompactionPrepareTurn", () => {
 		assertBasicCompactionResult(result);
 	});
 
+	it("falls back to basic compaction when a custom compactor returns an empty transcript", async () => {
+		// An empty result is trivially "smaller" and under target, but would
+		// erase the very request the retry is supposed to re-send.
+		const compact = vi.fn(async () => ({ messages: [] }));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
 	it("falls back to basic compaction when a custom compactor shrinks but misses the recovery target", async () => {
 		// Drops only the short final message — strictly smaller, but far above
 		// the ~50% recovery target, so the retry would still not fit.

@@ -465,14 +465,22 @@ export function createContextCompactionPrepareTurn(
 						(total: number, message) => total + estimateMessageTokens(message),
 						0,
 					);
-					const shrunk =
-						safeJsonSize(result.messages) < safeJsonSize(context.messages);
-					if (!shrunk || customMessageTokens > messageTargetTokens) {
+					// The full acceptance bar, covering every degenerate size: a
+					// non-empty transcript (an empty one erases the request being
+					// retried), strictly smaller than the input (the runtime
+					// refuses a retry that is not smaller), and within the
+					// recovery token target (a marginal shrink spends the run's
+					// single retry on a request that still cannot fit).
+					const acceptable =
+						result.messages.length > 0 &&
+						safeJsonSize(result.messages) < safeJsonSize(context.messages) &&
+						customMessageTokens <= messageTargetTokens;
+					if (!acceptable) {
 						config.logger?.log(
-							"Custom compaction did not reach the overflow-recovery target; falling back to basic compaction",
+							"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to basic compaction",
 							{
 								severity: "warn",
-								shrunk,
+								customMessageCount: result.messages.length,
 								customMessageTokens,
 								messageTargetTokens,
 							},
