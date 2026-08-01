@@ -37,15 +37,17 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
-	{
-		id: "xml-tool-calling",
-		label: "XML Tool Calling",
-		description:
-			"Drive tools through XML tags in plain text instead of the model's native tool calling API. Enable this for local or older models that don't reliably support native tool calling. Applies to new tasks.",
-		stateKey: "enableXmlToolCalling",
-		settingKey: "enableXmlToolCalling",
-	},
 ]
+
+// Rendered separately below the Auto Compact Strategy dropdown.
+const xmlToolCallingFeature: FeatureToggle = {
+	id: "xml-tool-calling",
+	label: "XML Tool Calling",
+	description:
+		"Drive tools through XML tags in plain text instead of the model's native tool calling API. Enable this for local or older models that don't reliably support native tool calling. Applies to new tasks.",
+	stateKey: "enableXmlToolCalling",
+	settingKey: "enableXmlToolCalling",
+}
 
 const editorFeatures: FeatureToggle[] = [
 	{
@@ -228,6 +230,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</SelectContent>
 								</Select>
 							</div>
+							<FeatureRow
+								checked={featureState[xmlToolCallingFeature.stateKey]}
+								description={xmlToolCallingFeature.description}
+								label={xmlToolCallingFeature.label}
+								onChange={(checked) => updateSetting(xmlToolCallingFeature.settingKey, checked)}
+							/>
 						</div>
 					</div>
 
