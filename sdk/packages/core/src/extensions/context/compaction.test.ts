@@ -2403,6 +2403,45 @@ describe("createContextCompactionPrepareTurn", () => {
 		assertBasicCompactionResult(result);
 	});
 
+	it("falls back to basic compaction when a custom compactor does not shrink during overflow recovery", async () => {
+		// Echoes its input back — "succeeds" without removing anything, which
+		// the runtime would reject as a non-shrinking retry.
+		const compact = vi.fn(async (context: CoreCompactionContext) => ({
+			messages: context.messages,
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
 	it("falls back to basic compaction when a custom compactor declines during overflow recovery", async () => {
 		const compact = vi.fn(async () => undefined);
 		const prepareTurn = createContextCompactionPrepareTurn({

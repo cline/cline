@@ -437,8 +437,10 @@ export function createContextCompactionPrepareTurn(
 			// overflow the same window (its input budgeting trusts the same
 			// estimator that just undercounted). A custom compactor gets first
 			// shot — it sees mode "overflow_recovery" and owns its transcript
-			// invariants — but if it throws or declines, basic compaction runs
-			// so recovery never depends on another successful LLM request.
+			// invariants — but if it throws, declines, or fails to shrink the
+			// transcript (the runtime refuses to retry with a request that is
+			// not smaller), basic compaction runs so recovery never depends on
+			// another successful LLM request.
 			if (userCompaction?.compact) {
 				try {
 					result = await userCompaction.compact(compactionContext);
@@ -452,6 +454,16 @@ export function createContextCompactionPrepareTurn(
 							severity: "warn",
 							...describeCompactionError(error),
 						},
+					);
+					result = undefined;
+				}
+				if (
+					result?.messages &&
+					safeJsonSize(result.messages) >= safeJsonSize(context.messages)
+				) {
+					config.logger?.log(
+						"Custom compaction did not shrink the transcript during overflow recovery; falling back to basic compaction",
+						{ severity: "warn" },
 					);
 					result = undefined;
 				}
