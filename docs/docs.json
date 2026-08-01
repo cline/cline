@@ -768,7 +768,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/cli-reference"
+			"destination": "/usage/cli-overview#editor-integration-acp"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",
