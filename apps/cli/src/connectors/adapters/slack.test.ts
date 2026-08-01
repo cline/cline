@@ -350,4 +350,103 @@ describe("slack binding lookup", () => {
 			),
 		).toBe(false);
 	});
+
+	it("detects Slack message_not_found errors across error shapes", () => {
+		expect(
+			__test__.isSlackMessageNotFoundError(
+				new Error("An API error occurred: message_not_found"),
+			),
+		).toBe(true);
+		// @slack/web-api platform errors carry the code on `data.error`.
+		expect(
+			__test__.isSlackMessageNotFoundError(
+				Object.assign(new Error("An API error occurred"), {
+					code: "slack_webapi_platform_error",
+					data: { ok: false, error: "message_not_found" },
+				}),
+			),
+		).toBe(true);
+		// The Slack chat adapter carries the code on `response.error`.
+		expect(
+			__test__.isSlackMessageNotFoundError(
+				Object.assign(new Error("Slack chat.delete failed"), {
+					method: "chat.delete",
+					response: { ok: false, error: "message_not_found" },
+				}),
+			),
+		).toBe(true);
+		expect(__test__.isSlackMessageNotFoundError("message_not_found")).toBe(
+			true,
+		);
+	});
+
+	it("does not treat other Slack errors as message_not_found", () => {
+		expect(
+			__test__.isSlackMessageNotFoundError(
+				new Error("An API error occurred: channel_not_found"),
+			),
+		).toBe(false);
+		expect(
+			__test__.isSlackMessageNotFoundError(
+				Object.assign(new Error("An API error occurred"), {
+					code: "slack_webapi_platform_error",
+					data: { ok: false, error: "invalid_auth" },
+				}),
+			),
+		).toBe(false);
+		expect(__test__.isSlackMessageNotFoundError(undefined)).toBe(false);
+	});
+
+	it("keeps message_not_found out of the thread and warns instead", async () => {
+		const posted: string[] = [];
+		const logs: Array<{ message: string; meta?: Record<string, unknown> }> = [];
+
+		await __test__.reportSlackTurnFailure({
+			error: Object.assign(new Error("An API error occurred"), {
+				code: "slack_webapi_platform_error",
+				data: { ok: false, error: "message_not_found" },
+			}),
+			thread: { id: "slack:C123:1710000000.123456", channelId: "slack:C123" },
+			logger: {
+				core: {
+					log: (message: string, meta?: Record<string, unknown>) => {
+						logs.push({ message, meta });
+					},
+				},
+			} as never,
+			post: async (message: string) => {
+				posted.push(message);
+			},
+		});
+
+		expect(posted).toEqual([]);
+		expect(logs).toHaveLength(1);
+		expect(logs[0]?.meta?.severity).toBe("warn");
+		expect(logs[0]?.meta?.threadId).toBe("slack:C123:1710000000.123456");
+	});
+
+	it("still reports genuine Slack turn failures into the thread", async () => {
+		const posted: string[] = [];
+		const logs: string[] = [];
+
+		await __test__.reportSlackTurnFailure({
+			error: new Error("An API error occurred: invalid_auth"),
+			thread: { id: "slack:C123:1710000000.123456", channelId: "slack:C123" },
+			logger: {
+				core: {
+					log: (message: string) => {
+						logs.push(message);
+					},
+				},
+			} as never,
+			post: async (message: string) => {
+				posted.push(message);
+			},
+		});
+
+		expect(posted).toEqual([
+			"Slack bridge error: An API error occurred: invalid_auth",
+		]);
+		expect(logs).toEqual([]);
+	});
 });

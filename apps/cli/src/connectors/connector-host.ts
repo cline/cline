@@ -1225,7 +1225,18 @@ async function runConnectorRuntimeTurn<
 			input.activeTurns.delete(turnKey);
 		}
 		if (toolStatusMessage) {
-			await toolStatusMessage.delete().catch(() => undefined);
+			// Cleaning up the in-progress status message is best effort: the turn
+			// already produced its reply, and the message may be gone already (for
+			// example a cancelled turn whose status message the platform dropped).
+			await toolStatusMessage.delete().catch((error: unknown) => {
+				input.logger.core.log("Connector tool status cleanup failed", {
+					severity: "warn",
+					transport: input.transport,
+					conversationId: input.thread.id,
+					sessionId,
+					error,
+				});
+			});
 		}
 	}
 }
