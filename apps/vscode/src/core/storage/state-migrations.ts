@@ -228,6 +228,19 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 }
 
 /**
+ * Providers whose models reliably support native tool calling through the
+ * Cline gateway — users on these don't benefit from XML tool calling, so the
+ * legacy migration below never opts them in.
+ */
+const XML_MIGRATION_EXCLUDED_PROVIDERS = new Set(["cline", "cline-pass"])
+
+function usesExcludedProvider(rawState: Record<string, unknown>): boolean {
+	return [rawState.planModeApiProvider, rawState.actModeApiProvider].some(
+		(value) => typeof value === "string" && XML_MIGRATION_EXCLUDED_PROVIDERS.has(value.toLowerCase()),
+	)
+}
+
+/**
  * One-shot migration for users coming from the legacy extension bundle: the
  * legacy "Native Tool Call" setting (`nativeToolCallEnabled`) only exists on
  * disk when the user explicitly toggled it (the proto field was optional and
@@ -235,6 +248,10 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
  * `false` means the user deliberately ran with XML tool calling. Carry that
  * choice over to the SDK extension's `enableXmlToolCalling` setting exactly
  * once — after the new key exists on disk (in either state), the user owns it.
+ *
+ * Users whose plan- or act-mode provider is Cline or ClinePass are excluded:
+ * those providers handle native tool calling well, and the setting is global,
+ * so enabling XML mode would degrade their tasks.
  *
  * Reads the raw shared globalState.json (not the StateManager cache) because
  * the legacy key is not part of the SDK extension's state schema and because
@@ -250,6 +267,9 @@ export function migrateLegacyNativeToolCallSetting(
 			return
 		}
 		if (rawState.nativeToolCallEnabled !== false) {
+			return
+		}
+		if (usesExcludedProvider(rawState)) {
 			return
 		}
 		stateManager.setGlobalState("enableXmlToolCalling", true)

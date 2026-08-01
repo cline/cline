@@ -106,6 +106,50 @@ describe("migrateLegacyNativeToolCallSetting", () => {
 		expect(writes).toEqual([["enableXmlToolCalling", true]])
 	})
 
+	it("enables XML tool calling for non-Cline providers like ollama", () => {
+		const { stateManager, writes } = makeStateManager()
+		writeDataFile("globalState.json", {
+			nativeToolCallEnabled: false,
+			planModeApiProvider: "ollama",
+			actModeApiProvider: "ollama",
+		})
+		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
+		expect(writes).toEqual([["enableXmlToolCalling", true]])
+	})
+
+	it("does nothing when the user is on the cline provider", () => {
+		const { stateManager, writes } = makeStateManager()
+		writeDataFile("globalState.json", {
+			nativeToolCallEnabled: false,
+			planModeApiProvider: "cline",
+			actModeApiProvider: "cline",
+		})
+		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
+		expect(writes).toEqual([])
+	})
+
+	it("does nothing when the user is on the cline-pass provider", () => {
+		const { stateManager, writes } = makeStateManager()
+		writeDataFile("globalState.json", {
+			nativeToolCallEnabled: false,
+			planModeApiProvider: "cline-pass",
+			actModeApiProvider: "cline-pass",
+		})
+		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
+		expect(writes).toEqual([])
+	})
+
+	it("does nothing when either mode uses a Cline provider (the setting is global)", () => {
+		const { stateManager, writes } = makeStateManager()
+		writeDataFile("globalState.json", {
+			nativeToolCallEnabled: false,
+			planModeApiProvider: "cline",
+			actModeApiProvider: "ollama",
+		})
+		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
+		expect(writes).toEqual([])
+	})
+
 	it("does nothing when the legacy setting is absent (user never touched it)", () => {
 		const { stateManager, writes } = makeStateManager()
 		writeDataFile("globalState.json", { someOtherKey: 1 })
