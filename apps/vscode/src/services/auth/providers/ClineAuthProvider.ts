@@ -190,12 +190,13 @@ export class ClineAuthProvider {
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
 				// Rollout stand-down: this machine is assigned to the next
-				// bundle, so this legacy window must never rotate the shared
-				// refresh token again (the next bundle owns the token family
-				// now — a rotation from here would strand it with a consumed
-				// token). Keep using the current access token until it truly
-				// expires, then surface a "reload this window" notice instead
-				// of refreshing. The stored blob is deliberately left intact.
+				// bundle AND next already holds a copy of these credentials,
+				// so this legacy window must never rotate the shared refresh
+				// token again (a rotation from here would strand next with a
+				// consumed token). Keep using the current access token until
+				// it truly expires, then surface a "reload this window" notice
+				// instead of refreshing. The stored blob is deliberately left
+				// intact.
 				if (shouldStandDownAuth()) {
 					if (this.timeUntilExpiry(storedAuthData.idToken) > 30) {
 						return storedAuthData
