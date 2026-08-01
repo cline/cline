@@ -135,8 +135,11 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.className).toContain("overflow-y-hidden");
-		expect(promptInput?.className).not.toContain("overflow-y-auto");
+		expect(promptInput?.rows).toBe(2);
+		expect(promptInput?.className).toContain("field-sizing-content");
+		expect(promptInput?.className).toContain("overflow-y-auto");
+		expect(promptInput?.style.minHeight).toBe("2.5rem");
+		expect(promptInput?.style.maxHeight).toBe("6.25rem");
 
 		await act(async () => {
 			if (!promptInput) return;
@@ -147,7 +150,7 @@ describe("ChatInputBar", () => {
 			setValue?.call(promptInput, "first line\nsecond line");
 			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		expect(promptInput?.className).toContain("overflow-y-auto");
+		expect(promptInput?.rows).toBe(2);
 
 		await render("starting");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
@@ -188,11 +191,12 @@ describe("ChatInputBar", () => {
 		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
 		const rightControls = workspaceFooterSlot?.parentElement?.parentElement;
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
-		expect(
-			rightControls?.contains(
-				container.querySelector('[aria-label="Send message"]'),
-			),
-		).toBe(true);
+		const sendTrigger = container.querySelector('[aria-label="Send message"]');
+		const stopTrigger = container.querySelector('[aria-label="Stop agent"]');
+		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
+		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		expect(rightControls?.contains(sendTrigger)).toBe(false);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
 
@@ -483,7 +487,7 @@ describe("ChatInputBar token ring", () => {
 		);
 		expect(trigger?.textContent).toBe("");
 		const ring = trigger?.querySelector("svg");
-		expect(ring?.classList.contains("size-5")).toBe(true);
+		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
 		const progressCircle = trigger?.querySelector("circle.stroke-primary");

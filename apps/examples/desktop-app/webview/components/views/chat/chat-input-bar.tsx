@@ -118,7 +118,9 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Extra", value: "xhigh" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
-const PROMPT_INPUT_FOCUSED_ROWS = 5;
+const PROMPT_INPUT_EXPANDED_ROWS = 2;
+const PROMPT_INPUT_MAX_ROWS = 5;
+const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
@@ -411,6 +413,10 @@ export function ChatInputBar({
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+	const promptInputRows =
+		variant === "welcome" || promptInputFocused
+			? PROMPT_INPUT_EXPANDED_ROWS
+			: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -947,7 +953,7 @@ export function ChatInputBar({
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
-								"min-h-16 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
 						<textarea
@@ -969,10 +975,7 @@ export function ChatInputBar({
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
 							className={cn(
-								"max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								promptInput.includes("\n")
-									? "overflow-y-auto"
-									: "overflow-y-hidden",
+								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -1068,15 +1071,44 @@ export function ChatInputBar({
 							}
 							ref={promptInputRef}
 							role="combobox"
-							rows={
-								variant === "welcome"
-									? 2
-									: promptInputFocused
-										? PROMPT_INPUT_FOCUSED_ROWS
-										: PROMPT_INPUT_COLLAPSED_ROWS
-							}
+							rows={promptInputRows}
+							style={{
+								maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+								minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+							}}
 							value={promptInput}
 						/>
+						<div className="flex shrink-0 items-center gap-2">
+							{canAbort && (
+								<button
+									aria-label="Stop agent"
+									className={cn(
+										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										variant === "welcome" ? "rounded-md" : "rounded-full",
+									)}
+									onClick={onAbort}
+									type="button"
+								>
+									<CircleStop className="size-2" />
+								</button>
+							)}
+							{(!isBusy || canSend) && (
+								<button
+									aria-label="Send message"
+									className={cn(
+										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										variant === "welcome"
+											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
+											: "rounded-full bg-primary text-background hover:bg-primary/80",
+									)}
+									disabled={!canSend}
+									onClick={handleSend}
+									type="button"
+								>
+									<ArrowUp className="size-2" />
+								</button>
+							)}
+						</div>
 					</div>
 				</div>
 				{attachments.length > 0 && (
@@ -1101,7 +1133,7 @@ export function ChatInputBar({
 				)}
 			</div>
 
-			{/* Composer settings and submit */}
+			{/* Composer settings */}
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
@@ -1201,14 +1233,6 @@ export function ChatInputBar({
 				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
-							<TokenUsageRing
-								usage={{
-									contextWindow: modelContextWindow,
-									tokensIn: summary.tokensIn,
-									tokensOut: summary.tokensOut,
-									totalCost: summary.totalCostUsd,
-								}}
-							/>
 							<div className="min-w-0 overflow-visible">
 								<WorkspaceSelector
 									currentBranch={gitBranch}
@@ -1222,39 +1246,16 @@ export function ChatInputBar({
 									workspaceRoot={workspaceRoot}
 								/>
 							</div>
+							<TokenUsageRing
+								usage={{
+									contextWindow: modelContextWindow,
+									tokensIn: summary.tokensIn,
+									tokensOut: summary.tokensOut,
+									totalCost: summary.totalCostUsd,
+								}}
+							/>
 						</div>
 					) : null}
-					<div className="flex shrink-0 items-center gap-2">
-						{canAbort && (
-							<button
-								aria-label="Stop agent"
-								className={cn(
-									"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
-									variant === "welcome" ? "rounded-md" : "rounded-full",
-								)}
-								onClick={onAbort}
-								type="button"
-							>
-								<CircleStop className="size-2" />
-							</button>
-						)}
-						{(!isBusy || canSend) && (
-							<button
-								aria-label="Send message"
-								className={cn(
-									"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-									variant === "welcome"
-										? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-										: "rounded-full bg-primary text-background hover:bg-primary/80",
-								)}
-								disabled={!canSend}
-								onClick={handleSend}
-								type="button"
-							>
-								<ArrowUp className="size-2" />
-							</button>
-						)}
-					</div>
 				</div>
 			</div>
 		</div>
