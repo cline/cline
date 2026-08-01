@@ -4,7 +4,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useMemo, useState } from "react";
 import { palette } from "../tui/palette";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
-import { openUrlInBrowser } from "../utils/open-url";
+import open from "../utils/open";
 import type { CliMigrationNotice } from "./notice";
 
 export function MigrationNoticeContent(
@@ -18,15 +18,15 @@ export function MigrationNoticeContent(
 
 	const openSubscriptionPage = useCallback(() => {
 		setStatus("Opening ClinePass in your browser...");
-		void openUrlInBrowser(subscriptionUrl).then((opened) => {
-			if (opened) {
+		void open(subscriptionUrl, { wait: false })
+			.then(() => {
 				setStatus("Opened ClinePass in your browser.");
-			} else {
+			})
+			.catch(() => {
 				setStatus(
 					"Could not open the browser automatically. Use the URL below.",
 				);
-			}
-		});
+			});
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
@@ -48,7 +48,7 @@ export function MigrationNoticeContent(
 					latest open-weight coding models with enough quota for day-to-day
 					work, at a much lower cost than paying API costs directly.
 				</text>
-				<text selectable>Try it now with a limited-time promo for $1.99.</text>
+				<text selectable>Try it now with a limited-time promo for $4.99.</text>
 			</box>
 			<box flexDirection="row">
 				<text fg={palette.act} selectable>

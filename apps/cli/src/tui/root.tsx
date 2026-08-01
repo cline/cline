@@ -12,7 +12,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
-import { openUrlInBrowser } from "../utils/open-url";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
@@ -448,9 +447,11 @@ function App(props: TuiProps) {
 				),
 			});
 			if (selected === SKILLS_MARKETPLACE_ACTION) {
-				if (!(await openUrlInBrowser(SKILLS_MARKETPLACE_URL))) {
-					showToast(`Visit ${SKILLS_MARKETPLACE_URL}`, "info");
-				}
+				await import("../utils/open")
+					.then(({ default: open }) => open(SKILLS_MARKETPLACE_URL))
+					.catch(() => {
+						showToast(`Visit ${SKILLS_MARKETPLACE_URL}`, "info");
+					});
 				if (invocation) {
 					removeLocalCommandInvocationRef.current(invocation);
 				} else {

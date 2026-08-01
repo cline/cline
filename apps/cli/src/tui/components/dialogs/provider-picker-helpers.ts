@@ -53,6 +53,8 @@ export function buildClinePassSubscriptionPageUrl(
 		appBaseUrl || DEFAULT_APP_BASE_URL,
 	);
 	url.searchParams.set("personal", "true");
-	url.searchParams.set("code", CLI_PROMO_CODE);
+	if(CLI_PROMO_CODE) {
+		url.searchParams.set("code", CLI_PROMO_CODE);
+	}
 	return url.toString();
 }
