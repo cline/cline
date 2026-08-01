@@ -4,6 +4,10 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { CLI_PROMO_CODE } from "../../../utils/cline-pass-errors";
+import {
+	type DialogDismissKey,
+	isAnyKeyDismiss,
+} from "../../utils/dialog-keys";
 
 const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
 const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
@@ -47,19 +51,22 @@ export function saveManualProviderApiKey(
 
 /**
  * Key handling for the OAuth waiting screens: `K` switches to manual API key
- * entry when that fallback is available; every other key cancels the pending
- * auth attempt.
+ * entry when that fallback is available; any other (unmodified) key cancels
+ * the pending auth attempt; modifier-held keys are ignored.
  *
  * Like the ClinePass promo dialog, this screen must never depend on Esc
  * alone: it is non-interactive, it may be waiting on a browser flow that
  * never completes, and Esc is the least reliably delivered key across
  * terminals (notably on Windows, where console input layers can swallow it).
+ * Modifier-held keys are ignored so that holding Cmd/Ctrl to click the
+ * auth/verification link never cancels the flow mid-click.
  */
 export function resolveOAuthWaitKeyAction(
-	keyName: string,
+	key: DialogDismissKey,
 	allowApiKeyFallback: boolean | undefined,
-): "use_api_key" | "cancel" {
-	return allowApiKeyFallback && keyName === "k" ? "use_api_key" : "cancel";
+): "use_api_key" | "cancel" | "ignore" {
+	if (!isAnyKeyDismiss(key)) return "ignore";
+	return allowApiKeyFallback && key.name === "k" ? "use_api_key" : "cancel";
 }
 
 export function buildClinePassSubscriptionPageUrl(

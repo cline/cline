@@ -878,10 +878,10 @@ export function OAuthLoginContent(
 	}, []);
 
 	useDialogKeyboard((key) => {
+		const action = resolveOAuthWaitKeyAction(key, allowApiKeyFallback);
+		if (action === "ignore") return;
 		cancelAuthAttempt();
-		if (
-			resolveOAuthWaitKeyAction(key.name, allowApiKeyFallback) === "use_api_key"
-		) {
+		if (action === "use_api_key") {
 			resolve("use_api_key");
 			return;
 		}

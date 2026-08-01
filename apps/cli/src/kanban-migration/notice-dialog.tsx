@@ -4,21 +4,29 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import open from "open";
 import { useCallback, useMemo, useState } from "react";
 import { palette } from "../tui/palette";
+import {
+	type DialogDismissKey,
+	isAnyKeyDismiss,
+} from "../tui/utils/dialog-keys";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 import type { CliMigrationNotice } from "./notice";
 
 /**
- * Enter opens the subscription page; every other key dismisses the dialog.
+ * Enter opens the subscription page; any other (unmodified) key dismisses the
+ * dialog; modifier-held keys are ignored.
  *
  * The dialog used to be dismissible only with Esc, but Esc is the least
  * reliable key across terminals (it arrives as a bare `\x1b` that needs
  * timeout disambiguation, and Windows console input layers are known to
  * swallow it), which left users stuck behind the promo with no way out.
+ * Modifier-held keys are ignored so that holding Cmd/Ctrl to click the
+ * subscription link never dismisses the dialog mid-click.
  */
 export function resolveMigrationNoticeKeyAction(
-	keyName: string,
-): "open" | "dismiss" {
-	return keyName === "return" || keyName === "enter" ? "open" : "dismiss";
+	key: DialogDismissKey,
+): "open" | "dismiss" | "ignore" {
+	if (!isAnyKeyDismiss(key)) return "ignore";
+	return key.name === "return" || key.name === "enter" ? "open" : "dismiss";
 }
 
 export function MigrationNoticeContent(
@@ -44,7 +52,9 @@ export function MigrationNoticeContent(
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
-		if (resolveMigrationNoticeKeyAction(key.name) === "open") {
+		const action = resolveMigrationNoticeKeyAction(key);
+		if (action === "ignore") return;
+		if (action === "open") {
 			openSubscriptionPage();
 			return;
 		}
