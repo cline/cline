@@ -317,8 +317,18 @@ export class TelemetryService {
 			BROWSER_ERROR: "task.browser_error",
 			// Tracks Gemini API specific performance metrics
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
-			// Tracks when API providers return errors
+			// RESERVED for parity with the legacy extension, which emits this
+			// event ONLY for empty/unparsable assistant responses — NOT general
+			// API failures. During the A/B rollout dashboards compare error
+			// rates per extension_variant under matching event names, so this
+			// name must not be reused with wider semantics. The SDK extension's
+			// provider-failure firehose is PROVIDER_FAILURE below.
 			PROVIDER_API_ERROR: "task.provider_api_error",
+			// Tracks every provider failure surfaced by the SDK session layer:
+			// failed attempts (including auto-retried ones), preflight/task-init
+			// errors, and agent-run failures. Deliberately broader than the
+			// legacy extension's PROVIDER_API_ERROR — hence the separate name.
+			PROVIDER_FAILURE: "task.provider_failure",
 			// Tracks when users enable the focus chain feature
 			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
 			// Tracks when users disable the focus chain feature
@@ -1467,7 +1477,15 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records telemetry when an API provider returns an error
+	 * Records telemetry for any provider failure surfaced by the SDK session
+	 * layer — failed attempts (including auto-retried ones), preflight/task-init
+	 * errors, and agent-run failures.
+	 *
+	 * Emits task.provider_failure, NOT task.provider_api_error: the legacy
+	 * extension emits the latter only for empty/unparsable assistant responses,
+	 * and the A/B rollout dashboards compare variants under matching event
+	 * names. Emitting this firehose under the legacy name made the SDK bundle
+	 * read as ~9x the "API error rate" of legacy on identical user behavior.
 	 * @param ulid Unique identifier for the task
 	 * @param model Identifier of the model used
 	 * @param requestId Unique identifier for the specific API request
@@ -1475,7 +1493,7 @@ export class TelemetryService {
 	 * @param errorStatus HTTP status code of the error response, if available
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
-	public captureProviderApiError(args: {
+	public captureProviderFailure(args: {
 		ulid: string
 		model: string
 		errorMessage: string
@@ -1487,7 +1505,7 @@ export class TelemetryService {
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
-			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
+			event: TelemetryService.EVENTS.TASK.PROVIDER_FAILURE,
 			properties: {
 				...args,
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages

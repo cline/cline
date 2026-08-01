@@ -319,7 +319,7 @@ describe("SdkSessionEventCoordinator", () => {
 
 		await coordinator.handleSessionEvent(event)
 
-		expect(options.captureProviderApiError).toHaveBeenCalledWith({
+		expect(options.captureProviderFailure).toHaveBeenCalledWith({
 			sessionId: "session-123",
 			error,
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
@@ -341,7 +341,7 @@ describe("SdkSessionEventCoordinator", () => {
 
 		await coordinator.handleSessionEvent(event)
 
-		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+		expect(options.captureProviderFailure).not.toHaveBeenCalled()
 	})
 
 	it("captures provider failure telemetry when the SDK finishes a turn with reason error", async () => {
@@ -361,7 +361,7 @@ describe("SdkSessionEventCoordinator", () => {
 
 		await coordinator.handleSessionEvent(event)
 
-		expect(options.captureProviderApiError).toHaveBeenCalledWith({
+		expect(options.captureProviderFailure).toHaveBeenCalledWith({
 			sessionId: "session-123",
 			error: "stream failed before assistant output",
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
@@ -395,7 +395,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
 		getTurnPhase: vi.fn(() => input.turnPhase ?? "streaming"),
-		captureProviderApiError: vi.fn(),
+		captureProviderFailure: vi.fn(),
 		beginProviderFailureTelemetryTurn: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
@@ -407,7 +407,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
-		captureProviderApiError: ReturnType<typeof vi.fn>
+		captureProviderFailure: ReturnType<typeof vi.fn>
 		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState

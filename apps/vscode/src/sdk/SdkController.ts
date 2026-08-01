@@ -587,7 +587,7 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
-			captureProviderApiError: (event) => this.captureProviderFailure(event),
+			captureProviderFailure: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.compaction = new SdkCompactionCoordinator({
@@ -613,7 +613,7 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
-			captureProviderApiError: (event) => this.captureProviderFailure(event),
+			captureProviderFailure: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
@@ -1044,7 +1044,7 @@ export class Controller {
 		const model = event.modelId ?? this.getSessionModelId(event.sessionId) ?? this.getTaskModelId() ?? "unknown"
 		const clineError = ClineError.transform(event.error, model, provider)
 
-		telemetryService.captureProviderApiError({
+		telemetryService.captureProviderFailure({
 			ulid,
 			model,
 			provider,

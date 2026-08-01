@@ -335,11 +335,11 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(updatedEntry.attributes.is_multi_root, false)
 	})
 
-	it("captureProviderApiError increments error counter", () => {
+	it("captureProviderFailure increments error counter", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureProviderApiError({
+		service.captureProviderFailure({
 			ulid: "task-3",
 			model: "claude",
 			errorMessage: "boom",
@@ -348,6 +348,18 @@ describe("TelemetryService metrics", () => {
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
+
+		// Pinned: the SDK provider-failure firehose must emit its OWN event name.
+		// task.provider_api_error is reserved for legacy-extension parity (it
+		// means "empty/unparsable assistant response" there) and the rollout
+		// dashboards compare variants by event name.
+		const failureEvent = provider.logs.find((entry) => entry.event === "task.provider_failure")
+		assert.ok(failureEvent, "expected task.provider_failure event")
+		assert.strictEqual(
+			provider.logs.some((entry) => entry.event === "task.provider_api_error"),
+			false,
+			"task.provider_api_error must not be emitted by the SDK provider-failure path",
+		)
 
 		assert.strictEqual(provider.counters.length, 1)
 		const entry = provider.counters[0]

@@ -37,7 +37,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	/** Current authoritative UI turn phase, from the controller's TurnStateTracker. */
 	getTurnPhase?: () => TurnPhase
-	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
+	captureProviderFailure?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
 
@@ -68,7 +68,7 @@ export class SdkSessionEventCoordinator {
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const agentFailure = this.getAgentFailureTelemetry(event)
 		if (agentFailure && !this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error)) {
-			this.options.captureProviderApiError?.({
+			this.options.captureProviderFailure?.({
 				sessionId: agentFailure.sessionId,
 				error: agentFailure.error,
 				errorType: agentFailure.errorType,

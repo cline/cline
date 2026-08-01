@@ -54,7 +54,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
-	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
+	captureProviderFailure?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -158,7 +158,7 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
 			return taskSessionId
 		} catch (error) {
-			this.options.captureProviderApiError?.({
+			this.options.captureProviderFailure?.({
 				sessionId: taskSessionId,
 				error,
 				providerId,
