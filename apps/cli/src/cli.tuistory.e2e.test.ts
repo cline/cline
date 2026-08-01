@@ -12,7 +12,7 @@
 // Run with: bun run test:e2e:tuistory
 // ---------------------------------------------------------------------------
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
@@ -28,7 +28,9 @@ const UI_TIMEOUT_MS = 15_000;
 const tempDirs: string[] = [];
 const sessions: Session[] = [];
 
-function createCliEnv(): Record<string, string | undefined> {
+function createCliEnv(
+	overrides: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
 	const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-home-"));
 	const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-data-"));
 	const sessionDir = mkdtempSync(
@@ -60,10 +62,14 @@ function createCliEnv(): Record<string, string | undefined> {
 		// CLI renders as a real interactive terminal.
 		CI: undefined,
 		VITEST: undefined,
+		...overrides,
 	};
 }
 
-async function launchCli(extraArgs: string[] = []): Promise<Session> {
+async function launchCli(
+	extraArgs: string[] = [],
+	env: Record<string, string | undefined> = createCliEnv(),
+): Promise<Session> {
 	const session = await launchTerminal({
 		command: bunExec,
 		args: [
@@ -77,7 +83,7 @@ async function launchCli(extraArgs: string[] = []): Promise<Session> {
 			...extraArgs,
 		],
 		cwd: cliRoot,
-		env: createCliEnv(),
+		env,
 		cols: 120,
 		rows: 36,
 		// The CLI compiles a large TS graph on cold start; don't gate launch
@@ -201,5 +207,38 @@ describe("cli tuistory e2e", () => {
 		const screen = await session.text();
 		expect(screen).toContain("Settings");
 		expect(screen).toContain("▸ Provider");
+	});
+
+	it("dismisses the ClinePass promo with any key and marks it as shown", async () => {
+		// Re-enable the promo dialog that the shared env suppresses.
+		const env = createCliEnv({ CLINE_DISABLE_CLINE_PASS_NOTICE: undefined });
+		const dataDir = env.CLINE_DATA_DIR as string;
+		const session = await launchCli([], env);
+
+		await session.waitForText("Try ClinePass", { timeout: LAUNCH_TIMEOUT_MS });
+		await session.waitForText("Press Enter to open, any other key to close", {
+			timeout: UI_TIMEOUT_MS,
+		});
+
+		// Any key other than Enter dismisses the dialog (Esc is unreliable in
+		// some terminals, notably on Windows).
+		await session.type("x");
+		await session.text({
+			waitFor: (text) => !text.includes("Try ClinePass"),
+			timeout: UI_TIMEOUT_MS,
+		});
+
+		const screen = await session.text();
+		expect(screen).toContain("What can I do for you?");
+		expect(screen).not.toContain("Open ClinePass");
+
+		// The "shown" marker is persisted once the dialog is dismissed so the
+		// promo doesn't reappear on the next launch.
+		const markerPath = path.join(dataDir, "settings", "cli-notices.json");
+		await session.waitIdle({ timeout: UI_TIMEOUT_MS });
+		expect(existsSync(markerPath)).toBe(true);
+		expect(readFileSync(markerPath, "utf8")).toContain(
+			'"cline-cli-cline-pass-intro": true',
+		);
 	});
 });
