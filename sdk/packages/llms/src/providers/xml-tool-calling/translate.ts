@@ -75,6 +75,10 @@ export function translateXmlToolCallingRequest(
  * "tool" role, which providers reject when no tool schemas are in the
  * request — they become user messages, matching how the legacy extension fed
  * results back.
+ *
+ * Images inside tool results are hoisted into real image parts on the same
+ * message rather than serialized into the result text, so vision-capable
+ * models still see them and base64 payloads never land in the prompt.
  */
 export function rewriteHistoryForXml(
 	messages: readonly AgentMessage[],
@@ -86,6 +90,7 @@ export function rewriteHistoryForXml(
 		if (!hasToolPart) {
 			return message;
 		}
+		const images: AgentMessagePart[] = [];
 		const content: AgentMessagePart[] = message.content.map((part) => {
 			if (part.type === "tool-call") {
 				return {
@@ -96,14 +101,67 @@ export function rewriteHistoryForXml(
 			if (part.type === "tool-result") {
 				return {
 					type: "text",
-					text: formatToolResultText(part.toolName, part.output, part.isError),
+					text: formatToolResultText(
+						part.toolName,
+						hoistToolResultImages(part.output, images),
+						part.isError,
+					),
 				};
 			}
 			return part;
 		});
 		const role = message.role === "tool" ? "user" : message.role;
-		return { ...message, role, content };
+		return { ...message, role, content: [...content, ...images] };
 	});
+}
+
+const HOISTED_IMAGE_TEXT = "[image attached]";
+
+function isImageBlock(
+	value: unknown,
+): value is { type: "image"; data: string; mediaType?: string } {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		(value as { type?: unknown }).type === "image" &&
+		typeof (value as { data?: unknown }).data === "string"
+	);
+}
+
+/**
+ * Replace image content blocks anywhere in a tool result with a short marker,
+ * collecting them as image parts. Inline `{type:"text"}` blocks are unwrapped
+ * to bare strings so the remaining structure serializes readably, matching how
+ * the native path presents tool output.
+ */
+function hoistToolResultImages(
+	output: unknown,
+	images: AgentMessagePart[],
+): unknown {
+	if (isImageBlock(output)) {
+		images.push({
+			type: "image",
+			image: output.data,
+			...(output.mediaType ? { mediaType: output.mediaType } : {}),
+		});
+		return HOISTED_IMAGE_TEXT;
+	}
+	if (Array.isArray(output)) {
+		return output.map((item) => hoistToolResultImages(item, images));
+	}
+	if (typeof output === "object" && output !== null) {
+		const record = output as Record<string, unknown>;
+		if (record.type === "text" && typeof record.text === "string") {
+			return record.text;
+		}
+		return Object.fromEntries(
+			Object.entries(record).map(([key, value]) => [
+				key,
+				hoistToolResultImages(value, images),
+			]),
+		);
+	}
+	return output;
 }
 
 // ---------------------------------------------------------------------------

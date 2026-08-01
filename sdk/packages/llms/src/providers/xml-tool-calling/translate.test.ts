@@ -160,6 +160,49 @@ describe("rewriteHistoryForXml", () => {
 		const original = [message("user", [{ type: "text", text: "hello" }])];
 		expect(rewriteHistoryForXml(original)[0]).toBe(original[0]);
 	});
+
+	it("hoists images out of tool results instead of serializing base64", () => {
+		const [rewritten] = rewriteHistoryForXml([
+			message("tool", [
+				{
+					type: "tool-result",
+					toolCallId: "t1",
+					toolName: "read_files",
+					output: [
+						{
+							query: "shot.png",
+							result: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "image", data: "QkFTRTY0", mediaType: "image/png" },
+							],
+							success: true,
+						},
+					],
+				},
+			]),
+		]);
+		expect(rewritten?.role).toBe("user");
+		const [text, image] = rewritten?.content ?? [];
+		expect(text).toEqual({
+			type: "text",
+			text: `[read_files] Result:\n${JSON.stringify(
+				[
+					{
+						query: "shot.png",
+						result: ["Successfully read image", "[image attached]"],
+						success: true,
+					},
+				],
+				null,
+				2,
+			)}`,
+		});
+		expect(image).toEqual({
+			type: "image",
+			image: "QkFTRTY0",
+			mediaType: "image/png",
+		});
+	});
 });
 
 describe("extractExecutableXmlCall", () => {
