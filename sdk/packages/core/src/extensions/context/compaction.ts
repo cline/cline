@@ -431,15 +431,37 @@ export function createContextCompactionPrepareTurn(
 		};
 		let executedStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;
-		if (userCompaction?.compact) {
-			result = await userCompaction.compact(compactionContext);
-		} else if (effectiveMode === "overflow_recovery") {
-			// The provider already rejected the request, so recovery must be
-			// deterministic: the agentic strategy's own summarizer call could
+		if (effectiveMode === "overflow_recovery") {
+			// The provider already rejected the request, so recovery must end
+			// deterministically: the agentic strategy's own summarizer call could
 			// overflow the same window (its input budgeting trusts the same
-			// estimator that just undercounted).
-			executedStrategy = "basic";
-			result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+			// estimator that just undercounted). A custom compactor gets first
+			// shot — it sees mode "overflow_recovery" and owns its transcript
+			// invariants — but if it throws or declines, basic compaction runs
+			// so recovery never depends on another successful LLM request.
+			if (userCompaction?.compact) {
+				try {
+					result = await userCompaction.compact(compactionContext);
+				} catch (error) {
+					if (isCompactionCancellation(error, context.abortSignal)) {
+						throw error;
+					}
+					config.logger?.log(
+						"Custom compaction failed during overflow recovery; falling back to basic compaction",
+						{
+							severity: "warn",
+							...describeCompactionError(error),
+						},
+					);
+					result = undefined;
+				}
+			}
+			if (!result?.messages) {
+				executedStrategy = "basic";
+				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+			}
+		} else if (userCompaction?.compact) {
+			result = await userCompaction.compact(compactionContext);
 		} else {
 			try {
 				result = await runBuiltinStrategy(builtinOptions);
