@@ -411,10 +411,14 @@ describe("TelemetryService metrics", () => {
 			failurePhase: "streaming",
 		})
 
+		// The key must be absent, not present-and-undefined: the OTel provider
+		// stringifies undefined values, which would create a literal
+		// "undefined" bucket instead of an absent dimension.
 		const failureEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
 		assert.ok(failureEvent, "expected task.provider_api_error event")
 		assert.strictEqual("errorClass" in (failureEvent?.properties ?? {}), false)
-		assert.strictEqual(provider.counters[0].attributes.error_class, undefined)
+		assert.strictEqual("error_class" in provider.counters[0].attributes, false)
+		assert.strictEqual("error_class" in provider.histograms[0].attributes, false)
 	})
 
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {

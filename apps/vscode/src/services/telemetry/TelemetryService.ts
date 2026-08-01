@@ -1436,6 +1436,12 @@ export class TelemetryService {
 			},
 		})
 
+		// Omit the key entirely when unclassified rather than passing
+		// undefined: the OTel provider stringifies undefined attribute values,
+		// which would bucket unclassified failures under a literal "undefined"
+		// instead of leaving the dimension absent.
+		const errorClassAttribute = args.errorClass ? { error_class: args.errorClass } : {}
+
 		this.recordCounter(TelemetryService.METRICS.ERRORS.TOTAL, 1, {
 			ulid: args.ulid,
 			model: args.model,
@@ -1443,7 +1449,7 @@ export class TelemetryService {
 			error_status: args.errorStatus,
 			error_type: args.errorType,
 			failure_phase: args.failurePhase,
-			error_class: args.errorClass,
+			...errorClassAttribute,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
@@ -1452,7 +1458,7 @@ export class TelemetryService {
 			error_status: args.errorStatus,
 			error_type: args.errorType,
 			failure_phase: args.failurePhase,
-			error_class: args.errorClass,
+			...errorClassAttribute,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
