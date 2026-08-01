@@ -1,8 +1,11 @@
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { getLiveModelsCatalog } from "./provider-defaults";
+import type { ModelInfo } from "./provider-settings";
 
 export interface ClineRecommendedModel {
 	id: string;
+	/** Display-ready model name, resolved against the model catalog. */
 	name: string;
 	description: string;
 	tags: string[];
@@ -14,6 +17,8 @@ export interface ClineRecommendedModelsData {
 	clinePass: ClineRecommendedModel[];
 }
 
+type ModelsCatalog = Record<string, Record<string, ModelInfo>>;
+
 export interface FetchClineRecommendedModelsOptions {
 	baseUrl?: string;
 	fetchImpl?: typeof fetch;
@@ -22,6 +27,11 @@ export interface FetchClineRecommendedModelsOptions {
 		"getProviderSettings"
 	>;
 	timeoutMs?: number;
+	/**
+	 * Loader for the live models catalog used to resolve display names.
+	 * Defaults to the shared live-catalog cache; injectable for tests.
+	 */
+	catalogLoader?: () => Promise<ModelsCatalog>;
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
@@ -158,6 +168,84 @@ async function fetchWithTimeout(
 	}
 }
 
+// The featured pickers render these names next to their own FREE chips and
+// section headers, so OpenRouter's free markers are redundant there.
+function stripFreeMarkers(name: string): string {
+	return name
+		.replace(/\s*\(free\)\s*$/i, "")
+		.replace(/:free$/i, "")
+		.trim();
+}
+
+function resolveEntryDisplayName(
+	entry: ClineRecommendedModel,
+	catalogs: Array<Record<string, ModelInfo> | undefined>,
+): string {
+	for (const catalog of catalogs) {
+		const catalogName = catalog?.[entry.id]?.name?.trim();
+		if (catalogName) {
+			return stripFreeMarkers(catalogName);
+		}
+	}
+	// The endpoint's own names are slug-like; still better than a full id.
+	const endpointName = entry.name?.trim();
+	if (endpointName && endpointName !== entry.id) {
+		return stripFreeMarkers(endpointName);
+	}
+	const slug = entry.id.split("/").at(-1) ?? entry.id;
+	return stripFreeMarkers(slug);
+}
+
+async function loadCatalogWithTimeout(
+	catalogLoader: () => Promise<ModelsCatalog>,
+	timeoutMs: number,
+): Promise<ModelsCatalog | undefined> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		// Race instead of abort: the shared live-catalog loader caches its
+		// in-flight promise, so a slow fetch still completes and warms the
+		// cache for the next call.
+		return await Promise.race([
+			catalogLoader(),
+			new Promise<undefined>((resolve) => {
+				timer = setTimeout(() => resolve(undefined), timeoutMs);
+			}),
+		]);
+	} catch {
+		return undefined;
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+/**
+ * Resolves display-ready names for every entry so consumers can render
+ * `entry.name` directly instead of re-joining ids against the model catalog
+ * in each picker. Preference order: catalog display name, endpoint-provided
+ * name, id slug.
+ */
+async function resolveDisplayNames(
+	data: ClineRecommendedModelsData,
+	catalogLoader: () => Promise<ModelsCatalog>,
+	timeoutMs: number,
+): Promise<ClineRecommendedModelsData> {
+	const catalog = await loadCatalogWithTimeout(catalogLoader, timeoutMs);
+	const withNames = (
+		models: ClineRecommendedModel[],
+		catalogs: Array<Record<string, ModelInfo> | undefined>,
+	) =>
+		models.map((model) => ({
+			...model,
+			name: resolveEntryDisplayName(model, catalogs),
+		}));
+
+	return {
+		recommended: withNames(data.recommended, [catalog?.openrouter]),
+		free: withNames(data.free, [catalog?.cline, catalog?.openrouter]),
+		clinePass: withNames(data.clinePass, [catalog?.["cline-pass"]]),
+	};
+}
+
 export async function fetchClineRecommendedModels(
 	options: FetchClineRecommendedModelsOptions = {},
 ): Promise<ClineRecommendedModelsData> {
@@ -172,10 +260,20 @@ export async function fetchClineRecommendedModels(
 		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 		const json: unknown = await resp.json();
 		const data = normalizeResponse(json);
-		if (data) return data;
+		if (data) {
+			return await resolveDisplayNames(
+				data,
+				options.catalogLoader ?? getLiveModelsCatalog,
+				options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+			);
+		}
 	} catch {
 		// Fall back to the bundled list when the remote source is unavailable.
 	}
 
+	// The bundled fallback already carries display names; it is intentionally
+	// returned as-is so callers can detect it by equality with
+	// FALLBACK_CLINE_RECOMMENDED_MODELS (e.g. to avoid caching a transient
+	// failure).
 	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
 }
