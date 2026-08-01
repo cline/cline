@@ -437,10 +437,13 @@ export function createContextCompactionPrepareTurn(
 			// overflow the same window (its input budgeting trusts the same
 			// estimator that just undercounted). A custom compactor gets first
 			// shot — it sees mode "overflow_recovery" and owns its transcript
-			// invariants — but if it throws, declines, or fails to shrink the
-			// transcript (the runtime refuses to retry with a request that is
-			// not smaller), basic compaction runs so recovery never depends on
-			// another successful LLM request.
+			// invariants — but its result is held to the same bar basic
+			// compaction aims for: strictly smaller than the input (the runtime
+			// refuses to retry with a request that is not smaller) AND within
+			// the recovery token target. A marginal shrink would spend the
+			// run's single retry on a request that still cannot fit. On throw,
+			// decline, or an insufficient result, basic compaction runs so
+			// recovery never depends on another successful LLM request.
 			if (userCompaction?.compact) {
 				try {
 					result = await userCompaction.compact(compactionContext);
@@ -457,15 +460,25 @@ export function createContextCompactionPrepareTurn(
 					);
 					result = undefined;
 				}
-				if (
-					result?.messages &&
-					safeJsonSize(result.messages) >= safeJsonSize(context.messages)
-				) {
-					config.logger?.log(
-						"Custom compaction did not shrink the transcript during overflow recovery; falling back to basic compaction",
-						{ severity: "warn" },
+				if (result?.messages) {
+					const customMessageTokens = result.messages.reduce(
+						(total: number, message) => total + estimateMessageTokens(message),
+						0,
 					);
-					result = undefined;
+					const shrunk =
+						safeJsonSize(result.messages) < safeJsonSize(context.messages);
+					if (!shrunk || customMessageTokens > messageTargetTokens) {
+						config.logger?.log(
+							"Custom compaction did not reach the overflow-recovery target; falling back to basic compaction",
+							{
+								severity: "warn",
+								shrunk,
+								customMessageTokens,
+								messageTargetTokens,
+							},
+						);
+						result = undefined;
+					}
 				}
 			}
 			if (!result?.messages) {
