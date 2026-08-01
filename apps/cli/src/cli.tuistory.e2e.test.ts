@@ -209,7 +209,7 @@ describe("cli tuistory e2e", () => {
 		expect(screen).toContain("▸ Provider");
 	});
 
-	it("marks the ClinePass promo as shown on display and dismisses it with any key", async () => {
+	it("dismisses the ClinePass promo with any key and marks it as shown", async () => {
 		// Re-enable the promo dialog that the shared env suppresses.
 		const env = createCliEnv({ CLINE_DISABLE_CLINE_PASS_NOTICE: undefined });
 		const dataDir = env.CLINE_DATA_DIR as string;
@@ -219,15 +219,6 @@ describe("cli tuistory e2e", () => {
 		await session.waitForText("Press Enter to open, any other key to close", {
 			timeout: UI_TIMEOUT_MS,
 		});
-
-		// The "shown" marker must be persisted when the dialog is displayed —
-		// not when it is dismissed — so a user who force-quits (e.g. because
-		// their terminal drops key input) doesn't see the promo on every launch.
-		const markerPath = path.join(dataDir, "settings", "cli-notices.json");
-		expect(existsSync(markerPath)).toBe(true);
-		expect(readFileSync(markerPath, "utf8")).toContain(
-			'"cline-cli-cline-pass-intro": true',
-		);
 
 		// Any key other than Enter dismisses the dialog (Esc is unreliable in
 		// some terminals, notably on Windows).
@@ -240,5 +231,14 @@ describe("cli tuistory e2e", () => {
 		const screen = await session.text();
 		expect(screen).toContain("What can I do for you?");
 		expect(screen).not.toContain("Open ClinePass");
+
+		// The "shown" marker is persisted once the dialog is dismissed so the
+		// promo doesn't reappear on the next launch.
+		const markerPath = path.join(dataDir, "settings", "cli-notices.json");
+		await session.waitIdle({ timeout: UI_TIMEOUT_MS });
+		expect(existsSync(markerPath)).toBe(true);
+		expect(readFileSync(markerPath, "utf8")).toContain(
+			'"cline-cli-cline-pass-intro": true',
+		);
 	});
 });
