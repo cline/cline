@@ -588,7 +588,7 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
-	it("preserves queued usage while the preceding turn is persisted", async () => {
+	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
 		type SendResponse = {
 			ok: true;
 			result: {
@@ -686,6 +686,34 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.04);
 
 		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 5,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-after-next",
+					prompt: "Turn after next",
+				}),
+				ts: Date.now(),
+				index: 6,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({ cost: 0.02 }),
+				ts: Date.now(),
+				index: 7,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.06);
+
+		await act(async () => {
 			resolveSend?.({
 				ok: true,
 				result: {
@@ -705,7 +733,7 @@ describe("useChatSession", () => {
 			tokensIn: 13_000,
 			tokensOut: 700,
 		});
-		expect(current.summary.totalCostUsd).toBeCloseTo(0.04);
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.06);
 	});
 
 	it("hydrates current token usage and cumulative cost from messages", async () => {

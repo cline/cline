@@ -311,6 +311,8 @@ export function useChatSession() {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
+	const unpersistedCostUsdRef = useRef(0);
+	const lastPersistedCostUsdRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -349,12 +351,19 @@ export function useChatSession() {
 		}
 		setTokensIn(persistedTokensIn);
 		setTokensOut(persistedTokensOut);
-		// A queued turn may already be streaming when the preceding turn's
-		// message metadata is persisted. Preserve that newer, unpersisted cost.
-		setTotalCostUsd(
-			persistedTotalCostUsd +
-				(activeTurnCostTrackerRef.current?.streamedCostUsd ?? 0),
+		// Move newly persisted spend out of the live ledger. Multiple queued turns
+		// may finish before their message metadata is hydrated, so this ledger is
+		// session-wide rather than tied only to the currently active turn.
+		const newlyPersistedCostUsd = Math.max(
+			0,
+			persistedTotalCostUsd - lastPersistedCostUsdRef.current,
 		);
+		unpersistedCostUsdRef.current = Math.max(
+			0,
+			unpersistedCostUsdRef.current - newlyPersistedCostUsd,
+		);
+		lastPersistedCostUsdRef.current = persistedTotalCostUsd;
+		setTotalCostUsd(persistedTotalCostUsd + unpersistedCostUsdRef.current);
 	}, [persistedTokensIn, persistedTokensOut, persistedTotalCostUsd]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
@@ -394,6 +403,8 @@ export function useChatSession() {
 
 	const resetCounters = useCallback(() => {
 		activeTurnCostTrackerRef.current = null;
+		unpersistedCostUsdRef.current = 0;
+		lastPersistedCostUsdRef.current = 0;
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
@@ -1003,6 +1014,7 @@ export function useChatSession() {
 					};
 					tracker.streamedCostUsd += cost;
 					activeTurnCostTrackerRef.current = tracker;
+					unpersistedCostUsdRef.current += cost;
 					setTotalCostUsd((previous) => previous + cost);
 				}
 				return;
@@ -1631,9 +1643,9 @@ export function useChatSession() {
 					activeTurnCostTrackerRef.current = null;
 				}
 				if (typeof totalCost === "number") {
-					setTotalCostUsd(
-						(previous) => previous + totalCost - streamedTurnCostUsd,
-					);
+					const unstreamedCostUsd = totalCost - streamedTurnCostUsd;
+					unpersistedCostUsdRef.current += unstreamedCostUsd;
+					setTotalCostUsd((previous) => previous + unstreamedCostUsd);
 				}
 				const assistantMessageId = activeAssistantMessageIdRef.current;
 				if (
