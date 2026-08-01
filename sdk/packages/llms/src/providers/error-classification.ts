@@ -230,16 +230,21 @@ function classifyTypedError(
 		);
 	}
 	if (APICallError.isInstance(error)) {
+		// The typed statusCode is the sole authoritative status and gates the
+		// whole verdict: nothing in the payload — not even an explicit
+		// overflow code echoed inside a rate-limit or server-failure body —
+		// out-votes the HTTP layer. Absent a statusCode, the payload decides.
+		const status =
+			typeof error.statusCode === "number" ? error.statusCode : undefined;
+		if (status !== undefined && !CONTEXT_WINDOW_STATUSES.has(status)) {
+			return "unknown";
+		}
 		const signals = collectSignalsFrom([
 			error.message,
 			error.responseBody,
 			error.data,
 		]);
-		// The typed statusCode is the sole authoritative status: statuses
-		// quoted inside the response text must not out-vote the HTTP layer.
-		signals.statuses = new Set(
-			typeof error.statusCode === "number" ? [error.statusCode] : [],
-		);
+		signals.statuses = new Set(status !== undefined ? [status] : []);
 		return verdictFromSignals(signals);
 	}
 	if (TypeValidationError.isInstance(error)) {

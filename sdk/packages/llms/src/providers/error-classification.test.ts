@@ -222,6 +222,28 @@ describe("classifyProviderError", () => {
 			expect(classifyProviderError(error)).toBe("unknown");
 		});
 
+		it("treats the typed statusCode as authoritative: an explicit overflow code cannot override it", () => {
+			const withStatus = (statusCode: number) =>
+				new APICallError({
+					message: "Request failed",
+					url: "https://api.openai.com/v1/chat/completions",
+					requestBodyValues: {},
+					statusCode,
+					responseBody: JSON.stringify({
+						error: {
+							message: "This model's maximum context length is 128000 tokens.",
+							code: "context_length_exceeded",
+						},
+					}),
+				});
+			expect(classifyProviderError(withStatus(429))).toBe("unknown");
+			expect(classifyProviderError(withStatus(500))).toBe("unknown");
+			// The gate must not swallow genuine overflow rejections.
+			expect(classifyProviderError(withStatus(400))).toBe(
+				"context_window_exceeded",
+			);
+		});
+
 		it("unwraps a RetryError to its last attempt's error", () => {
 			const error = new RetryError({
 				message: "Failed after 3 attempts.",
