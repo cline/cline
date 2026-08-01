@@ -51,6 +51,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
+import { initializeRolloutStanddown } from "./services/auth/rollout-standdown"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
 import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
@@ -71,6 +72,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 1. Set up HostProvider for VSCode
 	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
+
+	// Give the rollout stand-down check access to the loader's cohort memento
+	// (no-op outside combined rollout builds — see rollout-standdown.ts). The
+	// reload action is injected here because direct vscode.commands usage is
+	// restricted to this file by the host-bridge lint rules.
+	initializeRolloutStanddown(context, () => {
+		vscode.commands.executeCommand("workbench.action.reloadWindow")
+	})
 
 	// 2. Clean up legacy data patterns within VSCode's native storage.
 	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
