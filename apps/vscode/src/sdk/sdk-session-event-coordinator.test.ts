@@ -313,6 +313,7 @@ describe("SdkSessionEventCoordinator", () => {
 				event: {
 					type: "error",
 					error,
+					recoverable: false,
 				},
 			},
 		} as unknown as CoreSessionEvent
@@ -335,6 +336,27 @@ describe("SdkSessionEventCoordinator", () => {
 				sessionId: "session-123",
 				event: {
 					type: "error",
+				},
+			},
+		} as unknown as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+	})
+
+	it("does not capture provider failure telemetry for recoverable error events (mistake notices)", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-123",
+				event: {
+					type: "error",
+					// The MistakeTracker emits one of these per recorded mistake,
+					// carrying tool-failure details — not a provider API error.
+					error: new Error('2 tool call(s) failed: [shell] {"error":"command not found"}'),
+					recoverable: true,
 				},
 			},
 		} as unknown as CoreSessionEvent
