@@ -89,7 +89,8 @@ export function createLocalHubScheduleRuntimeHandlers(
 		async startSession(request) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
 			const started = await sessionHost.startSession({
-				source: request.source?.trim() || SessionSource.CLI,
+				source: SessionSource.CORE,
+				mode: "automation",
 				interactive: false,
 				config: {
 					providerId: normalizeProviderId(request.provider),

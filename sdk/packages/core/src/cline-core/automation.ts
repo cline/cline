@@ -14,6 +14,7 @@ import type { CronService } from "../cron/service/cron-service";
 import type { HubScheduleRuntimeHandlers } from "../cron/service/schedule-service";
 import type { RuntimeHost } from "../runtime/host/runtime-host";
 import { normalizeProviderId } from "../services/llms/provider-settings";
+import { resolveClientSessionSource } from "../session/history-origin";
 import { SessionSource } from "../types/common";
 import type {
 	ClineAutomationEventIngressResult,
@@ -101,8 +102,12 @@ export function createClineCoreAutomationRuntimeHandlers(
 	return {
 		async startSession(request) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
+			const extensionContext = input.getExtensionContext();
 			const started = await host.startSession({
-				source: request.source?.trim() || SessionSource.CLI,
+				source:
+					resolveClientSessionSource(extensionContext?.client) ??
+					SessionSource.CORE,
+				mode: "automation",
 				interactive: false,
 				config: {
 					providerId: normalizeProviderId(request.provider),
@@ -126,7 +131,7 @@ export function createClineCoreAutomationRuntimeHandlers(
 					},
 				},
 				localRuntime: {
-					extensionContext: input.getExtensionContext(),
+					extensionContext,
 					configExtensions: request.configExtensions,
 				},
 			});

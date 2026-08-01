@@ -1,4 +1,5 @@
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -217,9 +218,10 @@ describe("LocalRuntimeHost", () => {
 			canStartRun: vi.fn().mockReturnValue(true),
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
+		const sessionsDir = join(isolatedHomeDir, "sessions");
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
-			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			sessionService: new FileSessionService(sessionsDir),
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: () => agent as never,
 		});
@@ -245,6 +247,7 @@ describe("LocalRuntimeHost", () => {
 			expect(chatWorkspace).toBe(resolveChatWorkspacePath());
 			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
 			expect(result.manifest.workspace_root).toBe(chatWorkspace);
+			expect(existsSync(join(sessionsDir, result.sessionId))).toBe(false);
 			expect(runtimeBuilder.build).toHaveBeenCalledWith(
 				expect.objectContaining({
 					config: expect.objectContaining({
@@ -1103,12 +1106,17 @@ describe("LocalRuntimeHost", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
-	it("persists initial messages for idle resumed sessions", async () => {
+	it("keeps seeded history in memory until the next user turn", async () => {
 		const sessionId = "sess-fork-copy";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
 			{ role: "user" as const, content: "build a thing" },
 			{ role: "assistant" as const, content: "done" },
+		];
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user" as const, content: "continue" },
+			{ role: "assistant" as const, content: "continued" },
 		];
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -1136,7 +1144,11 @@ describe("LocalRuntimeHost", () => {
 		};
 		const agent = {
 			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(
+				createResult({
+					messages: continuedMessages,
+				}),
+			),
 			getMessages: vi.fn().mockReturnValue(initialMessages),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -1161,22 +1173,34 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		expect(agent.run).not.toHaveBeenCalled();
-		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledTimes(
-			1,
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
+		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
+		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
+			initialMessages,
+		);
+
+		await manager.runTurn({ sessionId, prompt: "continue" });
+
+		expect(agent.continue).toHaveBeenCalledTimes(1);
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				prompt: expect.stringContaining("continue"),
+			}),
 		);
 		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
 			sessionId,
-			initialMessages,
+			expect.arrayContaining(
+				continuedMessages.map((message) => expect.objectContaining(message)),
+			),
 			"You are a test agent",
-		);
-		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
-			sessionId,
-			"completed",
-			0,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "completed",
+			status: "idle",
 		});
 	});
 
@@ -1714,6 +1738,82 @@ describe("LocalRuntimeHost", () => {
 		expect(order).toEqual(["persist", "run-return", "persist"]);
 		expect(logger.error).toHaveBeenCalledWith(
 			"Failed to persist session messages after assistant response",
+			{ sessionId, error: persistError },
+		);
+	});
+
+	it("observes iteration-end persist failures instead of leaking an unhandled rejection", async () => {
+		const sessionId = "sess-iteration-end-persist";
+		const manifest = createManifest(sessionId);
+		const persistError = new Error("row missing");
+		const persistSessionMessages = vi
+			.fn()
+			.mockRejectedValueOnce(persistError)
+			.mockResolvedValue(undefined);
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-iteration-end.json",
+				messagesPath: "/tmp/messages-iteration-end.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let subscribedHandler: ((event: AgentRuntimeEvent) => void) | undefined;
+		const run = vi.fn(async () => {
+			subscribedHandler?.({ type: "iteration_end", iteration: 1 } as never);
+			// Let the fire-and-forget persist settle before the run returns.
+			await new Promise((resolve) => setImmediate(resolve));
+			return createResult();
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockImplementation((handler) => {
+						subscribedHandler = handler as (event: AgentRuntimeEvent) => void;
+						return () => {};
+					}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		const started = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, logger }),
+				prompt: "hello",
+				interactive: false,
+			}),
+		);
+
+		expect(started.result?.finishReason).toBe("completed");
+		expect(logger.error).toHaveBeenCalledWith(
+			"Failed to persist session messages from agent event",
 			{ sessionId, error: persistError },
 		);
 	});
@@ -4384,6 +4484,71 @@ describe("LocalRuntimeHost", () => {
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not mask the run error when the failure-path transcript flush also fails", async () => {
+		const sessionId = "sess-fail-persist";
+		const manifest = createManifest(sessionId);
+		const persistError = new Error("persist failed");
+		const persistSessionMessages = vi.fn().mockRejectedValue(persistError);
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-fail-persist.json",
+				messagesPath: "/tmp/messages-fail-persist.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const run = vi.fn().mockRejectedValue(new Error("run failed"));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await expect(
+			manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId, logger }),
+					prompt: "hello",
+					interactive: false,
+				}),
+			),
+		).rejects.toThrow("run failed");
+		expect(persistSessionMessages).toHaveBeenCalled();
+		expect(logger.error).toHaveBeenCalledWith(
+			"Failed to persist session messages after turn error",
+			{ sessionId, error: persistError },
+		);
+	});
+
 	it("marks a single-run error result as failed", async () => {
 		const sessionId = "sess-error-result";
 		const manifest = createManifest(sessionId);
@@ -4495,7 +4660,7 @@ describe("LocalRuntimeHost", () => {
 			sessionService.createRootSessionWithArtifacts,
 		).not.toHaveBeenCalled();
 		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
-		expect(agentShutdown).not.toHaveBeenCalled();
+		expect(agentShutdown).toHaveBeenCalledWith("session_stop");
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 	});
 
@@ -4817,10 +4982,18 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user", content: "continue" },
+			{ role: "assistant", content: "continued" },
+		];
 		const run = vi.fn().mockResolvedValue(createResult());
+		const continueRun = vi
+			.fn()
+			.mockResolvedValue(createResult({ messages: continuedMessages }));
 		const createAgent = vi.fn().mockReturnValue({
 			run,
-			continue: vi.fn(),
+			continue: continueRun,
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
@@ -4859,6 +5032,11 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
+		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+
+		await manager.runTurn({ sessionId, prompt: "continue" });
+
+		expect(continueRun).toHaveBeenCalledTimes(1);
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -4898,10 +5076,18 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user", content: "follow-up" },
+			{ role: "assistant", content: "continued" },
+		];
 		const run = vi.fn().mockResolvedValue(createResult());
+		const continueRun = vi
+			.fn()
+			.mockResolvedValue(createResult({ messages: continuedMessages }));
 		const createAgent = vi.fn().mockReturnValue({
 			run,
-			continue: vi.fn(),
+			continue: continueRun,
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
@@ -4942,9 +5128,13 @@ describe("LocalRuntimeHost", () => {
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
 		expect(prepareTurn).toBeDefined();
 
-		// The initial sidecar is persisted alongside the initial messages and
-		// projected into the next turn's working context (compacted messages
-		// plus the canonical tail), without re-compacting.
+		// The initial sidecar stays in memory until a user continues the session.
+		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+
+		await manager.runTurn({ sessionId, prompt: "follow-up" });
+
+		// The first new user turn persists the sidecar, which remains available
+		// for projection without enabling automatic re-compaction.
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
