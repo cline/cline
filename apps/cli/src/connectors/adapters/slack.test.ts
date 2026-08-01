@@ -374,6 +374,28 @@ describe("slack binding lookup", () => {
 		);
 	});
 
+	it("keeps mentions of other Slack users whose id starts with the bot id", () => {
+		expect(__test__.stripSlackBotMention("@U1234 help", "U123")).toBe(
+			"@U1234 help",
+		);
+		expect(__test__.stripSlackBotMention("@U123 hi", "U123")).toBe("hi");
+		expect(__test__.stripSlackBotMention("<@U1234> help", "U123")).toBe(
+			"<@U1234> help",
+		);
+		expect(__test__.stripSlackBotMention("<@U1234|other> help", "U123")).toBe(
+			"<@U1234|other> help",
+		);
+		expect(
+			__test__.stripSlackBotMention("@U0B8E8H3U1FX hi", "U0B8E8H3U1F"),
+		).toBe("@U0B8E8H3U1FX hi");
+		expect(
+			__test__.stripSlackBotMention(
+				"@U0B8E8H3U1F @U0B8E8H3U1FX hi",
+				"U0B8E8H3U1F",
+			),
+		).toBe("@U0B8E8H3U1FX hi");
+	});
+
 	it("keeps a bare Slack bot mention so the turn is not dropped", () => {
 		expect(__test__.stripSlackBotMention("@U0B8E8H3U1F", "U0B8E8H3U1F")).toBe(
 			"@U0B8E8H3U1F",

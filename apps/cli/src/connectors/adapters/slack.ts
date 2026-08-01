@@ -229,8 +229,16 @@ function stripSlackBotMention(
 	const escapedBotId = botId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	// Matches `<@U123>`, `<@U123|name>` and the SDK-flattened `@U123` form,
 	// repeated when a user mentions the bot more than once up front.
+	//
+	// The angle-bracket forms are delimited by `>`, but the flattened form has no
+	// closing delimiter, so it needs an explicit boundary. Without one, `@U123`
+	// also matches the start of a longer id belonging to someone else, turning
+	// `@U1234 help` into `4 help`. Slack ids are uppercase alphanumeric, so a
+	// complete mention is one that is not followed by another id character.
+	// `\b` cannot express this: ids end in word characters, so `@U123\b` still
+	// matches inside `@U1234`.
 	const leadingMention = new RegExp(
-		`^(?:\\s*(?:<@${escapedBotId}(?:\\|[^<>]*)?>|@${escapedBotId})[\\s,:]*)+`,
+		`^(?:\\s*(?:<@${escapedBotId}(?:\\|[^<>]*)?>|@${escapedBotId}(?![A-Za-z0-9]))[\\s,:]*)+`,
 	);
 	const stripped = text.replace(leadingMention, "");
 	return stripped.trim() ? stripped.trimStart() : text;
