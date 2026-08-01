@@ -116,7 +116,8 @@ describe("ClineModelPicker", () => {
 			free: [
 				{ id: "deepseek/deepseek-v4-flash", description: "Fast and efficient", tags: [] },
 				{ id: "poolside/laguna-s-2.1:free", description: "Latest coding agent model", tags: [] },
-				{ id: "unknown/mystery-model", description: "Not in the catalog", tags: [] },
+				{ id: "unknown/named-model", name: "named-model", description: "Not in the catalog", tags: [] },
+				{ id: "unknown/mystery-model", description: "No catalog or endpoint name", tags: [] },
 			],
 		})
 		vi.mocked(useProviderModels).mockReturnValue({
@@ -142,7 +143,9 @@ describe("ClineModelPicker", () => {
 		expect(await screen.findByText("DeepSeek V4 Flash")).toBeInTheDocument()
 		// The FREE chip already says it, so the "(free)" marker is stripped
 		expect(screen.getByText("Laguna S 2.1")).toBeInTheDocument()
-		// Models missing from the catalog fall back to their raw id
+		// Models missing from the catalog fall back to the endpoint-provided name
+		expect(screen.getByText("named-model")).toBeInTheDocument()
+		// ...and to the raw id only when there is no endpoint name either
 		expect(screen.getByText("unknown/mystery-model")).toBeInTheDocument()
 	})
 
