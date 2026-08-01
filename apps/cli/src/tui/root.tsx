@@ -558,6 +558,11 @@ function App(props: TuiProps) {
 
 		initialNoticeShownRef.current = true;
 		const timeout = setTimeout(() => {
+			// Persist the "shown" marker as soon as the dialog is displayed, not
+			// when it is dismissed: if the user force-quits without dismissing
+			// (e.g. terminals with unreliable key input), the promo must not
+			// reappear on every launch.
+			Promise.resolve(onInitialNoticeShown?.(notice)).catch(() => {});
 			void dialog
 				.choice<boolean>({
 					content: (ctx: ChoiceContext<boolean>) => (
@@ -565,7 +570,6 @@ function App(props: TuiProps) {
 					),
 				})
 				.finally(() => {
-					Promise.resolve(onInitialNoticeShown?.(notice)).catch(() => {});
 					refocusTextareaRef.current();
 				});
 		}, 0);

@@ -7,6 +7,20 @@ import { palette } from "../tui/palette";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 import type { CliMigrationNotice } from "./notice";
 
+/**
+ * Enter opens the subscription page; every other key dismisses the dialog.
+ *
+ * The dialog used to be dismissible only with Esc, but Esc is the least
+ * reliable key across terminals (it arrives as a bare `\x1b` that needs
+ * timeout disambiguation, and Windows console input layers are known to
+ * swallow it), which left users stuck behind the promo with no way out.
+ */
+export function resolveMigrationNoticeKeyAction(
+	keyName: string,
+): "open" | "dismiss" {
+	return keyName === "return" || keyName === "enter" ? "open" : "dismiss";
+}
+
 export function MigrationNoticeContent(
 	props: ChoiceContext<boolean> & {
 		notice: CliMigrationNotice;
@@ -30,13 +44,11 @@ export function MigrationNoticeContent(
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
-		if (key.name === "escape") {
-			resolve(true);
+		if (resolveMigrationNoticeKeyAction(key.name) === "open") {
+			openSubscriptionPage();
 			return;
 		}
-		if (key.name === "return" || key.name === "enter") {
-			openSubscriptionPage();
-		}
+		resolve(true);
 	}, dialogId);
 
 	return (
@@ -61,7 +73,9 @@ export function MigrationNoticeContent(
 				</box>
 			</box>
 			{status && <text fg={palette.muted}>{status}</text>}
-			<text fg={palette.muted}>Press Enter to open, Esc to close</text>
+			<text fg={palette.muted}>
+				Press Enter to open, any other key to close
+			</text>
 		</box>
 	);
 }
