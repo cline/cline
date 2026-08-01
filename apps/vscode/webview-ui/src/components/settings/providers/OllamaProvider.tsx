@@ -182,7 +182,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			{showModelOptions && (
 				<>
 					<DebouncedTextField
-						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "300000"}
 						onChange={(value) => {
 							// Convert to number, with validation
 							const numValue = Number.parseInt(value, 10)
@@ -190,12 +190,14 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}
-						placeholder="Default: 30000 (30 seconds)"
+						placeholder="Default: 300000 (5 minutes)"
 						style={{ width: "100%" }}>
 						<span className="font-semibold">Request Timeout (ms)</span>
 					</DebouncedTextField>
 					<p className="text-xs mt-0 text-description">
-						Maximum time in milliseconds to wait for API responses before timing out.
+						Maximum time in milliseconds to wait for the response to start. The default is generous because
+						Ollama loads the model into memory on the first request, which can take minutes for large
+						models.
 					</p>
 				</>
 			)}
