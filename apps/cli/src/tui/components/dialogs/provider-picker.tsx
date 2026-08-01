@@ -13,7 +13,6 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	CODEX_CLI_INSTALL_URL,
@@ -21,6 +20,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { palette } from "../../palette";
 import {
