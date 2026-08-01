@@ -299,6 +299,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		yoloModeToggled: false,
 		useAutoCondense: true,
+		enableXmlToolCalling: false,
 		compactionStrategy: "basic",
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },

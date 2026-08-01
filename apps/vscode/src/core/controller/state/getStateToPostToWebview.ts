@@ -43,6 +43,7 @@ export async function getStateToPostToWebview(controller: {
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
+	const enableXmlToolCalling = stateManager.getGlobalSettingsKey("enableXmlToolCalling")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
@@ -121,6 +122,7 @@ export async function getStateToPostToWebview(controller: {
 		mode,
 		yoloModeToggled,
 		useAutoCondense,
+		enableXmlToolCalling,
 		compactionStrategy,
 		subagentsEnabled,
 		userInfo,

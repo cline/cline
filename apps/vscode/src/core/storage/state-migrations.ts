@@ -227,6 +227,41 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 	}
 }
 
+/**
+ * One-shot migration for users coming from the legacy extension bundle: the
+ * legacy "Native Tool Call" setting (`nativeToolCallEnabled`) only exists on
+ * disk when the user explicitly toggled it (the proto field was optional and
+ * the handler gated on presence since it was introduced), so an explicit
+ * `false` means the user deliberately ran with XML tool calling. Carry that
+ * choice over to the SDK extension's `enableXmlToolCalling` setting exactly
+ * once — after the new key exists on disk (in either state), the user owns it.
+ *
+ * Reads the raw shared globalState.json (not the StateManager cache) because
+ * the legacy key is not part of the SDK extension's state schema and because
+ * "unset" must be distinguishable from the new key's `false` default.
+ */
+export function migrateLegacyNativeToolCallSetting(
+	stateManager: { setGlobalState: (key: "enableXmlToolCalling", value: boolean) => void },
+	dataDir?: string,
+) {
+	try {
+		const rawState = readGlobalState(dataDir) as Record<string, unknown>
+		if (rawState.enableXmlToolCalling !== undefined) {
+			return
+		}
+		if (rawState.nativeToolCallEnabled !== false) {
+			return
+		}
+		stateManager.setGlobalState("enableXmlToolCalling", true)
+		Logger.log(
+			"[Storage Migration] Legacy Native Tool Call setting was explicitly disabled; enabling XML Tool Calling to preserve behavior",
+		)
+	} catch (error) {
+		Logger.error("Failed to migrate legacy native tool call setting:", error)
+		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
 export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscode.ExtensionContext) {
 	try {
 		// Check if mcpMarketplaceCatalog exists in global state

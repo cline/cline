@@ -8,6 +8,7 @@ import type { StorageContext } from "@/shared/storage/storage-context"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import { migrateLegacyNativeToolCallSetting } from "./core/storage/state-migrations"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
@@ -55,6 +56,9 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 
 	try {
 		await StateManager.initialize(storageContext)
+		// Carry an explicit legacy "Native Tool Call = off" choice over to the
+		// new XML Tool Calling setting (one-shot, see state-migrations.ts).
+		migrateLegacyNativeToolCallSetting(StateManager.get())
 	} catch (error) {
 		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
