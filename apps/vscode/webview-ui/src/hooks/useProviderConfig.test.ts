@@ -229,4 +229,48 @@ describe("useProviderConfig", () => {
 		await waitFor(() => expect(ModelsServiceClient.readProviderConfig).toHaveBeenCalledTimes(2))
 		expect(result.current.config?.baseUrl).toBe("https://saved.example/v1")
 	})
+
+	it("skips the failure recovery read when a newer write is already in flight", async () => {
+		// If an older write fails while a newer write is pending, a recovery
+		// read would take over the latest request seq, discard the newer
+		// write's response, and could pin a pre-write snapshot host-side.
+		// The newer write's own response (or failure recovery) supersedes.
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("deepseek", "https://saved.example/v1"))
+		let rejectFirstWrite: (error: unknown) => void = () => {}
+		let resolveSecondWrite: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.writeProviderConfig)
+			.mockReturnValueOnce(
+				new Promise<ProviderConfigResponse>((_, reject) => {
+					rejectFirstWrite = reject
+				}),
+			)
+			.mockReturnValueOnce(
+				new Promise<ProviderConfigResponse>((resolve) => {
+					resolveSecondWrite = resolve
+				}),
+			)
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.config).toBeDefined())
+
+		let firstWrite: Promise<unknown> = Promise.resolve()
+		let secondWrite: Promise<unknown> = Promise.resolve()
+		act(() => {
+			firstWrite = result.current.write({ baseUrl: "h" })
+			secondWrite = result.current.write({ baseUrl: "https://new.example/v1" })
+		})
+
+		await act(async () => {
+			rejectFirstWrite(new Error("invalid url"))
+			await expect(firstWrite).rejects.toThrow("invalid url")
+		})
+		// No recovery read: the mount read must remain the only one.
+		expect(ModelsServiceClient.readProviderConfig).toHaveBeenCalledTimes(1)
+
+		await act(async () => {
+			resolveSecondWrite(config("deepseek", "https://new.example/v1"))
+			await secondWrite
+		})
+		expect(result.current.config?.baseUrl).toBe("https://new.example/v1")
+	})
 })

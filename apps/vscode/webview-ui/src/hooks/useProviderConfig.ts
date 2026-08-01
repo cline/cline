@@ -94,8 +94,14 @@ export function useProviderConfig(providerId: ProviderId) {
 				// its failure means no response will ever apply for this seq —
 				// without a re-read, older dropped responses could leave config
 				// stale (or undefined) forever. Re-read to converge on the
-				// backend's actual state.
-				void read().catch(() => {})
+				// backend's actual state, but only if this write is still the
+				// latest request: when a newer request is already in flight, its
+				// response (or its own failure recovery) supersedes this one,
+				// and a recovery read issued now could race ahead of the newer
+				// write host-side and pin a pre-write snapshot as the latest.
+				if (seq === requestSeqRef.current) {
+					void read().catch(() => {})
+				}
 				throw error
 			}
 		},
