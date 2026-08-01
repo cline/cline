@@ -7,9 +7,11 @@ describe("convertHtmlToMarkdown", () => {
 		expect(md.trim()).toBe("Hello __world__")
 	})
 
-	// Regression test for https://github.com/cline/cline/issues/12832 —
-	// copying a rendered markdown table threw "Cannot handle unknown node `table`"
-	// because the stringify pipeline lacked the GFM serializers.
+	// Regression tests for https://github.com/cline/cline/issues/12832 —
+	// copying chat content containing GFM constructs threw
+	// "Cannot handle unknown node `table`" (or `delete`) because the
+	// stringify pipeline had no handlers for the GFM mdast nodes that
+	// rehype-remark emits.
 	it("converts an HTML table to a GFM markdown table instead of throwing", async () => {
 		const html =
 			"<table><thead><tr><th>Name</th><th>Value</th></tr></thead>" +
@@ -22,13 +24,37 @@ describe("convertHtmlToMarkdown", () => {
 		expect(lines[3]).toMatch(/^\| b\s+\| 2\s+\|$/)
 	})
 
-	it("converts other GFM constructs emitted by rehype-remark", async () => {
+	it("converts strikethrough and task lists instead of throwing", async () => {
 		const md = await convertHtmlToMarkdown(
-			'<p><del>gone</del></p><ul><li><input type="checkbox" checked> done</li><li><input type="checkbox"> todo</li></ul>',
+			'<p><del>gone</del> and <s>also gone</s></p><ul><li><input type="checkbox" checked> done</li><li><input type="checkbox"> todo</li></ul>',
 		)
 		expect(md).toContain("~~gone~~")
+		expect(md).toContain("~~also gone~~")
 		expect(md).toContain("- [x] done")
 		expect(md).toContain("- [ ] todo")
+	})
+
+	// Guard against the escaping rules that the full remark-gfm serializer
+	// would introduce: emails, bare URLs, and tildes in plain text must
+	// round-trip without backslash escapes (`user\@example.com`,
+	// `https\://`, `\~/path`).
+	it("does not add backslash escapes to emails, URLs, or tildes in plain text", async () => {
+		const md = await convertHtmlToMarkdown(
+			"<p>Email user@example.com, see https://example.com/docs, edit ~/app/src/index.ts, takes 5~10s</p>",
+		)
+		expect(md).toContain("user@example.com")
+		expect(md).toContain("https://example.com/docs")
+		expect(md).toContain("~/app/src/index.ts")
+		expect(md).toContain("5~10s")
+		expect(md).not.toContain("\\")
+	})
+
+	it("escapes pipes inside table cells only, not in plain text", async () => {
+		const table = await convertHtmlToMarkdown("<table><tr><th>Cmd</th></tr><tr><td><code>a | b</code></td></tr></table>")
+		expect(table).toContain("`a \\| b`")
+		const text = await convertHtmlToMarkdown("<p>Use a | b syntax</p>")
+		expect(text).toContain("a | b")
+		expect(text).not.toContain("\\|")
 	})
 
 	it("converts code blocks with fences", async () => {
