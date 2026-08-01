@@ -2507,6 +2507,35 @@ export class Task {
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
 					this.taskState.autoRetryAttempts < 3;
+
+				// Mirror the SDK extension's provider-failure reporting: same
+				// errorType/failurePhase schema so error rates are comparable
+				// across the A/B rollout cohorts. Only failures that actually
+				// surface to the user are reported — attempts an auto-retry
+				// absorbs emit nothing, matching the SDK extension, whose
+				// provider layer retries transients silently before any event
+				// exists. Context-window overruns are also excluded — they are
+				// recovered by truncation, not a provider failure.
+				// (`abort` gate: a user cancel unwinds through this catch as a
+				// generic "Cline instance aborted" error — never a provider
+				// failure, and the SDK extension doesn't report cancels either.)
+				if (
+					!isContextWindowExceededError &&
+					!shouldRetry &&
+					!this.taskState.abort
+				) {
+					telemetryService.captureProviderApiError({
+						ulid: this.ulid,
+						model: model.id,
+						provider: providerId,
+						errorMessage: clineError.message,
+						errorStatus: clineError._error?.status,
+						requestId: clineError._error?.request_id,
+						errorType: ClineError.getErrorType(clineError),
+						failurePhase: "streaming",
+					});
+				}
+
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++;
@@ -3596,6 +3625,7 @@ export class Task {
 						this.api.getModel().id,
 					);
 					const errorMessage = clineError.serialize();
+
 					const isStreamingSpendLimitError = clineError.isErrorType(
 						ClineErrorType.SpendLimit,
 					);
@@ -3612,11 +3642,42 @@ export class Task {
 						isStreamingSpendLimitError ||
 						isStreamingQuotaExceededError ||
 						isStreamingClineFreeModelLimitError;
-					// Auto-retry for streaming failures (skip for non-retriable errors)
-					if (
+					const willAutoRetryStreamingFailure =
 						!isStreamingNonRetriableError &&
-						this.taskState.autoRetryAttempts < 3
+						this.taskState.autoRetryAttempts < 3;
+
+					// Mirror the SDK extension's provider-failure reporting for
+					// mid-stream failures (see attemptApiRequest for the
+					// first-chunk equivalent). Only failures that surface to
+					// the user are reported — auto-retried attempts emit
+					// nothing, matching the SDK extension.
+					// isWaitingForFirstChunk gate: first-chunk failures are
+					// already reported inside attemptApiRequest's catch, and a
+					// declined retry rethrows a generic error that unwinds to
+					// this catch — the flag is only cleared after the first
+					// chunk yields, so it cleanly excludes those re-thrown
+					// pre-stream failures from being counted twice.
+					if (
+						!this.taskState.isWaitingForFirstChunk &&
+						!willAutoRetryStreamingFailure &&
+						!this.taskState.abort
 					) {
+						const { providerId: midStreamProviderId } =
+							this.getCurrentProviderInfo();
+						telemetryService.captureProviderApiError({
+							ulid: this.ulid,
+							model: this.api.getModel().id,
+							provider: midStreamProviderId,
+							errorMessage: clineError.message,
+							errorStatus: clineError._error?.status,
+							requestId: clineError._error?.request_id,
+							errorType: ClineError.getErrorType(clineError),
+							failurePhase: "streaming",
+						});
+					}
+
+					// Auto-retry for streaming failures (skip for non-retriable errors)
+					if (willAutoRetryStreamingFailure) {
 						this.taskState.autoRetryAttempts++;
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
@@ -3856,15 +3917,20 @@ export class Task {
 				const { model, providerId } = this.getCurrentProviderInfo();
 				const reqId = this.getApiRequestIdSafe();
 
-				// Minimal diagnostics: structured log and telemetry
-				telemetryService.captureProviderApiError({
-					ulid: this.ulid,
-					model: model.id,
-					provider: providerId,
-					errorMessage: "empty_assistant_message",
-					requestId: reqId,
-					isNativeToolCall: this.useNativeToolCalls,
-				});
+				// Minimal diagnostics: structured log and telemetry. Reported
+				// only when no auto-retry follows, consistent with the other
+				// provider-failure sites — occurrences an auto-retry absorbs
+				// emit nothing.
+				if (this.taskState.autoRetryAttempts >= 3) {
+					telemetryService.captureProviderApiError({
+						ulid: this.ulid,
+						model: model.id,
+						provider: providerId,
+						errorMessage: "empty_assistant_message",
+						requestId: reqId,
+						isNativeToolCall: this.useNativeToolCalls,
+					});
+				}
 
 				const baseErrorMessage =
 					"Invalid API Response: The provider returned an empty or unparsable response. This is a provider-side issue where the model failed to generate valid output or returned tool calls that Cline cannot process. Retrying the request may help resolve this issue.";
