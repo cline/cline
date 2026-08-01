@@ -1,3 +1,5 @@
+import { safeJsonParse, safeJsonStringify } from "@cline/shared";
+
 export function extractErrorMessage(error: unknown): string {
 	// Generic SDK wrappers carry no signal of their own — when present we prefer
 	// the underlying cause/detail (e.g. AI SDK's AI_NoOutputGeneratedError).
@@ -6,6 +8,11 @@ export function extractErrorMessage(error: unknown): string {
 	]);
 	const isGenericWrapperMessage = (message: string): boolean =>
 		GENERIC_WRAPPER_MESSAGES.has(message.trim().toLowerCase());
+
+	const hasErrorMessage = (
+		value: unknown,
+	): value is { error_message: unknown } =>
+		typeof value === "object" && value !== null && "error_message" in value;
 
 	// Pulls a human-readable message out of structured provider fields
 	// (error/detail/errors/responseBody) without falling back to a top-level
@@ -45,14 +52,8 @@ export function extractErrorMessage(error: unknown): string {
 		// (e.g. Vercel AI Gateway relaying Alibaba Qwen context-length errors,
 		// where the top-level message is just "Stream error occurred" and the
 		// cause is an unrelated internal ZodError).
-		if (
-			payload.value &&
-			typeof payload.value === "object" &&
-			"error_message" in payload.value
-		) {
-			const nested = extractStructuredMessage(
-				(payload.value as { error_message?: unknown }).error_message,
-			);
+		if (hasErrorMessage(payload.value)) {
+			const nested = extractStructuredMessage(payload.value.error_message);
 			if (nested) {
 				return nested;
 			}
@@ -71,11 +72,13 @@ export function extractErrorMessage(error: unknown): string {
 			return undefined;
 		}
 		if (typeof value === "string") {
-			try {
-				return extractStructuredMessage(JSON.parse(value));
-			} catch {
-				return value.trim() || undefined;
+			// JSON.parse never yields undefined, so undefined here means the
+			// string wasn't JSON — fall back to the trimmed string itself.
+			const parsed = safeJsonParse<unknown>(value);
+			if (parsed !== undefined) {
+				return extractStructuredMessage(parsed);
 			}
+			return value.trim() || undefined;
 		}
 		if (typeof value !== "object") {
 			return undefined;
@@ -144,13 +147,9 @@ export function extractErrorMessage(error: unknown): string {
 	// String() on a plain object yields "[object Object]" — JSON is at least
 	// actionable for the user and for error-classification downstream.
 	if (typeof error === "object" && error !== null) {
-		try {
-			const json = JSON.stringify(error);
-			if (json && json !== "{}") {
-				return json;
-			}
-		} catch {
-			// Circular payload — fall through to String(error).
+		const json = safeJsonStringify(error);
+		if (json && json !== "{}" && json !== "null") {
+			return json;
 		}
 	}
 	return String(error);
