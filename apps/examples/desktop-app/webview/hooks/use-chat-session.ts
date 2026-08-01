@@ -193,6 +193,10 @@ type SessionUsageSummary = {
 	totalCostUsd: number;
 };
 
+type TurnCostTracker = {
+	streamedCostUsd: number;
+};
+
 /**
  * Read current context usage and cumulative cost from persisted chat messages.
  *
@@ -306,7 +310,7 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
-	const streamedTurnCostUsdRef = useRef(0);
+	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -384,7 +388,7 @@ export function useChatSession() {
 	}, []);
 
 	const resetCounters = useCallback(() => {
-		streamedTurnCostUsdRef.current = 0;
+		activeTurnCostTrackerRef.current = null;
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
@@ -903,7 +907,7 @@ export function useChatSession() {
 			flushPendingStream();
 
 			if (payload.stream === "chat_queued_prompt_start") {
-				streamedTurnCostUsdRef.current = 0;
+				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				let parsed: {
 					promptId?: string;
 					prompt?: string;
@@ -989,7 +993,11 @@ export function useChatSession() {
 				}
 				const cost = usage.cost;
 				if (typeof cost === "number") {
-					streamedTurnCostUsdRef.current += cost;
+					const tracker = activeTurnCostTrackerRef.current ?? {
+						streamedCostUsd: 0,
+					};
+					tracker.streamedCostUsd += cost;
+					activeTurnCostTrackerRef.current = tracker;
 					setTotalCostUsd((previous) => previous + cost);
 				}
 				return;
@@ -1336,6 +1344,9 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
+				? undefined
+				: { streamedCostUsd: 0 };
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
@@ -1462,7 +1473,7 @@ export function useChatSession() {
 				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
-					streamedTurnCostUsdRef.current = 0;
+					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
 					setStatus("starting");
 				}
 				await precedingPromptDispatch;
@@ -1610,8 +1621,10 @@ export function useChatSession() {
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
 						: undefined;
-				const streamedTurnCostUsd = streamedTurnCostUsdRef.current;
-				streamedTurnCostUsdRef.current = 0;
+				const streamedTurnCostUsd = turnCostTracker?.streamedCostUsd ?? 0;
+				if (activeTurnCostTrackerRef.current === turnCostTracker) {
+					activeTurnCostTrackerRef.current = null;
+				}
 				if (typeof totalCost === "number") {
 					setTotalCostUsd(
 						(previous) => previous + totalCost - streamedTurnCostUsd,

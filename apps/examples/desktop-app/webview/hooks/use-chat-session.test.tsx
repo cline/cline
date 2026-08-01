@@ -658,6 +658,30 @@ describe("useChatSession", () => {
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 
+		// The runtime may begin draining the next queued prompt before the prior
+		// send response reaches the webview. Its deltas must not affect the prior
+		// turn's completion reconciliation.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-next",
+					prompt: "Next turn",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({ cost: 0.01 }),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.04);
+
 		await act(async () => {
 			resolveSend?.({
 				ok: true,
@@ -678,7 +702,7 @@ describe("useChatSession", () => {
 			tokensIn: 13_000,
 			tokensOut: 700,
 		});
-		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.04);
 	});
 
 	it("hydrates current token usage and cumulative cost from messages", async () => {
