@@ -636,7 +636,16 @@ export class McpHub {
 								return true
 							}
 							const serverConfig = (settings.mcpServers as Record<string, McpServerConfig> | undefined)?.[name]
-							return !!serverConfig && !serverConfig.disabled
+							if (!serverConfig || serverConfig.disabled) {
+								return false
+							}
+							// A retry reconnects with the config captured when this
+							// connection was created. If settings now define a
+							// different connection-relevant config, the settings
+							// watcher owns reconnection — retrying here would
+							// resurrect the obsolete config (and displace the
+							// watcher's failed attempt at the new one).
+							return !this.configsRequireRestart(config, serverConfig)
 						},
 					})
 

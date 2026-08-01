@@ -19,10 +19,13 @@ export interface ReconnectCallbacks {
 	delay: (ms: number) => Promise<void>
 	/**
 	 * Reads current settings fresh and returns whether this server is still
-	 * configured and enabled. Checked before every reconnect attempt so a
-	 * retry can't resurrect a server the user removed or disabled during a
-	 * backoff delay. Should return true when settings can't be read — a
-	 * transient read failure must not kill the reconnect chain.
+	 * configured, enabled, and defined with the same connection-relevant
+	 * config this handler's connectToServer callback would reconnect with.
+	 * Checked before every reconnect attempt so a retry can't resurrect a
+	 * server the user removed or disabled — or an obsolete config the user
+	 * changed — during a backoff delay. Should return true when settings
+	 * can't be read: a transient read failure must not kill the reconnect
+	 * chain.
 	 */
 	isStillWanted: () => Promise<boolean>
 }
