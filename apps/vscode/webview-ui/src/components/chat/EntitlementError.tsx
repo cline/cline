@@ -1,5 +1,4 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
-import { findUsageBasedClineModelId } from "@shared/cline/cline-model-namespaces"
 import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import type { Mode } from "@shared/storage/types"
@@ -21,6 +20,7 @@ interface EntitlementErrorProps {
 const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription"
 
 const CLINE_PROVIDER_ID = "cline"
+const CLINE_PASS_MODEL_PREFIX = "cline-pass/"
 
 const HEADLINE = "This model requires a ClinePass subscription."
 
@@ -39,6 +39,27 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	}
 }
 
+// ClinePass model ids are cline-pass/<model-slug>; every one is also served
+// through usage-based billing as the catalog model with the same slug under its
+// lab prefix (e.g. cline-pass/deepseek-v4-flash -> deepseek/deepseek-v4-flash).
+function findUsageBasedModelId(clinePassModelId: string | undefined, clineModelIds: string[]): string | undefined {
+	if (!clinePassModelId?.startsWith(CLINE_PASS_MODEL_PREFIX)) {
+		return undefined
+	}
+
+	const modelSlug = clinePassModelId.slice(CLINE_PASS_MODEL_PREFIX.length)
+	if (!modelSlug) {
+		return undefined
+	}
+
+	return clineModelIds.find(
+		(modelId) =>
+			!modelId.startsWith(CLINE_PASS_MODEL_PREFIX) &&
+			!modelId.startsWith("cline-free/") &&
+			(modelId === modelSlug || modelId.endsWith(`/${modelSlug}`)),
+	)
+}
+
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth()
 	const { apiConfiguration, mode } = useExtensionState()
@@ -54,15 +75,13 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const currentMode: Mode = mode ?? "act"
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const selectedClinePassModelId = modeFields.apiProvider === "cline-pass" ? modeFields.clinePassModelId : undefined
-	// Every ClinePass model is also served through usage-based billing under its
-	// lab-prefixed id, so offer that route instead of dead-ending on "subscribe".
-	const selectedUsageBasedModelId = useMemo(
-		() => findUsageBasedClineModelId(selectedClinePassModelId, Object.keys(clineModels ?? {})),
+	const resolvedUsageBasedModelId = useMemo(
+		() => findUsageBasedModelId(selectedClinePassModelId, Object.keys(clineModels ?? {})),
 		[selectedClinePassModelId, clineModels],
 	)
 	// Switching moves the config off cline-pass, which clears the resolved
 	// counterpart; keep showing it so the confirmation and retry hint survive.
-	const usageBasedModelId = selectedUsageBasedModelId ?? switchedModelId
+	const usageBasedModelId = resolvedUsageBasedModelId ?? switchedModelId
 	const didSwitch = switchedModelId !== undefined
 
 	const handleSwitchToUsageBasedBilling = async () => {
@@ -117,17 +136,15 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	}
 
 	return (
-		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)" data-testid="entitlement-error">
+		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)">
 			<div className="mb-3">
 				<div className="text-error mb-2">{HEADLINE}</div>
 				<div className="text-(--vscode-descriptionForeground) text-xs">
-					{usageBasedModelId
-						? "Subscribe to ClinePass to use this model, or run the same model with usage-based billing."
-						: "Subscribe to ClinePass to use this model, then retry your request."}
+					Subscribe to ClinePass to use this model, then retry your request.
 				</div>
 				{usageBasedModelId && (
 					<div className="text-(--vscode-descriptionForeground) text-xs mt-2 wrap-anywhere">
-						Usage-based billing runs this model as {usageBasedModelId}, charged to your Cline account balance.
+						Or run the same model ({usageBasedModelId}) with usage-based billing.
 					</div>
 				)}
 				{backendDetail && (

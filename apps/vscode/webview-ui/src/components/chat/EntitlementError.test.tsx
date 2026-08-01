@@ -117,9 +117,7 @@ describe("EntitlementError", () => {
 		useClinePassSelection()
 		render(<EntitlementError />)
 		expect(
-			screen.getByText(
-				"Usage-based billing runs this model as deepseek/deepseek-v4-flash, charged to your Cline account balance.",
-			),
+			screen.getByText("Or run the same model (deepseek/deepseek-v4-flash) with usage-based billing."),
 		).toBeInTheDocument()
 		expect(querySwitchButton()).not.toBeNull()
 	})
