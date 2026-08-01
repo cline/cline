@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { resolveProviderModelDisplayName } from "@/utils/model-display-name"
 import { CLINEPASS_GROUP, getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
 type OnboardingModelsStatus = "loading" | "success" | "empty"
@@ -16,7 +17,7 @@ export interface UseOnboardingModelsResult {
 	models: OnboardingModelGroup
 }
 
-function toOnboardingModel(
+export function toOnboardingModel(
 	rec: ClineRecommendedModel,
 	group: string,
 	fallbackBadge: string,
@@ -28,7 +29,7 @@ function toOnboardingModel(
 
 	return {
 		id: rec.id,
-		name: rec.name || rec.id,
+		name: resolveProviderModelDisplayName(rec.id, modelCatalog, rec.name),
 		group,
 		badge,
 		score: 0,

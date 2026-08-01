@@ -12,11 +12,11 @@ import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { resolveProviderModelDisplayName } from "@/utils/model-display-name"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { ModelInfoView } from "../common/ModelInfoView"
 import FeaturedModelCard from "../FeaturedModelCard"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { resolveProviderModelDisplayName } from "../utils/providerUtils"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 interface ClinePassProviderProps {
