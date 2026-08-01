@@ -27,19 +27,8 @@ export function getCliSubscriptionUrl(): string {
 	).toString()}`;
 }
 
-// ClinePass models are also sold per token on the Cline provider, so an account
-// without the subscription is not locked out of them — point at that route
-// instead of leaving the subscription page as the only way forward.
-export const CLINE_PASS_USAGE_BILLING_ALTERNATIVE =
-	"Or switch to Cline usage-based billing, where the same models are billed per token with no subscription.";
-
 export function getCliNotSubscribedMessage(): string {
-	return [
-		`No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getCliSubscriptionUrl()}`,
-		CLINE_PASS_USAGE_BILLING_ALTERNATIVE,
-		"Interactive CLI: open the model selector with /model, choose Cline, then retry.",
-		"Headless CLI: rerun with --provider cline.",
-	].join("\n");
+	return `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getCliSubscriptionUrl()}`;
 }
 
 export function getCliClinePassLimitMessage(message: string): string {

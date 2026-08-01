@@ -1,10 +1,17 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import { AskResponseRequest } from "@shared/proto/cline/task"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
+import { useMemo, useState } from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
+import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import { useClineAuth } from "@/context/ClineAuthContext"
-import { useUsageBilledModelSwitch } from "@/hooks/useUsageBilledModelSwitch"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderModels } from "@/hooks/useProviderModels"
+import { ModelsServiceClient, TaskServiceClient } from "@/services/grpc-client"
 
 interface EntitlementErrorProps {
 	message?: string
@@ -14,6 +21,9 @@ interface EntitlementErrorProps {
 const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription"
 
 const HEADLINE = "This model requires a ClinePass subscription."
+
+const CLINE_PROVIDER_ID = "cline"
+const CLINE_PASS_MODEL_PREFIX = "cline-pass/"
 
 function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	if (!appBaseUrl) {
@@ -30,21 +40,119 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	}
 }
 
+// ClinePass ids are cline-pass/<model-slug>; the same model is sold per token
+// on the Cline provider under its lab prefix (e.g. cline-pass/deepseek-v4-flash
+// -> deepseek/deepseek-v4-flash). Mirrors ClineFreeModelLimitError's mapping of
+// cline-free/ ids to their paid twins.
+function findUsageBilledModelId(modelId: string | undefined, clineModelIds: string[]): string | undefined {
+	if (!modelId?.startsWith(CLINE_PASS_MODEL_PREFIX)) {
+		return undefined
+	}
+
+	const modelSlug = modelId.slice(CLINE_PASS_MODEL_PREFIX.length)
+	if (!modelSlug) {
+		return undefined
+	}
+
+	return clineModelIds.find(
+		(candidateId) =>
+			!candidateId.startsWith(CLINE_PASS_MODEL_PREFIX) &&
+			(candidateId === modelSlug || candidateId.endsWith(`/${modelSlug}`)),
+	)
+}
+
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth()
-	// ClinePass models are also sold per token on the Cline provider, so an
-	// account without the subscription can still run the same model.
-	const { targetModelId, isSwitching, didSwitch, error: switchError, switchToUsageBasedBilling } = useUsageBilledModelSwitch()
+	const { apiConfiguration, mode } = useExtensionState()
+	const { models: clineModels } = useProviderModels(CLINE_PROVIDER_ID)
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const [isSwitching, setIsSwitching] = useState(false)
+	// Committing the switch rewrites the very selection the target is derived
+	// from, so latch it or the confirmation vanishes as soon as the write lands.
+	const [switchedModelId, setSwitchedModelId] = useState<string | undefined>()
+	const [switchError, setSwitchError] = useState<string | undefined>()
 
 	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl)
 	const backendDetail = message && message !== HEADLINE ? message : undefined
+
+	const currentMode: Mode = mode ?? "act"
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	// The subscription-gated id normally lives under the cline-pass provider, but
+	// it can also be typed into the Cline usage-billing picker by hand.
+	const selectedModelId =
+		modeFields.apiProvider === "cline-pass"
+			? modeFields.clinePassModelId
+			: modeFields.apiProvider === CLINE_PROVIDER_ID
+				? modeFields.clineModelId
+				: undefined
+	// ClinePass models are also sold per token on the Cline provider, so an
+	// account without the subscription can still run the same model.
+	const resolvedModelId = useMemo(
+		() => findUsageBilledModelId(selectedModelId, Object.keys(clineModels ?? {})),
+		[selectedModelId, clineModels],
+	)
+	const usageBilledModelId = switchedModelId ?? resolvedModelId
+	const didSwitch = switchedModelId !== undefined
+
+	const handleSwitchToUsageBasedBilling = async () => {
+		if (!resolvedModelId) {
+			return
+		}
+		setIsSwitching(true)
+		setSwitchError(undefined)
+		try {
+			const modelInfo = clineModels?.[resolvedModelId] ?? {
+				...openAiModelInfoSafeDefaults,
+				name: resolvedModelId,
+			}
+
+			await ModelsServiceClient.commitModelSelection(
+				CommitModelSelectionRequest.create({
+					providerId: CLINE_PROVIDER_ID,
+					mode: currentMode,
+					modelId: resolvedModelId,
+				}),
+			)
+
+			await handleModeFieldsChange(
+				{
+					apiProvider: {
+						plan: "planModeApiProvider",
+						act: "actModeApiProvider",
+					},
+					clineModelId: {
+						plan: "planModeClineModelId",
+						act: "actModeClineModelId",
+					},
+					clineModelInfo: {
+						plan: "planModeClineModelInfo",
+						act: "actModeClineModelInfo",
+					},
+				},
+				{
+					apiProvider: CLINE_PROVIDER_ID,
+					clineModelId: resolvedModelId,
+					clineModelInfo: modelInfo,
+				},
+				currentMode,
+			)
+			setSwitchedModelId(resolvedModelId)
+		} catch (error) {
+			console.error("Failed to switch to Cline usage-based billing:", error)
+			setSwitchError(
+				`Failed to switch model. Select ${resolvedModelId} on Cline Usage-Billing in API Configuration settings.`,
+			)
+		} finally {
+			setIsSwitching(false)
+		}
+	}
 
 	return (
 		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)" data-testid="entitlement-error">
 			<div className="mb-3">
 				<div className="text-error mb-2">{HEADLINE}</div>
 				<div className="text-(--vscode-descriptionForeground) text-xs">
-					{targetModelId
+					{usageBilledModelId
 						? "Subscribe to ClinePass, or run the same model on Cline usage-based billing, then retry your request."
 						: "Subscribe to ClinePass to use this model, then retry your request."}
 				</div>
@@ -55,16 +163,16 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 				)}
 			</div>
 
-			{targetModelId && (
+			{usageBilledModelId && (
 				<>
 					<div className="text-(--vscode-descriptionForeground) text-xs mb-2 wrap-anywhere">
-						No subscription needed: {targetModelId} is billed per token against your Cline credits.
+						No subscription needed: {usageBilledModelId} is billed per token against your Cline credits.
 					</div>
 					<VSCodeButton
 						appearance="primary"
 						className="w-full mb-2"
 						disabled={isSwitching || didSwitch}
-						onClick={switchToUsageBasedBilling}>
+						onClick={handleSwitchToUsageBasedBilling}>
 						{isSwitching
 							? "Switching..."
 							: didSwitch
@@ -82,7 +190,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 
 			{subscribeUrl && (
 				<VSCodeButtonLink
-					appearance={targetModelId ? "secondary" : undefined}
+					appearance={usageBilledModelId ? "secondary" : undefined}
 					className="w-full mb-2"
 					href={subscribeUrl}>
 					<span className="codicon codicon-rocket mr-[6px] text-[14px]" />

@@ -215,64 +215,17 @@ export const ClineSpendLimitMinimal: Story = {
 }
 
 // ClinePass entitlement error (user not subscribed to a required model plan)
-const CLINE_PASS_ENTITLEMENT_MESSAGE =
-	"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true"
-
-const createClinePassSelectionState = (clinePassModelId: string, clineModelIds: string[]) => ({
-	apiConfiguration: {
-		planModeApiProvider: "cline-pass",
-		actModeApiProvider: "cline-pass",
-		planModeClinePassModelId: clinePassModelId,
-		actModeClinePassModelId: clinePassModelId,
-	},
-	mode: "act",
-	providerModelsByProvider: {
-		cline: {
-			models: Object.fromEntries(clineModelIds.map((id) => [id, { name: id }])),
-			defaultModelId: clineModelIds[0] ?? "",
-			isLoading: false,
-			isStale: false,
-		},
-	},
-})
-
 export const ClinePassEntitlementError: Story = {
 	args: {
 		message: createMockMessage(),
 		errorType: "error",
-		apiRequestFailedMessage: CLINE_PASS_ENTITLEMENT_MESSAGE,
+		apiRequestFailedMessage:
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
 	},
-	decorators: [
-		createStoryDecorator(
-			{ clineUser: { appBaseUrl: "https://app.cline.bot" }, isAuthenticated: true },
-			createClinePassSelectionState("cline-pass/subscription-only-model", ["deepseek/deepseek-v4-flash"]),
-		),
-	],
 	parameters: {
 		docs: {
 			description: {
-				story: "ClinePass model returns the SDK ClineNotSubscribedError message when the user is not subscribed, and the Cline catalog has no usage-billed twin of that model. Only the 'Get ClinePass' subscribe link and a retry button are shown.",
-			},
-		},
-	},
-}
-
-export const ClinePassEntitlementErrorWithUsageBillingSwitch: Story = {
-	args: {
-		message: createMockMessage(),
-		errorType: "error",
-		apiRequestFailedMessage: CLINE_PASS_ENTITLEMENT_MESSAGE,
-	},
-	decorators: [
-		createStoryDecorator(
-			{ clineUser: { appBaseUrl: "https://app.cline.bot" }, isAuthenticated: true },
-			createClinePassSelectionState("cline-pass/deepseek-v4-flash", ["deepseek/deepseek-v4-flash"]),
-		),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "The same entitlement error for a model that is also sold per token on the Cline provider. The card offers a one-click switch to Cline usage-based billing on the equivalent model id.",
+				story: "ClinePass model returns the SDK ClineNotSubscribedError message when the user is not subscribed. A human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
 			},
 		},
 	},
