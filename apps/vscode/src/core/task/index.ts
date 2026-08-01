@@ -2516,7 +2516,14 @@ export class Task {
 				// provider layer retries transients silently before any event
 				// exists. Context-window overruns are also excluded — they are
 				// recovered by truncation, not a provider failure.
-				if (!isContextWindowExceededError && !shouldRetry) {
+				// (`abort` gate: a user cancel unwinds through this catch as a
+				// generic "Cline instance aborted" error — never a provider
+				// failure, and the SDK extension doesn't report cancels either.)
+				if (
+					!isContextWindowExceededError &&
+					!shouldRetry &&
+					!this.taskState.abort
+				) {
 					telemetryService.captureProviderApiError({
 						ulid: this.ulid,
 						model: model.id,
@@ -3652,7 +3659,8 @@ export class Task {
 					// pre-stream failures from being counted twice.
 					if (
 						!this.taskState.isWaitingForFirstChunk &&
-						!willAutoRetryStreamingFailure
+						!willAutoRetryStreamingFailure &&
+						!this.taskState.abort
 					) {
 						const { providerId: midStreamProviderId } =
 							this.getCurrentProviderInfo();
