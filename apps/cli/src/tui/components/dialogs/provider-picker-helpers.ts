@@ -45,6 +45,23 @@ export function saveManualProviderApiKey(
 	}
 }
 
+/**
+ * Key handling for the OAuth waiting screens: `K` switches to manual API key
+ * entry when that fallback is available; every other key cancels the pending
+ * auth attempt.
+ *
+ * Like the ClinePass promo dialog, this screen must never depend on Esc
+ * alone: it is non-interactive, it may be waiting on a browser flow that
+ * never completes, and Esc is the least reliably delivered key across
+ * terminals (notably on Windows, where console input layers can swallow it).
+ */
+export function resolveOAuthWaitKeyAction(
+	keyName: string,
+	allowApiKeyFallback: boolean | undefined,
+): "use_api_key" | "cancel" {
+	return allowApiKeyFallback && keyName === "k" ? "use_api_key" : "cancel";
+}
+
 export function buildClinePassSubscriptionPageUrl(
 	appBaseUrl: string | undefined,
 ): string {
@@ -53,7 +70,7 @@ export function buildClinePassSubscriptionPageUrl(
 		appBaseUrl || DEFAULT_APP_BASE_URL,
 	);
 	url.searchParams.set("personal", "true");
-	if(CLI_PROMO_CODE) {
+	if (CLI_PROMO_CODE) {
 		url.searchParams.set("code", CLI_PROMO_CODE);
 	}
 	return url.toString();

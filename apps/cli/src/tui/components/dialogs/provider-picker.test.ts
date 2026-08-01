@@ -9,8 +9,26 @@ import {
 } from "../../../utils/provider-auth";
 import {
 	buildClinePassSubscriptionPageUrl,
+	resolveOAuthWaitKeyAction,
 	saveManualProviderApiKey,
 } from "./provider-picker-helpers";
+
+describe("resolveOAuthWaitKeyAction", () => {
+	it("switches to manual API key entry on K when the fallback is available", () => {
+		expect(resolveOAuthWaitKeyAction("k", true)).toBe("use_api_key");
+	});
+
+	it("cancels on K when the fallback is not available", () => {
+		expect(resolveOAuthWaitKeyAction("k", false)).toBe("cancel");
+	});
+
+	it("cancels on any other key so users are never stuck waiting on a browser flow", () => {
+		for (const keyName of ["escape", "q", "return", "space", "up", "x"]) {
+			expect(resolveOAuthWaitKeyAction(keyName, true)).toBe("cancel");
+			expect(resolveOAuthWaitKeyAction(keyName, false)).toBe("cancel");
+		}
+	});
+});
 
 describe("buildClinePassSubscriptionPageUrl", () => {
 	it("opens the personal subscription page on production by default", () => {
