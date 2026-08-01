@@ -1412,13 +1412,12 @@ export class TelemetryService {
 		// dashboards can compare cohorts on identical event shapes.
 		// errorType follows ClineErrorType values ("auth", "balance",
 		// "rateLimit", ...); failurePhase follows the SDK extension's
-		// vocabulary ("preflight" | "streaming"). fatal is false for
-		// attempts that will be auto-retried — the SDK extension only reports
-		// fatal failures, so cross-cohort comparisons must filter
-		// fatal = true.
+		// vocabulary ("preflight" | "streaming"). Call sites only report
+		// failures that surfaced to the user (no auto-retry followed) — the
+		// SDK extension can only ever see those, so this keeps the cohorts
+		// comparable without any query-side filtering.
 		errorType?: string | undefined
 		failurePhase?: string | undefined
-		fatal?: boolean
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({

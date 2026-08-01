@@ -345,7 +345,6 @@ describe("TelemetryService metrics", () => {
 			errorStatus: 500,
 			errorType: "auth",
 			failurePhase: "streaming",
-			fatal: true,
 		})
 
 		// The event carries the SDK-extension-parity schema fields so the A/B
@@ -354,7 +353,6 @@ describe("TelemetryService metrics", () => {
 		assert.ok(failureEvent, "expected task.provider_api_error event")
 		assert.strictEqual(failureEvent?.properties?.errorType, "auth")
 		assert.strictEqual(failureEvent?.properties?.failurePhase, "streaming")
-		assert.strictEqual(failureEvent?.properties?.fatal, true)
 
 		assert.strictEqual(provider.counters.length, 1)
 		const entry = provider.counters[0]
