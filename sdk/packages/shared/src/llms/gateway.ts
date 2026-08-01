@@ -67,6 +67,19 @@ export interface GatewayProviderRouting {
 	};
 }
 
+/**
+ * How tool definitions reach the model and how tool uses come back.
+ *
+ * - `"native"` (default): tool schemas are sent through the provider's
+ *   structured tool-calling API and tool uses arrive as structured parts.
+ * - `"xml"`: for models without reliable native tool calling. Tool schemas
+ *   are stripped from the request, XML tool-use instructions are appended to
+ *   the system prompt, prior tool calls/results are rewritten into an XML
+ *   text wire format, and tool uses are parsed back out of assistant text.
+ *   Everything above the gateway still sees ordinary native tool calls.
+ */
+export type GatewayToolCallingMode = "native" | "xml";
+
 export type GatewayStickySessionTransport = "json-body" | "header";
 
 export interface GatewayStickySessionMetadata {
@@ -179,6 +192,8 @@ export interface GatewayStreamRequest {
 	 * ones that reach the provider without going through the gateway.
 	 */
 	defaultedMaxTokens?: boolean;
+	/** Tool wire format. Defaults to `"native"` when omitted. */
+	toolCallingMode?: GatewayToolCallingMode;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
@@ -212,6 +227,7 @@ export interface GatewayModelHandleOptions {
 	tools?: readonly AgentToolDefinition[];
 	temperature?: number;
 	maxTokens?: number;
+	toolCallingMode?: GatewayToolCallingMode;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;

@@ -150,6 +150,9 @@ export function buildModelOptions(
 	if (config.apiTimeoutMs !== undefined) {
 		options.apiTimeoutMs = config.apiTimeoutMs;
 	}
+	if (config.toolCallingMode !== undefined) {
+		options.toolCallingMode = config.toolCallingMode;
+	}
 	return Object.keys(options).length > 0 ? options : undefined;
 }
 

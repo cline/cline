@@ -767,6 +767,18 @@ export interface AgentConfig {
 	thinking?: boolean;
 
 	// -------------------------------------------------------------------------
+	// Tool calling
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Tool wire format. `"xml"` drives tools through XML tags in plain
+	 * assistant text (for models without reliable native tool calling); the
+	 * gateway translates to/from native tool calls so the runtime is
+	 * unaffected. Defaults to `"native"`.
+	 */
+	toolCallingMode?: "native" | "xml";
+
+	// -------------------------------------------------------------------------
 	// Callbacks
 	// -------------------------------------------------------------------------
 
@@ -934,6 +946,9 @@ export const AgentConfigSchema = z.object({
 	reasoningEffort: ReasoningEffortSchema.optional(),
 	thinkingBudgetTokens: z.number().positive().optional(),
 	thinking: z.boolean().optional(),
+
+	// Tool calling
+	toolCallingMode: z.enum(["native", "xml"]).optional(),
 
 	// Callbacks
 	onEvent: z

@@ -13,6 +13,7 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type GatewayStreamRequest,
 	type ITelemetryService,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -437,6 +438,118 @@ describe("sdk-gateway", () => {
 				messages: baseMessages,
 			}),
 		);
+	});
+
+	it("translates xml tool-calling requests and streams end to end", async () => {
+		let providerRequest: GatewayStreamRequest | undefined;
+		const createProvider = vi.fn(() => ({
+			async *stream(request: GatewayStreamRequest) {
+				providerRequest = request;
+				yield {
+					type: "text-delta",
+					text: "Reading it.\n<read_file>\n<path>src/app.ts</path>\n</read_file>",
+				} satisfies AgentModelEvent;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom",
+						name: "Custom",
+						defaultModelId: "alpha",
+						models: [{ id: "alpha", name: "Alpha", providerId: "custom" }],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		const model = gateway.createAgentModel({
+			providerId: "custom",
+			modelId: "alpha",
+		});
+		const events = await collect(
+			await model.stream({
+				systemPrompt: "You are Cline.",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "read_file",
+						description: "Read a file.",
+						inputSchema: {
+							type: "object",
+							properties: { path: { type: "string" } },
+							required: ["path"],
+						},
+					},
+				],
+				options: { toolCallingMode: "xml" },
+			}),
+		);
+
+		// The provider request was translated: no tool schemas, XML prompt.
+		expect(providerRequest?.tools).toBeUndefined();
+		expect(providerRequest?.systemPrompt).toContain("You are Cline.");
+		expect(providerRequest?.systemPrompt).toContain("TOOL USE");
+		expect(providerRequest?.systemPrompt).toContain("## read_file");
+
+		// The XML in the assistant text came back as a native tool call.
+		expect(events).toContainEqual({ type: "text-delta", text: "Reading it." });
+		const toolCall = events.find(
+			(event) => event.type === "tool-call-delta",
+		) as Extract<AgentModelEvent, { type: "tool-call-delta" }> | undefined;
+		expect(toolCall?.toolName).toBe("read_file");
+		expect(toolCall?.input).toEqual({ path: "src/app.ts" });
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("leaves native tool-calling requests untranslated", async () => {
+		let providerRequest: GatewayStreamRequest | undefined;
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom",
+						name: "Custom",
+						defaultModelId: "alpha",
+						models: [{ id: "alpha", name: "Alpha", providerId: "custom" }],
+					},
+					createProvider: () => ({
+						async *stream(request: GatewayStreamRequest) {
+							providerRequest = request;
+							yield {
+								type: "finish",
+								reason: "stop",
+							} satisfies AgentModelEvent;
+						},
+					}),
+				},
+			],
+		});
+
+		const tools = [
+			{
+				name: "read_file",
+				description: "Read a file.",
+				inputSchema: { type: "object" },
+			},
+		];
+		await collect(
+			await gateway.stream({
+				providerId: "custom",
+				modelId: "alpha",
+				systemPrompt: "You are Cline.",
+				messages: baseMessages,
+				tools,
+			}),
+		);
+
+		expect(providerRequest?.tools).toEqual(tools);
+		expect(providerRequest?.systemPrompt).toBe("You are Cline.");
 	});
 
 	it("keeps custom provider loading lazy until first use", async () => {

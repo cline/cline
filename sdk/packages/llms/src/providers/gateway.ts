@@ -20,6 +20,10 @@ import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
+import {
+	translateXmlToolCallingRequest,
+	translateXmlToolCallingStream,
+} from "./xml-tool-calling/translate";
 
 export type * from "@cline/shared";
 
@@ -43,6 +47,12 @@ function normalizeReasoningBudgetTokens(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isInteger(value) && value > 0
 		? value
 		: undefined;
+}
+
+function normalizeToolCallingMode(
+	value: unknown,
+): GatewayStreamRequest["toolCallingMode"] {
+	return value === "native" || value === "xml" ? value : undefined;
 }
 
 function normalizeRequestedReasoning(
@@ -161,6 +171,9 @@ class GatewayModelAdapter implements AgentModel {
 			maxTokens:
 				(request.options?.maxTokens as number | undefined) ??
 				this.defaults?.maxTokens,
+			toolCallingMode:
+				normalizeToolCallingMode(request.options?.toolCallingMode) ??
+				this.defaults?.toolCallingMode,
 			metadata: mergeRequestMetadata(
 				this.defaults?.metadata,
 				request.options?.metadata as Record<string, unknown> | undefined,
@@ -301,6 +314,12 @@ export class DefaultGateway implements Gateway {
 	async stream(
 		request: GatewayStreamRequest,
 	): Promise<AsyncIterable<AgentModelEvent>> {
+		// XML tool-calling translation happens before token estimation and
+		// provider dispatch so both see the request the provider will receive.
+		const xmlTranslation = translateXmlToolCallingRequest(request);
+		if (xmlTranslation) {
+			request = xmlTranslation.request;
+		}
 		const resolved = this.registry.resolveModel({
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
@@ -345,7 +364,10 @@ export class DefaultGateway implements Gateway {
 			},
 		);
 
-		return toAsyncIterable(stream);
+		const events = toAsyncIterable(stream);
+		return xmlTranslation
+			? translateXmlToolCallingStream(events, xmlTranslation)
+			: events;
 	}
 }
 
