@@ -293,6 +293,16 @@ export class AuthService {
 	}
 
 	async handleAuthCallback(authorizationCode: string, provider: string): Promise<void> {
+		// Rollout stand-down: an OAuth flow started before the next bundle took
+		// ownership of the Cline account can complete after it did. Re-check
+		// here so a late callback cannot store fresh legacy credentials that
+		// next's migration never adopts (it never overwrites an existing cline
+		// entry).
+		if (shouldStandDownAuth()) {
+			notifyRolloutStanddown()
+			await this.sendAuthStatusUpdate()
+			return
+		}
 		try {
 			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
 			this._authenticated = this._clineAuthInfo?.idToken !== undefined
