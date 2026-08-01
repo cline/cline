@@ -3619,7 +3619,13 @@ export class Task {
 					// Mirror the SDK extension's provider-failure reporting for
 					// mid-stream failures (see attemptApiRequest for the
 					// first-chunk equivalent). One event per failed attempt.
-					{
+					// isWaitingForFirstChunk gate: first-chunk failures are
+					// already reported inside attemptApiRequest's catch, and a
+					// declined retry rethrows a generic error that unwinds to
+					// this catch — the flag is only cleared after the first
+					// chunk yields, so it cleanly excludes those re-thrown
+					// pre-stream failures from being counted twice.
+					if (!this.taskState.isWaitingForFirstChunk) {
 						const { providerId: midStreamProviderId } =
 							this.getCurrentProviderInfo();
 						telemetryService.captureProviderApiError({
