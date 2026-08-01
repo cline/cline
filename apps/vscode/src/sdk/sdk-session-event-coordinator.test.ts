@@ -368,6 +368,44 @@ describe("SdkSessionEventCoordinator", () => {
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
 	})
+
+	it("does not capture provider failure telemetry for tool-execution-failure mistake errors", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-123",
+				event: {
+					type: "error",
+					error: new Error('2 tool call(s) failed: [shell] {"error":"command not found"}'),
+				},
+			},
+		} as unknown as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+	})
+
+	it("does not capture provider failure telemetry when a turn ends in error with a tool-failure abort text", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-123",
+				event: {
+					type: "done",
+					reason: "error",
+					text: '1 tool call(s) failed: [read_file] {"error":"\u2716 Invalid input"}',
+					iterations: 1,
+				},
+			},
+		} as unknown as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {

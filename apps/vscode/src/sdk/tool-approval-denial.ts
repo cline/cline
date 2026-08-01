@@ -74,3 +74,21 @@ export function isDeniedToolApprovalMistake(
 
 	return false
 }
+
+/**
+ * Mistake-tracker abort texts for failed tool executions look like
+ * "2 tool call(s) failed: [shell] {...}" (built by the session runtime
+ * orchestrator's turn-finished handler in @cline/core). They reach this
+ * adapter as agent error/done events, but they are TOOL failures — already
+ * reported per-execution under task.tool_used(failed) — not provider API
+ * failures, so provider-failure telemetry must skip them or the A/B rollout
+ * error dashboards double-count tool failures as API errors on the SDK
+ * bundle only.
+ */
+export function isToolExecutionFailureMistake(value: unknown): boolean {
+	const message = getMessage(value)
+	if (!message) {
+		return false
+	}
+	return /\b\d+ tool call\(s\) failed\b/.test(message)
+}

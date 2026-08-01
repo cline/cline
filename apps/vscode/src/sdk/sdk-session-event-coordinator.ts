@@ -12,6 +12,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import type { TaskProxy } from "./task-proxy"
+import { isToolExecutionFailureMistake } from "./tool-approval-denial"
 
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
@@ -67,7 +68,16 @@ export class SdkSessionEventCoordinator {
 
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const agentFailure = this.getAgentFailureTelemetry(event)
-		if (agentFailure && !this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error)) {
+		// Tool-shaped agent failures are excluded from provider-failure
+		// telemetry: approval denials are user decisions, and tool-execution
+		// failures are already reported per-execution under
+		// task.tool_used(failed). Counting either as a provider API error
+		// inflates the SDK bundle's error rate in the A/B rollout dashboards.
+		if (
+			agentFailure &&
+			!this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error) &&
+			!isToolExecutionFailureMistake(agentFailure.error)
+		) {
 			this.options.captureProviderApiError?.({
 				sessionId: agentFailure.sessionId,
 				error: agentFailure.error,
