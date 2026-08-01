@@ -1412,9 +1412,13 @@ export class TelemetryService {
 		// dashboards can compare cohorts on identical event shapes.
 		// errorType follows ClineErrorType values ("auth", "balance",
 		// "rateLimit", ...); failurePhase follows the SDK extension's
-		// vocabulary ("preflight" | "streaming").
+		// vocabulary ("preflight" | "streaming"). terminal is false for
+		// attempts that will be auto-retried — the SDK extension only reports
+		// terminal failures, so cross-cohort comparisons must filter
+		// terminal = true.
 		errorType?: string | undefined
 		failurePhase?: string | undefined
+		terminal?: boolean
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({

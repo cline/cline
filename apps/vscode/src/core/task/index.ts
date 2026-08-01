@@ -2402,25 +2402,6 @@ export class Task {
 			// Capture provider failure telemetry using clineError
 			ErrorService.get().logMessage(clineError.message);
 
-			// Mirror the SDK extension's provider-failure reporting: emit one
-			// task.provider_api_error per failed request attempt (auto-retries
-			// included), with the same errorType/failurePhase schema, so error
-			// rates are comparable across the A/B rollout cohorts. Context-window
-			// overruns are excluded — they are recovered by truncation, not a
-			// provider failure.
-			if (!isContextWindowExceededError) {
-				telemetryService.captureProviderApiError({
-					ulid: this.ulid,
-					model: model.id,
-					provider: providerId,
-					errorMessage: clineError.message,
-					errorStatus: clineError._error?.status,
-					requestId: clineError._error?.request_id,
-					errorType: ClineError.getErrorType(clineError),
-					failurePhase: "streaming",
-				});
-			}
-
 			if (
 				isContextWindowExceededError &&
 				!this.taskState.didAutomaticallyRetryFailedApiRequest
@@ -2526,6 +2507,31 @@ export class Task {
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
 					this.taskState.autoRetryAttempts < 3;
+
+				// Mirror the SDK extension's provider-failure reporting: same
+				// errorType/failurePhase schema so error rates are comparable
+				// across the A/B rollout cohorts. Emitted once per failed
+				// attempt; `terminal` marks whether this failure will surface
+				// to the user (no auto-retry follows) — the SDK extension only
+				// ever reports terminal failures (transient errors are retried
+				// inside its provider layer before any event fires), so
+				// cross-cohort comparisons must filter to terminal = true.
+				// Context-window overruns are excluded — they are recovered by
+				// truncation, not a provider failure.
+				if (!isContextWindowExceededError) {
+					telemetryService.captureProviderApiError({
+						ulid: this.ulid,
+						model: model.id,
+						provider: providerId,
+						errorMessage: clineError.message,
+						errorStatus: clineError._error?.status,
+						requestId: clineError._error?.request_id,
+						errorType: ClineError.getErrorType(clineError),
+						failurePhase: "streaming",
+						terminal: !shouldRetry,
+					});
+				}
+
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++;
@@ -3616,9 +3622,30 @@ export class Task {
 					);
 					const errorMessage = clineError.serialize();
 
+					const isStreamingSpendLimitError = clineError.isErrorType(
+						ClineErrorType.SpendLimit,
+					);
+					// Inference cap and daily free-model limits reset in hours, so
+					// retrying only burns backoff before surfacing the actionable UI.
+					// Mirrors the non-streaming gating in attemptApiRequest.
+					const isStreamingQuotaExceededError = clineError.isErrorType(
+						ClineErrorType.QuotaExceeded,
+					);
+					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
+						ClineErrorType.ClineFreeModelLimit,
+					);
+					const isStreamingNonRetriableError =
+						isStreamingSpendLimitError ||
+						isStreamingQuotaExceededError ||
+						isStreamingClineFreeModelLimitError;
+					const willAutoRetryStreamingFailure =
+						!isStreamingNonRetriableError &&
+						this.taskState.autoRetryAttempts < 3;
+
 					// Mirror the SDK extension's provider-failure reporting for
 					// mid-stream failures (see attemptApiRequest for the
-					// first-chunk equivalent). One event per failed attempt.
+					// first-chunk equivalent, including what `terminal` means and
+					// why cross-cohort comparisons must filter on it).
 					// isWaitingForFirstChunk gate: first-chunk failures are
 					// already reported inside attemptApiRequest's catch, and a
 					// declined retry rethrows a generic error that unwinds to
@@ -3637,30 +3664,12 @@ export class Task {
 							requestId: clineError._error?.request_id,
 							errorType: ClineError.getErrorType(clineError),
 							failurePhase: "streaming",
+							terminal: !willAutoRetryStreamingFailure,
 						});
 					}
 
-					const isStreamingSpendLimitError = clineError.isErrorType(
-						ClineErrorType.SpendLimit,
-					);
-					// Inference cap and daily free-model limits reset in hours, so
-					// retrying only burns backoff before surfacing the actionable UI.
-					// Mirrors the non-streaming gating in attemptApiRequest.
-					const isStreamingQuotaExceededError = clineError.isErrorType(
-						ClineErrorType.QuotaExceeded,
-					);
-					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
-						ClineErrorType.ClineFreeModelLimit,
-					);
-					const isStreamingNonRetriableError =
-						isStreamingSpendLimitError ||
-						isStreamingQuotaExceededError ||
-						isStreamingClineFreeModelLimitError;
 					// Auto-retry for streaming failures (skip for non-retriable errors)
-					if (
-						!isStreamingNonRetriableError &&
-						this.taskState.autoRetryAttempts < 3
-					) {
+					if (willAutoRetryStreamingFailure) {
 						this.taskState.autoRetryAttempts++;
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
