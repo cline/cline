@@ -1,4 +1,5 @@
 import { type ProviderErrorClass, safeJsonParse } from "@cline/shared";
+import { AISDKError, APICallError, RetryError, TypeValidationError } from "ai";
 
 /**
  * Provider codes that unambiguously identify a context-window overflow
@@ -144,28 +145,13 @@ function collectSignals(
 }
 
 /**
- * Classify a raw provider error (or an already-flattened error message) into
- * a {@link ProviderErrorClass}. Call this where the structured error object
- * is still available — `extractErrorMessage` discards the structure this
- * classification relies on.
- *
- * Detection is deliberately conservative: a context-window verdict requires
- * an overflow message pattern (or explicit provider code), no rate-limit
- * signal, and — when any HTTP status is visible — an invalid-request-family
- * status.
+ * Apply the detection rules to collected signals. Shared between the typed
+ * AI SDK pre-pass and the structural walk so both paths classify identically:
+ * a context-window verdict requires an overflow message pattern (or explicit
+ * provider code), no rate-limit signal, and — when any HTTP status is
+ * visible — an invalid-request-family status.
  */
-export function classifyProviderError(error: unknown): ProviderErrorClass {
-	const signals: ErrorSignals = {
-		messages: [],
-		statuses: new Set(),
-		codes: new Set(),
-	};
-	try {
-		collectSignals(error, signals, new Set(), 0);
-	} catch {
-		return "unknown";
-	}
-
+function verdictFromSignals(signals: ErrorSignals): ProviderErrorClass {
 	if ([...signals.codes].some((code) => CONTEXT_WINDOW_CODES.has(code))) {
 		return "context_window_exceeded";
 	}
@@ -194,4 +180,100 @@ export function classifyProviderError(error: unknown): ProviderErrorClass {
 		return "context_window_exceeded";
 	}
 	return "unknown";
+}
+
+function collectSignalsFrom(values: readonly unknown[]): ErrorSignals {
+	const signals: ErrorSignals = {
+		messages: [],
+		statuses: new Set(),
+		codes: new Set(),
+	};
+	const visited = new Set<unknown>();
+	for (const value of values) {
+		collectSignals(value, signals, visited, 0);
+	}
+	return signals;
+}
+
+/**
+ * Classify errors that are real AI SDK error instances, using their typed
+ * fields instead of guessing at shape. Returns `undefined` when the error is
+ * not a recognized instance (or a typed wrapper leads nowhere), so the caller
+ * falls back to the structural walk.
+ *
+ * `isInstance()` is the AI SDK's symbol-based guard, so it holds across
+ * duplicated package copies — but it can never match gateway-forwarded plain
+ * JSON payloads that merely *name* an AI SDK error (ENG-2394); those stay the
+ * structural walk's job.
+ */
+function classifyTypedError(
+	error: unknown,
+	depth: number,
+): ProviderErrorClass | undefined {
+	if (depth > MAX_WALK_DEPTH) {
+		return undefined;
+	}
+	// Specific classes before the generic guard — every AI SDK error
+	// subclasses AISDKError, so the generic check would swallow them.
+	if (RetryError.isInstance(error)) {
+		const last = error.lastError ?? error.errors[error.errors.length - 1];
+		return classifyTypedError(last, depth + 1);
+	}
+	if (APICallError.isInstance(error)) {
+		const signals = collectSignalsFrom([
+			error.message,
+			error.responseBody,
+			error.data,
+		]);
+		// The typed statusCode is the sole authoritative status: statuses
+		// quoted inside the response text must not out-vote the HTTP layer.
+		signals.statuses = new Set(
+			typeof error.statusCode === "number" ? [error.statusCode] : [],
+		);
+		return verdictFromSignals(signals);
+	}
+	if (TypeValidationError.isInstance(error)) {
+		// `value` holds the payload that failed validation — for gateway
+		// streams, the upstream provider rejection.
+		const verdict = verdictFromSignals(collectSignalsFrom([error.value]));
+		return verdict === "context_window_exceeded" ? verdict : undefined;
+	}
+	if (AISDKError.isInstance(error)) {
+		const verdict = classifyTypedError(error.cause, depth + 1);
+		return verdict === "context_window_exceeded" ? verdict : undefined;
+	}
+	return undefined;
+}
+
+/**
+ * Classify a raw provider error (or an already-flattened error message) into
+ * a {@link ProviderErrorClass}. Call this where the structured error object
+ * is still available — `extractErrorMessage` discards the structure this
+ * classification relies on.
+ *
+ * Typed AI SDK error instances are classified first via their typed fields;
+ * everything else — including plain JSON payloads that only *look* like AI
+ * SDK errors — goes through the conservative structural walk.
+ */
+export function classifyProviderError(error: unknown): ProviderErrorClass {
+	try {
+		const typed = classifyTypedError(error, 0);
+		if (typed !== undefined) {
+			return typed;
+		}
+	} catch {
+		// Fall through to the structural walk.
+	}
+
+	const signals: ErrorSignals = {
+		messages: [],
+		statuses: new Set(),
+		codes: new Set(),
+	};
+	try {
+		collectSignals(error, signals, new Set(), 0);
+	} catch {
+		return "unknown";
+	}
+	return verdictFromSignals(signals);
 }
