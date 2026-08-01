@@ -155,6 +155,15 @@ export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
 	let repoSupported: boolean | undefined;
+	// Number of messages present when the current run started, captured in
+	// beforeRun. For hosts that append the run's prompt *after* beforeRun (e.g.
+	// `AgentRuntime.run(input)`), the delta since this index holds the new user
+	// message and is a reliable "new user turn" signal. It is only a hint, not
+	// the sole gate: hosts that seed the prompt *before* the run (SessionRuntime
+	// calls `run("")` with the prompt already in initialMessages) leave the
+	// delta empty, and a fresh hook instance after a process restart resets it
+	// to undefined — so the durable persisted checkpoint history is what
+	// actually prevents duplicate/overwriting checkpoints.
 	let rootRunMessageStart: number | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
@@ -264,23 +273,40 @@ export function createCheckpointHooks(
 			if (snapshot.parentAgentId != null || snapshot.iteration !== 1) {
 				return undefined;
 			}
+			// Messages the runtime appended after beforeRun. When the host passes
+			// the prompt as run input this delta contains the new user turn; when
+			// the host seeds it beforehand (or the hook is a fresh instance after
+			// a restart) the delta is empty, so it is only a positive hint.
 			const currentRunMessages = snapshot.messages.slice(
 				rootRunMessageStart ?? Math.max(0, snapshot.messages.length - 1),
 			);
 			rootRunMessageStart = undefined;
-			if (countUserRunMessages(currentRunMessages) < 1) {
-				return undefined;
-			}
+			// Span-aware count so numbering survives compaction (which folds
+			// several user turns into one summary message carrying userRunSpan).
 			const runCount = countUserRunMessages(snapshot.messages);
 			if (runCount < 1) {
+				return undefined;
+			}
+			const metadata = await options.readSessionMetadata();
+			const existing = readCheckpointMetadata(metadata);
+			// A run warrants a checkpoint when it introduces a new user turn.
+			// `introducedUserRun` catches the run-input path (and refreshes the
+			// entry on edit-and-regenerate); `alreadyCheckpointed`, read from the
+			// durable session history, catches the seeded-prompt path and, unlike
+			// any in-memory counter, still holds after a process restart. Skip
+			// only when neither applies: a continuation/resumption re-running a
+			// run that was already checkpointed (which must NOT overwrite the
+			// pre-run snapshot with the now-mutated workspace).
+			const introducedUserRun = countUserRunMessages(currentRunMessages) >= 1;
+			const alreadyCheckpointed =
+				existing?.history.some((entry) => entry.runCount === runCount) ?? false;
+			if (!introducedUserRun && alreadyCheckpointed) {
 				return undefined;
 			}
 			const entry = await createCheckpoint(runCount);
 			if (!entry) {
 				return undefined;
 			}
-			const metadata = await options.readSessionMetadata();
-			const existing = readCheckpointMetadata(metadata);
 			if (existing?.latest.ref === entry.ref) {
 				return undefined;
 			}
