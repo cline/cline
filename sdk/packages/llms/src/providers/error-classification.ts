@@ -216,8 +216,18 @@ function classifyTypedError(
 	// Specific classes before the generic guard — every AI SDK error
 	// subclasses AISDKError, so the generic check would swallow them.
 	if (RetryError.isInstance(error)) {
+		// Only the final attempt decides the verdict: earlier attempts were
+		// retried away (typically rate limits) and must neither veto nor fake
+		// its classification — so an untyped final error is walked alone
+		// rather than falling back to the whole wrapper's `errors` array.
 		const last = error.lastError ?? error.errors[error.errors.length - 1];
-		return classifyTypedError(last, depth + 1);
+		if (last == null) {
+			return undefined;
+		}
+		return (
+			classifyTypedError(last, depth + 1) ??
+			verdictFromSignals(collectSignalsFrom([last]))
+		);
 	}
 	if (APICallError.isInstance(error)) {
 		const signals = collectSignalsFrom([

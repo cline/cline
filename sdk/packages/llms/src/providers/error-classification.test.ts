@@ -231,6 +231,55 @@ describe("classifyProviderError", () => {
 			expect(classifyProviderError(error)).toBe("context_window_exceeded");
 		});
 
+		it("classifies an untyped final RetryError attempt without earlier attempts vetoing it", () => {
+			// Attempt 1 was a retryable 429; the final attempt is a plain
+			// (untyped) overflow rejection. The earlier rate limit must not
+			// veto the final attempt's verdict.
+			const error = new RetryError({
+				message: "Failed after 2 attempts.",
+				reason: "errorNotRetryable",
+				errors: [
+					new APICallError({
+						message: "Too Many Requests",
+						url: "https://api.anthropic.com/v1/messages",
+						requestBodyValues: {},
+						statusCode: 429,
+						responseBody: JSON.stringify({
+							error: {
+								type: "rate_limit_error",
+								message: "Rate limit reached.",
+							},
+						}),
+					}),
+					{
+						status: 400,
+						error: {
+							type: "invalid_request_error",
+							message: "prompt is too long: 213462 tokens > 200000 maximum",
+						},
+					},
+				],
+			});
+			expect(classifyProviderError(error)).toBe("context_window_exceeded");
+		});
+
+		it("does not let earlier RetryError attempts fake an overflow for an untyped final attempt", () => {
+			const error = new RetryError({
+				message: "Failed after 2 attempts.",
+				reason: "errorNotRetryable",
+				errors: [
+					{
+						status: 400,
+						error: {
+							message: "prompt is too long: 213462 tokens > 200000 maximum",
+						},
+					},
+					new Error("fetch failed: other side closed"),
+				],
+			});
+			expect(classifyProviderError(error)).toBe("unknown");
+		});
+
 		it("classifies a TypeValidationError by the gateway payload in value", () => {
 			// A real instance of the ENG-2394 failure: the Vercel gateway streams
 			// the upstream rejection as the value that failed schema validation.
