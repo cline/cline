@@ -2,6 +2,22 @@ import type { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import * as reasoningSupport from "@shared/utils/reasoning-support"
 
+export function resolveProviderModelDisplayName(
+	modelId: string,
+	models?: Record<string, ModelInfo>,
+	fallbackName?: string,
+): string {
+	const catalogName = models?.[modelId]?.name?.trim()
+	const endpointName = fallbackName?.trim()
+	const modelIdTail = modelId.split("/").at(-1) ?? modelId
+	const displayName = catalogName || (endpointName && endpointName !== modelId ? endpointName : undefined) || modelIdTail
+
+	return displayName
+		.replace(/\s*\(free\)\s*$/i, "")
+		.replace(/:free$/i, "")
+		.trim()
+}
+
 export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
 	return reasoningSupport.supportsReasoningEffortForModel(modelId)
 }

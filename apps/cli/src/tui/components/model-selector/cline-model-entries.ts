@@ -104,3 +104,22 @@ export function stripFreeMarker(displayName: string): string {
 		.replace(/:free$/i, "")
 		.trim();
 }
+
+export function resolveClineModelDisplayName(
+	model: Pick<ClineRecommendedModel, "id" | "name">,
+	knownModels?: Record<string, unknown>,
+): string {
+	const candidates = [model.id, model.id.split("/").pop()];
+	for (const key of candidates) {
+		if (!key) continue;
+		const hit = knownModels?.[key] as { name?: string } | undefined;
+		if (hit?.name?.trim()) return stripFreeMarker(hit.name);
+	}
+
+	const endpointName = model.name?.trim();
+	const fallback =
+		endpointName && endpointName !== model.id
+			? endpointName
+			: (model.id.split("/").pop() ?? model.id);
+	return stripFreeMarker(fallback);
+}

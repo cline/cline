@@ -19,7 +19,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields, resolveProviderModelDisplayName } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -56,6 +56,7 @@ interface ClineModelPickerProps {
 
 interface FeaturedModelCardEntry {
 	id: string
+	name?: string
 	description: string
 	label: string
 }
@@ -67,7 +68,7 @@ function normalizeModelId(modelId: string): string {
 }
 
 function toFeaturedModelCardEntry(
-	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
+	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
 	fallbackLabel: string,
 ): FeaturedModelCardEntry | null {
 	if (!model.id) {
@@ -79,6 +80,7 @@ function toFeaturedModelCardEntry(
 
 	return {
 		id: model.id,
+		name: model.name,
 		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
 		label: normalizedLabel || fallbackLabel,
 	}
@@ -445,7 +447,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
+								modelId={resolveProviderModelDisplayName(model.id, effectiveClineModels, model.name)}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
@@ -459,7 +461,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
+								modelId={resolveProviderModelDisplayName(model.id, effectiveClineModels, model.name)}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)

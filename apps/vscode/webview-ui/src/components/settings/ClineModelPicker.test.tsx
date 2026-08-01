@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 		recommended: [
 			{
 				id: "cline-next",
+				name: "cline-next",
 				description: "Next Cline model",
 				tags: ["recommended"],
 			},
@@ -99,13 +100,32 @@ describe("ClineModelPicker", () => {
 	it("commits Cline model selections through provider config so providers.json is updated", async () => {
 		render(<ClineModelPicker currentMode="act" />)
 
-		fireEvent.click(await screen.findByText("cline-next"))
+		fireEvent.click(await screen.findByText("Cline Next"))
 
 		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1))
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "cline",
 			modelId: "cline-next",
 		})
+	})
+
+	it("shows catalog display names on free model cards", async () => {
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [],
+			free: [
+				{
+					id: "cline-next",
+					name: "cline-next",
+					description: "Free Cline model",
+					tags: [],
+				},
+			],
+		})
+
+		render(<ClineModelPicker currentMode="act" initialTab="free" />)
+
+		expect(await screen.findByText("Cline Next")).toBeInTheDocument()
+		expect(screen.queryByText("cline-next")).not.toBeInTheDocument()
 	})
 
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {

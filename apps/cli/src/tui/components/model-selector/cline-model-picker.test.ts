@@ -3,6 +3,7 @@ import {
 	buildFeaturedModelEntries,
 	CLINE_PASS_FREE_SECTION_DESCRIPTION,
 	freeTierDescriptionFor,
+	resolveClineModelDisplayName,
 	stripFreeMarker,
 } from "./cline-model-entries";
 
@@ -94,5 +95,36 @@ describe("cline model picker entries", () => {
 		);
 		expect(stripFreeMarker("laguna-m.1:free")).toBe("laguna-m.1");
 		expect(stripFreeMarker("DeepSeek V4 Flash")).toBe("DeepSeek V4 Flash");
+	});
+
+	it("resolves catalog names before endpoint names and ids", () => {
+		expect(
+			resolveClineModelDisplayName(
+				{
+					id: "deepseek/deepseek-v4-flash",
+					name: "deepseek-v4-flash",
+				},
+				{
+					"deepseek/deepseek-v4-flash": {
+						name: "DeepSeek V4 Flash (free)",
+					},
+				},
+			),
+		).toBe("DeepSeek V4 Flash");
+	});
+
+	it("falls back to endpoint names before the model id", () => {
+		expect(
+			resolveClineModelDisplayName({
+				id: "cline-free/glm-5.2",
+				name: "GLM 5.2",
+			}),
+		).toBe("GLM 5.2");
+		expect(
+			resolveClineModelDisplayName({
+				id: "cline-pass/glm-5.2",
+				name: "cline-pass/glm-5.2",
+			}),
+		).toBe("glm-5.2");
 	});
 });

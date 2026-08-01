@@ -14,6 +14,7 @@ export interface ClineRecommendedModelsPayload {
 
 type ModelCapabilities = Pick<
 	ModelInfo,
+	| "name"
 	| "contextWindow"
 	| "maxInputTokens"
 	| "maxTokens"
@@ -96,10 +97,11 @@ export function normalizeClineRecommendedProviderModels(
 		const capabilities =
 			openRouterModels?.[entry.id] ??
 			findORModelCapabilities(entry, openRouterModelsByName);
-		const entryName = capabilities.name?.trim() || entry.name?.trim();
+		const entryName =
+			capabilities.name?.trim() || entry.name?.trim() || entry.id;
 		const name = entry.id.startsWith("cline-free/")
 			? `${entryName} (free)`
-			: entry.name;
+			: entryName;
 
 		const modelInfo = {
 			...capabilities,

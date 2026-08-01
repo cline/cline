@@ -268,6 +268,38 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
+	it("prefers catalog display names over API slugs for free models", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [{ id: "cline-pass/glm-5.2" }],
+				free: [
+					{
+						id: "deepseek/deepseek-v4-flash",
+						name: "deepseek-v4-flash",
+					},
+				],
+			},
+			{
+				"deepseek/deepseek-v4-flash": {
+					id: "deepseek/deepseek-v4-flash",
+					name: "DeepSeek V4 Flash",
+					contextWindow: 1_048_576,
+					maxInputTokens: 1_048_576,
+					maxTokens: 393_216,
+					capabilities: ["tools", "reasoning"],
+					pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+				},
+			},
+		);
+
+		expect(result.cline?.["deepseek/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash",
+		);
+		expect(result["cline-pass"]?.["deepseek/deepseek-v4-flash"]?.name).toBe(
+			"DeepSeek V4 Flash",
+		);
+	});
+
 	it("labels a Cline free model when its name matches a ClinePass model", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{

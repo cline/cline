@@ -16,6 +16,7 @@ import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { ModelInfoView } from "../common/ModelInfoView"
 import FeaturedModelCard from "../FeaturedModelCard"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { resolveProviderModelDisplayName } from "../utils/providerUtils"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 interface ClinePassProviderProps {
@@ -46,14 +47,16 @@ function clinePassFallbackModelInfo(modelId: string): ModelInfo {
 	}
 }
 
-function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "description">): FeaturedTabEntry | null {
+function toSubscribedEntry(
+	model: Pick<ClineRecommendedModel, "id" | "description"> & Partial<Pick<ClineRecommendedModel, "name">>,
+): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
 	// The whole list is included with the plan, so no per-card label chip
 	return {
 		id: model.id,
-		displayName: model.id.replace(CLINE_PASS_MODEL_ID_PREFIX, ""),
+		displayName: model.name || model.id,
 		description: model.description || "",
 		label: "",
 	}
@@ -204,7 +207,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 								isSelected={selectedModel.modelId === entry.id}
 								key={entry.id}
 								label={entry.label}
-								modelId={entry.displayName}
+								modelId={resolveProviderModelDisplayName(entry.id, models, entry.displayName)}
 								onClick={() => handleFeaturedModelSelect(entry.id)}
 							/>
 						))}
