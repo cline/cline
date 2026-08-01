@@ -329,6 +329,23 @@ describe("createShellExecutor", () => {
 });
 
 describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
+	it("preserves Unicode through PowerShell command input and output", async () => {
+		const executor = createShellExecutor();
+		const output = await executor("Write-Output '中文'", process.cwd(), ctx);
+		expect(output.trim()).toBe("中文");
+	});
+
+	it("runs PowerShell commands beyond the Windows command-line limit", async () => {
+		const executor = createShellExecutor();
+		const payload = "x".repeat(40_000);
+		const output = await executor(
+			`Write-Output '${payload.length}'; $null = '${payload}'`,
+			process.cwd(),
+			ctx,
+		);
+		expect(output.trim()).toBe("40000");
+	});
+
 	it("runs structured commands without shell parsing", async () => {
 		const executor = createShellExecutor();
 		const output = await executor(

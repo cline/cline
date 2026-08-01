@@ -9,7 +9,7 @@ import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	getDefaultShell,
-	getShellArgs,
+	getShellInvocation,
 } from "@cline/shared";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
@@ -77,6 +77,7 @@ interface SpawnConfig {
 	args: string[];
 	cwd: string;
 	env: Record<string, string>;
+	input?: string;
 }
 
 /**
@@ -147,6 +148,7 @@ function spawnAndCollect(
 			windowsHide: true,
 		});
 		const childPid = child.pid;
+		child.stdin?.end(config.input, "utf8");
 
 		const stdout = createRollingCollector(maxOutputChars);
 		const stderr = createRollingCollector(maxOutputChars);
@@ -323,14 +325,16 @@ export function createShellExecutor(
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
+		const invocation = isStructured
+			? { args: command.args ?? [] }
+			: getShellInvocation(shell, command);
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
-				args: isStructured
-					? (command.args ?? [])
-					: getShellArgs(shell, command),
+				args: invocation.args,
 				cwd,
 				env,
+				input: invocation.input,
 			},
 			context,
 			timeoutMs,
