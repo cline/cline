@@ -3607,6 +3607,9 @@ export class Task {
 						this.api.getModel().id,
 					);
 					const errorMessage = clineError.serialize();
+					// This catch also wraps post-stream processing, so a generic
+					// failure here is not necessarily a provider error; only a
+					// positive overflow match is a confident classification.
 					telemetryService.captureProviderApiError({
 						ulid: this.ulid,
 						model: model.id,
@@ -3614,9 +3617,9 @@ export class Task {
 						errorMessage: clineError.message,
 						requestId: this.getApiRequestIdSafe(),
 						isNativeToolCall: this.useNativeToolCalls,
-						errorClass: checkContextWindowExceededError(error)
-							? "context_window_exceeded"
-							: "unknown",
+						...(checkContextWindowExceededError(error)
+							? { errorClass: "context_window_exceeded" as const }
+							: {}),
 					});
 					const isStreamingSpendLimitError = clineError.isErrorType(
 						ClineErrorType.SpendLimit,
