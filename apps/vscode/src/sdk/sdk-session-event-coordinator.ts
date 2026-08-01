@@ -35,6 +35,8 @@ export interface SdkSessionEventCoordinatorOptions {
 	 * error. Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	/** Current authoritative UI turn phase, from the controller's TurnStateTracker. */
+	getTurnPhase?: () => TurnPhase
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
@@ -101,13 +103,22 @@ export class SdkSessionEventCoordinator {
 				// simply stopped and is waiting for the user ("awaiting_followup"). Error turns
 				// are surfaced as the error phase. The webview reads this, not the array tail.
 				//
-				// EXCEPTION: if the session is already not running, this turn-complete is a
-				// straggler from a turn that was cancelled (cancelTask already set phase
-				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
-				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
-				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
-				if (!activeSession.isRunning) {
+				// EXCEPTION: a turn-complete from a turn that was cancelled (cancelTask set phase
+				// "resumable" and aborted) is a straggler. Overwriting it here would clobber
+				// "resumable" with "awaiting_followup"/"completed" and the footer would lose the
+				// Resume Task button (showing the scroll-arrow default instead), so the cancel-set
+				// phase is preserved. Check the phase itself, not just isRunning: when the SDK
+				// drains a queued prompt at turn end, the PREVIOUS turn's send promise settles
+				// after the new turn already started and its completion bookkeeping flips
+				// isRunning back to false mid-turn (see fireAndForgetSend). Keying on isRunning
+				// alone made the queued turn's real completion look like this straggler, leaving
+				// the phase stuck on "streaming" (endless Thinking).
+				if (!activeSession.isRunning && this.options.getTurnPhase?.() === "resumable") {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
+					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
+					// offer error recovery (Retry / Start New Task), not the followup state.
+					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
 					this.options.setTurnPhase?.("completed")
 				} else {
@@ -154,6 +165,17 @@ export class SdkSessionEventCoordinator {
 		const agentEvent: AgentEvent = event.payload.event
 		if (agentEvent.type === "error") {
 			if (agentEvent.error == null) {
+				return undefined
+			}
+			// Only terminal failures are provider failures. `recoverable: true`
+			// error events are in-run notices — the MistakeTracker emits one for
+			// EVERY recorded mistake (with the tool/mistake details as the
+			// message, e.g. "2 tool call(s) failed: [shell] ...") and hook
+			// failures surface the same way. Counting those here misclassified
+			// tool noise as provider API errors and inflated the SDK bundle's
+			// error rate ~9x vs legacy in the A/B rollout dashboards. Genuine
+			// run failures (run-failed) always carry `recoverable: false`.
+			if (agentEvent.recoverable !== false) {
 				return undefined
 			}
 			return {

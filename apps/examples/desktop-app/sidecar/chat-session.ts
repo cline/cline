@@ -5,16 +5,24 @@ import {
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
-	type CoreSessionConfig,
+	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
+	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { Message } from "@cline/llms";
 import { buildClineSystemPrompt } from "@cline/shared";
+import {
+	deleteMaterializedAttachments,
+	discardAllTrackedAttachments,
+	materializeUserFiles,
+	trackQueuedAttachments,
+} from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
@@ -39,6 +47,80 @@ const workspaceMetadataPromises = new Map<
 	string,
 	WorkspaceMetadataCacheEntry
 >();
+const ACTIVE_WORKSPACE_SESSION_STATUSES = new Set([
+	"starting",
+	"pending",
+	"running",
+	"stopping",
+]);
+const WORKSPACE_RESTORE_SEND_ERROR =
+	"Cannot send a prompt while the session workspace is being restored";
+const WORKSPACE_RESTORE_BUSY_ERROR =
+	"Wait for all turns in this workspace to finish before restoring it";
+
+type WorkspacePathSource = {
+	cwd?: unknown;
+	workspaceRoot?: unknown;
+	workspace_root?: unknown;
+};
+
+function readWorkspacePath(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
+	if (cwd) return cwd;
+	const workspaceRoot =
+		typeof source?.workspaceRoot === "string"
+			? source.workspaceRoot.trim()
+			: "";
+	if (workspaceRoot) return workspaceRoot;
+	const snakeCaseWorkspaceRoot =
+		typeof source?.workspace_root === "string"
+			? source.workspace_root.trim()
+			: "";
+	return snakeCaseWorkspaceRoot || undefined;
+}
+
+function workspacePathKey(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const workspacePath = readWorkspacePath(source);
+	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+function hasActiveWorkspaceTurn(session: LiveSession): boolean {
+	return (
+		session.busy ||
+		session.transitioningProvider === true ||
+		ACTIVE_WORKSPACE_SESSION_STATUSES.has(session.status)
+	);
+}
+
+async function withWorkspaceRestoreLock<T>(
+	ctx: SidecarContext,
+	workspacePath: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	const key = resolve(workspacePath);
+	if (ctx.restoringWorkspacePaths.has(key)) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	for (const session of ctx.liveSessions.values()) {
+		if (
+			workspacePathKey(session.config) === key &&
+			hasActiveWorkspaceTurn(session)
+		) {
+			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+		}
+	}
+
+	ctx.restoringWorkspacePaths.add(key);
+	try {
+		return await work();
+	} finally {
+		ctx.restoringWorkspacePaths.delete(key);
+	}
+}
 
 function getWorkspaceMetadataPromise(
 	cwd: string,
@@ -162,6 +244,8 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
+		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
 }
 
@@ -197,6 +281,11 @@ function readPositiveInteger(value: unknown): number | undefined {
 }
 
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
+	const workspaceRoot =
+		typeof rawWorkspaceRoot === "string" ? rawWorkspaceRoot.trim() : "";
+	const cwd =
+		(typeof config.cwd === "string" ? config.cwd.trim() : "") || workspaceRoot;
 	const thinking =
 		typeof config.thinking === "boolean" ? config.thinking : undefined;
 	const reasoningEffort =
@@ -218,8 +307,8 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		baseUrl: config.baseUrl,
 		headers: config.headers,
 		providerConfig: config.providerConfig,
-		workspaceRoot: config.workspaceRoot ?? config.workspace_root ?? "",
-		cwd: config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
+		...(workspaceRoot ? { workspaceRoot } : {}),
+		...(cwd ? { cwd } : {}),
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
@@ -402,7 +491,13 @@ function sendPromptsInQueueSnapshot(
 	const session = ctx.liveSessions.get(sessionId);
 	sendEvent(ctx, "prompts_in_queue_state", {
 		sessionId,
-		items: session?.promptsInQueue ?? [],
+		items:
+			session?.promptsInQueue.map(({ id, prompt, steer, attachmentCount }) => ({
+				id,
+				prompt,
+				steer,
+				attachmentCount,
+			})) ?? [],
 	});
 }
 
@@ -412,6 +507,7 @@ function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
 		prompt: item.prompt,
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
+		userImages: item.userImages,
 	};
 }
 
@@ -426,7 +522,12 @@ function applyPendingPrompts(
 		session.promptsInQueue = mapped;
 	}
 	sendPromptsInQueueSnapshot(ctx, sessionId);
-	return mapped;
+	return mapped.map(({ id, prompt, steer, attachmentCount }) => ({
+		id,
+		prompt,
+		steer,
+		attachmentCount,
+	}));
 }
 
 function getSessionManager(ctx: SidecarContext): ClineCore {
@@ -471,7 +572,7 @@ async function handleStart(
 		modelId: String(coreConfig.modelId ?? ""),
 	});
 	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
+		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages
@@ -480,19 +581,24 @@ async function handleStart(
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
+	const workspaceRoot = startResult.manifest.workspace_root;
+	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
-	const session = createLiveSession(request.config, {
-		messages: initialMessages,
-		prompt: initialMessages
-			? derivePromptFromMessages(initialMessages)
-			: undefined,
-		title: requestedSessionId
-			? readSessionMetadataTitle(requestedSessionId)
-			: undefined,
-		status: "idle",
-	});
+	const session = createLiveSession(
+		{ ...request.config, cwd, workspaceRoot },
+		{
+			messages: initialMessages,
+			prompt: initialMessages
+				? derivePromptFromMessages(initialMessages)
+				: undefined,
+			title: requestedSessionId
+				? readSessionMetadataTitle(requestedSessionId)
+				: undefined,
+			status: "idle",
+		},
+	);
 	ctx.liveSessions.set(sessionId, session);
-	return { sessionId };
+	return { sessionId, cwd, workspaceRoot };
 }
 
 async function handleAttach(
@@ -550,6 +656,11 @@ async function handleAttach(
 				existing?.title,
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
+			// Preserve tracked attachment files so re-attach (called on every
+			// webview hydrate) does not orphan materialized files still awaiting
+			// cleanup.
+			queuedAttachmentFiles: existing?.queuedAttachmentFiles,
+			consumedAttachmentFiles: existing?.consumedAttachmentFiles,
 		}),
 	);
 
@@ -582,7 +693,7 @@ async function startRebuiltSession(
 				...config,
 				sessionId,
 				systemPrompt,
-			}) as unknown as CoreSessionConfig,
+			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -679,10 +790,24 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompt = request.prompt?.trim();
-	if (!prompt) throw new Error("prompt is required");
+	const prompt = request.prompt?.trim() ?? "";
+	const hasAttachments =
+		(request.attachments?.userImages?.length ?? 0) > 0 ||
+		(request.attachments?.userFiles?.length ?? 0) > 0;
+	if (!prompt && !hasAttachments) {
+		throw new Error("prompt or attachment is required");
+	}
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	const lockedWorkspaceKey = workspacePathKey(
+		session?.config ?? request.config,
+	);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -742,6 +867,10 @@ async function handleSend(
 			}
 		}
 
+		const userFiles = materializeUserFiles(
+			sessionId,
+			request.attachments?.userFiles,
+		);
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;
@@ -751,8 +880,10 @@ async function handleSend(
 				prompt,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
+				userFiles,
 			});
 			const prompts = await manager.pendingPrompts.list({ sessionId });
+			trackQueuedAttachments(session, prompts, userFiles);
 			return {
 				sessionId,
 				ok: true,
@@ -766,12 +897,33 @@ async function handleSend(
 			promptLength: prompt.length,
 			delivery,
 		});
-		const result = await manager.send({
-			sessionId,
-			prompt,
-			delivery,
-			userImages: request.attachments?.userImages,
-		});
+		let result: Awaited<ReturnType<ClineCore["send"]>>;
+		try {
+			result = await manager.send({
+				sessionId,
+				prompt,
+				delivery,
+				userImages: request.attachments?.userImages,
+				userFiles,
+			});
+		} catch (error) {
+			deleteMaterializedAttachments(sessionId, userFiles);
+			throw error;
+		}
+		if (result === undefined) {
+			// The runtime queued or steered the prompt instead of running it
+			// (busy interactive session / steer delivery) — track the files so
+			// they are deleted once the prompt is consumed or discarded.
+			if (userFiles?.length) {
+				trackQueuedAttachments(
+					session,
+					await manager.pendingPrompts.list({ sessionId }),
+					userFiles,
+				);
+			}
+		} else {
+			deleteMaterializedAttachments(sessionId, userFiles);
+		}
 		ctx.logger?.log("Desktop chat prompt completed", {
 			sessionId,
 			finishReason: result?.finishReason,
@@ -865,6 +1017,65 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	const forkBeforeRunCount = request.forkBeforeRunCount;
+	if (
+		forkBeforeRunCount !== undefined &&
+		(!Number.isInteger(forkBeforeRunCount) || forkBeforeRunCount < 1)
+	) {
+		throw new Error("forkBeforeRunCount must be a positive integer");
+	}
+	const manager = getSessionManager(ctx);
+	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		liveSourceSession &&
+		hasActiveWorkspaceTurn(liveSourceSession)
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	const sourceSession = await manager.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		(sourceSession?.status === "running" || sourceSession?.status === "pending")
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	if (forkBeforeRunCount === undefined) {
+		return handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+		);
+	}
+	const restoreWorkspacePath =
+		readWorkspacePath(sourceSession) ??
+		readWorkspacePath(liveSourceSession?.config) ??
+		readWorkspacePath(request.config);
+	if (!restoreWorkspacePath) {
+		throw new Error("cwd or workspaceRoot is required to edit a message");
+	}
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
+		handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+			restoreWorkspacePath,
+		),
+	);
+}
+
+async function handleForkUnlocked(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sourceSessionId: string,
+	forkBeforeRunCount: number | undefined,
+	sourceSession: SessionRecord | undefined,
+	restoreWorkspacePath?: string,
+): Promise<unknown> {
 	const manager = getSessionManager(ctx);
 	const sourceMessages =
 		readPersistedChatMessages(sourceSessionId) ??
@@ -873,7 +1084,6 @@ async function handleFork(
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
 
-	const sourceSession = await manager.get(sourceSessionId);
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
@@ -916,52 +1126,97 @@ async function handleFork(
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
 			: {};
+	let forkMessages =
+		forkBeforeRunCount === undefined
+			? sourceMessages
+			: trimMessagesBeforeUserRun(
+					sourceMessages as Message[],
+					forkBeforeRunCount,
+				);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
 			source: sourceSession?.source ?? "desktop",
+			...(forkBeforeRunCount !== undefined
+				? { beforeRunCount: forkBeforeRunCount }
+				: {}),
 			...checkpointMetadata,
 		},
 	};
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
-	const startResult = await manager.start({
+	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig({
 				...forkConfig,
 				systemPrompt,
-				initialMessages: sourceMessages,
-			}) as unknown as CoreSessionConfig,
+			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: sourceMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
-	});
-	const newSessionId = startResult.sessionId;
+	};
+	let newSessionId: string;
+	if (forkBeforeRunCount !== undefined) {
+		const cwd =
+			restoreWorkspacePath ||
+			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
+			(typeof forkConfig.workspaceRoot === "string" &&
+				forkConfig.workspaceRoot.trim()) ||
+			"";
+		if (!cwd) {
+			throw new Error("cwd or workspaceRoot is required to edit a message");
+		}
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: forkBeforeRunCount,
+			cwd,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: startInput,
+		});
+		if (!restored.sessionId) {
+			throw new Error("Message edit restore did not return a new session");
+		}
+		newSessionId = restored.sessionId;
+	} else {
+		const started = await manager.start({
+			...startInput,
+			initialMessages: forkMessages as Message[],
+		});
+		newSessionId = started.sessionId;
+	}
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (forkBeforeRunCount !== undefined || read.length > 0) {
+			forkMessages = read;
+		}
+	} catch {}
+	discardAllTrackedAttachments(
+		sourceSessionId,
+		ctx.liveSessions.get(sourceSessionId),
+	);
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
 		createLiveSession(forkConfig, {
-			messages: sourceMessages,
-			prompt: derivePromptFromMessages(sourceMessages),
+			messages: forkMessages,
+			prompt: derivePromptFromMessages(forkMessages),
 			title: readSessionMetadataTitle(sourceSessionId),
 			status: "idle",
 		}),
 	);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
-	let messages: unknown[] = sourceMessages;
-	try {
-		const read = await manager.readMessages(newSessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages,
+		messages: forkMessages,
 	};
 }
 
@@ -980,6 +1235,7 @@ async function handleReset(
 		) {
 			await getSessionManager(ctx).stop(sessionId);
 		}
+		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
@@ -999,59 +1255,64 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
-	if (!request.config)
-		throw new Error("config is required to restore a checkpoint");
+	const config = request.config;
+	if (!config) throw new Error("config is required to restore a checkpoint");
 	const cwd =
-		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
-		(typeof request.config.workspaceRoot === "string" &&
-			request.config.workspaceRoot.trim()) ||
+		(typeof config.cwd === "string" && config.cwd.trim()) ||
+		(typeof config.workspaceRoot === "string" && config.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const manager = getSessionManager(ctx);
-	const restored = await manager.restore({
-		sessionId: sourceSessionId,
-		checkpointRunCount: runCount,
-		cwd,
-		restore: { messages: true, workspace: true },
-		start: {
-			...splitCoreSessionConfig(
-				buildCoreSessionConfig({
-					...request.config,
-					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as unknown as CoreSessionConfig,
-			),
-			source: SessionSource.DESKTOP,
-			interactive: true,
-			toolPolicies: resolveToolPolicies(request.config),
-		},
+	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: runCount,
+			cwd,
+			restore: { messages: true, workspace: true },
+			start: {
+				...splitCoreSessionConfig(
+					buildCoreSessionConfig({
+						...config,
+						systemPrompt: await resolveSystemPrompt(config),
+					}) as unknown as ClineCoreStartConfig,
+				),
+				source: SessionSource.DESKTOP,
+				interactive: true,
+				toolPolicies: resolveToolPolicies(config),
+			},
+		});
+		const sessionId = restored.sessionId;
+		const restoredMessages = restored.messages;
+		if (!sessionId || !restoredMessages) {
+			throw new Error("Checkpoint restore did not return a new session");
+		}
+		discardAllTrackedAttachments(
+			sourceSessionId,
+			ctx.liveSessions.get(sourceSessionId),
+		);
+		ctx.liveSessions.delete(sourceSessionId);
+		ctx.liveSessions.set(
+			sessionId,
+			createLiveSession(config, {
+				messages: restoredMessages,
+				prompt: derivePromptFromMessages(restoredMessages),
+				title: readSessionMetadataTitle(sourceSessionId),
+				status: "idle",
+			}),
+		);
+		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+		let messages: unknown[] = restoredMessages;
+		try {
+			const read = await manager.readMessages(sessionId);
+			if (read?.length > 0) messages = read;
+		} catch {}
+		return {
+			sessionId,
+			messages,
+			restoredCheckpoint: restored.checkpoint,
+		};
 	});
-	const sessionId = restored.sessionId;
-	const restoredMessages = restored.messages;
-	if (!sessionId || !restoredMessages) {
-		throw new Error("Checkpoint restore did not return a new session");
-	}
-	ctx.liveSessions.delete(sourceSessionId);
-	ctx.liveSessions.set(
-		sessionId,
-		createLiveSession(request.config, {
-			messages: restoredMessages,
-			prompt: derivePromptFromMessages(restoredMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
-			status: "idle",
-		}),
-	);
-	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
-	sendPromptsInQueueSnapshot(ctx, sessionId);
-	let messages: unknown[] = restoredMessages;
-	try {
-		const read = await manager.readMessages(sessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
-	return {
-		sessionId,
-		messages,
-		restoredCheckpoint: restored.checkpoint,
-	};
 }
 
 async function handlePendingPrompts(
@@ -1131,6 +1392,10 @@ async function handleRemovePendingPrompt(
 		sessionId,
 		promptId,
 	});
+	if (result.removed === true) {
+		deleteMaterializedAttachments(sessionId, result.prompt?.userFiles);
+		ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles?.delete(promptId);
+	}
 	return {
 		sessionId,
 		removed: result.removed === true,

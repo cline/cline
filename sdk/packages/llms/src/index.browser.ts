@@ -1,3 +1,4 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
 	ModelCollection,
 	ModelIdAliasRule,
@@ -43,12 +44,17 @@ export type {
 	ProviderId,
 } from "./providers.browser";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

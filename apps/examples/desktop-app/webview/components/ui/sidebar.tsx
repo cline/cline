@@ -28,6 +28,8 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = 240;
 const SIDEBAR_WIDTH_MOBILE = "18rem";
+// macOS title-bar controls overlay the webview, so the collapsed rail only
+// needs to reserve enough width for its own controls.
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
@@ -213,6 +215,7 @@ function SidebarProvider({
 			<TooltipProvider delayDuration={0}>
 				<div
 					data-slot="sidebar-wrapper"
+					data-state={state}
 					style={
 						{
 							"--sidebar-width": `${desktopWidth}px`,
@@ -355,7 +358,7 @@ function SidebarTrigger({
 			}}
 			{...props}
 		>
-			<PanelLeftIcon />
+			<PanelLeftIcon className="size-3.5" />
 			<span className="sr-only">Toggle Sidebar</span>
 		</Button>
 	);

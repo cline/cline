@@ -23,6 +23,7 @@ const mockSdkTelemetry = { capture: vi.fn() } as unknown as ITelemetryService
 
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
+const mockGlobalState = vi.hoisted(() => new Map<string, unknown>())
 vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: {
 		get: () => ({
@@ -35,7 +36,9 @@ vi.mock("@/core/storage/StateManager", () => ({
 				}
 			},
 			getGlobalSettingsKey: () => "act",
-			setGlobalState: vi.fn(),
+			setGlobalState: (key: string, value: unknown) => {
+				mockGlobalState.set(key, value)
+			},
 		}),
 	},
 }))
@@ -231,6 +234,7 @@ describe("AuthService", () => {
 		resetSingleton()
 		authService = AuthService.getInstance(undefined, mockSdkTelemetry)
 		mockSecrets.clear()
+		mockGlobalState.clear()
 		mockProviderSettings.clear()
 		vi.clearAllMocks()
 	})
@@ -399,6 +403,46 @@ describe("AuthService", () => {
 				userInfo: { email: "oauth@example.com" },
 			})
 			expect(persisted.auth?.metadata).not.toHaveProperty("startedAt")
+		})
+
+		it("marks the welcome view completed only after OAuth succeeds (not when the URL opens)", async () => {
+			let resolveLogin!: (credentials: OAuthCredentials) => void
+			const loginCompleted = new Promise<OAuthCredentials>((resolve) => {
+				resolveLogin = resolve
+			})
+			mockLoginClineOAuth.mockImplementationOnce(async ({ callbacks }) => {
+				callbacks.onAuth({
+					url: "https://example.com/device?user_code=ABCD-EFGH",
+					instructions: "Enter this code in your browser: ABCD-EFGH",
+				})
+				return loginCompleted
+			})
+
+			// createAuthRequest resolves at URL-open time; onboarding must NOT be
+			// marked complete yet (the user may abandon the browser sign-in).
+			await authService.createAuthRequest()
+			expect(mockGlobalState.get("welcomeViewCompleted")).toBeUndefined()
+
+			// Complete the OAuth exchange — now the flag must flip.
+			resolveLogin(createTestOAuthCredentials())
+			await waitForCondition(() => mockGlobalState.get("welcomeViewCompleted") === true)
+		})
+
+		it("does not mark the welcome view completed when OAuth fails", async () => {
+			mockLoginClineOAuth.mockImplementationOnce(async ({ callbacks }) => {
+				callbacks.onAuth({
+					url: "https://example.com/device?user_code=ABCD-EFGH",
+					instructions: "Enter this code in your browser: ABCD-EFGH",
+				})
+				throw new Error("login aborted")
+			})
+
+			await authService.createAuthRequest()
+
+			// Give the background login block a few ticks to settle.
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(mockGlobalState.get("welcomeViewCompleted")).toBeUndefined()
 		})
 	})
 

@@ -15,6 +15,7 @@ import {
 	ModelInfo,
 	OcaModelInfo,
 } from "../../api"
+import { toLegacyApiProvider } from "../../model-catalog/provider-helpers"
 import { OpenaiReasoningEffort } from "../../storage/types"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
@@ -210,7 +211,6 @@ function convertOpenAiCompatibleModelInfoToProto(
 		description: info.description,
 		tiers: info.tiers || [],
 		temperature: info.temperature,
-		isR1FormatRequired: info.isR1FormatRequired,
 	}
 }
 
@@ -236,16 +236,18 @@ function convertProtoToOpenAiCompatibleModelInfo(
 		description: info.description,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
-		isR1FormatRequired: info.isR1FormatRequired,
 	}
 }
 
 // Provider ids travel over the wire as plain strings (matching the `ApiProvider`
 // union in `@shared/api`), so no enum mapping is needed in either direction.
-// This thin helper just supplies the default and the single cast boundary for
-// callers reading a provider id off a proto message.
+// This thin helper supplies the default and the single cast boundary for
+// callers reading a provider id off a proto message, and folds SDK catalog
+// spellings (e.g. `openai-compatible`) back to the legacy `ApiProvider`
+// spelling (`openai`) so they never leak into stored state, where every
+// provider-keyed code path expects the legacy id.
 export function convertProtoToApiProvider(provider: string | undefined): ApiProvider {
-	return (provider || "anthropic") as ApiProvider
+	return toLegacyApiProvider(provider || "anthropic")
 }
 
 // Converts application ApiConfiguration to proto ApiConfiguration

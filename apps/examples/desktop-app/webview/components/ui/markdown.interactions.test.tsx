@@ -98,9 +98,32 @@ describe("MemoizedMarkdown interactions", () => {
 		});
 	});
 
-	test("requires confirmation before opening an external link", async () => {
+	test("opens honest external links directly in the default browser", async () => {
 		const url = "https://example.com/review?source=cline";
 		await renderMarkdown({ content: `[Review docs](${url})` });
+		const link = await vi.waitFor(() => {
+			const renderedLink = container.querySelector<HTMLAnchorElement>(
+				'[data-streamdown="link"]',
+			);
+			expect(renderedLink).not.toBeNull();
+			return renderedLink as HTMLAnchorElement;
+		});
+		expect(link.getAttribute("href")).toBe(url);
+		expect(link.getAttribute("title")).toBe(url);
+
+		await click(link);
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		expect(openWindow).toHaveBeenCalledTimes(1);
+		expect(openWindow).toHaveBeenCalledWith(
+			url,
+			"_blank",
+			"noopener,noreferrer",
+		);
+	});
+
+	test("requires confirmation before opening a deceptive external link", async () => {
+		const url = "https://example.com/review?source=cline";
+		await renderMarkdown({ content: `[github.com/cline](${url})` });
 		const link = await vi.waitFor(() => {
 			const renderedLink = container.querySelector<HTMLElement>(
 				'[data-streamdown="link"]',
@@ -164,7 +187,7 @@ describe("MemoizedMarkdown interactions", () => {
 		}
 	});
 
-	test("keeps mailto links confirmable", async () => {
+	test("opens mailto links directly through the external opener", async () => {
 		await renderMarkdown({ content: "[Email us](mailto:hi@cline.bot)" });
 		const link = await vi.waitFor(() => {
 			const renderedLink = container.querySelector<HTMLElement>(
@@ -176,10 +199,7 @@ describe("MemoizedMarkdown interactions", () => {
 
 		expect(link.tagName).toBe("A");
 		await click(link);
-		await vi.waitFor(() => {
-			expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
-		});
-		await click(getButton("Open link"));
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
 		expect(openWindow).toHaveBeenCalledWith(
 			"mailto:hi@cline.bot",
 			"_blank",

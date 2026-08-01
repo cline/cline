@@ -1,0 +1,163 @@
+.cline-ui-agent-approval-card {
+	border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+	border-radius: var(--radius-lg);
+	background: color-mix(in oklab, var(--background) 70%, transparent);
+	padding: 0.75rem;
+}
+
+.cline-ui-agent-approval-card__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.cline-ui-agent-approval-card__title {
+	margin: 0;
+	color: var(--foreground);
+	font-size: var(--text-sm);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--text-sm--line-height);
+	letter-spacing: var(--text-sm--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--muted-foreground);
+	font-size: 11px;
+}
+
+.cline-ui-agent-approval-card__description {
+	margin-top: 0.25rem;
+	color: var(--muted-foreground);
+	font-size: 11px;
+}
+
+.cline-ui-agent-approval-card__detail {
+	box-sizing: border-box;
+	max-width: 100%;
+	max-height: 11rem;
+	margin: 0.5rem 0 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+	border-radius: var(--radius-md);
+	background: var(--background);
+	padding: 0.5rem;
+	color: var(--muted-foreground);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__error {
+	margin-top: 0.5rem;
+	color: var(--destructive);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.cline-ui-agent-approval-card__button {
+	display: inline-flex;
+	height: 2rem;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	box-sizing: border-box;
+	border-radius: var(--radius-md);
+	padding: 0 0.75rem;
+	font: inherit;
+	font-weight: var(--font-weight-medium);
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		color 150ms,
+		background-color 150ms,
+		border-color 150ms,
+		box-shadow 150ms;
+}
+
+.cline-ui-agent-approval-card__button:focus-visible {
+	outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent);
+	outline-offset: 0;
+}
+
+.cline-ui-agent-approval-card__button:disabled {
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.cline-ui-agent-approval-card__button--approve {
+	border: 0;
+	background: var(--primary);
+	color: var(--primary-foreground);
+}
+
+.cline-ui-agent-approval-card__button--approve:hover {
+	background: color-mix(in oklab, var(--primary) 90%, transparent);
+}
+
+.cline-ui-agent-approval-card__button--reject {
+	border: 1px solid var(--border);
+	background: var(--background);
+	color: var(--foreground);
+	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 5%);
+}
+
+.cline-ui-agent-approval-card__button--reject:hover {
+	background: var(--accent);
+	color: var(--accent-foreground);
+}
+
+.dark .cline-ui-agent-approval-card__button--reject {
+	border-color: var(--input);
+	background: color-mix(in oklab, var(--input) 30%, transparent);
+}
+
+.dark .cline-ui-agent-approval-card__button--reject:hover {
+	background: color-mix(in oklab, var(--input) 50%, transparent);
+}
+
+.cline-ui-agent-approval-card__spinner {
+	width: 0.875rem;
+	height: 0.875rem;
+	margin-right: 0.25rem;
+	animation: cline-ui-agent-approval-card-spin 1s linear infinite;
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2;
+}
+
+.cline-ui-agent-approval-card__button:has(
+		> .cline-ui-agent-approval-card__spinner
+	) {
+	padding-inline: 0.625rem;
+}
+
+@keyframes cline-ui-agent-approval-card-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-agent-approval-card__spinner {
+		animation: none;
+	}
+}

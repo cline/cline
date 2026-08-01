@@ -25,6 +25,19 @@ import type { HookControl } from "../hooks/contracts";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
+import {
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+} from "../llms/reasoning-options";
+
+export {
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "../llms/reasoning-options";
+
 import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -646,13 +659,6 @@ export const AgentResultSchema = z.object({
 // =============================================================================
 // Agent Configuration
 // =============================================================================
-
-/**
- * Reasoning effort level for capable models
- */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-
-export const ReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 
 /**
  * Configuration for creating an Agent

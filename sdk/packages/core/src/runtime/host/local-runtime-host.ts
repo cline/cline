@@ -51,6 +51,7 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
+import { resolveStartSessionWorkspace } from "../../services/workspace/chat-workspace";
 import {
 	type GitWorkspaceState,
 	hasCurrentSessionGitMetadata,
@@ -117,6 +118,7 @@ import {
 import { loadUserFileContent } from "./local/user-files";
 import type {
 	PendingPromptsServiceApi,
+	ResolvedStartSessionInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -305,8 +307,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private async applyInitialOAuthCredentials(
-		input: StartSessionInput,
-	): Promise<StartSessionInput> {
+		input: ResolvedStartSessionInput,
+	): Promise<ResolvedStartSessionInput> {
 		if (input.config.apiKey?.trim()) {
 			return input;
 		}
@@ -330,11 +332,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
-		const source = input.source ?? SessionSource.CLI;
-		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput =
+		const isReadOnlyResumeStart =
+			requestedSessionId.length > 0 &&
+			(input.initialMessages?.length ?? 0) > 0 &&
+			!input.prompt?.trim();
+		const hasRequestedWorkspace = Boolean(
+			input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
+		);
+		const existingResumeManifest =
+			isReadOnlyResumeStart && !hasRequestedWorkspace
+				? await this.invokeOptionalValue<SessionManifest>(
+						"readSessionManifest",
+						sessionId,
+					)
+				: undefined;
+		const config = existingResumeManifest
+			? {
+					...input.config,
+					cwd: existingResumeManifest.cwd,
+					workspaceRoot: existingResumeManifest.workspace_root,
+				}
+			: await resolveStartSessionWorkspace(input.config);
+		return await this.startResolvedSession(
+			{ ...input, config },
+			sessionId,
+			requestedSessionId.length > 0,
+			existingResumeManifest,
+		);
+	}
+
+	private async startResolvedSession(
+		input: ResolvedStartSessionInput,
+		sessionId: string,
+		wasSessionIdRequested: boolean,
+		existingResumeManifest?: SessionManifest,
+	): Promise<StartSessionResult> {
+		const source = input.source ?? SessionSource.CLI;
+		const startedAt = nowIso();
+		const startInput: ResolvedStartSessionInput =
 			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
@@ -379,14 +416,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let resumedArtifacts: RootSessionArtifacts | undefined;
 		let resumedCompactionState: SessionCompactionState | undefined;
 		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
+			wasSessionIdRequested &&
 			initialMessages.length > 0 &&
 			!startInput.prompt?.trim();
 		if (isReadOnlyResumeStart) {
-			const existingManifest = await this.invokeOptionalValue<SessionManifest>(
-				"readSessionManifest",
-				sessionId,
-			);
+			const existingManifest =
+				existingResumeManifest ??
+				(await this.invokeOptionalValue<SessionManifest>(
+					"readSessionManifest",
+					sessionId,
+				));
 			if (existingManifest) {
 				manifest = existingManifest;
 				resumedArtifacts = {
@@ -424,6 +463,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.extensionContext?.logger ?? inputLocalConfig?.logger;
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
+		const pluginEventFallbackTelemetry =
+			inputLocalConfig?.extensionContext?.telemetry ??
+			inputLocalConfig?.telemetry ??
+			this.defaultTelemetry;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
@@ -459,6 +502,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
+					pluginEventFallbackTelemetry,
 				);
 			},
 			onTeamEvent: (event: TeamEvent) => {
@@ -487,7 +531,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		});
 		const initialSessionMetadata = withSessionGitMetadata(
-			startInput.sessionMetadata ?? resumedArtifacts?.manifest.metadata,
+			{
+				...(resumedArtifacts?.manifest.metadata ?? {}),
+				...(startInput.sessionMetadata ?? {}),
+			},
 			bootstrap.gitState,
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
@@ -528,60 +575,68 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
-		const initialCompactionState =
-			compact && rawInitialCompactionState
-				? {
-						...rawInitialCompactionState,
-						conversation_id:
-							rawInitialCompactionState.conversation_id?.trim() || sessionId,
-					}
-				: undefined;
-		const prepareTurn = compact
-			? createCompactionStateAwarePrepareTurn({
-					compact,
-					getState: () => activeSessionRef?.compactionState,
-					saveState: async (state) => {
-						const activeSession = activeSessionRef;
-						if (!activeSession) return;
-						const stateForSession = {
-							...state,
-							conversation_id: activeSession.sessionId,
-						};
-						try {
-							const result = await this.persistActiveSessionCompactionState(
-								activeSession,
-								stateForSession,
-							);
-							if (!result.updated) {
-								configWithProvider.logger?.debug?.(
-									"Skipped stale session compaction state",
-									{
-										sessionId: activeSession.sessionId,
-										sourceMessageCount: stateForSession.source_message_count,
-									},
-								);
-							}
-						} catch (error) {
-							configWithProvider.logger?.error?.(
-								"Failed to persist session compaction state",
-								{ sessionId: activeSession.sessionId, error },
-							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.persist_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
-						}
-					},
-				})
+		// A compaction sidecar must keep projecting into the working context even
+		// when auto-compaction is disabled (`compact` undefined): manual /compact
+		// persists a sidecar and promises the next turn will use it. The
+		// state-aware prepareTurn handles `compact: undefined` by projecting the
+		// existing state without re-compacting, and no-ops when no state exists.
+		const initialCompactionState = rawInitialCompactionState
+			? {
+					...rawInitialCompactionState,
+					conversation_id:
+						rawInitialCompactionState.conversation_id?.trim() || sessionId,
+				}
 			: undefined;
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => activeSessionRef?.compactionState,
+			saveState: async (state, sourceMessages) => {
+				const activeSession = activeSessionRef;
+				if (!activeSession) return;
+				const stateForSession = {
+					...state,
+					conversation_id: activeSession.sessionId,
+				};
+				try {
+					// Validate against the exact messages the state's hash was
+					// computed from. Mid-turn, `agent.getMessages()` (the
+					// conversation store) can legally differ from the runtime's
+					// working transcript, so validating against the store would
+					// spuriously reject the write.
+					const result = await this.persistActiveSessionCompactionState(
+						activeSession,
+						stateForSession,
+						sourceMessages,
+					);
+					if (!result.updated) {
+						configWithProvider.logger?.debug?.(
+							"Skipped stale session compaction state",
+							{
+								sessionId: activeSession.sessionId,
+								sourceMessageCount: stateForSession.source_message_count,
+							},
+						);
+					}
+				} catch (error) {
+					configWithProvider.logger?.error?.(
+						"Failed to persist session compaction state",
+						{ sessionId: activeSession.sessionId, error },
+					);
+					captureSdkError(configWithProvider.telemetry, {
+						component: "core",
+						operation: "session.persist_compaction_state",
+						severity: "warn",
+						handled: true,
+						error,
+						context: {
+							sessionId: activeSession.sessionId,
+							providerId: configWithProvider.providerId,
+							modelId: configWithProvider.modelId,
+						},
+					});
+				}
+			},
+		});
 
 		const agentConfig = {
 			sessionId,
@@ -705,7 +760,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		emitSessionCreationTelemetry(
 			configWithProvider,
 			sessionId,
-			requestedSessionId.length > 0,
+			wasSessionIdRequested,
 			workspacePath,
 			rootAgentIdentity,
 		);
@@ -877,6 +932,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			startSession: (startInput) => this.startSession(startInput),
 			getStartedSessionId: (startResult) => startResult.sessionId,
+			cleanupStartedSession: async (startResult) => {
+				if (!(await this.deleteSession(startResult.sessionId))) {
+					throw new Error(
+						`Failed to clean up restored session ${startResult.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => this.getSession(sessionId),
 		});
 	}
@@ -1239,7 +1301,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return { updated: false };
 		}
 		return await this.enqueueCompactionStateWrite(session, async () => {
-			if (isIncomingCompactionStateStale(state, session.compactionState)) {
+			const currentState = session.compactionState;
+			const currentStateStillProjects =
+				currentState !== undefined &&
+				projectSessionCompactionState(
+					currentState,
+					sourceMessages ?? session.agent.getMessages(),
+				) !== undefined;
+			// The count-based stale guard exists to stop an old write from
+			// clobbering a newer one, which only makes sense while the stored
+			// state is still valid. An unprojectable state (e.g. invalidated by
+			// message-identity churn on resume, or a hash-format change) must
+			// not permanently block its replacement, so fall back to comparing
+			// timestamps and let the newer state win.
+			if (
+				currentState &&
+				(currentStateStillProjects
+					? isIncomingCompactionStateStale(state, currentState)
+					: Date.parse(state.updated_at) < Date.parse(currentState.updated_at))
+			) {
 				return { updated: false };
 			}
 			await this.invoke<void>(
@@ -1270,6 +1350,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.compactionStateWriteQueue = undefined;
 			}
 		}
+	}
+
+	async readLiveSessionMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.Message[]> {
+		const target = sessionId.trim();
+		if (!target) return [];
+		// Resident sessions are authoritative: disk persistence lags at
+		// assistant-message/turn boundaries and abort() does not flush, so a
+		// mid-turn read of the persisted file would silently drop the
+		// in-flight exchange (e.g. hosts that abort a turn and immediately
+		// re-read messages to rebuild the session for a plan/act mode switch).
+		const live = this.sessions.get(target);
+		if (live) {
+			const messages = live.agent.getMessages();
+			if (messages.length > 0) {
+				return messages;
+			}
+		}
+		return this.readSessionMessages(target);
 	}
 
 	async readSessionMessages(

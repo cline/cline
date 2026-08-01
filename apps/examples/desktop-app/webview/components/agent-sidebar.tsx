@@ -5,6 +5,8 @@ import {
 	ArrowDownUp,
 	Bot,
 	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
 	CircleUserRound,
 	Clock3,
 	Code,
@@ -13,10 +15,8 @@ import {
 	FolderTree,
 	GitFork,
 	Loader2,
-	MessageSquare,
 	PanelLeftOpen,
 	Pencil,
-	Pin,
 	Plug,
 	Plus,
 	Radio,
@@ -24,6 +24,7 @@ import {
 	Server,
 	Settings,
 	SlidersHorizontal,
+	Star,
 	Trash2,
 	Wrench,
 } from "lucide-react";
@@ -35,6 +36,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
 	AlertDialog,
@@ -66,11 +68,6 @@ import {
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
@@ -97,9 +94,34 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Schedules", "Pinned"] as const;
+const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
+type DesktopProcessContext = {
+	appVersion?: unknown;
+	hub?: {
+		error?: unknown;
+		status?: unknown;
+		url?: unknown;
+	};
+};
+type HubStatus = {
+	connected: boolean;
+	error: string | null;
+	url: string | null;
+};
+
+function hubPort(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+	try {
+		return new URL(url).port || null;
+	} catch {
+		return null;
+	}
+}
+
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
@@ -134,7 +156,7 @@ function SettingsSectionNavigation({
 					"min-w-0 justify-start",
 					activeSection === section &&
 						"bg-sidebar-accent text-sidebar-accent-foreground",
-					collapsed && "mx-auto size-9 justify-center px-0",
+					collapsed && "size-9 justify-center px-0",
 				)}
 				key={section}
 				onClick={() => onSelect(section)}
@@ -153,7 +175,7 @@ function SettingsSectionNavigation({
 			aria-label="Settings sections"
 			className={cn(
 				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
-				collapsed ? "w-full items-center" : "w-full",
+				collapsed ? "w-full items-start" : "w-full",
 			)}
 		>
 			{!collapsed ? (
@@ -175,8 +197,11 @@ function SettingsSectionNavigation({
 }
 
 export function AgentSidebar({
-	isHomeActive,
+	canNavigateBack = false,
+	canNavigateForward = false,
 	onHome,
+	onNavigateBack,
+	onNavigateForward,
 	onNewThread,
 	onSettingsSectionChange,
 	setView,
@@ -185,8 +210,11 @@ export function AgentSidebar({
 	activeSessionId,
 	sessionHistory,
 }: {
-	isHomeActive: boolean;
+	canNavigateBack?: boolean;
+	canNavigateForward?: boolean;
 	onHome: () => void;
+	onNavigateBack?: () => void;
+	onNavigateForward?: () => void;
 	onNewThread?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -216,6 +244,7 @@ export function AgentSidebar({
 		openThread: openHistoryThread,
 		pendingAction,
 		renameThread,
+		setThreadPinned,
 		threads,
 		unreadSessionIds,
 	} = sessionHistory;
@@ -239,10 +268,11 @@ export function AgentSidebar({
 		Record<string, number>
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
 
-	const loadAppVersion = useCallback(async () => {
+	const loadProcessContext = useCallback(async () => {
 		try {
-			const context = await desktopClient.invoke<{ appVersion?: unknown }>(
+			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
 			);
 			const version =
@@ -250,14 +280,33 @@ export function AgentSidebar({
 					? context.appVersion.trim()
 					: "";
 			setAppVersion(version || null);
-		} catch {
-			// Leave the version hidden; an older sidecar build has no appVersion.
+			const hubUrl =
+				typeof context?.hub?.url === "string"
+					? context.hub.url.trim() || null
+					: null;
+			setHubStatus({
+				connected: context?.hub?.status === "connected",
+				error:
+					typeof context?.hub?.error === "string"
+						? context.hub.error.trim() || null
+						: null,
+				url: hubUrl,
+			});
+		} catch (error) {
+			setHubStatus({
+				connected: false,
+				error:
+					error instanceof Error
+						? error.message
+						: "Unable to read Cline Hub status.",
+				url: null,
+			});
 		}
 	}, []);
 
 	useEffect(() => {
-		void loadAppVersion();
-	}, [loadAppVersion]);
+		void loadProcessContext();
+	}, [loadProcessContext]);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -281,7 +330,7 @@ export function AgentSidebar({
 				return filtered.filter((t) => t.status === "running");
 			case "Schedules":
 				return filtered.filter((t) => t.source === SCHEDULED_SESSION_SOURCE);
-			case "Pinned":
+			case "Favorites":
 				return filtered.filter((t) => t.pinned);
 			default:
 				return filtered;
@@ -293,18 +342,16 @@ export function AgentSidebar({
 
 	const openThread = useCallback(
 		(threadId: string) => {
-			setView("chat");
 			openHistoryThread(threadId);
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, openHistoryThread, setView],
+		[closeMobileSidebar, openHistoryThread],
 	);
 
 	const openNewThread = useCallback(() => {
-		setView("chat");
 		onNewThread?.();
 		closeMobileSidebar();
-	}, [closeMobileSidebar, onNewThread, setView]);
+	}, [closeMobileSidebar, onNewThread]);
 	const openHome = useCallback(() => {
 		onHome();
 		closeMobileSidebar();
@@ -320,11 +367,16 @@ export function AgentSidebar({
 	const openSettingsSection = useCallback(
 		(section: SettingsSection) => {
 			onSettingsSectionChange(section);
-			setView("settings");
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, onSettingsSectionChange, setView],
+		[closeMobileSidebar, onSettingsSectionChange],
 	);
+	const navigateBack = useCallback(() => {
+		onNavigateBack?.();
+	}, [onNavigateBack]);
+	const navigateForward = useCallback(() => {
+		onNavigateForward?.();
+	}, [onNavigateForward]);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -351,6 +403,13 @@ export function AgentSidebar({
 			await forkHistoryThread(thread.id);
 		},
 		[forkHistoryThread],
+	);
+
+	const toggleFavorite = useCallback(
+		async (thread: Thread) => {
+			await setThreadPinned(thread.id, !thread.pinned);
+		},
+		[setThreadPinned],
 	);
 
 	const requestDeleteThread = useCallback((thread: Thread) => {
@@ -482,6 +541,7 @@ export function AgentSidebar({
 			onEditTitleChange={setEditingTitle}
 			onFork={() => void forkThread(thread)}
 			onRename={() => startRenameThread(thread)}
+			onToggleFavorite={() => void toggleFavorite(thread)}
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
@@ -495,79 +555,132 @@ export function AgentSidebar({
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
 				<div
 					className={cn(
-						"flex h-16 shrink-0 items-center px-4",
-						isCollapsed && "justify-center px-0",
+						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-[4.75rem]",
+						isCollapsed && "px-0",
 					)}
+					data-tauri-drag-region
 				>
-					<Popover
-						onOpenChange={(open) => {
-							if (open && !appVersion) {
-								void loadAppVersion();
-							}
-						}}
-					>
-						<PopoverTrigger asChild>
-							<button
-								aria-label="Cline home"
-								className="flex items-center gap-2 rounded-md p-1 text-sidebar-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+					{!isCollapsed ? (
+						<>
+							<Button
+								aria-label="Previous page"
+								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								disabled={!canNavigateBack}
+								onClick={navigateBack}
+								size="icon"
+								title="Previous page"
 								type="button"
-								onClick={openHome}
-								title="Home"
+								variant="ghost"
 							>
-								<ClineLogo className="h-6 w-6" />
-							</button>
-						</PopoverTrigger>
-						<PopoverContent align="start" className="w-52 p-3" side="bottom">
-							<p className="text-sm font-medium">Cline Code</p>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								{appVersion ? `Version ${appVersion}` : "Version unavailable"}
-							</p>
-						</PopoverContent>
-					</Popover>
+								<ChevronLeft className="size-4" />
+							</Button>
+							<Button
+								aria-label="Next page"
+								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								disabled={!canNavigateForward}
+								onClick={navigateForward}
+								size="icon"
+								title="Next page"
+								type="button"
+								variant="ghost"
+							>
+								<ChevronRight className="size-4" />
+							</Button>
+						</>
+					) : null}
 				</div>
 
-				<div className={cn("shrink-0 px-3", isCollapsed && "px-1.5")}>
-					<Button
-						className={cn(
-							"min-w-0 justify-start",
-							view === "chat" &&
-								isHomeActive &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							isCollapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						aria-label="New Session"
-						onClick={openHome}
-						title="New Session"
-						variant="sidebarItem"
-					>
-						<Plus className="size-4" />
-						{!isCollapsed ? "New Session" : null}
-					</Button>
+				<div
+					className={cn(
+						"flex h-10 shrink-0 items-center justify-between px-3",
+						isCollapsed && "px-1.5",
+					)}
+				>
+					<div className="flex min-w-0 items-center gap-0.5">
+						<HoverCard
+							closeDelay={100}
+							openDelay={0}
+							onOpenChange={(open) => {
+								if (open) {
+									void loadProcessContext();
+								}
+							}}
+						>
+							<HoverCardTrigger asChild>
+								<button
+									aria-label="Cline home"
+									className={cn(
+										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										isCollapsed && "size-9",
+									)}
+									onClick={openHome}
+									title="Home"
+									type="button"
+								>
+									<ClineLogo className="size-5" />
+								</button>
+							</HoverCardTrigger>
+							<HoverCardContent
+								align="start"
+								className="w-64 p-3"
+								side="bottom"
+							>
+								<p className="text-sm font-medium">Cline Code</p>
+								<p className="mt-0.5 text-xs text-muted-foreground">
+									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
+								</p>
+								<div className="mt-3 border-border border-t pt-3">
+									<div className="flex items-center gap-2 text-xs">
+										<span
+											aria-hidden="true"
+											className={cn(
+												"h-2 w-2 shrink-0 rounded-full",
+												hubStatus?.connected
+													? "bg-emerald-500"
+													: "bg-muted-foreground",
+											)}
+										/>
+										<span className="font-medium">
+											Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
+										</span>
+									</div>
+									{hubStatus && !hubStatus.connected && (
+										<p className="mt-1 text-[11px] text-destructive">
+											{hubStatus.error ?? "Cline Hub is not connected."}
+										</p>
+									)}
+								</div>
+							</HoverCardContent>
+						</HoverCard>
+						{!isCollapsed ? <AppUpdateIndicator /> : null}
+					</div>
+					{!isCollapsed ? (
+						<Button
+							aria-label="New Session"
+							className="size-8 shrink-0 justify-center px-0"
+							onClick={openNewThread}
+							title="New Session"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Plus className="size-4" />
+						</Button>
+					) : null}
 				</div>
 
 				{isCollapsed ? (
-					<div className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-1 px-1.5">
+					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
+						<AppUpdateIndicator className="mx-auto size-9" />
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
 								collapsed
 								onSelect={openSettingsSection}
 							/>
-						) : (
-							<Button
-								aria-label="New session"
-								className="mx-auto size-9 justify-center px-0"
-								onClick={openNewThread}
-								title="New session"
-								type="button"
-								variant="sidebarItem"
-							>
-								<MessageSquare className="size-4" />
-							</Button>
-						)}
+						) : null}
 						<Button
 							aria-label="Expand sidebar"
-							className="mx-auto size-9 justify-center px-0"
+							className="mt-auto size-9 justify-center px-0"
 							onClick={() => setOpen(true)}
 							title="Expand sidebar"
 							type="button"
@@ -655,7 +768,7 @@ export function AgentSidebar({
 																	.map(threadItem)}
 																{project.threads.length > visibleCount ? (
 																	<Button
-																		className="pl-2"
+																		className="pl-2!"
 																		onClick={() =>
 																			showMoreForProject(project.id)
 																		}
@@ -683,7 +796,11 @@ export function AgentSidebar({
 									)}
 									{sortMode === "time" && showTimeShowMore && (
 										<Button
-											className="pl-0"
+											// `pl-0!`: the default button size adds
+											// `has-[>svg]:px-3`, and that modifier beats a plain
+											// `pl-0` on specificity, so the icon child was
+											// re-indenting the row.
+											className="pl-0!"
 											disabled={isLoadingMore}
 											onClick={() => {
 												const nextCount =
@@ -700,10 +817,10 @@ export function AgentSidebar({
 													Loading...
 												</>
 											) : (
-												<>
+												<div className="ml-2 flex items-center gap-1">
 													Show more
 													<ChevronDown className="size-3" />
-												</>
+												</div>
 											)}
 										</Button>
 									)}
@@ -712,7 +829,7 @@ export function AgentSidebar({
 										!searchQuery &&
 										mayHaveMoreSessions && (
 											<Button
-												className="pl-0"
+												className="pl-0!"
 												disabled={isLoadingMore}
 												onClick={() => void loadOlderSessions()}
 												type="button"
@@ -737,49 +854,74 @@ export function AgentSidebar({
 					</>
 				)}
 
-				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
-					{view !== "settings" && (
+				<div
+					className={cn(
+						"shrink-0 border-t border-sidebar-border/70 py-3",
+						isCollapsed ? "px-1.5" : "px-2",
+					)}
+				>
+					{user && !isCollapsed ? (
+						<div className="flex min-w-0 items-center gap-2">
+							<button
+								aria-label="Account settings"
+								className={cn(
+									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									view === "settings" &&
+										settingsSection === "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={() => openSettingsSection("Account")}
+								title={user.email || undefined}
+								type="button"
+							>
+								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+									{accountInitial}
+								</span>
+								<span className="flex min-w-0 flex-col leading-tight">
+									<span className="truncate text-sm font-medium">
+										{accountName}
+									</span>
+									{accountScope ? (
+										<span className="truncate text-[11px] text-muted-foreground">
+											{accountScope}
+										</span>
+									) : null}
+								</span>
+							</button>
+							<Button
+								aria-label="Settings"
+								className={cn(
+									"size-9 shrink-0 justify-center px-0",
+									view === "settings" &&
+										settingsSection !== "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={openSettings}
+								title="Settings"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Settings className="size-4" />
+							</Button>
+						</div>
+					) : (
 						<Button
 							aria-label="Settings"
-							type="button"
-							variant="sidebarItem"
 							className={cn(
 								"min-w-0 justify-start",
-								isCollapsed && "mx-auto size-9 justify-center px-0",
+								isCollapsed && "size-9 justify-center px-0",
+								view === "settings" &&
+									"bg-sidebar-accent text-sidebar-accent-foreground",
 							)}
 							onClick={openSettings}
 							title="Settings"
+							type="button"
+							variant="sidebarItem"
 						>
 							<Settings className="size-4" />
 							{!isCollapsed ? "Settings" : null}
 						</Button>
 					)}
-					{!isCollapsed ? (
-						<button
-							aria-label="Account settings"
-							className={cn(
-								"flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-								view === "settings" &&
-									settingsSection === "Account" &&
-									"bg-sidebar-accent text-sidebar-accent-foreground",
-							)}
-							onClick={() => openSettingsSection("Account")}
-							title={user?.email || undefined}
-							type="button"
-						>
-							<span className="min-w-0 flex gap-2 items-center">
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-									{accountInitial}
-								</span>
-								<span className="block truncate text-sm font-medium">
-									{accountName}
-									<span className="pl-1 truncate text-[11px] text-muted-foreground">
-										{accountScope}
-									</span>
-								</span>
-							</span>
-						</button>
-					) : null}
 				</div>
 			</div>
 			<AlertDialog
@@ -874,6 +1016,7 @@ function ThreadItem({
 	onCommitRename,
 	onEditTitleChange,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
@@ -888,6 +1031,7 @@ function ThreadItem({
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -950,7 +1094,10 @@ function ThreadItem({
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
-									<Pin aria-label="Pinned" className="size-3" />
+									<Star
+										aria-label="Favorited"
+										className="size-3 fill-current"
+									/>
 								) : statusDotClass ? (
 									<span
 										aria-hidden="true"
@@ -990,9 +1137,11 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
+				onToggleFavorite={onToggleFavorite}
 				pendingAction={pendingAction}
 			/>
 		</ContextMenu>
@@ -1081,12 +1230,16 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	favorited,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
 }: {
+	favorited: boolean;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1094,6 +1247,10 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
+			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+				<Star className={cn("size-4", favorited && "fill-current")} />
+				{favorited ? "Unfavorite" : "Favorite"}
+			</ContextMenuItem>
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />

@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
 	accessToken?: string
@@ -101,6 +102,7 @@ export function createShellExecutor() {
 	return async () => ""
 }
 
+export { augmentMcpTimeoutError } from "../../../../sdk/packages/core/src/extensions/mcp/timeout"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that
 // would have to duplicate those invariants.
@@ -113,10 +115,17 @@ export {
 	createApplyPatchExecutor,
 	type PatchFileChange,
 } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch"
-export { PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
+export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
-export type { ApplyPatchExecutor, EditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/types"
+export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+
+// Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
+// so the workspace read override and its tests exercise the actual read semantics.
+// Only the readFile executor is provided; the heavy executors are not needed in tests.
+export function createDefaultExecutors() {
+	return { readFile: createFileReadExecutor() }
+}
 
 export interface SessionHistoryRecord {
 	id: string
@@ -222,6 +231,7 @@ export interface ConfiguredTelemetryHandle {
 	readonly telemetry: ITelemetryService
 	flush(): Promise<void>
 	dispose(): Promise<void>
+	emitProviderCreated?(): void
 }
 
 function createNoopTelemetry(): ITelemetryService {

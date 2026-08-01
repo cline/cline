@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared/browser";
@@ -166,7 +167,7 @@ interface ProcessContext {
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
-	cline: ["anthropic/claude-sonnet-4.6"],
+	cline: [CLINE_DEFAULT_MODEL_ID],
 	anthropic: ["claude-sonnet-4-6"],
 	"openai-native": ["gpt-5.3-codex"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
@@ -245,7 +246,7 @@ function getScheduleProviderModel(schedule: RoutineSchedule): {
 		model:
 			schedule.modelSelection?.modelId?.trim() ||
 			schedule.model?.trim() ||
-			"openai/gpt-5.3-codex",
+			CLINE_DEFAULT_MODEL_ID,
 	};
 }
 
@@ -576,7 +577,7 @@ export function RoutineSchedulesContent({
 		scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
 		prompt: "Review PRs opened yesterday and summarize issues.",
 		provider: "cline",
-		model: "openai/gpt-5.3-codex",
+		model: CLINE_DEFAULT_MODEL_ID,
 		workspaceRoot: "",
 		systemPrompt: "",
 		timeoutSeconds: "",
@@ -992,7 +993,7 @@ export function RoutineSchedulesContent({
 			const model =
 				asTrimmedFormString(createForm.model) ||
 				(visibleProviderModels[provider] ?? [])[0] ||
-				"openai/gpt-5.3-codex";
+				CLINE_DEFAULT_MODEL_ID;
 			const systemPrompt = asTrimmedFormString(createForm.systemPrompt);
 			const timeoutSeconds = parseOptionalPositiveInt(
 				createForm.timeoutSeconds,
@@ -1013,7 +1014,7 @@ export function RoutineSchedulesContent({
 				prompt,
 				provider,
 				model,
-				mode: editingSchedule?.mode ?? "act",
+				mode: editingSchedule?.mode ?? "yolo",
 				workspace_root: workspaceRoot,
 				cwd: editingSchedule ? (editingSchedule.cwd ?? null) : workspaceRoot,
 				system_prompt: editingSchedule

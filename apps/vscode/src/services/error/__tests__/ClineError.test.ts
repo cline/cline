@@ -11,7 +11,7 @@ describe("ClineError", () => {
 
 		it("should return Entitlement for the SDK ClinePass subscription message", () => {
 			const err = new ClineError(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan:",
 			)
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
@@ -19,7 +19,7 @@ describe("ClineError", () => {
 
 		it("should return Entitlement for the SDK ClinePass subscription message with a different app URL", () => {
 			const err = new ClineError(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-8OFF&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan:",
 			)
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
@@ -62,6 +62,14 @@ describe("ClineError", () => {
 			})
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClinePassLimit)
+		})
+
+		it("should classify daily Cline free model limits separately", () => {
+			const err = new ClineError(
+				"Error: Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+			)
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreeModelLimit)
 		})
 	})
 })

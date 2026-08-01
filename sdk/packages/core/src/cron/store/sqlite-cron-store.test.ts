@@ -78,6 +78,72 @@ describe("SqliteCronStore", () => {
 		expect(result.record.source).toBe("automation");
 	});
 
+	it("defaults hub schedules to yolo and preserves explicit modes on update", () => {
+		const created = store.createHubSchedule({
+			name: "Routine",
+			cronPattern: "0 * * * *",
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+		});
+		expect(created.mode).toBe("yolo");
+
+		const act = store.updateHubSchedule(created.externalId, {
+			scheduleId: created.externalId,
+			mode: "act",
+		});
+		expect(act?.mode).toBe("act");
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				name: "Renamed routine",
+			})?.mode,
+		).toBe("act");
+
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				mode: "plan",
+			})?.mode,
+		).toBe("plan");
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				mode: "yolo",
+			})?.mode,
+		).toBe("yolo");
+	});
+
+	it.each([
+		undefined,
+		"unknown",
+	])("falls back to yolo when updating a hub schedule with stored mode %s", (storedMode) => {
+		const scheduleId = `sched-${storedMode ?? "missing"}`;
+		store.upsertSpec({
+			externalId: scheduleId,
+			sourcePath: `hub/schedules/${scheduleId}.cron.md`,
+			triggerKind: "schedule",
+			sourceHash: "legacy-hash",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "schedule",
+				id: scheduleId,
+				title: "Legacy routine",
+				prompt: "Do the work",
+				workspaceRoot: "/ws",
+				schedule: "0 * * * *",
+				enabled: true,
+				mode: storedMode as CronScheduleSpec["mode"],
+				source: "hub-schedule",
+			},
+		});
+
+		const updated = store.updateHubSchedule(scheduleId, {
+			scheduleId,
+			name: "Updated routine",
+		});
+		expect(updated?.mode).toBe("yolo");
+	});
+
 	it("does not bump revision on cosmetic-only re-upsert with same hash", () => {
 		store.upsertSpec({
 			externalId: "cleanup",

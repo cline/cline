@@ -11,6 +11,7 @@ import {
 	toHubStatusUrl,
 } from "@cline/core";
 import type { HubUINotifyPayload, SessionRecord } from "@cline/shared";
+import { configureMenubarConnectorCliLaunch } from "./connector-cli-launch";
 
 interface TrackedClient {
 	clientId: string;
@@ -258,6 +259,7 @@ function summarizeClient(client: TrackedClient): {
 	if (
 		normalizedType === "code-sidecar" ||
 		normalizedType === "code-sidecar-approvals" ||
+		normalizedType === "code-sidecar-observer" ||
 		normalizedType === "code-sidecar-list"
 	) {
 		return {
@@ -416,6 +418,7 @@ function resolveProviderLaunchAuth(
 async function main(): Promise<void> {
 	const workspaceRoot = process.cwd();
 	const providerSettingsManager = new ProviderSettingsManager();
+	configureMenubarConnectorCliLaunch(workspaceRoot);
 	// Discover or start a detached shared hub
 	let hubUrl: string;
 	let hubAuthToken: string;

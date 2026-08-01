@@ -2,11 +2,16 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	setCompactionModeGlobally,
+	setPlanActModeGlobally,
+	setToolAutoApproveGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { formatModeSwitchNotice } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
+import { exportHistorySession } from "../session/history-export";
+import { deleteSession } from "../session/session";
 import {
 	loadClineAccountSnapshot,
 	loadIndividualSubscriptionPlans,
@@ -22,7 +27,7 @@ import {
 	resolveClineWelcomeLine,
 } from "../tui/interactive-welcome";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
-import type { QueuedPromptItem } from "../tui/types";
+import type { QueuedPromptItem, TuiStartupTarget } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
 import {
@@ -73,6 +78,17 @@ type ModelChangeReasoningConfig = {
 	thinking?: boolean;
 	reasoningEffort?: Config["reasoningEffort"];
 };
+
+export function assertHistorySessionIsDeletable(
+	sessionId: string,
+	activeSessionId: string,
+): void {
+	if (activeSessionId && sessionId === activeSessionId) {
+		throw new Error(
+			"Cannot delete the active session. Start or resume another session first.",
+		);
+	}
+}
 
 export function resolveReasoningForModelChange(
 	config: ModelChangeReasoningConfig,
@@ -131,6 +147,37 @@ export async function applyInteractiveModelChange(input: {
 	});
 }
 
+export async function resumeInteractiveSession(
+	sessionRuntime: Pick<
+		ReturnType<typeof createInteractiveSessionRuntime>,
+		"resumeSession" | "getAccumulatedUsage"
+	>,
+	sessionId: string,
+) {
+	const previousAgentResume = process.env.CLINE_HOOK_AGENT_RESUME;
+	process.env.CLINE_HOOK_AGENT_RESUME = "1";
+	let messages: Awaited<ReturnType<typeof sessionRuntime.resumeSession>>;
+	try {
+		messages = await sessionRuntime.resumeSession(sessionId);
+	} catch (error) {
+		if (previousAgentResume === undefined) {
+			delete process.env.CLINE_HOOK_AGENT_RESUME;
+		} else {
+			process.env.CLINE_HOOK_AGENT_RESUME = previousAgentResume;
+		}
+		throw error;
+	}
+	const usage = await sessionRuntime.getAccumulatedUsage({
+		inputTokens: 0,
+		outputTokens: 0,
+	});
+	return {
+		messages,
+		totalCost: usage.totalCost,
+		currentContextSize: getCurrentContextSize(messages),
+	};
+}
+
 export async function runInteractive(
 	config: Config,
 	userInstructionService?: UserInstructionConfigService,
@@ -138,7 +185,7 @@ export async function runInteractive(
 	options?: {
 		clineApiBaseUrl?: string;
 		clineProviderSettings?: ProviderSettings;
-		initialView?: "chat" | "config";
+		startupTarget?: TuiStartupTarget;
 		initialPrompt?: string;
 		initialNotice?: CliMigrationNotice;
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
@@ -484,7 +531,7 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
-		initialView: options?.initialView,
+		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
 		onInitialNoticeShown: options?.onInitialNoticeShown,
@@ -738,15 +785,20 @@ export async function runInteractive(
 		onTurnErrorReported: () => {},
 		onAutoApproveChange: (enabled) => {
 			setInteractiveAutoApprove(enabled);
+			setToolAutoApproveGlobally(enabled);
 			void refreshInteractiveSessionPolicies();
 		},
 		onCompactionModeChange: async (mode) => {
 			await sessionRuntime.ensureReady();
 			applyCliCompactionMode(config, mode);
+			setCompactionModeGlobally(mode);
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onModeChange: async (mode) => {
 			if (!isInteractiveMode(mode)) return;
+			// Persist the user's choice immediately, even when the switch is
+			// deferred until the current turn aborts, so it survives restarts.
+			setPlanActModeGlobally(mode);
 			if (isRunning) {
 				pendingModeChange.current = mode;
 				pendingModeChange.source = "ui";
@@ -782,18 +834,23 @@ export async function runInteractive(
 			});
 			await sessionRuntime.restartWithCurrentMessages();
 		},
-		onResumeSession: async (sessionId: string) => {
-			await sessionRuntime.ensureReady();
-			const messages = await sessionRuntime.resumeSession(sessionId);
-			const usage = await sessionRuntime.getAccumulatedUsage({
-				inputTokens: 0,
-				outputTokens: 0,
-			});
-			return {
-				messages,
-				totalCost: usage.totalCost,
-				currentContextSize: getCurrentContextSize(messages),
-			};
+		// resumeSession initializes the manager and starts the selected session
+		// directly. Ensuring a session first would mint an empty history entry
+		// when the TUI was launched through `cline history`.
+		onResumeSession: async (sessionId: string) =>
+			await resumeInteractiveSession(sessionRuntime, sessionId),
+		onExportHistorySession: async (sessionId, format) =>
+			await exportHistorySession({
+				sessionId,
+				format,
+				outputDirectory: config.cwd,
+			}),
+		onDeleteHistorySession: async (sessionId) => {
+			assertHistorySessionIsDeletable(
+				sessionId,
+				sessionRuntime.getActiveSessionId(),
+			);
+			return (await deleteSession(sessionId)).deleted;
 		},
 		onCompact: async () => {
 			await sessionRuntime.ensureReady();
@@ -828,7 +885,7 @@ export async function runInteractive(
 		},
 	});
 
-	if (!loadDeferredInitialMessages) {
+	if (!loadDeferredInitialMessages && options?.startupTarget !== "history") {
 		setTimeout(() => {
 			void sessionRuntime.ensureReady().catch((error) => {
 				if (sessionRuntime.isShutdownRequested() || startupErrorReported) {
