@@ -115,16 +115,28 @@ export function resolveNpxInvocation(
 
 	const npmExecPath = env.npm_execpath?.trim();
 	if (
-		nodePath &&
 		npmExecPath &&
 		win32.basename(npmExecPath).toLowerCase() === "npm-cli.js"
 	) {
 		const npxCliPath = win32.join(win32.dirname(npmExecPath), "npx-cli.js");
 		if (fileExists(npxCliPath)) {
-			return {
-				command: nodePath,
-				args: [npxCliPath, ...npxArgs],
-			};
+			// npm-cli.js lives at <install>\node_modules\npm\bin\npm-cli.js;
+			// prefer that install's own node.exe over an unrelated PATH node so
+			// the CLI runs under the runtime it shipped with.
+			const installNode = win32.join(
+				win32.dirname(npxCliPath),
+				"..",
+				"..",
+				"..",
+				"node.exe",
+			);
+			const pairedNode = fileExists(installNode) ? installNode : nodePath;
+			if (pairedNode) {
+				return {
+					command: pairedNode,
+					args: [npxCliPath, ...npxArgs],
+				};
+			}
 		}
 	}
 
@@ -135,7 +147,6 @@ export function resolveNpxInvocation(
 		if (fileExists(executable)) {
 			return { command: executable, args: [...npxArgs] };
 		}
-		if (!nodePath) continue;
 		const npxCliPath = win32.join(
 			directory,
 			"node_modules",
@@ -144,8 +155,14 @@ export function resolveNpxInvocation(
 			"npx-cli.js",
 		);
 		if (fileExists(npxCliPath)) {
+			// Pair the npm CLI with the node.exe of the same install so a
+			// different (possibly older) node found earlier on PATH cannot run
+			// a newer npm's scripts.
+			const siblingNode = win32.join(directory, "node.exe");
+			const pairedNode = fileExists(siblingNode) ? siblingNode : nodePath;
+			if (!pairedNode) continue;
 			return {
-				command: nodePath,
+				command: pairedNode,
 				args: [npxCliPath, ...npxArgs],
 			};
 		}
@@ -240,6 +257,19 @@ function findWindowsCmdShim(
 // self-reference a shim can contain.
 const NODE_SCRIPT_EXTENSIONS = [".js", ".cjs", ".mjs"];
 
+// The program token an npm shim uses to run its script: the `_prog` variable
+// both npm layouts set, a literal `node`, or an explicit path to node.exe.
+// A wrapper that invokes its target any other way is not an npm shim and
+// its target must not be handed to node.
+function isNodeProgramToken(program: string): boolean {
+	const normalized = program.trim().toLowerCase();
+	return (
+		normalized === "%_prog%" ||
+		normalized === "node" ||
+		/(^|[\\/])node(\.exe)?$/.test(normalized)
+	);
+}
+
 /**
  * Rewrite an npm-generated `.cmd` shim to the `node <script>` invocation it runs
  * internally, so we can launch its target directly instead of through cmd.exe.
@@ -265,15 +295,23 @@ function resolveCmdShimInvocation(
 		return undefined;
 	}
 	const shimDir = win32.dirname(shimPath);
-	// Match the script argument in `... "%~dp0\<script>" %*` or the
-	// `"%dp0%\<script>"` variable-indirection form both npm layouts emit, and
-	// keep the first existing target node can run.
-	const scriptPattern = /"%~?dp0%?[\\/]+([^"]+?)"\s+%\*/g;
+	// Match `<program> "%~dp0\<script>" %*` (or the `"%dp0%\<script>"`
+	// variable-indirection form) that both npm layouts emit, capturing the
+	// program token so only targets the shim itself runs through node are
+	// rewritten. A wrapper that spawns its target directly — e.g.
+	// `"%~dp0\server" %*` around a native executable — never matches, so it
+	// keeps the caller's shell fallback.
+	const scriptPattern =
+		/("[^"\r\n]+"|[^\s"&|()]+)[ \t]+"%~?dp0%?[\\/]+([^"]+?)"\s+%\*/g;
 	let match: RegExpExecArray | null = scriptPattern.exec(contents);
 	while (match) {
-		const relative = match[1].replace(/[\\/]+/g, win32.sep);
+		const program = match[1].replace(/^"|"$/g, "");
+		const relative = match[2].replace(/[\\/]+/g, win32.sep);
 		const extension = win32.extname(relative).toLowerCase();
-		if (!extension || NODE_SCRIPT_EXTENSIONS.includes(extension)) {
+		if (
+			isNodeProgramToken(program) &&
+			(!extension || NODE_SCRIPT_EXTENSIONS.includes(extension))
+		) {
 			const scriptPath = win32.join(shimDir, relative);
 			if (fileExists(scriptPath)) {
 				return { command: nodePath, args: [scriptPath, ...extraArgs] };

@@ -340,4 +340,74 @@ describe("resolveShellFreeInvocation", () => {
 			args: [scriptPath, "run"],
 		});
 	});
+
+	it("returns undefined for a wrapper that forwards to an extensionless native target", () => {
+		// `"%~dp0\server" %*` spawns its target directly rather than through
+		// node; the extensionless target must not be rewritten to a node
+		// script, so the caller keeps its shell fallback.
+		const shimPath = "C:\\tools\\server.cmd";
+		const existing = new Set([
+			shimPath,
+			"C:\\tools\\server",
+			"C:\\Program Files\\nodejs\\node.exe",
+		]);
+
+		expect(
+			resolveShellFreeInvocation(shimPath, ["--port", "1<2"], {
+				platform: "win32",
+				env: { Path: "C:\\Program Files\\nodejs;C:\\tools" },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+				readTextFile: () => '@echo off\r\n"%~dp0\\server" %*\r\n',
+			}),
+		).toBeUndefined();
+	});
+});
+
+describe("node/npm install pairing", () => {
+	it("pairs npx-cli.js with the node.exe of the same install, not an earlier PATH node", () => {
+		const oldNodeDir = "C:\\OldNode";
+		const newNodeDir = "C:\\Program Files\\nodejs";
+		const npxCliPath = `${newNodeDir}\\node_modules\\npm\\bin\\npx-cli.js`;
+		const existing = new Set([
+			`${oldNodeDir}\\node.exe`,
+			`${newNodeDir}\\node.exe`,
+			npxCliPath,
+		]);
+
+		expect(
+			resolveNpxInvocation(["-y", "some-server"], {
+				platform: "win32",
+				env: { Path: `${oldNodeDir};${newNodeDir}` },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+			}),
+		).toEqual({
+			command: `${newNodeDir}\\node.exe`,
+			args: [npxCliPath, "-y", "some-server"],
+		});
+	});
+
+	it("pairs an npm_execpath npm CLI with its own install's node.exe", () => {
+		const installDir = "C:\\nvm\\v22.1.0";
+		const npmCliPath = `${installDir}\\node_modules\\npm\\bin\\npm-cli.js`;
+		const npxCliPath = `${installDir}\\node_modules\\npm\\bin\\npx-cli.js`;
+		const existing = new Set([
+			"C:\\OldNode\\node.exe",
+			`${installDir}\\node.exe`,
+			npxCliPath,
+		]);
+
+		expect(
+			resolveNpxInvocation(["-y", "some-server"], {
+				platform: "win32",
+				env: { Path: "C:\\OldNode", npm_execpath: npmCliPath },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+			}),
+		).toEqual({
+			command: `${installDir}\\node.exe`,
+			args: [npxCliPath, "-y", "some-server"],
+		});
+	});
 });
