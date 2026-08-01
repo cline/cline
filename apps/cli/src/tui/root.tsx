@@ -1,6 +1,4 @@
 import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
-import type { Message } from "@cline/shared";
-import { formatDisplayUserInput, truncateStr } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -14,6 +12,7 @@ import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanba
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
+import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
 	CheckpointConfirmContent,
@@ -21,7 +20,6 @@ import {
 } from "./components/dialogs/checkpoint-confirm";
 import {
 	CheckpointPickerContent,
-	type CheckpointPickerItem,
 	type CheckpointPickerResult,
 } from "./components/dialogs/checkpoint-picker";
 import {
@@ -303,61 +301,7 @@ function App(props: TuiProps) {
 				showToast("No checkpoints available", "info");
 				return;
 			}
-			const checkpointForRun = (runCount: number) =>
-				checkpointHistory.reduce<
-					(typeof checkpointHistory)[number] | undefined
-				>((best, checkpoint) => {
-					if (checkpoint.runCount > runCount) {
-						return best;
-					}
-					if (!best || checkpoint.runCount > best.runCount) {
-						return checkpoint;
-					}
-					return best;
-				}, undefined);
-			const items: CheckpointPickerItem[] = [];
-			let userRunCount = 0;
-			for (const msg of rawMessages as Array<
-				Message & { metadata?: Record<string, unknown> }
-			>) {
-				if (msg.role !== "user") continue;
-				const metadata =
-					"metadata" in msg && msg.metadata && typeof msg.metadata === "object"
-						? msg.metadata
-						: undefined;
-				if (metadata?.kind === "recovery_notice") continue;
-				userRunCount += 1;
-				const checkpoint = checkpointForRun(userRunCount);
-				if (!checkpoint) continue;
-				const text =
-					typeof msg.content === "string"
-						? msg.content
-						: Array.isArray(msg.content)
-							? msg.content
-									.filter(
-										(b): b is { type: "text"; text: string } =>
-											typeof b === "object" &&
-											b !== null &&
-											"type" in b &&
-											b.type === "text" &&
-											"text" in b &&
-											typeof b.text === "string",
-									)
-									.map((b) => b.text)
-									.join(" ")
-							: "";
-				const preview = truncateStr(
-					formatDisplayUserInput(text).replace(/\s+/g, " "),
-					60,
-				);
-				if (!preview) continue;
-				items.push({
-					runCount: userRunCount,
-					text: preview,
-					fullText: text,
-					createdAt: checkpoint.createdAt,
-				});
-			}
+			const items = buildCheckpointPickerItems(rawMessages, checkpointHistory);
 			if (items.length === 0) {
 				showToast("No checkpoints to restore", "info");
 				return;
