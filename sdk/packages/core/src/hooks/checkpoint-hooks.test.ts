@@ -131,6 +131,40 @@ describe("createCheckpointHooks", () => {
 		}
 	});
 
+	it("captures untracked files as a third parent so restore can rewind them", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_untracked",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			// An untracked file present at checkpoint time (no tracked changes).
+			await writeFile(join(cwd, "created.txt"), "snapshot-content\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.latest.kind).toBe("stash");
+			const ref = checkpoint.latest.ref;
+			// The snapshot carries a third parent whose tree holds the untracked
+			// file at its checkpoint-time content.
+			expect(await runGit(cwd, "cat-file", "-t", `${ref}^3`)).toBe("commit");
+			expect(await runGit(cwd, "show", `${ref}^3:created.txt`)).toBe(
+				"snapshot-content",
+			);
+			// Capturing must not disturb the user's worktree/index/stash list.
+			expect(await runGit(cwd, "status", "--porcelain")).toBe("?? created.txt");
+			expect(await runGit(cwd, "stash", "list")).toBe("");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 	it("creates a checkpoint when the host seeds the prompt before the run starts", async () => {
 		// Regression test for the VS Code host: it persists the run's prompt
 		// into session state before the run begins, so the prompt is already
