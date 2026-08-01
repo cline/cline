@@ -37,12 +37,17 @@ export function useDebouncedInput<T>(
 		setLocalValueState(value)
 	}, [])
 
-	// Sync local state when initialValue changes externally (e.g., when switching Plan/Act tabs)
+	// Sync local state when initialValue changes externally (e.g., when switching
+	// Plan/Act tabs). Skip the resync while a user edit is pending: because each
+	// debounced save round-trips through the backend and updates initialValue,
+	// an in-flight save can echo back an older value while the user is still
+	// typing, and resyncing would visibly delete their newest keystrokes.
 	useEffect(() => {
 		if (prevInitialValueRef.current !== initialValue) {
-			hasPendingUserEditRef.current = false
-			setLocalValueState(initialValue)
 			prevInitialValueRef.current = initialValue
+			if (!hasPendingUserEditRef.current) {
+				setLocalValueState(initialValue)
+			}
 		}
 	}, [initialValue])
 
@@ -57,6 +62,20 @@ export function useDebouncedInput<T>(
 		},
 		debounceMs,
 		[localValue],
+	)
+
+	// Flush a pending edit on unmount so keystrokes typed within the debounce
+	// window still save when the view closes (e.g. clicking Done in settings).
+	const latestRef = useRef({ localValue, onChange })
+	latestRef.current = { localValue, onChange }
+	useEffect(
+		() => () => {
+			if (hasPendingUserEditRef.current) {
+				hasPendingUserEditRef.current = false
+				latestRef.current.onChange(latestRef.current.localValue)
+			}
+		},
+		[],
 	)
 
 	return [localValue, setLocalValue]

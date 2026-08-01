@@ -11,7 +11,7 @@ import {
 	type ProviderModelOverrides,
 	toProtobufModelOverrides as toProtobufProviderModelOverrides,
 } from "@shared/proto-conversions/models/modelOverrides"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
@@ -54,11 +54,26 @@ function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProvi
 export function useProviderConfig(providerId: ProviderId) {
 	const [config, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
 
-	const read = useCallback(async () => {
-		const response = await ModelsServiceClient.readProviderConfig(StringRequest.create({ value: providerId }))
+	// Reads and writes resolve asynchronously and can complete out of order
+	// (e.g. a slow initial read landing after a user-triggered write). Only
+	// apply a response if no newer request has been applied, so stale
+	// responses can't roll the UI state back.
+	const requestSeqRef = useRef(0)
+	const appliedSeqRef = useRef(0)
+	const applyConfig = useCallback((seq: number, response: ProviderConfigResponse) => {
+		if (seq < appliedSeqRef.current) {
+			return
+		}
+		appliedSeqRef.current = seq
 		setConfig(response)
+	}, [])
+
+	const read = useCallback(async () => {
+		const seq = ++requestSeqRef.current
+		const response = await ModelsServiceClient.readProviderConfig(StringRequest.create({ value: providerId }))
+		applyConfig(seq, response)
 		return response
-	}, [providerId])
+	}, [providerId, applyConfig])
 
 	useEffect(() => {
 		void read()
@@ -66,16 +81,17 @@ export function useProviderConfig(providerId: ProviderId) {
 
 	const write = useCallback(
 		async (patch: ProviderConfigWritePatch) => {
+			const seq = ++requestSeqRef.current
 			const response = await ModelsServiceClient.writeProviderConfig(
 				WriteProviderConfigRequest.create({
 					providerId,
 					patch: toWriteProviderConfigPatch(patch),
 				}),
 			)
-			setConfig(response)
+			applyConfig(seq, response)
 			return response
 		},
-		[providerId],
+		[providerId, applyConfig],
 	)
 
 	const commitSelection = useCallback(
