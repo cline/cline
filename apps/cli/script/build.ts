@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 
 import {
+	chmodSync,
+	copyFileSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
@@ -9,7 +11,8 @@ import {
 	realpathSync,
 	statSync,
 } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import {
 	parseBuildOptions,
@@ -254,6 +257,20 @@ for (const item of targets) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
 			process.exit(1);
 		}
+	}
+
+	// Ship the open package's fallback `xdg-open` script next to the binary.
+	// Compiled binaries resolve open's own copy inside the virtual bunfs where
+	// it does not exist, so Linux hosts without xdg-utils could not open URLs
+	// at all without this file (see src/utils/open-url.ts).
+	if (item.os === "linux") {
+		const xdgOpenSource = join(
+			dirname(fileURLToPath(import.meta.resolve("open"))),
+			"xdg-open",
+		);
+		const xdgOpenDest = join(outDir, "xdg-open");
+		copyFileSync(xdgOpenSource, xdgOpenDest);
+		chmodSync(xdgOpenDest, 0o755);
 	}
 
 	// Copy plugin sandbox bootstrap if it exists

@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
@@ -72,7 +73,7 @@ describe("openUrlInBrowser (linux)", () => {
 		});
 	});
 
-	it("never calls open() when xdg-open is missing — the uncatchable-crash case", async () => {
+	it("never calls open() when no xdg-open exists anywhere — the uncatchable-crash case", async () => {
 		// A missing opener binary surfaces as an async `error` event on the
 		// detached, listenerless child that open() returns; under Bun it fires
 		// before the microtask queue drains, so no try/catch or .catch around
@@ -80,6 +81,34 @@ describe("openUrlInBrowser (linux)", () => {
 		usePlatform("linux");
 		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(false);
 		expect(hoisted.openMock).not.toHaveBeenCalled();
+	});
+
+	it("falls back to the shipped xdg-open script when PATH has none", async () => {
+		usePlatform("linux");
+		process.env.PATH = "/nowhere";
+		// The build ships open's fallback script next to the executable.
+		const shipped = join(dirname(process.execPath), "xdg-open");
+		hoisted.accessSyncMock.mockImplementation((path: string) => {
+			if (path !== shipped) {
+				throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+			}
+		});
+		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
+		expect(hoisted.openMock).toHaveBeenCalledWith("https://example.com", {
+			wait: false,
+			app: { name: shipped },
+		});
+	});
+
+	it("prefers the system xdg-open over the shipped script", async () => {
+		usePlatform("linux");
+		// Both the PATH binary and the shipped script exist.
+		hoisted.accessSyncMock.mockImplementation(() => {});
+		await expect(openUrlInBrowser("https://example.com")).resolves.toBe(true);
+		expect(hoisted.openMock).toHaveBeenCalledWith("https://example.com", {
+			wait: false,
+			app: undefined,
+		});
 	});
 
 	it("skips the xdg-open check on WSL, where open uses powershell.exe", async () => {
