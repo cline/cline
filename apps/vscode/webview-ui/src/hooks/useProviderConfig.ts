@@ -56,15 +56,13 @@ export function useProviderConfig(providerId: ProviderId) {
 
 	// Reads and writes resolve asynchronously and can complete out of order
 	// (e.g. a slow initial read landing after a user-triggered write). Only
-	// apply a response if no newer request has been applied, so stale
-	// responses can't roll the UI state back.
+	// the latest issued request may apply its response; anything older is
+	// stale and would roll the UI state back.
 	const requestSeqRef = useRef(0)
-	const appliedSeqRef = useRef(0)
 	const applyConfig = useCallback((seq: number, response: ProviderConfigResponse) => {
-		if (seq < appliedSeqRef.current) {
+		if (seq !== requestSeqRef.current) {
 			return
 		}
-		appliedSeqRef.current = seq
 		setConfig(response)
 	}, [])
 
@@ -82,16 +80,26 @@ export function useProviderConfig(providerId: ProviderId) {
 	const write = useCallback(
 		async (patch: ProviderConfigWritePatch) => {
 			const seq = ++requestSeqRef.current
-			const response = await ModelsServiceClient.writeProviderConfig(
-				WriteProviderConfigRequest.create({
-					providerId,
-					patch: toWriteProviderConfigPatch(patch),
-				}),
-			)
-			applyConfig(seq, response)
-			return response
+			try {
+				const response = await ModelsServiceClient.writeProviderConfig(
+					WriteProviderConfigRequest.create({
+						providerId,
+						patch: toWriteProviderConfigPatch(patch),
+					}),
+				)
+				applyConfig(seq, response)
+				return response
+			} catch (error) {
+				// A failed write may still have partially applied host-side, and
+				// its failure means no response will ever apply for this seq —
+				// without a re-read, older dropped responses could leave config
+				// stale (or undefined) forever. Re-read to converge on the
+				// backend's actual state.
+				void read().catch(() => {})
+				throw error
+			}
 		},
-		[providerId, applyConfig],
+		[providerId, applyConfig, read],
 	)
 
 	const commitSelection = useCallback(
