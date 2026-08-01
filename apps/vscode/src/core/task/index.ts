@@ -2511,11 +2511,11 @@ export class Task {
 				// Mirror the SDK extension's provider-failure reporting: same
 				// errorType/failurePhase schema so error rates are comparable
 				// across the A/B rollout cohorts. Emitted once per failed
-				// attempt; `terminal` marks whether this failure will surface
+				// attempt; `fatal` marks whether this failure will surface
 				// to the user (no auto-retry follows) — the SDK extension only
-				// ever reports terminal failures (transient errors are retried
+				// ever reports fatal failures (transient errors are retried
 				// inside its provider layer before any event fires), so
-				// cross-cohort comparisons must filter to terminal = true.
+				// cross-cohort comparisons must filter to fatal = true.
 				// Context-window overruns are excluded — they are recovered by
 				// truncation, not a provider failure.
 				if (!isContextWindowExceededError) {
@@ -2528,7 +2528,7 @@ export class Task {
 						requestId: clineError._error?.request_id,
 						errorType: ClineError.getErrorType(clineError),
 						failurePhase: "streaming",
-						terminal: !shouldRetry,
+						fatal: !shouldRetry,
 					});
 				}
 
@@ -3644,7 +3644,7 @@ export class Task {
 
 					// Mirror the SDK extension's provider-failure reporting for
 					// mid-stream failures (see attemptApiRequest for the
-					// first-chunk equivalent, including what `terminal` means and
+					// first-chunk equivalent, including what `fatal` means and
 					// why cross-cohort comparisons must filter on it).
 					// isWaitingForFirstChunk gate: first-chunk failures are
 					// already reported inside attemptApiRequest's catch, and a
@@ -3664,7 +3664,7 @@ export class Task {
 							requestId: clineError._error?.request_id,
 							errorType: ClineError.getErrorType(clineError),
 							failurePhase: "streaming",
-							terminal: !willAutoRetryStreamingFailure,
+							fatal: !willAutoRetryStreamingFailure,
 						});
 					}
 
