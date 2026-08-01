@@ -13,6 +13,7 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type ITelemetryService,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -129,6 +130,17 @@ function mockSuccessfulStream(): void {
 			{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
 		]),
 	});
+}
+
+function createTelemetryMock(): {
+	telemetry: ITelemetryService;
+	capture: ReturnType<typeof vi.fn>;
+} {
+	const capture = vi.fn();
+	return {
+		capture,
+		telemetry: { capture } as unknown as ITelemetryService,
+	};
 }
 
 const baseMessages: AgentMessage[] = [
@@ -745,6 +757,79 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Invalid API key",
+		});
+	});
+
+	it("records the extracted provider message for AI SDK stream errors", async () => {
+		const rawError = Object.assign(new Error("Stream error occurred"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long",
+					code: "context_length_exceeded",
+				},
+			}),
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([
+						{ type: "error", error: new Error("No output generated") },
+					]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.stream",
+				error_message: "prompt is too long",
+				error_status: 400,
+			}),
+		});
+	});
+
+	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
+		streamTextSpy.mockImplementation(() => {
+			throw new Error("No output generated. Check the stream for errors.", {
+				cause: new Error("Invalid API key"),
+			});
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.create_or_stream",
+				error_message: "Invalid API key",
+			}),
 		});
 	});
 
