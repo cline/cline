@@ -6,13 +6,13 @@ import type {
 	StartSessionInput,
 } from "../runtime/host/runtime-host";
 import { splitCoreSessionConfig } from "../runtime/host/runtime-host";
-import type { CoreSessionConfig } from "../types/config";
+import type { ClineCoreStartConfig } from "../types/config";
 import type { ClineCoreStartInput } from "./types";
 
 export function toClineCoreStartInput(
 	input: StartSessionInput | ClineCoreStartInput,
 ): ClineCoreStartInput {
-	const config = input.config as CoreSessionConfig;
+	const config = input.config as ClineCoreStartConfig;
 	return "providerId" in config
 		? {
 				...input,
@@ -64,7 +64,7 @@ export function normalizeClineCoreStartInput(
 
 function coreConfigFromLocalRuntime(
 	localRuntime: LocalRuntimeStartOptions | undefined,
-): Partial<CoreSessionConfig> {
+): Partial<ClineCoreStartConfig> {
 	if (!localRuntime) {
 		return {};
 	}

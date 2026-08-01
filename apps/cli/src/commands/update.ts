@@ -237,6 +237,50 @@ async function runKanbanUpdate(
 	return waitForProcessExit(updateProcess);
 }
 
+/**
+ * Start the hub through the freshly installed CLI after a self-update.
+ *
+ * On Unix, the npm wrapper normally starts the CLI from bin/.cline. npm 12 may
+ * remove that cached executable while replacing the package and then block the
+ * postinstall script that recreates it. The current process keeps running from
+ * the unlinked executable, but process.execPath is no longer spawnable. Going
+ * back through the wrapper makes it resolve the newly installed platform
+ * binary instead.
+ *
+ * Windows does not create the bin/.cline cache, and development builds do not
+ * have CLINE_WRAPPER_PATH, so those cases keep using the normal in-process
+ * ensure path.
+ */
+export async function ensureCliHubServerAfterUpdate(
+	workspaceRoot: string,
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): Promise<void> {
+	const wrapperPath = env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath || platform === "win32") {
+		await ensureCliHubServer(workspaceRoot);
+		return;
+	}
+
+	const child = spawn(wrapperPath, ["hub", "ensure"], {
+		cwd: workspaceRoot,
+		env: {
+			...env,
+			// The fresh CLI only exists to start the hub. Do not let it launch
+			// another background update check while this update is finishing.
+			CLINE_NO_AUTO_UPDATE: "1",
+		},
+		stdio: "ignore",
+		windowsHide: true,
+	});
+	const exitCode = await waitForProcessExit(child);
+	if (exitCode !== 0) {
+		throw new Error(
+			`freshly installed Cline failed to start the hub (exit code ${exitCode})`,
+		);
+	}
+}
+
 function formatUpdateSummaryTargets(targets: string[]): string {
 	if (targets.length === 0) {
 		return "";
@@ -342,7 +386,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	// Re-ensure a fresh hub instance is spawned.
 	try {
-		await ensureCliHubServer(process.cwd()); // return value intentionally unused here
+		await ensureCliHubServerAfterUpdate(process.cwd());
 		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
 	} catch (err) {
 		writeErr(

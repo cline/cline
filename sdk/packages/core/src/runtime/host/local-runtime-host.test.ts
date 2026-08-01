@@ -6,17 +6,22 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { MessageWithMetadata } from "@cline/llms";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtensionAutomationContext,
-	AgentResult,
-	AgentRuntimeEvent,
-	BasicLogger,
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtensionAutomationContext,
+	type AgentResult,
+	type AgentRuntimeEvent,
+	type BasicLogger,
+	isChatWorkspacePath,
 } from "@cline/shared";
-import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import {
+	resolveChatWorkspacePath,
+	setClineDir,
+	setHomeDir,
+} from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -163,6 +168,7 @@ describe("LocalRuntimeHost", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_DIR: process.env.CLINE_DIR,
+		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 	};
 	let isolatedHomeDir = "";
 
@@ -170,6 +176,7 @@ describe("LocalRuntimeHost", () => {
 		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
 		process.env.HOME = isolatedHomeDir;
 		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		delete process.env.CLINE_DATA_DIR;
 		setHomeDir(isolatedHomeDir);
 		setClineDir(process.env.CLINE_DIR);
 	});
@@ -177,9 +184,81 @@ describe("LocalRuntimeHost", () => {
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
 		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		if (envSnapshot.CLINE_DATA_DIR === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
+		}
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it.each([
+		{ source: "generated", requestedSessionId: undefined },
+		{ source: "requested", requestedSessionId: "session-explicit" },
+	] as const)("resolves an omitted workspace with the $source session ID", async ({
+		requestedSessionId,
+	}) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		let chatWorkspace = "";
+
+		try {
+			const result = await manager.startSession({
+				config: {
+					...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					systemPrompt: "You are a test agent",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			});
+
+			chatWorkspace = result.manifest.cwd;
+			if (requestedSessionId) {
+				expect(result.sessionId).toBe(requestedSessionId);
+			}
+			expect(chatWorkspace).toBe(resolveChatWorkspacePath());
+			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
+			expect(result.manifest.workspace_root).toBe(chatWorkspace);
+			expect(runtimeBuilder.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						cwd: chatWorkspace,
+						workspaceRoot: chatWorkspace,
+					}),
+				}),
+			);
+		} finally {
+			await manager.dispose();
+			if (chatWorkspace) {
+				rmSync(dirname(chatWorkspace), { recursive: true, force: true });
+			}
+		}
 	});
 
 	it("stores git under metadata and refreshes it after an active turn", async () => {
@@ -1099,6 +1178,71 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			status: "completed",
 		});
+	});
+
+	it("readLiveSessionMessages serves in-memory messages for resident sessions before persistence", async () => {
+		const sessionId = "sess-live-messages";
+		const manifest = createManifest(sessionId);
+		// The in-flight conversation exists only on the agent; nothing has been
+		// flushed to the messages file yet (mid-turn, or an aborted turn).
+		const liveMessages: MessageWithMetadata[] = [
+			{ role: "user" as const, content: "list the files in this folder" },
+			{ role: "assistant" as const, content: "I will list them now." },
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: join(isolatedHomeDir, "never-written.json"),
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue(liveMessages),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		// The live read sees the conversation; the persisted read still lags.
+		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
+			liveMessages,
+		);
+		await expect(manager.readSessionMessages(sessionId)).resolves.toEqual([]);
 	});
 
 	it("reads manifest-only session records and messages", async () => {
@@ -2023,7 +2167,26 @@ describe("LocalRuntimeHost", () => {
 							parentAgentId: null,
 							status: "running" as const,
 							iteration: 1,
-							messages: [],
+							messages: [
+								{
+									id: "user-first",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "first" }],
+									createdAt: 1,
+								},
+								{
+									id: "user-second",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "second" }],
+									createdAt: 2,
+								},
+								{
+									id: "user-current",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "hello" }],
+									createdAt: 3,
+								},
+							],
 							pendingToolCalls: [],
 							usage: {
 								inputTokens: 0,
@@ -2033,7 +2196,11 @@ describe("LocalRuntimeHost", () => {
 							},
 						};
 						await config.hooks?.beforeRun?.({
-							snapshot: { ...snapshot, iteration: 0 },
+							snapshot: {
+								...snapshot,
+								iteration: 0,
+								messages: snapshot.messages.slice(0, -1),
+							},
 						});
 						await config.hooks?.beforeModel?.({
 							snapshot,
@@ -3279,6 +3446,10 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				checkpoint: {
+					latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
+					history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
+				},
 			},
 			messages_path: messagesPath,
 		};
@@ -3354,18 +3525,39 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				initialMessages,
-			}),
-		);
+		const pathlessConfig = {
+			...createConfig({ sessionId }),
+			cwd: undefined,
+		};
+		await manager.startSession({
+			config: pathlessConfig,
+			interactive: true,
+			initialMessages,
+			sessionMetadata: {
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+			},
+		});
 
 		expect(createRootSessionWithArtifacts).not.toHaveBeenCalled();
+		expect(runtimeBuilder.build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: manifest.cwd,
+					workspaceRoot: manifest.workspace_root,
+				}),
+			}),
+		);
 		expect(persistSessionMessages).not.toHaveBeenCalled();
 		expect(updateSessionStatus).not.toHaveBeenCalled();
 		expect(updateSession).not.toHaveBeenCalled();
+		expect((await manager.getSession(sessionId))?.metadata).toEqual(
+			expect.objectContaining({
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+				checkpoint: manifest.metadata.checkpoint,
+			}),
+		);
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({
 			inputTokens: 11,
 			outputTokens: 7,
@@ -4676,7 +4868,11 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
-	it("does not project compaction state when compaction is disabled", async () => {
+	// Manual /compact persists a sidecar regardless of the auto-compaction
+	// setting, so the projection must stay wired even when compaction is
+	// disabled — otherwise a manual compaction would silently never reach the
+	// model. Without a sidecar the prepareTurn is a no-op.
+	it("projects compaction state even when compaction is disabled", async () => {
 		const sessionId = "sess-compaction-disabled";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
@@ -4744,13 +4940,42 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
-		expect(prepareTurn).toBeUndefined();
-		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+		expect(prepareTurn).toBeDefined();
 
-		await expect(
-			manager.updateSessionCompactionState(sessionId, initialCompactionState),
-		).resolves.toEqual({ updated: true });
-		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
+		// The initial sidecar is persisted alongside the initial messages and
+		// projected into the next turn's working context (compacted messages
+		// plus the canonical tail), without re-compacting.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				messages: initialCompactionState.messages,
+			}),
+		);
+		const followUpMessages = [
+			...initialMessages,
+			{ role: "user", content: "follow-up" },
+		];
+		const projected = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: followUpMessages,
+			apiMessages: followUpMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+		expect(projected?.messages).toEqual([
+			{ role: "user", content: "projected summary" },
+			{ role: "user", content: "follow-up" },
+		]);
 	});
 
 	it("persists active manual compaction state against the persisted transcript", async () => {
@@ -4890,6 +5115,153 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}
+	});
+
+	it("persists auto-compaction state against runtime messages and replaces an invalid older sidecar", async () => {
+		// Regression: the orchestrator appends the follow-up user turn to the
+		// conversation store WITHOUT id/ts while the runtime's working
+		// transcript (which prepareTurn sees, and which the compaction state's
+		// source-prefix hash is computed over) carries codec-generated id/ts.
+		// Validating the persist against agent.getMessages() therefore skipped
+		// every auto-compaction write ("Skipped stale session compaction
+		// state") and forced a full re-compaction on every subsequent turn.
+		// Additionally, an unprojectable older sidecar (e.g. invalidated by
+		// resume-time identity churn) must not permanently block a newer valid
+		// state just because its source count is larger.
+		const sessionId = "sess-compaction-auto-persist";
+		const manifest = createManifest(sessionId);
+		const priorMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "task", id: "m1", ts: 1 },
+			{ role: "assistant", content: "working", id: "m2", ts: 2 },
+		];
+		// What the conversation store holds mid-turn: prior transcript plus the
+		// just-appended follow-up WITHOUT identity fields.
+		const storeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{ role: "user", content: [{ type: "text", text: "follow-up" }] },
+		];
+		// What the runtime's prepareTurn context carries: the same transcript
+		// with codec-assigned id/ts on the follow-up.
+		const runtimeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "follow-up" }],
+				id: "msg_generated_1",
+				ts: 3,
+			},
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction-auto-persist.json",
+				messagesPath: "/tmp/messages-compaction-auto-persist.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const createAgent = vi.fn().mockReturnValue({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue(storeMessages),
+			messages: storeMessages,
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: {
+						enabled: true,
+						strategy: "basic",
+						compact: vi.fn().mockResolvedValue({
+							messages: [{ role: "user", content: "summary" }],
+						}),
+					},
+				}),
+				initialMessages: priorMessages,
+				interactive: true,
+			}),
+		);
+
+		// Simulate an invalid older sidecar squatting in the session: it covers
+		// MORE messages than the live transcript (so it can never project), and
+		// under a count-first stale guard it would block every replacement.
+		const staleState = createSessionCompactionState({
+			sourceMessages: [
+				...runtimeMessages,
+				{ role: "assistant", content: "old extra message", id: "m4", ts: 4 },
+			],
+			compactedMessages: [{ role: "user", content: "stale summary" }],
+			conversationId: sessionId,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const activeSessions = Reflect.get(manager as object, "sessions") as Map<
+			string,
+			{ compactionState?: typeof staleState }
+		>;
+		const activeSession = activeSessions.get(sessionId);
+		expect(activeSession).toBeDefined();
+		if (!activeSession) {
+			throw new Error("expected active session");
+		}
+		activeSession.compactionState = staleState;
+
+		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+		expect(prepareTurn).toBeDefined();
+
+		const result = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: runtimeMessages,
+			apiMessages: runtimeMessages,
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				// Tiny budget so the auto trigger always fires.
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+		expect(result?.messages).toEqual([{ role: "user", content: "summary" }]);
+
+		// The sidecar write must validate against the exact source messages the
+		// state was computed from, not the store's id-less mid-turn shapes.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				source_message_count: runtimeMessages.length,
+				messages: [{ role: "user", content: "summary" }],
+			}),
+		);
 	});
 
 	it("orders equal-length compaction updates by parsed timestamp", async () => {

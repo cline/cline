@@ -22,6 +22,13 @@ import { Logger } from "@/shared/services/Logger"
  */
 const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
 
+/**
+ * Upper bound on opening a diff preview. `vscode.diff` can stall on a busy or wedged
+ * workbench; the preview is purely cosmetic, so a stall must never block the approval
+ * ask or eat into the edit tool's own execution timeout — the edit proceeds without it.
+ */
+const PREVIEW_OPEN_TIMEOUT_MS = 5_000
+
 export interface SdkDiffEditCoordinatorOptions {
 	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
@@ -35,12 +42,18 @@ export interface SdkDiffEditCoordinatorOptions {
 	fallbackApplyPatchExecutor?: ApplyPatchExecutor
 	/** Test seam: overrides the auto-approve preview linger. */
 	autoApprovePreviewLingerMs?: number
+	/** Test seam: overrides how long a preview open may take before the edit proceeds without it. */
+	previewOpenTimeoutMs?: number
+	/** Injectable for tests. Defaults to opening the file via the host's showTextDocument. */
+	showEditedFile?: (absolutePath: string) => Promise<void>
 }
 
 interface DiffEditSession {
 	/** Undefined once the preview has been displaced by a newer same-file preview. */
 	preview: EditPreview | undefined
 	absolutePath: string
+	/** File to show after the write; differs from absolutePath for apply_patch moves. */
+	revealPath: string
 }
 
 /**
@@ -57,17 +70,23 @@ interface DiffEditSession {
  * stream completes, so the approval callback is the only pre-execution point with
  * full input; streaming-during-generation is not possible). Auto-approved edits get
  * a brief preview during execution instead.
+ *
+ * After a successful write, the edited file is opened in a regular editor tab just
+ * before the preview closes, so the user is left looking at the file — the same
+ * show-file-then-close-diff order the legacy DiffViewProvider used.
  */
 export class SdkDiffEditCoordinator {
 	private readonly sessions = new Map<string, DiffEditSession>()
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
 	private readonly autoApprovePreviewLingerMs: number
+	private readonly previewOpenTimeoutMs: number
 
 	constructor(private readonly options: SdkDiffEditCoordinatorOptions) {
 		this.fallbackEditorExecutor = options.fallbackEditorExecutor ?? createEditorExecutor()
 		this.fallbackApplyPatchExecutor = options.fallbackApplyPatchExecutor ?? createApplyPatchExecutor()
 		this.autoApprovePreviewLingerMs = options.autoApprovePreviewLingerMs ?? AUTO_APPROVE_PREVIEW_LINGER_MS
+		this.previewOpenTimeoutMs = options.previewOpenTimeoutMs ?? PREVIEW_OPEN_TIMEOUT_MS
 	}
 
 	/**
@@ -115,6 +134,9 @@ export class SdkDiffEditCoordinator {
 				// just cuts the linger short (the edit has already been applied).
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
+			if (!context.signal?.aborted) {
+				await this.showEditedFile(this.livePreviewRevealPath(toolCallId))
+			}
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
@@ -129,6 +151,9 @@ export class SdkDiffEditCoordinator {
 	async executeApplyPatchTool(input: ApplyPatchInput, cwd: string, context: AgentToolContext): Promise<string> {
 		const toolCallId = context.toolCallId ?? ""
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
+		// The pre-approval preview is discarded before the patch applies, so remember
+		// which file it showed for the post-edit reveal.
+		const preApprovalRevealPath = this.livePreviewRevealPath(toolCallId)
 		try {
 			if (hadPreApprovalPreview) {
 				await this.discardPreview(toolCallId)
@@ -144,9 +169,50 @@ export class SdkDiffEditCoordinator {
 			if (!hadPreApprovalPreview && this.sessions.get(toolCallId)?.preview) {
 				await lingerDelay(this.autoApprovePreviewLingerMs, context.signal)
 			}
+			if (!context.signal?.aborted) {
+				await this.showEditedFile(preApprovalRevealPath ?? this.livePreviewRevealPath(toolCallId))
+			}
 			return result
 		} finally {
 			await this.discardPreview(toolCallId)
+		}
+	}
+
+	/**
+	 * The reveal path for a tool call whose preview tab is still open. Undefined once
+	 * the preview was superseded by a newer same-file preview (the newer diff should
+	 * stay frontmost), failed to open, or was never opened (background edit).
+	 */
+	private livePreviewRevealPath(toolCallId: string): string | undefined {
+		const session = this.sessions.get(toolCallId)
+		return session?.preview ? session.revealPath : undefined
+	}
+
+	/**
+	 * Opens the edited file in a regular editor tab after a successful write, so it
+	 * stays visible once the preview diff tab closes — matching the legacy
+	 * DiffViewProvider.saveChanges() flow (show the file, then close the diff).
+	 * preserveFocus keeps the user's focus (e.g. the chat input) where it was.
+	 * Callers skip the reveal when no live preview accompanied the edit (background
+	 * edit, failed preview open, superseded by a newer same-file preview) and when
+	 * the task was aborted mid-edit — the reveal accompanies the diff, not the write.
+	 * Best-effort: a failure only loses the reveal, never the edit result.
+	 */
+	private async showEditedFile(absolutePath: string | undefined): Promise<void> {
+		if (!absolutePath) {
+			return
+		}
+		try {
+			if (this.options.showEditedFile) {
+				await this.options.showEditedFile(absolutePath)
+			} else {
+				await HostProvider.window.showTextDocument({
+					path: absolutePath,
+					options: { preserveFocus: true, preview: false },
+				})
+			}
+		} catch (error) {
+			Logger.warn(`[SdkDiffEditCoordinator] Failed to show edited file ${absolutePath}: ${error}`)
 		}
 	}
 
@@ -223,6 +289,7 @@ export class SdkDiffEditCoordinator {
 		const [filePath, change] = first
 		await this.openPreview(toolCallId, {
 			absolutePath: resolveEditPath(cwd, filePath),
+			revealPath: resolveEditPath(cwd, change.movePath ?? filePath),
 			displayPath: filePath,
 			editType: change.type === PatchActionType.ADD ? "create" : "modify",
 			leftContent: change.oldContent ?? "",
@@ -234,6 +301,7 @@ export class SdkDiffEditCoordinator {
 		toolCallId: string,
 		content: {
 			absolutePath: string
+			revealPath?: string
 			displayPath: string
 			editType: "create" | "modify"
 			leftContent: string
@@ -261,21 +329,37 @@ export class SdkDiffEditCoordinator {
 			content.editType === "create"
 				? `${fileName}: New File (Preview)`
 				: `${fileName}: Original ↔ Cline's Changes (Preview)`
-		try {
-			await preview.open({
-				title,
-				absolutePath: content.absolutePath,
-				displayPath: content.displayPath,
-				leftContent: content.leftContent,
-				rightContent: content.rightContent,
-			})
-		} catch (error) {
-			// open() can fail after partially opening (the session isn't registered yet,
-			// so discardPreview couldn't reach it) — close directly to avoid an orphaned tab.
-			await preview.close().catch(() => {})
-			throw error
+		// The preview is cosmetic, so a vscode.diff call that rejects or stalls must never
+		// block the approval ask or fail the edit: race the open against a timer and let
+		// callers catch the failure and proceed without a preview.
+		const opened = preview.open({
+			title,
+			absolutePath: content.absolutePath,
+			displayPath: content.displayPath,
+			leftContent: content.leftContent,
+			rightContent: content.rightContent,
+		})
+		const failure = await Promise.race([
+			opened.then(
+				() => undefined,
+				(error) => new Error(`diff preview failed to open: ${error}`),
+			),
+			delay(this.previewOpenTimeoutMs).then(
+				() => new Error(`diff preview did not open within ${this.previewOpenTimeoutMs}ms`),
+			),
+		])
+		if (failure) {
+			// Whenever the open settles — a failed open may have partially opened a tab, a
+			// stalled one may open late — close it so no orphaned tab lingers. (The session
+			// is never registered on failure, so discardPreview couldn't reach it.)
+			void opened.catch(() => {}).finally(() => preview.close().catch(() => {}))
+			throw failure
 		}
-		this.sessions.set(toolCallId, { preview, absolutePath: content.absolutePath })
+		this.sessions.set(toolCallId, {
+			preview,
+			absolutePath: content.absolutePath,
+			revealPath: content.revealPath ?? content.absolutePath,
+		})
 	}
 
 	private createPreview(): EditPreview {
@@ -337,6 +421,10 @@ function resolveEditPath(cwd: string, inputPath: string): string {
 		throw new Error(`Path must stay within cwd: ${inputPath}`)
 	}
 	return resolved
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Waits `ms`, resolving early (never rejecting) if the signal aborts. */

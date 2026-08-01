@@ -49,19 +49,57 @@ export function getShellKind(shell: string): ShellKind {
 	return "posix";
 }
 
-export function getShellArgs(shell: string, command: string): string[] {
+export interface ShellInvocation {
+	args: string[];
+	input?: string;
+}
+
+export function getShellInvocation(
+	shell: string,
+	command: string,
+): ShellInvocation {
 	switch (getShellKind(shell)) {
 		case "powershell":
-			return ["-NoProfile", "-NonInteractive", "-Command", command];
+			// PowerShell's command-line parser decodes -Command through the active
+			// Windows code page. Keep the command line ASCII-only, send the command
+			// through UTF-8 stdin, and make redirected output UTF-8. Stdin also avoids
+			// reducing Windows' process command-line limit with base64 expansion.
+			return {
+				args: [
+					"-NoProfile",
+					"-NonInteractive",
+					"-Command",
+					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
+						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
+						"$c=[Console]::In.ReadToEnd();" +
+						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
+						"& ([ScriptBlock]::Create($c))",
+				],
+				input: command,
+			};
 		case "cmd":
-			return ["/d", "/s", "/c", command];
+			return { args: ["/d", "/s", "/c", command] };
 		// wsl.exe is the Windows launcher for the default WSL distro, not a shell
 		// itself. Run the command through the guest's bash so operators like `|`
 		// and `;` are handled by bash rather than treated as wsl.exe arguments.
 		// wsl.exe translates the Windows cwd to its /mnt mount automatically.
 		case "wsl":
-			return ["bash", "-c", command];
+			return { args: ["bash", "-c", command] };
 		case "posix":
-			return ["-c", command];
+			return { args: ["-c", command] };
 	}
+}
+
+/**
+ * @deprecated Use getShellInvocation() when executing commands so PowerShell
+ * source can travel through Unicode-safe stdin.
+ */
+export function getShellArgs(shell: string, command: string): string[] {
+	if (getShellKind(shell) === "powershell") {
+		// Preserve the public helper's self-contained argument contract. Callers
+		// that can write stdin should use getShellInvocation() for Unicode and
+		// commands beyond Windows' process command-line limit.
+		return ["-NoProfile", "-NonInteractive", "-Command", command];
+	}
+	return getShellInvocation(shell, command).args;
 }

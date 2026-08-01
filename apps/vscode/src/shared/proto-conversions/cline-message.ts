@@ -78,9 +78,9 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		text: ClineSay.TEXT,
 		reasoning: ClineSay.REASONING,
 		completion_result: ClineSay.COMPLETION_RESULT_SAY,
+		plan_completion_result: ClineSay.PLAN_COMPLETION_RESULT,
 		user_feedback: ClineSay.USER_FEEDBACK,
 		user_feedback_diff: ClineSay.USER_FEEDBACK_DIFF,
-		api_req_retried: ClineSay.API_REQ_RETRIED,
 		command: ClineSay.COMMAND_SAY,
 		command_output: ClineSay.COMMAND_OUTPUT_SAY,
 		tool: ClineSay.TOOL_SAY,
@@ -101,13 +101,13 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
-		error_retry: ClineSay.ERROR_RETRY,
 		hook_status: ClineSay.HOOK_STATUS,
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
 		subagent: ClineSay.SUBAGENT_STATUS,
 		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
 		subagent_usage: ClineSay.SUBAGENT_USAGE,
+		compaction: ClineSay.COMPACTION,
 	}
 
 	const result = mapping[say]
@@ -129,9 +129,9 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.TEXT]: "text",
 		[ClineSay.REASONING]: "reasoning",
 		[ClineSay.COMPLETION_RESULT_SAY]: "completion_result",
+		[ClineSay.PLAN_COMPLETION_RESULT]: "plan_completion_result",
 		[ClineSay.USER_FEEDBACK]: "user_feedback",
 		[ClineSay.USER_FEEDBACK_DIFF]: "user_feedback_diff",
-		[ClineSay.API_REQ_RETRIED]: "api_req_retried",
 		[ClineSay.COMMAND_SAY]: "command",
 		[ClineSay.COMMAND_OUTPUT_SAY]: "command_output",
 		[ClineSay.TOOL_SAY]: "tool",
@@ -151,13 +151,13 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
-		[ClineSay.ERROR_RETRY]: "error_retry",
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
 		[ClineSay.SUBAGENT_STATUS]: "subagent",
 		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
 		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
+		[ClineSay.COMPACTION]: "compaction",
 	}
 
 	return mapping[say]

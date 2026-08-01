@@ -10,7 +10,10 @@ import type { ProviderSettings } from "../../services/llms/provider-settings";
 import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
-import type { CoreSessionConfig } from "../../types/config";
+import type {
+	ClineCoreStartConfig,
+	CoreSessionConfig,
+} from "../../types/config";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
@@ -69,6 +72,11 @@ export type RuntimeSessionConfig = Omit<
 	compaction?: Omit<NonNullable<CoreSessionConfig["compaction"]>, "compact">;
 };
 
+/** Workspace paths may be omitted only at the session-start boundary. */
+export type StartSessionConfig = Omit<RuntimeSessionConfig, "cwd"> & {
+	cwd?: string;
+};
+
 export type LocalRuntimeBootstrapConfig = Pick<
 	CoreSessionConfig,
 	LocalOnlyCoreSessionConfigKeys
@@ -100,7 +108,7 @@ export interface LocalRuntimeStartOptions {
 }
 
 export interface StartSessionInput {
-	config: RuntimeSessionConfig;
+	config: StartSessionConfig;
 	source?: SessionSource;
 	prompt?: string;
 	interactive?: boolean;
@@ -119,8 +127,14 @@ export interface StartSessionInput {
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
 }
 
-export function splitCoreSessionConfig(config: CoreSessionConfig): {
+/** Session input after the execution host has resolved a concrete workspace. */
+export interface ResolvedStartSessionInput
+	extends Omit<StartSessionInput, "config"> {
 	config: RuntimeSessionConfig;
+}
+
+export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
+	config: StartSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
 } {
 	const {
@@ -325,6 +339,16 @@ export interface RuntimeHost {
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	/**
+	 * Like {@link readSessionMessages}, but prefers the resident session's
+	 * in-memory conversation over the persisted transcript. Disk persistence
+	 * happens at assistant-message/turn boundaries (and abort() does not
+	 * flush), so this is the accurate read for callers that need the
+	 * conversation of an in-flight or just-aborted turn — e.g. rebuilding a
+	 * session for a mode switch. Optional: hosts without live-session access
+	 * (e.g. hub clients) fall back to the persisted transcript.
+	 */
+	readLiveSessionMessages?(sessionId: string): Promise<LlmsProviders.Message[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

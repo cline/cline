@@ -151,6 +151,29 @@ describe("workspace paths", () => {
 		).toBe(true);
 	});
 
+	it("excludes the SDK chat workspace from discovery and stored selections", () => {
+		const temporaryWorkspace = "/home/host/.cline/data/workspaces/chat";
+
+		expect(isExcludedWorkspacePath(temporaryWorkspace)).toBe(true);
+		expect(
+			workspacePathsFromSessions([
+				{ workspaceRoot: temporaryWorkspace },
+				{ workspaceRoot: "/projects/app" },
+			]),
+		).toEqual(["/projects/app"]);
+		expect(
+			parseWorkspaceSelectionStorage(
+				JSON.stringify({
+					lastWorkspace: temporaryWorkspace,
+					workspaces: [temporaryWorkspace, "/projects/app"],
+				}),
+			),
+		).toEqual({
+			lastWorkspace: "",
+			workspaces: ["/projects/app"],
+		});
+	});
+
 	describe("with a registered host home directory", () => {
 		afterEach(() => {
 			registerHostHomeDirectory("");

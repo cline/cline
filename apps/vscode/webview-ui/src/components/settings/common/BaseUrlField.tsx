@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**
@@ -27,10 +27,21 @@ export const BaseUrlField = ({
 	showLockIcon = false,
 }: BaseUrlFieldProps) => {
 	const [isEnabled, setIsEnabled] = useState(!!initialValue)
-	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", onChange)
+	const userToggledRef = useRef(false)
+	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", (value: string) => onChange(value.trim()))
+
+	// Provider config loads asynchronously, so a saved base URL usually arrives
+	// after mount (initialValue starts undefined). Reflect it in the checkbox
+	// once it lands, unless the user has already toggled the box themselves.
+	useEffect(() => {
+		if (!userToggledRef.current) {
+			setIsEnabled(!!initialValue)
+		}
+	}, [initialValue])
 
 	const handleToggle = (e: any) => {
 		const checked = e.target.checked === true
+		userToggledRef.current = true
 		setIsEnabled(checked)
 		if (!checked) {
 			setLocalValue("")
@@ -50,7 +61,7 @@ export const BaseUrlField = ({
 			{isEnabled && (
 				<VSCodeTextField
 					disabled={disabled}
-					onInput={(e: any) => setLocalValue(e.target.value.trim())}
+					onInput={(e: any) => setLocalValue(e.target.value)}
 					placeholder={placeholder}
 					style={{ width: "100%", marginTop: 3 }}
 					type="text"

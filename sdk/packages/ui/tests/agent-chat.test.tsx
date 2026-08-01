@@ -113,12 +113,34 @@ describe("@cline/ui agent chat primitives", () => {
 		const panelId = trigger?.getAttribute("aria-controls");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(document.getElementById(panelId ?? "")).toBeNull();
+		expect(
+			container.querySelector(".cline-chat-disclosure-icon"),
+		).not.toBeNull();
 
 		await act(async () => trigger?.click());
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
 		expect(document.getElementById(panelId ?? "")?.textContent).toContain(
 			"theme.css",
 		);
+	});
+
+	it("hides the disclosure chevron on request while keeping the row clickable", async () => {
+		await render(
+			<ToolActivity>
+				<ToolActivityTrigger label="Edited 2 files" showDisclosureIcon={false} />
+				<ToolActivityContent>theme.css</ToolActivityContent>
+			</ToolActivity>,
+		);
+
+		const trigger = container.querySelector("button");
+		expect(container.querySelector(".cline-chat-disclosure-icon")).toBeNull();
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(
+			document.getElementById(trigger?.getAttribute("aria-controls") ?? "")
+				?.textContent,
+		).toContain("theme.css");
 	});
 
 	it("offers a scroll-to-latest action after the reader moves away", async () => {

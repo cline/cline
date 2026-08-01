@@ -33,7 +33,6 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -845,9 +844,14 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata).toEqual(
 		expect.objectContaining({
 			modelSupportsImages: true,
-			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 		}),
 	);
+	// The live telemetry service is a host object with cyclic internals; it
+	// must never ride on toolContextMetadata, which crosses process
+	// boundaries over JSON IPC (plugin sandbox, hub clients).
+	expect(
+		Object.values(runtimeConfig.toolContextMetadata ?? {}),
+	).not.toContain(telemetry);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 

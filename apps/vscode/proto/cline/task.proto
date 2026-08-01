@@ -29,7 +29,7 @@ service TaskService {
   rpc newTask(NewTaskRequest) returns (String);
   // Shows a task with the specified ID
   rpc showTaskWithId(StringRequest) returns (TaskResponse);
-  // Exports a task with the given ID to markdown
+  // Opens the on-disk session directory (messages json, logs) for the task with the given ID
   rpc exportTaskWithId(StringRequest) returns (Empty);
   // Toggles the favorite status of a task
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);

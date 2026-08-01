@@ -193,6 +193,15 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
+export {
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
@@ -212,6 +221,8 @@ export {
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
+export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
@@ -223,7 +234,9 @@ export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
 	getShellArgs,
+	getShellInvocation,
 	getShellKind,
+	type ShellInvocation,
 	type ShellKind,
 } from "./parse/shell";
 export {
@@ -258,6 +271,7 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
@@ -443,6 +457,11 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";

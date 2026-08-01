@@ -279,6 +279,63 @@ describe("provider model catalog handlers", () => {
 		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
 	})
 
+	// The settings UI sources provider ids from the SDK catalog, whose OpenAI
+	// Compatible built-in is spelled `openai-compatible`. Committing under that
+	// spelling must land on the legacy `openai` state keys
+	// (`actModeApiProvider` / `actModeOpenAiModelId`), otherwise the chat view
+	// and session factory (both keyed by `openai`) read stale or default
+	// models (gpt-4o) instead of the user's selection.
+	it("commitModelSelection folds the SDK openai-compatible spelling to legacy openai state keys", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("openai-compatible")
+		expect(providerId).toBe("openai")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const controller = makeController(store, makeCatalog(), stateManager)
+
+		await commitModelSelection(controller, {
+			providerId: "openai-compatible",
+			mode: "act",
+			modelId: "my-custom-model",
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "my-custom-model",
+			overrides: undefined,
+		})
+		expect(stateManager.setGlobalStateBatch).toHaveBeenCalledWith({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "my-custom-model",
+		})
+	})
+
+	// The model label under the chat input renders from pushed extension
+	// state; a model-only commit must push state itself instead of waiting
+	// for an unrelated action (e.g. sending a message) to refresh it.
+	it("commitModelSelection posts updated state to the webview when available", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const postStateToWebview = vi.fn(async () => undefined)
+		const controller = { ...makeController(store, makeCatalog(), stateManager), postStateToWebview }
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+		})
+
+		expect(postStateToWebview).toHaveBeenCalledTimes(1)
+	})
+
 	// The overrides field is tri-state: absent preserves the model's stored
 	// overrides, an explicitly empty message clears them, and a populated
 	// message replaces them. The two boundary cases are pinned here because

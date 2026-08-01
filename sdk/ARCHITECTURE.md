@@ -149,6 +149,18 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Workspace bootstrap is owned by the runtime that executes the session. Hub
+clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
+the hub-side execution host can place the session in the shared chat
+workspace on its own filesystem at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`). The chat workspace is seeded with an
+`AGENTS.md` rules file that tells the agent to treat the session as a chat
+and to create a named project folder only when the user asks for one.
+The resolved paths are returned in the session snapshot and are the source of
+truth for client-side manifests; transport clients must not invent a local path
+for a remote runtime.
+
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
 binary immediately before a command restarts the shared hub.
@@ -180,6 +192,15 @@ different process.
 3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
+
+### Connector Persistence and Recovery
+
+1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
+2. Dashboard configuration and CLI connection state are recorded separately. Configuration edits replace only dashboard-owned connector and security flags in stored reconnect arguments, preserving CLI-only runtime options, and refresh arguments only for connectors that have previously started successfully.
+3. `@cline/core` owns connector autostart persistence and reconnect orchestration. The detached hub daemon is the sole startup reconnect owner, preventing dashboard startup from racing it and launching duplicate processes.
+4. Detached connector starts are persisted only after a child process is created. Internal detached children preserve that state when they exit, while a clean user-interactive exit disables autostart.
+5. CLI and dashboard hosts pass their connector CLI launch specification through the detached process environment. The package-owned daemon entrypoint uses that specification to start connector reconnect wrappers without importing application code.
+6. The detached hub entrypoint exposes `hubDaemonReady`, which resolves only after the WebSocket server is listening. It begins reconnect attempts after signaling readiness, and reconnect failures remain best-effort rather than taking down the hub.
 
 ### Remote-Config Managed Runtime
 
