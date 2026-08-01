@@ -76,6 +76,7 @@ describe("parseAssistantXml", () => {
 				params: { path: "src/main.ts" },
 				partial: false,
 				raw: "<read_file>\n<path>src/main.ts</path>\n</read_file>",
+				start: 23,
 			},
 		]);
 	});
@@ -126,6 +127,7 @@ describe("parseAssistantXml", () => {
 				params: { path: "src/main.ts" },
 				partial: true,
 				raw: "<read_file>\n<path>src/main.ts",
+				start: 15,
 			},
 		]);
 	});

@@ -246,6 +246,8 @@ export interface ParsedToolUseBlock {
 	partial: boolean;
 	/** Original source slice for this tool use (open tag through close tag). */
 	raw: string;
+	/** Index of the opening tag's `<` in the source text. */
+	start: number;
 }
 
 export type ParsedAssistantBlock = ParsedTextBlock | ParsedToolUseBlock;
@@ -369,6 +371,7 @@ export function parseAssistantXml(
 					params: tool.params,
 					partial: false,
 					raw: text.slice(tool.openTagStart, i + 1),
+					start: tool.openTagStart,
 				});
 				tool = undefined;
 				textStart = i + 1;
@@ -411,6 +414,7 @@ export function parseAssistantXml(
 			params: tool.params,
 			partial: true,
 			raw: text.slice(tool.openTagStart),
+			start: tool.openTagStart,
 		});
 	} else {
 		const trailingText = text.slice(textStart).trim();

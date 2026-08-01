@@ -10,8 +10,8 @@
  *   per-turn tool documentation are appended to the system prompt, and prior
  *   native tool calls/results in history are rewritten into XML/plain text.
  * - Response: assistant text is buffered while the provider streams (reasoning
- *   and usage events pass through live), then parsed once at end of stream; a
- *   well-formed terminal tool use is emitted as a native `tool-call-delta` so
+ *   and usage events pass through live), then parsed once at end of stream; the
+ *   first well-formed tool use is emitted as a native `tool-call-delta` so
  *   everything downstream — approvals, executors, persistence, UI — sees an
  *   ordinary native tool call. Text that fails the executability gates is
  *   emitted verbatim as text.
@@ -131,16 +131,11 @@ function isInsideMarkdownFence(text: string): boolean {
 }
 
 /**
- * A tool use is executable only when it terminates the message, starts at
- * (or near) the beginning of a line, and is not inside an open markdown
- * fence — XML that is quoted inline, fenced as an example, or followed by
- * more prose stays plain text.
+ * A tool use is executable only when it starts at (or near) the beginning of
+ * a line and is not inside an open markdown fence — XML that is quoted inline
+ * in a sentence or fenced as an example stays plain text.
  */
-function isExecutableXmlCall(text: string, raw: string): boolean {
-	const callStart = text.indexOf(raw);
-	if (callStart === -1 || text.slice(callStart + raw.length).trim()) {
-		return false;
-	}
+function isExecutableXmlCall(text: string, callStart: number): boolean {
 	const lineStart = text.lastIndexOf("\n", callStart - 1) + 1;
 	return (
 		/^ {0,3}$/.test(text.slice(lineStart, callStart)) &&
@@ -156,35 +151,35 @@ interface ExecutableXmlCall {
 }
 
 /**
- * Parse the assistant's complete text and return the single executable tool
- * use, or undefined when the text should stay plain text (no tool tags,
- * multiple/partial/unknown calls, or a call that fails the position gates).
+ * Parse the assistant's complete text and return the first executable tool
+ * use, or undefined when the text carries none (no tool tags, only partial or
+ * unknown calls, or calls that fail the position gates).
+ *
+ * Only the first executable call runs, and anything after it is dropped, which
+ * is how the legacy extension behaved: models instructed to use one tool per
+ * message routinely append a sentence — or a second call — after the one they
+ * meant to run, and refusing the whole message would leak raw XML into the
+ * chat and strand the task.
  */
 export function extractExecutableXmlCall(
 	text: string,
 	specs: ReadonlyMap<string, XmlToolSpec>,
 ): ExecutableXmlCall | undefined {
-	const blocks = parseAssistantXml(text, specs);
-	const toolBlocks = blocks.filter((block) => block.type === "tool_use");
-	const candidate = toolBlocks[0];
-	if (
-		toolBlocks.length !== 1 ||
-		!candidate ||
-		candidate.partial ||
-		blocks.at(-1) !== candidate ||
-		!isExecutableXmlCall(text, candidate.raw)
-	) {
-		return undefined;
+	for (const block of parseAssistantXml(text, specs)) {
+		if (block.type !== "tool_use" || block.partial) {
+			continue;
+		}
+		const spec = specs.get(block.name);
+		if (!spec || !isExecutableXmlCall(text, block.start)) {
+			continue;
+		}
+		return {
+			toolName: block.name,
+			input: coerceToolInput(block.params, spec),
+			prose: text.slice(0, block.start).trimEnd(),
+		};
 	}
-	const spec = specs.get(candidate.name);
-	if (!spec) {
-		return undefined;
-	}
-	return {
-		toolName: candidate.name,
-		input: coerceToolInput(candidate.params, spec),
-		prose: text.slice(0, text.indexOf(candidate.raw)).trimEnd(),
-	};
+	return undefined;
 }
 
 // ---------------------------------------------------------------------------

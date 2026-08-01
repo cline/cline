@@ -195,22 +195,24 @@ describe("extractExecutableXmlCall", () => {
 		).toBeUndefined();
 	});
 
-	it("rejects multiple tool calls", () => {
-		expect(
-			extractExecutableXmlCall(
-				"<read_file><path>a.ts</path></read_file>\n<read_file><path>b.ts</path></read_file>",
-				specs,
-			),
-		).toBeUndefined();
+	it("runs only the first of several tool calls", () => {
+		const call = extractExecutableXmlCall(
+			"<read_file><path>a.ts</path></read_file>\n<read_file><path>b.ts</path></read_file>",
+			specs,
+		);
+		expect(call?.input).toEqual({ path: "a.ts" });
 	});
 
-	it("rejects a call followed by more prose", () => {
-		expect(
-			extractExecutableXmlCall(
-				"<read_file><path>a.ts</path></read_file>\nand then some",
-				specs,
-			),
-		).toBeUndefined();
+	it("runs a call followed by trailing prose", () => {
+		const call = extractExecutableXmlCall(
+			"<read_file><path>a.ts</path></read_file>\nand then some",
+			specs,
+		);
+		expect(call).toEqual({
+			toolName: "read_file",
+			input: { path: "a.ts" },
+			prose: "",
+		});
 	});
 
 	it("rejects a call quoted inline in a sentence", () => {
@@ -229,6 +231,23 @@ describe("extractExecutableXmlCall", () => {
 				specs,
 			),
 		).toBeUndefined();
+	});
+
+	it("skips a fenced example and runs the real call that follows", () => {
+		const call = extractExecutableXmlCall(
+			"For example:\n```xml\n<read_file><path>a.ts</path></read_file>\n```\n\n<read_file>\n<path>b.ts</path>\n</read_file>",
+			specs,
+		);
+		expect(call?.input).toEqual({ path: "b.ts" });
+		expect(call?.prose).toContain("For example:");
+	});
+
+	it("skips an inline mention and runs the real call that follows", () => {
+		const call = extractExecutableXmlCall(
+			"you could run <read_file><path>a.ts</path></read_file>\n\n<read_file>\n<path>b.ts</path>\n</read_file>",
+			specs,
+		);
+		expect(call?.input).toEqual({ path: "b.ts" });
 	});
 });
 
