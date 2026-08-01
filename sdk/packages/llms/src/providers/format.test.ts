@@ -90,7 +90,7 @@ describe("ClineNotSubscribedError", () => {
 	it("detects the formatted ClinePass subscription message regardless of URL", () => {
 		expect(
 			isClineNotSubscribedMessage(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-8OFF&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan:",
 			),
 		).toBe(true);
 	});

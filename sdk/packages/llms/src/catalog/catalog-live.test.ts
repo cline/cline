@@ -433,7 +433,7 @@ describe("models-dev-catalog", () => {
 						structured_output: true,
 						temperature: true,
 						release_date: "2026-01-01",
-						modalities: { input: ["text", "image"] },
+						modalities: { input: ["text", "image", "video"] },
 						limit: { context: 1_000_000 },
 						cost: { input: 1, output: 2, cache_write: 0.8 },
 						status: "preview",
@@ -491,6 +491,7 @@ describe("models-dev-catalog", () => {
 					maxTokens: 4096,
 					capabilities: [
 						"images",
+						"video",
 						"tools",
 						"reasoning",
 						"structured_output",
@@ -590,6 +591,19 @@ describe("models-dev-catalog", () => {
 				"openai/gpt-5.3-codex"
 			]?.contextWindow,
 		).toBe(400_000);
+	});
+
+	it("includes video input for direct MiniMax M3 catalog entries", () => {
+		for (const providerId of [
+			"minimax",
+			"minimax-cn",
+			"minimax-coding-plan",
+			"minimax-cn-coding-plan",
+		]) {
+			expect(
+				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
+			).toEqual(expect.arrayContaining(["images", "video"]));
+		}
 	});
 
 	it("fetches and normalizes models.dev payload", async () => {

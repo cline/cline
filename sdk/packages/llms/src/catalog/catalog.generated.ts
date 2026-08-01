@@ -41934,6 +41934,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 128000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -42082,6 +42083,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 128000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -42230,6 +42232,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 128000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature"
@@ -42373,6 +42376,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 128000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature"

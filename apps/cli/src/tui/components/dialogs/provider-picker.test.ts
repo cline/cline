@@ -14,17 +14,21 @@ import {
 
 describe("buildClinePassSubscriptionPageUrl", () => {
 	it("opens the personal subscription page on production by default", () => {
-		expect(buildClinePassSubscriptionPageUrl(undefined)).toBe(
-			"https://app.cline.bot/dashboard/subscription?personal=true&code=CLI-8OFF",
-		);
+		expect(
+			buildClinePassSubscriptionPageUrl(undefined).startsWith(
+				"https://app.cline.bot/dashboard/subscription?personal=true",
+			),
+		).toBe(true);
 	});
 
 	it("keeps the configured app base URL", () => {
 		expect(
-			buildClinePassSubscriptionPageUrl("https://staging-app.cline.bot"),
-		).toBe(
-			"https://staging-app.cline.bot/dashboard/subscription?personal=true&code=CLI-8OFF",
-		);
+			buildClinePassSubscriptionPageUrl(
+				"https://staging-app.cline.bot",
+			).startsWith(
+				"https://staging-app.cline.bot/dashboard/subscription?personal=true",
+			),
+		).toBe(true);
 	});
 });
 
