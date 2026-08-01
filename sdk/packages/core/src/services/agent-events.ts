@@ -218,20 +218,6 @@ export function handleAgentEvent(
 		});
 	}
 
-	// NOTE: agent `error` events are deliberately NOT captured as
-	// task.provider_api_error here. Most of them are not provider API errors:
-	// the MistakeTracker emits a `recoverable: true` error event for EVERY
-	// recorded mistake (failed tool calls, invalid tool calls — with the
-	// mistake details as the message), and hook failures surface the same way.
-	// Capturing them here (a) misclassified tool/mistake noise as provider API
-	// errors and (b) double-counted alongside the VS Code adapter's own
-	// classified capture (SdkController.captureProviderFailure), which skewed
-	// the A/B rollout error dashboards ~9x against the SDK extension.
-	// Host adapters own this event: they classify (errorType/failurePhase) and
-	// gate on `recoverable === false`. If CLI/hub-side provider-error telemetry
-	// is wanted, it belongs at the provider layer (@cline/llms), not on the
-	// agent event stream.
-
 	if (event.type === "usage" && liveSession?.turnUsageBaseline) {
 		const usageDelta = usageDeltaFromEvent(event);
 		if (isPrimaryAgentEvent) {
