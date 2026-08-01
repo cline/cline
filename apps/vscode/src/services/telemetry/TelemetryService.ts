@@ -1484,6 +1484,12 @@ export class TelemetryService {
 		requestId?: string | undefined
 		errorType?: string | undefined
 		failurePhase?: string | undefined
+		// Whether this failure surfaced to the user rather than being
+		// auto-retried. Always true from the SDK adapter (transient errors are
+		// retried inside the provider layer before any event fires); the
+		// legacy extension emits per-attempt with terminal=false on attempts
+		// that will auto-retry. Cross-cohort comparisons filter terminal=true.
+		terminal?: boolean
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
