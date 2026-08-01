@@ -12,6 +12,7 @@ import { BannerService } from "../banner/BannerService"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
+import { notifyRolloutStanddown, shouldStandDownAuth } from "./rollout-standdown"
 import { LogoutReason } from "./types"
 
 export type ServiceConfig = {
@@ -256,6 +257,15 @@ export class AuthService {
 		if (strict && this._authenticated) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
+		}
+
+		// Rollout stand-down: signing in from a legacy straggler window would
+		// create a token family the next bundle never sees (its credential
+		// migration runs only once). Point the user at the window reload that
+		// switches them to the next bundle instead.
+		if (shouldStandDownAuth()) {
+			notifyRolloutStanddown()
+			return String.create({ value: "Reload this window to sign in on the new version of Cline" })
 		}
 
 		const callbackUrl = await HostProvider.get().getCallbackUrl("/auth")

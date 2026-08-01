@@ -11,6 +11,7 @@ import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
+import { notifyRolloutStanddown, shouldStandDownAuth } from "../rollout-standdown"
 
 interface ClineAuthApiUser {
 	subject: string | null
@@ -188,6 +189,22 @@ export class ClineAuthProvider {
 			}
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
+				// Rollout stand-down: this machine is assigned to the next
+				// bundle, so this legacy window must never rotate the shared
+				// refresh token again (the next bundle owns the token family
+				// now — a rotation from here would strand it with a consumed
+				// token). Keep using the current access token until it truly
+				// expires, then surface a "reload this window" notice instead
+				// of refreshing. The stored blob is deliberately left intact.
+				if (shouldStandDownAuth()) {
+					if (this.timeUntilExpiry(storedAuthData.idToken) > 30) {
+						return storedAuthData
+					}
+					Logger.debug("Rollout stand-down: suppressing token refresh in legacy straggler window")
+					notifyRolloutStanddown()
+					return null
+				}
+
 				// If the token hasn't expired yet,
 				// and it failed the first refresh attempt
 				// with something other than invalid token
