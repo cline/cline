@@ -124,6 +124,7 @@
 									}
 								]
 							},
+							"usage/acp",
 							{
 								"group": "Kanban",
 								"pages": [
@@ -768,7 +769,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/usage/cli-overview#editor-integration-acp"
+			"destination": "/usage/acp"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",
