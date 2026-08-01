@@ -1,5 +1,4 @@
 import {
-	chmodSync,
 	copyFileSync,
 	cpSync,
 	existsSync,
@@ -130,18 +129,6 @@ if (result.logs.length > 0) {
 		console.warn(log);
 	}
 }
-
-// Ship the open package's fallback `xdg-open` script next to the bundle.
-// Bun.build inlines open's JS but not this file, and open only uses it when
-// it sits beside the code — without it, Linux hosts lacking xdg-utils cannot
-// open URLs at all (see src/utils/open-url.ts).
-const xdgOpenSourcePath = join(
-	dirname(fileURLToPath(import.meta.resolve("open"))),
-	"xdg-open",
-);
-const xdgOpenDistPath = join(rootDir, "dist/xdg-open");
-copyFileSync(xdgOpenSourcePath, xdgOpenDistPath);
-chmodSync(xdgOpenDistPath, 0o755);
 
 const coreBootstrapPath = join(
 	rootDir,

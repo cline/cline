@@ -4,36 +4,32 @@ import { fileURLToPath } from "node:url";
 import realOpen from "open";
 
 /**
- * Drop-in replacement for the `open` package's default export that handles
- * Linux hosts without `xdg-open`. Import this module instead of `open`;
- * everything else about how `open` is called stays the same.
+ * Drop-in for the `open` package that doesn't crash Linux hosts missing
+ * `xdg-open`. Import this instead of `open`; everything else stays the same.
  *
- * Why this is needed:
- *
- * 1. The missing-binary failure cannot be handled around the `open()` call.
- *    With `{ wait: false }` it resolves to a detached, listenerless child
- *    before the opener binary is known to exist, and the ENOENT arrives as
- *    an asynchronous `error` event on that child. Under Bun — the runtime
- *    the compiled CLI ships on — the event fires before the microtask queue
- *    drains, so no `try/catch` or `.catch()` can intercept it and it
- *    escalates to an uncaughtException that kills the process. This wrapper
- *    instead rejects up front (which the call sites' existing `.catch()`
- *    fallbacks handle) rather than ever letting `open` spawn a missing
- *    binary.
- *
- * 2. The `open` package ships its own copy of the `xdg-open` script as a
- *    fallback for hosts without xdg-utils (the script internally tries
- *    gio/gvfs-open/kde-open/exo-open/D-Bus and `$BROWSER`), but it only
- *    uses the copy sitting next to its own `index.js` — a location that
- *    does not survive bundling: `Bun.build` inlines the JS without the
- *    script, and compiled binaries resolve it inside the virtual bunfs.
- *    The build ships the script with the CLI (bun.mts and script/build.ts),
- *    and this wrapper hands it to `open` explicitly via the `app` option.
+ * The crash cannot be handled around the `open()` call: with
+ * `{ wait: false }` it resolves to a detached, listenerless child before the
+ * opener binary is known to exist, and the ENOENT arrives as an
+ * asynchronous `error` event on that child. Under Bun — the runtime the
+ * compiled CLI ships on — the event fires before the microtask queue
+ * drains, so no `try/catch` or `.catch()` can intercept it and it escalates
+ * to an uncaughtException that kills the process. So the check happens
+ * before `open()` is ever called, and failure surfaces as a normal
+ * rejection that the call sites' existing `.catch()` fallbacks handle.
  */
+
+function isExecutable(filePath: string): boolean {
+	try {
+		accessSync(filePath, fsConstants.X_OK);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 /**
  * WSL reports `process.platform === "linux"` but `open` launches URLs there
- * through `powershell.exe`, not `xdg-open`, so it must skip the fallback.
+ * through `powershell.exe`, not `xdg-open`, so it must skip the check.
  */
 function isWsl(): boolean {
 	try {
@@ -45,16 +41,7 @@ function isWsl(): boolean {
 	}
 }
 
-function isExecutable(filePath: string): boolean {
-	try {
-		accessSync(filePath, fsConstants.X_OK);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-function hasXdgOpen(): boolean {
+function systemHasXdgOpen(): boolean {
 	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
 		if (dir && isExecutable(join(dir, "xdg-open"))) {
 			return true;
@@ -63,20 +50,22 @@ function hasXdgOpen(): boolean {
 	return false;
 }
 
-function shippedXdgOpenScript(): string | undefined {
-	const candidates = [
-		// Compiled binary: @cline/cli-linux-*/bin/cline -> bin/xdg-open.
-		join(dirname(process.execPath), "xdg-open"),
-		// Bundled dist/index.js -> dist/xdg-open.
-		join(dirname(fileURLToPath(import.meta.url)), "xdg-open"),
-	];
+/**
+ * The `open` package ships its own copy of the `xdg-open` script (it works
+ * without xdg-utils, falling back to gio/kde-open/`$BROWSER` internally),
+ * but only uses the copy next to its own `index.js` — a location that does
+ * not survive Bun bundling/compiling. When a real copy is on disk anyway
+ * (running from source, or an `xdg-open` placed next to the binary), hand
+ * it to `open` explicitly.
+ */
+function packagedXdgOpenScript(): string | undefined {
+	const candidates: string[] = [];
 	try {
-		// Running from source: use the script inside the open package itself
-		// (the same file open would resolve on its own in this case).
 		candidates.push(
 			join(dirname(fileURLToPath(import.meta.resolve("open"))), "xdg-open"),
 		);
 	} catch {}
+	candidates.push(join(dirname(process.execPath), "xdg-open"));
 	return candidates.find((candidate) => isExecutable(candidate));
 }
 
@@ -85,14 +74,12 @@ const open: typeof realOpen = async (target, options) => {
 		process.platform === "linux" &&
 		!options?.app &&
 		!isWsl() &&
-		!hasXdgOpen()
+		!systemHasXdgOpen()
 	) {
-		const script = shippedXdgOpenScript();
+		const script = packagedXdgOpenScript();
 		if (!script) {
 			throw new Error("Cannot open browser: xdg-open is not available");
 		}
-		// Spawns the script with the target exactly like open would spawn its
-		// own copy (same arguments, same stdio/detach handling).
 		return realOpen(target, { ...options, app: { name: script } });
 	}
 	return realOpen(target, options);

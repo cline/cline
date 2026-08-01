@@ -74,16 +74,16 @@ describe("open wrapper (linux)", () => {
 		});
 	});
 
-	it("falls back to the shipped xdg-open script when PATH has none", async () => {
+	it("falls back to a packaged xdg-open script when PATH has none", async () => {
 		usePlatform("linux");
 		process.env.PATH = "/nowhere";
-		// The build ships open's fallback script next to the executable.
-		const shipped = join(dirname(process.execPath), "xdg-open");
-		mockExecutables(shipped);
+		// e.g. an xdg-open placed next to the executable.
+		const packaged = join(dirname(process.execPath), "xdg-open");
+		mockExecutables(packaged);
 		await open("https://example.com", { wait: false });
 		expect(hoisted.realOpenMock).toHaveBeenCalledWith("https://example.com", {
 			wait: false,
-			app: { name: shipped },
+			app: { name: packaged },
 		});
 	});
 
