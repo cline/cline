@@ -1135,7 +1135,13 @@ export class AgentRuntime {
 					finishReason = event.reason;
 					if (event.error) {
 						this.state.lastError = event.error;
-						this.state.lastErrorClass = event.errorClass;
+						// Models that classify at their own error boundary (where the
+						// raw provider error is still structured) win. Anything else —
+						// custom `AgentModel` implementations, adapters that carry only
+						// a flattened message — is classified from the message so it
+						// stays eligible for overflow recovery.
+						this.state.lastErrorClass =
+							event.errorClass ?? classifyProviderError(event.error);
 					}
 					break;
 				}
@@ -1369,6 +1375,16 @@ export class AgentRuntime {
 		if (overflowRecovery) {
 			// Only retry a provider-rejected overflow with a request that is
 			// actually smaller — anything else is guaranteed to fail again.
+			//
+			// Serialized length is a coarse proxy for tokens, which is all this
+			// backstop needs: it answers "did anything get removed at all" for
+			// arbitrary `prepareTurn` implementations, and the shared estimator
+			// is itself linear in character count, so switching units would not
+			// change the verdict. Authoritative token budgeting (against the
+			// model's limit) happens inside the compaction pipeline.
+			// TODO: have `prepareTurn` report the token estimates it already
+			// computed (before/after) so this decision can use real numbers
+			// instead of re-deriving a proxy here.
 			const shrunk =
 				result?.messages !== undefined &&
 				JSON.stringify(result.messages).length <

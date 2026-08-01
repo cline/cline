@@ -471,10 +471,12 @@ export function createContextCompactionPrepareTurn(
 					// retried), strictly smaller than the input (the runtime
 					// refuses a retry that is not smaller), and within the
 					// recovery token target (a marginal shrink spends the run's
-					// single retry on a request that still cannot fit).
+					// single retry on a request that still cannot fit). Both size
+					// comparisons use the token estimator rather than serialized
+					// length so they are expressed in the same unit as the target.
 					const acceptable =
 						result.messages.length > 0 &&
-						safeJsonSize(result.messages) < safeJsonSize(context.messages) &&
+						customMessageTokens < messageInputTokens &&
 						customMessageTokens <= messageTargetTokens;
 					if (!acceptable) {
 						config.logger?.log(

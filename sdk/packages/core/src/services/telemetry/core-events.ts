@@ -528,8 +528,6 @@ export function captureProviderApiError(
 		provider?: string;
 		errorStatus?: number;
 		requestId?: string;
-		/** Classification of the provider error (e.g. context_window_exceeded). */
-		errorClass?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR, {

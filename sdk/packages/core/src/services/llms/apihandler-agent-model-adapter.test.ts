@@ -194,6 +194,66 @@ describe("createAgentModelFromApiHandler", () => {
 		});
 	});
 
+	it("classifies a context-window overflow thrown by the handler", async () => {
+		// Registered handlers (e.g. VS Code LM) reject over-window requests by
+		// throwing; the classification has to survive the flattening to a
+		// message string or the runtime cannot start overflow recovery.
+		const overflow = Object.assign(new Error("Bad Request"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			}),
+		});
+		const handler: ApiHandler = {
+			getMessages: () => [],
+			getModel: (): HandlerModelInfo => ({ id: "m", info: { id: "m" } }),
+			// eslint-disable-next-line require-yield
+			async *createMessage(): AsyncGenerator<ApiStreamChunk> {
+				throw overflow;
+			},
+		};
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			errorClass: "context_window_exceeded",
+		});
+	});
+
+	it("classifies a context-window overflow reported by a failed done chunk", async () => {
+		const handler = fakeHandler([
+			{
+				type: "done",
+				success: false,
+				error: "This model's maximum context length is 40960 tokens.",
+				id: "x",
+			},
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			errorClass: "context_window_exceeded",
+		});
+	});
+
+	it("leaves unrelated handler failures unclassified", async () => {
+		const handler = fakeHandler([{ type: "text", text: "x", id: "x" }], {
+			throwAfter: 0,
+		});
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			errorClass: "unknown",
+		});
+	});
+
 	it("does not emit a second finish when the handler throws after a done chunk", async () => {
 		// done -> finish, then the handler throws while flushing.
 		const handler = fakeHandler([{ type: "done", success: true, id: "x" }], {
@@ -225,7 +285,12 @@ describe("createAgentModelFromApiHandler", () => {
 		const model = createAgentModelFromApiHandler(factory);
 		const events = await collect(model.stream(baseRequest));
 		expect(events).toEqual([
-			{ type: "finish", reason: "error", error: "no vscode.lm" },
+			{
+				type: "finish",
+				reason: "error",
+				error: "no vscode.lm",
+				errorClass: "unknown",
+			},
 		]);
 	});
 });

@@ -219,6 +219,62 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("recovers from an unclassified overflow by classifying the finish message", async () => {
+		// Models that do not classify at their own error boundary (custom
+		// AgentModel implementations, adapters carrying only a flattened
+		// message) must still reach recovery.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`Please review ${"lots of context ".repeat(50)}`,
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+	});
+
+	it("does not treat an unrelated stream failure as an overflow", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "fetch failed: socket closed",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("fetch failed: socket closed");
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
 		const model = new ScriptedModel([
 			() => [
