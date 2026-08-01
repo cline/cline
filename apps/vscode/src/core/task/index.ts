@@ -2402,6 +2402,25 @@ export class Task {
 			// Capture provider failure telemetry using clineError
 			ErrorService.get().logMessage(clineError.message);
 
+			// Mirror the SDK extension's provider-failure reporting: emit one
+			// task.provider_api_error per failed request attempt (auto-retries
+			// included), with the same errorType/failurePhase schema, so error
+			// rates are comparable across the A/B rollout cohorts. Context-window
+			// overruns are excluded — they are recovered by truncation, not a
+			// provider failure.
+			if (!isContextWindowExceededError) {
+				telemetryService.captureProviderApiError({
+					ulid: this.ulid,
+					model: model.id,
+					provider: providerId,
+					errorMessage: clineError.message,
+					errorStatus: clineError._error?.status,
+					requestId: clineError._error?.request_id,
+					errorType: ClineError.getErrorType(clineError),
+					failurePhase: "streaming",
+				});
+			}
+
 			if (
 				isContextWindowExceededError &&
 				!this.taskState.didAutomaticallyRetryFailedApiRequest
@@ -3596,6 +3615,25 @@ export class Task {
 						this.api.getModel().id,
 					);
 					const errorMessage = clineError.serialize();
+
+					// Mirror the SDK extension's provider-failure reporting for
+					// mid-stream failures (see attemptApiRequest for the
+					// first-chunk equivalent). One event per failed attempt.
+					{
+						const { providerId: midStreamProviderId } =
+							this.getCurrentProviderInfo();
+						telemetryService.captureProviderApiError({
+							ulid: this.ulid,
+							model: this.api.getModel().id,
+							provider: midStreamProviderId,
+							errorMessage: clineError.message,
+							errorStatus: clineError._error?.status,
+							requestId: clineError._error?.request_id,
+							errorType: ClineError.getErrorType(clineError),
+							failurePhase: "streaming",
+						});
+					}
+
 					const isStreamingSpendLimitError = clineError.isErrorType(
 						ClineErrorType.SpendLimit,
 					);

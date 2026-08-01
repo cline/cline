@@ -343,7 +343,16 @@ describe("TelemetryService metrics", () => {
 			errorMessage: "boom",
 			provider: "anthropic",
 			errorStatus: 500,
+			errorType: "auth",
+			failurePhase: "streaming",
 		})
+
+		// The event carries the SDK-extension-parity schema fields so the A/B
+		// rollout dashboards can compare cohorts on identical shapes.
+		const failureEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.ok(failureEvent, "expected task.provider_api_error event")
+		assert.strictEqual(failureEvent?.properties?.errorType, "auth")
+		assert.strictEqual(failureEvent?.properties?.failurePhase, "streaming")
 
 		assert.strictEqual(provider.counters.length, 1)
 		const entry = provider.counters[0]
@@ -353,6 +362,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(entry.attributes.error_type, "auth")
+		assert.strictEqual(entry.attributes.failure_phase, "streaming")
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
 		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
@@ -361,6 +372,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+		assert.strictEqual(errorHistogram.attributes.error_type, "auth")
+		assert.strictEqual(errorHistogram.attributes.failure_phase, "streaming")
 	})
 
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
