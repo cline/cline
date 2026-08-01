@@ -2401,6 +2401,17 @@ export class Task {
 
 			// Capture provider failure telemetry using clineError
 			ErrorService.get().logMessage(clineError.message);
+			telemetryService.captureProviderApiError({
+				ulid: this.ulid,
+				model: model.id,
+				provider: providerId,
+				errorMessage: clineError.message,
+				requestId: this.getApiRequestIdSafe(),
+				isNativeToolCall: this.useNativeToolCalls,
+				errorClass: isContextWindowExceededError
+					? "context_window_exceeded"
+					: "unknown",
+			});
 
 			if (
 				isContextWindowExceededError &&
@@ -3596,6 +3607,17 @@ export class Task {
 						this.api.getModel().id,
 					);
 					const errorMessage = clineError.serialize();
+					telemetryService.captureProviderApiError({
+						ulid: this.ulid,
+						model: model.id,
+						provider: providerId,
+						errorMessage: clineError.message,
+						requestId: this.getApiRequestIdSafe(),
+						isNativeToolCall: this.useNativeToolCalls,
+						errorClass: checkContextWindowExceededError(error)
+							? "context_window_exceeded"
+							: "unknown",
+					});
 					const isStreamingSpendLimitError = clineError.isErrorType(
 						ClineErrorType.SpendLimit,
 					);

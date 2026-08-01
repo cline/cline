@@ -1399,6 +1399,7 @@ export class TelemetryService {
 	 * @param requestId Unique identifier for the specific API request
 	 * @param errorMessage Detailed error message from the API provider
 	 * @param errorStatus HTTP status code of the error response, if available
+	 * @param errorClass Classification of the error ("context_window_exceeded" | "unknown"); omit when no classification was attempted
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
 	public captureProviderApiError(args: {
@@ -1409,6 +1410,7 @@ export class TelemetryService {
 		errorStatus?: number | undefined
 		requestId?: string | undefined
 		isNativeToolCall?: boolean
+		errorClass?: "context_window_exceeded" | "unknown"
 	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,

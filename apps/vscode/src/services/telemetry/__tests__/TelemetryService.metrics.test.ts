@@ -363,6 +363,39 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
 	})
 
+	it("captureProviderApiError includes errorClass in the event properties when provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureProviderApiError({
+			ulid: "task-3",
+			model: "claude",
+			errorMessage: "prompt is too long",
+			provider: "anthropic",
+			errorClass: "context_window_exceeded",
+		})
+
+		const errorEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.ok(errorEvent)
+		assert.strictEqual(errorEvent?.properties?.errorClass, "context_window_exceeded")
+	})
+
+	it("captureProviderApiError omits errorClass from the event properties when not provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureProviderApiError({
+			ulid: "task-3",
+			model: "claude",
+			errorMessage: "empty_assistant_message",
+			provider: "anthropic",
+		})
+
+		const errorEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.ok(errorEvent)
+		assert.strictEqual("errorClass" in (errorEvent?.properties ?? {}), false)
+	})
+
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
