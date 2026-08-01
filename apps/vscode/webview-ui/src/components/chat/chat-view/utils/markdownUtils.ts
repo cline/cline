@@ -4,6 +4,7 @@
 
 import rehypeParse from "rehype-parse"
 import rehypeRemark from "rehype-remark"
+import remarkGfm from "remark-gfm"
 import remarkStringify from "remark-stringify"
 import { unified } from "unified"
 
@@ -38,6 +39,10 @@ export async function convertHtmlToMarkdown(html: string): Promise<string> {
 	const result = await unified()
 		.use(rehypeParse as any, { fragment: true }) // Parse HTML fragments
 		.use(rehypeRemark as any) // Convert HTML to Markdown AST
+		// rehype-remark emits GFM mdast nodes (e.g. `table` for <table>, `delete`
+		// for <del>); without the GFM serializers remark-stringify throws
+		// "Cannot handle unknown node `table`" (see cline/cline#12832)
+		.use(remarkGfm as any)
 		.use(remarkStringify as any, {
 			// Convert Markdown AST to text
 			bullet: "-", // Use - for unordered lists
