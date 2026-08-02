@@ -3,7 +3,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type * as vscode from "vscode"
-import { migrateLegacyNativeToolCallSetting, migrateWelcomeViewCompleted } from "../state-migrations"
+import { migrateWelcomeViewCompleted } from "../state-migrations"
 
 /** Minimal ExtensionContext exposing the stores the migration touches. */
 function makeContext(initial: { globalState?: Record<string, unknown>; secrets?: Record<string, string> } = {}) {
@@ -83,100 +83,5 @@ describe("migrateWelcomeViewCompleted", () => {
 		writeDataFile("secrets.json", { authNonce: "nonce", mcpOAuthSecrets: "{}" })
 		await migrateWelcomeViewCompleted(context, dataDir)
 		expect(globalState.get("welcomeViewCompleted")).toBe(false)
-	})
-})
-
-describe("migrateLegacyNativeToolCallSetting", () => {
-	function makeStateManager() {
-		const writes: Array<[string, boolean]> = []
-		return {
-			writes,
-			stateManager: {
-				setGlobalState: (key: "enableXmlToolCalling", value: boolean) => {
-					writes.push([key, value])
-				},
-			},
-		}
-	}
-
-	it("enables XML tool calling when legacy native tool calling was explicitly disabled", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", { nativeToolCallEnabled: false })
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([["enableXmlToolCalling", true]])
-	})
-
-	it("enables XML tool calling for non-Cline providers like ollama", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", {
-			nativeToolCallEnabled: false,
-			planModeApiProvider: "ollama",
-			actModeApiProvider: "ollama",
-		})
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([["enableXmlToolCalling", true]])
-	})
-
-	it("does nothing when the user is on the cline provider", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", {
-			nativeToolCallEnabled: false,
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("does nothing when the user is on the cline-pass provider", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", {
-			nativeToolCallEnabled: false,
-			planModeApiProvider: "cline-pass",
-			actModeApiProvider: "cline-pass",
-		})
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("does nothing when either mode uses a Cline provider (the setting is global)", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", {
-			nativeToolCallEnabled: false,
-			planModeApiProvider: "cline",
-			actModeApiProvider: "ollama",
-		})
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("does nothing when the legacy setting is absent (user never touched it)", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", { someOtherKey: 1 })
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("does nothing when the legacy setting was explicitly enabled", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", { nativeToolCallEnabled: true })
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("never re-runs once the new setting exists on disk, even as false", () => {
-		const { stateManager, writes } = makeStateManager()
-		writeDataFile("globalState.json", {
-			nativeToolCallEnabled: false,
-			enableXmlToolCalling: false,
-		})
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
-	})
-
-	it("does nothing on a fresh install with no state file", () => {
-		const { stateManager, writes } = makeStateManager()
-		migrateLegacyNativeToolCallSetting(stateManager, dataDir)
-		expect(writes).toEqual([])
 	})
 })
