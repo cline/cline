@@ -26,7 +26,7 @@ import { palette } from "../../palette";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
-	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAws,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
@@ -551,7 +551,6 @@ export function ProviderConfigInputContent(
 
 	const submit = () => {
 		const apiKey = values.apiKey?.trim();
-		const awsProfile = values.awsProfile?.trim();
 		const hasAzureFields = config.fields.azureApiVersion;
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
 		const hasGcpFields = config.fields.gcpProjectId || config.fields.gcpRegion;
@@ -566,13 +565,7 @@ export function ProviderConfigInputContent(
 			apiKey: config.fields.apiKey ? apiKey : undefined,
 			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
 			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
-			aws: hasAwsFields
-				? {
-						region: resolveProviderConfigAwsRegion(values),
-						authentication: apiKey ? "api-key" : "profile",
-						profile: apiKey ? undefined : awsProfile || undefined,
-					}
-				: undefined,
+			aws: hasAwsFields ? resolveProviderConfigAws(values) : undefined,
 			gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
 			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
 		});
