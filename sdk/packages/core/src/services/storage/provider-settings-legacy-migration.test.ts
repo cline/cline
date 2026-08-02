@@ -611,16 +611,18 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 	});
 
-	it("keeps a legacy Cline model id served by the OpenRouter-backed runtime catalog", () => {
-		// The runtime Cline catalog is OpenRouter-backed; some of its ids are
-		// not in the curated Cline collection. Those must survive migration.
-		const runtimeOnlyModelId = Object.keys(
-			LlmsModels.getGeneratedModelsForProvider("openrouter"),
-		).find(
-			(modelId) =>
-				!LlmsModels.getProviderCollectionSync("cline")?.models?.[modelId],
+	it("folds legacy alias Cline model ids onto their canonical catalog ids", () => {
+		// Legacy state stores OpenRouter spellings (e.g. `z-ai/...`) that the
+		// runtime catalog canonicalizes (to `zai/...`). Migration must keep the
+		// user's model under the canonical id instead of defaulting it away.
+		const catalogModels =
+			LlmsModels.getProviderCollectionSync("cline")?.models ?? {};
+		const canonicalModelId = Object.keys(catalogModels).find((modelId) =>
+			modelId.startsWith("zai/"),
 		);
-		expect(runtimeOnlyModelId).toBeTruthy();
+		expect(canonicalModelId).toBeTruthy();
+		const aliasModelId = `z-ai/${canonicalModelId?.slice("zai/".length)}`;
+		expect(catalogModels[aliasModelId]).toBeUndefined();
 
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
@@ -635,7 +637,7 @@ describe("migrateLegacyProviderSettings", () => {
 				{
 					mode: "act",
 					actModeApiProvider: "cline",
-					actModeClineModelId: runtimeOnlyModelId,
+					actModeClineModelId: aliasModelId,
 				},
 				null,
 				2,
@@ -651,9 +653,7 @@ describe("migrateLegacyProviderSettings", () => {
 			dataDir: tempDir,
 		});
 
-		expect(manager.getProviderSettings("cline")?.model).toBe(
-			runtimeOnlyModelId,
-		);
+		expect(manager.getProviderSettings("cline")?.model).toBe(canonicalModelId);
 	});
 
 	it("migrates legacy OpenAI-compatible config into the openai-compatible provider", () => {

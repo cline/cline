@@ -461,24 +461,37 @@ function getDefaultModelForProvider(providerId: string): string | undefined {
 /**
  * Cline is a fixed-catalog provider: an unknown legacy model id (retired
  * model, a suffixed variant like `...:1m`, corrupted state) would otherwise
- * be carried into inference requests as-is. Drop it so the caller falls back
- * to the catalog default. The known set mirrors the runtime catalog
- * (`buildClineModels` in @cline/llms): the Cline collection plus the
- * OpenRouter-backed generated models and their Vercel AI Gateway alias ids.
+ * be carried into inference requests as-is. Resolve the legacy id against the
+ * runtime catalog (the collection model list, which `buildClineModels` in
+ * @cline/llms mirrors), folding alias spellings onto their canonical ids
+ * (e.g. OpenRouter's `z-ai/...` -> `zai/...`) so those users keep their
+ * model. Returns undefined for unavailable models so the caller falls back
+ * to the catalog default.
  */
-function dropUnknownClineModel(
+function resolveKnownClineModel(
 	providerId: string,
 	modelId: string | undefined,
 ): string | undefined {
 	if (!modelId || providerId !== "cline") {
 		return modelId;
 	}
-	const isKnown =
-		LlmsModels.getGeneratedModelsForProvider(providerId)[modelId] ||
-		LlmsModels.getProviderCollectionSync(providerId)?.models?.[modelId] ||
-		LlmsModels.getGeneratedModelsForProvider("openrouter")[modelId] ||
-		LlmsModels.getGeneratedModelsForProvider("vercel-ai-gateway")[modelId];
-	return isKnown ? modelId : undefined;
+	const catalogModels = LlmsModels.getProviderCollectionSync(providerId)?.models;
+	if (!catalogModels) {
+		return modelId;
+	}
+	if (catalogModels[modelId]) {
+		return modelId;
+	}
+	for (const rule of LlmsModels.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES) {
+		if (!modelId.startsWith(rule.aliasPrefix)) {
+			continue;
+		}
+		const canonicalModelId = `${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`;
+		if (catalogModels[canonicalModelId]) {
+			return canonicalModelId;
+		}
+	}
+	return undefined;
 }
 
 function buildLegacyProviderSettings(
@@ -497,7 +510,7 @@ function buildLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawActiveProviderForMode)
 		: undefined;
 	const model =
-		dropUnknownClineModel(
+		resolveKnownClineModel(
 			targetProviderId,
 			resolveModelForProvider(
 				legacyGlobalState,
