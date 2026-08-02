@@ -14,12 +14,21 @@ import {
 	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 } from "lucide-react"
-import { memo } from "react"
+import { lazy, memo, Suspense } from "react"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { DiffEditRow } from "./DiffEditRow"
-import SearchResultsDisplay from "./SearchResultsDisplay"
+
+// V12 方案5 — search results are only shown for search_files tool messages, so
+// the renderer is split into its own chunk.
+const SearchResultsDisplay = lazy(() => import("./SearchResultsDisplay"))
+
+const SearchResultsSkeleton = () => (
+	<div className="py-1 text-muted-foreground text-sm">
+		<span className="codicon codicon-loading codicon-modifier-animated" /> Loading search results...
+	</div>
+)
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
@@ -266,13 +275,15 @@ const ToolUseRow = memo(({ tool, message, isExpanded, onToggleExpand, background
 							Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
 						</span>
 					</div>
-					<SearchResultsDisplay
-						content={tool.content!}
-						filePattern={tool.filePattern}
-						isExpanded={isExpanded}
-						onToggleExpand={onToggleExpand}
-						path={tool.path!}
-					/>
+					<Suspense fallback={<SearchResultsSkeleton />}>
+						<SearchResultsDisplay
+							content={tool.content!}
+							filePattern={tool.filePattern}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+							path={tool.path!}
+						/>
+					</Suspense>
 				</div>
 			)
 		case "summarizeTask":

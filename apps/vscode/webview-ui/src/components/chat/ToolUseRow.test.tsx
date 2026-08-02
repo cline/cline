@@ -131,9 +131,10 @@ describe("ToolUseRow", () => {
 		})
 	})
 	describe("searchFiles", () => {
-		it("renders search results display", () => {
+		it("renders search results display", async () => {
 			r({ tool: buildTool("searchFiles", { path: ".", regex: "x", content: "a" }) })
-			expect(screen.getByTestId("search-results")).toBeInTheDocument()
+			// SearchResultsDisplay is lazy-loaded (V12 方案5) — resolve async.
+			expect(await screen.findByTestId("search-results")).toBeInTheDocument()
 			expect(screen.getByText(/x/)).toBeInTheDocument()
 		})
 	})

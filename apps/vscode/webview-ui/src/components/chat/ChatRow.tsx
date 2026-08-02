@@ -1,23 +1,28 @@
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
-	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
-	ClinePlanModeResponse,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
-import { BellIcon, CircleXIcon, FilePlus2Icon, TerminalIcon, TriangleAlertIcon } from "lucide-react"
-import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+	BellIcon,
+	CircleXIcon,
+	LightbulbIcon,
+	LoaderCircleIcon,
+	RefreshCwIcon,
+	SettingsIcon,
+	TerminalIcon,
+	TriangleAlertIcon,
+} from "lucide-react"
+import { lazy, MouseEvent, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
-import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState, useMessagesState } from "@/context/ExtensionStateContext"
@@ -25,21 +30,29 @@ import { cn } from "@/lib/utils"
 import { UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian from "../common/CodeAccordian"
+import ChatAskRow from "./ChatAskRow"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
 import HookMessage from "./HookMessage"
 import { MarkdownRow } from "./MarkdownRow"
-import NewTaskPreview from "./NewTaskPreview"
-import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
 import QuoteButton from "./QuoteButton"
-import ReportBugPreview from "./ReportBugPreview"
 import { RequestStartRow } from "./RequestStartRow"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
 import ToolUseRow from "./ToolUseRow"
 import UserMessage from "./UserMessage"
+
+// V12 方案5 — the interactive MCP response renderer is split into its own chunk
+// and loaded only when an mcp_server_response message actually renders.
+const McpResponseDisplay = lazy(() => import("@/components/mcp/chat-display/McpResponseDisplay"))
+
+const McpResponseSkeleton = () => (
+	<div className="py-1 text-muted-foreground text-sm">
+		<span className="codicon codicon-loading codicon-modifier-animated" /> Loading MCP response...
+	</div>
+)
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
@@ -366,7 +379,7 @@ export const ChatRowContent = memo(
 		if (tool) {
 			return (
 				<ToolUseRow
-					backgroundEditEnabled={backgroundEditEnabled}
+					backgroundEditEnabled={backgroundEditEnabled ?? false}
 					isExpanded={isExpanded}
 					message={message}
 					onToggleExpand={handleToggle}
@@ -504,7 +517,11 @@ export const ChatRowContent = memo(
 					case "api_req_finished":
 						return <InvisibleSpacer /> // we should never see this message type
 					case "mcp_server_response":
-						return <McpResponseDisplay responseText={message.text || ""} />
+						return (
+							<Suspense fallback={<McpResponseSkeleton />}>
+								<McpResponseDisplay responseText={message.text || ""} />
+							</Suspense>
+						)
 					case "mcp_notification":
 						return (
 							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
@@ -732,140 +749,20 @@ export const ChatRowContent = memo(
 						)
 				}
 			case "ask":
-				switch (message.ask) {
-					case "mistake_limit_reached":
-						return <ErrorRow errorType="mistake_limit_reached" message={message} />
-					case "completion_result":
-						if (message.text) {
-							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
-							return (
-								<CompletionOutputRow
-									handleQuoteClick={handleQuoteClick}
-									headClassNames={HEADER_CLASSNAMES}
-									quoteButtonState={quoteButtonState}
-									text={text || ""}
-								/>
-							)
-						}
-						// Virtuoso cannot handle zero-height items; render a spacer instead of null
-						return <InvisibleSpacer />
-					case "followup":
-						let question: string | undefined
-						let options: string[] | undefined
-						let selected: string | undefined
-						try {
-							const parsedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
-							question = parsedMessage.question
-							options = parsedMessage.options
-							selected = parsedMessage.selected
-						} catch (_e) {
-							// legacy messages would pass question directly
-							question = message.text
-						}
-
-						return (
-							<div>
-								{title && (
-									<div className={HEADER_CLASSNAMES}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<WithCopyButton
-									className="pt-1"
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									textToCopy={question}>
-									<MarkdownRow markdown={question} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={() => {
-												handleQuoteClick()
-											}}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
-								<div className="pt-3">
-									<OptionsButtons
-										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
-										options={options}
-										selected={selected}
-									/>
-								</div>
-							</div>
-						)
-					case "new_task":
-						return (
-							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
-								</div>
-								<NewTaskPreview context={message.text || ""} />
-							</div>
-						)
-					case "condense":
-						return (
-							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
-								</div>
-								<NewTaskPreview context={message.text || ""} />
-							</div>
-						)
-					case "report_bug":
-						return (
-							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
-								</div>
-								<ReportBugPreview data={message.text || ""} />
-							</div>
-						)
-					case "plan_mode_respond": {
-						let response: string | undefined
-						let options: string[] | undefined
-						let selected: string | undefined
-						try {
-							const parsedMessage = JSON.parse(message.text || "{}") as ClinePlanModeResponse
-							response = parsedMessage.response
-							options = parsedMessage.options
-							selected = parsedMessage.selected
-						} catch (_e) {
-							// legacy messages would pass response directly
-							response = message.text
-						}
-						return (
-							<div>
-								<PlanCompletionOutputRow
-									headClassNames={HEADER_CLASSNAMES}
-									text={response || message.text || ""}
-								/>
-								<OptionsButtons
-									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
-										(!selected && options && options.length > 0)
-									}
-									options={options}
-									selected={selected}
-								/>
-							</div>
-						)
-					}
-					default:
-						return <InvisibleSpacer />
-				}
+				return (
+					<ChatAskRow
+						contentRef={contentRef}
+						handleMouseUp={handleMouseUp}
+						handleQuoteClick={handleQuoteClick}
+						icon={icon}
+						inputValue={inputValue}
+						isLast={isLast}
+						lastModifiedMessage={lastModifiedMessage}
+						message={message}
+						quoteButtonState={quoteButtonState}
+						title={title}
+					/>
+				)
 		}
 	},
 )

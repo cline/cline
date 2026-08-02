@@ -3,19 +3,30 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { SquareArrowOutUpRightIcon } from "lucide-react"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
-import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import remarkGfm from "remark-gfm"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
-import MermaidBlock from "@/components/common/MermaidBlock"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
 import UnsafeImage from "./UnsafeImage"
+
+// V12 方案5 — the mermaid renderer pulls in the full `mermaid` runtime (~1MB),
+// so it is split into its own chunk and loaded only when a diagram actually
+// renders.
+const MermaidBlock = lazy(() => import("@/components/common/MermaidBlock"))
+
+const MermaidSkeleton = () => (
+	<div className="flex items-center gap-2 py-2 text-muted-foreground">
+		<span className="codicon codicon-loading codicon-modifier-animated" />
+		<span>Loading diagram...</span>
+	</div>
+)
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
 	try {
@@ -44,7 +55,11 @@ const MemoizedMarkdownBlock = memo(
 						const className = props.className || ""
 						if (className.includes("language-mermaid")) {
 							const codeText = String(props.children || "")
-							return <MermaidBlock code={codeText} />
+							return (
+								<Suspense fallback={<MermaidSkeleton />}>
+									<MermaidBlock code={codeText} />
+								</Suspense>
+							)
 						}
 
 						// Use the async file check component for potential file paths
