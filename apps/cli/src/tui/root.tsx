@@ -1,6 +1,5 @@
 import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
-import type { Message } from "@cline/shared";
-import { formatDisplayUserInput, truncateStr } from "@cline/shared";
+import { formatDisplayUserInput } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -14,6 +13,7 @@ import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanba
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
+import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
 	CheckpointConfirmContent,
@@ -21,7 +21,6 @@ import {
 } from "./components/dialogs/checkpoint-confirm";
 import {
 	CheckpointPickerContent,
-	type CheckpointPickerItem,
 	type CheckpointPickerResult,
 } from "./components/dialogs/checkpoint-picker";
 import {
@@ -54,7 +53,7 @@ import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
-import type { AppView, TuiProps } from "./types";
+import type { AppView, TuiProps, TuiStartupTarget } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
 import { createSelectionCopyHandler } from "./utils/selection-copy";
@@ -63,6 +62,13 @@ import { deriveTerminalTitle } from "./utils/terminal-title";
 import { ChatView } from "./views/chat-view";
 import { HomeView } from "./views/home-view";
 import { type OnboardingResult, OnboardingView } from "./views/onboarding";
+
+function isChatBackedStartupTarget(
+	target: TuiStartupTarget | undefined,
+): boolean {
+	// History is a dialog layered over chat, so dismissing it should reveal chat.
+	return target === "chat" || target === "history";
+}
 
 function App(props: TuiProps) {
 	const session = useSession();
@@ -84,7 +90,8 @@ function App(props: TuiProps) {
 	const [appView, setAppView] = useState<AppView>(() => {
 		if (process.env.CLINE_FORCE_ONBOARDING === "1") return "onboarding";
 		if (!isProviderConfigured(props.config)) return "onboarding";
-		return props.initialView === "chat" || session.entries.length > 0
+		return isChatBackedStartupTarget(props.startupTarget) ||
+			session.entries.length > 0
 			? "chat"
 			: "home";
 	});
@@ -295,61 +302,7 @@ function App(props: TuiProps) {
 				showToast("No checkpoints available", "info");
 				return;
 			}
-			const checkpointForRun = (runCount: number) =>
-				checkpointHistory.reduce<
-					(typeof checkpointHistory)[number] | undefined
-				>((best, checkpoint) => {
-					if (checkpoint.runCount > runCount) {
-						return best;
-					}
-					if (!best || checkpoint.runCount > best.runCount) {
-						return checkpoint;
-					}
-					return best;
-				}, undefined);
-			const items: CheckpointPickerItem[] = [];
-			let userRunCount = 0;
-			for (const msg of rawMessages as Array<
-				Message & { metadata?: Record<string, unknown> }
-			>) {
-				if (msg.role !== "user") continue;
-				const metadata =
-					"metadata" in msg && msg.metadata && typeof msg.metadata === "object"
-						? msg.metadata
-						: undefined;
-				if (metadata?.kind === "recovery_notice") continue;
-				userRunCount += 1;
-				const checkpoint = checkpointForRun(userRunCount);
-				if (!checkpoint) continue;
-				const text =
-					typeof msg.content === "string"
-						? msg.content
-						: Array.isArray(msg.content)
-							? msg.content
-									.filter(
-										(b): b is { type: "text"; text: string } =>
-											typeof b === "object" &&
-											b !== null &&
-											"type" in b &&
-											b.type === "text" &&
-											"text" in b &&
-											typeof b.text === "string",
-									)
-									.map((b) => b.text)
-									.join(" ")
-							: "";
-				const preview = truncateStr(
-					formatDisplayUserInput(text).replace(/\s+/g, " "),
-					60,
-				);
-				if (!preview) continue;
-				items.push({
-					runCount: userRunCount,
-					text: preview,
-					fullText: text,
-					createdAt: checkpoint.createdAt,
-				});
-			}
+			const items = buildCheckpointPickerItems(rawMessages, checkpointHistory);
 			if (items.length === 0) {
 				showToast("No checkpoints to restore", "info");
 				return;
@@ -408,7 +361,11 @@ function App(props: TuiProps) {
 			session.replaceEntries(entries);
 			session.setHasSubmitted(entries.length > 0);
 			setAppView(entries.length > 0 ? "chat" : "home");
-			populateInputRef.current(picked.fullText);
+			// Prefill the display form of the rewound message, not the raw
+			// stored text: the runtime wraps outbound prompts in a
+			// <user_input mode="..."> envelope, which must not leak into the
+			// input box the user is about to edit and re-send.
+			populateInputRef.current(formatDisplayUserInput(picked.fullText));
 			showToast("Restored to checkpoint", "success");
 		} catch (error) {
 			const message = `Checkpoint restore failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -439,7 +396,7 @@ function App(props: TuiProps) {
 				),
 			});
 			if (selected === SKILLS_MARKETPLACE_ACTION) {
-				await import("open")
+				await import("../utils/open")
 					.then(({ default: open }) => open(SKILLS_MARKETPLACE_URL))
 					.catch(() => {
 						showToast(`Visit ${SKILLS_MARKETPLACE_URL}`, "info");
@@ -627,14 +584,7 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
-	useEffect(() => {
-		if (props.initialView === "config") {
-			openConfig();
-		}
-	}, []);
-
-	const { handleSlashCommand } = useLocalCommandActions({
+	const { handleSlashCommand, openHistory } = useLocalCommandActions({
 		slashCommandRegistry,
 		canForkSession,
 		openAccount,
@@ -646,11 +596,23 @@ function App(props: TuiProps) {
 		setAppView,
 		onClearConversation: clearConversation,
 		onResumeSession: props.onResumeSession,
+		onExportHistorySession: props.onExportHistorySession,
+		onDeleteHistorySession: props.onDeleteHistorySession,
 		onCompact: props.onCompact,
 		onFork: props.onFork,
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
 	});
+
+	const startupActionsRef = useRef({ openConfig, openHistory });
+	startupActionsRef.current = { openConfig, openHistory };
+	useEffect(() => {
+		if (props.startupTarget === "config") {
+			void startupActionsRef.current.openConfig();
+		} else if (props.startupTarget === "history") {
+			void startupActionsRef.current.openHistory();
+		}
+	}, [props.startupTarget]);
 
 	const runCommandPaletteResult = useCallback(
 		async (result: CommandPaletteResult) => {
@@ -724,6 +686,7 @@ function App(props: TuiProps) {
 		addUsageDelta: session.addUsageDelta,
 		onTurnErrorReported: props.onTurnErrorReported,
 		verbose: props.config.verbose ?? false,
+		modelId: props.config.modelId,
 	});
 
 	const promptInput = usePromptInputController({
@@ -733,6 +696,7 @@ function App(props: TuiProps) {
 		onSubmit: props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
+		modelId: props.config.modelId,
 		configVerbose: props.config.verbose ?? false,
 		refreshRepoStatus,
 		setAppView,

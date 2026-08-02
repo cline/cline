@@ -245,20 +245,31 @@ export class SubprocessSandbox {
 				}, options.timeoutMs);
 			}
 			this.pending.set(id, pending);
-			child.send(message, (error) => {
-				if (!error) {
-					return;
-				}
-				const entry = this.clearPendingRequest(id);
-				if (!entry) {
-					return;
-				}
-				entry.reject(
-					new Error(
-						`${this.processLabel} failed to send call "${method}": ${asError(error).message}`,
-					),
-				);
-			});
+			try {
+				child.send(message, (error) => {
+					if (!error) {
+						return;
+					}
+					const entry = this.clearPendingRequest(id);
+					if (!entry) {
+						return;
+					}
+					entry.reject(
+						new Error(
+							`${this.processLabel} failed to send call "${method}": ${asError(error).message}`,
+						),
+					);
+				});
+			} catch (error) {
+				// send() throws synchronously when the message is not
+				// serializable (e.g. cyclic structures). Cancel the pending
+				// entry so the timeout timer above never fires — otherwise it
+				// would shut down the sandbox process out from under unrelated
+				// in-flight calls. Reject with the original error so callers
+				// can classify it (see isSerializationError in plugin-sandbox).
+				this.clearPendingRequest(id);
+				reject(asError(error));
+			}
 		});
 	}
 

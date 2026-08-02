@@ -1,5 +1,60 @@
 # Cline SDK Changelog
 
+## 0.0.69
+
+- Ollama's response-start timeout now defaults to 5 minutes instead of 30 seconds, so large models that cold-load no longer fail before they finish loading — unreachable servers still fail immediately, requests are still cancelable, and an explicit `requestTimeoutMs` is still honored
+- Ollama turns that come back completely empty (no text, reasoning, or tool call) are now retried at the model boundary instead of failing the task with "Model returned empty response"; non-empty turns stream through with no added latency, and turns that error or hit the token limit pass through unchanged
+- Checkpoints are created again in VS Code and the CLI — run-boundary detection assumed the run's prompt arrives as run input, but both hosts seed it into the initial messages, so no checkpoints were ever recorded. Detection now also survives process restarts and compaction
+- Checkpoint restore is now a true workspace rewind: files Cline created during a task are captured in the snapshot and restored to their checkpoint-time content, and files created after the checkpoint are removed. `.gitignore`d paths (build output, `node_modules`, `.env`) are left untouched, and a pre-restore recovery snapshot can roll the whole operation back. Checkpoints taken before this change keep the old conservative behavior of never touching untracked files
+- Migrated users whose stored Cline model id isn't in the runtime catalog now fall back to the default Cline model instead of carrying an unknown id into every inference request
+- Tool-use mistake notices are no longer reported as provider API errors, provider errors are no longer double-counted, and provider error details are preserved
+
+## 0.0.68
+
+- Provider errors forwarded through the Vercel AI Gateway now surface the real upstream message (e.g. "This model's maximum context length is 40960 tokens...") instead of a raw Zod issue dump, and opaque object errors no longer render as `[object Object]`
+- `fetchClineRecommendedModels` now returns display-ready model names, resolved through the model catalog (including Vercel and OpenRouter id aliases) under a single shared timeout budget, so hosts no longer have to map ids to names themselves
+- Cline free models now resolve their OpenRouter display names in the catalog
+- The live catalog no longer drops the video input capability
+- On Windows, PowerShell commands now travel over UTF-8 stdin instead of the command line, so non-ASCII commands survive the active code page and long commands are not capped by the Windows command-line limit — `getShellInvocation()` replaces the now-deprecated `getShellArgs()`, and a stdin write failure surfaces as a command error instead of hanging
+- Fixed sessions rooted at the filesystem root (`/`) failing to run any command: `basename("/")` produced an empty workspace hint that schema validation rejected, so every command threw
+- Exported the finish-reason and auth-error helpers used to describe agent errors
+
+## 0.0.67
+
+- Reasoning controls (effort, budget, on/off) are now driven by the models.dev catalog and normalized once before provider encoding, so requests match what each provider actually advertises; Anthropic's mandatory and impossible thinking modes are handled explicitly, and out-of-range budgets are clamped
+- OpenRouter now defaults to `anthropic/claude-sonnet-5`
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored by the SDK's MCP clients for `initialize`, `tools/list`, and `tools/call` instead of hardcoded 1.5s and 5s limits — it defaults to 60 seconds and is clamped to 1–3600 seconds
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI
+- Legacy API keys are now migrated for every secret-backed provider instead of a subset
+- Legacy OpenAI Compatible model-info overrides are now carried into the seeded `models.json` instead of being dropped
+- Removed the "Enable R1 messages format" option from the OpenAI Compatible provider
+- Fixed checkpoint restores across session resumes
+- Added session forking and user-run message APIs so a host can edit an earlier prompt: fork the session before a selected user run, trim checkpoint history, and restore the prior messages
+- Fixed auto-compaction state being rejected as stale on every save, which forced a full re-compaction — an extra summarizer call — on every turn past the trigger, and could leave a dead sidecar permanently blocking replacements after a resume
+- Added `ClineCore.readLiveMessages` for reading a resident session's in-memory transcript, so a plan/act rebuild during an in-flight turn no longer starts from an empty history
+- `insert_line` and the `read_files` line bounds now accept numbers emitted as JSON strings instead of failing the whole tool call
+- Plugins can now emit telemetry through `ctx.telemetry`, from both the subprocess sandbox and in-process execution
+- A legacy single-file `.clinerules` no longer aborts the config scan
+- Telemetry events now carry `device_id`
+- A malformed OTEL header entry no longer discards the valid ones
+
+## 0.0.66
+
+- Support for free Cline models (`cline-free`): free models are labeled "(free)", priced at zero, and hitting the free tier now raises a dedicated limit error that includes the reset time
+- Agentic compaction is now the default context-compaction strategy
+- Fixed agentic compaction silently falling back to basic compaction on OpenAI Compatible providers (the summarizer built its handler without a base URL and hit api.openai.com), and manual compaction budgeting against a 64k fallback instead of the model's real context window
+- Fixed agentic compaction never finding a cut point in tool-heavy transcripts, which produced endless "auto-compaction skipped" while context kept growing — assistant messages are now valid cut boundaries
+- Connector sessions now persist and automatically reconnect after a daemon or hub restart
+- Plan/act mode, tool auto-approve, and compaction mode are now persisted in global settings, with cross-process-safe writes so two hosts no longer clobber each other's changes
+- The built-in provider list is now generated from models.dev, broadening out-of-the-box provider coverage
+- The editor tool preserves a file's existing line endings — CRLF files no longer end up with mixed endings and failing exact-match edits
+- SAP AI Core now sets the metering header and uses the fetch adapter
+- Headless scheduled routines default to auto-approve and no longer ask questions no one can answer
+- Telemetry: task lifecycle events, auth event metadata and request IDs, and correct host identity (`host_plugin_version`, platform) on SDK-pipeline events
+- Removed the never-invoked `onRetryAttempt` callback from `ApiHandlerOptions` and provider config
+- `@cline/ui`: host-safe theme contract and Markdown exports
+- Updated the bundled model catalog
+
 ## 0.0.65
 
 - Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size

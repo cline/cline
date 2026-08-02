@@ -1,11 +1,33 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import open from "open";
 import { useCallback, useMemo, useState } from "react";
 import { palette } from "../tui/palette";
+import {
+	type DialogDismissKey,
+	isAnyKeyDismiss,
+} from "../tui/utils/dialog-keys";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
+import open from "../utils/open";
 import type { CliMigrationNotice } from "./notice";
+
+/**
+ * Enter opens the subscription page; any other (unmodified) key dismisses the
+ * dialog; modifier-held keys are ignored.
+ *
+ * The dialog used to be dismissible only with Esc, but Esc is the least
+ * reliable key across terminals (it arrives as a bare `\x1b` that needs
+ * timeout disambiguation, and Windows console input layers are known to
+ * swallow it), which left users stuck behind the promo with no way out.
+ * Modifier-held keys are ignored so that holding Cmd/Ctrl to click the
+ * subscription link never dismisses the dialog mid-click.
+ */
+export function resolveMigrationNoticeKeyAction(
+	key: DialogDismissKey,
+): "open" | "dismiss" | "ignore" {
+	if (!isAnyKeyDismiss(key)) return "ignore";
+	return key.name === "return" || key.name === "enter" ? "open" : "dismiss";
+}
 
 export function MigrationNoticeContent(
 	props: ChoiceContext<boolean> & {
@@ -30,13 +52,13 @@ export function MigrationNoticeContent(
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
-		if (key.name === "escape") {
-			resolve(true);
+		const action = resolveMigrationNoticeKeyAction(key);
+		if (action === "ignore") return;
+		if (action === "open") {
+			openSubscriptionPage();
 			return;
 		}
-		if (key.name === "return" || key.name === "enter") {
-			openSubscriptionPage();
-		}
+		resolve(true);
 	}, dialogId);
 
 	return (
@@ -48,7 +70,7 @@ export function MigrationNoticeContent(
 					latest open-weight coding models with enough quota for day-to-day
 					work, at a much lower cost than paying API costs directly.
 				</text>
-				<text selectable>Try it now with a limited-time promo for $1.99.</text>
+				<text selectable>Try it now with a limited-time promo for $4.99.</text>
 			</box>
 			<box flexDirection="row">
 				<text fg={palette.act} selectable>
@@ -61,7 +83,9 @@ export function MigrationNoticeContent(
 				</box>
 			</box>
 			{status && <text fg={palette.muted}>{status}</text>}
-			<text fg={palette.muted}>Press Enter to open, Esc to close</text>
+			<text fg={palette.muted}>
+				Press Enter to open, any other key to close
+			</text>
 		</box>
 	);
 }

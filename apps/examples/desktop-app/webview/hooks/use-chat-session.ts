@@ -18,6 +18,7 @@ import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
 	ChatApiResult,
+	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
 	CoreLogChunk,
@@ -55,6 +56,10 @@ import {
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
 const MAX_MESSAGES = 800;
+
+// How long streamed text/reasoning deltas are buffered before a React commit.
+// ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
+const STREAM_FLUSH_INTERVAL_MS = 48;
 
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
@@ -128,9 +133,7 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function chunkCreatedAt(payload: AgentChunkEvent): number {
-	const ts = payload.ts || Date.now();
-	const index = payload.index ?? 0;
-	return ts * 1000 + index;
+	return payload.ts || Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {
@@ -327,18 +330,18 @@ export function useChatSession() {
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		return await desktopClient.invoke<{
-			sessionId?: string;
-			cwd?: string;
-			workspaceRoot?: string;
-			result?: ChatApiResult;
-			ok?: boolean;
-			queued?: boolean;
-			promptsInQueue?: PromptInQueue[];
-			prompt?: PromptInQueue;
-			updated?: boolean;
-			removed?: boolean;
-		}>("chat_session_command", { request: body });
+		const request = { request: body };
+		if (body.action === "send") {
+			return await desktopClient.invoke<ChatSessionCommandResponse>(
+				"chat_session_command",
+				request,
+				{ timeoutMs: null },
+			);
+		}
+		return await desktopClient.invoke<ChatSessionCommandResponse>(
+			"chat_session_command",
+			request,
+		);
 	}, []);
 
 	const refreshPromptsInQueue = useCallback(
@@ -488,6 +491,76 @@ export function useChatSession() {
 		},
 		[],
 	);
+
+	// ---- Stream coalescing ----
+	//
+	// Text/reasoning deltas can arrive per-token, and a React commit per token
+	// re-renders the whole conversation for every word. Deltas are buffered in
+	// refs and flushed on a short timer, so streaming costs at most ~20 commits
+	// per second regardless of token rate while still feeling live.
+
+	const pendingStreamTextRef = useRef(new Map<string, string>());
+	const pendingStreamReasoningRef = useRef(
+		new Map<string, { text: string; redacted: boolean }>(),
+	);
+	const pendingStreamTranscriptRef = useRef("");
+	const streamFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	const flushPendingStream = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			clearTimeout(streamFlushTimerRef.current);
+			streamFlushTimerRef.current = null;
+		}
+		const texts = pendingStreamTextRef.current;
+		if (texts.size > 0) {
+			pendingStreamTextRef.current = new Map();
+			for (const [id, chunk] of texts) {
+				appendMessageContent(id, chunk);
+			}
+		}
+		const reasonings = pendingStreamReasoningRef.current;
+		if (reasonings.size > 0) {
+			pendingStreamReasoningRef.current = new Map();
+			for (const [id, entry] of reasonings) {
+				appendMessageReasoning(id, entry.text, entry.redacted);
+			}
+		}
+		const transcript = pendingStreamTranscriptRef.current;
+		if (transcript) {
+			pendingStreamTranscriptRef.current = "";
+			setRawTranscript((prev) => `${prev}${transcript}`);
+		}
+	}, [appendMessageContent, appendMessageReasoning]);
+
+	const schedulePendingStreamFlush = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			return;
+		}
+		streamFlushTimerRef.current = setTimeout(() => {
+			streamFlushTimerRef.current = null;
+			flushPendingStream();
+		}, STREAM_FLUSH_INTERVAL_MS);
+	}, [flushPendingStream]);
+
+	const discardPendingStream = useCallback(() => {
+		if (streamFlushTimerRef.current !== null) {
+			clearTimeout(streamFlushTimerRef.current);
+			streamFlushTimerRef.current = null;
+		}
+		pendingStreamTextRef.current = new Map();
+		pendingStreamReasoningRef.current = new Map();
+		pendingStreamTranscriptRef.current = "";
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			if (streamFlushTimerRef.current !== null) {
+				clearTimeout(streamFlushTimerRef.current);
+			}
+		};
+	}, []);
 
 	// ---- Process context ----
 
@@ -693,6 +766,67 @@ export function useChatSession() {
 				return;
 			}
 
+			// --- Text stream (buffered) ---
+			if (payload.stream === "chat_text") {
+				let assistantId = activeAssistantMessageIdRef.current;
+				if (!assistantId) {
+					assistantId = makeId("assistant");
+					addMessage({
+						id: assistantId,
+						sessionId: listeningSessionId,
+						role: "assistant",
+						content: "",
+						createdAt: chunkCreatedAt(payload),
+					});
+					activeAssistantMessageIdRef.current = assistantId;
+					setActiveAssistantMessageId(assistantId);
+				}
+				const pending = pendingStreamTextRef.current;
+				pending.set(
+					assistantId,
+					(pending.get(assistantId) ?? "") + payload.chunk,
+				);
+				pendingStreamTranscriptRef.current += payload.chunk;
+				schedulePendingStreamFlush();
+				return;
+			}
+
+			if (payload.stream === "chat_reasoning") {
+				let assistantId = activeAssistantMessageIdRef.current;
+				if (!assistantId) {
+					assistantId = makeId("assistant");
+					addMessage({
+						id: assistantId,
+						sessionId: listeningSessionId,
+						role: "assistant",
+						content: "",
+						createdAt: chunkCreatedAt(payload),
+					});
+					activeAssistantMessageIdRef.current = assistantId;
+					setActiveAssistantMessageId(assistantId);
+				}
+				let parsed: ReasoningDeltaEvent = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as ReasoningDeltaEvent;
+				} catch {
+					parsed = { text: payload.chunk };
+				}
+				if (parsed.text || parsed.redacted === true) {
+					const pending = pendingStreamReasoningRef.current;
+					const existing = pending.get(assistantId);
+					pending.set(assistantId, {
+						text: `${existing?.text ?? ""}${parsed.text ?? ""}`,
+						redacted: (existing?.redacted ?? false) || parsed.redacted === true,
+					});
+					schedulePendingStreamFlush();
+				}
+				return;
+			}
+
+			// Any non-delta event (tool calls, prompt starts, done markers) must
+			// observe fully applied text, so drain the buffers first.
+			flushPendingStream();
+
 			if (payload.stream === "chat_queued_prompt_start") {
 				let parsed: {
 					prompt?: string;
@@ -754,54 +888,6 @@ export function useChatSession() {
 						]);
 					});
 				}
-				return;
-			}
-
-			// --- Text stream ---
-			if (payload.stream === "chat_text") {
-				let assistantId = activeAssistantMessageIdRef.current;
-				if (!assistantId) {
-					assistantId = makeId("assistant");
-					addMessage({
-						id: assistantId,
-						sessionId: listeningSessionId,
-						role: "assistant",
-						content: "",
-						createdAt: chunkCreatedAt(payload),
-					});
-					activeAssistantMessageIdRef.current = assistantId;
-					setActiveAssistantMessageId(assistantId);
-				}
-				appendMessageContent(assistantId, payload.chunk);
-				setRawTranscript((prev) => `${prev}${payload.chunk}`);
-				return;
-			}
-
-			if (payload.stream === "chat_reasoning") {
-				let assistantId = activeAssistantMessageIdRef.current;
-				if (!assistantId) {
-					assistantId = makeId("assistant");
-					addMessage({
-						id: assistantId,
-						sessionId: listeningSessionId,
-						role: "assistant",
-						content: "",
-						createdAt: chunkCreatedAt(payload),
-					});
-					activeAssistantMessageIdRef.current = assistantId;
-					setActiveAssistantMessageId(assistantId);
-				}
-				let parsed: ReasoningDeltaEvent = {};
-				try {
-					parsed = JSON.parse(payload.chunk) as ReasoningDeltaEvent;
-				} catch {
-					parsed = { text: payload.chunk };
-				}
-				appendMessageReasoning(
-					assistantId,
-					parsed.text ?? "",
-					parsed.redacted === true,
-				);
 				return;
 			}
 
@@ -920,9 +1006,9 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
-			appendMessageContent,
-			appendMessageReasoning,
 			clearLiveToolRefs,
+			flushPendingStream,
+			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 		],
 	);
@@ -1059,6 +1145,7 @@ export function useChatSession() {
 			setIsHydratingSession(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
+			discardPendingStream();
 			setMessages([]);
 			setRawTranscript("");
 			resetCounters();
@@ -1082,6 +1169,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			clearAbortFallbackTimeout,
+			discardPendingStream,
 			resetCounters,
 			setErrorState,
 			startSession,
@@ -1662,6 +1750,7 @@ export function useChatSession() {
 		setIsHydratingSession(false);
 		abortedRef.current = false;
 		clearAbortFallbackTimeout();
+		discardPendingStream();
 		setMessages([]);
 		setRawTranscript("");
 		setError(null);
@@ -1689,6 +1778,7 @@ export function useChatSession() {
 	}, [
 		sessionId,
 		clearAbortFallbackTimeout,
+		discardPendingStream,
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
@@ -1722,6 +1812,7 @@ export function useChatSession() {
 			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
+			discardPendingStream();
 
 			const applyHydratedMessages = (
 				msgs: ChatMessage[],
@@ -1838,6 +1929,7 @@ export function useChatSession() {
 		[
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
+			discardPendingStream,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
@@ -1845,44 +1937,50 @@ export function useChatSession() {
 		],
 	);
 
-	const forkSession = useCallback(async (): Promise<{
-		newSessionId: string;
-		forkedFromSessionId: string;
-		messages: ChatMessage[];
-	}> => {
-		const activeSessionId = activeSessionIdRef.current;
-		if (!activeSessionId) {
-			throw new Error("No active session to fork.");
-		}
-		if (BUSY_STATUSES.has(status)) {
-			throw new Error("Wait for the current turn to finish before forking.");
-		}
-		const payload = (await postSession({
-			action: "fork",
-			sessionId: activeSessionId,
-			config,
-		})) as {
-			sessionId?: string;
-			forkedFromSessionId?: string;
-			messages?: ChatMessage[];
-		};
-		const newSessionId =
-			typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
-		if (!newSessionId) {
-			throw new Error("Fork did not return a new session id.");
-		}
-		const forkedFromSessionId =
-			typeof payload.forkedFromSessionId === "string"
-				? payload.forkedFromSessionId
-				: activeSessionId;
-		const nextMessages = Array.isArray(payload.messages)
-			? (payload.messages as ChatMessage[])
-			: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-					sessionId: newSessionId,
-					maxMessages: MAX_MESSAGES,
-				});
-		return { newSessionId, forkedFromSessionId, messages: nextMessages };
-	}, [config, postSession, status]);
+	const forkSession = useCallback(
+		async (options?: {
+			beforeRunCount?: number;
+		}): Promise<{
+			newSessionId: string;
+			forkedFromSessionId: string;
+			messages: ChatMessage[];
+		}> => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId) {
+				throw new Error("No active session to fork.");
+			}
+			if (BUSY_STATUSES.has(status)) {
+				throw new Error("Wait for the current turn to finish before forking.");
+			}
+			const payload = (await postSession({
+				action: "fork",
+				sessionId: activeSessionId,
+				config,
+				forkBeforeRunCount: options?.beforeRunCount,
+			})) as {
+				sessionId?: string;
+				forkedFromSessionId?: string;
+				messages?: ChatMessage[];
+			};
+			const newSessionId =
+				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+			if (!newSessionId) {
+				throw new Error("Fork did not return a new session id.");
+			}
+			const forkedFromSessionId =
+				typeof payload.forkedFromSessionId === "string"
+					? payload.forkedFromSessionId
+					: activeSessionId;
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: newSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
+			return { newSessionId, forkedFromSessionId, messages: nextMessages };
+		},
+		[config, postSession, status],
+	);
 
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {

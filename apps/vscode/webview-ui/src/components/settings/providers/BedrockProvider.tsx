@@ -23,19 +23,8 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
-
-const SUPPORTED_BEDROCK_THINKING_MODELS = [
-	"anthropic.claude-sonnet-4-6",
-	"anthropic.claude-3-7-sonnet-20250219-v1:0",
-	"anthropic.claude-sonnet-4-20250514-v1:0",
-	"anthropic.claude-sonnet-4-5-20250929-v1:0",
-	"anthropic.claude-opus-4-1-20250805-v1:0",
-	"anthropic.claude-opus-4-20250514-v1:0",
-	"anthropic.claude-haiku-4-5-20251001-v1:0",
-]
 
 const AWS_REGIONS = BedrockData.regions
 
@@ -87,6 +76,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				}
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update Bedrock reasoning effort:", err))
+	}
 	const awsAuthentication =
 		config?.aws?.authentication === "iam"
 			? "credentials"
@@ -611,12 +605,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
+							onEffortChange={handleReasoningEffortChange}
 						/>
-					) : SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||
+					) : selectedModelInfo.supportsReasoning === true ||
 						(isCustomModelSelected &&
 							customBaseModelId &&
-							SUPPORTED_BEDROCK_THINKING_MODELS.includes(customBaseModelId)) ? (
-						<ThinkingBudgetSlider currentMode={currentMode} />
+							bedrockModels[customBaseModelId]?.supportsReasoning === true) ? (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
 					) : null}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />

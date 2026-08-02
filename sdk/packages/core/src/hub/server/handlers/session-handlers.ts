@@ -4,7 +4,11 @@ import type {
 	JsonValue,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
+import {
+	createSessionId,
+	parseRuntimeConfigExtensions,
+	ReasoningEffortSchema,
+} from "@cline/shared";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,
@@ -45,16 +49,9 @@ function readConnectionString(value: unknown): string | undefined {
 function readConnectionReasoningEffort(
 	value: unknown,
 ): SessionConnectionUpdate["reasoningEffort"] | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh" ||
-		value === null
-	) {
-		return value;
-	}
-	return undefined;
+	if (value === null) return null;
+	const result = ReasoningEffortSchema.safeParse(value);
+	return result.success ? result.data : undefined;
 }
 
 export function readSessionConnectionUpdate(
@@ -618,6 +615,13 @@ export async function handleSessionRestore(
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
+			cleanupStartedSession: async (started) => {
+				if (!(await ctx.sessionHost.deleteSession(started.sessionId))) {
+					throw new Error(
+						`Failed to clean up restored session ${started.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
 		});
 		if (!restoreMessages) {

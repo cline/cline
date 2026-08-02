@@ -6,15 +6,22 @@ import {
 	formatHumanReadableDate,
 	truncateStr,
 } from "@cline/shared";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { HistoryExportFormat } from "../../session/history-export";
 import { listSessions } from "../../session/session";
 import { mergeHistoryStatusRows } from "../../utils/history-format";
 import { formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import { palette } from "../palette";
+import {
+	buildHistoryFooterText,
+	HISTORY_EXPORT_OPTIONS,
+	type HistoryExportPickerState,
+	resolveHistoryExportPickerAction,
+} from "./history-export-picker";
 
 function hasForkMetadata(row: SessionHistoryRecord): boolean {
 	const fork = row.metadata?.fork;
@@ -51,7 +58,10 @@ const DEFAULT_REFRESH_INTERVAL_MS = 2000;
 type HistoryListActions = {
 	onResolve: (sessionId: string) => void;
 	onDismiss: () => void;
-	onExport?: (sessionId: string) => Promise<string | undefined>;
+	onExport?: (
+		sessionId: string,
+		format: HistoryExportFormat,
+	) => Promise<string>;
 	onDelete?: (sessionId: string) => Promise<boolean>;
 };
 
@@ -81,7 +91,7 @@ function HistoryListContent({
 	onExport,
 	onDelete,
 	emptyMessage = "No sessions found",
-	footerText = "\u2191/\u2193 navigate, Enter to resume, Esc to close",
+	footerText,
 	title = "Session History",
 	loadRows = false,
 	refreshRows,
@@ -96,9 +106,16 @@ function HistoryListContent({
 	const [loading, setLoading] = useState(loadRows);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
+	const [exportPicker, setExportPickerState] =
+		useState<HistoryExportPickerState | null>(null);
+	const exportPickerRef = useRef(exportPicker);
 	const handlerRef = useRef<(key: HistoryKeyEvent | undefined) => void>(
 		() => {},
 	);
+	const setExportPicker = (next: HistoryExportPickerState | null) => {
+		exportPickerRef.current = next;
+		setExportPickerState(next);
+	};
 
 	useEffect(() => {
 		const loadInitialRows = () => listSessions(50, { hydrate: true });
@@ -188,12 +205,44 @@ function HistoryListContent({
 		return { items: rows.slice(start, end), startIndex: start };
 	}, [rows, safeSelected]);
 
+	const exportSelectedSession = (
+		sessionId: string,
+		format: HistoryExportFormat,
+	) => {
+		if (!onExport) {
+			return;
+		}
+		setExportPicker(null);
+		setStatusMessage(`Exporting ${sessionId} as ${format.toUpperCase()}...`);
+		void onExport(sessionId, format)
+			.then((path) => {
+				setStatusMessage(`Exported ${sessionId} to ${path}`);
+			})
+			.catch((error) => {
+				setStatusMessage(
+					error instanceof Error ? error.message : String(error),
+				);
+			});
+	};
+
 	handlerRef.current = (key: HistoryKeyEvent | undefined) => {
 		if (!key) {
 			return;
 		}
 		if (key.ctrl && key.name === "c") {
 			onDismiss();
+			return;
+		}
+		const currentExportPicker = exportPickerRef.current;
+		if (currentExportPicker) {
+			const action = resolveHistoryExportPickerAction(currentExportPicker, key);
+			if (action.kind === "cancel") {
+				setExportPicker(null);
+			} else if (action.kind === "update") {
+				setExportPicker(action.state);
+			} else if (action.kind === "export") {
+				exportSelectedSession(action.sessionId, action.format);
+			}
 			return;
 		}
 		if (confirmDelete) {
@@ -265,20 +314,11 @@ function HistoryListContent({
 		if (key.name === "right") {
 			const row = rowsRef.current[selectedRef.current];
 			if (row?.sessionId && onExport) {
-				setStatusMessage(`Exporting ${row.sessionId}...`);
-				void onExport(row.sessionId)
-					.then((path) => {
-						setStatusMessage(
-							path
-								? `Exported ${row.sessionId} to ${path}`
-								: `Exported ${row.sessionId}`,
-						);
-					})
-					.catch((error) => {
-						setStatusMessage(
-							error instanceof Error ? error.message : String(error),
-						);
-					});
+				setStatusMessage(null);
+				setExportPicker({
+					sessionId: row.sessionId,
+					selectedIndex: 0,
+				});
 			}
 		}
 	};
@@ -291,6 +331,53 @@ function HistoryListContent({
 		return (
 			<box flexDirection="column" paddingX={1}>
 				<text fg="gray">Loading session history...</text>
+			</box>
+		);
+	}
+
+	if (exportPicker) {
+		const selectedRow = rows.find(
+			(row) => row.sessionId === exportPicker.sessionId,
+		);
+		const exportTitle = selectedRow
+			? formatTitle(selectedRow, Math.max(20, width - 12))
+			: exportPicker.sessionId;
+
+		return (
+			<box flexDirection="column" paddingX={1}>
+				<text>Export Session</text>
+				<text fg="gray" marginTop={1}>
+					{exportTitle}
+				</text>
+
+				<box flexDirection="column" marginTop={1}>
+					{HISTORY_EXPORT_OPTIONS.map((option, index) => {
+						const isSelected = index === exportPicker.selectedIndex;
+						return (
+							<box
+								key={option.format}
+								flexDirection="column"
+								paddingX={1}
+								backgroundColor={isSelected ? palette.selection : undefined}
+							>
+								<text fg={isSelected ? palette.textOnSelection : undefined}>
+									{isSelected ? "\u276f " : "  "}
+									{option.label}
+								</text>
+								<text
+									fg={isSelected ? palette.textOnSelection : "gray"}
+									paddingLeft={2}
+								>
+									{option.description}
+								</text>
+							</box>
+						);
+					})}
+				</box>
+
+				<text fg="gray" marginTop={1}>
+					<em>Arrow keys choose, Enter to export, Esc to go back</em>
+				</text>
 			</box>
 		);
 	}
@@ -309,6 +396,12 @@ function HistoryListContent({
 
 	const aboveCount = window.startIndex;
 	const belowCount = rows.length - window.startIndex - window.items.length;
+	const resolvedFooterText =
+		footerText ??
+		buildHistoryFooterText({
+			canDelete: onDelete !== undefined,
+			canExport: onExport !== undefined,
+		});
 
 	return (
 		<box flexDirection="column" paddingX={1}>
@@ -399,14 +492,17 @@ function HistoryListContent({
 			)}
 
 			<text fg="gray" marginTop={1}>
-				<em>{footerText}</em>
+				<em>{resolvedFooterText}</em>
 			</text>
 		</box>
 	);
 }
 
-export function HistoryDialogContent(props: ChoiceContext<string>) {
-	const { resolve, dismiss, dialogId } = props;
+export function HistoryDialogContent(
+	props: ChoiceContext<string> &
+		Pick<HistoryListActions, "onExport" | "onDelete">,
+) {
+	const { resolve, dismiss, dialogId, onExport, onDelete } = props;
 	const [keyHandler, setKeyHandler] = useState<
 		((key: HistoryKeyEvent | undefined) => void) | undefined
 	>();
@@ -424,46 +520,8 @@ export function HistoryDialogContent(props: ChoiceContext<string>) {
 			loadRows
 			onResolve={resolve}
 			onDismiss={dismiss}
-			registerKeyHandler={registerKeyHandler}
-		/>
-	);
-}
-
-export function HistoryStandaloneContent(
-	props: HistoryListActions & {
-		rows: SessionHistoryRecord[];
-		title?: string;
-		footerText?: string;
-		refreshRows?: () => Promise<SessionHistoryRecord[]>;
-		refreshIntervalMs?: number;
-	},
-) {
-	const [keyHandler, setKeyHandler] = useState<
-		((key: HistoryKeyEvent | undefined) => void) | undefined
-	>();
-	const registerKeyHandler = useCallback(
-		(handler: (key: HistoryKeyEvent | undefined) => void) => {
-			setKeyHandler(() => handler);
-		},
-		[],
-	);
-
-	useKeyboard((key) => keyHandler?.(key));
-
-	return (
-		<HistoryListContent
-			initialRows={props.rows}
-			onResolve={props.onResolve}
-			onDismiss={props.onDismiss}
-			onExport={props.onExport}
-			onDelete={props.onDelete}
-			refreshRows={props.refreshRows}
-			refreshIntervalMs={props.refreshIntervalMs}
-			title={props.title ?? "History"}
-			footerText={
-				props.footerText ??
-				"\u2191/\u2193 navigate, Enter to resume, \u2190 delete, \u2192 export, Esc to close"
-			}
+			onExport={onExport}
+			onDelete={onDelete}
 			registerKeyHandler={registerKeyHandler}
 		/>
 	);

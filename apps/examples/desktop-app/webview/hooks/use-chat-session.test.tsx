@@ -104,6 +104,16 @@ describe("useChatSession", () => {
 				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
 			}),
 		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			{
+				request: expect.objectContaining({
+					action: "send",
+					prompt: "Start the task",
+				}),
+			},
+			{ timeoutMs: null },
+		);
 	});
 
 	it("preserves server validation errors", async () => {
@@ -463,6 +473,56 @@ describe("useChatSession", () => {
 			"AQID",
 			"BAUG",
 		]);
+	});
+
+	it("keeps live stream timestamps in milliseconds", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("Think about this");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const userMessage = current.messages.find(
+			(message) => message.role === "user",
+		);
+		expect(chatEventHandler).toBeDefined();
+		expect(userMessage).toBeDefined();
+		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) + 5_000;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_reasoning",
+				chunk: JSON.stringify({ text: "Considering the request." }),
+				ts: thinkingTimestamp,
+				index: 42,
+			});
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "assistant")
+				?.createdAt,
+		).toBe(thinkingTimestamp);
 	});
 
 	it("returns to a completed status when a queued turn finishes via chat_done", async () => {

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { getUserRunSpan, resolveMessageDisplayRole } from "@cline/core";
 import { validateImageMedia } from "@cline/shared";
 import {
 	readSessionManifest,
@@ -7,6 +8,7 @@ import {
 	sharedSessionMessagesWritePath,
 } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
+import { readChildSessionMessages } from "./agents";
 import {
 	parseF64Value,
 	parseU64Value,
@@ -28,28 +30,21 @@ type ChatTurnResult = {
 
 const nowMs = () => Date.now();
 
+function resolveMessageCreatedAt(
+	message: JsonRecord,
+	fallbackCreatedAt: number,
+): number {
+	return (
+		parseU64Value(message.ts) ??
+		parseU64Value(message.createdAt) ??
+		fallbackCreatedAt
+	);
+}
+
 function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 	return message.metadata && typeof message.metadata === "object"
 		? (message.metadata as JsonRecord)
 		: undefined;
-}
-
-function resolveDisplayRole(
-	role: string,
-	metadata: JsonRecord | undefined,
-): string {
-	const displayRole =
-		typeof metadata?.displayRole === "string"
-			? metadata.displayRole.trim().toLowerCase()
-			: "";
-	if (
-		displayRole === "system" ||
-		displayRole === "status" ||
-		displayRole === "error"
-	) {
-		return displayRole;
-	}
-	return role;
 }
 
 function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
@@ -65,7 +60,19 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		typeof metadata.displayRole === "string" ? metadata.displayRole : undefined;
 	const reason =
 		typeof metadata.reason === "string" ? metadata.reason : undefined;
-	if (!hookEventName && !messageKind && !displayRole && !reason) {
+	const userRunSpan =
+		typeof metadata.userRunSpan === "number" &&
+		Number.isInteger(metadata.userRunSpan) &&
+		metadata.userRunSpan >= 0
+			? metadata.userRunSpan
+			: undefined;
+	if (
+		!hookEventName &&
+		!messageKind &&
+		!displayRole &&
+		!reason &&
+		userRunSpan === undefined
+	) {
 		return undefined;
 	}
 	return {
@@ -73,6 +80,7 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		messageKind,
 		displayRole,
 		reason,
+		userRunSpan,
 	};
 }
 
@@ -316,7 +324,12 @@ export async function readSessionMessages(
 	sessionId: string,
 	maxMessages = 800,
 ): Promise<unknown[]> {
-	const persisted = readPersistedChatMessages(sessionId);
+	const persisted =
+		readPersistedChatMessages(sessionId) ??
+		// A child agent's transcript is not stored under its own session
+		// directory — it lives beside the root session's artifacts — so opening a
+		// subagent session has to resolve the path recorded on its row.
+		readChildSessionMessages(sessionId);
 	const messages =
 		persisted && persisted.length > 0
 			? persisted
@@ -327,8 +340,20 @@ export async function readSessionMessages(
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
-	let nextCreatedAt = baseTs;
 	let userRunCount = 0;
+	for (let idx = 0; idx < start; idx += 1) {
+		const rawMessage = messages[idx];
+		if (!rawMessage || typeof rawMessage !== "object") {
+			continue;
+		}
+		const message = rawMessage as JsonRecord;
+		const metadata = readMessageMetadata(message);
+		userRunCount += getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+	}
 
 	for (let idx = start; idx < messages.length; idx += 1) {
 		const rawMessage = messages[idx];
@@ -336,20 +361,34 @@ export async function readSessionMessages(
 			continue;
 		}
 		const message = rawMessage as JsonRecord;
+		const createdAt = resolveMessageCreatedAt(message, baseTs + idx);
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
 			textMeta = { ...(textMeta ?? {}), ...storedMeta };
 		}
-		const role = resolveDisplayRole(
-			normalizeRole(message.role),
-			readMessageMetadata(message),
-		);
 		const metadata = readMessageMetadata(message);
-		const isRecoveryNotice =
-			typeof metadata?.kind === "string" && metadata.kind === "recovery_notice";
-		if (role === "user" && !isRecoveryNotice) {
-			userRunCount += 1;
+		const userRunSpan = getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+		userRunCount += userRunSpan;
+		const role = resolveMessageDisplayRole({
+			role: normalizeRole(message.role),
+			metadata,
+		});
+		if (role === "user" && userRunSpan !== 1) {
+			textMeta = {
+				...(textMeta ?? {}),
+				userRunSpan,
+			};
+		}
+		if (userRunSpan === 1 && role === "user") {
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 			const checkpoint = checkpointsByRunCount.get(userRunCount);
 			if (checkpoint) {
 				textMeta = {
@@ -357,6 +396,14 @@ export async function readSessionMessages(
 					checkpoint,
 				};
 			}
+		} else if (userRunCount > 0) {
+			// This also anchors truncated histories whose visible window starts
+			// with an assistant/tool/system message. The webview can then number
+			// a newly appended optimistic user message from the absolute count.
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 		}
 		const messageIdBase =
 			(typeof message.id === "string" && message.id.trim()) ||
@@ -375,7 +422,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt: nextCreatedAt++,
+				createdAt,
 				meta: textMeta,
 			});
 			continue;
@@ -401,8 +448,12 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt: nextCreatedAt++,
-				meta: textMeta,
+				createdAt,
+				// A persisted user message can project into more than one text
+				// segment around tool blocks. Only its first segment represents
+				// the run; later segments must not acquire a fallback ordinal in
+				// the webview.
+				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
 			});
 			textSegmentIndex += 1;
 			textMeta = undefined;
@@ -431,7 +482,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: {
 						toolName,
 						hookEventName: "history_tool_use",
@@ -471,7 +522,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt: nextCreatedAt++,
+						createdAt,
 						meta: {
 							toolName: "tool_result",
 							hookEventName: "history_tool_result",
@@ -522,7 +573,7 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: textMeta,
 				});
 				textMeta = undefined;
@@ -548,7 +599,7 @@ export async function readSessionMessages(
 					content: "",
 					reasoning: reasoning || undefined,
 					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextCreatedAt++,
+					createdAt,
 					meta: textMeta,
 				});
 				textMeta = undefined;

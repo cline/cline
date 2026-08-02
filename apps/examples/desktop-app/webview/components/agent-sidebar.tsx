@@ -17,7 +17,6 @@ import {
 	Loader2,
 	PanelLeftOpen,
 	Pencil,
-	Pin,
 	Plug,
 	Plus,
 	Radio,
@@ -25,6 +24,7 @@ import {
 	Server,
 	Settings,
 	SlidersHorizontal,
+	Star,
 	Trash2,
 	Wrench,
 } from "lucide-react";
@@ -36,6 +36,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
 	AlertDialog,
@@ -93,7 +94,7 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Schedules", "Pinned"] as const;
+const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
 type DesktopProcessContext = {
@@ -155,7 +156,7 @@ function SettingsSectionNavigation({
 					"min-w-0 justify-start",
 					activeSection === section &&
 						"bg-sidebar-accent text-sidebar-accent-foreground",
-					collapsed && "mx-auto size-9 justify-center px-0",
+					collapsed && "size-9 justify-center px-0",
 				)}
 				key={section}
 				onClick={() => onSelect(section)}
@@ -174,7 +175,7 @@ function SettingsSectionNavigation({
 			aria-label="Settings sections"
 			className={cn(
 				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
-				collapsed ? "w-full items-center" : "w-full",
+				collapsed ? "w-full items-start" : "w-full",
 			)}
 		>
 			{!collapsed ? (
@@ -243,6 +244,7 @@ export function AgentSidebar({
 		openThread: openHistoryThread,
 		pendingAction,
 		renameThread,
+		setThreadPinned,
 		threads,
 		unreadSessionIds,
 	} = sessionHistory;
@@ -328,7 +330,7 @@ export function AgentSidebar({
 				return filtered.filter((t) => t.status === "running");
 			case "Schedules":
 				return filtered.filter((t) => t.source === SCHEDULED_SESSION_SOURCE);
-			case "Pinned":
+			case "Favorites":
 				return filtered.filter((t) => t.pinned);
 			default:
 				return filtered;
@@ -401,6 +403,13 @@ export function AgentSidebar({
 			await forkHistoryThread(thread.id);
 		},
 		[forkHistoryThread],
+	);
+
+	const toggleFavorite = useCallback(
+		async (thread: Thread) => {
+			await setThreadPinned(thread.id, !thread.pinned);
+		},
+		[setThreadPinned],
 	);
 
 	const requestDeleteThread = useCallback((thread: Thread) => {
@@ -532,6 +541,7 @@ export function AgentSidebar({
 			onEditTitleChange={setEditingTitle}
 			onFork={() => void forkThread(thread)}
 			onRename={() => startRenameThread(thread)}
+			onToggleFavorite={() => void toggleFavorite(thread)}
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
@@ -586,54 +596,64 @@ export function AgentSidebar({
 						isCollapsed && "px-1.5",
 					)}
 				>
-					<HoverCard
-						closeDelay={100}
-						openDelay={0}
-						onOpenChange={(open) => {
-							if (open) {
-								void loadProcessContext();
-							}
-						}}
-					>
-						<HoverCardTrigger asChild>
-							<button
-								aria-label="Cline home"
-								className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-								onClick={openHome}
-								title="Home"
-								type="button"
+					<div className="flex min-w-0 items-center gap-0.5">
+						<HoverCard
+							closeDelay={100}
+							openDelay={0}
+							onOpenChange={(open) => {
+								if (open) {
+									void loadProcessContext();
+								}
+							}}
+						>
+							<HoverCardTrigger asChild>
+								<button
+									aria-label="Cline home"
+									className={cn(
+										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										isCollapsed && "size-9",
+									)}
+									onClick={openHome}
+									title="Home"
+									type="button"
+								>
+									<ClineLogo className="size-5" />
+								</button>
+							</HoverCardTrigger>
+							<HoverCardContent
+								align="start"
+								className="w-64 p-3"
+								side="bottom"
 							>
-								<ClineLogo className="size-6" />
-							</button>
-						</HoverCardTrigger>
-						<HoverCardContent align="start" className="w-64 p-3" side="bottom">
-							<p className="text-sm font-medium">Cline Code</p>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								{appVersion ? `Version ${appVersion}` : "Version unavailable"}
-							</p>
-							<div className="mt-3 border-border border-t pt-3">
-								<div className="flex items-center gap-2 text-xs">
-									<span
-										aria-hidden="true"
-										className={cn(
-											"h-2 w-2 shrink-0 rounded-full",
-											hubStatus?.connected
-												? "bg-emerald-500"
-												: "bg-muted-foreground",
-										)}
-									/>
-									<span className="font-medium">
-										Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
-									</span>
+								<p className="text-sm font-medium">Cline Code</p>
+								<p className="mt-0.5 text-xs text-muted-foreground">
+									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
+								</p>
+								<div className="mt-3 border-border border-t pt-3">
+									<div className="flex items-center gap-2 text-xs">
+										<span
+											aria-hidden="true"
+											className={cn(
+												"h-2 w-2 shrink-0 rounded-full",
+												hubStatus?.connected
+													? "bg-emerald-500"
+													: "bg-muted-foreground",
+											)}
+										/>
+										<span className="font-medium">
+											Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
+										</span>
+									</div>
+									{hubStatus && !hubStatus.connected && (
+										<p className="mt-1 text-[11px] text-destructive">
+											{hubStatus.error ?? "Cline Hub is not connected."}
+										</p>
+									)}
 								</div>
-								{hubStatus && !hubStatus.connected && (
-									<p className="mt-1 text-[11px] text-destructive">
-										{hubStatus.error ?? "Cline Hub is not connected."}
-									</p>
-								)}
-							</div>
-						</HoverCardContent>
-					</HoverCard>
+							</HoverCardContent>
+						</HoverCard>
+						{!isCollapsed ? <AppUpdateIndicator /> : null}
+					</div>
 					{!isCollapsed ? (
 						<Button
 							aria-label="New Session"
@@ -649,7 +669,8 @@ export function AgentSidebar({
 				</div>
 
 				{isCollapsed ? (
-					<div className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-1 px-1.5">
+					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
+						<AppUpdateIndicator className="mx-auto size-9" />
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
@@ -659,7 +680,7 @@ export function AgentSidebar({
 						) : null}
 						<Button
 							aria-label="Expand sidebar"
-							className="mx-auto size-9 justify-center px-0"
+							className="mt-auto size-9 justify-center px-0"
 							onClick={() => setOpen(true)}
 							title="Expand sidebar"
 							type="button"
@@ -747,7 +768,7 @@ export function AgentSidebar({
 																	.map(threadItem)}
 																{project.threads.length > visibleCount ? (
 																	<Button
-																		className="pl-2"
+																		className="pl-2!"
 																		onClick={() =>
 																			showMoreForProject(project.id)
 																		}
@@ -775,7 +796,11 @@ export function AgentSidebar({
 									)}
 									{sortMode === "time" && showTimeShowMore && (
 										<Button
-											className="pl-0"
+											// `pl-0!`: the default button size adds
+											// `has-[>svg]:px-3`, and that modifier beats a plain
+											// `pl-0` on specificity, so the icon child was
+											// re-indenting the row.
+											className="pl-0!"
 											disabled={isLoadingMore}
 											onClick={() => {
 												const nextCount =
@@ -792,10 +817,10 @@ export function AgentSidebar({
 													Loading...
 												</>
 											) : (
-												<>
+												<div className="ml-2 flex items-center gap-1">
 													Show more
 													<ChevronDown className="size-3" />
-												</>
+												</div>
 											)}
 										</Button>
 									)}
@@ -804,7 +829,7 @@ export function AgentSidebar({
 										!searchQuery &&
 										mayHaveMoreSessions && (
 											<Button
-												className="pl-0"
+												className="pl-0!"
 												disabled={isLoadingMore}
 												onClick={() => void loadOlderSessions()}
 												type="button"
@@ -829,49 +854,74 @@ export function AgentSidebar({
 					</>
 				)}
 
-				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
-					{view !== "settings" && (
+				<div
+					className={cn(
+						"shrink-0 border-t border-sidebar-border/70 py-3",
+						isCollapsed ? "px-1.5" : "px-2",
+					)}
+				>
+					{user && !isCollapsed ? (
+						<div className="flex min-w-0 items-center gap-2">
+							<button
+								aria-label="Account settings"
+								className={cn(
+									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									view === "settings" &&
+										settingsSection === "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={() => openSettingsSection("Account")}
+								title={user.email || undefined}
+								type="button"
+							>
+								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+									{accountInitial}
+								</span>
+								<span className="flex min-w-0 flex-col leading-tight">
+									<span className="truncate text-sm font-medium">
+										{accountName}
+									</span>
+									{accountScope ? (
+										<span className="truncate text-[11px] text-muted-foreground">
+											{accountScope}
+										</span>
+									) : null}
+								</span>
+							</button>
+							<Button
+								aria-label="Settings"
+								className={cn(
+									"size-9 shrink-0 justify-center px-0",
+									view === "settings" &&
+										settingsSection !== "Account" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={openSettings}
+								title="Settings"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Settings className="size-4" />
+							</Button>
+						</div>
+					) : (
 						<Button
 							aria-label="Settings"
-							type="button"
-							variant="sidebarItem"
 							className={cn(
 								"min-w-0 justify-start",
-								isCollapsed && "mx-auto size-9 justify-center px-0",
+								isCollapsed && "size-9 justify-center px-0",
+								view === "settings" &&
+									"bg-sidebar-accent text-sidebar-accent-foreground",
 							)}
 							onClick={openSettings}
 							title="Settings"
+							type="button"
+							variant="sidebarItem"
 						>
 							<Settings className="size-4" />
 							{!isCollapsed ? "Settings" : null}
 						</Button>
 					)}
-					{!isCollapsed ? (
-						<button
-							aria-label="Account settings"
-							className={cn(
-								"flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-								view === "settings" &&
-									settingsSection === "Account" &&
-									"bg-sidebar-accent text-sidebar-accent-foreground",
-							)}
-							onClick={() => openSettingsSection("Account")}
-							title={user?.email || undefined}
-							type="button"
-						>
-							<span className="min-w-0 flex gap-2 items-center">
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-									{accountInitial}
-								</span>
-								<span className="block truncate text-sm font-medium">
-									{accountName}
-									<span className="pl-1 truncate text-[11px] text-muted-foreground">
-										{accountScope}
-									</span>
-								</span>
-							</span>
-						</button>
-					) : null}
 				</div>
 			</div>
 			<AlertDialog
@@ -966,6 +1016,7 @@ function ThreadItem({
 	onCommitRename,
 	onEditTitleChange,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
@@ -980,6 +1031,7 @@ function ThreadItem({
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1042,7 +1094,10 @@ function ThreadItem({
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
-									<Pin aria-label="Pinned" className="size-3" />
+									<Star
+										aria-label="Favorited"
+										className="size-3 fill-current"
+									/>
 								) : statusDotClass ? (
 									<span
 										aria-hidden="true"
@@ -1082,9 +1137,11 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
+				onToggleFavorite={onToggleFavorite}
 				pendingAction={pendingAction}
 			/>
 		</ContextMenu>
@@ -1173,12 +1230,16 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	favorited,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
 }: {
+	favorited: boolean;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1186,6 +1247,10 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
+			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+				<Star className={cn("size-4", favorited && "fill-current")} />
+				{favorited ? "Unfavorite" : "Favorite"}
+			</ContextMenuItem>
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />

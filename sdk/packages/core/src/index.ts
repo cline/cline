@@ -6,13 +6,18 @@
 
 export * as Llms from "@cline/llms";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -277,6 +282,7 @@ export {
 export {
 	type AuthorizeMcpServerOAuthOptions,
 	type AuthorizeMcpServerOAuthResult,
+	augmentMcpTimeoutError,
 	authorizeMcpServerOAuth,
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
@@ -487,13 +493,26 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export { listActiveConnectors } from "./services/connectors/active-connectors";
+export {
+	disableConnectorAutostart,
+	getPersistedConnectorConnection,
+	persistConnectorConnection,
+	type ReconnectAttempt,
+	type ReconnectPersistedConnectorsOptions,
+	type ReconnectTarget,
+	reconnectPersistedConnectors,
+	removePersistedConnectorConnection,
+} from "./services/connectors/connector-autostart";
 export {
 	FeatureFlagsService,
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 export type {
+	GlobalCompactionMode,
 	GlobalCompactionStrategy,
+	GlobalPlanActMode,
 	GlobalSettings,
 } from "./services/global-settings";
 export {
@@ -505,15 +524,21 @@ export {
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
@@ -627,7 +652,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
-export { resolveCoreDistinctId } from "./services/telemetry";
+export { resolveCoreDeviceId, resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
@@ -724,8 +749,10 @@ export {
 	createCheckpointComparePlan,
 } from "./session/checkpoint-diff";
 export {
+	createRestoredCheckpointMetadata,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
+	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
@@ -758,6 +785,13 @@ export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
+export {
+	countUserRunMessages,
+	getUserRunSpan,
+	isUserRunMessage,
+	type MessageDisplayRole,
+	resolveMessageDisplayRole,
+} from "./session/user-run-messages";
 export type {
 	CoreSettingsItem,
 	CoreSettingsItemKind,
@@ -831,6 +865,7 @@ export {
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
 	MAX_COMMAND_OUTPUT_CHARS,
+	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
 	resolveCoreSelectedToolIds,

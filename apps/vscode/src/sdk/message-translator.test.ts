@@ -1074,6 +1074,133 @@ describe("translateSessionEvent — agent_event done", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — inferred turn-final completion retag
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — inferred turn-final completion", () => {
+	const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+		({
+			type: "agent_event",
+			payload: { sessionId: "session-1", event: event as AgentEvent },
+		}) as CoreSessionEvent
+
+	const endText = (state: MessageTranslatorState, text: string) =>
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "text", text }), state)
+
+	const done = (state: MessageTranslatorState, reason: "completed" | "aborted" | "error" = "completed") =>
+		translateSessionEvent(agentEvent({ type: "done", reason, text: "", iterations: 1 }), state)
+
+	it("retags the turn-final text to plan_completion_result in plan mode", () => {
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const textResult = endText(state, "Here is the plan.")
+
+		const doneResult = done(state)
+
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("does not retag when the turn ends on a tool call after the text", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Switching over now.")
+
+		// e.g. switch_to_act_mode (lifecycle.completesRun) ends the turn after the tool
+		translateSessionEvent(
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "switch_to_act_mode", input: {} }),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "switch_to_act_mode", output: "ok" }),
+			state,
+		)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("does not retag an aborted or errored turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Halfway through...")
+		expect(done(state, "aborted").messages).toHaveLength(0)
+
+		// The abort cleared the candidate — a later stray done must not resurrect it.
+		expect(done(state).messages).toHaveLength(0)
+
+		endText(state, "Almost there...")
+		const errorResult = translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("boom"), recoverable: false }),
+			state,
+		)
+		expect(errorResult.messages.some((m) => m.say === "completion_result")).toBe(false)
+		expect(done(state).messages.filter((m) => m.say === "completion_result")).toHaveLength(0)
+	})
+
+	it("retags only the last finalized text of the turn (text → tool → text)", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Let me check the file first.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				input: { path: "/a.ts" },
+			}),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				output: "contents",
+			}),
+			state,
+		)
+		const finalText = endText(state, "All done — the file looks good.")
+
+		const doneResult = done(state)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: finalText.messages[0].ts,
+			say: "completion_result",
+			text: "All done — the file looks good.",
+		})
+	})
+
+	it("does not retag when the completion tool already rendered the green box", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "attempt_completion",
+				input: { result: "Done!" },
+			}),
+			state,
+		)
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "tool", toolName: "attempt_completion" }), state)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("clearTurnOutcome drops a stale candidate from the previous turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Previous turn's answer.")
+		state.clearTurnOutcome() // new user turn begins
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
 // translateSessionEvent — agent_event (error)
 // ---------------------------------------------------------------------------
 
@@ -1104,6 +1231,45 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.messages[1].text).toBe("API rate limit exceeded")
 		expect(result.messages[1].partial).toBe(false)
 		expect(result.turnComplete).toBe(true)
+	})
+
+	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "error",
+					text: "stream failed before assistant output",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.turnComplete).toBe(true)
+		expect(state.wasErrorSeen()).toBe(true)
+	})
+
+	it("does not record an error outcome for a successful done event", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		translateSessionEvent(event, state)
+		expect(state.wasErrorSeen()).toBe(false)
 	})
 
 	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
@@ -1503,8 +1669,9 @@ describe("translateSessionEvent — full streaming flow", () => {
 		expect(endResult.messages[0].partial).toBe(false)
 		expect(endResult.messages[0].text).toBe("Hello world!")
 
-		// 3. Done — without attempt_completion, emits ask:"completion_result"
-		// with empty text (no green rectangle, just enables follow-up input)
+		// 3. Done — the turn ended cleanly on a text response, so the final text row is
+		// retagged in place (same ts) to say:"completion_result" for the green
+		// "Task Completed" box (act mode is the default when no mode source is provided).
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -1520,7 +1687,14 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: endResult.messages[0].ts,
+			type: "say",
+			say: "completion_result",
+			text: "Hello world!",
+			partial: false,
+		})
 		expect(doneResult.turnComplete).toBe(true)
 	})
 
@@ -2963,6 +3137,30 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 		expect(tool.content).toBe("export const x = 1")
 	})
 
+	it("editor with insert_line is an edit of an existing file, not a new-file creation", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-insert",
+					// A prepend/insert: new_text present, no old_text, but insert_line set.
+					// The SDK editor executor requires the file to already exist for insert,
+					// so this must map to editedExistingFile (not newFileCreated).
+					input: { path: "/src/existing.ts", new_text: "// prepended", insert_line: 1 },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/existing.ts")
+	})
+
 	it("S6-48: editor with old_str/new_str also builds search/replace diff", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
@@ -3083,6 +3281,183 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 			expect(tool.content).toBe("the-patch-content")
 			expect(tool.diff).toBe("the-patch-content")
 		})
+	})
+})
+
+describe("apply_patch multi-file split (cline#9904)", () => {
+	const startEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: { input: patch },
+			} as AgentEvent,
+		},
+	})
+
+	const endEvent = (callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_end",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+			} as AgentEvent,
+		},
+	})
+
+	const TWO_FILE = [
+		"*** Begin Patch",
+		"*** Update File: src/a.ts",
+		"@@",
+		"-const a = 1",
+		"+const a = 2",
+		"*** Add File: src/b.ts",
+		"+export const b = 3",
+		"*** End Patch",
+	].join("\n")
+
+	const DELETE_UPDATE = [
+		"*** Begin Patch",
+		"*** Delete File: src/gone.ts",
+		"*** Update File: src/keep.ts",
+		"@@",
+		"-old",
+		"+new",
+		"*** End Patch",
+	].join("\n")
+
+	const SINGLE_FILE = ["*** Begin Patch", "*** Update File: src/file.ts", "@@", "-old", "+new", "*** End Patch"].join("\n")
+
+	it("content_start streams a single whole-patch preview row for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+
+		// Streaming preview is intentionally one row (the whole patch); the per-file
+		// split happens only at content_end so the finalized ids match (cline#9904).
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].partial).toBe(true)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(TWO_FILE)
+	})
+
+	it("content_end finalizes one per-file message for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].partial).toBe(false)
+		const a = JSON.parse(result.messages[0].text!)
+		const b = JSON.parse(result.messages[1].text!)
+		expect(a.tool).toBe("editedExistingFile")
+		expect(a.path).toBe("src/a.ts")
+		expect(b.tool).toBe("newFileCreated")
+		expect(b.path).toBe("src/b.ts")
+		expect(a.content).not.toContain("src/b.ts")
+		expect(b.content).not.toContain("src/a.ts")
+	})
+
+	it("reconciles start→end by ts: N rows, none left partial (cline#9904 orphan guard)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		// Merge both batches by ts the way MessageStateHandler.addMessages does:
+		// a later message with an existing ts replaces the earlier one.
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		// Exactly one row per file, and no orphaned streaming (partial) row survives.
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	const bareStartEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: patch,
+			} as AgentEvent,
+		},
+	})
+
+	it("reconciles start→end by ts for a bare-string multi-file patch (no { input } wrapper)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(bareStartEvent(TWO_FILE, "call-1"), state)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0].partial).toBe(true)
+		expect(JSON.parse(startResult.messages[0].text!).content).toBe(TWO_FILE)
+
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	it("each per-file sub-patch keeps the Begin/End Patch wrapper", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+		for (const message of result.messages) {
+			const tool = JSON.parse(message.text!)
+			expect(tool.content.startsWith("*** Begin Patch")).toBe(true)
+			expect(tool.content.trimEnd().endsWith("*** End Patch")).toBe(true)
+		}
+	})
+
+	it("maps delete and update actions to fileDeleted and editedExistingFile", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(DELETE_UPDATE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const del = JSON.parse(result.messages[0].text!)
+		const upd = JSON.parse(result.messages[1].text!)
+		expect(del.tool).toBe("fileDeleted")
+		expect(del.path).toBe("src/gone.ts")
+		expect(upd.tool).toBe("editedExistingFile")
+		expect(upd.path).toBe("src/keep.ts")
+		expect(upd.content).not.toContain("src/gone.ts")
+	})
+
+	it("leaves a single-file patch as one message at content_end (S6-48 unchanged)", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(SINGLE_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(1)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(SINGLE_FILE)
+		expect(tool.diff).toBe(SINGLE_FILE)
 	})
 })
 

@@ -34,6 +34,11 @@ export interface CaptureSdkErrorInput {
 	component: SdkTelemetryErrorComponent;
 	operation: string;
 	error: unknown;
+	/**
+	 * A useful message derived while the caller still has domain-specific error
+	 * context. The raw error remains the source of type, code, and status.
+	 */
+	errorMessage?: string;
 	severity?: SdkTelemetryErrorSeverity;
 	handled?: boolean;
 	context?: TelemetryProperties;
@@ -204,7 +209,7 @@ export function buildSdkErrorProperties(
 		operation: input.operation,
 		severity: input.severity ?? "error",
 		handled: input.handled ?? true,
-		...normalizeSdkError(input.error, input.messageLimit),
+		...normalizeSdkError(input.error, input.messageLimit, input.errorMessage),
 	};
 }
 
@@ -223,13 +228,16 @@ function stripUndefinedTelemetryProperties(
 export function normalizeSdkError(
 	error: unknown,
 	messageLimit = DEFAULT_ERROR_MESSAGE_LIMIT,
+	errorMessage?: string,
 ): TelemetryProperties {
 	const record = isRecord(error) ? error : undefined;
 	const errorObject = error instanceof Error ? error : undefined;
 	const message =
-		errorObject?.message ??
+		stringValue(errorMessage) ??
+		stringValue(errorObject?.message) ??
 		stringValue(record?.message) ??
-		(typeof error === "string" ? error : String(error));
+		fallbackErrorString(error) ??
+		"Unknown error";
 	const code = stringOrNumberValue(record?.code);
 	const status =
 		numberValue(record?.status) ??
@@ -281,6 +289,14 @@ function stringValue(value: unknown): string | undefined {
 		: undefined;
 }
 
+function fallbackErrorString(error: unknown): string | undefined {
+	if (error instanceof Error) {
+		return undefined;
+	}
+	const value = typeof error === "string" ? error : String(error);
+	return value === "[object Object]" ? undefined : stringValue(value);
+}
+
 function stringOrNumberValue(value: unknown): string | number | undefined {
 	if (typeof value === "string" && value.trim().length > 0) {
 		return value;
@@ -305,7 +321,7 @@ export interface OpenTelemetryClientConfig {
 
 	/**
 	 * Metrics exporter type(s) - can be comma-separated for multiple exporters
-	 * Examples: "console", "otlp", "prometheus", "console,otlp"
+	 * Examples: "console", "otlp", "console,otlp"
 	 */
 	metricsExporter?: string;
 

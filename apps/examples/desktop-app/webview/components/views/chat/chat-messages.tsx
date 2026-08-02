@@ -1,7 +1,9 @@
 "use client";
 
+import { AgentApprovalCard } from "@cline/ui";
 import {
 	Message as AgentMessage,
+	type AgentMessageRole,
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
@@ -20,23 +22,42 @@ import {
 } from "@cline/ui/components/agent-chat";
 import {
 	AlertCircle,
-	Bot,
+	BlocksIcon,
+	BoxIcon,
+	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
-	FileEdit,
-	FileIcon,
-	FileSearch,
+	FilesIcon,
+	LibraryIcon,
 	Loader2,
+	type LucideIcon,
+	MessageCircleQuestionMarkIcon,
 	MessagesSquare,
-	Search,
+	PanelsTopLeftIcon,
+	PencilIcon,
+	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
-	SquareTerminalIcon,
+	SquareArrowRightIcon,
+	TerminalIcon,
 	UndoIcon,
+	UserIcon,
+	UsersIcon,
+	WrenchIcon,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -70,6 +91,11 @@ type ChatMessagesProps = {
 		answer: string,
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 };
 
@@ -98,14 +124,141 @@ type AskQuestionRequestItem = {
 };
 
 type ChatRenderItem =
-	| { type: "message"; message: ChatMessage }
+	| {
+			type: "message";
+			agentRole: AgentMessageRole;
+			message: ChatMessage;
+			reasoningMessages: ChatMessage[];
+	  }
 	| { type: "tools"; messages: ChatMessage[] };
 
-function groupConsecutiveToolMessages(
+function hasMessageReasoning(message: ChatMessage): boolean {
+	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
+}
+
+function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "assistant" &&
+		hasMessageReasoning(message) &&
+		!message.content.trim() &&
+		!message.images?.length
+	);
+}
+
+function buildPreviousTimestampMap(
 	messages: ChatMessage[],
-): ChatRenderItem[] {
-	const items: ChatRenderItem[] = [];
+): Map<ChatMessage, number | undefined> {
+	const previousTimestampByMessage = new Map<ChatMessage, number | undefined>();
+	let previousTimestamp: number | undefined;
+
 	for (const message of messages) {
+		previousTimestampByMessage.set(message, previousTimestamp);
+		if (Number.isFinite(message.createdAt)) {
+			previousTimestamp = message.createdAt;
+		}
+	}
+
+	return previousTimestampByMessage;
+}
+
+function buildUserRunCountMap(
+	messages: ChatMessage[],
+): Map<ChatMessage, number> {
+	const runCountByMessage = new Map<ChatMessage, number>();
+	let lastRunCount = 0;
+
+	for (const message of messages) {
+		const userRunSpan =
+			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+		const storedRunCount =
+			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
+		if (storedRunCount !== undefined) {
+			lastRunCount = Math.max(lastRunCount, storedRunCount);
+			if (message.role === "user" && userRunSpan === 1) {
+				runCountByMessage.set(message, storedRunCount);
+			}
+			continue;
+		}
+		lastRunCount += userRunSpan;
+		if (message.role === "user" && userRunSpan === 1) {
+			runCountByMessage.set(message, lastRunCount);
+		}
+	}
+
+	return runCountByMessage;
+}
+
+function getThoughtDurationMilliseconds(
+	previousTimestamp: number | undefined,
+	thinkingTimestamp: number,
+): number | undefined {
+	if (
+		previousTimestamp === undefined ||
+		!Number.isFinite(previousTimestamp) ||
+		!Number.isFinite(thinkingTimestamp) ||
+		thinkingTimestamp < previousTimestamp
+	) {
+		return undefined;
+	}
+
+	return thinkingTimestamp - previousTimestamp;
+}
+
+function formatThoughtLabel(durationMilliseconds?: number): string {
+	if (durationMilliseconds === undefined) {
+		return "Thinking";
+	}
+
+	const seconds =
+		durationMilliseconds === 0
+			? 0
+			: Math.max(1, Math.round(durationMilliseconds / 1000));
+
+	return `Thought for ${seconds}s`;
+}
+
+function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
+	const items: ChatRenderItem[] = [];
+	let pendingReasoningMessages: ChatMessage[] = [];
+
+	const pushMessage = (
+		message: ChatMessage,
+		agentRole: AgentMessageRole,
+		reasoningMessages = hasMessageReasoning(message) ? [message] : [],
+	) => {
+		items.push({
+			type: "message",
+			agentRole,
+			message,
+			reasoningMessages,
+		});
+	};
+
+	const flushPendingReasoning = () => {
+		const message = pendingReasoningMessages.at(-1);
+		if (!message) {
+			return;
+		}
+		pushMessage(message, "assistant", pendingReasoningMessages);
+		pendingReasoningMessages = [];
+	};
+
+	for (const message of messages) {
+		if (isReasoningOnlyAssistantMessage(message)) {
+			pendingReasoningMessages.push(message);
+			continue;
+		}
+
+		if (message.role === "assistant" && pendingReasoningMessages.length > 0) {
+			const reasoningMessages = hasMessageReasoning(message)
+				? [...pendingReasoningMessages, message]
+				: pendingReasoningMessages;
+			pushMessage(message, "assistant", reasoningMessages);
+			pendingReasoningMessages = [];
+			continue;
+		}
+
+		flushPendingReasoning();
 		const previous = items.at(-1);
 		if (message.role === "tool") {
 			if (previous?.type === "tools") {
@@ -115,12 +268,30 @@ function groupConsecutiveToolMessages(
 			}
 			continue;
 		}
-		items.push({ type: "message", message });
+		pushMessage(message, message.role);
 	}
+	flushPendingReasoning();
 	return items;
 }
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
+const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
+/** Keeps a scroller's X axis live while hiding its horizontal bar (globals.css). */
+const SCROLL_X_BARE_CLASS = "cline-chat-scroll-x-bare";
+
+/**
+ * Expanded reasoning and tool panels hang off a shared left rail: the border
+ * sits 8px in, centered under the 16px trigger icon, and the content is padded
+ * 16px so panel text lines up with the trigger label above it. Both panels must
+ * use this verbatim, and it overrides the panel chrome (border box, radius,
+ * background, inset) that `agent-chat.css` gives each of them by default.
+ *
+ * Both panels are capped on both axes so a long thought or a wide command list
+ * can never stretch the conversation column; each panel then picks which axes
+ * scroll (reasoning wraps and scrolls Y only, tools scroll both).
+ */
+const EXPANDED_PANEL_RAIL_CLASS =
+	"ml-1 mt-0 max-h-48 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
 
 function ChatMessagesImpl({
 	sessionId,
@@ -136,6 +307,7 @@ function ChatMessagesImpl({
 	onRejectToolApproval,
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
+	onEditMessage,
 	onForkSession,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
@@ -175,17 +347,47 @@ function ChatMessagesImpl({
 	const [checkpointErrors, setCheckpointErrors] = useState<
 		Record<string, string>
 	>({});
+	const [checkpointConfirmation, setCheckpointConfirmation] = useState<{
+		messageId: string;
+		runCount: number;
+	} | null>(null);
+	const [editConfirmation, setEditConfirmation] = useState<{
+		messageId: string;
+		content: string;
+		runCount: number;
+	} | null>(null);
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+	const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const sessionVersioningPending =
+		editingMessageId !== null ||
+		forkingMessageId !== null ||
+		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
+	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
+	const previousTimestampByMessage = useMemo(
+		() => buildPreviousTimestampMap(messages),
+		[messages],
+	);
+	const userRunCountByMessage = useMemo(
+		() => buildUserRunCountMap(messages),
+		[messages],
+	);
+
+	useEffect(() => {
+		void sessionId;
+		setCheckpointConfirmation(null);
+		setEditConfirmation(null);
+	}, [sessionId]);
 
 	useEffect(() => {
 		if (!visibleExpandedImage) {
@@ -346,6 +548,50 @@ function ChatMessagesImpl({
 		[onRestoreCheckpoint],
 	);
 
+	const handleEditMessage = useCallback(
+		async (messageId: string, content: string, runCount: number) => {
+			if (!onEditMessage) {
+				return;
+			}
+			setEditingMessageId(messageId);
+			setEditErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onEditMessage(messageId, content, runCount));
+			} catch (err) {
+				const message =
+					err instanceof Error
+						? err.message
+						: "Could not restart from this message.";
+				setEditErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setEditingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[onEditMessage],
+	);
+	const requestEditMessage = useCallback(
+		(messageId: string, content: string, runCount: number) => {
+			setEditConfirmation({ messageId, content, runCount });
+		},
+		[],
+	);
+
+	const handleExpandImage = useCallback(
+		(image: ChatMessageImage) => {
+			setExpandedImage({ sessionId, image });
+		},
+		[sessionId],
+	);
+
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
 			if (!onForkSession) {
@@ -386,12 +632,12 @@ function ChatMessagesImpl({
 			>
 				<ConversationContent
 					className={cn(
-						"relative mx-auto min-h-full w-full min-w-0 max-w-full overflow-x-hidden",
+						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
 						showIdleDetails ? "p-0" : "px-6 py-6",
 					)}
 				>
 					{showIdleDetails ? null : (
-						<div className="flex min-h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
+						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -423,7 +669,7 @@ function ChatMessagesImpl({
 									requestErrors={askQuestionErrors}
 								/>
 							) : null}
-							{groupConsecutiveToolMessages(messages).map((item) => {
+							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
 										<ToolMessageBlock
@@ -432,38 +678,86 @@ function ChatMessagesImpl({
 										/>
 									);
 								}
-								const { message } = item;
+								const { agentRole, message, reasoningMessages } = item;
+								const firstReasoningMessage = reasoningMessages[0];
+								const lastReasoningMessage = reasoningMessages.at(-1);
+								const reasoningContent = reasoningMessages
+									.map((reasoningMessage) => reasoningMessage.reasoning?.trim())
+									.filter((content): content is string => Boolean(content))
+									.join("\n\n");
 								return (
 									<MessageBubble
+										agentRole={agentRole}
+										isLastAssistantMessage={
+											message.role === "assistant" &&
+											lastConversationMessage === message
+										}
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
-										onExpandImage={(image) =>
-											setExpandedImage({ sessionId, image })
+										runCount={userRunCountByMessage.get(message)}
+										onExpandImage={handleExpandImage}
+										onCopyMessage={handleCopyMessage}
+										onEditMessage={
+											onEditMessage ? requestEditMessage : undefined
 										}
-										onCopyRawText={() =>
-											void handleCopyMessage(message.id, message.content)
+										editDisabled={
+											!onEditMessage ||
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
-										onRestoreCheckpoint={(runCount) =>
-											void handleRestoreCheckpoint(message.id, runCount)
+										editError={editErrors[message.id]}
+										editPending={editingMessageId === message.id}
+										onRestoreCheckpoint={
+											onRestoreCheckpoint
+												? (messageId, runCount) =>
+														setCheckpointConfirmation({
+															messageId,
+															runCount,
+														})
+												: undefined
 										}
 										restoreDisabled={
 											!onRestoreCheckpoint ||
 											status === "starting" ||
 											status === "running" ||
 											status === "stopping" ||
-											isSessionSwitching
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										restoreError={checkpointErrors[message.id]}
 										restorePending={checkpointActions[message.id] === "undoing"}
 										wasCopied={copiedMessageId === message.id}
 										onForkSession={
-											onForkSession
-												? () => void handleForkSession(message.id)
-												: undefined
+											onForkSession ? handleForkSession : undefined
+										}
+										forkDisabled={
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
+										reasoningContent={reasoningContent}
+										reasoningRedacted={reasoningMessages.some(
+											(reasoningMessage) =>
+												reasoningMessage.reasoningRedacted === true,
+										)}
+										thoughtDurationMilliseconds={
+											firstReasoningMessage && lastReasoningMessage
+												? getThoughtDurationMilliseconds(
+														previousTimestampByMessage.get(
+															firstReasoningMessage,
+														),
+														lastReasoningMessage.createdAt,
+													)
+												: undefined
+										}
 									/>
 								);
 							})}
@@ -495,7 +789,7 @@ function ChatMessagesImpl({
 					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							Thinking...
+							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
 					) : null}
 					{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
@@ -549,6 +843,80 @@ function ChatMessagesImpl({
 					</div>
 				</div>
 			) : null}
+			<AlertDialog
+				open={checkpointConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setCheckpointConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Revert to this checkpoint?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Workspace files and conversation history after this point will be
+							discarded. This cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = checkpointConfirmation;
+								setCheckpointConfirmation(null);
+								if (confirmation) {
+									void handleRestoreCheckpoint(
+										confirmation.messageId,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Revert
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			<AlertDialog
+				open={editConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This creates a new session and restores the workspace to its
+							checkpoint before placing this message in the composer. Workspace
+							and conversation changes after this point will be discarded.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = editConfirmation;
+								setEditConfirmation(null);
+								if (confirmation) {
+									void handleEditMessage(
+										confirmation.messageId,
+										confirmation.content,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Continue
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</Conversation>
 	);
 }
@@ -602,67 +970,37 @@ function ToolApprovalPanel({
 			<div className="mt-3 flex flex-col gap-2">
 				{items.map((item) => {
 					const pendingAction = pendingActions[item.requestId];
-					const isPending = Boolean(pendingAction);
 					const error = requestErrors[item.requestId];
 					return (
-						<div
-							className="rounded-lg border border-border/80 bg-background/70 p-3"
+						<AgentApprovalCard
+							description={
+								<>
+									Request {item.requestId}
+									{item.iteration != null
+										? ` · Iteration ${item.iteration}`
+										: ""}
+								</>
+							}
+							detail={formatApprovalInput(item.input)}
+							error={error}
 							key={item.requestId}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="text-sm font-medium text-foreground">
-									{item.toolName}
-								</div>
-								<div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+							meta={
+								<>
 									<Clock3 className="h-3 w-3" />
 									{formatApprovalTimestamp(item.createdAt)}
-								</div>
-							</div>
-							<div className="mt-1 text-[11px] text-muted-foreground">
-								Request {item.requestId}
-								{item.iteration != null ? ` · Iteration ${item.iteration}` : ""}
-							</div>
-							<pre className="mt-2 max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
-								{formatApprovalInput(item.input)}
-							</pre>
-							{error ? (
-								<div className="mt-2 text-xs text-destructive">{error}</div>
-							) : null}
-							<div className="mt-2 flex items-center gap-2">
-								<Button
-									disabled={isPending}
-									onClick={() => onApprove(item.requestId)}
-									size="sm"
-									type="button"
-									variant="default"
-								>
-									{pendingAction === "approving" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Approving...
-										</>
-									) : (
-										"Approve"
-									)}
-								</Button>
-								<Button
-									disabled={isPending}
-									onClick={() => onReject(item.requestId)}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									{pendingAction === "rejecting" ? (
-										<>
-											<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-											Rejecting...
-										</>
-									) : (
-										"Reject"
-									)}
-								</Button>
-							</div>
-						</div>
+								</>
+							}
+							onApprove={() => onApprove(item.requestId)}
+							onReject={() => onReject(item.requestId)}
+							responding={
+								pendingAction === "approving"
+									? "approve"
+									: pendingAction === "rejecting"
+										? "reject"
+										: undefined
+							}
+							title={item.toolName}
+						/>
 					);
 				})}
 			</div>
@@ -747,32 +1085,64 @@ function AskQuestionPanel({
 	);
 }
 
-function MessageBubble({
+// Memoized with id-parameterized callbacks: during streaming only the message
+// object that received a delta changes identity, so all other bubbles skip
+// re-rendering (and re-running their Markdown pipeline) per flush.
+const MessageBubble = memo(function MessageBubble({
+	agentRole,
 	message,
+	runCount,
 	isStreaming = false,
-	onCopyRawText,
+	onCopyMessage,
 	onExpandImage,
+	onEditMessage,
+	editDisabled = false,
+	editPending = false,
+	editError,
 	onRestoreCheckpoint,
 	restoreDisabled = false,
 	restorePending = false,
 	restoreError,
 	wasCopied = false,
 	onForkSession,
+	forkDisabled = false,
 	forkPending = false,
 	forkError,
+	isLastAssistantMessage = false,
+	reasoningContent,
+	reasoningRedacted,
+	thoughtDurationMilliseconds,
 }: {
+	agentRole: AgentMessageRole;
 	message: ChatMessage;
+	runCount?: number;
 	isStreaming?: boolean;
-	onCopyRawText?: () => void;
+	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
-	onRestoreCheckpoint?: (runCount: number) => void;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
+	editDisabled?: boolean;
+	editPending?: boolean;
+	editError?: string;
+	onRestoreCheckpoint?: (
+		messageId: string,
+		runCount: number,
+	) => void | Promise<void>;
 	restoreDisabled?: boolean;
 	restorePending?: boolean;
 	restoreError?: string;
 	wasCopied?: boolean;
-	onForkSession?: () => void;
+	onForkSession?: (messageId: string) => void | Promise<void>;
+	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
+	isLastAssistantMessage?: boolean;
+	reasoningContent: string;
+	reasoningRedacted: boolean;
+	thoughtDurationMilliseconds?: number;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
@@ -786,21 +1156,50 @@ function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyRawText || onForkSession);
+		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
-		isUser && Boolean(onCopyRawText || checkpoint);
-	const keepUserActionsVisible = restorePending || Boolean(restoreError);
-	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
+		isUser &&
+		Boolean(
+			onCopyMessage ||
+				checkpoint ||
+				(onEditMessage && runCount && displayContent.trim()),
+		);
+	const keepUserActionsVisible =
+		restorePending ||
+		editPending ||
+		Boolean(restoreError) ||
+		Boolean(editError);
+	const keepAssistantActionsVisible =
+		isLastAssistantMessage || forkPending || Boolean(forkError);
 
-	const reasoningContent = message.reasoning?.trim() || "";
+	const messageDate = new Date(message.createdAt);
+	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
+	const messageTime = hasValidMessageDate
+		? messageDate.toLocaleTimeString(undefined, {
+				hour: "numeric",
+				minute: "2-digit",
+			})
+		: null;
+	const messageTimestamp = messageTime ? (
+		<time
+			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			dateTime={messageDate.toISOString()}
+			title={messageDate.toLocaleString()}
+		>
+			{messageTime}
+		</time>
+	) : null;
 
+	// Spacing between blocks comes solely from the conversation list's `gap-2`
+	// and this content column's `gap-2`; blocks must not add their own margins.
 	return (
-		<AgentMessage from={message.role}>
-			<MessageContent className="space-y-2 wrap-break-word">
-				{reasoningContent || message.reasoningRedacted ? (
+		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
+				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
-						redacted={message.reasoningRedacted === true}
+						durationMilliseconds={thoughtDurationMilliseconds}
+						redacted={reasoningRedacted}
 						streaming={isStreaming}
 					/>
 				) : null}
@@ -818,7 +1217,7 @@ function MessageBubble({
 								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
 								<img
 									alt={`Attachment ${index + 1}`}
-									className="max-h-[225px] max-w-[225px] object-contain"
+									className="max-h-56.25 max-w-56.25 object-contain"
 									src={`data:${image.mediaType};base64,${image.data}`}
 								/>
 							</button>
@@ -827,7 +1226,7 @@ function MessageBubble({
 				) : null}
 
 				{displayContent ? (
-					<div className="my-1 min-w-0 max-w-full wrap-break-word">
+					<div className="min-w-0 max-w-full wrap-break-word">
 						<MemoizedMarkdown
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}
@@ -838,11 +1237,15 @@ function MessageBubble({
 
 			{shouldRenderUserActions ? (
 				<>
-					<MessageActions visible={keepUserActionsVisible}>
-						{onCopyRawText ? (
+					<MessageActions
+						className="absolute right-0 top-full z-10 -translate-y-2"
+						visible={keepUserActionsVisible}
+					>
+						{onCopyMessage ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
-								onClick={onCopyRawText}
+								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
@@ -852,11 +1255,31 @@ function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
+						{onEditMessage && runCount && displayContent.trim() ? (
+							<MessageAction
+								className="min-w-0 p-0"
+								disabled={editDisabled || editPending}
+								label="Edit user message"
+								onClick={() =>
+									void onEditMessage(message.id, displayContent, runCount)
+								}
+								title="Edit message and restart from this point"
+							>
+								{editPending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<PencilIcon className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
 						{checkpoint ? (
 							<MessageAction
+								className="min-w-0 p-0"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
-								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+								onClick={() =>
+									void onRestoreCheckpoint?.(message.id, checkpoint.runCount)
+								}
 								title="Restore checkpoint"
 							>
 								{restorePending ? (
@@ -866,25 +1289,35 @@ function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
+						{messageTimestamp}
 					</MessageActions>
 					{restoreError ? (
 						<div className="text-right text-xs text-destructive">
 							{restoreError}
 						</div>
 					) : null}
+					{editError ? (
+						<div className="text-right text-xs text-destructive">
+							{editError}
+						</div>
+					) : null}
 				</>
 			) : null}
 
 			{shouldRenderAssistantActions ? (
-				<MessageActions visible={keepAssistantActionsVisible}>
-					{onCopyRawText ? (
+				<MessageActions
+					className="absolute left-0 top-full z-10 -translate-y-2"
+					visible={keepAssistantActionsVisible}
+				>
+					{onCopyMessage ? (
 						<MessageAction
+							className="min-w-0 p-0"
 							label={
 								wasCopied
 									? "Copied assistant message"
 									: "Copy assistant message"
 							}
-							onClick={onCopyRawText}
+							onClick={() => void onCopyMessage(message.id, message.content)}
 							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
@@ -896,18 +1329,20 @@ function MessageBubble({
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							disabled={forkPending}
+							className="min-w-0 p-0"
+							disabled={forkDisabled || forkPending}
 							label="Fork session"
-							onClick={onForkSession}
+							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
 								<Loader2 className="h-3 w-3 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3" />
+								<SplitIcon className="h-3 w-3 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
+					{messageTimestamp}
 					{forkError ? (
 						<span className="text-[11px] text-destructive">{forkError}</span>
 					) : null}
@@ -915,27 +1350,53 @@ function MessageBubble({
 			) : null}
 		</AgentMessage>
 	);
-}
+});
 
 function ReasoningBlock({
 	content,
+	durationMilliseconds,
 	redacted,
 	streaming = false,
 }: {
 	content: string;
+	durationMilliseconds?: number;
 	redacted: boolean;
 	streaming?: boolean;
 }) {
 	const displayContent = content || (redacted ? "[redacted]" : "");
+	const label = streaming
+		? "Thinking"
+		: formatThoughtLabel(durationMilliseconds);
 	if (!displayContent) {
 		return null;
 	}
 
 	return (
-		<Reasoning isStreaming={streaming}>
-			<ReasoningTrigger />
-			<ReasoningContent>
-				<MemoizedMarkdown content={displayContent} streaming={streaming} />
+		<Reasoning className="my-0" isStreaming={streaming}>
+			<ReasoningTrigger
+				aria-label={label}
+				className="gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+				<span className={cn("font-medium", streaming && STREAMING_TITLE_CLASS)}>
+					{label}
+				</span>
+			</ReasoningTrigger>
+			<ReasoningContent
+				className={cn(
+					EXPANDED_PANEL_RAIL_CLASS,
+					// Prose reflows, so the X axis is pinned shut: `overflow-y-auto`
+					// alone would compute overflow-x to `auto` and let a long
+					// unbreakable token add a horizontal scrollbar.
+					"overflow-x-hidden overflow-y-auto",
+					"text-sm leading-relaxed text-muted-foreground",
+				)}
+			>
+				<MemoizedMarkdown
+					classNames="text-sm font-thin"
+					content={displayContent}
+					streaming={streaming}
+				/>
 			</ReasoningContent>
 		</Reasoning>
 	);
@@ -1032,37 +1493,80 @@ function parseToolPayload(raw: string): ToolPayload | null {
 	}
 }
 
+const TOOL_NAME_ALIASES: Record<string, string> = {
+	"apply-patch": "apply_patch",
+	bash: "run_commands",
+	edit: "editor",
+	edit_file: "editor",
+	"file-read": "read_files",
+	file_read: "read_files",
+	search: "search_codebase",
+	"spawn-agent": "spawn_agent",
+	spawn_agent_tool: "spawn_agent",
+	"web-fetch": "fetch_web_content",
+	web_fetch: "fetch_web_content",
+};
+
+function normalizeToolName(toolName: string): string {
+	const normalized = toolName.toLowerCase();
+	return TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
 function classifyTool(
 	toolName: string,
 ): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	if (
-		[
-			"search",
-			"search_codebase",
-			"file-read",
-			"file_read",
-			"read_files",
-			"web-fetch",
-			"web_fetch",
-			"fetch_web_content",
-			"skills",
-		].includes(normalized)
-	)
-		return "exploration";
-	if (
-		["editor", "edit_file", "edit", "apply_patch", "apply-patch"].includes(
+		["search_codebase", "read_files", "fetch_web_content", "skills"].includes(
 			normalized,
 		)
 	)
-		return "file-edit";
-	if (["bash", "run_commands"].includes(normalized)) return "bash";
-	if (
-		["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized) ||
-		normalized.startsWith("subagent_")
-	)
+		return "exploration";
+	if (["editor", "apply_patch"].includes(normalized)) return "file-edit";
+	if (normalized === "run_commands") return "bash";
+	if (normalized === "spawn_agent" || normalized.startsWith("subagent_"))
 		return "spawn";
 	return "tool";
+}
+
+const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
+	apply_patch: PencilIcon,
+	ask_question: MessageCircleQuestionMarkIcon,
+	editor: PencilIcon,
+	fetch_web_content: PanelsTopLeftIcon,
+	mcp: BoxIcon,
+	plugins: BlocksIcon,
+	read_files: FilesIcon,
+	run_commands: TerminalIcon,
+	search_codebase: SearchCodeIcon,
+	skills: LibraryIcon,
+	spawn_agent: UserIcon,
+	submit_and_exit: SquareArrowRightIcon,
+};
+
+const TOOL_KIND_ICONS: Record<ReturnType<typeof classifyTool>, LucideIcon> = {
+	bash: TerminalIcon,
+	exploration: SearchCodeIcon,
+	"file-edit": PencilIcon,
+	spawn: UserIcon,
+	tool: WrenchIcon,
+};
+
+function getToolNameIcon(toolName: string): LucideIcon {
+	const normalized = normalizeToolName(toolName);
+	if (normalized.startsWith("subagent_")) {
+		return UserIcon;
+	}
+	if (
+		normalized === "team" ||
+		normalized === "teams" ||
+		normalized.startsWith("team_")
+	) {
+		return UsersIcon;
+	}
+	return (
+		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
+	);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1169,10 +1673,10 @@ function buildToolSummary(
 	result: unknown,
 	inProgress: boolean,
 ): ToolSummary {
-	const normalized = toolName.toLowerCase();
+	const normalized = normalizeToolName(toolName);
 	const inputObject = asRecord(input);
 
-	if (["read_files", "file_read", "file-read"].includes(normalized)) {
+	if (normalized === "read_files") {
 		const files = extractReadFilePaths(input);
 		if (files.length > 0) {
 			return {
@@ -1191,7 +1695,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["search_codebase", "search"].includes(normalized)) {
+	if (normalized === "search_codebase") {
 		const queries = asStringArray(inputObject?.queries);
 		if (queries.length > 0) {
 			return {
@@ -1208,7 +1712,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["run_commands", "bash"].includes(normalized)) {
+	if (normalized === "run_commands") {
 		const commands = extractCommands(input);
 		if (commands.length > 0) {
 			return {
@@ -1225,7 +1729,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["fetch_web_content", "web_fetch", "web-fetch"].includes(normalized)) {
+	if (normalized === "fetch_web_content") {
 		const requests = Array.isArray(inputObject?.requests)
 			? inputObject.requests
 			: [];
@@ -1254,7 +1758,7 @@ function buildToolSummary(
 		}
 	}
 
-	if (["apply_patch", "apply-patch"].includes(normalized)) {
+	if (normalized === "apply_patch") {
 		const patchText =
 			typeof input === "string"
 				? input
@@ -1287,7 +1791,7 @@ function buildToolSummary(
 		};
 	}
 
-	if (["editor", "edit_file", "edit"].includes(normalized)) {
+	if (normalized === "editor") {
 		// Current editor schema has no `command`; derive it from the input shape.
 		const command =
 			typeof inputObject?.command === "string"
@@ -1453,100 +1957,125 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 		.join(". ");
 }
 
-function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
-	const presentations = messages.map(buildToolPresentation);
-	const first = presentations[0];
-	if (!first) return null;
-	const hasError = presentations.some(({ payload }) => payload?.isError);
-	const isRunning = presentations.some(({ inProgress }) => inProgress);
-	const kinds = new Set(presentations.map(({ kind }) => kind));
-	const kind = kinds.size === 1 ? first.kind : "tool";
-	const isFileRead = presentations.every(({ toolName }) =>
-		["read_files", "file_read", "file-read"].includes(toolName.toLowerCase()),
-	);
-	const Icon = isFileRead
-		? FileIcon
-		: kind === "exploration"
-			? Search
-			: kind === "file-edit"
-				? FileEdit
-				: kind === "bash"
-					? SquareTerminalIcon
-					: kind === "spawn"
-						? Bot
-						: FileSearch;
-	const details = presentations.flatMap(({ message, summary }) =>
-		summary.details.map((detail) => ({
-			detail,
-			key: `${message.id}_${detail}`,
-		})),
-	);
-	const inputPreviews = IS_DEBUG
-		? presentations
-				.map(({ message, payload, toolName }) => ({
-					key: message.id,
-					toolName,
-					value: payload ? formatToolValue(payload.input) : "",
-				}))
-				.filter(({ value }) => Boolean(value))
-		: [];
-	const resultPreviews = presentations
-		.map(({ message, payload, toolName }) => ({
-			key: message.id,
-			toolName,
-			value: payload?.isError ? formatToolValue(payload.result) : "",
-		}))
-		.filter(({ value }) => Boolean(value));
-	const hasExpandedSections =
-		details.length > 0 || inputPreviews.length > 0 || resultPreviews.length > 0;
-	const diff = presentations.reduce(
-		(total, { summary }) => ({
-			additions: total.additions + (summary.diff?.additions ?? 0),
-			deletions: total.deletions + (summary.diff?.deletions ?? 0),
-		}),
-		{ additions: 0, deletions: 0 },
-	);
+// Memoized with element-wise comparison: the grouping pass wraps the same
+// message objects in fresh arrays every commit, so reference-comparing the
+// contents lets finished tool blocks skip re-rendering during streaming.
+const ToolMessageBlock = memo(
+	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
+		const presentations = messages.map(buildToolPresentation);
+		if (presentations.length === 0) return null;
+		const hasError = presentations.some(({ payload }) => payload?.isError);
+		const isRunning = presentations.some(({ inProgress }) => inProgress);
+		const label = buildGroupedToolLabel(presentations);
+		const icons = presentations.map(({ toolName }) =>
+			getToolNameIcon(toolName),
+		);
+		const firstIcon = icons[0] ?? WrenchIcon;
+		const Icon = icons.every((icon) => icon === firstIcon)
+			? firstIcon
+			: WrenchIcon;
+		const details = presentations.flatMap(({ message, summary }) =>
+			summary.details.map((detail) => ({
+				detail,
+				key: `${message.id}_${detail}`,
+			})),
+		);
+		const inputPreviews = IS_DEBUG
+			? presentations
+					.map(({ message, payload, toolName }) => ({
+						key: message.id,
+						toolName,
+						value: payload ? formatToolValue(payload.input) : "",
+					}))
+					.filter(({ value }) => Boolean(value))
+			: [];
+		const resultPreviews = presentations
+			.map(({ message, payload, toolName }) => ({
+				key: message.id,
+				toolName,
+				value: payload?.isError ? formatToolValue(payload.result) : "",
+			}))
+			.filter(({ value }) => Boolean(value));
+		const hasExpandedSections =
+			details.length > 0 ||
+			inputPreviews.length > 0 ||
+			resultPreviews.length > 0;
+		const diff = presentations.reduce(
+			(total, { summary }) => ({
+				additions: total.additions + (summary.diff?.additions ?? 0),
+				deletions: total.deletions + (summary.diff?.deletions ?? 0),
+			}),
+			{ additions: 0, deletions: 0 },
+		);
 
-	return (
-		<ToolActivity expandable={hasExpandedSections}>
-			<ToolActivityTrigger
-				additions={diff.additions || undefined}
-				deletions={diff.deletions || undefined}
-				icon={
-					hasError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
-					) : (
-						<Icon className="size-4" />
-					)
-				}
-				label={buildGroupedToolLabel(presentations)}
-				status={hasError ? "error" : isRunning ? "running" : "success"}
-			/>
-			<ToolActivityContent>
-				{details.length > 0 ? (
-					<ToolActivityDetails>
-						{details.map(({ detail, key }) => (
-							<div key={key}>{detail}</div>
-						))}
-					</ToolActivityDetails>
-				) : null}
-				{inputPreviews.map((preview) => (
-					<div className="space-y-1" key={`input_${preview.key}`}>
-						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							{presentations.length > 1 ? `${preview.toolName} input` : "Input"}
+		return (
+			<ToolActivity className="my-0" expandable={hasExpandedSections}>
+				<ToolActivityTrigger
+					additions={diff.additions || undefined}
+					deletions={diff.deletions || undefined}
+					icon={
+						hasError ? (
+							<AlertCircle className="size-4 text-destructive/80" />
+						) : (
+							<Icon className="size-4" />
+						)
+					}
+					label={
+						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+							{label}
+						</span>
+					}
+					showDisclosureIcon={false}
+					status={hasError ? "error" : isRunning ? "running" : "success"}
+				/>
+				{/* `overflow-auto` (not just `-y`) overrides the `overflow-x: hidden`
+				    that agent-chat.css pins on this panel; the bare-scrollbar class
+				    then hides the horizontal bar without disabling the axis. */}
+				<ToolActivityContent
+					className={cn(
+						EXPANDED_PANEL_RAIL_CLASS,
+						"overflow-auto",
+						SCROLL_X_BARE_CLASS,
+					)}
+				>
+					{details.length > 0 ? (
+						// Commands and paths stay on one line and scroll with the panel;
+						// the stylesheet's `overflow-wrap: anywhere` would otherwise break
+						// them mid-token and leave the X axis unreachable.
+						<ToolActivityDetails className="w-max whitespace-pre">
+							{details.map(({ detail, key }) => (
+								<div key={key}>{detail}</div>
+							))}
+						</ToolActivityDetails>
+					) : null}
+					{inputPreviews.map((preview) => (
+						<div className="space-y-1" key={`input_${preview.key}`}>
+							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+								{presentations.length > 1
+									? `${preview.toolName} input`
+									: "Input"}
+							</div>
+							{/* Drop the stylesheet's own 13rem scroller so the panel above
+							    is the single scroll container on both axes. */}
+							<ToolActivityCode className="max-h-none overflow-visible text-sm">
+								{preview.value}
+							</ToolActivityCode>
 						</div>
-						<ToolActivityCode className="text-sm">
+					))}
+					{resultPreviews.map((preview) => (
+						<div
+							className="mt-1 text-destructive"
+							key={`result_${preview.key}`}
+						>
+							{presentations.length > 1 ? `${preview.toolName}: ` : null}
 							{preview.value}
-						</ToolActivityCode>
-					</div>
-				))}
-				{resultPreviews.map((preview) => (
-					<div className="mt-1 text-destructive" key={`result_${preview.key}`}>
-						{presentations.length > 1 ? `${preview.toolName}: ` : null}
-						{preview.value}
-					</div>
-				))}
-			</ToolActivityContent>
-		</ToolActivity>
-	);
-}
+						</div>
+					))}
+				</ToolActivityContent>
+			</ToolActivity>
+		);
+	},
+	(prev, next) =>
+		prev.messages.length === next.messages.length &&
+		prev.messages.every((message, index) => message === next.messages[index]),
+);

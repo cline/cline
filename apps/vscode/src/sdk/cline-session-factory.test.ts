@@ -264,6 +264,13 @@ describe("normalizeSdkBaseUrl", () => {
 	it("preserves explicit user paths", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
+
+	it("inherits the AskSage default /server path when the custom URL has no path", () => {
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
+			"https://asksage.internal.example/custom",
+		)
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -293,6 +300,39 @@ describe("normalizeProviderReasoningSettings", () => {
 		const result = normalizeProviderReasoningSettings({ effort: "medium" })
 
 		expect(result).toEqual({ reasoningEffort: "medium" })
+	})
+
+	it("honors a migrated legacy budget as thinking-on with a derived effort", () => {
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 1024 })).toEqual({
+			thinking: true,
+			reasoningEffort: "low",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 6000 })).toEqual({
+			thinking: true,
+			reasoningEffort: "medium",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 32_767 })).toEqual({
+			thinking: true,
+			reasoningEffort: "high",
+		})
+	})
+
+	it("derives an effort from the budget when enabled without an effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "medium" })
+	})
+
+	it("prefers an explicit effort over a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "xhigh", budgetTokens: 1024 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "xhigh" })
+	})
+
+	it("keeps disabled reasoning off even with a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: false, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: false })
 	})
 })
 
@@ -429,6 +469,151 @@ describe("buildSessionConfig", () => {
 			providerId: "openai-compatible",
 			baseUrl: "http://127.0.0.1:4141/v1",
 		})
+	})
+
+	it("resolves the AskSage base URL from the legacy asksageApiUrl state field", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+			asksageApiKey: "asksage-key",
+			asksageApiUrl: "https://asksage.internal.example/server",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("asksage")
+		// Without this mapping the custom URL saved in legacy state was
+		// silently ignored and requests went to the builtin default
+		// (https://api.asksage.ai/server).
+		expect(config.baseUrl).toBe("https://asksage.internal.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.internal.example/server",
+		})
+	})
+
+	it("falls back to the providers.json AskSage base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "asksage") {
+				return undefined
+			}
+			return {
+				provider: "asksage",
+				apiKey: "asksage-key",
+				baseUrl: "https://asksage.migrated.example/server",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("https://asksage.migrated.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.migrated.example/server",
+		})
+	})
+
+	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("zai")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai",
+			apiLine: "china",
+		})
+		// No explicit base URL: the SDK gateway resolves the China endpoint
+		// (open.bigmodel.cn) from apiLine; a pre-filled base URL would win
+		// over that resolution.
+		expect(config.baseUrl).toBeUndefined()
+	})
+
+	it("falls back to the providers.json apiLine when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "moonshot") {
+				return undefined
+			}
+			return {
+				provider: "moonshot",
+				apiKey: "moonshot-key",
+				apiLine: "china",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "moonshot",
+			apiLine: "china",
+		})
+	})
+
+	it("inherits the base provider's legacy apiLine for coding variants", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai-coding-plan",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai-coding-plan",
+			apiLine: "china",
+		})
+	})
+
+	it("prefers the coding variant's own providers.json apiLine over the shared legacy field", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "qwen-code") {
+				return undefined
+			}
+			return {
+				provider: "qwen-code",
+				apiKey: "qwen-code-key",
+				apiLine: "international",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen-code",
+			actModeApiModelId: "qwen3-coder-plus",
+			qwenApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "qwen-code",
+			apiLine: "international",
+		})
+	})
+
+	it("omits apiLine for unrecognized values", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen",
+			actModeApiModelId: "qwen-plus-latest",
+			qwenApiKey: "qwen-key",
+			qwenApiLine: "mars",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).not.toHaveProperty("apiLine")
 	})
 
 	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {

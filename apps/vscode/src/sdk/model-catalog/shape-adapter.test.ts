@@ -125,6 +125,12 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.description).toBeUndefined()
 		})
 
+		it("treats null contextWindow/maxTokens as missing (live LiteLLM /model/info reports unknown limits as null)", () => {
+			const model = adaptSdkModelInfo({ id: "claude-opus-5", contextWindow: null, maxTokens: null })
+			expect(model.contextWindow).toBe(openAiModelInfoSafeDefaults.contextWindow)
+			expect(model.maxTokens).toBe(openAiModelInfoSafeDefaults.maxTokens)
+		})
+
 		it("falls back to id when name is omitted and passes through description", () => {
 			const model = adaptSdkModelInfo({ id: "phi4-mini:latest", description: "local model" })
 			expect(model.name).toBe("phi4-mini:latest")

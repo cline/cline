@@ -2,7 +2,6 @@ import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -90,6 +89,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		},
 		[write],
 	)
+	const handleBaseUrlClear = useCallback(async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear LM Studio base URL:", error)
+			throw error
+		}
+	}, [write])
 
 	const handleModelChange = useCallback(
 		(modelId: string) => {
@@ -110,7 +117,10 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[commitModelSelection, lmStudioModels, toLmStudioModelInfo],
 	)
 
-	// Poll LM Studio models
+	// Fetch LM Studio models on mount, whenever the endpoint changes, and when
+	// the model control gains focus (no interval polling — the endpoint is
+	// user-configurable, see ENG-2344), so a server started after mount is
+	// still discovered.
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
 			value: endpoint,
@@ -153,14 +163,13 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		handleFieldChange,
 	])
 
-	useInterval(requestLmStudioModels, 6000)
-
 	return (
 		<div className="flex flex-col gap-2">
 			<BaseUrlField
 				initialValue={config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl}
 				label="Use custom base URL"
 				onChange={handleBaseUrlChange}
+				onClear={handleBaseUrlClear}
 				placeholder="Default: http://localhost:1234"
 			/>
 
@@ -175,7 +184,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
-				<DropdownContainer className="dropdown-container" zIndex={10}>
+				<DropdownContainer className="dropdown-container" onFocusCapture={() => void requestLmStudioModels()} zIndex={10}>
 					<VSCodeDropdown
 						className="w-full mb-3"
 						onChange={(e: any) => {
@@ -193,12 +202,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 					</VSCodeDropdown>
 				</DropdownContainer>
 			) : (
-				<DebouncedTextField
-					initialValue={displayedSelectedModelId || ""}
-					onChange={handleModelChange}
-					placeholder={"e.g. meta-llama-3.1-8b-instruct"}
-					style={{ width: "100%" }}
-				/>
+				<div onFocusCapture={() => void requestLmStudioModels()}>
+					<DebouncedTextField
+						initialValue={displayedSelectedModelId || ""}
+						onChange={handleModelChange}
+						placeholder={"e.g. meta-llama-3.1-8b-instruct"}
+						style={{ width: "100%" }}
+					/>
+				</div>
 			)}
 
 			<div className="font-semibold">Context Window</div>

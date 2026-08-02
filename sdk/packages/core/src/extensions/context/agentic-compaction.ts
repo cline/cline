@@ -1,5 +1,6 @@
 import { createHandlerAsync } from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
+import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
@@ -249,6 +250,7 @@ export async function runAgenticCompaction(options: {
 			summary,
 			fileOps,
 			tokensBefore,
+			userRunSpan: countUserRunMessages(messagesToSummarize),
 		}),
 		...messages.slice(cutIndex),
 	];

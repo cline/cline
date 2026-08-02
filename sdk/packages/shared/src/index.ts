@@ -30,10 +30,12 @@ export type {
 	ConnectorSecurityFieldDef,
 } from "./connectors/platforms";
 export {
+	buildConnectorConnectArgs,
 	CONNECTOR_CATALOG,
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,
 	listConnectorCatalog,
+	mergeConnectorConnectArgs,
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type {
@@ -207,6 +209,15 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
+export {
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
@@ -226,6 +237,8 @@ export {
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
+export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
@@ -237,7 +250,9 @@ export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
 	getShellArgs,
+	getShellInvocation,
 	getShellKind,
+	type ShellInvocation,
 	type ShellKind,
 } from "./parse/shell";
 export {
@@ -426,9 +441,13 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export type { ConnectorCliLaunchSpec } from "./runtime/hub-daemon-env";
 export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
+	readConnectorCliLaunchSpec,
+	setConnectorCliLaunchSpec,
 } from "./runtime/hub-daemon-env";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
