@@ -46,6 +46,22 @@ V11 阶段目标：将 `ChatRow.tsx` 中的 Tool 渲染逻辑提取为独立的 
 | 每次消息更新的重渲染范围 | 整个 ChatRowContent | ChatRowContent + ToolUseRow memo 短路 |
 | 构建状态 | ✅ | ✅ |
 
+### 4. 后续补充（V12 方案5 拆分，见 `v13-final-report.md`）
+
+在 V12 阶段进一步从 ChatRow 中提取了 ask 分支（审批/追问/完成结果/计划模式/新任务）为独立的
+`ChatAskRow.tsx`（memo 包裹），ChatRow.tsx 再缩减约 130 行，并新增 `ChatAskRow.test.tsx`
+渲染测试（4 例）与 `UserMessage.memo.test.tsx`（4 例）。
+
 ## 待解决问题
 
-当前 ChatRowContent 组件仍然存在若干性能问题，需在 V12 中解决（详见 v12 方案）。
+~~当前 ChatRowContent 组件仍然存在若干性能问题，需在 V12 中解决（详见 v12 方案）。~~
+
+**已于 V12 阶段全部解决**，详见 `doc/v12-optimization-plan.md` 的「实施状态」与
+`doc/v13-final-report.md`：
+
+- 方案1（子组件 memo 统一）：UserMessage 补全 memo（含自定义比较器）
+- 方案2（消息列表虚拟化）：Virtuoso + overscan 缩减 + 向上翻页
+- 方案3（细粒度状态订阅）：MessagesStateContext 拆分
+- 方案4（流式消息增量更新）：delta push + 版本间隙检测
+- 方案5（组件拆分 + 懒加载）：ChatAskRow 提取 + 重型组件 React.lazy
+- 方案6（高频消息去抖）：帧合并调度器（FrameCoalescer）

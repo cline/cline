@@ -145,3 +145,36 @@ const debouncedMessages = useMemo(() => {
 - 不应改变 StateManager/Controller 的后端架构
 - 虚拟化方案需要兼容当前的 auto-scroll 逻辑（`useAutoScroll`）
 - 增量更新需要保持与当前全量更新的向后兼容
+
+---
+
+## 实施状态（V12 收官更新）
+
+> 以下为 V12 全部 6 个方案的落实情况。已交付实现共 12 个提交（含本分支 P0–P3
+> 的 7 个前置提交与本轮收尾的 5 个提交），测试与构建状态见 `doc/v13-final-report.md`。
+
+| 优先级 | 方案 | 状态 | 交付内容 |
+|--------|------|------|---------|
+| P0 | 方案 2：消息列表虚拟化 | ✅ 已完成 | Virtuoso 虚拟列表 + `increaseViewportBy` 缩减为 500/300px + Footer 版 ThinkingLoader + 向上翻页（`loadHistoryBatch` RPC + `applyBatchPrepend` reducer） |
+| P0 | 方案 4：流式消息增量更新 | ✅ 已完成 | 后端 `sendStateDelta`（append/update/replace_all）+ version 间隙自愈（gap-detection → `requestFullSync`）+ 收敛式 replica reducer（epoch/seq 围栏） |
+| P1 | 方案 3：细粒度状态订阅 | ✅ 已完成 | 高频消息状态拆分为 `MessagesStateContext`（`useMessagesState`），流式更新不再触发 settings/theme 消费者重渲染，反之亦然；`MainExtensionState` 类型剥离消息字段 |
+| P1 | 方案 1：子组件 memo 统一 | ✅ 已完成 | ToolUseRow / MessageRenderer / ChatRow / MarkdownRow memo + `UserMessage` 补全 memo（自定义比较器，忽略不稳定的 `sendMessageFromChatRow`） |
+| P2 | 方案 6：高频消息去抖 | ✅ 已完成 | `messageFrameScheduler.ts` 帧合并调度器（rAF + 隐藏页面 setTimeout 兜底），同一帧内多次 delta/partial 合并为一次 `setReplicaMessages` |
+| P2 | 方案 5：Lazy Loading | ✅ 已完成 | `MermaidBlock`/`McpResponseDisplay`/`SearchResultsDisplay` 用 `React.lazy` + Suspense 延迟初始化（mermaid 运行时 ~1MB 仅在渲染图表时初始化）；ask 分支提取为 `ChatAskRow.tsx` |
+
+### 附带修复（构建恢复）
+
+`tsc -b`（webview 严格构建）在 P0–P3 提交上已失败，本轮一并修复：
+
+- ChatRow 缺失的 lucide 图标导入（`LoaderCircleIcon` 等 4 个）
+- `backgroundEditEnabled` 布尔收窄；`taskHistory` 可空防护（WelcomeSection/HistoryPreview/HistoryView）
+- `loadHistoryBatch` 改用 `currentTaskItem.id`（字符串 ULID）而非数字 `task.ts`
+- `TaskHeader.stories.tsx` 移除已迁走的 `clineMessages`
+- `refactoring-flags` 单测与 `deltaStatePush` 默认值对齐
+
+### 说明
+
+- 构建配置 `vite.config.ts` 使用 `inlineDynamicImports: true`，故方案 5 的懒加载
+  不减小包体字节数，实际收益为**重型库/组件延迟初始化**（mermaid、MCP 响应、
+  搜索结果渲染器仅在实际出现时才加载执行）。
+- 方案 6 的合并粒度为一帧（16ms），对用户可感知的流式文本延迟无影响。
