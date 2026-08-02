@@ -90,9 +90,23 @@ gh workflow run desktop-publish.yml -f git_tag=desktop-vX.Y.Z -f confirm_publish
 gh run list --workflow=desktop-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
+**The run pauses for approval.** `validate` runs immediately, then the `build`
+job waits on the `PublishDesktop` environment until a required reviewer approves
+it — the run sits in `waiting`, which is expected, not a hang. Approve it in the
+run's web UI ("Review deployments"), or:
+
+```sh
+gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
+  --method POST -f state=approved -f comment="desktop vX.Y.Z" \
+  -F 'environment_ids[]=19152605990'   # PublishDesktop
+```
+
+Both matrix legs wait on the same environment, so one approval releases both.
+Nothing after `validate` runs — and no signing key is readable — until then.
+
 The workflow builds both architectures in parallel (aarch64 native, x86_64 cross-compiled), signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs updater artifacts with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
 
-If the workflow fails on missing credentials, see "Repo secrets (one-time setup)" below.
+If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
 9. Verify the update feed after the run succeeds.
 
@@ -106,11 +120,24 @@ The `version` field must be the new release and both `darwin-aarch64` and `darwi
 
 Report: version, tag, changelog updated, commit hash, what was pushed, workflow URL, and the feed verification result.
 
-## Repo secrets (one-time setup)
+## Publish secrets (one-time setup)
 
-The workflow needs these repository secrets. The Apple ones come from the same
-Apple Developer account used for manual signing (see the app README's "macOS
-signing & notarization" section for how to obtain them):
+These live on the **`PublishDesktop` environment**, not at repository level, so
+only the `build` job can read them and only after an approval. Set them under
+Settings → Environments → PublishDesktop → Environment secrets. The environment
+also restricts deployments to `main` and requires a reviewer.
+
+Adding one of these as a *repository* secret is the common mistake. The build
+would still succeed — an environment-gated job resolves repository secrets too,
+with environment values simply taking precedence — so the credential would sit
+repo-wide while everything looked fine. `validate` therefore fails the run if any
+of them resolves in a job with no environment. If you hit that, delete the
+repository-level copy rather than duplicating it.
+
+If a secret is missing everywhere, the preflight in `build` fails the run naming
+the missing entries. The Apple values come from the same Apple Developer account
+used for manual signing (see the app README's "macOS signing & notarization"
+section for how to obtain them):
 
 | Secret | Value |
 | --- | --- |
@@ -124,4 +151,8 @@ signing & notarization" section for how to obtain them):
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for that key |
 
 The Slack + telemetry secrets (`SLACK_RELEASE_BOT_TOKEN`, `TELEMETRY_SERVICE_API_KEY`,
-OTEL settings) are shared with the CLI publish workflow and already configured.
+`ERROR_SERVICE_API_KEY`, OTEL settings) are shared with the CLI, SDK, and extension
+publish workflows and already configured. **Do not move these into
+`PublishDesktop`** — scoping them to this environment empties them in every other
+publish workflow, silently, with no error beyond missing telemetry and a failed
+Slack post.
