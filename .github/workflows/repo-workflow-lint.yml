@@ -1,0 +1,67 @@
+# Static analysis for the workflows themselves.
+#
+# actionlint catches malformed workflows, bad expressions, and shell mistakes
+# inside `run:` blocks. zizmor catches the CI-specific security regressions that
+# are easy to reintroduce by copy-paste: an action referenced by mutable tag, an
+# attacker-controlled value interpolated straight into a shell script, a token
+# scoped wider than the job needs, or a `pull_request_target` job that starts
+# checking out the pull request it was handed.
+#
+# Reviewed exceptions live in .github/zizmor.yml with the reasoning attached.
+# Anything not listed there that reaches `high` fails this check.
+name: repo-workflow-lint
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - ".github/workflows/**"
+            - ".github/zizmor.yml"
+    pull_request:
+        paths:
+            - ".github/workflows/**"
+            - ".github/zizmor.yml"
+    workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    lint:
+        name: Lint and audit workflows
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+        env:
+            # Both tools are pinned: an unpinned linter is the same supply-chain
+            # hole it exists to find.
+            ACTIONLINT_VERSION: v1.7.7
+            ZIZMOR_VERSION: 1.29.0
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
+
+            # Installed from the Go module proxy rather than a release tarball so
+            # the checksum database verifies the download.
+            - name: Install actionlint
+              run: go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+
+            - name: Install zizmor
+              run: pipx install "zizmor==${ZIZMOR_VERSION}"
+
+            - name: actionlint
+              run: "$(go env GOPATH)/bin/actionlint -color"
+
+            # GH_TOKEN unlocks zizmor's online audits, which are what verify that
+            # each pinned SHA actually belongs to the action repository it names
+            # (an impostor commit can be pushed to a fork and still resolve).
+            - name: zizmor
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: zizmor --min-severity=high --color=always .github/workflows/

@@ -1,0 +1,30 @@
+# Configuration for zizmor, the GitHub Actions static analyzer run by
+# repo-workflow-lint.yml. Everything listed here is a reviewed exception; a
+# finding that is NOT listed and reaches `high` severity fails CI.
+rules:
+    dangerous-triggers:
+        ignore:
+            # Both of these run on a trigger that gives the job a write-scoped
+            # token even for fork pull requests. That is only exploitable when
+            # the job checks out and executes the pull request's code, and
+            # neither one checks out anything at all — they make REST calls and
+            # treat every attacker-supplied string as data. Do not add a
+            # checkout, an install, or a `run:` step to either without moving
+            # the work to a `pull_request` job first.
+            - repo-strip-agent-badges.yml
+            - ext-jb-test-integration.yml
+
+    cache-poisoning:
+        ignore:
+            # These are dependency caches (setup-bun / setup-node) restored in
+            # publish jobs. GitHub scopes a cache to the branch that wrote it,
+            # and fork pull requests get their own isolated scope, so a run on
+            # an untrusted ref cannot write an entry that a main-branch publish
+            # will restore. Revisit if a publish job ever restores a cache
+            # written by a non-main branch.
+            - cli-publish.yml
+            - desktop-publish.yml
+            - ext-vscode-ab-package.yml
+            - ext-vscode-publish-legacy.yml
+            - ext-vscode-publish-stable.yml
+            - sdk-publish.yml
