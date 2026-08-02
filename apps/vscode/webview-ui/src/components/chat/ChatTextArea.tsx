@@ -587,7 +587,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					event.preventDefault()
 
 					if (!sendingDisabled) {
-						setIsTextAreaFocused(false)
+						// Note: don't set isTextAreaFocused to false here. The textarea keeps
+						// DOM focus after sending, and clearing the flag without an actual
+						// blur desyncs it permanently (programmatic .focus() on an
+						// already-focused element never re-fires onFocus), which hides the
+						// plan/act mode outline until a real blur/refocus cycle.
 						onSend()
 					}
 				}
@@ -1581,7 +1585,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								data-testid="send-button"
 								onClick={() => {
 									if (!sendingDisabled) {
-										setIsTextAreaFocused(false)
 										onSend()
 									}
 								}}
