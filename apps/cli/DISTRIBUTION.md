@@ -273,7 +273,7 @@ The postinstall script runs in diverse environments (CI, Docker, restricted perm
 Windows binaries are `.exe` files. The build script appends `.exe` to the output filename on Windows targets. The resolver handles this. npm on Windows generates `.cmd` shims for bin entries automatically.
 
 ### Darwin code signatures
-macOS validates executable code signatures before launching Mach-O binaries. Darwin release binaries must therefore be built on macOS with `--require-darwin-codesign`, which applies and verifies an ad-hoc signature after `bun build --compile`. Local cross-compilation from Linux can still produce Darwin binaries for testing, but those unsigned outputs are not suitable for npm release packages.
+`bun build --compile` produces a Darwin binary by appending the bundle to a Bun base executable. For cross-targets that base is Bun's released binary, signed with Bun's Developer ID, and appending invalidates that signature — macOS then refuses to launch the binary. Release builds therefore re-sign ad-hoc via `--require-darwin-codesign`, which replaces the broken signature and clears the hardened-runtime flag. `codesign` is macOS-only, so Darwin release binaries are built on a macOS runner. Local cross-compilation from Linux can still produce Darwin binaries for packaging tests, but they will not launch on macOS and are not suitable for npm release packages.
 
 ### File permissions
 Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.
