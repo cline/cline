@@ -194,6 +194,94 @@ describe("upsertMcpServer", () => {
 		});
 	});
 
+	it("preserves metadata when the caller omits it", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: { type: "stdio", command: "old-command" },
+				disabled: false,
+				metadata: { source: "marketplace" },
+			},
+		});
+
+		upsertMcpServer({
+			name: "docs",
+			transportType: "stdio",
+			command: "new-command",
+		});
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect(stored.metadata).toEqual({ source: "marketplace" });
+	});
+
+	it("clears metadata when the caller sends null", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: { type: "stdio", command: "old-command" },
+				disabled: false,
+				metadata: { source: "marketplace" },
+				oauth: { tokens: { access_token: "token-123" } },
+			},
+		});
+
+		upsertMcpServer({
+			name: "docs",
+			transportType: "stdio",
+			command: "old-command",
+			metadata: null,
+		});
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect("metadata" in stored).toBe(false);
+		expect(stored.oauth).toEqual({ tokens: { access_token: "token-123" } });
+	});
+
+	it("rejects metadata that is not a JSON object", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: { type: "stdio", command: "old-command" },
+				disabled: false,
+				metadata: { source: "marketplace" },
+			},
+		});
+
+		for (const invalid of [[], 42, "text", true]) {
+			expect(() =>
+				upsertMcpServer({
+					name: "docs",
+					transportType: "stdio",
+					command: "new-command",
+					metadata: invalid,
+				}),
+			).toThrow(/metadata must be a JSON object/);
+		}
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect((stored.transport as JsonRecord).command).toBe("old-command");
+		expect(stored.metadata).toEqual({ source: "marketplace" });
+	});
+
+	it("keeps oauth when a legacy http entry keeps the same url", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transportType: "http",
+				url: "https://trusted.example.com/mcp",
+				disabled: false,
+				oauth: { tokens: { access_token: "token-123" } },
+			},
+		});
+
+		upsertMcpServer({
+			name: "docs",
+			transportType: "streamableHttp",
+			url: "https://trusted.example.com/mcp",
+		});
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect(stored.oauth).toEqual({ tokens: { access_token: "token-123" } });
+		expect((stored.transport as JsonRecord).type).toBe("streamableHttp");
+		expect(stored.transportType).toBeUndefined();
+	});
+
 	it("leaves no stdio remnant when a server switches to sse", async () => {
 		const settingsPath = await seedSettings({
 			docs: {

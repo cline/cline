@@ -22,13 +22,18 @@ function resolveEndpointIdentity(record: JsonRecord): string {
 	const type = String(
 		transport?.type ?? record.transportType ?? record.type ?? "stdio",
 	).trim();
+	const canonicalType = type === "http" ? "streamableHttp" : type;
 	const target =
 		typeof transport?.url === "string"
 			? transport.url
 			: typeof record.url === "string"
 				? record.url
 				: "";
-	return `${type} ${target}`;
+	return `${canonicalType} ${target}`;
+}
+
+function isMetadataRecord(value: unknown): boolean {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function readMcpServersResponse(): JsonRecord {
@@ -154,7 +159,11 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 					},
 					disabled: input.disabled === true,
 				};
-	if (input.metadata !== undefined) {
+	const clearsMetadata = input.metadata === null;
+	if (input.metadata !== undefined && !clearsMetadata) {
+		if (!isMetadataRecord(input.metadata)) {
+			throw new Error("server metadata must be a JSON object");
+		}
 		next.metadata = input.metadata;
 	}
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
@@ -176,6 +185,9 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 				resolveEndpointIdentity(next)
 			) {
 				delete merged.oauth;
+			}
+			if (clearsMetadata) {
+				delete merged.metadata;
 			}
 			servers[name] = merged;
 		} else {
