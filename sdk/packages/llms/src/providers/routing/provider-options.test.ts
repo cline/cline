@@ -26,6 +26,7 @@ type ContextOverrides = {
 	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
+	baseUrl?: string;
 	/** Test helper escape hatch for Claude-like models that should not get an auto-injected Anthropic reasoning route. */
 	disableAutoAnthropicRouting?: boolean;
 };
@@ -95,7 +96,10 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			capabilities: options?.capabilities,
 			metadata: modelMetadata,
 		},
-		config: { providerId },
+		config: {
+			providerId,
+			...(options?.baseUrl ? { baseUrl: options.baseUrl } : {}),
+		},
 	};
 }
 
@@ -1892,7 +1896,120 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
+		// api.openai.com over chat/completions: an explicit disable must send
+		// reasoning_effort=none, because omitting it lets OpenAI apply its own
+		// default and reject function tools. models.dev advertises "none" for
+		// the GPT-5.6 family only, so nothing wider may opt in.
+		{
+			name: "openai-compatible direct OpenAI gpt-5.6 disabled -> reasoningEffort none",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "gpt-5.6-luna",
+				reasoning: { enabled: false },
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", has: { reasoningEffort: "none" } },
+				{ bucket: "openaiCompatible", has: { reasoningEffort: "none" } },
+			],
+		},
+		{
+			name: "openai-compatible direct OpenAI dashed gpt-5-6 id disabled -> reasoningEffort none",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "gpt-5-6-terra",
+				reasoning: { enabled: false },
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", has: { reasoningEffort: "none" } },
+			],
+		},
+		{
+			name: "openai-compatible non-OpenAI base url disabled -> no reasoningEffort",
+			request: {
+				providerId: "groq",
+				modelId: "gpt-5.6-luna",
+				reasoning: { enabled: false },
+			},
+			context: { baseUrl: "https://api.groq.com/openai/v1" },
+			expect: [
+				{ bucket: "groq", lacks: ["reasoningEffort"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort"] },
+			],
+		},
+		{
+			name: "openai-compatible direct OpenAI gpt-5.5 disabled -> no reasoningEffort",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "gpt-5.5",
+				reasoning: { enabled: false },
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", lacks: ["reasoningEffort"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort"] },
+			],
+		},
+		{
+			name: "openai-compatible direct OpenAI o-series disabled -> no reasoningEffort",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "o3-mini",
+				reasoning: { enabled: false },
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", lacks: ["reasoningEffort"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort"] },
+			],
+		},
+		{
+			name: "openai-compatible direct OpenAI unset reasoning -> no reasoningEffort",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "gpt-5.6-luna",
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", lacks: ["reasoningEffort"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort"] },
+			],
+		},
+		{
+			name: "openai-compatible direct OpenAI explicit effort is not overridden",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "gpt-5.6-luna",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: { baseUrl: "https://api.openai.com/v1" },
+			expect: [
+				{ bucket: "openai-compatible", has: { reasoningEffort: "high" } },
+			],
+		},
 	]);
+
+	it("leaves the native OpenAI Responses route untouched", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openai-native",
+				modelId: "gpt-5.6-luna",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "openai-native",
+				modelId: "gpt-5.6-luna",
+				baseUrl: "https://api.openai.com/v1",
+			}),
+		);
+
+		expect(result.openai).toEqual(
+			expect.objectContaining({ reasoningEffort: "none", truncation: "auto" }),
+		);
+		expect(result).not.toHaveProperty("openai-native");
+		expect(result).not.toHaveProperty("openaiNative");
+	});
 });
 
 describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
