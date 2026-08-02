@@ -12,7 +12,7 @@ import {
 	UpdateApiConfigurationRequest,
 	UpdateApiConfigurationRequestNew,
 } from "@/shared/proto/cline/models"
-import { UpdateSettingsRequest } from "@/shared/proto/cline/state"
+import { UpdateSettingsRequest, UpdateSettingsRequestCli } from "@/shared/proto/cline/state"
 import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
@@ -406,6 +406,21 @@ describe("provider model catalog handlers", () => {
 		await updateSettings(controller, UpdateSettingsRequest.create({ apiConfiguration: { lmStudioApiKey: "settings-key" } }))
 
 		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "settings-key" })
+	})
+
+	it("updateSettingsCli routes LM Studio API keys through ProviderConfigStore", async () => {
+		const { updateSettingsCli } = await import("../../state/updateSettingsCli")
+		const { controller, stateManager, store } = makeApiConfigurationUpdateController()
+
+		await updateSettingsCli(
+			controller,
+			UpdateSettingsRequestCli.create({
+				secrets: { lmStudioApiKey: "cli-key", openRouterApiKey: "open-router-key" },
+			}),
+		)
+
+		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "cli-key" })
+		expect(stateManager.setSecretsBatch).toHaveBeenCalledWith({ openRouterApiKey: "open-router-key" })
 	})
 
 	it("commitModelSelection validates mode and commits model settings", async () => {
