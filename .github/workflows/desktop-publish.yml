@@ -27,6 +27,8 @@ jobs:
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -82,6 +84,15 @@ jobs:
     name: Build macOS (${{ matrix.arch }})
     needs: validate
     runs-on: macos-latest
+    # This job holds the Developer ID certificate, the App Store Connect key, and
+    # the Tauri updater signing key — that last one signs the payload every
+    # installed desktop app auto-installs, so a leak is a supply-chain
+    # compromise of every user. The environment is restricted to `main` and
+    # requires a human approval, so an operator who dispatches a modified copy
+    # of this workflow from another branch never reaches the secrets.
+    environment: Publish
+    permissions:
+      contents: read
     timeout-minutes: 90
     strategy:
       fail-fast: true
