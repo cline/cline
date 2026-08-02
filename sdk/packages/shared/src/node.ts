@@ -4,6 +4,7 @@ import { stripUtf8Bom } from "./parse/string";
 
 export {
 	type ResolveWindowsSpawnOptions,
+	resolveNpmInvocation,
 	resolveNpxInvocation,
 	resolveShellFreeInvocation,
 	resolveWindowsExecutable,

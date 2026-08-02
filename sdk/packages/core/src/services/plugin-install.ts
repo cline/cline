@@ -21,6 +21,7 @@ import {
 	resolve,
 	sep,
 } from "node:path";
+import { resolveShellFreeInvocation } from "@cline/shared/node";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -571,6 +572,35 @@ async function runCommand(
 	});
 }
 
+/**
+ * Run an `npm` command without a shell.
+ *
+ * On Windows, `npm` ships as an `npm.cmd` batch shim that spawn() cannot
+ * execute directly and that isn't statically parseable (it computes its CLI
+ * path at runtime), so it must be resolved to `node.exe npm-cli.js` via
+ * {@link resolveShellFreeInvocation}. Deliberately does not fall back to
+ * `shell: true`: that would re-expose install specs like `pkg@>=1.1.0` to
+ * cmd.exe's `>` redirection, silently corrupting the install instead of
+ * failing it.
+ */
+async function runNpmCommand(
+	npmCommand: string,
+	args: string[],
+	options: { cwd?: string } = {},
+): Promise<void> {
+	if (process.platform !== "win32") {
+		await runCommand(npmCommand, args, options);
+		return;
+	}
+	const invocation = resolveShellFreeInvocation(npmCommand, args);
+	if (!invocation) {
+		throw new Error(
+			`Could not find a Node.js install to run "${npmCommand}" without a shell on Windows.`,
+		);
+	}
+	await runCommand(invocation.command, invocation.args, options);
+}
+
 function readPackageManifest(
 	packageRoot: string,
 ): PluginPackageManifest | null {
@@ -769,7 +799,7 @@ async function installNpmPackage(
 		JSON.stringify({ name: "cline-plugin-install", private: true }, null, 2),
 		"utf8",
 	);
-	await runCommand(npmCommand, [
+	await runNpmCommand(npmCommand, [
 		"install",
 		parsed.spec,
 		"--prefix",
@@ -793,7 +823,7 @@ async function installPackageDependencies(
 		return;
 	}
 	await removeHostProvidedSdkDependencies(packageRoot);
-	await runCommand(
+	await runNpmCommand(
 		npmCommand,
 		[
 			"install",

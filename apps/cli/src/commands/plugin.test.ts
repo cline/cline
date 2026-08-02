@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
 	existsSync,
+	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
@@ -8,7 +9,7 @@ import {
 } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
 	discoverPluginModulePaths,
 	resolvePluginConfigSearchPaths,
@@ -29,6 +30,83 @@ type FetchCall = (
 	...args: Parameters<typeof fetch>
 ) => ReturnType<typeof fetch>;
 
+const IS_WINDOWS = process.platform === "win32";
+
+interface FakeNpmBehavior {
+	logTo?: string;
+	stderr?: string;
+	exitCode?: number;
+	/** Relative-to-`--prefix` path -> file content, written before exit. */
+	writeUnderPrefix?: Record<string, string>;
+}
+
+function buildFakeNpmScript(behavior: FakeNpmBehavior): string {
+	const { logTo, stderr, exitCode = 0, writeUnderPrefix } = behavior;
+	const lines = [
+		'const fs = require("node:fs");',
+		'const path = require("node:path");',
+		"const args = process.argv.slice(2);",
+	];
+	if (logTo) {
+		lines.push(
+			`fs.appendFileSync(${JSON.stringify(logTo)}, \`\${process.cwd()} \${args.join(" ")}\\n\`);`,
+		);
+	}
+	if (writeUnderPrefix) {
+		lines.push(
+			'const prefixIndex = args.indexOf("--prefix");',
+			"const prefix = prefixIndex === -1 ? process.cwd() : args[prefixIndex + 1];",
+			`const files = ${JSON.stringify(writeUnderPrefix)};`,
+			"for (const [rel, content] of Object.entries(files)) {",
+			"  const dest = path.join(prefix, rel);",
+			"  fs.mkdirSync(path.dirname(dest), { recursive: true });",
+			"  fs.writeFileSync(dest, content);",
+			"}",
+		);
+	}
+	if (stderr) {
+		lines.push(`process.stderr.write(${JSON.stringify(stderr)});`);
+	}
+	lines.push(`process.exit(${exitCode});`);
+	return lines.join("\n");
+}
+
+/**
+ * Write an executable fake `npm` for use as `installPlugin({ npmCommand })`.
+ *
+ * On POSIX this is a real Node script run directly via a `#!/usr/bin/env node`
+ * shebang. On Windows, `spawn()` can only run `.exe`/`.com` directly, and
+ * `plugin-install.ts` resolves `npm` the same shell-free way production does
+ * — via `resolveShellFreeInvocation`, which pairs an `npm-cli.js` with the
+ * node.exe of its install. So this builds that same
+ * `node_modules/npm/bin/npm-cli.js` layout and points `npm_execpath` (the env
+ * var the resolver reads) at it, crossing the same resolution boundary a real
+ * Windows npm install would, rather than an arbitrary stub the resolver would
+ * never recognize.
+ *
+ * Returns the `npmCommand` value to pass to `installPlugin`.
+ */
+function writeFakeNpm(
+	basePath: string,
+	behavior: FakeNpmBehavior = {},
+): string {
+	const script = buildFakeNpmScript(behavior);
+	if (IS_WINDOWS) {
+		const cliDir = join(basePath, "node_modules", "npm", "bin");
+		mkdirSync(cliDir, { recursive: true });
+		const cliPath = join(cliDir, "npm-cli.js");
+		writeFileSync(cliPath, script, "utf8");
+		process.env.npm_execpath = cliPath;
+		return "npm";
+	}
+	const target = `${basePath}.js`;
+	writeFileSync(target, `#!/usr/bin/env node\n${script}\n`, {
+		encoding: "utf8",
+		mode: 0o755,
+	});
+	return target;
+}
+
 describe("plugin install command", () => {
 	let root = "";
 	let home = "";
@@ -37,6 +115,7 @@ describe("plugin install command", () => {
 	let originalClineDir: string | undefined;
 	let originalClineDataDir: string | undefined;
 	let originalMcpSettingsPath: string | undefined;
+	let originalNpmExecPath: string | undefined;
 
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), "cli-plugin-install-"));
@@ -46,6 +125,7 @@ describe("plugin install command", () => {
 		originalClineDir = process.env.CLINE_DIR;
 		originalClineDataDir = process.env.CLINE_DATA_DIR;
 		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		originalNpmExecPath = process.env.npm_execpath;
 		process.env.HOME = home;
 		process.env.CLINE_DIR = join(home, ".cline");
 		process.env.CLINE_DATA_DIR = join(home, ".cline", "data");
@@ -98,6 +178,11 @@ describe("plugin install command", () => {
 			delete process.env.CLINE_MCP_SETTINGS_PATH;
 		} else {
 			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
+		}
+		if (originalNpmExecPath === undefined) {
+			delete process.env.npm_execpath;
+		} else {
+			process.env.npm_execpath = originalNpmExecPath;
 		}
 		rmSync(root, { recursive: true, force: true });
 	});
@@ -282,12 +367,9 @@ describe("plugin install command", () => {
 			},
 		});
 		const npmLogPath = join(root, "official-npm-install.log");
-		const npmCommandPath = join(root, "official-fake-npm.sh");
-		writeFileSync(
-			npmCommandPath,
-			`#!/bin/sh\nprintf '%s\\n' "$PWD $*" >> "${npmLogPath}"\nexit 0\n`,
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "official-fake-npm"), {
+			logTo: npmLogPath,
+		});
 
 		const result = await installPlugin({
 			source: "package-plugin",
@@ -415,12 +497,9 @@ describe("plugin install command", () => {
 	it("installs into cwd plugin root when cwd is provided", async () => {
 		const source = join(root, "plugin-package");
 		const npmLogPath = join(root, "npm-install.log");
-		const npmCommandPath = join(root, "fake-npm.sh");
-		writeFileSync(
-			npmCommandPath,
-			`#!/bin/sh\nprintf '%s\\n' "$PWD $*" >> "${npmLogPath}"\nexit 0\n`,
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm"), {
+			logTo: npmLogPath,
+		});
 		await mkdir(join(source, "node_modules", "dependency"), {
 			recursive: true,
 		});
@@ -489,7 +568,7 @@ describe("plugin install command", () => {
 		expect(packageManifest.peerDependencies).toEqual({ bun: ">=1.0.0" });
 		expect(packageManifest.peerDependenciesMeta).toBeUndefined();
 		const npmLog = readFileSync(npmLogPath, "utf8");
-		expect(npmLog).toContain(`${join(".tmp")}/`);
+		expect(npmLog).toContain(`.tmp${sep}`);
 		expect(npmLog).toContain(
 			"package install --omit=dev --omit=peer --legacy-peer-deps --no-audit --no-fund --package-lock=false",
 		);
@@ -506,29 +585,21 @@ describe("plugin install command", () => {
 
 	it("omits and removes host SDK packages from npm-sourced installs", async () => {
 		const npmLogPath = join(root, "npm-source-install.log");
-		const npmCommandPath = join(root, "fake-npm-source.sh");
-		writeFileSync(
-			npmCommandPath,
-			[
-				"#!/bin/sh",
-				`printf '%s\\n' "$*" >> "${npmLogPath}"`,
-				"prefix=''",
-				"while [ $# -gt 0 ]; do",
-				"  if [ \"$1\" = '--prefix' ]; then",
-				"    shift",
-				'    prefix="$1"',
-				"  fi",
-				"  shift",
-				"done",
-				'mkdir -p "$prefix/node_modules/published-plugin"',
-				'mkdir -p "$prefix/node_modules/@cline/core"',
-				'printf \'%s\\n\' \'{"name":"published-plugin","type":"module","cline":{"plugins":["index.ts"]}}\' > "$prefix/node_modules/published-plugin/package.json"',
-				"printf '%s\\n' \"export default { name: 'published-plugin', manifest: { capabilities: ['tools'] } };\" > \"$prefix/node_modules/published-plugin/index.ts\"",
-				'printf \'%s\\n\' \'{"name":"@cline/core"}\' > "$prefix/node_modules/@cline/core/package.json"',
-				"exit 0",
-			].join("\n"),
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm-source"), {
+			logTo: npmLogPath,
+			writeUnderPrefix: {
+				"node_modules/published-plugin/package.json": JSON.stringify({
+					name: "published-plugin",
+					type: "module",
+					cline: { plugins: ["index.ts"] },
+				}),
+				"node_modules/published-plugin/index.ts":
+					"export default { name: 'published-plugin', manifest: { capabilities: ['tools'] } };",
+				"node_modules/@cline/core/package.json": JSON.stringify({
+					name: "@cline/core",
+				}),
+			},
+		});
 
 		const result = await installPlugin({
 			source: "npm:published-plugin@1.0.0",
@@ -564,7 +635,7 @@ describe("plugin install command", () => {
 
 	it("keeps an existing install when a forced replacement fails during staging", async () => {
 		const source = join(root, "replace-package");
-		const npmCommandPath = join(root, "fake-npm.sh");
+		const npmCommandBase = join(root, "fake-npm");
 		await mkdir(source, { recursive: true });
 		await writeFile(
 			join(source, "package.json"),
@@ -585,10 +656,7 @@ describe("plugin install command", () => {
 			"export default { name: 'installed-v1', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nexit 0\n", {
-			encoding: "utf8",
-			mode: 0o755,
-		});
+		let npmCommandPath = writeFakeNpm(npmCommandBase);
 
 		const first = await installPlugin({ source, npmCommand: npmCommandPath });
 		await writeFile(
@@ -596,9 +664,9 @@ describe("plugin install command", () => {
 			"export default { name: 'installed-v2', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nprintf 'offline' >&2\nexit 1\n", {
-			encoding: "utf8",
-			mode: 0o755,
+		npmCommandPath = writeFakeNpm(npmCommandBase, {
+			stderr: "offline",
+			exitCode: 1,
 		});
 
 		await expect(
@@ -613,7 +681,6 @@ describe("plugin install command", () => {
 
 	it("uninstalls a package plugin by package name", async () => {
 		const source = join(root, "uninstall-package");
-		const npmCommandPath = join(root, "fake-npm.sh");
 		await mkdir(source, { recursive: true });
 		await writeFile(
 			join(source, "package.json"),
@@ -634,10 +701,7 @@ describe("plugin install command", () => {
 			"export default { name: 'cli-uninstall-plugin', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nexit 0\n", {
-			encoding: "utf8",
-			mode: 0o755,
-		});
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm"));
 
 		const installed = await installPlugin({
 			source,

@@ -87,6 +87,86 @@ function resolveWindowsNodePath(
 	return nodeCandidates.find(fileExists);
 }
 
+// Shared resolution for npm's two Node-CLI entry points (`npx-cli.js` and
+// `npm-cli.js`), which live side by side in every npm install and resolve
+// the same way: prefer a native `.exe` shim, otherwise pair the CLI script
+// with the node.exe of the same install so a different (possibly older)
+// node found earlier on PATH cannot run a newer npm's scripts.
+function resolveNpmCliInvocation(
+	cliFileName: "npx-cli.js" | "npm-cli.js",
+	exeShimName: string,
+	extraArgs: readonly string[],
+	options: ResolveWindowsSpawnOptions,
+): ShellFreeInvocation | undefined {
+	const env = options.env ?? process.env;
+	const execPath = options.execPath ?? process.execPath;
+	const fileExists = options.fileExists ?? existsSync;
+	const directories = getWindowsPathDirectories(env, execPath);
+	const nodePath = resolveWindowsNodePath(env, execPath, fileExists);
+
+	const npmExecPath = env.npm_execpath?.trim();
+	if (
+		npmExecPath &&
+		win32.basename(npmExecPath).toLowerCase() === "npm-cli.js"
+	) {
+		// npm_execpath is always npm-cli.js itself; for that target reuse it
+		// directly, otherwise derive the sibling script in the same bin dir.
+		const cliPath =
+			cliFileName === "npm-cli.js"
+				? npmExecPath
+				: win32.join(win32.dirname(npmExecPath), cliFileName);
+		if (fileExists(cliPath)) {
+			// npm-cli.js lives at <install>\node_modules\npm\bin\npm-cli.js;
+			// prefer that install's own node.exe over an unrelated PATH node so
+			// the CLI runs under the runtime it shipped with.
+			const installNode = win32.join(
+				win32.dirname(cliPath),
+				"..",
+				"..",
+				"..",
+				"node.exe",
+			);
+			const pairedNode = fileExists(installNode) ? installNode : nodePath;
+			if (pairedNode) {
+				return {
+					command: pairedNode,
+					args: [cliPath, ...extraArgs],
+				};
+			}
+		}
+	}
+
+	// Preserve PATH order: a safe launcher next to an earlier PATH entry wins
+	// over a different launcher found in a later directory.
+	for (const directory of directories) {
+		const executable = win32.join(directory, exeShimName);
+		if (fileExists(executable)) {
+			return { command: executable, args: [...extraArgs] };
+		}
+		const cliPath = win32.join(
+			directory,
+			"node_modules",
+			"npm",
+			"bin",
+			cliFileName,
+		);
+		if (fileExists(cliPath)) {
+			// Pair the npm CLI with the node.exe of the same install so a
+			// different (possibly older) node found earlier on PATH cannot run
+			// a newer npm's scripts.
+			const siblingNode = win32.join(directory, "node.exe");
+			const pairedNode = fileExists(siblingNode) ? siblingNode : nodePath;
+			if (!pairedNode) continue;
+			return {
+				command: pairedNode,
+				args: [cliPath, ...extraArgs],
+			};
+		}
+	}
+
+	return undefined;
+}
+
 /**
  * Resolve a shell-free `npx` invocation.
  *
@@ -106,69 +186,32 @@ export function resolveNpxInvocation(
 	if (platform !== "win32") {
 		return { command: "npx", args: [...npxArgs] };
 	}
+	return resolveNpmCliInvocation("npx-cli.js", "npx.exe", npxArgs, options);
+}
 
-	const env = options.env ?? process.env;
-	const execPath = options.execPath ?? process.execPath;
-	const fileExists = options.fileExists ?? existsSync;
-	const directories = getWindowsPathDirectories(env, execPath);
-	const nodePath = resolveWindowsNodePath(env, execPath, fileExists);
-
-	const npmExecPath = env.npm_execpath?.trim();
-	if (
-		npmExecPath &&
-		win32.basename(npmExecPath).toLowerCase() === "npm-cli.js"
-	) {
-		const npxCliPath = win32.join(win32.dirname(npmExecPath), "npx-cli.js");
-		if (fileExists(npxCliPath)) {
-			// npm-cli.js lives at <install>\node_modules\npm\bin\npm-cli.js;
-			// prefer that install's own node.exe over an unrelated PATH node so
-			// the CLI runs under the runtime it shipped with.
-			const installNode = win32.join(
-				win32.dirname(npxCliPath),
-				"..",
-				"..",
-				"..",
-				"node.exe",
-			);
-			const pairedNode = fileExists(installNode) ? installNode : nodePath;
-			if (pairedNode) {
-				return {
-					command: pairedNode,
-					args: [npxCliPath, ...npxArgs],
-				};
-			}
-		}
+/**
+ * Resolve a shell-free `npm` invocation.
+ *
+ * Mirrors {@link resolveNpxInvocation}: prefers a native `npm.exe` shim when
+ * available, otherwise runs npm's own `npm-cli.js` through `node.exe`. This
+ * matters because the official `npm.cmd` shim computes its CLI path at
+ * runtime (a `FOR /F` loop calling back into node), so it does not match the
+ * static shim pattern {@link resolveShellFreeInvocation} otherwise falls
+ * back to — without this, an `npm` call on Windows either ENOENTs (spawned
+ * directly, no shell) or needs `shell: true`, which re-mangles arguments
+ * like an `npm view <pkg>@>=1.1.0` range through cmd.exe redirection.
+ * Returns `undefined` when no install can be located; callers should surface
+ * a clear error rather than fall back to a shell.
+ */
+export function resolveNpmInvocation(
+	npmArgs: readonly string[],
+	options: ResolveWindowsSpawnOptions = {},
+): ShellFreeInvocation | undefined {
+	const platform = options.platform ?? process.platform;
+	if (platform !== "win32") {
+		return { command: "npm", args: [...npmArgs] };
 	}
-
-	// Preserve PATH order: a safe launcher next to an earlier PATH entry wins
-	// over a different launcher found in a later directory.
-	for (const directory of directories) {
-		const executable = win32.join(directory, "npx.exe");
-		if (fileExists(executable)) {
-			return { command: executable, args: [...npxArgs] };
-		}
-		const npxCliPath = win32.join(
-			directory,
-			"node_modules",
-			"npm",
-			"bin",
-			"npx-cli.js",
-		);
-		if (fileExists(npxCliPath)) {
-			// Pair the npm CLI with the node.exe of the same install so a
-			// different (possibly older) node found earlier on PATH cannot run
-			// a newer npm's scripts.
-			const siblingNode = win32.join(directory, "node.exe");
-			const pairedNode = fileExists(siblingNode) ? siblingNode : nodePath;
-			if (!pairedNode) continue;
-			return {
-				command: pairedNode,
-				args: [npxCliPath, ...npxArgs],
-			};
-		}
-	}
-
-	return undefined;
+	return resolveNpmCliInvocation("npm-cli.js", "npm.exe", npmArgs, options);
 }
 
 // PATHEXT entries whose executables run directly under spawn() without a shell.
@@ -342,6 +385,9 @@ export function resolveShellFreeInvocation(
 	}
 	if (command.toLowerCase() === "npx") {
 		return resolveNpxInvocation(args, options);
+	}
+	if (command.toLowerCase() === "npm") {
+		return resolveNpmInvocation(args, options);
 	}
 	const executable = resolveWindowsExecutable(command, options);
 	if (executable) {

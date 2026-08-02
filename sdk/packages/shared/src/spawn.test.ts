@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	resolveNpmInvocation,
 	resolveNpxInvocation,
 	resolveShellFreeInvocation,
 	resolveWindowsExecutable,
@@ -77,6 +78,123 @@ describe("resolveNpxInvocation", () => {
 				fileExists: (path) => path === "C:\\Tools\\npx.cmd",
 			}),
 		).toBeUndefined();
+	});
+});
+
+describe("resolveNpmInvocation", () => {
+	it("keeps forwarded arguments out of a shell on non-Windows platforms", () => {
+		expect(
+			resolveNpmInvocation(["view", "left-pad@<2", "version"], {
+				platform: "linux",
+			}),
+		).toEqual({
+			command: "npm",
+			args: ["view", "left-pad@<2", "version"],
+		});
+	});
+
+	it("runs npm's own CLI through node.exe on Windows", () => {
+		const nodePath = "C:\\Program Files\\nodejs\\node.exe";
+		const npmCliPath =
+			"C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+		const existingFiles = new Set([nodePath, npmCliPath]);
+
+		expect(
+			resolveNpmInvocation(["view", "left-pad@<2", "version"], {
+				platform: "win32",
+				env: { Path: "C:\\Program Files\\nodejs" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => existingFiles.has(path),
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [npmCliPath, "view", "left-pad@<2", "version"],
+		});
+	});
+
+	it("preserves an npm semver-range argument as a single argv element", () => {
+		const nodePath = "C:\\Program Files\\nodejs\\node.exe";
+		const npmCliPath =
+			"C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+		const existingFiles = new Set([nodePath, npmCliPath]);
+
+		const invocation = resolveNpmInvocation(
+			["install", "@toolbox-sdk/server@>=1.1.0", "--prefix", "C:\\pkg"],
+			{
+				platform: "win32",
+				env: { Path: "C:\\Program Files\\nodejs" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => existingFiles.has(path),
+			},
+		);
+
+		expect(invocation?.args).toContain("@toolbox-sdk/server@>=1.1.0");
+	});
+
+	it("uses a native npm.exe shim on Windows when one is available", () => {
+		const npmPath = "C:\\Tools\\npm.exe";
+		expect(
+			resolveNpmInvocation(["--version"], {
+				platform: "win32",
+				env: { Path: "C:\\Tools" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => path === npmPath,
+			}),
+		).toEqual({ command: npmPath, args: ["--version"] });
+	});
+
+	it("pairs an npm_execpath npm CLI with its own install's node.exe", () => {
+		const installDir = "C:\\nvm\\v22.1.0";
+		const npmCliPath = `${installDir}\\node_modules\\npm\\bin\\npm-cli.js`;
+		const existing = new Set([
+			"C:\\OldNode\\node.exe",
+			`${installDir}\\node.exe`,
+			npmCliPath,
+		]);
+
+		expect(
+			resolveNpmInvocation(["view", "left-pad", "version"], {
+				platform: "win32",
+				env: { Path: "C:\\OldNode", npm_execpath: npmCliPath },
+				execPath: "C:\\Apps\\host.exe",
+				fileExists: (path) => existing.has(path),
+			}),
+		).toEqual({
+			command: `${installDir}\\node.exe`,
+			args: [npmCliPath, "view", "left-pad", "version"],
+		});
+	});
+
+	it("fails safely when no npm install can be located", () => {
+		expect(
+			resolveNpmInvocation(["install"], {
+				platform: "win32",
+				env: { Path: "C:\\Tools" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: () => false,
+			}),
+		).toBeUndefined();
+	});
+});
+
+describe("resolveShellFreeInvocation routes npm like npx", () => {
+	it("routes npm through npm's own Node CLI on Windows", () => {
+		const nodePath = "C:\\Program Files\\nodejs\\node.exe";
+		const npmCliPath =
+			"C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
+		const existingFiles = new Set([nodePath, npmCliPath]);
+
+		expect(
+			resolveShellFreeInvocation("npm", ["view", "left-pad@>=1.1.0"], {
+				platform: "win32",
+				env: { Path: "C:\\Program Files\\nodejs" },
+				execPath: "C:\\Apps\\cline.exe",
+				fileExists: (path) => existingFiles.has(path),
+			}),
+		).toEqual({
+			command: nodePath,
+			args: [npmCliPath, "view", "left-pad@>=1.1.0"],
+		});
 	});
 });
 
