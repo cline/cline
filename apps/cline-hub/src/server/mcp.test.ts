@@ -282,6 +282,71 @@ describe("upsertMcpServer", () => {
 		expect(stored.transportType).toBeUndefined();
 	});
 
+	it("keeps oauth when only the url casing changes", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: {
+					type: "streamableHttp",
+					url: "https://Trusted.Example.COM/mcp",
+				},
+				disabled: false,
+				oauth: { tokens: { access_token: "token-123" } },
+			},
+		});
+
+		upsertMcpServer({
+			name: "docs",
+			transportType: "streamableHttp",
+			url: "https://trusted.example.com/mcp",
+		});
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect(stored.oauth).toEqual({ tokens: { access_token: "token-123" } });
+	});
+
+	it("still drops oauth when the host actually changes", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: {
+					type: "streamableHttp",
+					url: "https://trusted.example.com/mcp",
+				},
+				disabled: false,
+				oauth: { tokens: { access_token: "token-123" } },
+			},
+		});
+
+		upsertMcpServer({
+			name: "docs",
+			transportType: "streamableHttp",
+			url: "https://other.example.com/mcp",
+		});
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect(stored.oauth).toBeUndefined();
+	});
+
+	it("does not throw when a stored url cannot be parsed", async () => {
+		const settingsPath = await seedSettings({
+			docs: {
+				transport: { type: "streamableHttp", url: "not a url" },
+				disabled: false,
+				oauth: { tokens: { access_token: "token-123" } },
+			},
+		});
+
+		expect(() =>
+			upsertMcpServer({
+				name: "docs",
+				transportType: "streamableHttp",
+				url: "not a url",
+			}),
+		).not.toThrow();
+
+		const stored = readStoredServers(settingsPath).docs as JsonRecord;
+		expect(stored.oauth).toEqual({ tokens: { access_token: "token-123" } });
+	});
+
 	it("leaves no stdio remnant when a server switches to sse", async () => {
 		const settingsPath = await seedSettings({
 			docs: {

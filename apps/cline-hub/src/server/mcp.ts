@@ -29,7 +29,18 @@ function resolveEndpointIdentity(record: JsonRecord): string {
 			: typeof record.url === "string"
 				? record.url
 				: "";
-	return `${canonicalType} ${target}`;
+	return `${canonicalType} ${canonicalizeUrl(target)}`;
+}
+
+function canonicalizeUrl(value: string): string {
+	if (!value) {
+		return value;
+	}
+	try {
+		return new URL(value).href;
+	} catch {
+		return value;
+	}
 }
 
 function isMetadataRecord(value: unknown): boolean {
