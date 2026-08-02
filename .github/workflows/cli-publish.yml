@@ -48,7 +48,7 @@ jobs:
       github.event.inputs.publish_target == 'main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -146,7 +146,7 @@ jobs:
         run: bun run test
 
       - name: Build platform binaries
-        run: bun script/build.ts --install-native-variants --skip-sdk-build
+        run: bun script/build.ts --install-native-variants --skip-sdk-build --require-darwin-codesign
         working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -188,6 +188,9 @@ jobs:
               exit 1
             fi
             ls -lh "$dir/bin/"
+            if [[ "$package_name" == @cline/cli-darwin-* ]]; then
+              codesign --verify --verbose=2 "$dir/bin/cline"
+            fi
           done
 
       - name: Publish to NPM with latest tag
@@ -269,7 +272,7 @@ jobs:
           github.event.inputs.publish_target == 'nightly'
         )
       )
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -374,7 +377,7 @@ jobs:
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun script/build.ts --install-native-variants --skip-sdk-build
+        run: bun script/build.ts --install-native-variants --skip-sdk-build --require-darwin-codesign
         working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -417,6 +420,9 @@ jobs:
               exit 1
             fi
             ls -lh "$dir/bin/"
+            if [[ "$package_name" == @cline/cli-darwin-* ]]; then
+              codesign --verify --verbose=2 "$dir/bin/cline"
+            fi
           done
 
       - name: Publish to NPM with nightly tag
