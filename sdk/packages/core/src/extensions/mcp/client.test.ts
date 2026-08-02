@@ -127,6 +127,34 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Dumps the environment it was actually spawned with, then answers just enough
+// JSON-RPC for connect() to succeed.
+const ENV_DUMP_SERVER_SCRIPT = `
+require("node:fs").writeFileSync(process.env.FAKE_MCP_ENV_DUMP_FILE, JSON.stringify(process.env));
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+	buffer += chunk.toString("utf8");
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || !msg.method || msg.method.startsWith("notifications/")) continue;
+		const result =
+			msg.method === "initialize"
+				? { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "env-dump", version: "0.0.0" } }
+				: { tools: [] };
+		process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+});
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
@@ -140,6 +168,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(tempRoot, "newline-rejecting-server.js"),
 		NEWLINE_REJECTING_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "env-dump-server.js"),
+		ENV_DUMP_SERVER_SCRIPT,
 		"utf8",
 	);
 });
@@ -418,6 +451,58 @@ describe("mcp client request timeout", () => {
 			controller.abort();
 			await expect(call).rejects.toMatchObject({ name: "AbortError" });
 		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+});
+
+describe("mcp client stdio environment", () => {
+	const secretVariable = "CLINE_TEST_UNRELATED_SECRET";
+
+	// Windows reports environment keys in whatever case the parent used.
+	function lookupEnv(
+		env: Record<string, string>,
+		name: string,
+	): string | undefined {
+		const match = Object.keys(env).find(
+			(key) => key.toLowerCase() === name.toLowerCase(),
+		);
+		return match === undefined ? undefined : env[match];
+	}
+
+	it("gives the server the sdk default environment plus its configured env, not the whole parent environment", async () => {
+		const dumpFile = join(tempRoot, "env-dump.json");
+		process.env[secretVariable] = "parent-only-value";
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory({
+			name: "env-dump-server",
+			transport: {
+				type: "stdio",
+				command:
+					process.platform === "win32"
+						? `"${process.execPath}"`
+						: process.execPath,
+				args: [join(tempRoot, "env-dump-server.js")],
+				env: {
+					FAKE_MCP_ENV_DUMP_FILE: dumpFile,
+					CONFIGURED_TOKEN: "configured-value",
+				},
+			},
+		});
+
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(dumpFile));
+			const childEnv = JSON.parse(readFileSync(dumpFile, "utf8")) as Record<
+				string,
+				string
+			>;
+
+			expect(lookupEnv(childEnv, secretVariable)).toBeUndefined();
+			expect(childEnv.CONFIGURED_TOKEN).toBe("configured-value");
+			expect(lookupEnv(childEnv, "PATH")).toBeDefined();
+		} finally {
+			delete process.env[secretVariable];
 			await client.disconnect();
 		}
 	}, 30_000);

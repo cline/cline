@@ -7,6 +7,7 @@ import {
 } from "@cline/shared";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
 	createMcpOAuthProviderContext,
@@ -311,7 +312,7 @@ class StdioMcpClient implements McpServerClient {
 		const child = spawn(transport.command, transport.args ?? [], {
 			cwd: transport.cwd,
 			env: {
-				...process.env,
+				...getDefaultEnvironment(),
 				...(transport.env ?? {}),
 			},
 			stdio: ["pipe", "pipe", "pipe"],
