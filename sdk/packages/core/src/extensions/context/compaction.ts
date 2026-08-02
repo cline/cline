@@ -28,6 +28,7 @@ import {
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
 	resolveEffectiveMaxInputTokens,
+	toPayloadMessage,
 } from "./compaction-shared";
 
 export interface ContextPipelinePrepareTurnInput {
@@ -286,9 +287,12 @@ export function createContextCompactionPrepareTurn(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
+		// Project to the provider payload so this matches apiMessageTokens above:
+		// requestOverheadTokens is their difference and only isolates the system
+		// prompt and tools when both sides measure the same thing.
 		const requestInputTokens = estimateRequestInputTokens({
 			systemPrompt: context.systemPrompt,
-			messages: context.apiMessages,
+			messages: context.apiMessages.map(toPayloadMessage),
 			tools: context.tools,
 		});
 		const messageInputTokens = context.messages.reduce(
