@@ -76,6 +76,8 @@ const optionsError = validateBuildOptions({
 	options: buildOptions,
 	opentuiVersion,
 	targetCount: targets.length,
+	buildsDarwin: targets.some((item) => item.os === "darwin"),
+	platform: process.platform,
 });
 if (optionsError) {
 	console.error(optionsError);
@@ -222,25 +224,17 @@ async function buildCompiledBinary(input: {
 	await $`rm -rf ${tmpDir}`;
 }
 
-async function signDarwinBinary(input: {
-	outfile: string;
-	requireCodesign: boolean;
-}): Promise<void> {
+async function signDarwinBinary(outfile: string): Promise<void> {
 	if (process.platform !== "darwin") {
-		const message = [
-			`Cannot codesign ${input.outfile} because this build is running on ${process.platform}.`,
-			"Build Darwin release binaries on macOS or omit --require-darwin-codesign for local cross-compilation.",
-		].join(" ");
-		if (input.requireCodesign) {
-			throw new Error(message);
-		}
-		console.warn(`  Warning: ${message}`);
+		console.warn(
+			`  Warning: not codesigning ${outfile} on ${process.platform}. This binary will not launch on macOS.`,
+		);
 		return;
 	}
 
-	console.log(`  Codesigning: ${input.outfile}`);
-	await $`codesign --force --sign - ${input.outfile}`;
-	await $`codesign --verify --verbose=2 ${input.outfile}`;
+	console.log(`  Codesigning: ${outfile}`);
+	await $`codesign --force --sign - ${outfile}`;
+	await $`codesign --verify --verbose=2 ${outfile}`;
 }
 
 for (const item of targets) {
@@ -259,10 +253,7 @@ for (const item of targets) {
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
 	if (item.os === "darwin") {
-		await signDarwinBinary({
-			outfile,
-			requireCodesign: buildOptions.requireDarwinCodesign,
-		});
+		await signDarwinBinary(outfile);
 	}
 
 	// Smoke test: only run on current platform
