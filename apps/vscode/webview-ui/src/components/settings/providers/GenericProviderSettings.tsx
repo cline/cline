@@ -65,6 +65,14 @@ export const GenericProviderSettings = ({
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error(`Failed to update ${providerName} base URL:`, err))
 	}
+	const handleBaseUrlClear = async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error(`Failed to clear ${providerName} base URL:`, error)
+			throw error
+		}
+	}
 
 	return (
 		<div>
@@ -81,6 +89,7 @@ export const GenericProviderSettings = ({
 					initialValue={config?.baseUrl}
 					label={baseUrlField.label}
 					onChange={handleBaseUrlChange}
+					onClear={handleBaseUrlClear}
 					placeholder={baseUrlField.placeholder}
 				/>
 			)}
