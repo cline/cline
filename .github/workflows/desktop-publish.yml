@@ -39,6 +39,7 @@ jobs:
           ref: ${{ github.event.inputs.git_tag }}
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       - name: Validate release tag
         id: version
@@ -107,6 +108,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
