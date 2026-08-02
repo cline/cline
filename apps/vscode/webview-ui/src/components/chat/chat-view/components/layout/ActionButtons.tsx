@@ -3,7 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useExtensionState } from "../../../../../context/ExtensionStateContext"
+import { useExtensionState, useMessagesState } from "../../../../../context/ExtensionStateContext"
 import { ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -20,7 +20,9 @@ interface ActionButtonsProps {
  */
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState, mode, messageHandlers }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
-	const { turnState, foregroundCommandRunning } = useExtensionState()
+	const { foregroundCommandRunning } = useExtensionState()
+	// TurnState is high-frequency message state (V12 方案3).
+	const { turnState } = useMessagesState()
 
 	// Tracks the ask the user last acted on. Clicking a footer button latches this so the
 	// buttons disable immediately (and survive the trailing bookkeeping re-renders before the

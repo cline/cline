@@ -3,7 +3,7 @@ import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState, useMessagesState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -58,17 +58,10 @@ const sameUserMessage = (left: ClineMessage, right: ClineMessage) => {
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
-	const {
-		version,
-		clineMessages: messages,
-		taskHistory,
-		telemetrySetting,
-		mode,
-		userInfo,
-		hooksEnabled,
-		checkpointRestoreInput,
-		queuedPrompts,
-	} = useExtensionState()
+	const { version, taskHistory, telemetrySetting, mode, userInfo, hooksEnabled, checkpointRestoreInput, queuedPrompts } =
+		useExtensionState()
+	// Transcript is high-frequency state, published through MessagesStateContext (V12 方案3).
+	const { clineMessages: messages } = useMessagesState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 

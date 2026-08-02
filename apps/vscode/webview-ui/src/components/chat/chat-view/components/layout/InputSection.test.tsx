@@ -7,7 +7,8 @@ import { InputSection } from "./InputSection"
 
 const mockTurnState = vi.fn<() => TurnState | undefined>(() => undefined)
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ turnState: mockTurnState() }),
+	useExtensionState: () => ({}),
+	useMessagesState: () => ({ turnState: mockTurnState() }),
 }))
 
 vi.mock("@/components/chat/ChatTextArea", () => ({

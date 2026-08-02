@@ -20,7 +20,7 @@ import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState, useMessagesState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
@@ -127,8 +127,9 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
-			useExtensionState()
+		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, showFeatureTips } = useExtensionState()
+		// Transcript is high-frequency state, published through MessagesStateContext (V12 方案3).
+		const { clineMessages } = useMessagesState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,

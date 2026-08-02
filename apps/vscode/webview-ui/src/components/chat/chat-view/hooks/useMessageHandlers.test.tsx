@@ -37,11 +37,13 @@ vi.mock("@shared/proto/cline/common", () => ({
 	StringRequest: { create: (x: unknown) => x },
 }))
 
-// useExtensionState supplies turnState (+ backgroundCommandRunning) to the hook.
+// useMessagesState supplies turnState; useExtensionState supplies backgroundCommandRunning.
 let mockTurnState: TurnState | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		backgroundCommandRunning: false,
+	}),
+	useMessagesState: () => ({
 		turnState: mockTurnState,
 	}),
 }))

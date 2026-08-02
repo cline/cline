@@ -16,7 +16,8 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 
 const mockTurnState = vi.fn<() => TurnState | undefined>(() => undefined)
 vi.mock("../../../../../context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ turnState: mockTurnState() }),
+	useExtensionState: () => ({ foregroundCommandRunning: false }),
+	useMessagesState: () => ({ turnState: mockTurnState() }),
 }))
 
 function fileApprovalAsk(ts: number, path: string): ClineMessage {

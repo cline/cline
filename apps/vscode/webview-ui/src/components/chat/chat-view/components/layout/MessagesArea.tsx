@@ -3,7 +3,7 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useMessagesState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { MessageRowContext } from "../../context/MessageRowContext"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
@@ -30,7 +30,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	chatState,
 	messageHandlers,
 }) => {
-	const { clineMessages, turnState, messageTruncated, loadHistoryBatch, hasMoreMessages } = useExtensionState()
+	// Messages are high-frequency state, published through MessagesStateContext (V12 方案3).
+	const { clineMessages, turnState, messageTruncated, loadHistoryBatch, hasMoreMessages } = useMessagesState()
 
 	const {
 		virtuosoRef,

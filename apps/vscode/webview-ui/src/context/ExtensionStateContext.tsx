@@ -1,6 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
+import { type ClineMessage, DEFAULT_PLATFORM, type ExtensionState, type TurnState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
@@ -38,6 +38,30 @@ import {
 
 export type ProviderId = string
 
+/**
+ * High-frequency message state, decoupled from the low-frequency
+ * ExtensionStateContext (V12 方案3 — fine-grained subscription).
+ *
+ * Streaming deltas, partial messages and transcript snapshots only update this
+ * context, so settings/theme changes no longer re-render the message list and,
+ * symmetrically, message updates no longer re-render settings/theme consumers.
+ */
+export interface MessagesState {
+	clineMessages: ClineMessage[]
+	turnState?: TurnState
+	messageTruncated?: boolean
+	totalMessageCount?: number
+	/** Conversation/replica fence (see messageReducer.ts). */
+	epoch: number
+	/** Highest state snapshot version applied. */
+	stateVersion: number
+	/** True while older messages may still be loaded via loadHistoryBatch. */
+	hasMoreMessages: boolean
+	loadHistoryBatch: (taskId: string, beforeTs: number) => Promise<void>
+}
+
+const MessagesStateContext = createContext<MessagesState | undefined>(undefined)
+
 interface ProviderModelsState {
 	providerId: ProviderId
 	models: Record<string, ModelInfo>
@@ -51,7 +75,11 @@ interface ProviderModelsState {
 	error?: string
 }
 
-export interface ExtensionStateContextType extends ExtensionState {
+export interface ExtensionStateContextType
+	extends Omit<
+		ExtensionState,
+		"clineMessages" | "turnState" | "messageTruncated" | "totalMessageCount" | "epoch" | "stateVersion"
+	> {
 	didHydrateState: boolean
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
@@ -145,11 +173,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
-
-	// Scroll-up pagination: load older messages when scrolling up in a truncated conversation.
-	loadHistoryBatch: (taskId: string, beforeTs: number) => Promise<void>
-	// Whether there are more older messages available for scroll-up pagination.
-	hasMoreMessages: boolean
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -442,21 +465,33 @@ export const ExtensionStateContextProvider: React.FC<{
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						const incomingStateVersion = stateData.stateVersion ?? 0
+						replicaRef.current = reducerApplyStateSnapshot(
+							replicaRef.current,
+							stateData.clineMessages ?? [],
+							stateData.epoch ?? 0,
+							incomingStateVersion,
+							stateData.turnState,
+						)
+						// Publish the (seq-gated) transcript through the messages context (V12 方案3).
+						publishReplica({
+							messageTruncated: stateData.messageTruncated,
+							totalMessageCount: stateData.totalMessageCount,
+						})
+
+						const {
+							clineMessages: _clineMessages,
+							turnState: _turnState,
+							epoch: _epoch,
+							stateVersion: _stateVersion,
+							...restStateData
+						} = stateData
 						setState((prevState) => {
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							replicaRef.current = reducerApplyStateSnapshot(
-								replicaRef.current,
-								stateData.clineMessages ?? [],
-								stateData.epoch ?? 0,
-								stateData.stateVersion ?? 0,
-								stateData.turnState,
-							)
-							stateData.clineMessages = replicaRef.current.messages
-							stateData.turnState = replicaRef.current.turnState
 							const newState = {
-								...stateData,
+								...restStateData,
 								autoApprovalSettings: shouldUpdateAutoApproval
 									? stateData.autoApprovalSettings
 									: prevState.autoApprovalSettings,
@@ -469,9 +504,9 @@ export const ExtensionStateContextProvider: React.FC<{
 								setOnboardingModels(undefined)
 							}
 							setDidHydrateState(true)
-							lastStateVersionRef.current = newState.stateVersion ?? 0
 							return newState
 						})
+						lastStateVersionRef.current = incomingStateVersion
 					} catch (error) {
 						console.error("Error parsing state JSON during full sync:", error)
 					}
@@ -518,6 +553,54 @@ export const ExtensionStateContextProvider: React.FC<{
 	// arrival order, duplication, or loss. See messageReducer.ts.
 	const replicaRef = useRef<ReplicaState>(createReplicaState())
 
+	/**
+	 * React state mirror of the replica, published through MessagesStateContext
+	 * (V12 方案3). Kept separate from the main ExtensionState so high-frequency
+	 * message traffic does not re-render settings/theme consumers.
+	 */
+	const [replicaMessages, setReplicaMessages] = useState<{
+		clineMessages: ClineMessage[]
+		turnState?: TurnState
+		epoch: number
+		stateVersion: number
+		messageTruncated?: boolean
+		totalMessageCount?: number
+	}>({
+		clineMessages: [],
+		epoch: 0,
+		stateVersion: 0,
+	})
+
+	/**
+	 * Publish the current replica to the messages context. Only triggers a
+	 * re-render when the transcript actually changed (reference comparison —
+	 * the reducer returns the same object for no-op merges).
+	 */
+	const publishReplica = useCallback((fields?: { messageTruncated?: boolean; totalMessageCount?: number }) => {
+		const replica = replicaRef.current
+		setReplicaMessages((prev) => {
+			const transcriptChanged =
+				prev.clineMessages !== replica.messages ||
+				prev.turnState !== replica.turnState ||
+				prev.epoch !== replica.epoch ||
+				prev.stateVersion !== replica.stateVersion
+			if (!transcriptChanged) {
+				return fields &&
+					(fields.messageTruncated !== prev.messageTruncated || fields.totalMessageCount !== prev.totalMessageCount)
+					? { ...prev, ...fields }
+					: prev
+			}
+			return {
+				clineMessages: replica.messages,
+				turnState: replica.turnState,
+				epoch: replica.epoch,
+				stateVersion: replica.stateVersion,
+				messageTruncated: fields?.messageTruncated ?? prev.messageTruncated,
+				totalMessageCount: fields?.totalMessageCount ?? prev.totalMessageCount,
+			}
+		})
+	}, [])
+
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
@@ -529,28 +612,42 @@ export const ExtensionStateContextProvider: React.FC<{
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						const incomingStateVersion = stateData.stateVersion ?? 0
 
+						// Route the snapshot's transcript through the convergent-replica reducer:
+						// merge by ts/seq within the same epoch (never truncate), replace on a
+						// newer epoch, ignore stale/older snapshots.
+						replicaRef.current = reducerApplyStateSnapshot(
+							replicaRef.current,
+							stateData.clineMessages ?? [],
+							stateData.epoch ?? 0,
+							incomingStateVersion,
+							stateData.turnState,
+						)
+
+						// Publish the (seq-gated) transcript + pagination metadata through the
+						// high-frequency messages context; keep the low-frequency main state free
+						// of message fields so snapshots carrying only settings don't re-render
+						// the message list (V12 方案3).
+						publishReplica({
+							messageTruncated: stateData.messageTruncated,
+							totalMessageCount: stateData.totalMessageCount,
+						})
+
+						const {
+							clineMessages: _clineMessages,
+							turnState: _turnState,
+							epoch: _epoch,
+							stateVersion: _stateVersion,
+							...restStateData
+						} = stateData
+
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
-							// Route the snapshot's transcript through the convergent-replica reducer:
-							// merge by ts/seq within the same epoch (never truncate), replace on a
-							// newer epoch, ignore stale/older snapshots.
-							replicaRef.current = reducerApplyStateSnapshot(
-								replicaRef.current,
-								stateData.clineMessages ?? [],
-								stateData.epoch ?? 0,
-								incomingStateVersion,
-								stateData.turnState,
-							)
-							stateData.clineMessages = replicaRef.current.messages
-							// Use the seq-gated turnState from the replica, NOT the raw snapshot's.
-							stateData.turnState = replicaRef.current.turnState
-
 							const newState = {
-								...stateData,
+								...restStateData,
 								autoApprovalSettings: shouldUpdateAutoApproval
 									? stateData.autoApprovalSettings
 									: prevState.autoApprovalSettings,
@@ -566,10 +663,11 @@ export const ExtensionStateContextProvider: React.FC<{
 							}
 
 							setDidHydrateState(true)
-							lastStateVersionRef.current = incomingStateVersion
 
 							return newState
 						})
+
+						lastStateVersionRef.current = incomingStateVersion
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
 					}
@@ -598,41 +696,41 @@ export const ExtensionStateContextProvider: React.FC<{
 							lastStateVersionRef.current = deltaVersion
 						}
 
-						setState((prevState) => {
-							const inner = raw.payload
-							switch (raw.type) {
-								case "append_message":
-									if (inner?.message) {
-										replicaRef.current = reducerApplyMessage(replicaRef.current, inner.message)
+						const inner = raw.payload
+						switch (raw.type) {
+							case "append_message":
+								if (inner?.message) {
+									const before = replicaRef.current
+									const next = reducerApplyMessage(before, inner.message)
+									if (next !== before) {
+										replicaRef.current = next
+										publishReplica()
 									}
-									return {
-										...prevState,
-										clineMessages: replicaRef.current.messages,
-									}
+								}
+								break
 
-								case "update_message":
-									// Extract messageId (ts) and patch from the inner delta
-									if (inner?.messageId) {
-										const patchMessage = { ts: inner.messageId, ...inner.patch }
-										replicaRef.current = reducerApplyMessage(replicaRef.current, patchMessage as any)
+							case "update_message":
+								// Extract messageId (ts) and patch from the inner delta
+								if (inner?.messageId) {
+									const patchMessage = { ts: inner.messageId, ...inner.patch }
+									const before = replicaRef.current
+									const next = reducerApplyMessage(before, patchMessage as any)
+									if (next !== before) {
+										replicaRef.current = next
+										publishReplica()
 									}
-									return {
-										...prevState,
-										clineMessages: replicaRef.current.messages,
-									}
+								}
+								break
 
-								case "replace_all":
-									return {
-										...prevState,
-										...inner,
-										clineMessages: prevState.clineMessages,
-									}
+							case "replace_all":
+								// Settings/state replacement — the message transcript is not part of
+								// the main state, so a plain spread suffices.
+								setState((prevState) => ({ ...prevState, ...inner }))
+								break
 
-								default:
-									console.warn("[StateDelta] Unknown delta type:", raw.type)
-									return prevState
-							}
-						})
+							default:
+								console.warn("[StateDelta] Unknown delta type:", raw.type)
+						}
 					} catch (error) {
 						console.error("Error processing state delta:", error)
 					}
@@ -764,19 +862,17 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					setState((prevState) => {
-						// Route through the convergent-replica reducer: merge by ts keeping the
-						// higher seq, fence stale epochs, never let an out-of-order or duplicate
-						// delivery corrupt the transcript. Unstamped (classic/legacy) messages
-						// default to epoch 0 and merge by ts as before.
-						const before = replicaRef.current
-						replicaRef.current = reducerApplyMessage(before, partialMessage)
-						if (replicaRef.current === before) {
-							// Stale/ignored — no change.
-							return prevState
-						}
-						return { ...prevState, clineMessages: replicaRef.current.messages }
-					})
+					// Route through the convergent-replica reducer: merge by ts keeping the
+					// higher seq, fence stale epochs, never let an out-of-order or duplicate
+					// delivery corrupt the transcript. Unstamped (classic/legacy) messages
+					// default to epoch 0 and merge by ts as before.
+					const before = replicaRef.current
+					const next = reducerApplyMessage(before, partialMessage)
+					if (next !== before) {
+						// Stale/ignored — no change.
+						replicaRef.current = next
+						publishReplica()
+					}
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
 				}
@@ -1034,11 +1130,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				// Apply batch prepend to the replica
 				replicaRef.current = reducerApplyBatchPrepend(replicaRef.current, incoming, undefined, response.totalCount)
 
-				// Update state with the merged messages
-				setState((prevState) => ({
-					...prevState,
-					clineMessages: replicaRef.current.messages,
-				}))
+				// Publish the merged transcript + pagination metadata through the messages context
+				publishReplica({ totalMessageCount: response.totalCount })
 
 				// Update hasMore flag from response
 				if (response.hasMore !== undefined) {
@@ -1051,8 +1144,18 @@ export const ExtensionStateContextProvider: React.FC<{
 		[], // stable — no external deps; uses refs internally
 	)
 
+	const {
+		clineMessages: _clineMessages,
+		turnState: _turnState,
+		messageTruncated: _messageTruncated,
+		totalMessageCount: _totalMessageCount,
+		epoch: _epoch,
+		stateVersion: _stateVersion,
+		...restState
+	} = state
+
 	const contextValue: ExtensionStateContextType = {
-		...state,
+		...restState,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,
@@ -1191,17 +1294,38 @@ export const ExtensionStateContextProvider: React.FC<{
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
+	}
+
+	const messagesContextValue: MessagesState = {
+		clineMessages: replicaMessages.clineMessages,
+		turnState: replicaMessages.turnState,
+		messageTruncated: replicaMessages.messageTruncated,
+		totalMessageCount: replicaMessages.totalMessageCount,
+		epoch: replicaMessages.epoch,
+		stateVersion: replicaMessages.stateVersion,
 		hasMoreMessages,
 		loadHistoryBatch,
 	}
 
-	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
+	return (
+		<MessagesStateContext.Provider value={messagesContextValue}>
+			<ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
+		</MessagesStateContext.Provider>
+	)
 }
 
 export const useExtensionState = () => {
 	const context = useContext(ExtensionStateContext)
 	if (context === undefined) {
 		throw new Error("useExtensionState must be used within an ExtensionStateContextProvider")
+	}
+	return context
+}
+
+export const useMessagesState = () => {
+	const context = useContext(MessagesStateContext)
+	if (context === undefined) {
+		throw new Error("useMessagesState must be used within an ExtensionStateContextProvider")
 	}
 	return context
 }
