@@ -1,2 +1,11 @@
 /.github/   @saoudrizwan @arafatkatze @maxpaulus43 @dominiccooney
 /README.md  @saoudrizwan @juanpflores
+
+# Instructions that maintainers' coding agents read and act on. A pull request
+# that edits these is not proposing code, it is proposing behaviour for whoever
+# reviews it next — and the publish skills in particular describe how to cut a
+# release. Treat changes here with the same suspicion as changes to a workflow.
+/AGENTS.md      @saoudrizwan @arafatkatze @maxpaulus43 @dominiccooney
+/.claude/       @saoudrizwan @arafatkatze @maxpaulus43 @dominiccooney
+/.agents/       @saoudrizwan @arafatkatze @maxpaulus43 @dominiccooney
+/.cursor/       @saoudrizwan @arafatkatze @maxpaulus43 @dominiccooney
