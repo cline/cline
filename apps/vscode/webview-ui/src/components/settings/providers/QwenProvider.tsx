@@ -39,7 +39,17 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 		apiConfiguration,
 		currentMode,
 	)
-	const { write } = useProviderConfig("qwen")
+	const { config, write } = useProviderConfig("qwen")
+	// The SDK provider config (providers.json) is the source of truth shared
+	// with other hosts (CLI, desktop app); the legacy state field keeps the
+	// dropdown accurate before the async config read completes.
+	const selectedApiLine = config?.apiLine || apiConfiguration?.qwenApiLine || qwenApiOptions[0]
+
+	const handleApiLineChange = (value: string) => {
+		// write() persists to providers.json and mirrors to the legacy
+		// `qwenApiLine` state key host-side, keeping both stores in sync.
+		void write({ apiLine: value }).catch((err) => console.error("Failed to update Qwen API line:", err))
+	}
 
 	return (
 		<div>
@@ -49,12 +59,12 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 				</label>
 				<VSCodeDropdown
 					id="qwen-line-provider"
-					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value as QwenApiRegions)}
+					onChange={(e: any) => handleApiLineChange(e.target.value as QwenApiRegions)}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={apiConfiguration?.qwenApiLine || qwenApiOptions[0]}>
+					value={selectedApiLine}>
 					{qwenApiOptions.map((line) => (
 						<VSCodeOption key={line} value={line}>
 							{line.charAt(0).toUpperCase() + line.slice(1)} API
