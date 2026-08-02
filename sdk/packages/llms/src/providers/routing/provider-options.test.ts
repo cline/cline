@@ -22,6 +22,7 @@ type RequestOverrides = Partial<GatewayStreamRequest> & {
 type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
+	modelName?: string;
 	family?: string;
 	contextWindow?: number;
 	maxOutputTokens?: number;
@@ -36,6 +37,7 @@ type ContextOverrides = {
 function makeContext(options?: ContextOverrides): GatewayProviderContext {
 	const providerId = options?.providerId ?? "test-provider";
 	const modelId = options?.modelId ?? "model-id";
+	const modelName = options?.modelName ?? modelId;
 	const normalizedFamily = options?.family?.toLowerCase() ?? "";
 	const normalizedModelId = modelId.toLowerCase();
 	const useAnthropicReasoningRoute =
@@ -91,7 +93,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 		},
 		model: {
 			id: modelId,
-			name: modelId,
+			name: modelName,
 			providerId,
 			maxOutputTokens: options?.maxOutputTokens,
 			contextWindow: options?.contextWindow,
@@ -1271,7 +1273,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			name: "Chutes thinking-only Qwen family ignores explicit disable",
 			request: {
 				providerId: "chutes",
-				modelId: "Qwen/Qwen4-Example-Thinking-TEE",
+				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
 				reasoning: { enabled: false, effort: "high" },
 			},
 			context: {
@@ -1296,6 +1298,59 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 						"reasoningEffort",
 						"effort",
 					],
+				},
+			],
+		},
+		{
+			name: "Chutes thinking-only classification is stable across display name changes",
+			request: {
+				providerId: "chutes",
+				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "reasoning"],
+				modelName: "Qwen3 235B Super Fast Non-Thinking Edition",
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes Qwen model not in thinking-only set receives toggle regardless of display name",
+			request: {
+				providerId: "chutes",
+				modelId: "Qwen/Qwen4-New-Model-TEE",
+				reasoning: { enabled: false, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "reasoning"],
+				modelName: "Qwen4 Thinking Ultra",
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { enable_thinking: false } },
+					lacks: ["thinking", "reasoningEffort", "effort"],
 				},
 			],
 		},
