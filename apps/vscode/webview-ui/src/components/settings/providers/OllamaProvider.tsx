@@ -66,6 +66,14 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 		},
 		[write],
 	)
+	const handleBaseUrlClear = useCallback(async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear Ollama base URL:", error)
+			throw error
+		}
+	}, [write])
 
 	// Fetch ollama models on mount and whenever the base URL changes. The
 	// picker also refetches on focus — do NOT poll on an interval: the base
@@ -97,6 +105,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				initialValue={ollamaBaseUrl}
 				label="Use custom base URL"
 				onChange={handleBaseUrlChange}
+				onClear={handleBaseUrlClear}
 				placeholder="Default: http://localhost:11434"
 			/>
 

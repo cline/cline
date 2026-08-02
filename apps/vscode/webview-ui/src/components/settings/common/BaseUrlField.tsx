@@ -8,6 +8,8 @@ import { useDebouncedInput } from "../utils/useDebouncedInput"
 interface BaseUrlFieldProps {
 	initialValue: string | undefined
 	onChange: (value: string) => void
+	/** Clears the persisted value. Reject to restore the authoritative enabled state. */
+	onClear?: () => Promise<void>
 	defaultValue?: string
 	label?: string
 	placeholder?: string
@@ -21,14 +23,18 @@ interface BaseUrlFieldProps {
 export const BaseUrlField = ({
 	initialValue,
 	onChange,
+	onClear,
 	label = "Use custom base URL",
 	placeholder = "Default: https://api.example.com",
 	disabled = false,
 	showLockIcon = false,
 }: BaseUrlFieldProps) => {
 	const [isEnabled, setIsEnabled] = useState(!!initialValue)
+	const [isClearing, setIsClearing] = useState(false)
 	const userToggledRef = useRef(false)
-	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", (value: string) => onChange(value.trim()))
+	const [localValue, setLocalValue, syncLocalValue] = useDebouncedInput(initialValue || "", (value: string) =>
+		onChange(value.trim()),
+	)
 
 	// Provider config loads asynchronously, so a saved base URL usually arrives
 	// after mount (initialValue starts undefined). Reflect it in the checkbox
@@ -44,15 +50,38 @@ export const BaseUrlField = ({
 		userToggledRef.current = true
 		setIsEnabled(checked)
 		if (!checked) {
-			setLocalValue("")
-			onChange("")
+			// Cancel any pending debounced edit before starting the clear. Otherwise
+			// its timer or unmount cleanup could restore the non-empty URL while the
+			// clear write is in flight.
+			syncLocalValue("")
+			let clearResult: Promise<void> | undefined
+			try {
+				clearResult = onClear?.()
+			} catch {
+				userToggledRef.current = false
+				setIsEnabled(!!initialValue)
+				syncLocalValue(initialValue || "")
+				return
+			}
+			if (clearResult) {
+				setIsClearing(true)
+				void clearResult
+					.catch(() => {
+						userToggledRef.current = false
+						setIsEnabled(!!initialValue)
+						syncLocalValue(initialValue || "")
+					})
+					.finally(() => setIsClearing(false))
+			} else {
+				onChange("")
+			}
 		}
 	}
 
 	return (
 		<div>
 			<div className="flex items-center gap-2">
-				<VSCodeCheckbox checked={isEnabled} disabled={disabled} onChange={handleToggle}>
+				<VSCodeCheckbox checked={isEnabled} disabled={disabled || isClearing} onChange={handleToggle}>
 					{label}
 				</VSCodeCheckbox>
 				{showLockIcon && <i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />}
