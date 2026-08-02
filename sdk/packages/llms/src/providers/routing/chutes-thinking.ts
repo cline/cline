@@ -29,15 +29,20 @@ export function usesChutesChatTemplateReasoning(
 	);
 }
 
+/**
+ * Chutes Qwen-family models whose thinking mode cannot be disabled at the
+ * wire level. Membership is explicit and auditable: new thinking-only models
+ * must be added deliberately, not inferred from display names.
+ */
+const CHUTES_THINKING_ONLY_QWEN_IDS: ReadonlySet<string> = new Set([
+	"qwen/qwen3-235b-a22b-thinking-2507-tee",
+]);
+
 function isThinkingOnlyQwen(
 	request: Pick<GatewayStreamRequest, "modelId">,
-	context: GatewayProviderContext,
 ): boolean {
-	const descriptor = [request.modelId, context.model.id, context.model.name]
-		.map((value) => normalizeRoutingValue(value))
-		.filter(Boolean)
-		.join(" ");
-	return /(^|[^a-z0-9])thinking([^a-z0-9]|$)/.test(descriptor);
+	const modelId = normalizeRoutingValue(request.modelId);
+	return modelId ? CHUTES_THINKING_ONLY_QWEN_IDS.has(modelId) : false;
 }
 
 export function buildChutesThinkingProviderOptionsPatch(
@@ -58,7 +63,7 @@ export function buildChutesThinkingProviderOptionsPatch(
 			: { thinking: false };
 	} else if (
 		isQwenModel({ modelId: request.modelId, family }) &&
-		!isThinkingOnlyQwen(request, context)
+		!isThinkingOnlyQwen(request)
 	) {
 		chatTemplateKwargs = { enable_thinking: enabled };
 	}
