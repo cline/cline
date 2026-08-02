@@ -222,6 +222,27 @@ async function buildCompiledBinary(input: {
 	await $`rm -rf ${tmpDir}`;
 }
 
+async function signDarwinBinary(input: {
+	outfile: string;
+	requireCodesign: boolean;
+}): Promise<void> {
+	if (process.platform !== "darwin") {
+		const message = [
+			`Cannot codesign ${input.outfile} because this build is running on ${process.platform}.`,
+			"Build Darwin release binaries on macOS or omit --require-darwin-codesign for local cross-compilation.",
+		].join(" ");
+		if (input.requireCodesign) {
+			throw new Error(message);
+		}
+		console.warn(`  Warning: ${message}`);
+		return;
+	}
+
+	console.log(`  Codesigning: ${input.outfile}`);
+	await $`codesign --force --sign - ${input.outfile}`;
+	await $`codesign --verify --verbose=2 ${input.outfile}`;
+}
+
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
@@ -237,6 +258,12 @@ for (const item of targets) {
 	const outfile = join(outDir, binaryName);
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
+	if (item.os === "darwin") {
+		await signDarwinBinary({
+			outfile,
+			requireCodesign: buildOptions.requireDarwinCodesign,
+		});
+	}
 
 	// Smoke test: only run on current platform
 	if (item.os === process.platform && item.arch === process.arch) {
