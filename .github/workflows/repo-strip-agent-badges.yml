@@ -12,6 +12,11 @@ on:
     pull_request_target:
         types: [opened, edited]
 
+# pull_request_target runs with a token that has write access even for fork PRs,
+# so nothing is granted by default; the one job below asks for exactly what it
+# needs.
+permissions: {}
+
 concurrency:
     group: strip-agent-badges-${{ github.event.pull_request.number }}
     cancel-in-progress: true

@@ -27,9 +27,11 @@ on:
         type: boolean
         default: false
 
+# Least privilege by default; the publish jobs widen this themselves. In
+# particular id-token: write (npm trusted publishing) is granted per job, never
+# workflow-wide, so no other job can mint an OIDC token in our name.
 permissions:
   contents: read
-  id-token: write
 
 defaults:
   run:

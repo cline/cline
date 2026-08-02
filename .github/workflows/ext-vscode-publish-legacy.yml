@@ -27,11 +27,9 @@ on:
                 default: "legacy-extension"
                 type: string
 
+# Least privilege by default; only the publish job widens this (see below).
 permissions:
-    contents: write
-    packages: write
-    checks: write
-    pull-requests: write
+    contents: read
 
 concurrency:
     group: ext-vscode-publish-legacy-${{ github.event.inputs.branch }}
@@ -46,6 +44,10 @@ jobs:
     test:
         name: Test Legacy Extension
         runs-on: ubuntu-latest
+        # This job installs and executes whatever is on the `branch` input, so it
+        # must never hold a token that can write to the repository.
+        permissions:
+            contents: read
         defaults:
           run:
             working-directory: apps/vscode
@@ -99,6 +101,9 @@ jobs:
         name: Publish Legacy Extension
         runs-on: ubuntu-latest
         environment: publish
+        # Pushes the release tag and creates the GitHub release.
+        permissions:
+            contents: write
         defaults:
           run:
             working-directory: apps/vscode

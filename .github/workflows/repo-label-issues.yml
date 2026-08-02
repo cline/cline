@@ -4,6 +4,10 @@ on:
   issues:
     types: [opened, edited]
 
+# Anyone can fire this by opening an issue, so nothing is granted by default;
+# the one job below asks for exactly what it needs.
+permissions: {}
+
 jobs:
   label:
     runs-on: ubuntu-latest

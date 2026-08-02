@@ -24,6 +24,10 @@ on:
     # Run nightly at 2:00 AM UTC
     - cron: "0 2 * * *"
 
+# Least privilege by default; only publish-sdk widens this.
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: .

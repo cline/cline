@@ -13,6 +13,10 @@ on:
     issue_comment:
         types: [created]
 
+# Anyone can fire this by commenting, so nothing is granted by default; the one
+# job below asks for exactly what it needs.
+permissions: {}
+
 jobs:
     delete:
         runs-on: ubuntu-latest

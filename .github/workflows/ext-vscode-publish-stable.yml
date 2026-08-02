@@ -21,11 +21,9 @@ on:
                 required: true
                 type: string
 
+# Least privilege by default; only the publish job widens this (see below).
 permissions:
-    contents: write
-    packages: write
-    checks: write
-    pull-requests: write
+    contents: read
 
 concurrency:
     group: ext-vscode-publish-stable-${{ github.event.inputs.tag }}
@@ -33,6 +31,9 @@ concurrency:
 
 jobs:
     test:
+        permissions:
+            contents: read
+            pull-requests: read
         uses: ./.github/workflows/ext-vscode-test.yml
 
     publish:
@@ -40,6 +41,9 @@ jobs:
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
+        # Pushes the release tag and creates the GitHub release.
+        permissions:
+            contents: write
         defaults:
           run:
             working-directory: apps/vscode
