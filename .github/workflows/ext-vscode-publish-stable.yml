@@ -62,10 +62,11 @@ jobs:
               env:
                   TAG: ${{ github.event.inputs.tag }}
                   AUTO_CREATE: ${{ github.event.inputs.auto_create_tag_from_main }}
+                  # Branch names may contain shell metacharacters, so github.ref
+                  # reaches the script as data rather than as expanded text.
+                  WORKFLOW_REF: ${{ github.ref }}
+                  TESTED_SHA: ${{ github.sha }}
               run: |
-                  TESTED_SHA="${{ github.sha }}"
-                  WORKFLOW_REF="${{ github.ref }}"
-
                   if [[ -z "$TAG" ]]; then
                     echo "Error: tag input is required"
                     exit 1

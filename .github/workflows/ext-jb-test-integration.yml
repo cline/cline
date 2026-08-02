@@ -33,18 +33,32 @@ jobs:
           private-key: ${{ secrets.CLINE_JETBRAINS_APP_KEY }}
           owner: cline
           repositories: intellij-plugin
+          # Without an explicit permission-* input the minted token inherits every
+          # permission the App installation holds on intellij-plugin. All this job
+          # does is POST a repository dispatch, which needs contents: write.
+          permission-contents: write
 
       - name: Get PR details (for issue_comment trigger)
         id: pr-details
         if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
-          echo "head_ref=$(echo "$PR_DATA" | jq -r '.head.ref')" >> $GITHUB_OUTPUT
-          echo "head_sha=$(echo "$PR_DATA" | jq -r '.head.sha')" >> $GITHUB_OUTPUT
-          echo "title=$(echo "$PR_DATA" | jq -r '.title')" >> $GITHUB_OUTPUT
-          echo "html_url=$(echo "$PR_DATA" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+          PR_DATA=$(gh api "repos/${REPO}/pulls/${ISSUE_NUMBER}")
+
+          # PR fields are attacker-controlled. A stray newline in any of them would
+          # let the author append extra `key=value` lines to GITHUB_OUTPUT and forge
+          # the other outputs, so flatten before writing.
+          emit() {
+            printf '%s=%s\n' "$1" "$(printf '%s' "$2" | tr -d '\r\n')" >> "$GITHUB_OUTPUT"
+          }
+
+          emit head_ref "$(echo "$PR_DATA" | jq -r '.head.ref')"
+          emit head_sha "$(echo "$PR_DATA" | jq -r '.head.sha')"
+          emit title "$(echo "$PR_DATA" | jq -r '.title')"
+          emit html_url "$(echo "$PR_DATA" | jq -r '.html_url')"
 
       - name: Sanitize untrusted inputs
         id: sanitize
@@ -62,14 +76,19 @@ jobs:
 
       - name: Trigger IntelliJ Plugin Integration Test
         env:
+          # The App token goes through env, not inline interpolation: an inline
+          # expression puts the credential in the command line of a process that
+          # any other tooling on the runner can read.
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
           BRANCH_NAME: ${{ steps.sanitize.outputs.branch_name }}
           PR_TITLE: ${{ steps.sanitize.outputs.pr_title }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
           PR_URL: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.html_url || steps.pr-details.outputs.html_url }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           curl -X POST \
-            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Authorization: Bearer ${APP_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
             -H "User-Agent: cline-pr-trigger" \
             -H "Content-Type: application/json" \
@@ -80,7 +99,7 @@ jobs:
             "client_payload": {
               "pr_number": "$PR_NUMBER",
               "branch_name": $BRANCH_NAME,
-              "action": "${{ github.event.action }}",
+              "action": "$EVENT_ACTION",
               "sha": "$PR_SHA",
               "pr_title": $PR_TITLE,
               "pr_url": "$PR_URL"
@@ -92,9 +111,11 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           echo "Triggered IntelliJ Plugin integration test for:"
           echo "  PR #$PR_NUMBER"
-          echo "  Trigger: ${{ github.event_name }}"
-          echo "  Action: ${{ github.event.action }}"
+          echo "  Trigger: $EVENT_NAME"
+          echo "  Action: $EVENT_ACTION"
           echo "  SHA: $PR_SHA"

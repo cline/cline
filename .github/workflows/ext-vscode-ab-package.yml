@@ -49,12 +49,11 @@ jobs:
         name: Validate inputs
         runs-on: ubuntu-latest
         steps:
-            # The input reaches the shell ONLY via env here (never inline
-            # expression interpolation, which is evaluated before bash runs and
-            # would allow script injection from the dispatch form). Because
-            # every later job `needs` preflight, passing this regex is what
-            # makes the plain-string `${{ inputs.version }}` interpolations
-            # downstream safe.
+            # Inputs reach every `run:` block in this workflow via env, never via
+            # inline expression interpolation (which is expanded before bash sees
+            # the script and would allow injection from the dispatch form). This
+            # regex is a second layer: it also keeps a malformed version out of
+            # the manifests and the published artifact names.
             - name: Validate version format
               env:
                   VERSION: ${{ github.event.inputs.version }}
@@ -208,14 +207,16 @@ jobs:
             - name: Verify changelog entry
               if: ${{ github.event.inputs.publish == 'true' }}
               working-directory: next-src
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
-                  EXPECTED_HEADING="## [${{ github.event.inputs.version }}]"
+                  EXPECTED_HEADING="## [${VERSION}]"
                   FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
                   if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
                     echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing (found '$FIRST_HEADING')."
                     exit 1
                   fi
-                  echo "Found changelog entry for ${{ github.event.inputs.version }}"
+                  echo "Found changelog entry for ${VERSION}"
 
             # Pin to the revision test-legacy actually tested (see that job's
             # outputs comment) — never re-resolve the mutable branch name here.
@@ -267,7 +268,9 @@ jobs:
             # look. (The nightly workflow gets the same alignment via nightlify.mjs.)
             - name: Align next bundle version
               working-directory: next-src/apps/vscode-rollout
-              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/next-src/apps/vscode" --version "${{ github.event.inputs.version }}"
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/next-src/apps/vscode" --version "$VERSION"
 
             - name: Build next bundle
               working-directory: next-src/apps/vscode
@@ -296,7 +299,9 @@ jobs:
 
             - name: Align legacy bundle version
               working-directory: next-src/apps/vscode-rollout
-              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/legacy-src/apps/vscode" --version "${{ github.event.inputs.version }}"
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/legacy-src/apps/vscode" --version "$VERSION"
 
             - name: Build legacy bundle
               working-directory: legacy-src/apps/vscode
@@ -325,12 +330,14 @@ jobs:
 
             - name: Stitch combined VSIX staging
               working-directory: next-src/apps/vscode-rollout
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
                   node scripts/stitch.mjs \
                     --next "$GITHUB_WORKSPACE/next-src/apps/vscode" \
                     --legacy "$GITHUB_WORKSPACE/legacy-src/apps/vscode" \
                     --loader dist/extension.js \
-                    --version "${{ github.event.inputs.version }}" \
+                    --version "$VERSION" \
                     --out "$GITHUB_WORKSPACE/staging"
 
             - name: Smoke-test loader against staging
@@ -362,12 +369,14 @@ jobs:
 
             - name: Package VSIX
               working-directory: staging
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
                   npm install -g @vscode/vsce
                   # Preserve the narrowly scoped VSCE `sendgrid` scanner exemption used by
                   # both standalone bundle workflows. No SendGrid credential is intentionally
                   # supplied here; inspect the reported artifact before widening the exemption.
-                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${{ github.event.inputs.version }}.vsix"
+                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${VERSION}.vsix"
 
             - name: Upload VSIX artifact
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -449,6 +458,7 @@ jobs:
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
                   if [[ -z "$VSCE_PAT" ]]; then
                     echo "Error: VSCE_PAT is required to publish."
@@ -458,13 +468,14 @@ jobs:
                     echo "Error: OVSX_PAT is required to publish to Open VSX."
                     exit 1
                   fi
-                  vsce publish --no-dependencies --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix"
+                  vsce publish --no-dependencies --packagePath "claude-dev-${VERSION}.vsix"
 
             - name: Publish to Open VSX
               working-directory: staging
               env:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
-              run: npx ovsx publish --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
+                  VERSION: ${{ github.event.inputs.version }}
+              run: npx ovsx publish --packagePath "claude-dev-${VERSION}.vsix" --pat "$OVSX_PAT"
 
             # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
             # Mirrors the standalone publish workflows. Every step here is
@@ -493,21 +504,25 @@ jobs:
               id: prev_tag
               if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
                   # ls-remote needs no local tag objects; take the highest v* tag
                   # below the one being released.
                   PREV=$(git ls-remote --tags origin 'v*' \
                     | awk -F/ '{print $NF}' | grep -v '\^{}' \
                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-                    | grep -vx "v${{ github.event.inputs.version }}" \
+                    | grep -vx "v${VERSION}" \
                     | sort -V | tail -1)
                   echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
 
             - name: Create and push release tag
               if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
               run: |
-                  TAG="v${{ github.event.inputs.version }}"
+                  TAG="v${VERSION}"
                   git tag "$TAG" HEAD
                   git push origin "refs/tags/$TAG"
                   echo "Pushed $TAG at $(git rev-parse HEAD)"
