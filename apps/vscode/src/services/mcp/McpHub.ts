@@ -1339,8 +1339,14 @@ export class McpHub {
 			// deleteConnection preserves OAuth state.
 			const mcpServers = config.mcpServers as Record<string, McpServerConfig>
 			const newConfig = mcpServers[serverName]
-			await this.deleteConnection(serverName)
-			await this.connectToServer(serverName, newConfig, "rpc")
+			try {
+				await this.deleteConnection(serverName)
+				await this.connectToServer(serverName, newConfig, "rpc")
+			} catch (error) {
+				Logger.error(`Failed to rebuild connection for ${serverName} after toggle:`, error)
+				// connectToServer registered a disconnected entry carrying
+				// the error; the webview must be told about it.
+			}
 
 			// Refresh the SDK session's tool list to reflect the server
 			// appearing or disappearing.
