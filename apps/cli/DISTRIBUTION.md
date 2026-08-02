@@ -198,6 +198,7 @@ Cross-compiles the CLI for all target platforms:
 2. Builds SDK packages (`bun run build:sdk`) and the CLI JS bundle (`bun -F @cline/cli build`)
 3. For each target platform:
    - Runs `bun build --compile --target bun-{os}-{arch}` to create a standalone executable
+   - Ad-hoc codesigns Darwin binaries when building on macOS, then verifies the signature
    - Generates a `package.json` with `os` and `cpu` fields for npm platform filtering
    - Runs a smoke test on the current platform's binary (`cline --version`)
    - Copies the plugin sandbox bootstrap file if present
@@ -207,6 +208,7 @@ Flags:
 - `--install-native-variants` -- allow the script to download all OpenTUI native packages required for cross-platform builds
 - `--skip-install` -- skip re-downloading platform-specific native packages if they're already installed
 - `--skip-sdk-build` -- skip rebuilding SDK packages (if already built)
+- `--require-darwin-codesign` -- fail the build if Darwin binaries cannot be codesigned (used by release publishing)
 
 ## Publish Script (`script/publish-npm.ts`)
 
@@ -269,6 +271,9 @@ The postinstall script runs in diverse environments (CI, Docker, restricted perm
 
 ### Windows
 Windows binaries are `.exe` files. The build script appends `.exe` to the output filename on Windows targets. The resolver handles this. npm on Windows generates `.cmd` shims for bin entries automatically.
+
+### Darwin code signatures
+macOS validates executable code signatures before launching Mach-O binaries. Darwin release binaries must therefore be built on macOS with `--require-darwin-codesign`, which applies and verifies an ad-hoc signature after `bun build --compile`. Local cross-compilation from Linux can still produce Darwin binaries for testing, but those unsigned outputs are not suitable for npm release packages.
 
 ### File permissions
 Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.

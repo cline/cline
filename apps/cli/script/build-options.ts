@@ -3,6 +3,7 @@ export interface BuildOptions {
 	skipInstall: boolean;
 	skipSdkBuild: boolean;
 	installNativeVariants: boolean;
+	requireDarwinCodesign: boolean;
 }
 
 export function parseBuildOptions(args: readonly string[]): BuildOptions {
@@ -11,6 +12,7 @@ export function parseBuildOptions(args: readonly string[]): BuildOptions {
 		skipInstall: args.includes("--skip-install"),
 		skipSdkBuild: args.includes("--skip-sdk-build"),
 		installNativeVariants: args.includes("--install-native-variants"),
+		requireDarwinCodesign: args.includes("--require-darwin-codesign"),
 	};
 }
 

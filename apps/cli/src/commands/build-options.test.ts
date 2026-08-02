@@ -10,6 +10,7 @@ describe("CLI build options", () => {
 		const options = parseBuildOptions(["--single"]);
 
 		expect(options.single).toBe(true);
+		expect(options.requireDarwinCodesign).toBe(false);
 		expect(
 			shouldInstallNativeVariants({
 				options,
@@ -40,6 +41,7 @@ describe("CLI build options", () => {
 	it("allows cross-platform builds to opt into native variant installation", () => {
 		const options = parseBuildOptions(["--install-native-variants"]);
 
+		expect(options.requireDarwinCodesign).toBe(false);
 		expect(
 			shouldInstallNativeVariants({
 				options,
@@ -53,5 +55,11 @@ describe("CLI build options", () => {
 				targetCount: 6,
 			}),
 		).toBeUndefined();
+	});
+
+	it("parses the release-only Darwin codesign requirement", () => {
+		const options = parseBuildOptions(["--require-darwin-codesign"]);
+
+		expect(options.requireDarwinCodesign).toBe(true);
 	});
 });
