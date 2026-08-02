@@ -61,6 +61,16 @@ export interface MessagesState {
 	loadHistoryBatch: (taskId: string, beforeTs: number) => Promise<void>
 }
 
+/**
+ * Low-frequency extension state. Message-transcript fields live in
+ * MessagesStateContext (see above); they are excluded here so the main context
+ * value stays stable while messages stream (V12 方案3).
+ */
+export type MainExtensionState = Omit<
+	ExtensionState,
+	"clineMessages" | "turnState" | "messageTruncated" | "totalMessageCount" | "epoch" | "stateVersion"
+>
+
 const MessagesStateContext = createContext<MessagesState | undefined>(undefined)
 
 interface ProviderModelsState {
@@ -302,9 +312,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowWorktrees(false)
 	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
 
-	const [state, setState] = useState<ExtensionState>({
+	const [state, setState] = useState<MainExtensionState>({
 		version: "",
-		clineMessages: [],
 		queuedPrompts: [],
 		taskHistory: undefined,
 		shouldShowAnnouncement: false,
@@ -354,8 +363,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		showFeatureTips: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
-		messageTruncated: undefined,
-		totalMessageCount: undefined,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -1165,18 +1172,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		[], // stable — no external deps; uses refs internally
 	)
 
-	const {
-		clineMessages: _clineMessages,
-		turnState: _turnState,
-		messageTruncated: _messageTruncated,
-		totalMessageCount: _totalMessageCount,
-		epoch: _epoch,
-		stateVersion: _stateVersion,
-		...restState
-	} = state
-
 	const contextValue: ExtensionStateContextType = {
-		...restState,
+		...state,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,

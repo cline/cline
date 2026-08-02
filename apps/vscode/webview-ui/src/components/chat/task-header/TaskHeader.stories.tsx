@@ -40,34 +40,6 @@ const createTask = (text: string, images?: string[], files?: string[]): ClineMes
 	files,
 })
 
-// Helper to create mock messages for timeline
-const createMessages = (): ClineMessage[] => [
-	{
-		ts: Date.now() - 300000,
-		type: "say",
-		say: "task",
-		text: "Create a React component",
-	},
-	{
-		ts: Date.now() - 240000,
-		type: "say",
-		say: "text",
-		text: "I'll help you create a React component.",
-	},
-	{
-		ts: Date.now() - 180000,
-		type: "say",
-		say: "tool",
-		text: JSON.stringify({ tool: "write_to_file", path: "Component.tsx" }),
-	},
-	{
-		ts: Date.now() - 120000,
-		type: "say",
-		say: "text",
-		text: "Component created successfully.",
-	},
-]
-
 export const Collapsed: Story = {
 	args: {
 		task: createTask("Create a responsive navigation component for a React application"),
@@ -86,7 +58,6 @@ export const Collapsed: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -116,7 +87,6 @@ export const Expanded: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -150,7 +120,6 @@ export const WithImages: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -184,7 +153,6 @@ export const WithFiles: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -216,7 +184,6 @@ export const LongTaskText: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -252,7 +219,6 @@ export const HighTokenUsage: Story = {
 					supportsPromptCache: true,
 				},
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -280,7 +246,6 @@ export const NoCost: Story = {
 				actModeApiProvider: "ollama",
 				actModeApiModelId: "llama3.2",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -310,7 +275,6 @@ export const WithProgressMessage: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -339,7 +303,6 @@ export const LocalEnvironment: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -368,7 +331,6 @@ export const StagingEnvironment: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -397,7 +359,6 @@ export const ProductionEnvironment: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: createMessages(),
 		}),
 	],
 	parameters: {
@@ -425,20 +386,6 @@ export const MinimalTask: Story = {
 				actModeApiProvider: "anthropic",
 				actModeApiModelId: "claude-3-5-sonnet-20241022",
 			},
-			clineMessages: [
-				{
-					ts: Date.now() - 60000,
-					type: "say",
-					say: "task",
-					text: "Fix typo",
-				},
-				{
-					ts: Date.now() - 30000,
-					type: "say",
-					say: "text",
-					text: "Fixed the typo.",
-				},
-			],
 		}),
 	],
 	parameters: {

@@ -363,7 +363,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						shouldShowQuickWins={shouldShowQuickWins}
 						showAnnouncement={showAnnouncement}
 						showHistoryView={showHistoryView}
-						taskHistory={taskHistory}
+						taskHistory={taskHistory ?? []}
 						telemetrySetting={telemetrySetting}
 						version={version}
 					/>

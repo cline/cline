@@ -3,7 +3,7 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
-import { useMessagesState } from "@/context/ExtensionStateContext"
+import { useExtensionState, useMessagesState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { MessageRowContext } from "../../context/MessageRowContext"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
@@ -32,6 +32,9 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 }) => {
 	// Messages are high-frequency state, published through MessagesStateContext (V12 方案3).
 	const { clineMessages, turnState, messageTruncated, loadHistoryBatch, hasMoreMessages } = useMessagesState()
+	// The task's history ID (string ULID) — needed by loadHistoryBatch. MessagesArea
+	// subscribes to the low-frequency context for this one field.
+	const { currentTaskItem } = useExtensionState()
 
 	const {
 		virtuosoRef,
@@ -170,8 +173,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		const beforeTs = firstMsg?.ts
 		if (!beforeTs || typeof beforeTs !== "number") return
 
-		loadHistoryBatch(task.ts, beforeTs)
-	}, [messageTruncated, hasMoreMessages, task, groupedMessages, loadHistoryBatch])
+		loadHistoryBatch(currentTaskItem?.id ?? "", beforeTs)
+	}, [messageTruncated, hasMoreMessages, task, groupedMessages, loadHistoryBatch, currentTaskItem?.id])
 
 	// Build the context value for MessageRowContext.Provider
 	const messageRowContextValue = useMemo(

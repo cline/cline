@@ -535,7 +535,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<Button
 						aria-label="Delete all history"
 						className="w-full"
-						disabled={deleteAllDisabled || (taskHistory.length === 0 && tasks.length === 0)}
+						disabled={deleteAllDisabled || ((taskHistory?.length ?? 0) === 0 && tasks.length === 0)}
 						onClick={handleDeleteAllHistory}
 						variant="danger">
 						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
