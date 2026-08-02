@@ -10,17 +10,19 @@ describe("refactoring-flags", () => {
 		resetRefactoringFlags()
 	})
 
-	it("defaults all flags to false", () => {
+	it("defaults: deltaStatePush on, other flags off", () => {
 		const flags = getAllRefactoringFlags()
-		expect(flags.deltaStatePush).toBe(false)
+		// deltaStatePush was flipped to the default in the P1 delta-push commit
+		// (dependencies fully wired); the rest stay disabled kill-switches.
+		expect(flags.deltaStatePush).toBe(true)
 		expect(flags.jsonlStorage).toBe(false)
 		expect(flags.sseHeartbeat).toBe(false)
 	})
 
 	it("reports a single flag", () => {
-		expect(isRefactoringEnabled("deltaStatePush")).toBe(false)
-		setRefactoringFlag("deltaStatePush", true)
-		expect(isRefactoringEnabled("deltaStatePush")).toBe(true)
+		expect(isRefactoringEnabled("jsonlStorage")).toBe(false)
+		setRefactoringFlag("jsonlStorage", true)
+		expect(isRefactoringEnabled("jsonlStorage")).toBe(true)
 	})
 
 	it("flags are independent", () => {
@@ -35,7 +37,7 @@ describe("refactoring-flags", () => {
 		setRefactoringFlag("jsonlStorage", true)
 		resetRefactoringFlags()
 		const flags = getAllRefactoringFlags()
-		expect(flags.deltaStatePush).toBe(false)
+		expect(flags.deltaStatePush).toBe(true)
 		expect(flags.jsonlStorage).toBe(false)
 	})
 
