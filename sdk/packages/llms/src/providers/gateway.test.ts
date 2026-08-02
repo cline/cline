@@ -440,15 +440,14 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("translates xml tool-calling requests and streams end to end", async () => {
+	it("passes toolCallingMode through to the provider untouched", async () => {
+		// XML tool calling is implemented as an AI SDK model middleware inside
+		// the shared ai-sdk provider path (see providers/xml-tool-calling.ts);
+		// the gateway's job is only to deliver the mode on the request.
 		let providerRequest: GatewayStreamRequest | undefined;
 		const createProvider = vi.fn(() => ({
 			async *stream(request: GatewayStreamRequest) {
 				providerRequest = request;
-				yield {
-					type: "text-delta",
-					text: "Reading it.\n<read_file>\n<path>src/app.ts</path>\n</read_file>",
-				} satisfies AgentModelEvent;
 				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
 			},
 		}));
@@ -471,39 +470,32 @@ describe("sdk-gateway", () => {
 			providerId: "custom",
 			modelId: "alpha",
 		});
-		const events = await collect(
+		const tools = [
+			{
+				name: "read_file",
+				description: "Read a file.",
+				inputSchema: {
+					type: "object",
+					properties: { path: { type: "string" } },
+					required: ["path"],
+				},
+			},
+		];
+		await collect(
 			await model.stream({
 				systemPrompt: "You are Cline.",
 				messages: baseMessages,
-				tools: [
-					{
-						name: "read_file",
-						description: "Read a file.",
-						inputSchema: {
-							type: "object",
-							properties: { path: { type: "string" } },
-							required: ["path"],
-						},
-					},
-				],
+				tools,
 				options: { toolCallingMode: "xml" },
 			}),
 		);
 
-		// The provider request was translated: no tool schemas, XML prompt.
-		expect(providerRequest?.tools).toBeUndefined();
-		expect(providerRequest?.systemPrompt).toContain("You are Cline.");
-		expect(providerRequest?.systemPrompt).toContain("TOOL USE");
-		expect(providerRequest?.systemPrompt).toContain("## read_file");
-
-		// The XML in the assistant text came back as a native tool call.
-		expect(events).toContainEqual({ type: "text-delta", text: "Reading it." });
-		const toolCall = events.find(
-			(event) => event.type === "tool-call-delta",
-		) as Extract<AgentModelEvent, { type: "tool-call-delta" }> | undefined;
-		expect(toolCall?.toolName).toBe("read_file");
-		expect(toolCall?.input).toEqual({ path: "src/app.ts" });
-		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+		expect(providerRequest?.toolCallingMode).toBe("xml");
+		// The gateway no longer rewrites the request; tool schemas and the
+		// system prompt reach the provider intact and the middleware inside
+		// the provider's model does the translation.
+		expect(providerRequest?.tools).toEqual(tools);
+		expect(providerRequest?.systemPrompt).toBe("You are Cline.");
 	});
 
 	it("leaves native tool-calling requests untranslated", async () => {
@@ -4178,35 +4170,32 @@ describe("sdk-gateway", () => {
 			"qwen-plus-latest",
 			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		],
-	])(
-		"routes %s to the %s regional endpoint when options.apiLine is set",
-		async (providerId, apiLine, modelId, expectedBaseUrl) => {
-			streamTextSpy.mockReturnValue({
-				fullStream: makeStreamParts([
-					{ type: "text-delta", textDelta: "Regional" },
-					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
-				]),
-			});
+	])("routes %s to the %s regional endpoint when options.apiLine is set", async (providerId, apiLine, modelId, expectedBaseUrl) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Regional" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
 
-			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId, apiKey: "test-key", options: { apiLine } },
-				],
-			});
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId, apiKey: "test-key", options: { apiLine } },
+			],
+		});
 
-			await collect(
-				await gateway.stream({
-					providerId,
-					modelId,
-					messages: baseMessages,
-				}),
-			);
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
 
-			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
-				expect.objectContaining({ baseURL: expectedBaseUrl }),
-			);
-		},
-	);
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: expectedBaseUrl }),
+		);
+	});
 
 	it("lets an explicit base URL win over options.apiLine", async () => {
 		streamTextSpy.mockReturnValue({

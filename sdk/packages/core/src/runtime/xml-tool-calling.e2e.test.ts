@@ -4,6 +4,12 @@
  * Runs real ClineCore sessions with the real built-in tools against a local
  * OpenAI-compatible server whose "model" only ever emits XML text — never
  * structured `tool_calls` — which is the situation the setting exists for.
+ *
+ * The translation is the `@ai-sdk-tool/parser` morph-XML middleware applied
+ * at the model boundary (see `@cline/llms` `providers/xml-tool-calling.ts`),
+ * so these tests exercise the real vendor path end to end: tool schemas are
+ * stripped from the wire, docs are prompted, XML replies come back as native
+ * tool calls, and tool history is serialized to text on the next turn.
  */
 
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -225,18 +231,20 @@ describe("XML tool calling end to end", () => {
 		expect(
 			run.requests.every((request) => request.toolNames.length === 0),
 		).toBe(true);
-		expect(run.requests[0]?.system).toContain("TOOL DOCUMENTATION");
+		expect(run.requests[0]?.system).toContain(
+			"You have access to the following functions:",
+		);
 		const lastTurn = run.requests.at(-1);
 		expect(lastTurn?.messages.some((message) => message.role === "tool")).toBe(
 			false,
 		);
-		expect(JSON.stringify(lastTurn?.messages)).toContain(
-			"[read_files] Result:",
-		);
+		// Tool results are serialized into the text wire format...
+		expect(JSON.stringify(lastTurn?.messages)).toContain("<tool_response>");
+		// ...and prior assistant tool calls are re-serialized as XML.
 		expect(JSON.stringify(lastTurn?.messages)).toContain("<editor>");
 	});
 
-	it("runs the first tool call when the model adds trailing prose or a second call", async () => {
+	it("handles trailing prose and executes every call in a batched reply", async () => {
 		const run = await runSession({
 			prompt: "Read a.txt and b.txt",
 			toolCallingMode: "xml",
@@ -251,32 +259,43 @@ describe("XML tool calling end to end", () => {
 			]),
 		});
 
+		// Turn 1's call runs despite the trailing prose; turn 2's two batched
+		// calls BOTH run (multiple tool calls per message is part of the
+		// native contract, so the parser maps them straight through).
 		expect(run.toolCalls.map((call) => call.name)).toEqual([
+			"read_files",
 			"read_files",
 			"read_files",
 		]);
 		expect(JSON.stringify(run.toolCalls[0]?.output)).toContain("alpha");
+		expect(JSON.stringify(run.toolCalls[2]?.output)).toContain("beta");
 		// Nothing that looks like a tool call is ever shown to the user as text.
 		expect(run.text).not.toContain("<read_files>");
 	});
 
-	it("leaves fenced example XML as text instead of executing it", async () => {
+	it("executes a fenced tool call (lenient, like the legacy parser)", async () => {
+		// Weak models routinely wrap their *real* tool calls in markdown
+		// fences; refusing fenced calls silently stalls exactly the models
+		// this mode exists for, so leniency wins over example-quoting safety.
 		const run = await runSession({
-			prompt: "How would I read a file?",
+			prompt: "Read the secret file",
 			toolCallingMode: "xml",
 			setup: (cwd) => {
-				writeFileSync(join(cwd, "secret.txt"), "do not read me\n");
+				writeFileSync(join(cwd, "secret.txt"), "fenced but real\n");
 			},
 			reply: scripted([
-				'Like this:\n\n```xml\n<read_files>\n<files>[{"path": "secret.txt"}]</files>\n</read_files>\n```',
+				'Reading it now:\n\n```xml\n<read_files>\n<files>[{"path": "secret.txt"}]</files>\n</read_files>\n```',
+				"Read it.",
 			]),
 		});
 
-		expect(run.toolCalls).toHaveLength(0);
-		expect(run.text).toContain("Like this:");
+		expect(run.toolCalls.map((call) => call.name)).toEqual(["read_files"]);
+		expect(JSON.stringify(run.toolCalls[0]?.output)).toContain(
+			"fenced but real",
+		);
 	});
 
-	it("hoists images out of tool results instead of inlining base64", async () => {
+	it("keeps raw base64 out of XML-mode tool result text", async () => {
 		const run = await runSession({
 			prompt: "Look at pixel.png",
 			toolCallingMode: "xml",
@@ -303,9 +322,11 @@ describe("XML tool calling end to end", () => {
 		const textParts = JSON.stringify(
 			parts.filter((part) => part.type === "text"),
 		);
-		expect(textParts).toContain("[image attached]");
+		// Image bytes never leak into the serialized tool result; the
+		// middleware replaces them with a typed placeholder. (XML mode targets
+		// text-only local models — vision users should stay on native mode.)
+		expect(textParts).toContain("[Image: image/png]");
 		expect(textParts).not.toContain("iVBORw0KGgo");
-		expect(parts.some((part) => part.type === "image_url")).toBe(true);
 	});
 
 	it("passes XML mode down to spawned subagents", async () => {
@@ -330,7 +351,9 @@ describe("XML tool calling end to end", () => {
 		expect(
 			subagentRequests.every((request) => request.toolNames.length === 0),
 		).toBe(true);
-		expect(subagentRequests[0]?.system).toContain("TOOL DOCUMENTATION");
+		expect(subagentRequests[0]?.system).toContain(
+			"You have access to the following functions:",
+		);
 	});
 
 	it("leaves native tool calling untouched when the mode is not set", async () => {
@@ -340,9 +363,8 @@ describe("XML tool calling end to end", () => {
 		});
 
 		expect(run.requests[0]?.toolNames).toContain("read_files");
-		expect(run.requests[0]?.system).not.toContain("TOOL DOCUMENTATION");
 		expect(run.requests[0]?.system).not.toContain(
-			"You do NOT have access to native function calling",
+			"You have access to the following functions:",
 		);
 		expect(run.text).toBe("Hi there.");
 	});

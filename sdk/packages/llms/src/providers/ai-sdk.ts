@@ -42,6 +42,7 @@ import type {
 	AiSdkStreamUsage,
 	ProviderFactoryResult,
 } from "./vendors/types";
+import { applyToolCallingMode } from "./xml-tool-calling";
 
 interface GatewayNormalizedUsage {
 	inputTokens: number;
@@ -1210,7 +1211,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = streamText({
-					model: provider.model(context.model.id) as never,
+					// XML tool calling wraps the model with a parsing middleware;
+					// native mode passes the provider's model through untouched.
+					model: applyToolCallingMode(
+						provider.model(context.model.id),
+						request.toolCallingMode,
+					) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
