@@ -45,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
+import { describeMissingCredentialError } from "./provider-credential-error"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
@@ -2443,6 +2444,10 @@ export function reshapeErrorForWebview(
 					message: rawMessage,
 				},
 			})
+		}
+		const credentialMessage = describeMissingCredentialError(rawMessage, providerId)
+		if (credentialMessage) {
+			return credentialMessage
 		}
 		const notFoundMessage = describeModelNotFoundError(rawMessage)
 		if (notFoundMessage) {
