@@ -46,7 +46,7 @@ import type {
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
-import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
+import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial, isTaskLifecycleToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -1395,7 +1395,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// turn-final response — drop the retag candidate.
 					state.clearTurnFinalText()
 
-					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
+					if (
+						state.checkDeniedToolApproval(event.toolCallId) ||
+						isKnownToolApprovalDenial(event.error) ||
+						isTaskLifecycleToolApprovalDenial(event.error)
+					) {
 						state.clearStreamingTool()
 						break
 					}
