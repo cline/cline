@@ -1,5 +1,17 @@
 version: 2
 updates:
+    # Workflow actions are pinned to commit SHAs, which cannot pick up upstream
+    # security fixes on their own. Dependabot rewrites the pin (and the trailing
+    # version comment) so pinning does not mean running stale actions forever.
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+      groups:
+          actions:
+              patterns:
+                  - "*"
+
     # Main extension dependencies
     - package-ecosystem: "npm"
       directory: "/apps/vscode"

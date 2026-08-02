@@ -32,8 +32,6 @@ jobs:
             issues: write
             pull-requests: write
         steps:
-            # Pinned to a commit SHA (not the mutable v7 tag) because this job holds
-            # write permissions and fires on attacker-postable events.
             - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
               with:
                   script: |

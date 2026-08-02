@@ -50,12 +50,12 @@ jobs:
           run:
             working-directory: apps/vscode
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ github.event.inputs.branch }}
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 22
                   cache: 'npm'
@@ -106,7 +106,7 @@ jobs:
         steps:
             # Check out the legacy branch (NOT main). fetch-depth: 0 + tags so we
             # can create/push the release tag and compute the previous tag.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ github.event.inputs.branch }}
                   fetch-depth: 0
@@ -148,7 +148,7 @@ jobs:
                   echo "tag=$TAG" >> $GITHUB_OUTPUT
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 22
 
@@ -259,7 +259,7 @@ jobs:
                   echo "EOF" >> $GITHUB_OUTPUT
 
             - name: Create GitHub Release
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
               with:
                   tag_name: ${{ steps.resolve_tag.outputs.tag }}
                   files: "apps/vscode/*.vsix"
@@ -272,7 +272,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Post release to Slack
-              uses: slackapi/slack-github-action@v3.0.1
+              uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
               with:
                   method: chat.postMessage
                   token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}

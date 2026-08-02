@@ -64,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout next (SDK) source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           path: next-src
@@ -72,7 +72,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout legacy source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # NOTE: inputs are empty strings on `schedule` events, so the ||
           # fallback (not the input's declared default) is what the cron uses.
@@ -92,7 +92,7 @@ jobs:
           echo "legacy: $(git -C legacy-src rev-parse HEAD) ($LEGACY_REF)"
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.14
 
@@ -100,7 +100,7 @@ jobs:
       # publishing shells out to vsce/ovsx. Pinned to Node 22 because newer LTS
       # (Node 24 / npm 11) can make vsce's dependency detection fail.
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -248,7 +248,7 @@ jobs:
         run: vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-nightly-${{ steps.version.outputs.version }}.vsix"
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cline-nightly-${{ steps.version.outputs.version }}
           path: staging/cline-nightly-${{ steps.version.outputs.version }}.vsix

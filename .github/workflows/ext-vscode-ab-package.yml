@@ -139,7 +139,7 @@ jobs:
             run:
                 working-directory: apps/vscode
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ github.event.inputs.legacy-ref }}
 
@@ -148,7 +148,7 @@ jobs:
               run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 22
                   cache: "npm"
@@ -196,7 +196,7 @@ jobs:
             # revision the test-next gate ran against: a moving branch name could
             # otherwise drift past the tested commit during the test phase.
             - name: Checkout next (SDK) source
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ github.event.inputs.next-ref == 'main' && github.sha || github.event.inputs.next-ref }}
                   path: next-src
@@ -220,18 +220,18 @@ jobs:
             # Pin to the revision test-legacy actually tested (see that job's
             # outputs comment) — never re-resolve the mutable branch name here.
             - name: Checkout legacy source
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ needs.test-legacy.outputs.tested-sha }}
                   path: legacy-src
                   lfs: true
 
-            - uses: oven-sh/setup-bun@v2
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
               with:
                   bun-version: 1.3.14
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 22
 
@@ -370,7 +370,7 @@ jobs:
                   vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${{ github.event.inputs.version }}.vsix"
 
             - name: Upload VSIX artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: claude-dev-${{ github.event.inputs.version }}
                   path: staging/claude-dev-${{ github.event.inputs.version }}.vsix
@@ -391,17 +391,17 @@ jobs:
             # next-ref other than main, and the build job pinned main to the
             # dispatch SHA — so github.sha IS the published commit. Used for the
             # changelog, the release tag, and the previous-tag lookup.
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
               with:
                   ref: ${{ github.sha }}
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 22
 
             - name: Download VSIX artifact
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
                   name: claude-dev-${{ github.event.inputs.version }}
                   path: staging
@@ -515,7 +515,7 @@ jobs:
             - name: Create GitHub Release
               if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
               with:
                   tag_name: v${{ github.event.inputs.version }}
                   files: staging/claude-dev-${{ github.event.inputs.version }}.vsix
@@ -529,7 +529,7 @@ jobs:
             - name: Post release to Slack
               if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
               continue-on-error: true
-              uses: slackapi/slack-github-action@v3.0.1
+              uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
               with:
                   method: chat.postMessage
                   token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
