@@ -7,14 +7,16 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeCheckbox: ({
 		checked,
 		children,
+		disabled,
 		onChange,
 	}: {
 		checked?: boolean
 		children?: ReactNode
+		disabled?: boolean
 		onChange?: ChangeEventHandler<HTMLInputElement>
 	}) => (
 		<label>
-			<input checked={checked} onChange={onChange} type="checkbox" />
+			<input checked={checked} disabled={disabled} onChange={onChange} type="checkbox" />
 			{children}
 		</label>
 	),
@@ -62,6 +64,61 @@ describe("BaseUrlField", () => {
 		// A stale echo of the old config must not re-check the box.
 		rerender(<BaseUrlField initialValue="https://proxy.example.com" onChange={onChange} />)
 		expect(screen.getByRole("checkbox")).not.toBeChecked()
+	})
+
+	it("restores the checked state when clearing the persisted URL fails", async () => {
+		const onChange = vi.fn()
+		const onClear = vi.fn().mockRejectedValue(new Error("write failed"))
+		render(<BaseUrlField initialValue="https://proxy.example.com" onChange={onChange} onClear={onClear} />)
+
+		fireEvent.click(screen.getByRole("checkbox"))
+		expect(screen.getByRole("checkbox")).not.toBeChecked()
+
+		await act(async () => {})
+		expect(onClear).toHaveBeenCalledTimes(1)
+		expect(onChange).not.toHaveBeenCalled()
+		expect(screen.getByRole("checkbox")).toBeChecked()
+		expect(screen.getByRole("textbox")).toHaveValue("https://proxy.example.com")
+	})
+
+	it("clears the hidden input value after persistence succeeds", async () => {
+		const onChange = vi.fn()
+		const onClear = vi.fn().mockResolvedValue(undefined)
+		const { rerender } = render(
+			<BaseUrlField initialValue="https://proxy.example.com" onChange={onChange} onClear={onClear} />,
+		)
+
+		fireEvent.click(screen.getByRole("checkbox"))
+		await act(async () => {})
+		rerender(<BaseUrlField initialValue={undefined} onChange={onChange} onClear={onClear} />)
+		fireEvent.click(screen.getByRole("checkbox"))
+
+		expect(screen.getByRole("textbox")).toHaveValue("")
+		expect(onChange).not.toHaveBeenCalled()
+	})
+
+	it("cancels a pending URL edit before clearing", async () => {
+		const onChange = vi.fn()
+		let resolveClear: () => void = () => {}
+		const onClear = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveClear = resolve
+				}),
+		)
+		const { unmount } = render(
+			<BaseUrlField initialValue="https://saved.example.com" onChange={onChange} onClear={onClear} />,
+		)
+
+		fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://pending.example.com" } })
+		fireEvent.click(screen.getByRole("checkbox"))
+		await flushDebounce()
+		unmount()
+
+		expect(onClear).toHaveBeenCalledTimes(1)
+		expect(onChange).not.toHaveBeenCalled()
+
+		await act(async () => resolveClear())
 	})
 
 	it("saves the trimmed URL after typing", async () => {

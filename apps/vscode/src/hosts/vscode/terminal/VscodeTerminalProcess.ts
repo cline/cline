@@ -26,8 +26,13 @@ import { Logger } from "@/shared/services/Logger"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
 import { classifyShellPrompt, getLastLine } from "./shellPromptHeuristics"
 
-/** Outcome of racing one stream read against the markerless-completion timers. */
-type StreamReadOutcome = { kind: "data"; data: string } | { kind: "streamEnd" } | { kind: "idle" } | { kind: "terminalClosed" }
+/** Outcome of racing one stream read against command-completion signals. */
+type StreamReadOutcome =
+	| { kind: "data"; data: string }
+	| { kind: "streamEnd" }
+	| { kind: "executionEnd" }
+	| { kind: "idle" }
+	| { kind: "terminalClosed" }
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
@@ -111,11 +116,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			let preCommandBuffer = "" // text before C; emitted as fallback if C never arrives
 			let didEmitEmptyLine = false
 
-			// Listen for the shell execution end event to capture the exit code.
-			// This is the reliable source — the D marker is stripped from the stream.
-			// The event fires asynchronously AFTER the read() stream completes (VS Code
-			// calls flush().then(() => fire(endEvent))), so we must await it rather
-			// than checking synchronously.
+			// Listen for the shell execution end event to capture the exit code and
+			// independently signal completion. The event normally follows the stream,
+			// but some shells leave read() open after reporting that execution ended.
 			//
 			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93,
 			// below our minimum supported version (see package.json engines.vscode), so it is
@@ -125,10 +128,10 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// has shell integration present but may never trigger this event for that
 			// execution. That case is bounded by the exit-code race below, not by
 			// feature-detecting the event itself.
-			const resolveExitCode = Promise.withResolvers<number | undefined>()
+			const resolveExecutionEnd = Promise.withResolvers<number | undefined>()
 			const endEventDisposable = vscode.window.onDidEndTerminalShellExecution((e) => {
 				if (e.terminal === terminal && e.execution === execution) {
-					resolveExitCode.resolve(e.exitCode)
+					resolveExecutionEnd.resolve(e.exitCode)
 				}
 			})
 			this.activeEndEventDisposable = endEventDisposable
@@ -165,6 +168,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 						(result): StreamReadOutcome =>
 							result.done ? { kind: "streamEnd" } : { kind: "data", data: result.value },
 					),
+					resolveExecutionEnd.promise.then((): StreamReadOutcome => ({ kind: "executionEnd" })),
 					terminalClosedPromise.then((): StreamReadOutcome => ({ kind: "terminalClosed" })),
 				]
 				if (idleTimeoutMs !== undefined) {
@@ -211,7 +215,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 						: MARKERLESS_FIRST_DATA_TIMEOUT
 				const outcome = await readNext(idleTimeoutMs)
 
-				if (outcome.kind === "streamEnd") {
+				if (outcome.kind === "streamEnd" || outcome.kind === "executionEnd") {
 					break
 				}
 				if (outcome.kind === "terminalClosed") {
@@ -350,16 +354,14 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			this.activeIterator = undefined
 			this.emitRemainingBufferIfListening()
 
-			// Await the exit code from onDidEndTerminalShellExecution.
-			// The event fires asynchronously AFTER the read() stream completes
-			// (VS Code calls flush().then(() => fire(endEvent))), so we must
-			// await it here. Race with a timeout in case the event never fires —
+			// Await the exit code from onDidEndTerminalShellExecution. Race with a
+			// timeout in case the stream ended but the event never fires —
 			// this happens when shell integration is attached but not reporting
 			// completion for this execution (e.g. commands typed into a remote
 			// ssh session), not because the API is unavailable.
 			let exitCodeEventTimedOut = false
 			const eventExitCode = await Promise.race([
-				resolveExitCode.promise,
+				resolveExecutionEnd.promise,
 				new Promise<undefined>((resolve) => {
 					setTimeout(() => {
 						exitCodeEventTimedOut = true

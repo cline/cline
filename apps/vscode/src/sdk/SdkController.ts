@@ -1444,6 +1444,12 @@ export class Controller {
 				})
 			}
 
+			// The edit supersedes the old session — settle any pending tool
+			// approval / ask_question exactly like cancelTask does. Without this,
+			// the old run stays suspended forever on a promise nothing can
+			// resolve, and the stale parked resolver intercepts later responses.
+			this.interactions.clearPending("Superseded by an edited message")
+
 			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 
 			this.turnStateTracker.set("streaming")

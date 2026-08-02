@@ -60,6 +60,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))
 	}
+	const handleBaseUrlClear = async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear Anthropic base URL:", error)
+			throw error
+		}
+	}
 
 	const handleModelChange = (modelId: string) => {
 		if (!modelId) {
@@ -95,6 +103,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 					initialValue={config?.baseUrl}
 					label="Use custom base URL"
 					onChange={handleBaseUrlChange}
+					onClear={handleBaseUrlClear}
 					placeholder="Default: https://api.anthropic.com"
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
 				/>

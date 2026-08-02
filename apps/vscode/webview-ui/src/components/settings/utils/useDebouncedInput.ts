@@ -15,13 +15,13 @@ import { useDebounceEffect } from "@/utils/useDebounceEffect"
  * @param initialValue - The initial value for the input
  * @param onChange - Callback function to save the value (e.g., to backend)
  * @param debounceMs - Debounce delay in milliseconds (default: 500ms)
- * @returns A tuple of [currentValue, setValue] similar to useState
+ * @returns The current value, an editing setter, and an authoritative sync setter
  */
 export function useDebouncedInput<T>(
 	initialValue: T,
 	onChange: (value: T) => void,
 	debounceMs: number = 100,
-): [T, (value: T) => void] {
+): [T, (value: T) => void, (value: T) => void] {
 	// Local state to prevent jumpy input - initialize once
 	const [localValue, setLocalValueState] = useState(initialValue)
 
@@ -34,6 +34,10 @@ export function useDebouncedInput<T>(
 
 	const setLocalValue = useCallback((value: T) => {
 		hasPendingUserEditRef.current = true
+		setLocalValueState(value)
+	}, [])
+	const syncLocalValue = useCallback((value: T) => {
+		hasPendingUserEditRef.current = false
 		setLocalValueState(value)
 	}, [])
 
@@ -78,5 +82,5 @@ export function useDebouncedInput<T>(
 		[],
 	)
 
-	return [localValue, setLocalValue]
+	return [localValue, setLocalValue, syncLocalValue]
 }
