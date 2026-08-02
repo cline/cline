@@ -17,7 +17,8 @@ export async function getLmStudioModels(controller: Controller, request: StringR
 			return StringArray.create({ values: [] })
 		}
 		const endpoint = new URL("api/v0/models", baseUrl)
-		const apiKey = controller.getProviderConfigStore().read(parseProviderId("lmstudio")).apiKey
+		const apiKey =
+			controller.getProviderConfigStore().read(parseProviderId("lmstudio")).apiKey ?? process.env.LMSTUDIO_API_KEY
 
 		const response = apiKey
 			? await fetch(endpoint.href, { headers: { Authorization: `Bearer ${apiKey}` } })

@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
@@ -133,9 +134,16 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 		}
 
-		// Update storage using batch methods
-		if (Object.keys(secrets).length > 0) {
-			controller.stateManager.setSecretsBatch(secrets)
+		// Provider-owned fields must flow through ProviderConfigStore so SDK
+		// sessions observe the change and rebuild with the new credentials.
+		const { lmStudioApiKey, ...legacySecrets } = secrets
+		if ("lmStudioApiKey" in secrets) {
+			controller.getProviderConfigStore().write(parseProviderId("lmstudio"), { apiKey: lmStudioApiKey })
+		}
+
+		// Update remaining storage using batch methods
+		if (Object.keys(legacySecrets).length > 0) {
+			controller.stateManager.setSecretsBatch(legacySecrets)
 		}
 		if (Object.keys(options).length > 0) {
 			controller.stateManager.setGlobalStateBatch(
