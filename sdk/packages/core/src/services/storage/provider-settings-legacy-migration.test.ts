@@ -576,6 +576,86 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.getProviderSettings("cline")?.model).toBe("openai/gpt-5.5");
 	});
 
+	it("falls back to the default Cline model for suffixed variant ids like :1m", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: "anthropic/claude-sonnet-4.5:1m",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("cline")?.model).toBe(
+			LlmsModels.getProviderCollectionSync("cline")?.provider.defaultModelId,
+		);
+	});
+
+	it("keeps a legacy Cline model id served by the OpenRouter-backed runtime catalog", () => {
+		// The runtime Cline catalog is OpenRouter-backed; some of its ids are
+		// not in the curated Cline collection. Those must survive migration.
+		const runtimeOnlyModelId = Object.keys(
+			LlmsModels.getGeneratedModelsForProvider("openrouter"),
+		).find(
+			(modelId) =>
+				!LlmsModels.getProviderCollectionSync("cline")?.models?.[modelId],
+		);
+		expect(runtimeOnlyModelId).toBeTruthy();
+
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: runtimeOnlyModelId,
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("cline")?.model).toBe(
+			runtimeOnlyModelId,
+		);
+	});
+
 	it("migrates legacy OpenAI-compatible config into the openai-compatible provider", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
