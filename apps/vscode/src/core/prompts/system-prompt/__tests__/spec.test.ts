@@ -82,6 +82,127 @@ describe("toolSpecFunctionDeclarations (Gemini)", () => {
 	})
 })
 
+const makeNestedMcpTool = (): ClineToolSpec =>
+	makeTool({
+		name: "create_workflow",
+		description: "Create a workflow",
+		parameters: [
+			{
+				name: "definition",
+				required: ["rules", "steps"],
+				instruction: "The workflow definition",
+				type: "object",
+				properties: {
+					rules: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: { rule_no: { type: "string", description: "The rule number" } },
+							required: ["rule_no"],
+						},
+					},
+					steps: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: { step_no: { type: "string" } },
+							required: ["step_no"],
+						},
+					},
+				},
+			} as any,
+		],
+	})
+
+describe("toolSpecFunctionDeclarations (Gemini) nested MCP schemas", () => {
+	it("converts an array<object> parameter to the schema the issue expects", () => {
+		const result = toolSpecFunctionDeclarations(makeNestedMcpTool(), mockContext)
+
+		expect(result.parameters?.properties?.["definition"]).to.deep.equal({
+			type: "OBJECT",
+			description: "The workflow definition",
+			properties: {
+				rules: {
+					type: "ARRAY",
+					items: {
+						type: "OBJECT",
+						properties: { rule_no: { type: "STRING", description: "The rule number" } },
+						required: ["rule_no"],
+					},
+				},
+				steps: {
+					type: "ARRAY",
+					items: {
+						type: "OBJECT",
+						properties: { step_no: { type: "STRING" } },
+						required: ["step_no"],
+					},
+				},
+			},
+			required: ["rules", "steps"],
+		})
+	})
+
+	it("maps a nullable type union to its non-null member", () => {
+		const tool = makeTool({
+			parameters: [{ name: "note", required: false, instruction: "An optional note", type: ["string", "null"] } as any],
+		})
+		const result = toolSpecFunctionDeclarations(tool, mockContext)
+
+		const note = result.parameters?.properties?.["note"] as any
+		expect(note.type).to.equal("STRING")
+	})
+
+	it("carries items for a top-level array parameter", () => {
+		const tool = makeTool({
+			parameters: [
+				{
+					name: "tags",
+					required: true,
+					instruction: "A list of tags",
+					type: "array",
+					items: { type: "string" },
+				},
+			],
+		})
+		const result = toolSpecFunctionDeclarations(tool, mockContext)
+
+		const tags = result.parameters?.properties?.["tags"] as any
+		expect(tags.type).to.equal("ARRAY")
+		expect(tags.items).to.deep.equal({ type: "STRING" })
+	})
+
+	it("falls back to string items when an array declares none", () => {
+		const tool = makeTool({
+			parameters: [{ name: "tags", required: true, instruction: "A list of tags", type: "array" }],
+		})
+		const result = toolSpecFunctionDeclarations(tool, mockContext)
+
+		const tags = result.parameters?.properties?.["tags"] as any
+		expect(tags.type).to.equal("ARRAY")
+		expect(tags.items).to.deep.equal({ type: "STRING" })
+	})
+
+	it("describes a nested property from its own description, not the parent instruction", () => {
+		const tool = makeTool({
+			parameters: [
+				{
+					name: "config",
+					required: true,
+					instruction: "The parent instruction",
+					type: "object",
+					properties: { retries: { type: "integer", description: "How many times to retry" } },
+				},
+			],
+		})
+		const result = toolSpecFunctionDeclarations(tool, mockContext)
+
+		const retries = (result.parameters?.properties?.["config"] as any).properties.retries
+		expect(retries.type).to.equal("NUMBER")
+		expect(retries.description).to.equal("How many times to retry")
+	})
+})
+
 describe("Gemini and Anthropic parameter descriptions match", () => {
 	it("both converters produce the same description text", () => {
 		const tool = makeTool()

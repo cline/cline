@@ -233,7 +233,40 @@ const GOOGLE_TOOL_PARAM_MAP: Record<string, string> = {
 	integer: "NUMBER",
 	boolean: "BOOLEAN",
 	object: "OBJECT",
-	array: "STRING",
+	array: "ARRAY",
+}
+
+function toGoogleSchema(node: any): any {
+	const rawType = Array.isArray(node?.type) ? node.type.find((t: string) => t !== "null") : node?.type
+	const type = GOOGLE_TOOL_PARAM_MAP[rawType || "string"] || GoogleToolParamType.OBJECT
+	const schema: any = { type }
+
+	if (node?.description) {
+		schema.description = node.description
+	}
+
+	if (node?.enum) {
+		schema.enum = node.enum
+	}
+
+	if (type === GoogleToolParamType.ARRAY) {
+		schema.items = toGoogleSchema(node?.items)
+	}
+
+	if (node?.properties) {
+		schema.properties = {}
+		for (const [key, child] of Object.entries<any>(node.properties)) {
+			if (key !== "$schema") {
+				schema.properties[key] = toGoogleSchema(child)
+			}
+		}
+	}
+
+	if (Array.isArray(node?.required) && node.required.length > 0) {
+		schema.required = node.required
+	}
+
+	return schema
 }
 
 /**
@@ -266,33 +299,12 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 				required.push(param.name)
 			}
 
-			const paramSchema: any = {
-				type: GOOGLE_TOOL_PARAM_MAP[param.type || "string"] || GoogleToolParamType.OBJECT,
-			}
+			const paramSchema: any = toGoogleSchema(param)
 
 			if (param.instruction) {
 				const desc = replacer(resolveInstruction(param.instruction, context), context)
 				if (desc) {
 					paramSchema.description = desc
-				}
-			}
-
-			if (param.properties) {
-				paramSchema.properties = {}
-				for (const [key, prop] of Object.entries<any>(param.properties)) {
-					// Skip $schema property
-					if (key === "$schema") {
-						continue
-					}
-					paramSchema.properties[key] = {
-						type: GOOGLE_TOOL_PARAM_MAP[prop.type || "string"] || GoogleToolParamType.OBJECT,
-						description: replacer(resolveInstruction(param.instruction, context), context),
-					}
-
-					// Handle enum values
-					if (prop.enum) {
-						paramSchema.properties[key].enum = prop.enum
-					}
 				}
 			}
 
