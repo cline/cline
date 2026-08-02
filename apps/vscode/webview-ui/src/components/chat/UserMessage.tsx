@@ -1,6 +1,6 @@
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
-import { useMemo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -13,6 +13,35 @@ interface UserMessageProps {
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	canRestoreWorkspace?: boolean
+}
+
+/**
+ * Shallow-ish comparator for the memoized UserMessage row.
+ *
+ * `sendMessageFromChatRow` is deliberately EXCLUDED: it is recreated on every
+ * parent render (its deps include messages/turnState) but UserMessage never
+ * invokes it, so comparing it would defeat the memo for zero benefit.
+ * `images`/`files` arrays are compared element-wise because the parent may
+ * rebuild them while the content is unchanged.
+ */
+function areUserMessagePropsEqual(prev: UserMessageProps, next: UserMessageProps): boolean {
+	if (prev.text !== next.text || prev.messageTs !== next.messageTs) {
+		return false
+	}
+	if (prev.canRestoreWorkspace !== next.canRestoreWorkspace) {
+		return false
+	}
+	const prevImages = prev.images ?? []
+	const nextImages = next.images ?? []
+	if (prevImages.length !== nextImages.length || !prevImages.every((img, i) => img === nextImages[i])) {
+		return false
+	}
+	const prevFiles = prev.files ?? []
+	const nextFiles = next.files ?? []
+	if (prevFiles.length !== nextFiles.length || !prevFiles.every((file, i) => file === nextFiles[i])) {
+		return false
+	}
+	return true
 }
 
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
@@ -175,4 +204,4 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	)
 }
 
-export default UserMessage
+export default memo(UserMessage, areUserMessagePropsEqual)
