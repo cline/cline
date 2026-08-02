@@ -35,6 +35,7 @@ import {
 	TaskServiceClient,
 	UiServiceClient,
 } from "../services/grpc-client"
+import { createFrameCoalescer, type FrameCoalescer, scheduleAnimationFrame } from "../utils/messageFrameScheduler"
 
 export type ProviderId = string
 
@@ -571,34 +572,51 @@ export const ExtensionStateContextProvider: React.FC<{
 		stateVersion: 0,
 	})
 
+	// Frame-coalesced publish (V12 方案6): deltas/partials/snapshots arriving
+	// within a single animation frame are merged into ONE setReplicaMessages,
+	// so streaming bursts do not render intermediate frames.
+	const messageFlushSchedulerRef = useRef<FrameCoalescer | null>(null)
+	const pendingReplicaFieldsRef = useRef<{ messageTruncated?: boolean; totalMessageCount?: number } | undefined>(undefined)
+
 	/**
 	 * Publish the current replica to the messages context. Only triggers a
 	 * re-render when the transcript actually changed (reference comparison —
 	 * the reducer returns the same object for no-op merges).
 	 */
 	const publishReplica = useCallback((fields?: { messageTruncated?: boolean; totalMessageCount?: number }) => {
-		const replica = replicaRef.current
-		setReplicaMessages((prev) => {
-			const transcriptChanged =
-				prev.clineMessages !== replica.messages ||
-				prev.turnState !== replica.turnState ||
-				prev.epoch !== replica.epoch ||
-				prev.stateVersion !== replica.stateVersion
-			if (!transcriptChanged) {
-				return fields &&
-					(fields.messageTruncated !== prev.messageTruncated || fields.totalMessageCount !== prev.totalMessageCount)
-					? { ...prev, ...fields }
-					: prev
-			}
-			return {
-				clineMessages: replica.messages,
-				turnState: replica.turnState,
-				epoch: replica.epoch,
-				stateVersion: replica.stateVersion,
-				messageTruncated: fields?.messageTruncated ?? prev.messageTruncated,
-				totalMessageCount: fields?.totalMessageCount ?? prev.totalMessageCount,
-			}
-		})
+		if (fields) {
+			pendingReplicaFieldsRef.current = { ...pendingReplicaFieldsRef.current, ...fields }
+		}
+		if (!messageFlushSchedulerRef.current) {
+			messageFlushSchedulerRef.current = createFrameCoalescer(() => {
+				const replica = replicaRef.current
+				const fieldsToPublish = pendingReplicaFieldsRef.current
+				pendingReplicaFieldsRef.current = undefined
+				setReplicaMessages((prev) => {
+					const transcriptChanged =
+						prev.clineMessages !== replica.messages ||
+						prev.turnState !== replica.turnState ||
+						prev.epoch !== replica.epoch ||
+						prev.stateVersion !== replica.stateVersion
+					if (!transcriptChanged) {
+						return fieldsToPublish &&
+							(fieldsToPublish.messageTruncated !== prev.messageTruncated ||
+								fieldsToPublish.totalMessageCount !== prev.totalMessageCount)
+							? { ...prev, ...fieldsToPublish }
+							: prev
+					}
+					return {
+						clineMessages: replica.messages,
+						turnState: replica.turnState,
+						epoch: replica.epoch,
+						stateVersion: replica.stateVersion,
+						messageTruncated: fieldsToPublish?.messageTruncated ?? prev.messageTruncated,
+						totalMessageCount: fieldsToPublish?.totalMessageCount ?? prev.totalMessageCount,
+					}
+				})
+			}, scheduleAnimationFrame)
+		}
+		messageFlushSchedulerRef.current.schedule()
 	}, [])
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
@@ -962,6 +980,9 @@ export const ExtensionStateContextProvider: React.FC<{
 			// a stale high-water mark from a previous lifecycle would trigger a
 			// spurious gap detection on the very first delta after reconnection.
 			lastStateVersionRef.current = 0
+			// Cancel any pending frame-coalesced message flush.
+			messageFlushSchedulerRef.current?.cancel()
+			messageFlushSchedulerRef.current = null
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
