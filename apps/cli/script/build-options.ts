@@ -31,9 +31,21 @@ export function validateBuildOptions(input: {
 	options: BuildOptions;
 	opentuiVersion: string | undefined;
 	targetCount: number;
+	buildsDarwin: boolean;
+	platform: string;
 }): string | undefined {
 	if (input.targetCount === 0) {
 		return "No matching targets for this platform.";
+	}
+	if (
+		input.options.requireDarwinCodesign &&
+		input.buildsDarwin &&
+		input.platform !== "darwin"
+	) {
+		return [
+			`Cannot codesign Darwin binaries on ${input.platform}.`,
+			"Build Darwin release binaries on macOS, or omit --require-darwin-codesign for local cross-compilation.",
+		].join(" ");
 	}
 	if (
 		input.opentuiVersion &&
