@@ -5,7 +5,14 @@ import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } fr
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { fetch } from "@/shared/net"
-import { ApiFormat, ModelOverrides, UpdateApiConfigurationRequestNew } from "@/shared/proto/cline/models"
+import {
+	ApiFormat,
+	ModelOverrides,
+	UpdateApiConfigurationPartialRequest,
+	UpdateApiConfigurationRequest,
+	UpdateApiConfigurationRequestNew,
+} from "@/shared/proto/cline/models"
+import { UpdateSettingsRequest } from "@/shared/proto/cline/state"
 import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
@@ -67,6 +74,26 @@ function makeApiConfigurationUpdateController() {
 	} as unknown as Controller
 
 	return { controller, stateManager, store }
+}
+
+function makeLegacyApiConfigurationUpdateController() {
+	const providerId = parseProviderId("lmstudio")
+	const store = makeStore({ providerId })
+	const stateManager = {
+		getApiConfiguration: vi.fn(() => ({})),
+		setApiConfiguration: vi.fn(),
+		getGlobalSettingsKey: vi.fn(),
+	}
+	const handleApiConfigurationChanged = vi.fn()
+	const controller = {
+		getProviderConfigStore: () => store,
+		stateManager,
+		handleApiConfigurationChanged,
+		postStateToWebview: vi.fn(async () => undefined),
+		task: undefined,
+	} as unknown as Controller
+
+	return { controller, handleApiConfigurationChanged, stateManager, store }
 }
 
 describe("provider model catalog handlers", () => {
@@ -343,6 +370,42 @@ describe("provider model catalog handlers", () => {
 
 		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "" })
 		expect(stateManager.setSecretsBatch).toHaveBeenCalledWith({ openRouterApiKey: "open-router-key" })
+	})
+
+	it("updateApiConfigurationProto routes LM Studio API keys through ProviderConfigStore", async () => {
+		const { updateApiConfigurationProto } = await import("../updateApiConfigurationProto")
+		const { controller, store } = makeLegacyApiConfigurationUpdateController()
+
+		await updateApiConfigurationProto(
+			controller,
+			UpdateApiConfigurationRequest.create({ apiConfiguration: { lmStudioApiKey: "legacy-key" } }),
+		)
+
+		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "legacy-key" })
+	})
+
+	it("updateApiConfigurationPartial routes masked LM Studio API keys through ProviderConfigStore", async () => {
+		const { updateApiConfigurationPartial } = await import("../updateApiConfigurationPartial")
+		const { controller, store } = makeLegacyApiConfigurationUpdateController()
+
+		await updateApiConfigurationPartial(
+			controller,
+			UpdateApiConfigurationPartialRequest.create({
+				apiConfiguration: { lmStudioApiKey: "partial-key" },
+				updateMask: ["lmStudioApiKey"],
+			}),
+		)
+
+		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "partial-key" })
+	})
+
+	it("updateSettings routes LM Studio API keys through ProviderConfigStore", async () => {
+		const { updateSettings } = await import("../../state/updateSettings")
+		const { controller, store } = makeLegacyApiConfigurationUpdateController()
+
+		await updateSettings(controller, UpdateSettingsRequest.create({ apiConfiguration: { lmStudioApiKey: "settings-key" } }))
+
+		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "settings-key" })
 	})
 
 	it("commitModelSelection validates mode and commits model settings", async () => {

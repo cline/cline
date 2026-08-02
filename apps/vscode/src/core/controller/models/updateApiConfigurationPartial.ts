@@ -6,6 +6,7 @@ import type { Controller } from "../index"
 import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
+import { writeLmStudioApiKey } from "./writeLmStudioApiKey"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -42,6 +43,9 @@ export async function updateApiConfigurationPartial(
 			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
 		const normalizedConfig = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, updatedConfig)
+		if (request.updateMask.includes("lmStudioApiKey")) {
+			writeLmStudioApiKey(controller, normalizedConfig.lmStudioApiKey)
+		}
 
 		// Update storage and task API model shim
 		controller.stateManager.setApiConfiguration(normalizedConfig)

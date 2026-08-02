@@ -68,11 +68,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		fallbackModelInfo: openAiModelInfoSafeDefaults,
 		customModelInfo: (modelId) => toLmStudioModelInfo(undefined, modelId),
 	})
-	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
-		apiKeyLength: config?.apiKeyLength,
-		providerName: "LM Studio",
-		write,
-	})
 	const displayedSelectedModelId = pendingSelectedModelId ?? selectedModel.modelId
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === displayedSelectedModelId),
@@ -134,7 +129,16 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [endpoint, config?.apiKeyLength])
+	}, [endpoint])
+	const refreshModelsAfterApiKeyWrite = useCallback(() => {
+		void requestLmStudioModels()
+	}, [requestLmStudioModels])
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		onApiKeyWriteSuccess: refreshModelsAfterApiKeyWrite,
+		providerName: "LM Studio",
+		write,
+	})
 
 	useEffect(() => {
 		requestLmStudioModels()
