@@ -80,7 +80,8 @@
         "@sap-cloud-sdk/http-client": "4.6.0",
         "@sap-cloud-sdk/openapi": "4.6.0",
         "@sap-cloud-sdk/resilience": "4.6.0",
-        "@sap-cloud-sdk/util": "4.6.0"
+        "@sap-cloud-sdk/util": "4.6.0",
+        "inline-style-parser": "0.2.9"
     },
     "trustedDependencies": [
         "better-sqlite3",
