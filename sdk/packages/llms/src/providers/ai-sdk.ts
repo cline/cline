@@ -1085,6 +1085,7 @@ async function createProviderModule(
 	kind: ProviderModuleKind,
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
+	request?: GatewayStreamRequest,
 ): Promise<ProviderFactoryResult> {
 	switch (kind) {
 		case "openai": {
@@ -1143,7 +1144,10 @@ async function createProviderModule(
 		}
 		case "ollama": {
 			const { createOllamaProviderModule } = await import("./vendors/ollama");
-			return createOllamaProviderModule(config, context);
+			// Ollama needs the request's reasoning intent at model construction:
+			// `think` is an `ai-sdk-ollama` model setting, not a per-request
+			// provider option (cline/cline#12829).
+			return createOllamaProviderModule(config, context, request);
 		}
 		case "sapaicore": {
 			const { createSapAiCoreProviderModule } = await import(
@@ -1174,6 +1178,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						),
 					},
 					context,
+					request,
 				);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,

@@ -13,6 +13,7 @@ import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
+	GatewayStreamRequest,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { createOllama } from "ai-sdk-ollama";
@@ -20,6 +21,7 @@ import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import { ensureFetch, resolveApiKey } from "../http";
 import { createRetryEmptyResponseMiddleware } from "../middleware/retry-empty-response";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import { modelReasoningDefaultsOn } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
 /** See {@link OLLAMA_DEFAULT_CONTEXT_WINDOW} — re-exported under the wire-format name. */
@@ -55,6 +57,48 @@ export function readOllamaNumCtx(context: GatewayProviderContext): number {
 		return Math.floor(value);
 	}
 	return OLLAMA_DEFAULT_NUM_CTX;
+}
+
+/**
+ * Resolve the Ollama `think` request field from the request's reasoning
+ * intent and the resolved model's thinking capability (cline/cline#12829).
+ *
+ * Since Ollama 0.12.5, thinking-capable models run with thinking enabled when
+ * the request omits `think` and stream reasoning on the separate
+ * `message.thinking` field — but `ai-sdk-ollama` only surfaces those chunks
+ * as `reasoning-delta` parts when its `think` setting is set. Left unset, a
+ * thinking model can reason for minutes while the client receives nothing
+ * (and a thinking-only turn then looks like an empty response to the
+ * retry-empty-response middleware). So for known thinking-capable models the
+ * field is always sent explicitly: `true` unless the request disables
+ * reasoning, `false` when it does (the wire form of the routing layer's
+ * `reasoningEffort: "none"` intent, which `ai-sdk-ollama` cannot accept as a
+ * per-request provider option).
+ *
+ * Sending `think` to a model that does not support thinking is an Ollama
+ * error, so when capability is unknown — the common case for local models,
+ * which `/api/tags` lists by name only — the field is omitted (unchanged
+ * behavior). Capability comes from the signals the catalog already has: the
+ * gateway `reasoning` capability, or the `reasoningDefaultOn` metadata /
+ * qwen3 id fallback behind {@link modelReasoningDefaultsOn}.
+ */
+export function readOllamaThink(
+	context: GatewayProviderContext,
+	request?: GatewayStreamRequest,
+): boolean | undefined {
+	const knownThinkingCapable =
+		context.model.capabilities?.includes("reasoning") ||
+		modelReasoningDefaultsOn({
+			request: {
+				providerId: request?.providerId ?? context.provider.id,
+				modelId: request?.modelId ?? context.model.id,
+			},
+			context,
+		});
+	if (!knownThinkingCapable) {
+		return undefined;
+	}
+	return request?.reasoning?.enabled !== false;
 }
 
 /**
@@ -132,6 +176,7 @@ export function withOllamaResponseTimeout(
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
+	request?: GatewayStreamRequest,
 ): Promise<ProviderFactoryResult> {
 	// An API key is only needed for Ollama Cloud (ollama.com); local servers
 	// accept unauthenticated requests, so a missing key is not an error.
@@ -148,6 +193,7 @@ export async function createOllamaProviderModule(
 		),
 	});
 	const numCtx = readOllamaNumCtx(context);
+	const think = readOllamaThink(context, request);
 	// Retry empty responses (a common local-backend glitch that otherwise
 	// hard-fails the task). Outermost so each retry re-runs the whole request.
 	// `splitToolImagesMiddleware` is inner, for the same reason as the
@@ -161,6 +207,7 @@ export async function createOllamaProviderModule(
 			wrapLanguageModel({
 				model: provider(modelId, {
 					options: { num_ctx: numCtx },
+					...(think !== undefined ? { think } : {}),
 				}) as LanguageModelV3,
 				middleware: [retryEmptyResponseMiddleware, splitToolImagesMiddleware],
 			}),

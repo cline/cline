@@ -1,6 +1,7 @@
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
+	GatewayStreamRequest,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,6 +10,7 @@ import {
 	OLLAMA_DEFAULT_NUM_CTX,
 	OLLAMA_DEFAULT_TIMEOUT_MS,
 	readOllamaNumCtx,
+	readOllamaThink,
 	readOllamaTimeoutMs,
 	withOllamaResponseTimeout,
 } from "./ollama";
@@ -99,6 +101,60 @@ describe("readOllamaTimeoutMs", () => {
 		// Ollama only sends response headers once the model is loaded, so the
 		// response-start budget must cover a cold load (cline/cline#12829).
 		expect(OLLAMA_DEFAULT_TIMEOUT_MS).toBe(300_000);
+	});
+});
+
+describe("readOllamaThink", () => {
+	it("enables think for a model with the reasoning capability", () => {
+		const ctx = context({ capabilities: ["text", "reasoning"] });
+		expect(readOllamaThink(ctx, request({}))).toBe(true);
+		expect(
+			readOllamaThink(ctx, request({ reasoning: { enabled: true } })),
+		).toBe(true);
+	});
+
+	it("enables think for a model whose reasoning defaults on per metadata", () => {
+		const ctx = context({ metadata: { reasoningDefaultOn: true } });
+		expect(readOllamaThink(ctx, request({}))).toBe(true);
+	});
+
+	it("enables think via the documented qwen3 model-id fallback", () => {
+		expect(
+			readOllamaThink(context({}), request({ modelId: "qwen3:0.6b" })),
+		).toBe(true);
+	});
+
+	it("disables think when the request disables reasoning", () => {
+		expect(
+			readOllamaThink(
+				context({ capabilities: ["text", "reasoning"] }),
+				request({ reasoning: { enabled: false } }),
+			),
+		).toBe(false);
+	});
+
+	it("omits think when thinking capability is unknown", () => {
+		expect(readOllamaThink(context({}), request({}))).toBeUndefined();
+		// Even a disable request stays silent: sending `think` to a model
+		// that does not support thinking is an Ollama error.
+		expect(
+			readOllamaThink(context({}), request({ reasoning: { enabled: false } })),
+		).toBeUndefined();
+	});
+
+	it("omits think when metadata says reasoning does not default on", () => {
+		// Explicit metadata beats the qwen3 model-id fallback.
+		expect(
+			readOllamaThink(
+				context({ metadata: { reasoningDefaultOn: false } }),
+				request({ modelId: "qwen3-coder:30b" }),
+			),
+		).toBeUndefined();
+	});
+
+	it("falls back to the resolved model when no request is given", () => {
+		expect(readOllamaThink(context({ id: "qwen3:0.6b" }))).toBe(true);
+		expect(readOllamaThink(context({}))).toBeUndefined();
 	});
 });
 
@@ -217,6 +273,47 @@ describe("createOllamaProviderModule", () => {
 		expect(call.baseURL).toBeUndefined();
 		expect(call.apiKey).toBeUndefined();
 	});
+
+	it("requests think for a reasoning-capable model (cline/cline#12829)", async () => {
+		const provider = await createOllamaProviderModule(
+			config({}),
+			context({ id: "qwen3:0.6b", capabilities: ["text", "reasoning"] }),
+			request({ modelId: "qwen3:0.6b" }),
+		);
+		provider.model("qwen3:0.6b");
+
+		expect(ollamaModelMock).toHaveBeenCalledWith("qwen3:0.6b", {
+			options: { num_ctx: OLLAMA_DEFAULT_NUM_CTX },
+			think: true,
+		});
+	});
+
+	it("requests think=false when the request disables reasoning", async () => {
+		const provider = await createOllamaProviderModule(
+			config({}),
+			context({ id: "qwen3:0.6b", capabilities: ["text", "reasoning"] }),
+			request({ modelId: "qwen3:0.6b", reasoning: { enabled: false } }),
+		);
+		provider.model("qwen3:0.6b");
+
+		expect(ollamaModelMock).toHaveBeenCalledWith("qwen3:0.6b", {
+			options: { num_ctx: OLLAMA_DEFAULT_NUM_CTX },
+			think: false,
+		});
+	});
+
+	it("omits think when thinking capability is unknown", async () => {
+		const provider = await createOllamaProviderModule(
+			config({}),
+			context({ id: "llama3.1" }),
+			request({ modelId: "llama3.1" }),
+		);
+		provider.model("llama3.1");
+
+		expect(ollamaModelMock).toHaveBeenCalledWith("llama3.1", {
+			options: { num_ctx: OLLAMA_DEFAULT_NUM_CTX },
+		});
+	});
 });
 
 function config(
@@ -226,6 +323,17 @@ function config(
 		providerId: "ollama",
 		...overrides,
 	};
+}
+
+function request(
+	overrides: Partial<GatewayStreamRequest>,
+): GatewayStreamRequest {
+	return {
+		providerId: "ollama",
+		modelId: "minimax-m3:cloud",
+		messages: [],
+		...overrides,
+	} as GatewayStreamRequest;
 }
 
 function context(model: Record<string, unknown> = {}): GatewayProviderContext {
