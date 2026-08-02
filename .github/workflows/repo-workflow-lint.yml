@@ -50,13 +50,22 @@ jobs:
             # Installed from the Go module proxy rather than a release tarball so
             # the checksum database verifies the download.
             - name: Install actionlint
-              run: go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+              run: |
+                  go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+                  echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
             - name: Install zizmor
               run: pipx install "zizmor==${ZIZMOR_VERSION}"
 
+            # -shellcheck= disables the shellcheck integration, which actionlint
+            # turns on automatically whenever shellcheck is on PATH (it is, on
+            # GitHub runners). Our `run:` blocks carry ~50 pre-existing SC2086 /
+            # SC2129 style findings — all benign, all about unquoted
+            # $GITHUB_OUTPUT-style paths — and failing the check on those would
+            # just teach people to ignore it. Cleaning them up and turning this
+            # back on is worth doing separately.
             - name: actionlint
-              run: "$(go env GOPATH)/bin/actionlint -color"
+              run: actionlint -color -shellcheck=
 
             # GH_TOKEN unlocks zizmor's online audits, which are what verify that
             # each pinned SHA actually belongs to the action repository it names
