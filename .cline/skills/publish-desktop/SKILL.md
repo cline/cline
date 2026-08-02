@@ -127,11 +127,17 @@ only the `build` job can read them and only after an approval. Set them under
 Settings → Environments → PublishDesktop → Environment secrets. The environment
 also restricts deployments to `main` and requires a reviewer.
 
-Adding one of these as a *repository* secret instead is the common mistake — the
-job would not see it, and the preflight check in `build` fails the run naming the
-missing entries. The Apple values come from the same Apple Developer account used
-for manual signing (see the app README's "macOS signing & notarization" section
-for how to obtain them):
+Adding one of these as a *repository* secret is the common mistake. The build
+would still succeed — an environment-gated job resolves repository secrets too,
+with environment values simply taking precedence — so the credential would sit
+repo-wide while everything looked fine. `validate` therefore fails the run if any
+of them resolves in a job with no environment. If you hit that, delete the
+repository-level copy rather than duplicating it.
+
+If a secret is missing everywhere, the preflight in `build` fails the run naming
+the missing entries. The Apple values come from the same Apple Developer account
+used for manual signing (see the app README's "macOS signing & notarization"
+section for how to obtain them):
 
 | Secret | Value |
 | --- | --- |
