@@ -242,11 +242,9 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
-	// Synchronous snapshot of getWorkspaceRoot()'s latest result, for the
-	// message translator (which runs synchronously and relativizes the tool
-	// paths shown in the chat view). Warmed in the constructor and refreshed on
-	// every getWorkspaceRoot() call, so it is populated well before the first
-	// tool event of a task streams in.
+	// Synchronous snapshot of getWorkspaceRoot()'s latest result, for the message
+	// translator (which runs synchronously and relativizes the tool paths shown in
+	// the chat view). Warmed in the constructor and refreshed on every call.
 	private lastKnownWorkspaceRoot?: string
 
 	get remoteConfig(): RemoteConfig | undefined {
