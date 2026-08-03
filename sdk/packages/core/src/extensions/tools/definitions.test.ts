@@ -1267,6 +1267,26 @@ describe("default run_commands tool", () => {
 		});
 	});
 
+	it("reports a timeout as a tool-side wait limit, not a command failure", async () => {
+		const execute = vi.fn(async () => {
+			throw new TimeoutError("Command timed out after 5000ms", 5000);
+		});
+		const tool = createShellTool(execute, { bashTimeoutMs: 5000 });
+
+		const result = await tool.execute({ commands: ["sleep 31"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0]?.success).toBe(false);
+		expect(result[0]?.error).not.toContain("Command failed");
+		expect(result[0]?.error).toBe(
+			"Command timed out after 5000ms. This is the tool's wait limit, not an error reported by the command; the command may have been terminated. For long-running work, start it in the background and redirect its output to a file you can read later.",
+		);
+	});
+
 	it("emits timeout telemetry on the default bash tool path", async () => {
 		const telemetry = createTelemetryStub();
 		// Never resolves, so the configured timeout deterministically wins the
