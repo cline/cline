@@ -44,6 +44,10 @@ describe("AgentAskQuestion", () => {
 		const buttons = container.querySelectorAll("button");
 		await act(async () => buttons[1]?.click());
 
+		const section = container.querySelector("section");
+		const heading = container.querySelector("h2");
+		expect(section?.getAttribute("aria-labelledby")).toBe(heading?.id);
+		expect(heading?.textContent).toBe("Follow-up question");
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Stop");
 		expect(container.textContent).toContain("Request request-1 · Iteration 2");
 	});

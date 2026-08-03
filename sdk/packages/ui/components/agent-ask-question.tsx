@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 export interface AgentAskQuestionItem {
 	description?: ReactNode;
@@ -48,12 +48,17 @@ export function AgentAskQuestion({
 	onAnswer,
 	pendingAnswers = {},
 }: AgentAskQuestionProps) {
+	const headingId = useId();
+
 	return (
-		<section className="cline-ui-agent-ask-question">
-			<div className="cline-ui-agent-ask-question__heading">
+		<section
+			aria-labelledby={headingId}
+			className="cline-ui-agent-ask-question"
+		>
+			<h2 className="cline-ui-agent-ask-question__heading" id={headingId}>
 				<QuestionIcon />
 				Follow-up question
-			</div>
+			</h2>
 			<p className="cline-ui-agent-ask-question__intro">
 				Choose one option to continue the current agent turn.
 			</p>

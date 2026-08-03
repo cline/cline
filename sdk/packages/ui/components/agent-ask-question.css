@@ -23,6 +23,7 @@
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
+	margin: 0;
 	color: var(--foreground);
 	font-size: var(--text-sm);
 	font-weight: var(--font-weight-medium);
