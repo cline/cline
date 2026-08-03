@@ -193,11 +193,12 @@ export function retainPendingCapabilityRequestsForReconnect(
 	let retained = 0;
 	for (const [requestId, pending] of ctx.pendingCapabilityRequests.entries()) {
 		if (!filter({ requestId, ...pending }) || pending.disconnectTimer) continue;
+		const requestReason = `${reason} (session ${pending.sessionId})`;
 		pending.disconnectTimer = setTimeout(() => {
 			cancelPendingCapabilityRequests(
 				ctx,
 				(request) => request.requestId === requestId,
-				reason,
+				requestReason,
 			);
 		}, timeoutMs);
 		retained += 1;
@@ -205,13 +206,25 @@ export function retainPendingCapabilityRequestsForReconnect(
 	return retained;
 }
 
+export type ClaimedCapabilityRequest = {
+	requestId: string;
+	capabilityName: string;
+	payload: Record<string, unknown>;
+};
+
+/**
+ * Rebinds matching pending requests to the claiming client. Returns every
+ * matched request (replayed or not) so the claim reply can carry them; the
+ * reply is the reliable channel for claimers whose subscription may not have
+ * been live when the replay event was published.
+ */
 export function claimPendingCapabilityRequests(
 	ctx: HubTransportContext,
 	sessionId: string,
 	capabilityNames: ReadonlySet<string>,
 	targetClientId: string,
-): number {
-	let claimed = 0;
+): ClaimedCapabilityRequest[] {
+	const claimed: ClaimedCapabilityRequest[] = [];
 	for (const [requestId, pending] of ctx.pendingCapabilityRequests.entries()) {
 		if (
 			pending.sessionId !== sessionId ||
@@ -226,6 +239,11 @@ export function claimPendingCapabilityRequests(
 			pending.disconnectTimer = undefined;
 		}
 		pending.targetClientId = targetClientId;
+		claimed.push({
+			requestId,
+			capabilityName: pending.capabilityName,
+			payload: pending.payload ?? {},
+		});
 		if (!shouldReplay) continue;
 		ctx.publish(
 			ctx.buildEvent(
@@ -239,7 +257,6 @@ export function claimPendingCapabilityRequests(
 				sessionId,
 			),
 		);
-		claimed += 1;
 	}
 	return claimed;
 }

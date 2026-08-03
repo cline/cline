@@ -9,6 +9,8 @@ import type { SessionRecord as LocalSessionRecord } from "../../types/sessions";
 export type HubSessionState = {
 	createdByClientId?: string;
 	clientContributionOwners?: Map<string, string>;
+	// Evicts participant-less state kept alive only for contribution reclaims.
+	contributionOwnerEvictionTimer?: ReturnType<typeof setTimeout>;
 	interactive: boolean;
 	participants: Map<string, SessionParticipant>;
 };

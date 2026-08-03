@@ -985,6 +985,13 @@ describe("HubServerTransport boundaries", () => {
 			payload: { capabilityNames: ["tool_executor.askQuestion"] },
 		});
 		expect(claimReply.ok).toBe(true);
+		expect(claimReply.payload?.pendingRequests).toEqual([
+			{
+				requestId: "capreq-reload",
+				capabilityName: "tool_executor.askQuestion",
+				payload: { question: "Continue?", options: ["Yes"] },
+			},
+		]);
 		expect(replayed).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -1075,6 +1082,90 @@ describe("HubServerTransport boundaries", () => {
 			);
 			await vi.advanceTimersByTimeAsync(30_000);
 			await rejection;
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("evicts participant-less contribution state after the grace period", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "owner-client",
+				payload: { clientId: "owner-client", clientType: "web" },
+			});
+
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			expect(ctx.sessionState.has("session-1")).toBe(true);
+
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps contribution state when a client claims within the grace period", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			for (const clientId of ["owner-client", "reconnected-client"]) {
+				await transport.handleCommand({
+					version: "v1",
+					command: "client.register",
+					clientId,
+					payload: { clientId, clientType: "web" },
+				});
+			}
+
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			const claimReply = await transport.handleCommand({
+				version: "v1",
+				command: "session.claim_client_contributions",
+				clientId: "reconnected-client",
+				sessionId: "session-1",
+				payload: { capabilityNames: ["tool_executor.askQuestion"] },
+			});
+			expect(claimReply.ok).toBe(true);
+
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(true);
+			expect(
+				ctx.sessionState
+					.get("session-1")
+					?.clientContributionOwners?.get("tool_executor.askQuestion"),
+			).toBe("reconnected-client");
 		} finally {
 			vi.useRealTimers();
 		}

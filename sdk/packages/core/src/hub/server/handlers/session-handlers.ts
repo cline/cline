@@ -26,12 +26,14 @@ import {
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
 import {
+	CAPABILITY_RECONNECT_GRACE_MS,
 	cancelPendingCapabilityRequests,
 	claimPendingCapabilityRequests,
 	isReconnectableCapability,
 } from "./capability-handlers";
 import {
 	asPlainRecord,
+	deleteSessionState,
 	ensureSessionParticipant,
 	ensureSessionState,
 	errorReply,
@@ -40,6 +42,7 @@ import {
 	okReply,
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
+	scheduleContributionOwnerEviction,
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
@@ -821,15 +824,22 @@ export async function handleSessionClaimClientContributions(
 	for (const capabilityName of claimedCapabilityNames) {
 		state.clientContributionOwners?.set(capabilityName, clientId);
 	}
-	claimPendingCapabilityRequests(
+	const pendingRequests = claimPendingCapabilityRequests(
 		ctx,
 		sessionId,
 		new Set(claimedCapabilityNames),
 		clientId,
 	);
+	logHubMessage("info", "session.claim_client_contributions", {
+		sessionId,
+		clientId,
+		capabilityNames: claimedCapabilityNames,
+		pendingRequestCount: pendingRequests.length,
+	});
 	return okReply(envelope, {
 		sessionId,
 		capabilityNames: claimedCapabilityNames,
+		pendingRequests,
 	});
 }
 
@@ -852,11 +862,16 @@ export async function handleSessionDetach(
 		if (state.createdByClientId === clientId) {
 			state.createdByClientId = undefined;
 		}
-		if (
-			state.participants.size === 0 &&
-			!state.clientContributionOwners?.size
-		) {
-			ctx.sessionState.delete(sessionId);
+		if (state.participants.size === 0) {
+			if (state.clientContributionOwners?.size) {
+				scheduleContributionOwnerEviction(
+					ctx,
+					sessionId,
+					CAPABILITY_RECONNECT_GRACE_MS,
+				);
+			} else {
+				ctx.sessionState.delete(sessionId);
+			}
 		}
 	}
 	cancelPendingCapabilityRequests(
@@ -1117,12 +1132,14 @@ export async function handleSessionDelete(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	cancelPendingCapabilityRequests(
-		ctx,
-		(request) => request.sessionId === sessionId,
-		`Session ${sessionId} was deleted before capability request was resolved.`,
-	);
-	ctx.sessionState.delete(sessionId);
+	if (deleted) {
+		cancelPendingCapabilityRequests(
+			ctx,
+			(request) => request.sessionId === sessionId,
+			`Session ${sessionId} was deleted before capability request was resolved.`,
+		);
+		deleteSessionState(ctx, sessionId);
+	}
 	return okReply(envelope, { deleted });
 }
 

@@ -51,6 +51,7 @@ import {
 	okReply,
 	type PendingApproval,
 	type PendingCapabilityRequest,
+	scheduleContributionOwnerEviction,
 } from "./handlers/context";
 import {
 	handleRunAbort,
@@ -566,11 +567,16 @@ export class HubServerTransport implements NativeHubTransport {
 			if (state.createdByClientId === clientId) {
 				state.createdByClientId = undefined;
 			}
-			if (
-				state.participants.size === 0 &&
-				!state.clientContributionOwners?.size
-			) {
-				this.sessionState.delete(sessionId);
+			if (state.participants.size === 0) {
+				if (state.clientContributionOwners?.size) {
+					scheduleContributionOwnerEviction(
+						this.ctx,
+						sessionId,
+						CAPABILITY_RECONNECT_GRACE_MS,
+					);
+				} else {
+					this.sessionState.delete(sessionId);
+				}
 			}
 		}
 		retainPendingCapabilityRequestsForReconnect(
