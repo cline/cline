@@ -2,6 +2,7 @@ import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import { isClineInternalTester } from "@shared/internal/account"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import type { UserOrganization } from "@shared/proto/index.cline"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import {
 	CheckCheck,
 	FlaskConical,
@@ -141,6 +142,25 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const { activeOrganization, clineUser } = useClineAuth()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
+	const [filterQuery, setFilterQuery] = useState("")
+
+	// Tabs visible after applying the hidden() rules and the search filter
+	const visibleTabs = useMemo(() => {
+		const query = filterQuery.trim().toLowerCase()
+		return SETTINGS_TABS.filter((tab) => {
+			if (tab.hidden?.({ user: clineUser, activeOrganization })) {
+				return false
+			}
+			if (query === "") {
+				return true
+			}
+			return (
+				tab.name.toLowerCase().includes(query) ||
+				tab.headerText.toLowerCase().includes(query) ||
+				tab.tooltipText.toLowerCase().includes(query)
+			)
+		})
+	}, [filterQuery, clineUser, activeOrganization])
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -256,7 +276,17 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
 					onValueChange={setActiveTab}
 					value={activeTab}>
-					{SETTINGS_TABS.filter((tab) => !tab.hidden?.({ user: clineUser, activeOrganization })).map(renderTabItem)}
+					{/* Settings search */}
+					<div className="p-2 border-b border-sidebar-background">
+						<VSCodeTextField
+							className="w-full"
+							id="settings-filter"
+							onInput={(event) => setFilterQuery((event.target as HTMLInputElement).value)}
+							placeholder="Search settings"
+							value={filterQuery}
+						/>
+					</div>
+					{visibleTabs.map(renderTabItem)}
 				</TabList>
 
 				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>

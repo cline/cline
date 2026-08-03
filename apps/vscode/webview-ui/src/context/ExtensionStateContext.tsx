@@ -339,6 +339,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalReuseEnabled: true,
 		vscodeTerminalExecutionMode: "backgroundExec",
 		maxConsecutiveMistakes: 3,
+		requestTimeoutMs: undefined,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -658,7 +659,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						if (replicaRef.current.epoch !== prevEpoch) {
 							setHasMoreMessages(true)
 						}
-						
+
 						// Publish the (seq-gated) transcript + pagination metadata through the
 						// high-frequency messages context (V12 方案3).
 						publishReplica()

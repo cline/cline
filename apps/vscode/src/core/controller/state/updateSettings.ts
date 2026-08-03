@@ -135,6 +135,17 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 		}
 
+		// Update network request timeout (ms). Mirrors the CLI/ACP pass-through
+		// path (Settings.request_timeout_ms) so the webview toggle round-trips.
+		// 0/negative is treated as "unset" (provider default), which is what the
+		// UI sends when the field is cleared.
+		if (request.requestTimeoutMs !== undefined) {
+			controller.stateManager.setGlobalState(
+				"requestTimeoutMs",
+				request.requestTimeoutMs > 0 ? request.requestTimeoutMs : undefined,
+			)
+		}
+
 		if (request.hooksEnabled !== undefined) {
 			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true
 			const isEnabled = !!request.hooksEnabled

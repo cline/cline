@@ -89,6 +89,8 @@ export interface ExtensionState {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
 	maxConsecutiveMistakes: number
+	/** Network request timeout in milliseconds (undefined = provider default). */
+	requestTimeoutMs?: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean

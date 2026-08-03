@@ -1,5 +1,6 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { memo, type ReactNode } from "react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { memo, type ReactNode, useEffect, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -154,6 +155,74 @@ interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
+/**
+ * Number input with local draft state that commits on blur/Enter.
+ * Mirrors the pattern used by TerminalSettingsSection to avoid mid-typing
+ * resets when the backend round-trips the confirmed value.
+ */
+const NumberSettingField = memo(
+	({
+		id,
+		label,
+		description,
+		value,
+		onCommit,
+		placeholder,
+		min = 0,
+	}: {
+		id: string
+		label: string
+		description: string
+		value: number | undefined
+		onCommit: (value: number | undefined) => void
+		placeholder?: string
+		min?: number
+	}) => {
+		const [text, setText] = useState(value === undefined ? "" : String(value))
+		const [error, setError] = useState<string | null>(null)
+
+		useEffect(() => {
+			setText(value === undefined ? "" : String(value))
+		}, [value])
+
+		const commit = () => {
+			if (text.trim() === "") {
+				setError(null)
+				onCommit(undefined)
+				return
+			}
+			const parsed = Number.parseInt(text, 10)
+			if (Number.isNaN(parsed) || parsed < min) {
+				setError(`Enter a whole number of at least ${min}`)
+				return
+			}
+			setError(null)
+			onCommit(parsed)
+		}
+
+		return (
+			<div className="space-y-2">
+				<Label className="text-sm font-medium text-foreground">{label}</Label>
+				<p className="text-xs text-muted-foreground">{description}</p>
+				<VSCodeTextField
+					className="w-full"
+					id={id}
+					onBlur={commit}
+					onInput={(event) => setText((event.target as HTMLInputElement).value)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") {
+							commit()
+						}
+					}}
+					placeholder={placeholder}
+					value={text}
+				/>
+				{error && <p className="text-xs text-error">{error}</p>}
+			</div>
+		)
+	},
+)
+
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
@@ -167,6 +236,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		remoteConfigSettings,
 		backgroundEditEnabled,
 		showFeatureTips,
+		maxConsecutiveMistakes,
+		requestTimeoutMs,
 	} = useExtensionState()
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
@@ -224,6 +295,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										<SelectItem value="agentic">Agentic</SelectItem>
 									</SelectContent>
 								</Select>
+							</div>
+							<div className="pt-3">
+								<NumberSettingField
+									description="Maximum number of consecutive failed tool attempts before Cline stops and asks for guidance."
+									id="max-consecutive-mistakes"
+									label="Max Consecutive Mistakes"
+									onCommit={(value) => updateSetting("maxConsecutiveMistakes", value ?? 0)}
+									value={maxConsecutiveMistakes ?? 3}
+								/>
 							</div>
 						</div>
 					</div>
@@ -301,6 +381,16 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</SelectContent>
 								</Select>
 							</div>
+
+							{/* Network request timeout */}
+							<NumberSettingField
+								description="Network request timeout in milliseconds. Leave empty to use the provider default."
+								id="request-timeout-ms"
+								label="Request Timeout (ms)"
+								onCommit={(value) => updateSetting("requestTimeoutMs", value ?? 0)}
+								placeholder="Provider default"
+								value={requestTimeoutMs}
+							/>
 						</div>
 					</div>
 				</div>

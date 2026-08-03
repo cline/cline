@@ -17,6 +17,8 @@ const mockExtensionState = vi.hoisted(() => ({
 		focusChainSettings: { enabled: false, remindClineInterval: 6 },
 		remoteConfigSettings: {},
 		backgroundEditEnabled: false,
+		maxConsecutiveMistakes: 3,
+		requestTimeoutMs: undefined,
 	},
 }))
 
@@ -27,6 +29,33 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 vi.mock("../utils/settingsHandlers", () => ({
 	updateSetting: (...args: unknown[]) => mockUpdateSetting(...args),
 }))
+
+// Render the VSCodeTextField web component as a native <input> so value/onInput
+// behavior is observable in jsdom (the toolkit's custom element exposes no
+// value setter for testing-library's setNativeValue).
+vi.mock("@vscode/webview-ui-toolkit/react", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@vscode/webview-ui-toolkit/react")>()
+	return {
+		...actual,
+		VSCodeTextField: (props: {
+			id?: string
+			value?: string | number
+			placeholder?: string
+			onInput?: (event: { target: HTMLInputElement }) => void
+			onBlur?: () => void
+			style?: React.CSSProperties
+			children?: React.ReactNode
+		}) => (
+			<input
+				id={props.id}
+				onBlur={props.onBlur}
+				onInput={(event) => props.onInput?.({ target: event.currentTarget })}
+				placeholder={props.placeholder}
+				value={props.value ?? ""}
+			/>
+		),
+	}
+})
 
 describe("FeatureSettingsSection", () => {
 	beforeEach(() => {
@@ -98,5 +127,60 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(featureTipsSwitch as Element)
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("showFeatureTips", true)
+	})
+
+	it("renders Max Consecutive Mistakes in the Agent section", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByText("Max Consecutive Mistakes")).toBeTruthy()
+
+		const agentSection = container.querySelector("#agent-features")
+		const input = agentSection?.querySelector("#max-consecutive-mistakes") as HTMLInputElement
+		expect(input).toBeTruthy()
+		expect(input.value).toBe("3")
+	})
+
+	it("commits Max Consecutive Mistakes via updateSetting on blur", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const input = container.querySelector("#max-consecutive-mistakes") as HTMLInputElement
+		fireEvent.input(input, { target: { value: "5" } })
+		fireEvent.blur(input)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("maxConsecutiveMistakes", 5)
+	})
+
+	it("renders Request Timeout (ms) in the Advanced section", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, requestTimeoutMs: 30000 }
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByText("Request Timeout (ms)")).toBeTruthy()
+
+		const advancedSection = container.querySelector("#advanced-features")
+		const input = advancedSection?.querySelector("#request-timeout-ms") as HTMLInputElement
+		expect(input).toBeTruthy()
+		expect(input.value).toBe("30000")
+	})
+
+	it("commits Request Timeout via updateSetting on blur", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, requestTimeoutMs: undefined }
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const input = container.querySelector("#request-timeout-ms") as HTMLInputElement
+		fireEvent.input(input, { target: { value: "45000" } })
+		fireEvent.blur(input)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("requestTimeoutMs", 45000)
+	})
+
+	it("clears Request Timeout (provider default) when the field is emptied", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, requestTimeoutMs: 30000 }
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const input = container.querySelector("#request-timeout-ms") as HTMLInputElement
+		fireEvent.input(input, { target: { value: "" } })
+		fireEvent.blur(input)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("requestTimeoutMs", 0)
 	})
 })
