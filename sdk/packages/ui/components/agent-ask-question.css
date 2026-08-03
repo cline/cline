@@ -110,7 +110,8 @@
 
 .cline-ui-agent-ask-question__option {
 	display: inline-flex;
-	height: 2rem;
+	min-height: 2rem;
+	max-width: 100%;
 	flex: none;
 	align-items: center;
 	justify-content: center;
@@ -123,7 +124,8 @@
 	color: var(--foreground);
 	font: inherit;
 	font-weight: var(--font-weight-medium);
-	white-space: nowrap;
+	overflow-wrap: anywhere;
+	white-space: normal;
 	cursor: pointer;
 	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 5%);
 	transition:

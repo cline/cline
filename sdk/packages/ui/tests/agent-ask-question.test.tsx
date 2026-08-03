@@ -68,8 +68,11 @@ describe("AgentAskQuestion", () => {
 
 		const buttons = container.querySelectorAll("button");
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
-		expect(buttons[0]?.textContent).toContain("Sending...");
+		expect(buttons[0]?.textContent).toContain("Sending…");
 		expect(container.textContent).toContain("Could not send answer");
+		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not send answer",
+		);
 		expect(
 			container
 				.querySelector(".cline-ui-agent-ask-question__item")

@@ -85,7 +85,10 @@ export function AgentAskQuestion({
 								</div>
 							) : null}
 							{error ? (
-								<div className="cline-ui-agent-ask-question__error">
+								<div
+									className="cline-ui-agent-ask-question__error"
+									role="alert"
+								>
 									{error}
 								</div>
 							) : null}
@@ -102,7 +105,7 @@ export function AgentAskQuestion({
 										{pendingAnswer === option ? (
 											<>
 												<Spinner />
-												Sending...
+												Sending…
 											</>
 										) : (
 											option
