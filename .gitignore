@@ -100,3 +100,6 @@ docs/*-analysis.md
 docs/*-analysis-v*.md
 docs/reports/
 docs/message-queue-implementation.md
+
+# @cline/core test artifacts (core-test.log etc.)
+sdk/packages/core/*.log
