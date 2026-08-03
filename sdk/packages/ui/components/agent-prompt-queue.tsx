@@ -225,7 +225,11 @@ export function AgentPromptQueue({
 												event.preventDefault();
 												cancelEdit();
 											}
-											if (event.key === "Enter" && !event.shiftKey) {
+											if (
+												event.key === "Enter" &&
+												!event.shiftKey &&
+												!event.nativeEvent.isComposing
+											) {
 												event.preventDefault();
 												void submitEdit(item);
 											}

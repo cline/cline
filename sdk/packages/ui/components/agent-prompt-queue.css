@@ -192,7 +192,7 @@
 		background: color-mix(in oklab, var(--accent) 35%, transparent);
 	}
 
-	.cline-ui-agent-prompt-queue__action:hover {
+	.cline-ui-agent-prompt-queue__action:hover:not(:disabled) {
 		background: var(--accent);
 		color: var(--foreground);
 	}

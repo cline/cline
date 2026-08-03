@@ -106,7 +106,15 @@ describe("AgentPromptQueue", () => {
 			)?.set;
 			valueSetter?.call(editor, " Updated ");
 			editor.dispatchEvent(new Event("input", { bubbles: true }));
+			editor.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					isComposing: true,
+					key: "Enter",
+				}),
+			);
 		});
+		expect(onEdit).not.toHaveBeenCalled();
 		await act(async () => {
 			container
 				.querySelector<HTMLButtonElement>('[aria-label="Save queued prompt"]')
