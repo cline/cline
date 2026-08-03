@@ -65,7 +65,7 @@
 		"tailwindcss-animate": "^1.0.7",
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.0.0",
-		"uuid": "^9.0.1"
+		"uuid": "^14.0.1"
 	},
 	"devDependencies": {
 		"@storybook/react-vite": "^9.1.6",
