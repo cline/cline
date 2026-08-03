@@ -6,10 +6,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the LMStudioProvider component
@@ -76,6 +78,12 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[apiConfiguration?.lmStudioBaseUrl, config?.baseUrl],
 	)
 
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "LM Studio",
+		write,
+	})
+
 	const handleBaseUrlChange = useCallback(
 		(value: string) => {
 			void write({ baseUrl: value }).catch((error) => console.error("Failed to update LM Studio base URL:", error))
@@ -98,22 +106,16 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				return
 			}
 			setPendingSelectedModelId(trimmedModelId)
-			const model = lmStudioModels.find((candidate) => candidate.id === trimmedModelId)
-			void commitModelSelection({
-				modelId: trimmedModelId,
-				modelInfo: toLmStudioModelInfo(model, trimmedModelId),
-			}).catch((error) => {
-				console.error("Failed to update LM Studio model selection:", error)
-				setPendingSelectedModelId(undefined)
-			})
+			void commitModelSelection(trimmedModelId)
 		},
-		[commitModelSelection, lmStudioModels, toLmStudioModelInfo],
+		[commitModelSelection],
 	)
 
-	// Fetch LM Studio models on mount, whenever the endpoint changes, and when
-	// the model control gains focus (no interval polling — the endpoint is
-	// user-configurable, see ENG-2344), so a server started after mount is
-	// still discovered.
+	// We do a first fetch on mount, and again whenever the dropdown is focused
+	// (see onFocusCapture below). That way, if the user starts LM Studio later,
+	// the models list can be refreshed without changing the base URL.
+	// We intentionally don't re-fetch automatically when the base URL changes,
+	// because the user may still be typing. The next focus will trigger a refresh.
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
 			value: endpoint,
@@ -158,6 +160,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	return (
 		<div className="flex flex-col gap-2">
+			<ApiKeyField
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
+				providerName="LM Studio"
+				placeholder="Enter LM Studio API Key..."
+				helpText="Only needed if LM Studio's server has 'Require Authentication' enabled. Stored locally."
+			/>
+
 			<BaseUrlField
 				initialValue={config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl}
 				label="Use custom base URL"
