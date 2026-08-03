@@ -1,9 +1,21 @@
 .cline-ui-agent-ask-question {
+	/* Defaults match the desktop palette (blue-500/blue-400); hosts may override. */
+	--cline-ui-agent-ask-question-accent: oklch(62.3% 0.214 259.815);
+	--cline-ui-agent-ask-question-accent-border: oklch(70.7% 0.165 254.624);
+
 	box-sizing: border-box;
 	border: 1px solid
-		color-mix(in oklab, oklch(70.7% 0.165 254.624) 40%, transparent);
+		color-mix(
+			in oklab,
+			var(--cline-ui-agent-ask-question-accent-border) 40%,
+			transparent
+		);
 	border-radius: var(--radius-xl);
-	background: color-mix(in oklab, oklch(62.3% 0.214 259.815) 5%, transparent);
+	background: color-mix(
+		in oklab,
+		var(--cline-ui-agent-ask-question-accent) 5%,
+		transparent
+	);
 	padding: 0.75rem;
 }
 
@@ -22,7 +34,7 @@
 	width: 1rem;
 	height: 1rem;
 	fill: none;
-	stroke: oklch(62.3% 0.214 259.815);
+	stroke: var(--cline-ui-agent-ask-question-accent);
 	stroke-linecap: round;
 	stroke-linejoin: round;
 	stroke-width: 2;

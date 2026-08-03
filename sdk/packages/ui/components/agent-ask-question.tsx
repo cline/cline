@@ -64,7 +64,11 @@ export function AgentAskQuestion({
 					const error = errors[item.id];
 
 					return (
-						<div className="cline-ui-agent-ask-question__item" key={item.id}>
+						<div
+							aria-busy={isPending || undefined}
+							className="cline-ui-agent-ask-question__item"
+							key={item.id}
+						>
 							<div className="cline-ui-agent-ask-question__item-header">
 								<div className="cline-ui-agent-ask-question__question">
 									{item.question}
@@ -86,7 +90,8 @@ export function AgentAskQuestion({
 								</div>
 							) : null}
 							<div className="cline-ui-agent-ask-question__options">
-								{item.options.map((option) => (
+								{/* Options are model-supplied and may repeat; repeats submit the same answer. */}
+								{[...new Set(item.options)].map((option) => (
 									<button
 										className="cline-ui-agent-ask-question__option"
 										disabled={isPending}

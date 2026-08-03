@@ -70,5 +70,32 @@ describe("AgentAskQuestion", () => {
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
 		expect(buttons[0]?.textContent).toContain("Sending...");
 		expect(container.textContent).toContain("Could not send answer");
+		expect(
+			container
+				.querySelector(".cline-ui-agent-ask-question__item")
+				?.getAttribute("aria-busy"),
+		).toBe("true");
+	});
+
+	it("deduplicates repeated model-supplied options", async () => {
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["Yes", "Yes", "No"],
+							question: "Proceed?",
+						},
+					]}
+					onAnswer={vi.fn()}
+				/>,
+			),
+		);
+
+		const labels = [...container.querySelectorAll("button")].map(
+			(button) => button.textContent,
+		);
+		expect(labels).toEqual(["Yes", "No"]);
 	});
 });
