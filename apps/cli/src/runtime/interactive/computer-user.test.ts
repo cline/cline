@@ -186,7 +186,7 @@ describe("createInteractiveComputerUser", () => {
 		await result?.dispose();
 	});
 
-	it("starts the helper with one adaptive reasoning snapshot", async () => {
+	it("starts the helper with one moderate adaptive reasoning snapshot", async () => {
 		const started = await startStubBackend();
 		server = started.server;
 		destroyConnections = started.destroyConnections;
@@ -204,9 +204,14 @@ describe("createInteractiveComputerUser", () => {
 			stop: vi.fn(async () => {}),
 			dispose: vi.fn(async () => {}),
 		});
+		const driverConfig = {
+			...makeConfig(),
+			thinking: true,
+			reasoningEffort: "high" as const,
+		};
 
 		const result = await createInteractiveComputerUser({
-			config: makeConfig(),
+			config: driverConfig,
 			providerSettingsManager: makeSettings({
 				provider: "anthropic",
 				apiKey: "sk-ant-x",
@@ -223,7 +228,7 @@ describe("createInteractiveComputerUser", () => {
 			notifyDriver: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
-				CLINE_COMPUTER_USER_MODEL: "claude-opus-4-7",
+				CLINE_COMPUTER_USER_MODEL: "anthropic/claude-sonnet-5",
 			} as NodeJS.ProcessEnv,
 		});
 		const startTool = result?.driverTools.find(
@@ -236,14 +241,14 @@ describe("createInteractiveComputerUser", () => {
 			interactive: true,
 			config: expect.objectContaining({
 				providerId: "anthropic",
-				modelId: "claude-opus-4-7",
+				modelId: "claude-sonnet-5",
 				thinking: true,
-				reasoningEffort: "high",
+				reasoningEffort: "medium",
 				providerConfig: expect.objectContaining({
 					providerId: "anthropic",
-					modelId: "claude-opus-4-7",
+					modelId: "claude-sonnet-5",
 					thinking: true,
-					reasoningEffort: "high",
+					reasoningEffort: "medium",
 					clientType: undefined,
 					routingProviderId: undefined,
 					thinkingBudgetTokens: undefined,
@@ -253,6 +258,10 @@ describe("createInteractiveComputerUser", () => {
 		expect(start.mock.calls[0]?.[0]?.config).not.toHaveProperty(
 			"thinkingBudgetTokens",
 		);
+		expect(driverConfig).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+		});
 		await result?.dispose();
 	});
 
@@ -325,6 +334,14 @@ describe("resolveHelperModelId", () => {
 				CLINE_COMPUTER_USER_MODEL: "claude-opus-4-7",
 			} as NodeJS.ProcessEnv),
 		).toBe("claude-opus-4-7");
+	});
+
+	it("removes the redundant namespace for the direct Anthropic provider", () => {
+		expect(
+			resolveHelperModelId(undefined, {
+				CLINE_COMPUTER_USER_MODEL: "anthropic/claude-sonnet-5",
+			} as NodeJS.ProcessEnv),
+		).toBe("claude-sonnet-5");
 	});
 
 	it("falls back to the Anthropic provider entry's saved model", () => {
