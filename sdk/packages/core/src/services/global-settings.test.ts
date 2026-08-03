@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
 	readCompactionStrategyGlobally,
+	readCompactionTriggerRatioGlobally,
 	readGlobalSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionStrategyGlobally,
+	setCompactionTriggerRatioGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -212,6 +214,41 @@ describe("global-settings", () => {
 			expect(readCompactionStrategyGlobally()).toBe("basic");
 			setCompactionStrategyGlobally("agentic");
 			expect(readCompactionStrategyGlobally()).toBe("agentic");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the auto-compact trigger ratio globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCompactionTriggerRatioGlobally()).toBeUndefined();
+			setCompactionTriggerRatioGlobally(0.8);
+			expect(readCompactionTriggerRatioGlobally()).toBe(0.8);
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
+				compactionTriggerRatio: 0.8,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("drops out-of-range auto-compact trigger ratios instead of persisting them", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			setCompactionTriggerRatioGlobally(1.5);
+			expect(readCompactionTriggerRatioGlobally()).toBeUndefined();
+			expect(
+				GlobalSettingsSchema.parse({
+					compactionTriggerRatio: 0,
+				}),
+			).not.toHaveProperty("compactionTriggerRatio");
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

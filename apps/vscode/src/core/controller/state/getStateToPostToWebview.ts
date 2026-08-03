@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { readCompactionStrategyGlobally } from "@cline/core"
+import { readCompactionStrategyGlobally, readCompactionTriggerRatioGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
@@ -42,6 +42,9 @@ export async function getStateToPostToWebview(controller: {
 	const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
+	// Convert the stored ratio (0.9) back to a user-facing percentage (90).
+	const compactionTriggerRatio = readCompactionTriggerRatioGlobally()
+	const autoCompactThreshold = compactionTriggerRatio === undefined ? undefined : Math.round(compactionTriggerRatio * 100)
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
@@ -127,6 +130,7 @@ export async function getStateToPostToWebview(controller: {
 		yoloModeToggled,
 		useAutoCondense,
 		compactionStrategy,
+		autoCompactThreshold,
 		subagentsEnabled,
 		userInfo,
 		mcpMarketplaceEnabled,

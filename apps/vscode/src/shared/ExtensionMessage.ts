@@ -117,6 +117,9 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
+	// Auto-compact threshold in percent (50-100) of the usable input budget.
+	// Absent when unset, in which case the SDK default (90%) applies.
+	autoCompactThreshold?: number
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string

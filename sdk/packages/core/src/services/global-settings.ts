@@ -37,11 +37,23 @@ export type GlobalCompactionStrategy = z.infer<
 	typeof GlobalCompactionStrategySchema
 >;
 
+// Stored as a ratio (0.5 = 50%, 0.9 = 90%) so it maps 1:1 onto
+// CoreCompactionConfig.triggerRatio. Out-of-range values are dropped so a
+// hand-edited settings file cannot disable compaction or exceed the budget.
+const GlobalCompactionTriggerRatioSchema = z.preprocess(
+	(value) =>
+		typeof value === "number" && Number.isFinite(value) && value > 0 && value < 1
+			? value
+			: undefined,
+	z.number().optional(),
+);
+
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		compactionTriggerRatio: GlobalCompactionTriggerRatioSchema.optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -51,6 +63,7 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
 			compactionStrategy?: GlobalCompactionStrategy;
+			compactionTriggerRatio?: number;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
@@ -59,6 +72,9 @@ export const GlobalSettingsSchema = z
 		};
 		if (settings.compactionStrategy) {
 			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (settings.compactionTriggerRatio !== undefined) {
+			normalized.compactionTriggerRatio = settings.compactionTriggerRatio;
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -201,6 +217,27 @@ export function setCompactionStrategyGlobally(
 	compactionStrategy: GlobalCompactionStrategy,
 ): void {
 	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
+}
+
+export function readCompactionTriggerRatioGlobally(): number | undefined {
+	return readGlobalSettings().compactionTriggerRatio;
+}
+
+export function setCompactionTriggerRatioGlobally(
+	compactionTriggerRatio: number,
+): void {
+	// Out-of-range ratios (<= 0, >= 1) are dropped rather than throwing, so a
+	// stray client value cannot disable compaction or exceed the input budget.
+	const result = GlobalCompactionTriggerRatioSchema.safeParse(
+		compactionTriggerRatio,
+	);
+	if (!result.success || result.data === undefined) {
+		return;
+	}
+	writeGlobalSettings({
+		...readGlobalSettings(),
+		compactionTriggerRatio: result.data,
+	});
 }
 
 export function resolveDisabledToolNames(

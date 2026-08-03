@@ -442,6 +442,9 @@ message UpdateSettingsRequest {
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
   optional int32 request_timeout_ms = 45;
+  // Auto-compact threshold in percent of the usable input budget (50-100).
+  // Maps 1:1 to the SDK trigger ratio /100; unset keeps the SDK default (90%).
+  optional double auto_compact_threshold = 46;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

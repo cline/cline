@@ -83,6 +83,30 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 	}
 }
 
+export function readCompactionTriggerRatioGlobally(): number | undefined {
+	try {
+		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
+		const ratio = settings.compactionTriggerRatio
+		return typeof ratio === "number" && ratio > 0 && ratio < 1 ? ratio : undefined
+	} catch {
+		return undefined
+	}
+}
+
+export function setCompactionTriggerRatioGlobally(compactionTriggerRatio: number): void {
+	if (!(compactionTriggerRatio > 0 && compactionTriggerRatio < 1)) {
+		return
+	}
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
+	if (filePath) {
+		let settings = {}
+		try {
+			settings = JSON.parse(readFileSync(filePath, "utf8"))
+		} catch {}
+		writeFileSync(filePath, JSON.stringify({ ...settings, compactionTriggerRatio }))
+	}
+}
+
 export function truncateCommandOutput(output: string): string {
 	return output
 }

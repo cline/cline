@@ -825,6 +825,50 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("forwards the user auto-compact threshold as the SDK trigger ratio", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, {
+			compactionStrategy: "agentic",
+			compactionTriggerRatio: 0.8,
+		})
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
+			triggerRatio: 0.8,
+		})
+	})
+
+	it("omits the trigger ratio when no threshold is configured", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, {})
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "basic",
+		})
+	})
+
 	it("does not enable SDK compaction when global useAutoCondense is false", async () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 

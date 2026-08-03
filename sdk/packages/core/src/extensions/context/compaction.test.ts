@@ -1446,6 +1446,52 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
+	it("fires auto compaction at a user-configured trigger ratio", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted early" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, triggerRatio: 0.5, compact },
+			logger: undefined,
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "small message" },
+		];
+		// ~2500 tokens of prompt: above the custom 50% trigger (2000) but well
+		// below the baked-in 90% default (3600) for a 4000-token budget, so a
+		// hit can only come from the user-configured ratio.
+		const systemPrompt = "s".repeat(10_000);
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt,
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 4_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.budget.request.triggerTokens).toBe(2_000);
+		expect(context?.budget.request.thresholdRatio).toBe(0.5);
+	});
+
 	it("includes system prompt and tools in the automatic trigger", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted full request" }],

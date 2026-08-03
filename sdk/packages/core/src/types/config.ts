@@ -152,6 +152,12 @@ export type CoreCompactionStrategy = "basic" | "agentic";
 export interface CoreCompactionConfig {
 	enabled?: boolean;
 	strategy?: CoreCompactionStrategy;
+	/**
+	 * User-configurable auto-compact trigger: compact once the transcript
+	 * consumes this share of the usable input budget (e.g. 0.9 = 90%).
+	 * Falls back to COMPACTION_TRIGGER_RATIO (0.9) when unset.
+	 */
+	triggerRatio?: number;
 	preserveRecentTokens?: number;
 	summarizer?: CoreCompactionSummarizerConfig;
 	compact?: (

@@ -169,6 +169,7 @@ const NumberSettingField = memo(
 		onCommit,
 		placeholder,
 		min = 0,
+		max,
 	}: {
 		id: string
 		label: string
@@ -177,6 +178,7 @@ const NumberSettingField = memo(
 		onCommit: (value: number | undefined) => void
 		placeholder?: string
 		min?: number
+		max?: number
 	}) => {
 		const [text, setText] = useState(value === undefined ? "" : String(value))
 		const [error, setError] = useState<string | null>(null)
@@ -192,8 +194,10 @@ const NumberSettingField = memo(
 				return
 			}
 			const parsed = Number.parseInt(text, 10)
-			if (Number.isNaN(parsed) || parsed < min) {
-				setError(`Enter a whole number of at least ${min}`)
+			if (Number.isNaN(parsed) || parsed < min || (max !== undefined && parsed > max)) {
+				setError(
+					max !== undefined ? `Enter a whole number between ${min} and ${max}` : `Enter a whole number of at least ${min}`,
+				)
 				return
 			}
 			setError(null)
@@ -231,6 +235,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		yoloModeToggled,
 		useAutoCondense,
 		compactionStrategy,
+		autoCompactThreshold,
 		subagentsEnabled,
 		worktreesEnabled,
 		remoteConfigSettings,
@@ -295,6 +300,18 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										<SelectItem value="agentic">Agentic</SelectItem>
 									</SelectContent>
 								</Select>
+							</div>
+							<div className="pt-3">
+								<NumberSettingField
+									description="Percentage of the usable input budget at which Cline auto-compacts the conversation (50-100)."
+									id="auto-compact-threshold"
+									label="Auto Compact Threshold"
+									max={100}
+									min={50}
+									onCommit={(value) => updateSetting("autoCompactThreshold", value)}
+									value={autoCompactThreshold ?? 90}
+									placeholder="90"
+								/>
 							</div>
 							<div className="pt-3">
 								<NumberSettingField

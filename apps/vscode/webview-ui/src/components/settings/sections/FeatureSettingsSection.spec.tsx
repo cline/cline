@@ -173,6 +173,38 @@ describe("FeatureSettingsSection", () => {
 		expect(mockUpdateSetting).toHaveBeenCalledWith("requestTimeoutMs", 45000)
 	})
 
+	it("renders Auto Compact Threshold in the Agent section with the user value", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, autoCompactThreshold: 75 }
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByText("Auto Compact Threshold")).toBeTruthy()
+
+		const agentSection = container.querySelector("#agent-features")
+		const input = agentSection?.querySelector("#auto-compact-threshold") as HTMLInputElement
+		expect(input).toBeTruthy()
+		expect(input.value).toBe("75")
+	})
+
+	it("commits Auto Compact Threshold via updateSetting on blur", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const input = container.querySelector("#auto-compact-threshold") as HTMLInputElement
+		fireEvent.input(input, { target: { value: "85" } })
+		fireEvent.blur(input)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("autoCompactThreshold", 85)
+	})
+
+	it("rejects out-of-range Auto Compact Threshold without committing", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const input = container.querySelector("#auto-compact-threshold") as HTMLInputElement
+		fireEvent.input(input, { target: { value: "120" } })
+		fireEvent.blur(input)
+
+		expect(mockUpdateSetting).not.toHaveBeenCalledWith("autoCompactThreshold", 120)
+	})
+
 	it("clears Request Timeout (provider default) when the field is emptied", () => {
 		mockExtensionState.value = { ...mockExtensionState.value, requestTimeoutMs: 30000 }
 		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)

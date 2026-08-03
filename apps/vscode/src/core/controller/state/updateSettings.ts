@@ -1,4 +1,4 @@
-import { setCompactionStrategyGlobally } from "@cline/core"
+import { setCompactionStrategyGlobally, setCompactionTriggerRatioGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -197,6 +197,17 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				throw new Error(`Invalid compaction strategy value: ${strategy}`)
 			}
 			setCompactionStrategyGlobally(strategy)
+		}
+
+		// Update auto-compact threshold (percent of the usable input budget,
+		// 50-100). Converts to the SDK ratio (e.g. 90 -> 0.9); unset/out-of-range
+		// values fall back to the SDK default (COMPACTION_TRIGGER_RATIO = 0.9).
+		if (request.autoCompactThreshold !== undefined) {
+			const threshold = request.autoCompactThreshold
+			if (!Number.isFinite(threshold) || threshold < 50 || threshold > 100) {
+				throw new Error(`Invalid auto compact threshold value: ${threshold} (expected 50-100)`)
+			}
+			setCompactionTriggerRatioGlobally(threshold / 100)
 		}
 
 		// Update custom prompt choice

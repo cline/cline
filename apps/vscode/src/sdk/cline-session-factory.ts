@@ -14,6 +14,7 @@ import {
 	getProviderAuthHandler,
 	type ProviderSettings,
 	readCompactionStrategyGlobally,
+	readCompactionTriggerRatioGlobally,
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
@@ -802,6 +803,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const stateManager = StateManager.get()
 	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
 	const compactionStrategy = readCompactionStrategyGlobally()
+	// User-configurable auto-compact threshold (ratio, 0-1). Undefined keeps
+	// the SDK default (COMPACTION_TRIGGER_RATIO = 0.9).
+	const compactionTriggerRatio = readCompactionTriggerRatioGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
 
@@ -884,6 +888,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 					compaction: {
 						enabled: true,
 						strategy: compactionStrategy,
+						...(compactionTriggerRatio !== undefined ? { triggerRatio: compactionTriggerRatio } : {}),
 					},
 				}
 			: {}),
