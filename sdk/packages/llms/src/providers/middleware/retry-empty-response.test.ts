@@ -26,8 +26,17 @@ const streamStart: LanguageModelV4StreamPart = {
 	type: "stream-start",
 	warnings: [],
 };
-function finish(finishReason = "stop"): LanguageModelV4StreamPart {
-	return { type: "finish", finishReason, usage } as LanguageModelV4StreamPart;
+function finish(
+	finishReason: Extract<
+		LanguageModelV4StreamPart,
+		{ type: "finish" }
+	>["finishReason"]["unified"] = "stop",
+): Extract<LanguageModelV4StreamPart, { type: "finish" }> {
+	return {
+		type: "finish",
+		finishReason: { unified: finishReason, raw: finishReason },
+		usage,
+	};
 }
 const textParts: LanguageModelV4StreamPart[] = [
 	streamStart,

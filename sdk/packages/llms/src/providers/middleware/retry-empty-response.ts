@@ -155,9 +155,8 @@ export function createRetryEmptyResponseMiddleware(
 							reader.releaseLock();
 						}
 
-						const finishReason = String(
-							pendingFinish?.finishReason ?? "unknown",
-						);
+						const finishReason =
+							pendingFinish?.finishReason.unified ?? "unknown";
 						const canRetry =
 							!hadContent &&
 							!sawError &&
