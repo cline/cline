@@ -74,8 +74,7 @@ export function ThemePickerContent(props: ChoiceContext<string>) {
 	);
 	const visibleThemes = THEMES.slice(start, start + maxVisible);
 	// Selection prefix (2 cells) + longest label + separating gap.
-	const labelWidth =
-		Math.max(...THEMES.map((theme) => theme.label.length)) + 4;
+	const labelWidth = Math.max(...THEMES.map((theme) => theme.label.length)) + 4;
 
 	return (
 		<box flexDirection="column" gap={1}>
