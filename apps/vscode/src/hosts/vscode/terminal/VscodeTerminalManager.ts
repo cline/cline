@@ -7,28 +7,12 @@ import {
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
+import { BUSY_TIMEOUT_MS, MAX_TERMINALS, selectTerminalsToEvict, shouldAutoReleaseBusy } from "./terminal-pool"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 const CWD_COMMAND_TIMEOUT_MS = 5000
 const CWD_STATE_TIMEOUT_MS = 1000
-
-/**
- * Maximum time (ms) a terminal can stay busy before its flag is auto-released.
- * Prevents terminal-starvation deadlock when a terminal's completion promise
- * is never settled (e.g. user closes the terminal, task interrupted mid-write).
- * The release is deferred if the terminal is still producing output ("hot")
- * to protect long-running processes like dev servers.
- */
-const BUSY_TIMEOUT_MS = 300_000 // 5 minutes
-
-/**
- * Maximum number of tracked terminals before the least-recently-used is
- * evicted. Prevents unbounded terminal-ID accumulation when many tasks are
- * created without cleanup.  Eviction skips terminals with active output
- * ("hot"), protecting long-running processes.
- */
-const MAX_TERMINALS = 50
 
 /*
 TerminalManager:
@@ -244,20 +228,25 @@ export class VscodeTerminalManager {
 		// processes like dev servers from being mistakenly freed.
 		let busyTimeout: ReturnType<typeof setTimeout> | undefined
 		busyTimeout = setTimeout(() => {
-			if (vscodeTerminalInfo.busy) {
-				// Don't release if the terminal is still actively outputting —
-				// it's likely a healthy long-running process (e.g. dev server)
-				// rather than a stuck command.
-				if (this.processes.get(vscodeTerminalInfo.id)?.isHot) {
-					Logger.log(
-						`[TerminalManager] Busy timeout elapsed for terminal ${vscodeTerminalInfo.id} but process is still hot; deferring release.`,
-					)
-					return
-				}
+			// Policy: auto-release the busy flag after BUSY_TIMEOUT_MS unless the
+			// process is still hot (actively outputting — a healthy long-running
+			// process like a dev server). Pure decision lives in ./terminal-pool.
+			if (
+				shouldAutoReleaseBusy(
+					vscodeTerminalInfo.busy,
+					BUSY_TIMEOUT_MS,
+					this.processes.get(vscodeTerminalInfo.id)?.isHot ?? false,
+					BUSY_TIMEOUT_MS,
+				)
+			) {
 				Logger.warn(
 					`[TerminalManager] Busy timeout elapsed (${BUSY_TIMEOUT_MS}ms) for terminal ${vscodeTerminalInfo.id}, auto-releasing busy flag`,
 				)
 				vscodeTerminalInfo.busy = false
+			} else if (vscodeTerminalInfo.busy) {
+				Logger.log(
+					`[TerminalManager] Busy timeout elapsed for terminal ${vscodeTerminalInfo.id} but process is still hot; deferring release.`,
+				)
 			}
 		}, BUSY_TIMEOUT_MS)
 
@@ -444,25 +433,28 @@ export class VscodeTerminalManager {
 		// Enforce max terminals: evict LRA (least-recently-active) terminals
 		// when pool exceeds MAX_TERMINALS. Prevents unbounded accumulation
 		// on long-running VSCode instances with many task sessions.
-		// Always active (not gated by a feature flag).
+		// Always active (not gated by a feature flag). The selection policy
+		// (including the hot-terminal exemption) lives in ./terminal-pool so
+		// it is unit-testable without a VS Code host.
 		{
 			const allTerminals = TerminalRegistry.getAllTerminals()
-			if (allTerminals.length >= MAX_TERMINALS) {
-				const sorted = [...allTerminals].sort((a, b) => a.lastActive - b.lastActive)
-				const evictCandidates = sorted.slice(0, allTerminals.length - MAX_TERMINALS + 1)
-				for (const t of evictCandidates) {
-					// Never evict a terminal that still has an active process
-					// (e.g. a dev server like `npm run dev`).  The isProcessHot
-					// check catches terminals that have emitted output recently.
-					if (this.processes.get(t.id)?.isHot) {
-						Logger.log(`[TerminalManager] Skipping eviction of hot terminal ${t.id} (still producing output)`)
-						continue
-					}
-					Logger.warn(`[TerminalManager] Evicting LRA terminal ${t.id} (max ${MAX_TERMINALS} reached)`)
-					TerminalRegistry.removeTerminal(t.id)
-					this.terminalIds.delete(t.id)
-					this.processes.delete(t.id)
+			const evictCandidates = selectTerminalsToEvict(
+				allTerminals.map((t) => ({
+					id: t.id,
+					lastActive: t.lastActive,
+					isHot: this.processes.get(t.id)?.isHot ?? false,
+				})),
+				MAX_TERMINALS,
+			)
+			for (const candidate of evictCandidates) {
+				const t = allTerminals.find((terminal) => terminal.id === candidate.id)
+				if (!t) {
+					continue
 				}
+				Logger.warn(`[TerminalManager] Evicting LRA terminal ${t.id} (max ${MAX_TERMINALS} reached)`)
+				TerminalRegistry.removeTerminal(t.id)
+				this.terminalIds.delete(t.id)
+				this.processes.delete(t.id)
 			}
 		}
 
