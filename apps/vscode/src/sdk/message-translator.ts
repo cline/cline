@@ -44,6 +44,7 @@ import type {
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
+import * as path from "path"
 import { MessageIdMinter } from "./message-id-minter"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
@@ -148,6 +149,7 @@ export class MessageTranslatorState {
 		minter: MessageIdMinter = new MessageIdMinter(),
 		private readonly getActiveProviderId?: () => string | undefined,
 		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
+		private readonly getCwd?: () => string | undefined,
 	) {
 		this.minter = minter
 	}
@@ -155,6 +157,15 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/**
+	 * The task's working directory, used to relativize the absolute filesystem
+	 * paths in tool inputs before they reach the webview. Undefined when the
+	 * host doesn't supply a cwd source (paths are then displayed as-is).
+	 */
+	currentCwd(): string | undefined {
+		return this.getCwd?.()
 	}
 
 	/**
@@ -505,6 +516,70 @@ export class MessageTranslatorState {
 }
 
 // ---------------------------------------------------------------------------
+// Display-path relativization
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert an absolute filesystem path to a cwd-relative display path, mirroring
+ * the classic extension's getReadablePath behavior: paths inside the cwd render
+ * relative, the cwd itself renders as its basename, and anything outside the
+ * cwd stays absolute so the user still sees exactly where the operation
+ * happened. Display-only — never feed the result back into tool execution.
+ */
+function toDisplayPath(rawPath: string | undefined, cwd: string | undefined): string | undefined {
+	if (!rawPath || !cwd || !path.isAbsolute(rawPath)) {
+		return rawPath
+	}
+	const relative = path.relative(cwd, rawPath)
+	if (relative === "") {
+		return path.basename(rawPath).replace(/\\/g, "/")
+	}
+	// Outside the cwd (or on another drive on Windows) — keep the absolute path.
+	if (relative.startsWith("..") || path.isAbsolute(relative)) {
+		return rawPath.replace(/\\/g, "/")
+	}
+	return relative.replace(/\\/g, "/")
+}
+
+/**
+ * Resolve a tool-input path to the absolute path used for click-to-open
+ * targets (the readFile card opens `content` in the editor).
+ */
+function toAbsolutePath(rawPath: string | undefined, cwd: string | undefined): string | undefined {
+	if (!rawPath) {
+		return undefined
+	}
+	if (path.isAbsolute(rawPath) || !cwd) {
+		return rawPath
+	}
+	return path.resolve(cwd, rawPath)
+}
+
+/**
+ * Rewrite the "*** Add/Update/Delete File: <path>" markers inside an
+ * apply_patch payload to cwd-relative display paths. The webview's DiffEditRow
+ * derives each file block's header (and its open-file target) from these
+ * markers, not from ClineSayTool.path, so the patch text shown to the user
+ * must be relativized too. Display-only — executors receive the raw input.
+ */
+function relativizePatchPaths(patch: string | undefined, cwd: string | undefined): string | undefined {
+	if (!patch || !cwd) {
+		return patch
+	}
+	const fileMarkers = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE]
+	return patch
+		.split("\n")
+		.map((line) => {
+			const marker = fileMarkers.find((m) => line.startsWith(m))
+			if (!marker) {
+				return line
+			}
+			return marker + (toDisplayPath(line.substring(marker.length).trim(), cwd) ?? "")
+		})
+		.join("\n")
+}
+
+// ---------------------------------------------------------------------------
 // SDK tool name → classic ClineSayTool mapping
 // ---------------------------------------------------------------------------
 
@@ -531,7 +606,7 @@ export class MessageTranslatorState {
  *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
  */
-function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+function sdkToolToClineSayTool(toolName: string, input?: unknown, cwd?: string): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
 
@@ -541,7 +616,10 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const fileRead = extractFileReads(parsedInput)[0]
 			return {
 				tool: "readFile",
-				path: fileRead?.path ?? "",
+				path: toDisplayPath(fileRead?.path, cwd) ?? "",
+				// The webview's readFile card opens `content` in the editor on click,
+				// so it must stay the absolute path (classic-extension behavior).
+				content: toAbsolutePath(fileRead?.path, cwd),
 				...readLineRangeFields(fileRead),
 			}
 		}
@@ -551,7 +629,7 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const recursive = getBooleanField(parsedInput, "recursive") ?? false
 			return {
 				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
-				path: dirPath,
+				path: toDisplayPath(dirPath, cwd) ?? "",
 			}
 		}
 
@@ -559,7 +637,7 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const dirPath = getStringField(parsedInput, "path") ?? ""
 			return {
 				tool: "listCodeDefinitionNames",
-				path: dirPath,
+				path: toDisplayPath(dirPath, cwd) ?? "",
 			}
 		}
 
@@ -585,9 +663,9 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 			return {
 				tool: isEdit ? "editedExistingFile" : "newFileCreated",
-				path: filePath,
+				path: toDisplayPath(filePath, cwd) ?? "",
 				content: diffContent,
-				diff: patch,
+				diff: relativizePatchPaths(patch, cwd),
 			}
 		}
 
@@ -596,17 +674,17 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const content = getStringField(parsedInput, "content") ?? getStringField(parsedInput, "new_text")
 			return {
 				tool: "newFileCreated",
-				path: filePath,
+				path: toDisplayPath(filePath, cwd) ?? "",
 				content,
 			}
 		}
 
 		case "apply_patch": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			const patch = getApplyPatchString(input)
+			const patch = relativizePatchPaths(getApplyPatchString(input), cwd)
 			return {
 				tool: "editedExistingFile",
-				path: filePath,
+				path: toDisplayPath(filePath, cwd) ?? "",
 				content: patch,
 				diff: patch,
 			}
@@ -616,7 +694,7 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const filePath = getStringField(parsedInput, "path") ?? ""
 			return {
 				tool: "fileDeleted",
-				path: filePath,
+				path: toDisplayPath(filePath, cwd) ?? "",
 			}
 		}
 
@@ -641,12 +719,12 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 				// Case 4: bare string query
 				regex = input
 			}
-			const path = getStringField(parsedInput, "path")
+			const searchPath = getStringField(parsedInput, "path")
 			const filePattern = getStringField(parsedInput, "file_pattern") ?? getStringField(parsedInput, "filePattern")
 			return {
 				tool: "searchFiles",
 				regex,
-				path,
+				path: toDisplayPath(searchPath, cwd),
 				filePattern,
 			}
 		}
@@ -696,14 +774,13 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		default: {
 			// MCP tools and unknown tools — pass through with the raw tool name.
-			const filePath =
-				getStringField(parsedInput, "path") ??
-				getStringField(parsedInput, "url") ??
-				getStringField(parsedInput, "command") ??
-				""
+			// Only a genuine `path` field is relativized; url/command fallbacks
+			// aren't filesystem paths.
+			const filePath = getStringField(parsedInput, "path")
+			const fallback = getStringField(parsedInput, "url") ?? getStringField(parsedInput, "command") ?? ""
 			return {
 				tool: toolName as ClineSayTool["tool"],
-				path: filePath,
+				path: filePath !== undefined ? (toDisplayPath(filePath, cwd) ?? "") : fallback,
 			}
 		}
 	}
@@ -1016,7 +1093,7 @@ function extractCommandText(input: unknown): string {
  * can render specialized rows (MCP, commands, subagents) instead of a generic
  * tool approval with missing context.
  */
-export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
+export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number, cwd?: string): ClineMessage {
 	const mcpInfo = parseMcpToolName(toolName)
 	if (mcpInfo) {
 		return {
@@ -1056,7 +1133,7 @@ export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts
 		ts,
 		type: "ask",
 		ask: "tool",
-		text: JSON.stringify(sdkToolToClineSayTool(toolName, input)),
+		text: JSON.stringify(sdkToolToClineSayTool(toolName, input, cwd)),
 		partial: false,
 	}
 }
@@ -1300,7 +1377,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// only at content_end (see below), mirroring read_files. Splitting at
 					// content_start would mint streaming ids that content_end cannot
 					// reproduce for files ≥2, orphaning those partial rows (cline#9904).
-					const sayTool = sdkToolToClineSayTool(toolName, input)
+					const sayTool = sdkToolToClineSayTool(toolName, input, state.currentCwd())
 					messages.push({
 						ts: state.getStreamingToolTs(),
 						type: "say",
@@ -1568,6 +1645,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const parsedInput = parseToolInput(storedInput)
 						const fileReads = extractFileReads(parsedInput)
 						if (fileReads.length > 1) {
+							const cwd = state.currentCwd()
 							fileReads.forEach((fileRead, index) => {
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
@@ -1575,7 +1653,8 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 									say: "tool",
 									text: JSON.stringify({
 										tool: "readFile",
-										path: fileRead.path,
+										path: toDisplayPath(fileRead.path, cwd) ?? "",
+										content: toAbsolutePath(fileRead.path, cwd),
 										...readLineRangeFields(fileRead),
 									} satisfies ClineSayTool),
 									partial: false,
@@ -1593,12 +1672,19 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const patch = getApplyPatchString(storedInput)
 						const perFileTools = patch ? splitApplyPatchByFile(patch) : []
 						if (perFileTools.length > 1) {
+							const cwd = state.currentCwd()
 							perFileTools.forEach((sayTool, index) => {
+								const displayTool: ClineSayTool = {
+									...sayTool,
+									path: toDisplayPath(sayTool.path, cwd) ?? "",
+									content: relativizePatchPaths(sayTool.content, cwd),
+									diff: relativizePatchPaths(sayTool.diff, cwd),
+								}
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
 									type: "say",
 									say: "tool",
-									text: JSON.stringify(sayTool),
+									text: JSON.stringify(displayTool),
 									partial: false,
 								})
 							})
@@ -1606,7 +1692,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						}
 					}
 
-					const sayTool = sdkToolToClineSayTool(toolName, storedInput)
+					const sayTool = sdkToolToClineSayTool(toolName, storedInput, state.currentCwd())
 					// If there's an error, include it in the tool message
 					if (event.error) {
 						messages.push({
@@ -2122,6 +2208,12 @@ export interface SdkMessagesToClineMessagesOptions {
 	 * green/plan "done" box. Defaults to true.
 	 */
 	finalTurnCompleted?: boolean
+	/**
+	 * The task's working directory (as recorded on the session record), used to
+	 * relativize the absolute filesystem paths in persisted tool inputs for
+	 * display, matching the live streaming path.
+	 */
+	cwd?: string
 }
 
 /**
@@ -2140,7 +2232,12 @@ export function sdkMessagesToClineMessages(
 	let currentMode: "plan" | "act" | "yolo" | undefined
 	// Use the process-wide minter when provided so regenerated history ids are globally unique
 	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
-	const state = new MessageTranslatorState(minter, undefined, () => currentMode)
+	const state = new MessageTranslatorState(
+		minter,
+		undefined,
+		() => currentMode,
+		() => options?.cwd,
+	)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
