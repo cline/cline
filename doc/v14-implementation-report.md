@@ -31,9 +31,9 @@
 | `src/sdk/SdkController.ts` | `migrateModeConfiguration()` 接入启动链：从 **Settings 存储**（非缓存）读取平铺旧值，一次性写入嵌套 `modeConfigurations` |
 | `src/sdk/system-prompt-prefix.ts` | **Plan/Act 共享 System Prompt 前缀提取**：`extractSharedPrefix` / `computeModeDelta` / `estimateCacheHitRate`——模式切换只替换尾部增量，前缀命中率可量化 |
 | `src/sdk/system-prompt-prefix.test.ts` | 8 个单测：共享前缀命中、增量差异、命中率估算、空输入退化 |
-| `src/utils/windows-job-object.ts` | **Windows Job Object**：进程组绑定（`CreateJobObjectW`/`AssignProcessToJobObject`/`TerminateJobObject`），win32 专有、非 Windows 优雅降级 |
-| `src/utils/windows-job-object.test.ts` | 6 个单测（mock `koffi` FFI）：绑定、终止、kill 降级、非 Windows no-op |
-| `src/core/hooks/HookProcess.ts` | Hook 子进程创建时挂接 Job Object（`attachProcessToJobIfSupported`） |
+| `src/utils/windows-job-object.ts` | **Windows Job Object 零依赖封装**：Node 22+ `windowsJob` spawn 选项（`isWindowsJobObjectSupported` / `withWindowsJob` / `spawnWithWindowsJob`），父进程退出时 OS 级终止整个 Job（含孙子进程），POSIX 优雅降级 |
+| `src/utils/windows-job-object.test.ts` | 6 个单测（mock 平台/Node 版本）：支持检测、选项注入、非 Windows no-op |
+| `src/core/hooks/HookProcess.ts` | Hook 子进程 spawn 时设置 `windowsJob: true`（`isWindowsJobObjectSupported()` 门控） |
 | `src/hosts/vscode/terminal/VscodeTerminalManager.ts` | 用户关闭终端时从 Registry/进程表移除（`onDidCloseTerminal`），避免 LRU 复活已死终端 |
 | `src/hosts/vscode/terminal/VscodeTerminalManager.test.ts` | mocha 集成测试：关闭事件触发 registry 清理 |
 | `src/core/storage/StateManager.ts` | `getAllGlobalStateAndSettings()` / `getGlobalSettingsKey()`（Settings 存储读取，供迁移与查询） |
