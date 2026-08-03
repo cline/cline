@@ -1399,6 +1399,7 @@ export class TelemetryService {
 	 * @param requestId Unique identifier for the specific API request
 	 * @param errorMessage Detailed error message from the API provider
 	 * @param errorStatus HTTP status code of the error response, if available
+	 * @param errorClass Cross-architecture failure class ("context_window_exceeded" | "unknown")
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
 	public captureProviderApiError(args: {
@@ -1418,6 +1419,12 @@ export class TelemetryService {
 		// comparable without any query-side filtering.
 		errorType?: string | undefined
 		failurePhase?: string | undefined
+		// Failure class shared verbatim with the SDK extension (which attaches
+		// the same property to this event), so one query counts a class across
+		// both rollout cohorts. Orthogonal to errorType: that taxonomy covers
+		// account/transport failures and drives retry control flow, so it is
+		// deliberately not extended with a context-window value.
+		errorClass?: "context_window_exceeded" | "unknown"
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
@@ -1429,6 +1436,12 @@ export class TelemetryService {
 			},
 		})
 
+		// Omit the key entirely when unclassified rather than passing
+		// undefined: the OTel provider stringifies undefined attribute values,
+		// which would bucket unclassified failures under a literal "undefined"
+		// instead of leaving the dimension absent.
+		const errorClassAttribute = args.errorClass ? { error_class: args.errorClass } : {}
+
 		this.recordCounter(TelemetryService.METRICS.ERRORS.TOTAL, 1, {
 			ulid: args.ulid,
 			model: args.model,
@@ -1436,6 +1449,7 @@ export class TelemetryService {
 			error_status: args.errorStatus,
 			error_type: args.errorType,
 			failure_phase: args.failurePhase,
+			...errorClassAttribute,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
@@ -1444,6 +1458,7 @@ export class TelemetryService {
 			error_status: args.errorStatus,
 			error_type: args.errorType,
 			failure_phase: args.failurePhase,
+			...errorClassAttribute,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)

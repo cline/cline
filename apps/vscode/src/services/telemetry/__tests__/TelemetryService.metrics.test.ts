@@ -376,6 +376,51 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.failure_phase, "streaming")
 	})
 
+	it("captureProviderApiError carries errorClass on the event and metric attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureProviderApiError({
+			ulid: "task-overflow",
+			model: "claude",
+			errorMessage: "prompt is too long: 213462 tokens > 200000 maximum",
+			provider: "anthropic",
+			errorType: undefined,
+			failurePhase: "streaming",
+			errorClass: "context_window_exceeded",
+		})
+
+		// errorClass uses the same property name and values as the SDK
+		// extension, so one query counts a class across both cohorts.
+		const failureEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.ok(failureEvent, "expected task.provider_api_error event")
+		assert.strictEqual(failureEvent?.properties?.errorClass, "context_window_exceeded")
+		assert.strictEqual(provider.counters[0].attributes.error_class, "context_window_exceeded")
+		assert.strictEqual(provider.histograms[0].attributes.error_class, "context_window_exceeded")
+	})
+
+	it("captureProviderApiError omits errorClass when the caller did not classify", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureProviderApiError({
+			ulid: "task-unclassified",
+			model: "claude",
+			errorMessage: "boom",
+			provider: "anthropic",
+			failurePhase: "streaming",
+		})
+
+		// The key must be absent, not present-and-undefined: the OTel provider
+		// stringifies undefined values, which would create a literal
+		// "undefined" bucket instead of an absent dimension.
+		const failureEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.ok(failureEvent, "expected task.provider_api_error event")
+		assert.strictEqual("errorClass" in (failureEvent?.properties ?? {}), false)
+		assert.strictEqual("error_class" in provider.counters[0].attributes, false)
+		assert.strictEqual("error_class" in provider.histograms[0].attributes, false)
+	})
+
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

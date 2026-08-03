@@ -2514,16 +2514,18 @@ export class Task {
 				// surface to the user are reported — attempts an auto-retry
 				// absorbs emit nothing, matching the SDK extension, whose
 				// provider layer retries transients silently before any event
-				// exists. Context-window overruns are also excluded — they are
-				// recovered by truncation, not a provider failure.
+				// exists. Truncation-recovered context-window overruns are
+				// likewise unreported: they take the branch above and never
+				// reach here, so reaching this point with an overflow means the
+				// overrun survived a truncation and is surfacing to the user.
+				// It is reported and tagged (see errorClass) rather than
+				// dropped, so it stays countable without inflating the
+				// cohort error rate — dashboards comparing cohorts exclude
+				// error_class = 'context_window_exceeded'.
 				// (`abort` gate: a user cancel unwinds through this catch as a
 				// generic "Cline instance aborted" error — never a provider
 				// failure, and the SDK extension doesn't report cancels either.)
-				if (
-					!isContextWindowExceededError &&
-					!shouldRetry &&
-					!this.taskState.abort
-				) {
+				if (!shouldRetry && !this.taskState.abort) {
 					telemetryService.captureProviderApiError({
 						ulid: this.ulid,
 						model: model.id,
@@ -2533,6 +2535,12 @@ export class Task {
 						requestId: clineError._error?.request_id,
 						errorType: ClineError.getErrorType(clineError),
 						failurePhase: "streaming",
+						// A failure awaiting the provider's first chunk is
+						// definitionally a provider failure, so it is always
+						// classified.
+						errorClass: isContextWindowExceededError
+							? "context_window_exceeded"
+							: "unknown",
 					});
 				}
 
@@ -3673,6 +3681,13 @@ export class Task {
 							requestId: clineError._error?.request_id,
 							errorType: ClineError.getErrorType(clineError),
 							failurePhase: "streaming",
+							// This catch also wraps post-stream processing, so a
+							// failure here is not necessarily a provider error;
+							// only a positive detector match is a confident
+							// classification.
+							...(checkContextWindowExceededError(error)
+								? { errorClass: "context_window_exceeded" as const }
+								: {}),
 						});
 					}
 
