@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -471,6 +472,92 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
 
+	// V16 §3 — Plan/Act rebuilds run under a real mutex (SdkSessionRebuildScheduler).
+	// Rapid consecutive mode switches (double-click, keyboard mashing) must
+	// serialize: the second rebuild starts only after the first fully completes,
+	// so the session is never replaced mid-rebuild ("state tearing").
+	it("serializes concurrent rebuilds so rapid mode switches cannot tear state", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+		})
+
+		// Use the REAL rebuild scheduler (a true promise-chain mutex) instead of
+		// the pass-through mock so concurrency is exercised end to end.
+		const scheduler = makeRebuildScheduler(activeSession)
+		;(options as { rebuilds: unknown }).rebuilds = scheduler
+
+		// Track overlapping executions of the initial-message load: if the mutex
+		// failed, both rebuilds would be inside loadInitialMessages at once.
+		let concurrent = 0
+		let maxConcurrent = 0
+		options.loadInitialMessages.mockImplementation(async () => {
+			concurrent++
+			maxConcurrent = Math.max(maxConcurrent, concurrent)
+			await new Promise((resolve) => setTimeout(resolve, 15))
+			concurrent--
+			return [{ role: "user", content: "hello" }]
+		})
+
+		const [r1, r2] = await Promise.all([coordinator.rebuildSessionForMode("act"), coordinator.rebuildSessionForMode("plan")])
+
+		// Both rebuilds completed (plain rebuilds return false — no auto-continue)
+		// and the mutex never let them run concurrently.
+		expect(r1).toBe(false)
+		expect(r2).toBe(false)
+		expect(maxConcurrent).toBe(1)
+		// Last-writer-wins on the mode setting: the second rebuild's mode wins.
+		expect(state.mode).toBe("plan")
+		// Both rebuilds replaced the session in order.
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(2)
+	})
+
+	// V16 §3 — atomic rollback: when a rebuild fails, the mode setting must roll
+	// back to the mode of the session that is still actually active — never the
+	// failed target — so the toggle never disagrees with the live session's tools.
+	it("rolls back to the active session's mode when a later concurrent rebuild fails", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+		})
+		const scheduler = makeRebuildScheduler(activeSession)
+		;(options as { rebuilds: unknown }).rebuilds = scheduler
+
+		// First rebuild to act succeeds; the second (to plan) fails during the
+		// initial-message load. The failure is armed per-invocation so it can
+		// never be consumed by the first (serialized) rebuild.
+		let callCount = 0
+		options.loadInitialMessages.mockImplementation(async () => {
+			callCount++
+			if (callCount === 2) {
+				throw new Error("disk read failed")
+			}
+			return [{ role: "user", content: "hello" }]
+		})
+
+		const [r1, r2] = await Promise.all([coordinator.rebuildSessionForMode("act"), coordinator.rebuildSessionForMode("plan")])
+
+		expect(r1).toBe(false)
+		// The failing rebuild reports failure…
+		expect(r2).toBe(false)
+		// …and restores the mode of the session that is actually live (the act
+		// session from rebuild 1), never the failed "plan" target. The toggle
+		// stays coherent with the running session's tools.
+		expect(state.mode).toBe("act")
+		// Only the first rebuild actually replaced the session.
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(1)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error" })],
+			expect.anything(),
+		)
+	})
+
 	describe("mode switch notices", () => {
 		it("records a notice for a manual toggle and consumes it exactly once", async () => {
 			const activeSession = makeActiveSession()
@@ -698,4 +785,16 @@ function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
 		taskId: string
 		messageStateHandler: { getClineMessages: () => ClineMessage[] }
 	}
+}
+
+/**
+ * Builds the real rebuild scheduler over a partial ActiveSession mock. The
+ * scheduler's drain logic only reads `isRunning`, so a lightweight mock is
+ * sufficient; the cast bridges the partial mock to the full SdkSessionHost
+ * type without forcing every coordinator test to fabricate a complete host.
+ */
+function makeRebuildScheduler(activeSession: ReturnType<typeof makeActiveSession>): SdkSessionRebuildScheduler {
+	return new SdkSessionRebuildScheduler({
+		sessions: { getActiveSession: () => activeSession },
+	} as unknown as ConstructorParameters<typeof SdkSessionRebuildScheduler>[0])
 }
