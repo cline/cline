@@ -14,7 +14,11 @@ import {
 	resolveComputerUseTargetFromEnv,
 	toProviderConfig,
 } from "@cline/core";
-import type { AgentTool } from "@cline/shared";
+import type {
+	AgentTool,
+	ModelInfo,
+	ModelReasoningOption,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createCliCore } from "../../session/session";
 import type { Config } from "../../utils/types";
@@ -43,11 +47,43 @@ const HELPER_REASONING = {
 	reasoningEffort: "medium" as const,
 };
 
+/**
+ * Reasoning controls declared for the helper's model, in the models.dev
+ * shape the Anthropic provider routing reads. The bundled model catalog
+ * ships without `reasoningOptions`, which the routing treats as an
+ * unlisted model with manual-only thinking and encodes as
+ * `thinking.type.enabled`; current Claude models reject that shape and
+ * require `thinking.type.adaptive` with an effort level. Declaring the
+ * controls here keeps the helper on the adaptive wire shape regardless of
+ * catalog state.
+ */
+const HELPER_MODEL_REASONING_OPTIONS: ModelReasoningOption[] = [
+	{ type: "effort", values: ["low", "medium", "high", "xhigh", "max"] },
+];
+
 function toDirectAnthropicModelId(modelId: string): string {
 	const directProviderPrefix = `${HELPER_PROVIDER_ID}/`;
 	return modelId.startsWith(directProviderPrefix)
 		? modelId.slice(directProviderPrefix.length)
 		: modelId;
+}
+
+/**
+ * Returns the provider config's model catalog with the helper's reasoning
+ * controls declared for the helper model, preserving every other entry.
+ */
+export function withHelperReasoningControls(
+	knownModels: Record<string, ModelInfo> | undefined,
+	modelId: string,
+): Record<string, ModelInfo> {
+	return {
+		...knownModels,
+		[modelId]: {
+			...knownModels?.[modelId],
+			id: modelId,
+			reasoningOptions: HELPER_MODEL_REASONING_OPTIONS,
+		},
+	};
 }
 
 /**
@@ -140,23 +176,31 @@ export async function createInteractiveComputerUser(input: {
 	// Helper model and reasoning settings become effective together when this
 	// session is created. Keep the provider config and session config derived
 	// from this snapshot so saved manual thinking budgets cannot conflict with
-	// adaptive thinking on current Claude models.
+	// adaptive thinking on current Claude models. The model's reasoning
+	// controls are declared explicitly: the bundled catalog ships without
+	// them, and without them the Anthropic routing falls back to the manual
+	// thinking shape those models reject.
+	const baseProviderConfig = toProviderConfig({
+		...helperSettings,
+		provider: HELPER_PROVIDER_ID,
+		model: helperModelId,
+		client: undefined,
+		protocol: undefined,
+		routingProviderId: undefined,
+		reasoning: {
+			enabled: HELPER_REASONING.thinking,
+			effort: HELPER_REASONING.reasoningEffort,
+		},
+	});
 	const helperProviderConfig = {
-		...toProviderConfig({
-			...helperSettings,
-			provider: HELPER_PROVIDER_ID,
-			model: helperModelId,
-			client: undefined,
-			protocol: undefined,
-			routingProviderId: undefined,
-			reasoning: {
-				enabled: HELPER_REASONING.thinking,
-				effort: HELPER_REASONING.reasoningEffort,
-			},
-		}),
+		...baseProviderConfig,
 		clientType: undefined,
 		routingProviderId: undefined,
 		thinkingBudgetTokens: undefined,
+		knownModels: withHelperReasoningControls(
+			baseProviderConfig.knownModels,
+			helperModelId,
+		),
 	};
 
 	// The helper config and the coordinator reference each other (the
