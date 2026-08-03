@@ -730,8 +730,10 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
  *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
+ * - `overflow_recovery` — forced by the runtime after a provider rejected
+ *   the request as exceeding the model's context window.
  */
-export type TelemetryCompactionMode = "auto" | "manual";
+export type TelemetryCompactionMode = "auto" | "manual" | "overflow_recovery";
 
 export interface CaptureCompactionExecutedProperties {
 	ulid: string;
