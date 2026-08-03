@@ -10,6 +10,7 @@ import type { Config } from "../../utils/types";
 import {
 	createInteractiveComputerUser,
 	resolveHelperModelId,
+	withHelperReasoningControls,
 } from "./computer-user";
 
 const createCliCoreMock = vi.hoisted(() => vi.fn());
@@ -252,6 +253,16 @@ describe("createInteractiveComputerUser", () => {
 					clientType: undefined,
 					routingProviderId: undefined,
 					thinkingBudgetTokens: undefined,
+					knownModels: expect.objectContaining({
+						"claude-sonnet-5": expect.objectContaining({
+							reasoningOptions: [
+								{
+									type: "effort",
+									values: ["low", "medium", "high", "xhigh", "max"],
+								},
+							],
+						}),
+					}),
 				}),
 			}),
 		});
@@ -324,6 +335,43 @@ describe("createInteractiveComputerUser", () => {
 		});
 		expect(releaseAbortRejectionShieldMock).toHaveBeenCalledTimes(1);
 		await result?.dispose();
+	});
+});
+
+describe("withHelperReasoningControls", () => {
+	it("declares adaptive effort controls for the helper model", () => {
+		const result = withHelperReasoningControls(undefined, "claude-sonnet-5");
+		expect(result["claude-sonnet-5"]).toEqual({
+			id: "claude-sonnet-5",
+			reasoningOptions: [
+				{
+					type: "effort",
+					values: ["low", "medium", "high", "xhigh", "max"],
+				},
+			],
+		});
+	});
+
+	it("preserves other catalog entries and the helper model's own facts", () => {
+		const result = withHelperReasoningControls(
+			{
+				"claude-sonnet-5": {
+					id: "claude-sonnet-5",
+					name: "Claude Sonnet 5",
+					contextWindow: 1000000,
+				},
+				"claude-opus-4-7": { id: "claude-opus-4-7", name: "Claude Opus 4.7" },
+			},
+			"claude-sonnet-5",
+		);
+		expect(result["claude-sonnet-5"]).toMatchObject({
+			name: "Claude Sonnet 5",
+			contextWindow: 1000000,
+		});
+		expect(result["claude-opus-4-7"]).toEqual({
+			id: "claude-opus-4-7",
+			name: "Claude Opus 4.7",
+		});
 	});
 });
 
