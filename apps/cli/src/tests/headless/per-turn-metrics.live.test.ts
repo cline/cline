@@ -15,7 +15,7 @@
 // 1500/40/30/900, and the assertions will catch it.
 // ---------------------------------------------------------------------------
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "@microsoft/tui-test";
@@ -25,28 +25,11 @@ import {
 	TERMINAL_WIDE,
 } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
+import {
+	findMessagesArtifacts,
+	readMessagesArtifact,
+} from "../helpers/messages-artifact.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
-
-function findMessagesArtifacts(root: string): string[] {
-	if (!existsSync(root)) return [];
-	const out: string[] = [];
-	const stack = [root];
-	while (stack.length > 0) {
-		const next = stack.pop();
-		if (!next) continue;
-		for (const entry of readdirSync(next, { withFileTypes: true })) {
-			const fullPath = join(next, entry.name);
-			if (entry.isDirectory()) {
-				stack.push(fullPath);
-				continue;
-			}
-			if (entry.isFile() && entry.name.endsWith(".messages.json")) {
-				out.push(fullPath);
-			}
-		}
-	}
-	return out.sort();
-}
 
 test.describe("per-turn metrics in messages.json — multi-iteration @live", () => {
 	const sessionDataDir = mkdtempSync(join(tmpdir(), "cline-per-turn-metrics-"));
@@ -73,9 +56,7 @@ test.describe("per-turn metrics in messages.json — multi-iteration @live", () 
 			throw new Error(`No messages artifacts found in ${sessionDataDir}`);
 		}
 
-		const parsed = JSON.parse(
-			readFileSync(files[files.length - 1] as string, "utf8"),
-		) as { messages?: Array<Record<string, unknown>> };
+		const parsed = readMessagesArtifact(files[files.length - 1] as string);
 
 		const assistants = (parsed.messages ?? []).filter(
 			(m) => m?.role === "assistant",

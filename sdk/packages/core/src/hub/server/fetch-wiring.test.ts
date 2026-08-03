@@ -33,6 +33,7 @@ describe("hub server fetch wiring", () => {
 				abortSession: vi.fn(),
 				stopSession: vi.fn(),
 			},
+			scheduleOptions: { dbPath: ":memory:" },
 			fetch: customFetch,
 		});
 
@@ -63,6 +64,7 @@ describe("hub server fetch wiring", () => {
 				abortSession: vi.fn(),
 				stopSession: vi.fn(),
 			},
+			scheduleOptions: { dbPath: ":memory:" },
 			fetch: (async () => new Response()) as unknown as typeof fetch,
 		});
 

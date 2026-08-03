@@ -1,0 +1,101 @@
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> claude-dev@4.0.0 vscode:prepublish
+> bun run package
+
+$ bun run check-types && bun run build:webview && bun run lint && bun esbuild.mjs --production
+$ bun run protos && bunx tsc --noEmit && bun run check-types:compat && cd webview-ui && bunx tsc --noEmit
+$ node scripts/build-proto.mjs
+Compiling Protocol Buffers...
+Processing 23 proto files from C:\Users\14977\source\repos\cline\apps\vscode\proto
+Generated ProtoBus files at:
+- C:\Users\14977\source\repos\cline\apps\vscode\webview-ui\src\services\grpc-client.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\protobus-service-types.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\protobus-services.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\standalone\protobus-server-setup.ts
+Generated Host Bridge client files at:
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\host-bridge-client-types.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\standalone\host-bridge-clients.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\hostbridge-grpc-service-config.ts
+$ biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched
+Formatted 307 files in 151ms. Fixed 1 file.
+$ bunx tsc --project tsconfig.vscode-compat.json --noEmit
+$ bun run protos && cd webview-ui && bun run build
+$ node scripts/build-proto.mjs
+Compiling Protocol Buffers...
+Processing 23 proto files from C:\Users\14977\source\repos\cline\apps\vscode\proto
+Generated ProtoBus files at:
+- C:\Users\14977\source\repos\cline\apps\vscode\webview-ui\src\services\grpc-client.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\protobus-service-types.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\protobus-services.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\standalone\protobus-server-setup.ts
+Generated Host Bridge client files at:
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\host-bridge-client-types.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\standalone\host-bridge-clients.ts
+- C:\Users\14977\source\repos\cline\apps\vscode\src\generated\hosts\vscode\hostbridge-grpc-service-config.ts
+$ biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched
+Formatted 307 files in 155ms. Fixed 1 file.
+$ tsc -b && vite build
+Building webview for vscode
+[36mvite v7.3.6 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m鉁?[39m 6746 modules transformed.
+Circular chunk: vendor-motion -> vendor -> vendor-motion. Please adjust the manual chunk logic for these chunks.
+rendering chunks...
+[2mbuild/[22m[32mindex.html                                     [39m[1m[2m    0.66 kB[22m[1m[22m
+[2mbuild/[22m[32massets/azeret-mono-latin-ext-400-normal.woff2  [39m[1m[2m    6.83 kB[22m[1m[22m
+[2mbuild/[22m[32massets/azeret-mono-latin-ext-400-normal.woff   [39m[1m[2m    9.46 kB[22m[1m[22m
+[2mbuild/[22m[32massets/azeret-mono-latin-400-normal.woff2      [39m[1m[2m   10.72 kB[22m[1m[22m
+[2mbuild/[22m[32massets/azeret-mono-latin-400-normal.woff       [39m[1m[2m   14.23 kB[22m[1m[22m
+[2mbuild/[22m[32massets/codicon.ttf                             [39m[1m[2m   80.19 kB[22m[1m[22m
+[2mbuild/[22m[35massets/index.css                               [39m[1m[2m  129.34 kB[22m[1m[22m
+[2mbuild/[22m[36massets/vendor-motion-fY_h9fxR.js               [39m[1m[2m    0.60 kB[22m[1m[22m
+[2mbuild/[22m[36massets/SearchResultsDisplay-CLHzWHjP.js        [39m[1m[2m    2.97 kB[22m[1m[22m
+[2mbuild/[22m[36massets/MermaidBlock-sF7UvZCn.js                [39m[1m[2m    4.32 kB[22m[1m[22m
+[2mbuild/[22m[36massets/McpResponseDisplay-D0RforY8.js          [39m[1m[2m   19.49 kB[22m[1m[22m
+[2mbuild/[22m[36massets/vendor-lucide-CGXl1Is3.js               [39m[1m[2m  763.37 kB[22m[1m[22m
+[2mbuild/[22m[36massets/index.js                                [39m[1m[2m1,655.39 kB[22m[1m[22m
+[2mbuild/[22m[36massets/vendor-mermaid-dmM525v0.js              [39m[1m[2m1,740.19 kB[22m[1m[22m
+[2mbuild/[22m[36massets/vendor-CM1ligMa.js                      [39m[1m[2m3,052.59 kB[22m[1m[22m
+[32m鉁?built in 31.39s[39m
+$ biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && bun run lint:proto
+Checked 1203 files in 1993ms. No fixes applied.
+$ bash ./scripts/proto-lint.sh
+./scripts/proto-lint.sh: line 4: buf: command not found
+./scripts/proto-lint.sh: line 6: buf: command not found
+Proto files were formatted
+[watch] build started
+[watch] build finished
+ INFO  Files included in the VSIX:
+cline-v18-jsonl.vsix
+鈹溾攢 [Content_Types].xml 
+鈹溾攢 extension.vsixmanifest 
+鈹斺攢 extension/
+   鈹溾攢 LICENSE.txt [11.08 KB]
+   鈹溾攢 package.json [20.24 KB]
+   鈹溾攢 readme.md 
+   鈹溾攢 skills-lock.json [0.24 KB]
+   鈹溾攢 vsix-build-v17.log [6.06 KB]
+   鈹溾攢 vsix-build-v18.log [4.94 KB]
+   鈹溾攢 assets/
+   鈹? 鈹斺攢 icons/ (13 files) [20.74 KB]
+   鈹溾攢 dist/
+   鈹? 鈹斺攢 extension.js [22.16 MB]
+   鈹溾攢 walkthrough/
+   鈹? 鈹溾攢 step1.md [0.44 KB]
+   鈹? 鈹溾攢 step2.md [0.58 KB]
+   鈹? 鈹溾攢 step3.md [0.52 KB]
+   鈹? 鈹溾攢 step4.md [0.5 KB]
+   鈹? 鈹斺攢 step5.md [0.55 KB]
+   鈹斺攢 webview-ui/
+      鈹溾攢 components.json [0.42 KB]
+      鈹溾攢 tailwind.config.mjs [3.31 KB]
+      鈹溾攢 tsconfig.app.json [1.47 KB]
+      鈹溾攢 tsconfig.json [0.19 KB]
+      鈹溾攢 tsconfig.node.json [0.55 KB]
+      鈹溾攢 .storybook/ (1 file) [7.55 KB]
+      鈹斺攢 build/ (15 files) [7.14 MB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: dist/cline-v18-jsonl.vsix (48 files, 7.94 MB)
