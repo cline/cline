@@ -24,7 +24,8 @@ Auto Approve is evaluated per tool call. When Cline is about to read a file, edi
 
 A few details matter:
 
-- **Terminal commands**: "Execute commands" is all or nothing. It covers every command Cline runs, and it is off by default.
+- **Which build you have**: Cline currently ships the new SDK-based extension and the previous one together in a single install, and a loader picks one per window. Their auto-approve menus differ. The quickest tell is the command toggle: "Execute safe commands" means the previous build, "Execute commands" means the new one. To choose explicitly, set `cline.rollout.bundleOverride` to `next` or `legacy` in VS Code settings and reload the window; `auto` follows the rollout.
+- **Terminal commands**: the two builds decide command approval differently. See [Terminal commands](#terminal-commands) below.
 - **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds.
 
 ## Permissions
@@ -38,8 +39,18 @@ A few details matter:
 | Use MCP servers | MCP tools and resources |
 | Enable notifications | Notifies you about long-running commands |
 
+On the previous build these are named "Read project files", "Edit project files", "Execute safe commands" and "Use the browser", and three of them have a second checkbox that widens them: "Read all files" and "Edit all files" extend access outside your workspace, and "Execute all commands" is described below. A sub-toggle does nothing unless its base toggle is on.
+
+## Terminal commands
+
+How a command gets approved depends on which build you are running.
+
+**Previous build.** Cline asks the model to mark each command with a `requires_approval` flag. "Execute safe commands" auto-approves the commands the model marked safe, and "Execute all commands" additionally auto-approves the rest. There is no fixed allowlist, so this is the model's judgement rather than a guarantee: a command such as `git commit --amend` can be marked safe and run without prompting. "Execute safe commands" is on by default.
+
+**New build.** There is no safe-versus-unsafe distinction. "Execute commands" approves every command Cline runs, and it is off by default.
+
 <Warning>
-"Execute commands" approves every command Cline runs, including destructive ones such as `rm -rf`, `git reset --hard`, or `git commit --amend`. Cline does not classify commands as safe or unsafe.
+On either build, an enabled command toggle can run destructive commands such as `rm -rf`, `git reset --hard` or `git commit --amend` without asking you first.
 </Warning>
 
 ## Recommendations
