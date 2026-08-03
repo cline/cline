@@ -1,3 +1,23 @@
+.cline-ui-agent-approval-card,
+.cline-ui-agent-approval-card__detail,
+.cline-ui-agent-approval-card__button {
+	box-sizing: border-box;
+	border-style: solid;
+}
+
+.cline-ui-agent-approval-card__detail {
+	margin: 0.5rem 0 0;
+}
+
+.cline-ui-agent-approval-card__button {
+	font-family: inherit;
+	font-size: inherit;
+	font-style: inherit;
+	font-variant: inherit;
+	letter-spacing: inherit;
+	line-height: inherit;
+}
+
 .cline-ui-agent-approval-card__spinner {
 	animation: cline-ui-agent-approval-card-spin 1s linear infinite;
 }

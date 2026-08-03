@@ -71,46 +71,92 @@ function createConsumer(root: string): void {
 	);
 }
 
-async function verifyTailwindContract(root: string): Promise<void> {
-	const input = join(root, "tailwind.css");
-	const output = join(root, "tailwind-output.css");
-	writeFileSync(
-		input,
+async function compileTailwind(
+	root: string,
+	name: string,
+	inputLines: string[],
+	runner: string[],
+): Promise<string> {
+	const input = join(root, `${name}.css`);
+	const output = join(root, `${name}-output.css`);
+	writeFileSync(input, [...inputLines, ""].join("\n"));
+	await run([...runner, "-i", input, "-o", output, "--minify"], root);
+	return readFileSync(output, "utf8");
+}
+
+function expectCandidate(css: string, candidate: string): void {
+	const selector = `.${candidate.replaceAll(":", "\\:").replaceAll("/", "\\/")}`;
+	if (!css.includes(selector)) {
+		throw new Error(`packed Tailwind source did not emit ${candidate}`);
+	}
+}
+
+function expectFragment(css: string, fragment: string, contract: string): void {
+	if (!css.includes(fragment)) {
+		throw new Error(`${contract} did not emit ${fragment}`);
+	}
+}
+
+async function verifyTailwindContract(
+	root: string,
+	runner: string[],
+): Promise<void> {
+	const css = await compileTailwind(
+		root,
+		"tailwind",
 		[
 			'@import "tailwindcss";',
 			'@import "@cline/ui/theme/scoped-tokens.css";',
-			'@import "@cline/ui/theme/theme.css";',
 			'@import "@cline/ui/components.css";',
-			"",
-		].join("\n"),
-	);
-	await run(
-		[
-			process.execPath,
-			"x",
-			"tailwindcss",
-			"-i",
-			input,
-			"-o",
-			output,
-			"--minify",
+			"@theme inline {",
+			"\t--color-background: var(--host-background);",
+			"\t--radius-lg: var(--host-radius-lg);",
+			"\t--text-sm--letter-spacing: var(--host-letter-spacing);",
+			"}",
+			'@source inline("bg-background rounded-lg text-sm");',
 		],
-		root,
+		runner,
 	);
-	const css = readFileSync(output, "utf8");
 	for (const candidate of [
-		"bg-background/95",
-		"border-border/60",
-		"text-muted-foreground",
-		"bg-primary/10",
+		"bg-cline-ui-background/95",
+		"border-cline-ui-border/60",
+		"text-cline-ui-muted-foreground",
+		"bg-cline-ui-primary/10",
 		"max-h-56",
 		"leading-none",
 		"max-h-44",
+		"not-last:border-b",
+		"focus-visible:outline-3",
 	]) {
-		const selector = `.${candidate.replace("/", "\\/")}`;
-		if (!css.includes(selector)) {
-			throw new Error(`packed Tailwind source did not emit ${candidate}`);
-		}
+		expectCandidate(css, candidate);
+	}
+	for (const fragment of [
+		"background-color:var(--host-background)",
+		"border-radius:var(--host-radius-lg)",
+		"letter-spacing:var(--host-letter-spacing)",
+	]) {
+		expectFragment(css, fragment, "host Tailwind namespace");
+	}
+
+	const noPreflightCss = await compileTailwind(
+		root,
+		"tailwind-no-preflight",
+		[
+			"@layer theme, base, components, utilities;",
+			'@import "tailwindcss/theme.css" layer(theme);',
+			'@import "@cline/ui/theme/scoped-tokens.css";',
+			'@import "@cline/ui/components.css";',
+			'@import "tailwindcss/utilities.css" layer(utilities);',
+		],
+		runner,
+	);
+	for (const fragment of [
+		"box-sizing:border-box",
+		"border-style:solid",
+		"font-family:inherit",
+		"margin:.5rem 0 0",
+	]) {
+		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
 }
 
@@ -154,7 +200,11 @@ try {
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
-	await verifyTailwindContract(bunConsumer);
+	await verifyTailwindContract(bunConsumer, [
+		process.execPath,
+		"x",
+		"tailwindcss",
+	]);
 
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);
@@ -167,12 +217,19 @@ try {
 			"--no-fund",
 			archive,
 			"react@18.3.1",
+			"tailwindcss@4.2.0",
+			"@tailwindcss/cli@4.2.0",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	await verifyTailwindContract(npmConsumer, [
+		"npx",
+		"--no-install",
+		"tailwindcss",
+	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18`,
+		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18, including Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });
