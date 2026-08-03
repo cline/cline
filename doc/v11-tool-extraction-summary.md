@@ -56,7 +56,7 @@ V11 阶段目标：将 `ChatRow.tsx` 中的 Tool 渲染逻辑提取为独立的 
 
 ~~当前 ChatRowContent 组件仍然存在若干性能问题，需在 V12 中解决（详见 v12 方案）。~~
 
-**已于 V12 阶段全部解决**，详见 `doc/v12-optimization-plan.md` 的「实施状态」与
+**已于 V12 阶段全部解决**，详见 `doc/v12-optimization-report.md` 与
 `doc/v13-final-report.md`：
 
 - 方案1（子组件 memo 统一）：UserMessage 补全 memo（含自定义比较器）

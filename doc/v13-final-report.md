@@ -2,7 +2,8 @@
 
 > 本文档是 V11/V12 性能优化工作的最终实施跟踪报告，兑现 `b092a581d` 提交信息中
 > 「v5 implementation tracking — final report」的承诺（v1–v4 分析已合并进
-> `v11-tool-extraction-summary.md` 与 `v12-optimization-plan.md`）。
+> `doc/v11-tool-extraction-summary.md`、`doc/v12-optimization-report.md`，方案设计
+> 见 `doc/v12-optimization-plan.md`）。
 
 ## 一、问题回顾
 
@@ -57,7 +58,7 @@
 | 套件 | 结果 | 说明 |
 |------|------|------|
 | webview vitest | **48 文件 / 366 测试全部通过** | 含新增 `UserMessage.memo.test.tsx`(4)、`ChatAskRow.test.tsx`(4)、`messageFrameScheduler.test.ts`(4) |
-| 扩展端 bun 单测 | **66 文件 / 1011 测试通过** | 修复 `refactoring-flags.test.ts` 后全绿 |
+| 扩展端 bun 单测 | **66 文件 / 1009 测试通过** | 修复 `refactoring-flags.test.ts` 后全绿 |
 | webview 严格类型检查 | `tsc -b` 通过 | 修复了 P0–P3 遗留的 6 处类型错误 |
 | webview 生产构建 | `bun run build`（tsc -b && vite build）通过 | 6745 模块，单 index.js 7.26MB（inlineDynamicImports） |
 
