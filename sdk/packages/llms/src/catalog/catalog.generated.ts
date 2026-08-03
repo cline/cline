@@ -14872,9 +14872,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -32305,9 +32305,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -38159,9 +38159,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -41941,9 +41941,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -42090,9 +42090,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -54641,9 +54641,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -56815,9 +56815,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
