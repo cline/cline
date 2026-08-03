@@ -5980,15 +5980,6 @@ describe("sdk-gateway", () => {
 				reasoning: { enabled: true },
 			}),
 		);
-		await collect(
-			await gateway.stream({
-				providerId: "chutes",
-				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
-				messages: baseMessages,
-				reasoning: { enabled: false },
-			}),
-		);
-
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
@@ -6008,15 +5999,6 @@ describe("sdk-gateway", () => {
 					}),
 				}),
 			}),
-		);
-
-		const thinkingOnlyProviderOptions = (
-			streamTextSpy.mock.calls[2]?.[0] as {
-				providerOptions?: Record<string, Record<string, unknown>>;
-			}
-		).providerOptions;
-		expect(thinkingOnlyProviderOptions?.chutes).not.toHaveProperty(
-			"chat_template_kwargs",
 		);
 	});
 

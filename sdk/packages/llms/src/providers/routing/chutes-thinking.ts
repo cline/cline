@@ -30,21 +30,11 @@ export function usesChutesChatTemplateReasoning(
 }
 
 /**
- * Chutes Qwen-family models whose thinking mode cannot be disabled at the
- * wire level. Membership is explicit and auditable: new thinking-only models
- * must be added deliberately, not inferred from display names.
+ * Mandatory-thinking models never reach this builder with a toggle intent:
+ * `normalizeReasoningRequest` drops `reasoning` when the model advertises no
+ * off control, so `enabled` is already undefined here. The distinction stays an
+ * authoritative catalog fact instead of a list maintained in routing code.
  */
-const CHUTES_THINKING_ONLY_QWEN_IDS: ReadonlySet<string> = new Set([
-	"qwen/qwen3-235b-a22b-thinking-2507-tee",
-]);
-
-function isThinkingOnlyQwen(
-	request: Pick<GatewayStreamRequest, "modelId">,
-): boolean {
-	const modelId = normalizeRoutingValue(request.modelId);
-	return modelId ? CHUTES_THINKING_ONLY_QWEN_IDS.has(modelId) : false;
-}
-
 export function buildChutesThinkingProviderOptionsPatch(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -61,10 +51,7 @@ export function buildChutesThinkingProviderOptionsPatch(
 		chatTemplateKwargs = enabled
 			? { thinking: true, preserve_thinking: true }
 			: { thinking: false };
-	} else if (
-		isQwenModel({ modelId: request.modelId, family }) &&
-		!isThinkingOnlyQwen(request)
-	) {
+	} else if (isQwenModel({ modelId: request.modelId, family })) {
 		chatTemplateKwargs = { enable_thinking: enabled };
 	}
 
