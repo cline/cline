@@ -48,7 +48,6 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	)
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
-		canWrite: config !== undefined,
 		providerName: "LiteLLM",
 		write,
 	})
@@ -64,11 +63,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 		await refresh()
 	}
 
+	// Writes are safe before the initial config read resolves: write() does not
+	// depend on loaded config, and useProviderConfig drops the stale read
+	// response. Gating on `config` here would silently discard text typed right
+	// after the settings view mounts.
 	const handleBaseUrlChange = (value: string) => {
-		if (!config) {
-			return
-		}
-
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update LiteLLM base URL:", err))
 	}
 

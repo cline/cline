@@ -18,6 +18,7 @@ import { wrapLanguageModel } from "ai";
 import { createOllama } from "ai-sdk-ollama";
 import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import { ensureFetch, resolveApiKey } from "../http";
+import { createRetryEmptyResponseMiddleware } from "../middleware/retry-empty-response";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -58,13 +59,25 @@ export function readOllamaNumCtx(context: GatewayProviderContext): number {
 
 /**
  * Time to wait for the response to start when no timeout is configured.
- * Matches the pre-SDK-migration Ollama handler default.
+ *
+ * Deliberately generous: Ollama holds `/api/chat` open while it cold-loads
+ * the model and only sends response headers once loading finishes, so with a
+ * large model (or a large `num_ctx`, which this vendor requests) the first
+ * request of a session routinely takes minutes before the stream starts.
+ * A tight budget here turns every cold load into a user-facing timeout error
+ * (see cline/cline#12829 — the legacy handler's 30s default was only
+ * tolerable because its retry decorator silently re-issued the request until
+ * the model was loaded). Unreachable servers are not this timeout's job:
+ * connection-level failures (refused, DNS) reject on their own immediately,
+ * and users can always cancel a request from the UI. This only bounds the
+ * accepted-but-silent case, and 5 minutes matches the header-timeout default
+ * other AI SDK-based agents use.
  */
-export const OLLAMA_DEFAULT_TIMEOUT_MS = 30_000;
+export const OLLAMA_DEFAULT_TIMEOUT_MS = 300_000;
 
 /**
- * Read the configured request timeout, mirroring the legacy handler's
- * `requestTimeoutMs || 30000` (zero/invalid values fall back to the default).
+ * Read the configured request timeout (the legacy `requestTimeoutMs`
+ * setting); zero/invalid values fall back to the default.
  */
 export function readOllamaTimeoutMs(
 	config: GatewayResolvedProviderConfig,
@@ -135,16 +148,21 @@ export async function createOllamaProviderModule(
 		),
 	});
 	const numCtx = readOllamaNumCtx(context);
+	// Retry empty responses (a common local-backend glitch that otherwise
+	// hard-fails the task). Outermost so each retry re-runs the whole request.
+	// `splitToolImagesMiddleware` is inner, for the same reason as the
+	// OpenAI-compatible vendor: the downstream converter stringifies
+	// multimodal tool-result content, losing image bytes.
+	const retryEmptyResponseMiddleware = createRetryEmptyResponseMiddleware({
+		logger: context.logger,
+	});
 	return {
-		// `splitToolImagesMiddleware` for the same reason as the
-		// OpenAI-compatible vendor: the downstream converter stringifies
-		// multimodal tool-result content, losing image bytes.
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId, {
 					options: { num_ctx: numCtx },
 				}) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware: [retryEmptyResponseMiddleware, splitToolImagesMiddleware],
 			}),
 	};
 }

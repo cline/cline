@@ -166,6 +166,194 @@ describe("AgentRuntime", () => {
 		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
 	});
 
+	it("recovers from a context-window overflow with a forced compaction and one retry", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const overflowEvent: AgentModelEvent = {
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		};
+		const model = new ScriptedModel([
+			() => [overflowEvent],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model, prepareTurn });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(prepareTurn.mock.calls[0]?.[0].overflowRecovery).toBeUndefined();
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+		// The retried request uses the compacted transcript.
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				message: "context window exceeded — compacting and retrying",
+				metadata: expect.objectContaining({
+					kind: "context_overflow_recovery",
+				}),
+			}),
+		);
+	});
+
+	it("recovers from an unclassified overflow by classifying the finish message", async () => {
+		// Models that do not classify at their own error boundary (custom
+		// AgentModel implementations, adapters carrying only a flattened
+		// message) must still reach recovery.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`Please review ${"lots of context ".repeat(50)}`,
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+	});
+
+	it("does not treat an unrelated stream failure as an overflow", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "fetch failed: socket closed",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("fetch failed: socket closed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "input is too long for requested model",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"no conversation history to compact",
+		);
+		expect(result.error?.message).toContain(
+			"input is too long for requested model",
+		);
+		// The doomed request is not re-sent.
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with guidance when overflow occurs and no prepare-turn pipeline exists", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry a second consecutive overflow in the same run", async () => {
+		const overflow = (): AgentModelEvent[] => [
+			{
+				type: "finish",
+				reason: "error",
+				error: "prompt is too long",
+				errorClass: "context_window_exceeded",
+			},
+		];
+		const model = new ScriptedModel([overflow, overflow]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "x" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`A long request ${"with plenty of transcript ".repeat(30)}`,
+		);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"still exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(2);
+	});
+
 	it("does not complete or persist history when the model returns no content", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "stop" }],

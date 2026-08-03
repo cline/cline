@@ -339,6 +339,9 @@ bun run test:e2e:interactive
 # TUI-specific E2E tests (uses @microsoft/tui-test)
 bun run test:e2e:cli:tui
 
+# TUI E2E tests driven through tuistory (PTY + Ghostty terminal emulator)
+bun run test:e2e:tuistory
+
 # Type checking
 bun run typecheck
 
@@ -363,6 +366,34 @@ bun run dev -- --interactive --config /tmp/cline-test
 ```
 
 Or set `CLINE_FORCE_ONBOARDING=1` to force the onboarding view regardless of existing config.
+
+### Manually testing the TUI (agents / headless environments)
+
+[tuistory](https://github.com/remorses/tuistory) is installed as a devDependency. It wraps the TUI in a named background PTY session that can be scripted from a plain shell — no real terminal or display needed. This is the preferred way for AI agents (or anyone in a headless environment) to poke at the interactive TUI:
+
+```bash
+cd apps/cli
+
+# Launch the TUI in a background session
+bunx tuistory -s cline --cols 120 --rows 36 -- bun src/index.ts --provider anthropic -m claude-sonnet-4-6 -k test-key
+
+# Wait reactively for the chat view (no sleep guessing)
+bunx tuistory -s cline wait "What can I do for you?" --timeout 30000
+
+# Interact and inspect
+bunx tuistory -s cline type "/settings"
+bunx tuistory -s cline press enter
+bunx tuistory -s cline snapshot --trim     # current screen as text
+bunx tuistory -s cline screenshot          # current screen as a styled PNG
+
+# A human can watch/drive the same session from another terminal
+tuistory attach -s cline
+
+# Tear down
+bunx tuistory -s cline close
+```
+
+The same engine powers the `test:e2e:tuistory` vitest suite (`src/cli.tuistory.e2e.test.ts`), which uses the programmatic `launchTerminal()` API for assertions against the emulated screen.
 
 ### Adding a new TUI component
 

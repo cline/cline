@@ -1,5 +1,6 @@
 import type { AgentSideConnection } from "@agentclientprotocol/sdk";
 import { describe, expect, it, vi } from "vitest";
+import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 import {
 	replaySessionHistory,
 	translateHistoricalMessage,
@@ -22,6 +23,96 @@ describe("translateHistoricalMessage", () => {
 			{
 				sessionUpdate: "agent_message_chunk",
 				content: { type: "text", text: "hello" },
+			},
+		]);
+	});
+
+	it("strips the <user_input> wrapper from replayed user text", () => {
+		// Persisted user messages keep their runtime-generated wrapper. Replaying
+		// it verbatim leaked markup to the client, which rendered the unknown
+		// element as bare text (a one-word prompt showed up as just its content
+		// with the wrapper swallowed).
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content: '<user_input mode="act">s</user_input>',
+			}),
+		).toEqual([
+			{
+				sessionUpdate: "user_message_chunk",
+				content: { type: "text", text: "s" },
+			},
+		]);
+
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<user_input mode="plan">lets do it</user_input>',
+					},
+				],
+			}),
+		).toEqual([
+			{
+				sessionUpdate: "user_message_chunk",
+				content: { type: "text", text: "lets do it" },
+			},
+		]);
+	});
+
+	it("strips mode notices and formats slash commands for display", () => {
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content:
+					'<user_input mode="plan"><mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\nare you okay?</user_input>',
+			}),
+		).toEqual([
+			{
+				sessionUpdate: "user_message_chunk",
+				content: { type: "text", text: "are you okay?" },
+			},
+		]);
+
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content:
+					'<user_command slash="team">spawn a team of agents for the following task: inspect rpc startup</user_command>',
+			}),
+		).toEqual([
+			{
+				sessionUpdate: "user_message_chunk",
+				content: { type: "text", text: "/team inspect rpc startup" },
+			},
+		]);
+	});
+
+	it("does not replay the synthetic act-mode continuation prompt", () => {
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content: `<user_input mode="act">${ACT_MODE_CONTINUATION_PROMPT}</user_input>`,
+			}),
+		).toEqual([]);
+	});
+
+	it("leaves assistant text untouched", () => {
+		// Only user text carries the wrapper; agent output must replay verbatim.
+		expect(
+			translateHistoricalMessage({
+				role: "assistant",
+				content: 'Use <user_input mode="act"> to wrap prompts.',
+			}),
+		).toEqual([
+			{
+				sessionUpdate: "agent_message_chunk",
+				content: {
+					type: "text",
+					text: 'Use <user_input mode="act"> to wrap prompts.',
+				},
 			},
 		]);
 	});

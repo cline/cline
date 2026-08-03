@@ -3,7 +3,7 @@ import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { configureSandboxEnvironment } from "../utils/helpers";
-import { openUrlInBrowser } from "../utils/open-url";
+import open from "../utils/open";
 import { c } from "../utils/output";
 
 export interface DashboardServerHandle {
@@ -146,9 +146,7 @@ async function startDefaultDashboardServer(): Promise<DashboardServerHandle> {
 }
 
 async function openDefaultUrl(url: string): Promise<void> {
-	if (!(await openUrlInBrowser(url))) {
-		throw new Error("no browser opener available");
-	}
+	await open(url, { wait: false });
 }
 
 export function waitForProcessShutdown(

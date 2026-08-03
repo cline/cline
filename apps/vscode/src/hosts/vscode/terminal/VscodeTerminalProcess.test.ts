@@ -315,6 +315,34 @@ describe("TerminalProcess (Integration Tests)", () => {
 			process.getCompletionDetails().exitCode?.should.equal(1)
 		})
 
+		it("completes when the shell execution ends while the read stream remains open", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			const mockExecution = { read: () => createHangingStream([OSC633_C, "test output\n"]) }
+			const mockExecuteCommand = sandbox.stub().returns(mockExecution)
+			sandbox.stub(terminal, "shellIntegration").get(() => ({ executeCommand: mockExecuteCommand }))
+
+			let endListener: ((e: vscode.TerminalShellExecutionEndEvent) => unknown) | undefined
+			sandbox.stub(vscode.window, "onDidEndTerminalShellExecution").callsFake((listener) => {
+				endListener = listener
+				return { dispose: () => {} }
+			})
+
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "echo test")
+			await sandbox.clock.tickAsync(0)
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.false()
+			endListener?.({ terminal, execution: mockExecution, exitCode: 0 } as unknown as vscode.TerminalShellExecutionEndEvent)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "test output").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			process.getCompletionDetails().exitCode?.should.equal(0)
+		})
+
 		it("falls back to no exit code when onDidEndTerminalShellExecution never fires", async () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)

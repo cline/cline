@@ -37,6 +37,8 @@ All three publish paths gate on tests before publishing: nightly and ab-package 
      | python3 -c "import json,sys; v=json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]; print(v['version'], v['lastUpdated'])"
    ```
 
+   `ext-vscode-ab-package` also enforces this automatically for `publish=true` runs: a preflight job validates the version format (plain `X.Y.Z`) and hard-fails unless it exceeds the live Marketplace version, and the publish job re-checks right before publishing (the approval wait can last days — a legacy hotfix landing in between is caught). Still run the query yourself when *choosing* the version.
+
 2. **Check the flag BEFORE any stable combined publish.** `ext-sdk-bundle-rollout` is **shared between nightly and stable** — the loader sends only a machine id to `/decide`, no channel property, so there is no per-channel targeting. If the flag is high (nightly dogfooding) and you publish stable, stable users get the next bundle at that same percentage. Verify the effective percentage empirically (no PostHog admin needed — sample `/decide` with random ids using the key inlined in any shipped loader):
 
    ```bash
@@ -62,7 +64,7 @@ All three publish paths gate on tests before publishing: nightly and ab-package 
 
 4. **Changelog lives at the repo ROOT** (`CHANGELOG.md`), on the branch being released — not `apps/vscode/CHANGELOG.md` (doesn't exist). The legacy and stable workflows hard-fail unless the first heading is exactly `## [<version>]`.
 
-5. **Stuck concurrency groups**: `ext-vscode-ab-package` groups on the version with `cancel-in-progress: false`. A run left `waiting` on environment approval blocks every later dispatch of the same version — cancel it (`gh run cancel <id>`) before re-dispatching.
+5. **Stuck concurrency groups**: `ext-vscode-ab-package` groups on the version with `cancel-in-progress: false`. Only `publish=true` runs wait on environment approval (build-only rehearsals run ungated to completion), but a publish run left `waiting` still blocks every later dispatch of the same version — cancel it (`gh run cancel <id>`) before re-dispatching.
 
 ## Stable release (combined A/B VSIX) — the current stable path
 
@@ -92,14 +94,13 @@ Release prep on `main` (PR, not direct push):
 ```bash
 gh workflow run ext-vscode-ab-package.yml --ref main \
   -f version=<VERSION> -f next-ref=main -f legacy-ref=legacy-extension -f publish=true
-# publish=false builds an installable .vsix artifact without publishing, but the
-# package job still requires the same Publish environment approval — an
-# unapproved rehearsal sits in `waiting` and blocks that version's concurrency
-# group (rule 5).
+# publish=false builds an installable .vsix artifact without publishing and
+# needs NO environment approval — the ungated build job uploads the artifact
+# and the run completes.
 gh run list --workflow=ext-vscode-ab-package.yml --limit 1
 ```
 
-Both test suites run first (no approval needed); the gated `package` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). Both bundles build the exact revisions their test gates ran against (branch names are resolved once — commits landing on either branch mid-run or during the approval wait are not picked up); `publish=true` is additionally refused for any `next-ref` other than `main` (the bun gate only tests main — non-main next-refs are for build-only artifact rehearsals). Check what a run is waiting on:
+Preflight (version format + monotonicity) and both test suites run first, then the ungated `build` job packages and uploads the VSIX; for `publish=true` the `publish` job then **waits for `Publish` environment approval** (Actions → run → "Review deployments"). Both bundles build the exact revisions their test gates ran against (branch names are resolved once — commits landing on either branch mid-run or during the approval wait are not picked up); `publish=true` is additionally refused for any `next-ref` other than `main` (the bun gate only tests main — non-main next-refs are for build-only artifact rehearsals). Check what a run is waiting on:
 
 ```bash
 gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
@@ -107,7 +108,11 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
 
 ### Post-publish
 
-1. Verify the marketplace serves the new version (query from rule 1) — expect minutes-to-an-hour of validation lag after "Published" appears in the logs.
+1. Verify the marketplace serves the new version (query from rule 1) — expect minutes-to-an-hour of validation lag after "Published" appears in the logs. Also verify Open VSX:
+
+   ```bash
+   curl -s "https://open-vsx.org/api/saoudrizwan/claude-dev" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['version'], d['timestamp'])"
+   ```
 2. Tag, GitHub Release (with the .vsix attached), and the Slack release-bot post happen **automatically** after a real publish (all `continue-on-error` — the publish itself already succeeded, so bookkeeping failures leave the run green). Verify they landed; the known failure is the tag push when the built commit touches `.github/workflows/**` (default token cannot create such refs — no grantable permission fixes it). Manual fallback:
 
    ```bash
@@ -124,7 +129,6 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
 
 ### Known caveats of this path
 
-- **Marketplace only** — no Open VSX step (both standalone workflows have one). Open VSX users stay on the last standalone version until a standalone publish or the cutover.
 - **`engines.vscode` unions upward** (main's floor wins, e.g. `^1.101.0` vs legacy's `^1.84.0`): users on older VS Code are never offered the combined VSIX. Fail-safe during rollout; must be resolved before 100%.
 - A red run can still mean a successful publish on paths that tag (see Gotchas).
 
@@ -163,7 +167,7 @@ When the next bundle has held at 100% long enough to trust:
 
 1. **Resolve the engines floor**: decide whether stranding VS Code < main's `engines.vscode` on the last combined version is acceptable, or lower main's floor first.
 2. Bump `apps/vscode/package.json` on `main` above everything ever published; root `CHANGELOG.md` entry to match (both are enforced by the workflow).
-3. Ship standalone from main: `gh workflow run ext-vscode-publish-stable.yml --ref main` — tests main, tags `v<version>` itself, creates the GitHub release, publishes Marketplace + Open VSX (this also heals the Open VSX gap).
+3. Ship standalone from main: `gh workflow run ext-vscode-publish-stable.yml --ref main` — tests main, tags `v<version>` itself, creates the GitHub release, publishes Marketplace + Open VSX.
 4. Watch the same rollout telemetry through the transition — `extension_variant` disappears from events as users leave combined builds, which is itself the adoption signal.
 5. Only after the standalone version dominates: retire `legacy-extension` (keep for history), delete `ext-vscode-publish-legacy.yml` and `ext-vscode-ab-package.yml`, convert the nightly workflow back to a plain build of main, remove `apps/vscode-rollout/`, and archive the `ext-sdk-bundle-rollout` flag in PostHog (harmless to machines still on a combined VSIX: absent flag fails safe to... nothing changing until they update, but their loader treats a deleted flag as legacy — leave the flag at 100% until combined-VSIX activations flatline, then archive).
 6. Update this skill: delete the combined-era sections and keep the standalone flow.
@@ -174,5 +178,5 @@ When the next bundle has held at 100% long enough to trust:
 - `bun run package` in `apps/vscode` does not build `@cline/*` workspace deps — fresh checkouts need `bun run build:sdk` first (workflows handle this).
 - Job-level `if:` ref checks in workflow YAML are advisory (a dispatched branch runs its own copy of the file); the enforced boundary is each environment's deployment-branch policy in repo settings.
 - Marketplace PATs (`VSCE_PAT`/`OVSX_PAT`) are only mounted into publish steps; neither publish workflow has an untrusted trigger surface.
-- Environment-approval runs left waiting don't time out quickly — they sit for days and (for ab-package) block their version's concurrency group.
+- Environment-approval runs left waiting don't time out quickly — they sit for days and (for ab-package publish runs) block their version's concurrency group.
 - Local forcing for manual testing: `CLINE_BUNDLE_OVERRIDE=next|legacy` env (launch VS Code fresh from a terminal) or the `<prefix>.rollout.bundleOverride` setting + reload; both report as `override` in telemetry so they don't pollute cohort data.

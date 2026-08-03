@@ -1,5 +1,26 @@
 # Cline Code Desktop Changelog
 
+## 0.0.8
+
+- Edit any earlier message in a conversation — the app forks the session at that point, rewinds the workspace to that run's checkpoint, and re-runs from your edited prompt. Restores are transactional and workspace-atomic, so a failed restore won't leave you half-rewound.
+- Fixed long-running chat turns timing out mid-response.
+- Checkpoints are now created reliably — including after a restart, after compaction, and on the first turn of a resumed session — and restoring one rewinds the whole workspace, not just the conversation.
+- Fixed checkpoint restores failing after you closed and reopened a session.
+- Reasoning controls (effort, thinking budget, on/off) now come from the shared model catalog, so each model gets exactly the reasoning options it actually supports instead of provider-specific guesses.
+- Errors from upstream providers forwarded through the gateway now show the real message (e.g. "This model's maximum context length is 40960 tokens…") instead of a raw validation dump or `[object Object]`.
+- Ollama: empty responses are retried automatically, and the response-start timeout is raised to 5 minutes so cold model loads don't error out.
+- OpenRouter now defaults to Anthropic Claude Sonnet 5.
+- Model pickers show proper display names for Cline free models and recommended models.
+- MCP servers now honor their configured per-server timeout.
+- Fixed API keys for several providers being lost when migrating from an older install — all secret-backed providers now migrate correctly.
+- Unknown or removed legacy model IDs now fall back to the default Cline model instead of failing.
+- Fixed agentic compaction not persisting reliably, so long conversations resume in the right state.
+- Fixed a `.clinerules` single file (the older format) aborting the whole rules and config scan.
+- Fixed video input being dropped for models that support it.
+- Fixed the workspace hint being sent for filesystem-root paths.
+- Custom model info for OpenAI-Compatible providers now carries over into the seeded model catalog.
+- Removed the "Enable R1 messages format" option from the OpenAI-Compatible provider.
+
 ## 0.0.7
 
 - New system tray icon showing app status and how many agent sessions are currently running.

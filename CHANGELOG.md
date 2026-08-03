@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.1.3]
+
+### Fixed
+
+- Stop the two bundles of the combined rollout package from invalidating each other's Cline account session. A still-open legacy window that refreshed its token after the machine was promoted to the new extension would consume the shared refresh token, producing spurious "Unauthorized" / re-authenticate prompts and unexpected sign-outs. Promoted legacy windows now keep working on their current session and offer a one-time Reload Window prompt instead.
+- Fall back to the default Cline model when migrating a setup that references a model id the new extension doesn't recognize, instead of leaving the provider unconfigured.
+- Restore reliable checkpoints: checkpoints are created consistently, and restoring one now rewinds the whole workspace rather than a subset of files.
+- Keep settings edits that are made before the provider config finishes loading — base URLs, API keys, and the Qwen/Moonshot API line are no longer silently discarded.
+- Stop losing keystrokes in custom base URL fields, and keep the custom URL checkbox state after a failed clear.
+- Use the AskSage custom API URL at inference time instead of ignoring it.
+- Settle a pending tool approval when an edited message replaces the session, so the task no longer hangs waiting on a prompt that is gone.
+- Drop attachments from messages that have been edited.
+- Complete terminal commands when the shell execution ends, so tasks no longer stall on commands that already finished.
+- Include untracked files when generating commit messages.
+- Run Windows Store PowerShell profiles correctly.
+- Surface the upstream provider error when a gateway-forwarded stream fails, instead of a generic failure.
+- Retry empty Ollama responses at the model boundary, and raise the response-start timeout to 5 minutes so cold model loads no longer error out.
+- Show proper display names for Cline free models and recommended models in the model picker.
+- Preserve video input capability for models that support it.
+- Keep the plan/act input border in sync with the actual textarea focus.
+
 ## [4.1.2]
 
 ### Added

@@ -20,7 +20,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { openUrlInBrowser } from "../../../utils/open-url";
+import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { palette } from "../../palette";
 import {
@@ -39,6 +39,7 @@ import {
 } from "../searchable-list";
 import {
 	buildClinePassSubscriptionPageUrl,
+	resolveOAuthWaitKeyAction,
 	saveManualProviderApiKey,
 } from "./provider-picker-helpers";
 
@@ -353,13 +354,13 @@ function ClinePassBrowserPageContent(
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
-		void openUrlInBrowser(url).then((opened) => {
-			if (opened) {
+		void open(url, { wait: false })
+			.then(() => {
 				setStatus(openedStatus);
-			} else {
+			})
+			.catch(() => {
 				setStatus("Could not open browser automatically. Open the URL below.");
-			}
-		});
+			});
 	}, [url, openedStatus]);
 
 	useDialogKeyboard((key) => {
@@ -847,13 +848,15 @@ export function OAuthLoginContent(
 		loginLocalProvider(providerId, existing, (url: string) => {
 			setAuthUrl(url);
 			setStatus("Waiting for authentication in browser...");
-			void openUrlInBrowser(url).then((opened) => {
-				if (!opened) {
+			try {
+				void open(url, { wait: false }).catch(() => {
 					setStatus(
 						"Could not open browser automatically. Open the URL below.",
 					);
-				}
-			});
+				});
+			} catch {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			}
 		})
 			.then((credentials) => {
 				if (!isActiveAuthAttempt(attempt)) return;
@@ -875,21 +878,20 @@ export function OAuthLoginContent(
 	}, []);
 
 	useDialogKeyboard((key) => {
-		if (key.name === "escape") {
-			cancelAuthAttempt();
-			dismiss();
+		const action = resolveOAuthWaitKeyAction(key, allowApiKeyFallback);
+		if (action === "ignore") return;
+		cancelAuthAttempt();
+		if (action === "use_api_key") {
+			resolve("use_api_key");
 			return;
 		}
-		if (key.name === "k" && allowApiKeyFallback) {
-			cancelAuthAttempt();
-			resolve("use_api_key");
-		}
+		dismiss();
 	}, dialogId);
 
-	const escapeHint = allowApiKeyFallback
-		? "K to enter an API key instead, Esc to cancel"
-		: "Esc to cancel";
-	const escapeHintColor = allowApiKeyFallback ? "white" : "gray";
+	const cancelHint = allowApiKeyFallback
+		? "K to enter an API key instead, any other key to cancel"
+		: "Press any key to cancel";
+	const cancelHintColor = allowApiKeyFallback ? "white" : "gray";
 
 	if (mode === "device") {
 		return (
@@ -917,8 +919,8 @@ export function OAuthLoginContent(
 
 				{deviceError && <text fg="red">{deviceError}</text>}
 
-				<text fg={escapeHintColor}>
-					<em>{escapeHint}</em>
+				<text fg={cancelHintColor}>
+					<em>{cancelHint}</em>
 				</text>
 			</box>
 		);
@@ -940,8 +942,8 @@ export function OAuthLoginContent(
 
 			{error && <text fg="red">{error}</text>}
 
-			<text fg={escapeHintColor}>
-				<em>{escapeHint}</em>
+			<text fg={cancelHintColor}>
+				<em>{cancelHint}</em>
 			</text>
 		</box>
 	);

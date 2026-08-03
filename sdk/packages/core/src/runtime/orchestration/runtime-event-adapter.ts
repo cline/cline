@@ -251,6 +251,7 @@ export class RuntimeEventAdapter {
 					{
 						type: "error",
 						error: event.error,
+						errorClass: event.errorClass,
 						recoverable: false,
 						iteration: event.snapshot.iteration,
 					},

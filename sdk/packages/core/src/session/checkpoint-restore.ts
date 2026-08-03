@@ -334,6 +334,26 @@ async function resolveCheckpointKind(
 		: "commit";
 }
 
+/**
+ * True when `ref` is a snapshot stash that also captured untracked files as a
+ * third parent (created by `createWorktreeStashCommit`). Such snapshots can be
+ * fully rewound; older 2-parent stashes and HEAD-commit fallbacks cannot bring
+ * untracked files back, so restore leaves untracked files untouched for them.
+ */
+async function checkpointCapturedUntracked(
+	cwd: string,
+	ref: string,
+): Promise<boolean> {
+	try {
+		await execFile("git", ["-C", cwd, "cat-file", "-e", `${ref}^3^{commit}`], {
+			windowsHide: true,
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -366,10 +386,24 @@ export async function applyCheckpointToWorktree(
 			{ windowsHide: true },
 		);
 	}
+	const capturedUntracked = await checkpointCapturedUntracked(
+		cwd,
+		checkpoint.ref,
+	);
 	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
 		windowsHide: true,
 	});
-	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
+	// Only clear untracked files for snapshots that captured them (third
+	// parent): the following `git stash apply` restores each one to its
+	// checkpoint-time content from ^3, and files created after the checkpoint
+	// are meant to be rewound away. `git clean -fd` leaves .gitignored paths
+	// (build output, node_modules, .env) alone, and clearing before apply also
+	// avoids "already exists" apply conflicts. For 2-parent stashes and
+	// HEAD-commit fallbacks (no ^3) untracked files can't be reconstructed, so
+	// they are left untouched — deleting them would be unrecoverable data loss.
+	if (capturedUntracked) {
+		await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
+	}
 	if (checkpointKind === "commit") {
 		return;
 	}
