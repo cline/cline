@@ -40,8 +40,15 @@ const HELPER_DEFAULT_MODEL_ID = "claude-sonnet-4-6";
 const HELPER_MODEL_ENV_VAR = "CLINE_COMPUTER_USER_MODEL";
 const HELPER_REASONING = {
 	thinking: true,
-	reasoningEffort: "high" as const,
+	reasoningEffort: "medium" as const,
 };
+
+function toDirectAnthropicModelId(modelId: string): string {
+	const directProviderPrefix = `${HELPER_PROVIDER_ID}/`;
+	return modelId.startsWith(directProviderPrefix)
+		? modelId.slice(directProviderPrefix.length)
+		: modelId;
+}
 
 /**
  * Resolves the helper's Anthropic model id. The helper's model is chosen
@@ -58,13 +65,13 @@ export function resolveHelperModelId(
 ): string {
 	const fromEnv = env[HELPER_MODEL_ENV_VAR]?.trim();
 	if (fromEnv) {
-		return fromEnv;
+		return toDirectAnthropicModelId(fromEnv);
 	}
 	if (
 		typeof helperSettings?.model === "string" &&
 		helperSettings.model.trim()
 	) {
-		return helperSettings.model.trim();
+		return toDirectAnthropicModelId(helperSettings.model.trim());
 	}
 	return HELPER_DEFAULT_MODEL_ID;
 }

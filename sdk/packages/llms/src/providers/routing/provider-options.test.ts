@@ -419,6 +419,30 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
+			name: "Sonnet 5 uses adaptive thinking with medium effort",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-5",
+				reasoning: { enabled: true, effort: "medium" },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING, effort: "medium" },
+				},
+			],
+		},
+		{
 			name: "Sonnet 5 emits the explicit disabled thinking control",
 			request: {
 				providerId: "anthropic",
