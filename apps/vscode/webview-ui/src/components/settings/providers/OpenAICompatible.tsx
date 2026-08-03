@@ -291,7 +291,6 @@ export const OpenAICompatibleProvider = ({
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
-		canWrite: config !== undefined,
 		onApiKeyChange: (apiKey) => {
 			latestOpenAiApiKeyRef.current = apiKey
 			debouncedRefreshOpenAiModels(latestOpenAiBaseUrlRef.current, apiKey)
@@ -314,11 +313,11 @@ export const OpenAICompatibleProvider = ({
 						<DebouncedTextField
 							disabled={remoteConfigSettings?.openAiBaseUrl !== undefined}
 							initialValue={config?.baseUrl || ""}
+							// Intentionally not gated on `config` having loaded:
+							// write() works before the initial read resolves, and a
+							// guard here would silently discard text typed right
+							// after mount, which the late resync then wipes.
 							onChange={(value) => {
-								if (!config) {
-									return
-								}
-
 								latestOpenAiBaseUrlRef.current = value
 								void write({ baseUrl: value }).catch((error) => handleProviderConfigWriteError("base URL", error))
 								debouncedRefreshOpenAiModels(value, latestOpenAiApiKeyRef.current)

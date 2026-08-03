@@ -1,5 +1,25 @@
 # Cline CLI Changelog
 
+## 3.0.49
+
+- `/undo` works again once the agent has used tools — the checkpoint picker counted tool results as user turns, so restore aborted with "Could not find user message for run N"
+- Checkpoints are actually created again; a run-boundary regression meant none were ever recorded in the CLI (from SDK v0.0.69)
+- Checkpoint restore is now a full workspace rewind: files Cline created during the task come back at their checkpoint-time content and files created after the checkpoint are removed, while `.gitignore`d paths (build output, `node_modules`, `.env`) are left alone (from SDK v0.0.69)
+- After a restore, the rewound message is prefilled as plain text instead of the raw `<user_input mode="act">` envelope
+- Ollama's response-start timeout is now 5 minutes instead of 30 seconds, so cold-loading a large local model no longer errors out mid-load (from SDK v0.0.69)
+- Empty Ollama responses are now retried instead of failing the task with "Model returned empty response" (from SDK v0.0.69)
+- Migrated users whose stored Cline model id isn't in the catalog now fall back to the default model instead of sending an unknown model id on every request (from SDK v0.0.69)
+- The ClinePass promo dialog can be dismissed with any key (Enter still opens the subscription page), and it is marked as shown when it appears, so force-quitting no longer replays it on every launch
+- Opening a URL no longer crashes the CLI on hosts without an opener binary (headless Linux without `xdg-open`); WSL2 containers now use `xdg-open`, Windows tries the absolute PowerShell path first, and `cline doctor log` converts Linux paths to `\\wsl$` UNC paths
+- The hub now restarts through the installed wrapper after a Unix self-update, so npm cannot reuse a deleted cached executable
+- ACP: ClinePass is selectable as a provider, organizations can be selected, session resolution and text rendering on session restart are fixed, and agent errors now describe the actual failure
+- Provider errors forwarded through the Vercel AI Gateway now surface the real upstream message instead of a raw Zod dump or `[object Object]` (from SDK v0.0.68)
+- Cline free models and recommended models now show their real display names in the model picker (from SDK v0.0.68)
+- Sessions rooted at the filesystem root (`/`) no longer fail every command (from SDK v0.0.68)
+- On Windows, PowerShell commands now travel over UTF-8 stdin, so non-ASCII commands survive the active code page and long commands are not capped by the command-line limit (from SDK v0.0.68)
+- The live model catalog no longer drops the video input capability (from SDK v0.0.68)
+- Removed the CLI promo code flow
+
 ## 3.0.48
 
 - `cline history` now opens inside the existing TUI, with resume and delete actions, instead of rendering a second view in the same process

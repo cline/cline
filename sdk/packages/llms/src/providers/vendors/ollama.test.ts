@@ -94,6 +94,12 @@ describe("readOllamaTimeoutMs", () => {
 			OLLAMA_DEFAULT_TIMEOUT_MS,
 		);
 	});
+
+	it("defaults to 5 minutes so model cold loads don't hit a timeout error", () => {
+		// Ollama only sends response headers once the model is loaded, so the
+		// response-start budget must cover a cold load (cline/cline#12829).
+		expect(OLLAMA_DEFAULT_TIMEOUT_MS).toBe(300_000);
+	});
 });
 
 describe("withOllamaResponseTimeout", () => {

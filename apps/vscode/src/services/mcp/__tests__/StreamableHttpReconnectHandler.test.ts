@@ -31,6 +31,7 @@ function makeCallbacks(connection?: ReturnType<typeof makeConnection>): Reconnec
 		notifyWebviewOfServerChanges: sinon.stub().resolves(),
 		appendErrorMessage: sinon.stub(),
 		delay: sinon.stub().resolves(), // instant — no real waiting in tests
+		isStillWanted: sinon.stub().resolves(true),
 	}
 	return { ...(stubs as unknown as ReconnectCallbacks), stubs }
 }
@@ -115,6 +116,178 @@ describe("StreamableHttpReconnectHandler", () => {
 		cbs.stubs.notifyWebviewOfServerChanges.called.should.be.true()
 	})
 
+	it("should publish server state after a successful reconnect", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// Once for the "connecting" status, once after connectToServer
+		// succeeded — the second publishes the freshly fetched lists and
+		// "connected" status that connectToServer loads but doesn't send.
+		cbs.stubs.notifyWebviewOfServerChanges.calledTwice.should.be.true()
+		cbs.stubs.notifyWebviewOfServerChanges.lastCall.calledAfter(cbs.stubs.connectToServer.lastCall).should.be.true()
+	})
+
+	it("should not restart a live connection when post-reconnect publication fails", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// First call publishes "connecting" fine; the post-reconnect publish fails
+		cbs.stubs.notifyWebviewOfServerChanges.onSecondCall().rejects(new Error("settings read failed"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// The reconnect succeeded, so a publication failure must not tear the
+		// connection down again or count as another attempt
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+		cbs.stubs.deleteConnection.calledOnce.should.be.true()
+		handler.attemptCount.should.equal(0)
+	})
+
+	it("should abort retries when the server is removed from settings during a later delay", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.connectToServer.rejects(new Error("still broken"))
+		// After deleteConnection the old connection is gone
+		let deleted = false
+		cbs.stubs.findConnection.callsFake(() => (deleted ? undefined : conn))
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		// Attempt 1 is still wanted; during its backoff the user removes the server
+		cbs.stubs.isStillWanted.onFirstCall().resolves(true)
+		cbs.stubs.isStillWanted.onSecondCall().resolves(false)
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry after the removal must not run — it would resurrect the server
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+	})
+
+	it("should abort retries when another path installed a replacement connection during a later delay", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.connectToServer.rejects(new Error("still broken"))
+		// After our deleteConnection: nothing at first, then a live replacement
+		// appears (e.g. the settings watcher reconnected with a new config)
+		const replacement = makeConnection({ status: "connected" })
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? replacement : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			throw new Error("still broken")
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry must not displace the live replacement (connectToServer
+		// would drop it from the list without closing it)
+		attempts.should.equal(1)
+		replacement.server.status.should.equal("connected")
+	})
+
+	it("should abort retries when a disconnected OAuth-required replacement holds a live client", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// An OAuth-required connection is "disconnected" but retains its
+		// client/transport/authProvider for when the user authenticates —
+		// oauthRequired: true is what distinguishes it from an ordinary
+		// failed connection
+		const oauthReplacement = { server: { status: "disconnected", oauthRequired: true }, client: {} }
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? oauthReplacement : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			throw new Error("still broken")
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// The retry must not displace the OAuth replacement — connectToServer
+		// would drop it without closing, orphaning its session and auth state
+		attempts.should.equal(1)
+	})
+
+	it("should retry past its own failed attempt's registered connection and succeed", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// A failed non-OAuth connectToServer() registers a connection, closes
+		// its client on failure, but leaves the (closed) client attached and
+		// the connection in the list, marked "disconnected". The guard must
+		// recognize it as our own failed attempt — not a replacement — and
+		// let the next retry proceed.
+		const failedAttempt = { ...makeConnection({ status: "disconnected" }), client: {} }
+		let deleted = false
+		let attempts = 0
+		cbs.stubs.findConnection.callsFake(() => {
+			if (!deleted) return conn
+			return attempts >= 1 ? failedAttempt : undefined
+		})
+		cbs.stubs.deleteConnection.callsFake(async () => {
+			deleted = true
+		})
+		cbs.stubs.connectToServer.callsFake(async () => {
+			attempts += 1
+			if (attempts === 1) {
+				throw new Error("connect failed")
+			}
+		})
+
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+		await handler.handleError(new Error("transport error"))
+
+		// Second attempt ran and succeeded; counter reset
+		cbs.stubs.connectToServer.callCount.should.equal(2)
+		handler.attemptCount.should.equal(0)
+	})
+
+	it("should retry a transiently failing post-reconnect publication", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// Call 1 publishes "connecting"; call 2 (post-reconnect) fails; call 3 succeeds
+		cbs.stubs.notifyWebviewOfServerChanges.onSecondCall().rejects(new Error("settings read failed"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new Error("connection lost"))
+
+		// The failed publish was retried until it succeeded, so consumers
+		// aren't left on "connecting" with pre-reconnect capabilities
+		cbs.stubs.notifyWebviewOfServerChanges.callCount.should.equal(3)
+	})
+
+	it("should not throw when every post-reconnect publication attempt fails", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.notifyWebviewOfServerChanges.rejects(new Error("persistent failure"))
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		// handleError runs from transport.onerror with its promise discarded,
+		// so it must never reject — even when publication never succeeds
+		await handler.handleError(new Error("connection lost"))
+
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+		handler.attemptCount.should.equal(0)
+	})
+
 	it("should use the configured delay for each attempt", async () => {
 		const conn = makeConnection()
 		const cbs = makeCallbacks(conn)
@@ -145,8 +318,12 @@ describe("StreamableHttpReconnectHandler", () => {
 		cbs.stubs.connectToServer.rejects(new Error("still broken"))
 
 		// After deleteConnection, findConnection returns undefined (old conn deleted)
-		// but connectToServer may leave a partial connection, so simulate that
-		const partialConn = makeConnection()
+		// but connectToServer may leave a partial connection, so simulate that.
+		// A partial connection from a failed connectToServer is marked
+		// "disconnected" with its (already-closed) client still attached and
+		// oauthRequired false — the retry loop must keep retrying past it, not
+		// mistake it for an OAuth-required replacement.
+		const partialConn = { ...makeConnection({ status: "disconnected" }), client: {} }
 		let deleted = false
 		cbs.stubs.findConnection.callsFake(() => {
 			if (!deleted) return conn
