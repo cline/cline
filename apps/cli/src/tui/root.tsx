@@ -209,6 +209,7 @@ function App(props: TuiProps) {
 	const openThemePicker = useCallback(
 		async (options?: { refocus?: boolean }) => {
 			await dialog.choice<string>({
+				size: "large",
 				style: { maxHeight: termHeight - 2 },
 				content: (ctx: ChoiceContext<string>) => (
 					<ThemePickerContent {...ctx} />
