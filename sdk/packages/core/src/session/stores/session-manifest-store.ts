@@ -12,10 +12,18 @@ import type { BasicLogger } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { nowIso, SessionArtifacts } from "../../services/session-artifacts";
 import {
-	buildMessagesFilePayload,
 	resolveMessagesFileContext,
 	writeEmptyMessagesFile,
 } from "../../services/session-data";
+import {
+	appendMessagesToJsonl,
+	countMessageRows,
+	diffNewMessages,
+	compactMessagesJsonl,
+	ensureJsonlHeader,
+	type PersistedMessageLike,
+	DEFAULT_COMPACT_THRESHOLD,
+} from "../../services/session-messages-jsonl";
 import type {
 	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
@@ -154,30 +162,72 @@ export class SessionManifestStore {
 			: fallback(sessionId);
 	}
 
+	/**
+	 * In-memory map of JSONL message count per path so the hot persist path
+	 * stays O(1) after the first scan, instead of re-streaming a (possibly
+	 * 50MB+) file on every persist just to compute a diff.
+	 *
+	 * Reset/invalidate whenever a file is removed or fully rewritten via
+	 * compaction (compact sets the entry to the compacted message count).
+	 */
+	private jsonlCountCache = new Map<string, number>();
+
 	async persistSessionMessages(
 		sessionId: string,
 		messages: LlmsProviders.Message[],
-		systemPrompt?: string,
+		_systemPrompt?: string,
 	): Promise<void> {
 		const path = await this.resolveArtifactPath(
 			sessionId,
 			"messagesPath",
 			(id) => this.artifacts.sessionMessagesPath(id),
 		);
-		const payload = buildMessagesFilePayload({
-			updatedAt: nowIso(),
-			context: resolveMessagesFileContext(sessionId),
-			messages: messages as StoredMessageWithMetadata[],
-			systemPrompt,
-		});
-		const contents = `${JSON.stringify(payload, null, 2)}\n`;
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, contents, "utf8");
+		const context = resolveMessagesFileContext(sessionId);
+		const updatedAt = nowIso();
+		const stored = messages as unknown as StoredMessageWithMetadata[];
+
+		// V18 — JSONL messages persistence (the root fix for the 50MB
+		// `messages.json` startup stall):
+		//   * The file is JSON Lines: a header row followed by one message row per
+		//     line. Appending ONLY the newly-added rows is O(1) (`appendFileSync`)
+		//     instead of the previous O(N) synchronous
+		//     `JSON.stringify(payload, null, 2) + writeFileSync` full rewrite.
+		//   * The first persist scans the file once to seed the count cache;
+		//     subsequent persists are O(1) via the map.
+		//   * At `compactThreshold` the file is atomically rewritten (header + all
+		//     rows).
+		//   * Reads auto-detect JSONL (header row) and stream line-by-line (flat
+		//     memory); legacy pretty-printed JSON still parses via fallback.
+		const persistedCount = await this.getMessageCountCached(path);
+		const newRows = diffNewMessages(
+			stored as unknown as PersistedMessageLike[],
+			persistedCount,
+		);
+
+		if (persistedCount === 0) {
+			// Overwrite a pre-existing legacy empty JSON with the JSONL header.
+			ensureJsonlHeader(path, { updatedAt, context });
+		}
+		if (newRows.length > 0) {
+			appendMessagesToJsonl(path, newRows, this.logger);
+		}
+
+		const totalCount = persistedCount + newRows.length;
+		this.jsonlCountCache.set(path, totalCount);
+
+		if (totalCount >= DEFAULT_COMPACT_THRESHOLD) {
+			compactMessagesJsonl(path, stored as unknown[], {
+				updatedAt,
+				context,
+			});
+		}
+
 		if (!this.messagesArtifactUploader) {
 			return;
 		}
 		try {
 			const row = await this.adapter.getSession(sessionId);
+			const contents = readFileSync(path, "utf8");
 			await this.messagesArtifactUploader.uploadMessagesFile({
 				sessionId,
 				path,
@@ -190,6 +240,14 @@ export class SessionManifestStore {
 				error,
 			});
 		}
+	}
+
+	private async getMessageCountCached(path: string): Promise<number> {
+		const cached = this.jsonlCountCache.get(path);
+		if (cached !== undefined) return cached;
+		const count = await countMessageRows(path);
+		this.jsonlCountCache.set(path, count);
+		return count;
 	}
 
 	private resolveCompactionPath(sessionId: string): string {

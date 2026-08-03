@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readSessionMessagesFile } from "../../services/session-messages-jsonl";
 import type * as LlmsProviders from "@cline/llms";
 import type { HookEventPayload } from "../../hooks";
 import type { CoreSessionEvent } from "../../types/events";
@@ -50,28 +50,32 @@ export class RuntimeHostEventBus {
 // stripping here would launder that history off disk (and out of the model's
 // context) a little more on every restart. Display surfaces are responsible
 // for their own formatting via formatDisplayUserInput.
+//
+// V18 — messages are persisted as JSON Lines (a header row + one message row
+// per line) so un-appended rows are O(1) to write and reads stream line-by-line
+// with flat memory even for 50MB+ conversations. `readSessionMessagesFile`
+// auto-detects the JSONL format (first row has a `header` key); legacy
+// pretty-printed JSON files still load via the built-in fallback.
 export async function readPersistedMessagesFile(
 	messagesPath?: string | null,
+	options?: { limit?: number },
 ): Promise<LlmsProviders.Message[]> {
 	const path = messagesPath?.trim();
 	if (!path || !existsSync(path)) return [];
-	try {
-		const raw = (await readFile(path, "utf8")).trim();
-		if (!raw) return [];
-		const parsed = JSON.parse(raw) as unknown;
-		if (Array.isArray(parsed)) {
-			return parsed as LlmsProviders.Message[];
-		}
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-			const messages = (parsed as { messages?: unknown }).messages;
-			if (Array.isArray(messages)) {
-				return messages as LlmsProviders.Message[];
-			}
-		}
-		return [];
-	} catch {
-		return [];
-	}
+	// Full read by default. Consumers depend on the COMPLETE conversation:
+	//   - getStateToPostToWebview computes isTruncated/totalMessageCount from
+	//     the full list (a default tail window would silently disable
+	//     scroll-up pagination: 50 > 50 === false).
+	//   - loadHistoryBatch needs the full list to locate messages before a
+	//     given ts (a truncated read makes beforeIndex === -1 forever, so
+	//     older rows — including api_req_started usage rows — become
+	//     unreachable and session billing shows $0.00).
+	//   - compaction must summarize the whole transcript, not just the tail.
+	// Callers that genuinely only need recent rows pass an explicit limit.
+	const messages = await readSessionMessagesFile(path, {
+		...(options?.limit !== undefined ? { limit: options.limit } : { startFromEnd: false }),
+	});
+	return messages as unknown as LlmsProviders.Message[];
 }
 
 export function cloneAccumulatedUsage(

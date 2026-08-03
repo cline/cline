@@ -9,6 +9,10 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	readJsonlHeaderSync,
+	readJsonlMessagesSync,
+} from "../../services/session-messages-jsonl";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
@@ -81,13 +85,11 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(
 			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
 		).toHaveProperty("compaction_path", artifacts.compactionPath);
-		const messagesPayload = JSON.parse(
-			readFileSync(artifacts.messagesPath, "utf8"),
-		) as { messages?: unknown[] };
+		const messagesPayload = readJsonlMessagesSync(artifacts.messagesPath);
 		const compactionPayload = JSON.parse(
 			readFileSync(artifacts.compactionPath ?? "", "utf8"),
 		) as { messages?: unknown[]; source_message_count?: number };
-		expect(messagesPayload.messages).toHaveLength(1);
+		expect(messagesPayload).toHaveLength(1);
 		expect(compactionPayload).toMatchObject({
 			source_message_count: 1,
 			messages: compactedMessages,
@@ -350,18 +352,14 @@ describe("UnifiedSessionPersistenceService", () => {
 			);
 			expect(row?.messagesPath).toBeTruthy();
 			const path = row?.messagesPath as string;
-			const payload = JSON.parse(readFileSync(path, "utf8")) as {
-				agent?: string;
-				sessionId?: string;
-				taskType?: string;
-				messages: Array<Record<string, unknown>>;
-			};
-			const user = payload.messages[0] as Record<string, unknown>;
-			const assistant = payload.messages[1] as Record<string, unknown>;
+			const messagesPayload = readJsonlMessagesSync(path);
+			const payload = readJsonlHeaderSync(path);
+			const user = messagesPayload[0] as Record<string, unknown>;
+			const assistant = messagesPayload[1] as Record<string, unknown>;
 
-			expect(payload.agent).toBe("teammate");
-			expect(payload.sessionId).toBe(rootSessionId);
-			expect(payload.taskType).toBe("team");
+			expect(payload?.agent).toBe("teammate");
+			expect(payload?.sessionId).toBe(rootSessionId);
+			expect(payload?.taskType).toBe("team");
 			expect(assistant.id).toEqual(expect.any(String));
 			expect(user.agent).toBeUndefined();
 			expect(user.sessionId).toBeUndefined();
@@ -456,12 +454,8 @@ describe("UnifiedSessionPersistenceService", () => {
 		const row = childSessions.find((item) => item.agentId === "plain-worker");
 		expect(row?.status).toBe("completed");
 		expect(row?.messagesPath).toBeTruthy();
-		const payload = JSON.parse(
-			readFileSync(row?.messagesPath as string, "utf8"),
-		) as {
-			messages: Array<Record<string, unknown>>;
-		};
-		const assistant = payload.messages[1] as Record<string, unknown>;
+		const payload = readJsonlMessagesSync(row?.messagesPath as string);
+		const assistant = payload[1] as Record<string, unknown>;
 
 		expect(assistant.metrics).toMatchObject({
 			inputTokens: 11,
@@ -585,7 +579,9 @@ describe("UnifiedSessionPersistenceService", () => {
 				expect.objectContaining({
 					sessionId,
 					path: expect.stringContaining(`${sessionId}.messages.json`),
-					contents: expect.stringContaining('"role": "user"'),
+					// V18 JSONL: each message is serialized as {"message":{...}} on
+					// its own line, so the role is nested under the message key.
+					contents: expect.stringContaining('"message":{"role":"user"'),
 					row: expect.objectContaining({
 						sessionId,
 						metadata: {
