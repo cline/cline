@@ -338,6 +338,152 @@ describe("chat commands", () => {
 		expect(reply).not.toHaveBeenCalled();
 	});
 
+	it("ignores /goal when the goal context is not provided", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/goal fix tests", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(false);
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("falls through to a later same-name command when the first is unavailable", async () => {
+		const reply = vi.fn(async () => undefined);
+		const pluginRun = vi.fn(async (_parsed, context) => {
+			await context.reply("plugin goal");
+		});
+		// Mirrors a plugin registering /goal on a clone of the default host:
+		// the built-in /goal is unavailable without a goal context, so the
+		// plugin definition must still get a chance to handle the command.
+		const host = createChatCommandHost().register("command", {
+			names: ["/goal"],
+			isAvailable: () => false,
+			run: async () => {
+				throw new Error("unavailable definition must not run");
+			},
+		});
+		host.register("command", { names: ["/goal"], run: pluginRun });
+
+		const handled = await host.handle("/goal fix tests", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(true);
+		expect(pluginRun).toHaveBeenCalledTimes(1);
+		expect(reply).toHaveBeenCalledWith("plugin goal");
+	});
+
+	it("sets a goal via /goal and submits the returned prompt", async () => {
+		const reply = vi.fn(async () => undefined);
+		const submitPrompt = vi.fn(async () => undefined);
+		const set = vi.fn(async (goal: string) => ({
+			reply: `Goal set: ${goal}`,
+			submitPrompt: `wrapped:${goal}`,
+		}));
+
+		const handled = await maybeHandleChatCommand("/goal fix the tests", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+			submitPrompt,
+			goal: {
+				set,
+				status: () => "status",
+				clear: () => "cleared",
+			},
+		});
+
+		expect(handled).toBe(true);
+		expect(set).toHaveBeenCalledWith("fix the tests");
+		expect(reply).toHaveBeenCalledWith("Goal set: fix the tests");
+		expect(submitPrompt).toHaveBeenCalledWith("wrapped:fix the tests");
+	});
+
+	it("shows goal status for /goal and /goal status", async () => {
+		for (const command of ["/goal", "/goal status"]) {
+			const reply = vi.fn(async () => undefined);
+			const status = vi.fn(() => "Active goal: fix tests");
+
+			const handled = await maybeHandleChatCommand(command, {
+				enabled: true,
+				getState: async () => ({
+					enableTools: false,
+					autoApproveTools: false,
+					cwd: "/tmp",
+					workspaceRoot: "/tmp",
+				}),
+				setState: async () => undefined,
+				reply,
+				goal: {
+					set: () => ({ reply: "" }),
+					status,
+					clear: () => "cleared",
+				},
+			});
+
+			expect(handled).toBe(true);
+			expect(status).toHaveBeenCalledTimes(1);
+			expect(reply).toHaveBeenCalledWith("Active goal: fix tests");
+		}
+	});
+
+	it("clears the goal for /goal off and aliases", async () => {
+		for (const command of [
+			"/goal off",
+			"/goal clear",
+			"/goal stop",
+			"/goal disable",
+		]) {
+			const reply = vi.fn(async () => undefined);
+			const clear = vi.fn(() => "Goal cleared.");
+
+			const handled = await maybeHandleChatCommand(command, {
+				enabled: true,
+				getState: async () => ({
+					enableTools: false,
+					autoApproveTools: false,
+					cwd: "/tmp",
+					workspaceRoot: "/tmp",
+				}),
+				setState: async () => undefined,
+				reply,
+				goal: {
+					set: () => ({ reply: "" }),
+					status: () => "status",
+					clear,
+				},
+			});
+
+			expect(handled).toBe(true);
+			expect(clear).toHaveBeenCalledTimes(1);
+			expect(reply).toHaveBeenCalledWith("Goal cleared.");
+		}
+	});
+
 	it("runs /abort without disconnecting", async () => {
 		const abort = vi.fn(async () => undefined);
 		const reply = vi.fn(async () => undefined);

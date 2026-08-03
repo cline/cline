@@ -2,6 +2,7 @@ import type { InteractiveTurnResult } from "../../tui/types";
 import type { ChatCommandHost } from "../../utils/chat-commands";
 import {
 	type ChatCommandState,
+	type GoalCommandContext,
 	maybeHandleChatCommand,
 } from "../../utils/chat-commands";
 import {
@@ -47,6 +48,7 @@ export async function runInteractiveChatCommand(input: {
 	sessionRuntime: InteractiveChatCommandRuntime;
 	stop: () => void;
 	onCommandOutput?: (text: string) => void;
+	goal?: GoalCommandContext;
 }): Promise<InteractiveChatCommandResult> {
 	let prompt = input.prompt;
 	const rewrittenTeamPrompt = rewriteTeamPrompt(prompt);
@@ -105,6 +107,7 @@ export async function runInteractiveChatCommand(input: {
 				`workspaceRoot=${input.chatCommandState.workspaceRoot}`,
 			].join("\n"),
 		fork: input.sessionRuntime.forkCurrentSession,
+		goal: input.goal,
 	});
 	if (handled) {
 		if (submitPrompt) {

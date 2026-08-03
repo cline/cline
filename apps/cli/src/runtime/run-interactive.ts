@@ -57,6 +57,10 @@ import {
 	formatInteractiveExitSummary,
 	type InteractiveExitSummary,
 } from "./interactive/exit-summary";
+import {
+	createInteractiveGoalGuard,
+	sendTurnWithGoalVerification,
+} from "./interactive/goal";
 import { createMistakeLimitDecisionResolver } from "./interactive/mistakes";
 import {
 	type AppliedModeChange,
@@ -262,7 +266,17 @@ export async function runInteractive(
 		tuiModeChanged,
 	});
 
-	config.extraTools = config.mode === "plan" ? [switchToActModeTool] : [];
+	const goalGuard = createInteractiveGoalGuard();
+	const goalCommandContext = {
+		set: (goal: string) => goalGuard.setGoal(goal),
+		status: () => goalGuard.formatStatus(),
+		clear: () => goalGuard.clearGoal(),
+	};
+
+	config.extraTools = [
+		...(config.mode === "plan" ? [switchToActModeTool] : []),
+		goalGuard.markGoalCompleteTool,
+	];
 
 	const uiEvents = getUIEventEmitter();
 	const chatCommandState: ChatCommandState = {
@@ -289,6 +303,7 @@ export async function runInteractive(
 		askQuestionRef: tuiAskQuestion,
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
+		persistentExtraTools: [goalGuard.markGoalCompleteTool],
 		onAgentEvent: (event) => {
 			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
@@ -587,6 +602,7 @@ export async function runInteractive(
 					sessionRuntime,
 					stop: () => tuiApp?.destroy(),
 					onCommandOutput,
+					goal: goalCommandContext,
 				});
 				if (chatCommandResult.handled) {
 					return chatCommandResult.turnResult;
@@ -607,6 +623,7 @@ export async function runInteractive(
 						sessionRuntime,
 						stop: () => tuiApp?.destroy(),
 						onCommandOutput,
+						goal: goalCommandContext,
 					});
 					if (chatCommandResult.handled) {
 						return chatCommandResult.turnResult;
@@ -654,19 +671,36 @@ export async function runInteractive(
 					return applied;
 				};
 
-				const result = await sendTurnWithActModeContinuation({
+				const result = await sendTurnWithGoalVerification({
+					goalGuard,
 					sendInitialTurn: () =>
-						sessionRuntime.sendCurrentTurn({
-							prompt: noticedUserInput,
-							mode,
-							userImages:
-								mergedUserImages.length > 0 ? mergedUserImages : undefined,
-							userFiles: userFiles.length > 0 ? userFiles : undefined,
-							delivery,
+						sendTurnWithActModeContinuation({
+							sendInitialTurn: () =>
+								sessionRuntime.sendCurrentTurn({
+									prompt: noticedUserInput,
+									mode,
+									userImages:
+										mergedUserImages.length > 0 ? mergedUserImages : undefined,
+									userFiles: userFiles.length > 0 ? userFiles : undefined,
+									delivery,
+								}),
+							sendContinuationTurn: (prompt) =>
+								sessionRuntime.sendCurrentTurn({ prompt, mode: "act" }),
+							applyPendingModeChange,
 						}),
-					sendContinuationTurn: (prompt) =>
-						sessionRuntime.sendCurrentTurn({ prompt, mode: "act" }),
-					applyPendingModeChange,
+					// Each verification round honors a mode switch the model made
+					// while verifying, mirroring the initial turn.
+					sendVerificationTurn: (prompt) =>
+						sendTurnWithActModeContinuation({
+							sendInitialTurn: () =>
+								sessionRuntime.sendCurrentTurn({ prompt, mode }),
+							sendContinuationTurn: (continuation) =>
+								sessionRuntime.sendCurrentTurn({
+									prompt: continuation,
+									mode: "act",
+								}),
+							applyPendingModeChange,
+						}),
 				});
 
 				if (!result) {

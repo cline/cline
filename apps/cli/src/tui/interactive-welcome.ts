@@ -138,6 +138,11 @@ export function listInteractiveSlashCommands(
 			instructions: "/team [prompt]",
 			description: "Start the task with agent team",
 		},
+		{
+			name: "goal",
+			instructions: "/goal [prompt]",
+			description: "Start the task with a goal completion guard",
+		},
 	];
 	if (!userInstructionService) {
 		return builtins;

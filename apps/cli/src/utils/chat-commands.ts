@@ -29,6 +29,17 @@ export type MuteCommandInput = {
 	target?: string;
 };
 
+export type GoalCommandResult = {
+	reply: string;
+	submitPrompt?: string;
+};
+
+export type GoalCommandContext = {
+	set: (goal: string) => Promise<GoalCommandResult> | GoalCommandResult;
+	status: () => Promise<string> | string;
+	clear: () => Promise<string> | string;
+};
+
 export type ChatCommandContext = {
 	enabled: boolean;
 	botUserName?: string;
@@ -52,6 +63,7 @@ export type ChatCommandContext = {
 		| Promise<ForkSessionResult | undefined>
 		| ForkSessionResult
 		| undefined;
+	goal?: GoalCommandContext;
 	schedule?: {
 		create?: (input: {
 			name: string;
@@ -132,17 +144,20 @@ export class ChatCommandHost {
 			args,
 			state: await context.getState(),
 		};
-		const matched = this.definitions.find((definition) =>
-			definition.names.includes(parsed.command),
-		);
-		if (!matched) {
-			return false;
+		// Skip name matches whose availability check fails so a later
+		// definition with the same name (e.g. a plugin command shadowed by a
+		// built-in that is unavailable in this context) can still handle it.
+		for (const definition of this.definitions) {
+			if (!definition.names.includes(parsed.command)) {
+				continue;
+			}
+			if (definition.isAvailable && !definition.isAvailable(context)) {
+				continue;
+			}
+			await definition.run(parsed, context);
+			return true;
 		}
-		if (matched.isAvailable && !matched.isAvailable(context)) {
-			return false;
-		}
-		await matched.run(parsed, context);
-		return true;
+		return false;
 	}
 }
 
@@ -438,6 +453,36 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 				await context.reply(
 					"The /team command must be entered directly as a prompt, not via a chat command.",
 				);
+			},
+		})
+		.register("command", {
+			names: ["/goal"],
+			isAvailable: (context) => context.goal !== undefined,
+			run: async ({ args }, context) => {
+				const goal = context.goal;
+				if (!goal) {
+					return;
+				}
+				const text = args.join(" ").trim();
+				const keyword = text.toLowerCase();
+				if (!text || keyword === "status") {
+					await context.reply(await goal.status());
+					return;
+				}
+				if (
+					keyword === "off" ||
+					keyword === "clear" ||
+					keyword === "stop" ||
+					keyword === "disable"
+				) {
+					await context.reply(await goal.clear());
+					return;
+				}
+				const result = await goal.set(text);
+				await context.reply(result.reply);
+				if (result.submitPrompt) {
+					await context.submitPrompt?.(result.submitPrompt);
+				}
 			},
 		})
 		.register("command", {

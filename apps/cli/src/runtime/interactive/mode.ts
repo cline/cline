@@ -119,10 +119,17 @@ export async function applyInteractiveModeConfig(input: {
 	config: Config;
 	mode: InteractiveUiMode;
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
+	/**
+	 * Extra tools that stay registered regardless of mode (e.g. the /goal
+	 * guard's mark_goal_complete tool), so mode switches don't drop them.
+	 */
+	persistentExtraTools?: Config["extraTools"];
 }): Promise<void> {
 	input.config.mode = input.mode;
-	input.config.extraTools =
-		input.mode === "plan" ? [input.switchToActModeTool] : [];
+	input.config.extraTools = [
+		...(input.mode === "plan" ? [input.switchToActModeTool] : []),
+		...(input.persistentExtraTools ?? []),
+	];
 	input.config.systemPrompt = await resolveSystemPrompt({
 		cwd: input.config.cwd,
 		providerId: input.config.providerId,

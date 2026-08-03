@@ -102,6 +102,7 @@ export function createInteractiveSessionRuntime(input: {
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
+	persistentExtraTools?: Config["extraTools"];
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
@@ -530,6 +531,7 @@ export function createInteractiveSessionRuntime(input: {
 			config: input.config,
 			mode,
 			switchToActModeTool: input.switchToActModeTool,
+			persistentExtraTools: input.persistentExtraTools,
 		});
 		await restartWithCurrentMessages();
 	};

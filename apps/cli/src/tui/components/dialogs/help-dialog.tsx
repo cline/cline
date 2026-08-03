@@ -165,6 +165,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-goal",
+		key: "/goal",
+		desc: "Start the task with a goal completion guard",
+	},
+	{
+		kind: "entry",
 		id: "c-history",
 		key: "/history",
 		desc: "View and resume past sessions",
