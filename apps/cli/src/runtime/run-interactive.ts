@@ -816,9 +816,11 @@ export async function runInteractive(
 			await applyModeChange(mode);
 		},
 		onNewSession: async () => {
-			// A fresh session discards the conversation the goal belonged to.
-			goalGuard.clearGoal();
 			await sessionRuntime.resetForNewSession();
+			// A fresh session discards the conversation the goal belonged to.
+			// Cleared only after the reset succeeds so a failed transition
+			// leaves the current conversation's goal intact.
+			goalGuard.clearGoal();
 		},
 		onModelChange: () =>
 			applyInteractiveModelChange({
@@ -828,8 +830,10 @@ export async function runInteractive(
 			}),
 		onSessionRestart: async () => {
 			await sessionRuntime.ensureReady();
-			goalGuard.clearGoal();
 			await sessionRuntime.restartEmpty();
+			// Cleared only after the restart succeeds so a failed transition
+			// leaves the current conversation's goal intact.
+			goalGuard.clearGoal();
 		},
 		onAccountChange: async () => {
 			await sessionRuntime.ensureReady();
@@ -849,11 +853,14 @@ export async function runInteractive(
 		// directly. Ensuring a session first would mint an empty history entry
 		// when the TUI was launched through `cline history`.
 		onResumeSession: async (sessionId: string) => {
+			const resumed = await resumeInteractiveSession(sessionRuntime, sessionId);
 			// The resumed session is a different conversation than the one the
 			// goal was set in (fork keeps the goal: it continues the same
-			// conversation under a new session id).
+			// conversation under a new session id). Cleared only after the
+			// resume succeeds so a failed transition leaves the current
+			// conversation's goal intact.
 			goalGuard.clearGoal();
-			return await resumeInteractiveSession(sessionRuntime, sessionId);
+			return resumed;
 		},
 		onExportHistorySession: async (sessionId, format) =>
 			await exportHistorySession({

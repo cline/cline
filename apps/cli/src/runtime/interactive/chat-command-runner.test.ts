@@ -164,10 +164,17 @@ describe("runInteractiveChatCommand", () => {
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
 	});
 
-	it("clears the active goal when a chat command resets the session", async () => {
+	it("clears the active goal only after a chat command session reset succeeds", async () => {
 		const config = makeConfig();
 		const runtime = makeRuntime();
-		const clear = vi.fn(() => "Goal cleared.");
+		const order: string[] = [];
+		runtime.resetForNewSession = vi.fn(async () => {
+			order.push("reset");
+		});
+		const clear = vi.fn(() => {
+			order.push("clear");
+			return "Goal cleared.";
+		});
 
 		const result = await runInteractiveChatCommand({
 			prompt: "/new",
@@ -187,8 +194,36 @@ describe("runInteractiveChatCommand", () => {
 		});
 
 		expect(result.handled).toBe(true);
-		expect(clear).toHaveBeenCalledTimes(1);
-		expect(runtime.resetForNewSession).toHaveBeenCalledTimes(1);
+		expect(order).toEqual(["reset", "clear"]);
+	});
+
+	it("keeps the active goal when the session reset fails", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		runtime.resetForNewSession = vi.fn(async () => {
+			throw new Error("reset failed");
+		});
+		const clear = vi.fn(() => "Goal cleared.");
+
+		await expect(
+			runInteractiveChatCommand({
+				prompt: "/new",
+				enabled: true,
+				config,
+				host: chatCommandHost,
+				chatCommandState: makeState(config),
+				autoApproveAllRef: { current: false },
+				setInteractiveAutoApprove: () => {},
+				sessionRuntime: runtime,
+				stop: () => {},
+				goal: {
+					set: () => ({ reply: "" }),
+					status: () => "status",
+					clear,
+				},
+			}),
+		).rejects.toThrow("reset failed");
+		expect(clear).not.toHaveBeenCalled();
 	});
 
 	it("returns plugin command submit prompts as model input", async () => {
