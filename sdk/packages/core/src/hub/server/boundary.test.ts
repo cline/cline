@@ -1249,6 +1249,108 @@ describe("HubServerTransport boundaries", () => {
 		});
 	});
 
+	it("cancels detached requests and later evicts contribution state", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			const resolve = vi.fn();
+			ctx.pendingCapabilityRequests.set("capreq-detach", {
+				sessionId: "session-1",
+				targetClientId: "owner-client",
+				capabilityName: "tool_executor.askQuestion",
+				resolve,
+			});
+
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.detach",
+				clientId: "owner-client",
+				sessionId: "session-1",
+			});
+
+			expect(reply.ok).toBe(true);
+			expect(ctx.pendingCapabilityRequests.has("capreq-detach")).toBe(false);
+			expect(resolve).toHaveBeenCalledWith({
+				ok: false,
+				error:
+					"Capability owner client owner-client detached before request was resolved.",
+			});
+			expect(ctx.sessionState.has("session-1")).toBe(true);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("retains only reconnectable requests on a mixed disconnect", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+				["hook.beforeRun", "owner-client"],
+			]);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "owner-client",
+				payload: { clientId: "owner-client", clientType: "web" },
+			});
+			const askResolve = vi.fn();
+			const hookResolve = vi.fn();
+			ctx.pendingCapabilityRequests.set("capreq-ask", {
+				sessionId: "session-1",
+				targetClientId: "owner-client",
+				capabilityName: "tool_executor.askQuestion",
+				resolve: askResolve,
+			});
+			ctx.pendingCapabilityRequests.set("capreq-hook", {
+				sessionId: "session-1",
+				targetClientId: "owner-client",
+				capabilityName: "hook.beforeRun",
+				resolve: hookResolve,
+			});
+
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+
+			expect(ctx.pendingCapabilityRequests.has("capreq-ask")).toBe(true);
+			expect(
+				ctx.pendingCapabilityRequests.get("capreq-ask")?.disconnectTimer,
+			).toBeDefined();
+			expect(askResolve).not.toHaveBeenCalled();
+			expect(ctx.pendingCapabilityRequests.has("capreq-hook")).toBe(false);
+			expect(hookResolve).toHaveBeenCalledWith({
+				ok: false,
+				error:
+					"Capability owner client owner-client disconnected before request was resolved.",
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("bounds askQuestion requests targeting a disconnected owner", async () => {
 		vi.useFakeTimers();
 		try {
