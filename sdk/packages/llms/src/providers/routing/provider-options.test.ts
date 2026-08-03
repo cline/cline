@@ -1226,6 +1226,110 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				},
 			],
 		},
+		// One case per remaining family Chutes serves. The wire field each one
+		// takes is declared by its own published chat template: `thinking` for
+		// Kimi, GLM and DeepSeek, `enable_thinking` for Qwen and Gemma. Only
+		// Kimi K2 declares `preserve_thinking`, so only it receives that flag.
+		{
+			name: "Chutes Kimi K3 -> thinking without preserve_thinking",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K3-TEE",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "kimi-k3",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: true } },
+					lacks: ["reasoningEffort", "effort"],
+				},
+			],
+		},
+		{
+			name: "Chutes GLM -> thinking chat template kwarg",
+			request: {
+				providerId: "chutes",
+				modelId: "zai-org/GLM-5.2-TEE",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "glm",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: false } },
+					lacks: ["reasoningEffort", "effort"],
+				},
+			],
+		},
+		{
+			name: "Chutes DeepSeek -> thinking chat template kwarg",
+			request: {
+				providerId: "chutes",
+				modelId: "deepseek-ai/DeepSeek-V3.2-TEE",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "deepseek",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: true } },
+					lacks: ["reasoningEffort", "effort"],
+				},
+			],
+		},
+		{
+			name: "Chutes DeepSeek Flash -> thinking chat template kwarg",
+			request: {
+				providerId: "chutes",
+				modelId: "deepseek-ai/DeepSeek-V4-Flash-0731-TEE",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "deepseek-flash",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { thinking: false } },
+					lacks: ["reasoningEffort", "effort"],
+				},
+			],
+		},
+		{
+			name: "Chutes Gemma -> enable_thinking chat template kwarg",
+			request: {
+				providerId: "chutes",
+				modelId: "google/gemma-4-31B-turbo-TEE",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "gemma",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: { chat_template_kwargs: { enable_thinking: true } },
+					lacks: ["reasoningEffort", "effort"],
+				},
+			],
+		},
 		{
 			name: "Chutes Kimi K2.6 TEE unset reasoning -> no chat template patch",
 			request: {

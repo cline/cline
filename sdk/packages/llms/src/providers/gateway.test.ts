@@ -6027,7 +6027,7 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("routes Chutes Kimi and Qwen reasoning controls by model family", async () => {
+	it("routes Chutes reasoning controls by model family", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -6038,42 +6038,47 @@ describe("sdk-gateway", () => {
 			providerConfigs: [{ providerId: "chutes", apiKey: "chutes-key" }],
 		});
 
-		await collect(
-			await gateway.stream({
-				providerId: "chutes",
-				modelId: "moonshotai/Kimi-K2.5-TEE",
-				messages: baseMessages,
-				reasoning: { enabled: false },
-			}),
-		);
-		await collect(
-			await gateway.stream({
-				providerId: "chutes",
+		// One model per wire shape, not one per family: Chutes retires older
+		// checkpoints as newer ones land, so this covers both shapes with
+		// current models and leaves per-family mapping to the unit tests,
+		// which build their own context and do not track the catalog.
+		const cases = [
+			{ modelId: "moonshotai/Kimi-K2.6-TEE", kwargs: { thinking: false } },
+			{ modelId: "zai-org/GLM-5.2-TEE", kwargs: { thinking: false } },
+			{
+				modelId: "google/gemma-4-31B-turbo-TEE",
+				kwargs: { enable_thinking: false },
+			},
+			{
 				modelId: "Qwen/Qwen3-32B-TEE",
-				messages: baseMessages,
-				reasoning: { enabled: true },
-			}),
-		);
-		expect(streamTextSpy).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					chutes: expect.objectContaining({
-						chat_template_kwargs: { thinking: false },
+				kwargs: { enable_thinking: true },
+				enabled: true,
+			},
+		];
+
+		for (const testCase of cases) {
+			await collect(
+				await gateway.stream({
+					providerId: "chutes",
+					modelId: testCase.modelId,
+					messages: baseMessages,
+					reasoning: { enabled: testCase.enabled ?? false },
+				}),
+			);
+		}
+
+		cases.forEach((testCase, index) => {
+			expect(streamTextSpy).toHaveBeenNthCalledWith(
+				index + 1,
+				expect.objectContaining({
+					providerOptions: expect.objectContaining({
+						chutes: expect.objectContaining({
+							chat_template_kwargs: testCase.kwargs,
+						}),
 					}),
 				}),
-			}),
-		);
-		expect(streamTextSpy).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					chutes: expect.objectContaining({
-						chat_template_kwargs: { enable_thinking: true },
-					}),
-				}),
-			}),
-		);
+			);
+		});
 	});
 
 	it("does not apply generic thinking to non-GLM native Z.AI custom models", async () => {
