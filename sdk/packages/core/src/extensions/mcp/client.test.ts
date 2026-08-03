@@ -476,6 +476,7 @@ describe("mcp client stdio environment", () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory({
 			name: "env-dump-server",
+			timeoutSeconds: 30,
 			transport: {
 				type: "stdio",
 				command:
@@ -506,4 +507,42 @@ describe("mcp client stdio environment", () => {
 			await client.disconnect();
 		}
 	}, 30_000);
+
+	// The sdk default is always spelled PATH, so a configured Path would
+	// otherwise collide with it and lose on win32.
+	it.runIf(process.platform === "win32")(
+		"honours a configured env key that differs only in case from an sdk default",
+		async () => {
+			const dumpFile = join(tempRoot, "env-dump-path.json");
+			const markerDirectory = "C:\\cline-mcp-path-marker";
+			const factory = createDefaultMcpServerClientFactory();
+			const client = await factory({
+				name: "env-dump-server",
+				timeoutSeconds: 30,
+				transport: {
+					type: "stdio",
+					command: `"${process.execPath}"`,
+					args: [join(tempRoot, "env-dump-server.js")],
+					env: {
+						FAKE_MCP_ENV_DUMP_FILE: dumpFile,
+						Path: `${markerDirectory};${process.env.PATH ?? ""}`,
+					},
+				},
+			});
+
+			try {
+				await client.connect();
+				await waitFor(() => existsSync(dumpFile));
+				const childEnv = JSON.parse(readFileSync(dumpFile, "utf8")) as Record<
+					string,
+					string
+				>;
+
+				expect(lookupEnv(childEnv, "PATH")).toContain(markerDirectory);
+			} finally {
+				await client.disconnect();
+			}
+		},
+		30_000,
+	);
 });

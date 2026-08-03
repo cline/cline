@@ -91,6 +91,28 @@ function encodeFramedMessage(message: Record<string, unknown>): Buffer {
 	]);
 }
 
+// Windows environment names are case-insensitive but object keys are not, so
+// keeping both the default `PATH` and a configured `Path` lets node's sort pick
+// the default and silently drop the configured value.
+function buildStdioEnv(
+	configured: Record<string, string>,
+): Record<string, string> {
+	const defaults = getDefaultEnvironment();
+	if (process.platform !== "win32") {
+		return { ...defaults, ...configured };
+	}
+
+	const configuredNames = new Set(
+		Object.keys(configured).map((name) => name.toLowerCase()),
+	);
+	const inherited = Object.fromEntries(
+		Object.entries(defaults).filter(
+			([name]) => !configuredNames.has(name.toLowerCase()),
+		),
+	);
+	return { ...inherited, ...configured };
+}
+
 type StdioProtocolMode = "newline" | "framed";
 
 class FramedMessageParser {
@@ -311,10 +333,7 @@ class StdioMcpClient implements McpServerClient {
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
 			cwd: transport.cwd,
-			env: {
-				...getDefaultEnvironment(),
-				...(transport.env ?? {}),
-			},
+			env: buildStdioEnv(transport.env ?? {}),
 			stdio: ["pipe", "pipe", "pipe"],
 			...platformOptions,
 		});
