@@ -78,6 +78,7 @@
 		"ai-sdk-provider-codex-cli": "^2"
 	},
 	"devDependencies": {
-		"ai-sdk-provider-claude-code": "^4"
+		"ai-sdk-provider-claude-code": "^4",
+		"ai-sdk-provider-codex-cli": "^2"
 	}
 }
