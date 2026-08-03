@@ -22,6 +22,8 @@ const reactMock = vi.hoisted(() => ({
 	createRoot: vi.fn(() => rootMock),
 }));
 
+const rootPropsCaptured = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+
 vi.mock("@opentui/core", () => ({
 	createCliRenderer: vi.fn(async () => rendererMock),
 }));
@@ -31,7 +33,10 @@ vi.mock("@opentui/react", () => ({
 }));
 
 vi.mock("./root", () => ({
-	Root: () => null,
+	Root: (props: Record<string, unknown>) => {
+		rootPropsCaptured.push(props);
+		return null;
+	},
 }));
 
 describe("renderOpenTui", () => {
@@ -39,6 +44,7 @@ describe("renderOpenTui", () => {
 
 	beforeEach(() => {
 		destroyHandlers.length = 0;
+		rootPropsCaptured.length = 0;
 		rendererMock.isDestroyed = false;
 		rendererMock.destroy.mockReset();
 		rendererMock.setTerminalTitle.mockReset();
@@ -133,4 +139,26 @@ describe("renderOpenTui", () => {
 
 		expect(rendererMock.setTerminalTitle).not.toHaveBeenCalled();
 	});
+
+	it("passes CLINE_FORCE_THEME=dark through to Root as a dark background", async () => {
+		rendererMock.getPalette.mockResolvedValueOnce({
+			defaultBackground: "#f2f7fb",
+			defaultForeground: "#2c3a4d",
+		});
+		process.env.CLINE_FORCE_THEME = "dark";
+		try {
+			const { renderOpenTui } = await import("./index");
+			await renderOpenTui({} as TuiProps);
+		} finally {
+			delete process.env.CLINE_FORCE_THEME;
+		}
+
+		const rootProps = rootPropsCaptured[0] as {
+			terminalBackground?: string | null;
+			terminalForeground?: string | null;
+		};
+		expect(rootProps?.terminalBackground).toBe("#000000");
+		expect(rootProps?.terminalForeground).toBe("#f0f0f0");
+	});
+
 });

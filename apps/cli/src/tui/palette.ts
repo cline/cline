@@ -126,6 +126,37 @@ export function getTerminalTheme(
 	return "dark";
 }
 
+/**
+ * Values accepted by the user-facing theme override (`CLINE_FORCE_THEME`).
+ * `"auto"` (default) keeps auto-detection from the terminal background.
+ */
+export type ForcedTheme = "auto" | "dark" | "light";
+
+/**
+ * Resolve the terminal colors the TUI should render with.
+ *
+ * When the user forces a theme (`forcedTheme` is `"dark"`/`"light"`), return a
+ * fixed background/foreground pair that the palette adaptors in this module
+ * then classify and derive colors from — so a bright terminal that reports a
+ * light background can still render the TUI in a stable dark scheme (or vice
+ * versa). When nothing is forced (or `"auto"`), the detected colors pass
+ * through unchanged and auto-detection is preserved.
+ */
+export function resolveTerminalColors(
+	background: string | null,
+	foreground: string | null,
+	forcedTheme: string | undefined | null,
+): { background: string | null; foreground: string | null } {
+	switch (forcedTheme?.trim().toLowerCase()) {
+		case "dark":
+			return { background: "#000000", foreground: "#f0f0f0" };
+		case "light":
+			return { background: "#ffffff", foreground: "#1a1a1a" };
+		default:
+			return { background, foreground };
+	}
+}
+
 export function getDefaultForeground(
 	terminalBg: string | null,
 ): string | undefined {

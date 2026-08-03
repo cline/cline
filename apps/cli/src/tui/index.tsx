@@ -1,5 +1,6 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { resolveTerminalColors } from "./palette";
 import { Root } from "./root";
 import { installTuiStdioCapture } from "./stdio-capture";
 import type { TuiProps } from "./types";
@@ -19,8 +20,17 @@ export async function renderOpenTui(
 	const detectedPalette = await renderer
 		.getPalette({ timeout: 150 })
 		.catch(() => null);
-	const terminalBackground = detectedPalette?.defaultBackground ?? null;
-	const terminalForeground = detectedPalette?.defaultForeground ?? null;
+	const detectedBackground = detectedPalette?.defaultBackground ?? null;
+	const detectedForeground = detectedPalette?.defaultForeground ?? null;
+	// Allow pinning the TUI to a fixed light/dark scheme instead of trusting the
+	// terminal's auto-detected background (unreadable on some light terminals).
+	const forcedThemeColors = resolveTerminalColors(
+		detectedBackground,
+		detectedForeground,
+		process.env.CLINE_FORCE_THEME,
+	);
+	const terminalBackground = forcedThemeColors.background;
+	const terminalForeground = forcedThemeColors.foreground;
 
 	let root: ReturnType<typeof createRoot>;
 	try {
