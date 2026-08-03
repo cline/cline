@@ -53,6 +53,7 @@ export class SdkFollowupCoordinator {
 		files?: string[],
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
+		steer?: boolean,
 	): Promise<void> {
 		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
 			return
@@ -89,10 +90,14 @@ export class SdkFollowupCoordinator {
 
 		const { sdkHost, sessionId } = activeSession
 		const shouldQueue = isActiveTurnInProgress()
-		const delivery = shouldQueue ? ("queue" as const) : undefined
+		// V16: Ctrl/Cmd+Enter ("steer") hard-interrupts an in-flight turn; plain
+		// Enter queues behind it. When the turn is idle, both are a normal send.
+		const delivery = shouldQueue ? (steer ? ("steer" as const) : ("queue" as const)) : undefined
 
 		if (shouldQueue) {
-			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
+			Logger.log(
+				`[SdkController] Session is running - ${delivery === "steer" ? "steering" : "queuing"} follow-up message for session: ${sessionId}`,
+			)
 		}
 
 		this.options.sessions.setRunning(true)

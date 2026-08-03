@@ -78,7 +78,7 @@ interface ChatTextAreaProps {
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
 	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
-	onSend: () => void
+	onSend: (delivery?: "queue" | "steer") => void
 	onSelectFilesAndImages: () => void
 	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
@@ -587,7 +587,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if (!sendingDisabled) {
 						setIsTextAreaFocused(false)
-						onSend()
+						// V16: Ctrl/Cmd+Enter = hard steer (interrupt an in-flight turn and
+						// send immediately); plain Enter = normal send (queued if the
+						// turn is running). Shift+Enter stays a newline.
+						const isSteer = (event.ctrlKey || event.metaKey) && !event.altKey
+						onSend(isSteer ? "steer" : undefined)
 					}
 				}
 

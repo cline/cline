@@ -388,7 +388,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					mode={mode}
 					task={task}
 				/>
-				<QueuedPrompts items={queuedPrompts} />
+				<QueuedPrompts
+					items={queuedPrompts}
+					onEditPrompt={(prompt) => {
+						// Double-clicking a queued message pulls it back into the input
+						// box for editing (the queue entry itself is cancelled in
+						// QueuedPrompts via cancelQueuedPrompt).
+						setInputValue(prompt)
+						setTimeout(() => {
+							textAreaRef.current?.focus()
+						}, 0)
+					}}
+				/>
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

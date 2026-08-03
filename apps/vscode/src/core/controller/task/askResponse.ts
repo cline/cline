@@ -35,8 +35,10 @@ export async function askResponse(controller: Controller, request: AskResponseRe
 				return Empty.create()
 		}
 
-		// Call the task's handler for webview responses
-		await controller.task.handleWebviewAskResponse(responseType, request.text, request.images, request.files)
+		// Call the task's handler for webview responses.
+		// `steer` (V16): Ctrl/Cmd+Enter hard-interrupts an in-flight turn instead
+		// of queueing the message behind it (delivery "steer" vs "queue").
+		await controller.task.handleWebviewAskResponse(responseType, request.text, request.images, request.files, request.steer)
 
 		return Empty.create()
 	} catch (error) {

@@ -6,7 +6,7 @@ import { useCallback, useRef } from "react"
 import { useExtensionState, useMessagesState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
-import type { ChatState, MessageHandlers } from "../types/chatTypes"
+import type { ChatState, MessageDelivery, MessageHandlers } from "../types/chatTypes"
 
 /**
  * Custom hook for managing message handlers
@@ -32,11 +32,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	} = chatState
 	const cancelInFlightRef = useRef(false)
 
-	// Handle sending a message
+	// Handle sending a message.
+	// `delivery` (V16): "steer" when the user pressed Ctrl/Cmd+Enter — a hard
+	// interrupt while the turn is running instead of queueing behind it.
 	const handleSendMessage = useCallback(
-		async (text: string, images: string[], files: string[]) => {
+		async (text: string, images: string[], files: string[], delivery?: MessageDelivery) => {
 			let messageToSend = text.trim()
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
+			// Steer flag rides along on every askResponse so the follow-up
+			// coordinator can choose "steer" (interrupt) over "queue" delivery.
+			const steer = delivery === "steer"
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
@@ -150,6 +155,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							text: messageToSend,
 							images,
 							files,
+							steer,
 						}),
 					)
 					messageSent = true
@@ -163,6 +169,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								text: messageToSend,
 								images,
 								files,
+								steer,
 							}),
 						)
 						messageSent = true
@@ -198,6 +205,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 										text: messageToSend,
 										images,
 										files,
+										steer,
 									}),
 									{ showPendingMessage },
 								)
@@ -234,6 +242,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								text: messageToSend,
 								images,
 								files,
+								steer,
 							}),
 							{
 								showPendingMessage: turnState?.phase === "completed" || turnState?.phase === "awaiting_followup",

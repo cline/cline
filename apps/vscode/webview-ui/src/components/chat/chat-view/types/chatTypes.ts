@@ -59,11 +59,18 @@ export interface ChatState {
 }
 
 /**
+ * How a submitted prompt should be delivered while a turn is in flight.
+ * - "queue": wait behind the running turn (plain Enter)
+ * - "steer": hard-interrupt the turn and send immediately (Ctrl/Cmd+Enter)
+ */
+export type MessageDelivery = "queue" | "steer"
+
+/**
  * Message handlers interface
  */
 export interface MessageHandlers {
 	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
-	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
+	handleSendMessage: (text: string, images: string[], files: string[], delivery?: MessageDelivery) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
 }

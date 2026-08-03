@@ -13,7 +13,7 @@ export interface SdkTaskControlCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	setTask: (task: TaskProxy | undefined) => void
-	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
+	onAskResponse: (text?: string, images?: string[], files?: string[], steer?: boolean) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
 	/**
@@ -120,7 +120,8 @@ export class SdkTaskControlCoordinator {
 
 			const task = createTaskProxy(
 				taskId,
-				(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
+				(text?: string, images?: string[], files?: string[], steer?: boolean) =>
+					this.options.onAskResponse(text, images, files, steer),
 				() => this.cancelTask(),
 			)
 			if (cleanedMessages.length > 0) {

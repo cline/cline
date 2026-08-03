@@ -59,7 +59,7 @@ describe("createTaskProxy", () => {
 
 		await proxy.handleWebviewAskResponse("messageResponse", "hello", ["img1"], ["file1"])
 
-		expect(onAskResponse).toHaveBeenCalledWith("hello", ["img1"], ["file1"])
+		expect(onAskResponse).toHaveBeenCalledWith("hello", ["img1"], ["file1"], undefined)
 	})
 
 	it("should delegate yesButtonClicked to onAskResponse", async () => {
@@ -69,7 +69,7 @@ describe("createTaskProxy", () => {
 
 		await proxy.handleWebviewAskResponse("yesButtonClicked", "", [], [])
 
-		expect(onAskResponse).toHaveBeenCalledWith("", [], [])
+		expect(onAskResponse).toHaveBeenCalledWith("", [], [], undefined)
 	})
 
 	it("should delegate noButtonClicked to onAskResponse", async () => {
@@ -79,7 +79,7 @@ describe("createTaskProxy", () => {
 
 		await proxy.handleWebviewAskResponse("noButtonClicked", "", [], [])
 
-		expect(onAskResponse).toHaveBeenCalledWith("", [], [])
+		expect(onAskResponse).toHaveBeenCalledWith("", [], [], undefined)
 	})
 
 	it("should delegate unknown askResponse types to onAskResponse", async () => {
@@ -90,7 +90,18 @@ describe("createTaskProxy", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: testing unknown ask response type
 		await proxy.handleWebviewAskResponse("command" as any, "ls -la", [], [])
 
-		expect(onAskResponse).toHaveBeenCalledWith("ls -la", [], [])
+		expect(onAskResponse).toHaveBeenCalledWith("ls -la", [], [], undefined)
+	})
+
+	it("should forward the steer flag to onAskResponse", async () => {
+		const onAskResponse = vi.fn().mockResolvedValue(undefined)
+		const onCancelTask = vi.fn()
+		const proxy = createTaskProxy("session-123", onAskResponse, onCancelTask)
+
+		// Ctrl+Enter interrupt-steer must reach the controller's askResponse path.
+		await proxy.handleWebviewAskResponse("messageResponse", "stop now", [], [], true)
+
+		expect(onAskResponse).toHaveBeenCalledWith("stop now", [], [], true)
 	})
 
 	it("should store askResponse in taskState", async () => {

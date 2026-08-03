@@ -1,6 +1,6 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 function truncatePrompt(prompt: string): string {
@@ -29,28 +29,63 @@ function queueSummary(items: QueuedPrompt[]): string {
 
 interface QueuedPromptsProps {
 	items?: QueuedPrompt[]
+	/**
+	 * Restores a queued prompt back to the input box (double-click). Removes it
+	 * from the queue first; the caller is responsible for calling
+	 * TaskServiceClient.cancelQueuedPrompt.
+	 */
+	onEditPrompt?: (prompt: string, id: string) => void
 }
 
-export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
+export function QueuedPrompts({ items = [], onEditPrompt }: QueuedPromptsProps) {
 	const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set())
+	const cancelGuardsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
 	if (items.length === 0) {
 		return null
 	}
 
 	const cancelQueuedPrompt = (promptId: string) => {
+		// 10s guard: if the RPC hangs (extension host busy), re-enable the cancel
+		// button so the user is not stuck with a dead control.
+		if (cancelGuardsRef.current.has(promptId)) {
+			return
+		}
+		const guard = setTimeout(() => {
+			cancelGuardsRef.current.delete(promptId)
+			setCancellingIds((current) => {
+				const next = new Set(current)
+				next.delete(promptId)
+				return next
+			})
+		}, 10_000)
+		cancelGuardsRef.current.set(promptId, guard)
 		setCancellingIds((current) => new Set(current).add(promptId))
 		TaskServiceClient.cancelQueuedPrompt(StringRequest.create({ value: promptId }))
 			.catch((error) => {
 				console.error("Failed to cancel queued prompt:", error)
 			})
 			.finally(() => {
+				const activeGuard = cancelGuardsRef.current.get(promptId)
+				if (activeGuard) {
+					clearTimeout(activeGuard)
+					cancelGuardsRef.current.delete(promptId)
+				}
 				setCancellingIds((current) => {
 					const next = new Set(current)
 					next.delete(promptId)
 					return next
 				})
 			})
+	}
+
+	const handleEditPrompt = (prompt: string, id: string) => {
+		if (!onEditPrompt) {
+			return
+		}
+		// Editing = pull the prompt out of the queue and restore it to the input.
+		cancelQueuedPrompt(id)
+		onEditPrompt(prompt, id)
 	}
 
 	return (
@@ -66,10 +101,14 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 					const isCancelling = cancellingIds.has(item.id)
 					return (
 						<div
-							className="flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs leading-snug"
-							key={item.id}>
+							className="group flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs leading-snug"
+							key={item.id}
+							onDoubleClick={() => handleEditPrompt(item.prompt, item.id)}
+							title={onEditPrompt ? "Double-click to edit this message" : item.prompt}>
 							<span aria-hidden="true" className="mt-[5px] size-1.5 shrink-0 rounded-full bg-description/70" />
-							<span className="min-w-0 flex-1 break-words text-foreground">{truncatePrompt(item.prompt)}</span>
+							<span className="min-w-0 flex-1 break-words text-foreground" title={item.prompt}>
+								{truncatePrompt(item.prompt)}
+							</span>
 							{isSteer && (
 								<span className="shrink-0 rounded-[3px] border border-editor-group-border px-1.5 py-[1px] text-[10px] leading-4 text-description">
 									Steer

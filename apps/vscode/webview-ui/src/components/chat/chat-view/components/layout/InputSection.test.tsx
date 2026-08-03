@@ -12,14 +12,15 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 }))
 
 vi.mock("@/components/chat/ChatTextArea", () => ({
-	default: React.forwardRef<HTMLTextAreaElement, { sendingDisabled: boolean; onSend: () => void }>(
+	default: React.forwardRef<HTMLTextAreaElement, { sendingDisabled: boolean; onSend: (delivery?: "queue" | "steer") => void }>(
 		({ sendingDisabled, onSend }, ref) => (
 			<textarea
 				aria-label="composer"
 				disabled={sendingDisabled}
 				onKeyDown={(event) => {
 					if (event.key === "Enter" && !sendingDisabled) {
-						onSend()
+						// Mirror the real ChatTextArea contract: Ctrl/Cmd+Enter is a steer.
+						onSend(event.ctrlKey || event.metaKey ? "steer" : undefined)
 					}
 				}}
 				ref={ref}
@@ -73,7 +74,7 @@ describe("InputSection", () => {
 		expect(composer).not.toBeDisabled()
 
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [], undefined)
 	})
 
 	it("allows submit while approval is pending so typed feedback can reject the approval", () => {
@@ -95,7 +96,7 @@ describe("InputSection", () => {
 		expect(composer).not.toBeDisabled()
 
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [], undefined)
 	})
 
 	it("allows submit for legacy active-task state when turnState is unavailable", () => {
@@ -120,7 +121,7 @@ describe("InputSection", () => {
 		expect(composer).not.toBeDisabled()
 
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [], undefined)
 	})
 
 	it("keeps submit disabled for non-active blocked states", () => {
@@ -143,5 +144,25 @@ describe("InputSection", () => {
 
 		fireEvent.keyDown(composer, { key: "Enter" })
 		expect(handleSendMessage).not.toHaveBeenCalled()
+	})
+
+	it("forwards Ctrl+Enter as a steer delivery so it can interrupt an in-flight turn", () => {
+		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: true })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		fireEvent.keyDown(composer, { key: "Enter", ctrlKey: true })
+		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [], "steer")
 	})
 })

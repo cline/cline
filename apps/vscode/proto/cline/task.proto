@@ -150,6 +150,10 @@ message AskResponseRequest {
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;
+  // V16 (message queue): when true the submit is a hard "steer" (Ctrl/Cmd+Enter).
+  // While a turn is running/awaiting approval this INTERRUPTS the turn and sends
+  // immediately instead of queueing (delivery "steer" instead of "queue").
+  bool steer = 6;
 }
 
 // Request for editing a past user message and regenerating the conversation after it

@@ -561,7 +561,7 @@ export class Controller {
 			setTask: (task) => {
 				this.task = task
 			},
-			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
+			onAskResponse: (text, images, files, steer) => this.askResponse(text, images, files, steer),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			// Bump the epoch synchronously before abort so straggler events from the cancelled
 			// turn carry the old epoch and are dropped by the webview. The resumable phase is set
@@ -587,7 +587,7 @@ export class Controller {
 			setTask: (task) => {
 				this.task = task
 			},
-			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
+			onAskResponse: (text, images, files, steer) => this.askResponse(text, images, files, steer),
 			onCancelTask: () => this.cancelTask(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
@@ -1088,7 +1088,8 @@ export class Controller {
 		if (!this.task) {
 			this.task = createTaskProxy(
 				`auth-error-${ts}`,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				(text?: string, images?: string[], files?: string[], steer?: boolean) =>
+					this.askResponse(text, images, files, steer),
 				() => this.cancelTask(),
 			)
 		}
@@ -1311,7 +1312,7 @@ export class Controller {
 	 * subscription. We do NOT await the send — the gRPC handler needs to
 	 * return immediately so the webview stays responsive.
 	 */
-	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+	async askResponse(prompt?: string, images?: string[], files?: string[], steer?: boolean): Promise<void> {
 		if (this.pendingClineAuthRetryPrompt !== undefined && this.task?.taskState?.askResponse === "yesButtonClicked") {
 			const retryPrompt = this.pendingClineAuthRetryPrompt
 			this.pendingClineAuthRetryPrompt = undefined
@@ -1330,7 +1331,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase, steer)
 	}
 
 	async editMessageAndRegenerate(input: {
@@ -1440,7 +1441,8 @@ export class Controller {
 
 			const task = createTaskProxy(
 				startResult.sessionId,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				(text?: string, images?: string[], files?: string[], steer?: boolean) =>
+					this.askResponse(text, images, files, steer),
 				() => this.cancelTask(),
 			)
 			this.task = task
@@ -1542,7 +1544,7 @@ export class Controller {
 
 		const task = createTaskProxy(
 			restored.sessionId,
-			(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+			(text?: string, images?: string[], files?: string[], steer?: boolean) => this.askResponse(text, images, files, steer),
 			() => this.cancelTask(),
 		)
 		this.task = task
