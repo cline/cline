@@ -66,6 +66,14 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 		},
 		[write],
 	)
+	const handleBaseUrlClear = useCallback(async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear Ollama base URL:", error)
+			throw error
+		}
+	}, [write])
 
 	// Fetch ollama models on mount and whenever the base URL changes. The
 	// picker also refetches on focus — do NOT poll on an interval: the base
@@ -97,6 +105,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				initialValue={ollamaBaseUrl}
 				label="Use custom base URL"
 				onChange={handleBaseUrlChange}
+				onClear={handleBaseUrlClear}
 				placeholder="Default: http://localhost:11434"
 			/>
 
@@ -182,7 +191,9 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			{showModelOptions && (
 				<>
 					<DebouncedTextField
-						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						initialValue={
+							apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "300000"
+						}
 						onChange={(value) => {
 							// Convert to number, with validation
 							const numValue = Number.parseInt(value, 10)
@@ -190,7 +201,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}
-						placeholder="Default: 30000 (30 seconds)"
+						placeholder="Default: 300000 (5 minutes)"
 						style={{ width: "100%" }}>
 						<span className="font-semibold">Request Timeout (ms)</span>
 					</DebouncedTextField>

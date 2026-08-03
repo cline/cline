@@ -21,6 +21,15 @@ export type ReasoningDeltaEvent = {
 	redacted?: boolean;
 };
 
+export type ChatUsageEvent = {
+	/** Tokens consumed by the latest model request. */
+	inputTokens?: number;
+	/** Tokens produced by the latest model request. */
+	outputTokens?: number;
+	/** Cost of the latest model request. */
+	cost?: number;
+};
+
 export type ToolCallStartEvent = {
 	toolCallId?: string;
 	toolName?: string;

@@ -215,15 +215,17 @@ export async function writeModelsFile(
 
 export function toProviderModel(
 	modelId: string,
-	info: {
-		name?: string;
-		capabilities?: string[];
-		thinkingConfig?: unknown;
-	},
+	info: Pick<
+		ModelInfo,
+		"name" | "contextWindow" | "capabilities" | "thinkingConfig"
+	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.contextWindow !== undefined
+			? { contextWindow: info.contextWindow }
+			: {}),
 		supportsAttachments: info.capabilities?.includes("files"),
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:

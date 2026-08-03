@@ -650,7 +650,9 @@ export function runBasicCompaction(options: {
 		reason:
 			options.context.mode === "manual"
 				? "manual_compaction"
-				: "auto_compaction",
+				: options.context.mode === "overflow_recovery"
+					? "overflow_recovery_compaction"
+					: "auto_compaction",
 		displayRole: "system",
 		messagesRemoved:
 			prior.messagesRemoved + (originalMessages.length - mergedMessages.length),

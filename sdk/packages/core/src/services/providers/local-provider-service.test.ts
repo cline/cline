@@ -11,6 +11,7 @@ import {
 	readModelsFile,
 	registerCustomProvider,
 	resolveModelsRegistryPath,
+	toProviderModel,
 } from "./local-provider-registry";
 import {
 	addLocalProvider,
@@ -746,6 +747,19 @@ describe("addLocalProvider – capabilities", () => {
 	});
 
 	afterEach(() => cleanup());
+
+	it("exposes the model context window to provider catalog consumers", () => {
+		expect(
+			toProviderModel("wide-model", {
+				name: "Wide Model",
+				contextWindow: 1_000_000,
+			}),
+		).toMatchObject({
+			id: "wide-model",
+			name: "Wide Model",
+			contextWindow: 1_000_000,
+		});
+	});
 
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {
