@@ -10,6 +10,7 @@
 //
 // Exit code 0 = PASS, 1 = FAIL (metrics below threshold or harness error).
 
+import { pathToFileURL } from "node:url"
 import { checkMemoryBudget, computeScrollBenchmark, type FrameSample, type MemorySample } from "./benchmark-metrics"
 
 interface CliArgs {
@@ -21,7 +22,7 @@ interface CliArgs {
 	maxJankRate: number
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
 	const args: CliArgs = {
 		messages: 100,
 		durationMs: 3000,
@@ -84,9 +85,10 @@ async function callHarness(port: number, method: string, params: Record<string, 
  * Webview-side instrumentation injected via web.evaluate. Builds synthetic
  * messages, scrolls the container, and records rAF frame durations + heap
  * samples into window.__clineBench. Wrapped in an IIFE because web.evaluate
- * evaluates a single expression.
+ * evaluates a single expression. Exported for headless unit tests; the
+ * placeholders `messages`/`durationMs` are string-replaced by the caller.
  */
-function buildInjectScript(messages: number, durationMs: number): string {
+export function buildInjectScript(messages: number, durationMs: number): string {
 	const script = `
 (() => {
 	const target = messages;
@@ -192,7 +194,12 @@ async function main(): Promise<void> {
 	process.exit(passed ? 0 : 1)
 }
 
-main().catch((error) => {
-	console.error("[benchmark] Fatal:", error)
-	process.exit(1)
-})
+// Entry guard: only auto-run when executed directly (bun run / node file.ts),
+// never when imported by vitest for unit tests (argv[1] is the runner binary).
+const isEntryPoint = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false
+if (isEntryPoint) {
+	main().catch((error) => {
+		console.error("[benchmark] Fatal:", error)
+		process.exit(1)
+	})
+}
