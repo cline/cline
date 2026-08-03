@@ -15,6 +15,12 @@ describe("describeMissingCredentialError", () => {
 		)
 	})
 
+	it("does not name a provider when the id is unknown", () => {
+		expect(describeMissingCredentialError("Missing Authorization header")).toBe(
+			"Missing API key for the active provider. Add credentials in Settings, or switch providers.",
+		)
+	})
+
 	it.each([
 		"No Authorization header",
 		"Authorization header is required",
@@ -47,5 +53,11 @@ describe("reshapeErrorForWebview - missing credentials", () => {
 
 	it("passes an invalid-key error through unchanged", () => {
 		expect(reshapeErrorForWebview({ message: "Invalid API key" }, "openai")).toBe("Invalid API key")
+	})
+
+	it("does not blame the cline provider when the active provider id is unknown", () => {
+		expect(reshapeErrorForWebview({ message: "Missing Authorization header" })).toBe(
+			"Missing API key for the active provider. Add credentials in Settings, or switch providers.",
+		)
 	})
 })
