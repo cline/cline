@@ -1,5 +1,6 @@
 import type { Message } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { formatGoalVerificationPrompt } from "../../runtime/interactive/goal";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { hydrateSessionMessages } from "./hydrate-messages";
 
@@ -40,6 +41,28 @@ describe("hydrateSessionMessages", () => {
 
 		expect(hydrateSessionMessages(messages)).toEqual([
 			{ kind: "assistant_text", text: "On it.", streaming: false, mode: "act" },
+		]);
+	});
+
+	it("hides the synthetic goal verification prompt", () => {
+		const messages = [
+			{
+				role: "user",
+				content: `<user_input mode="act">${formatGoalVerificationPrompt("fix tests")}</user_input>`,
+			},
+			{
+				role: "assistant",
+				content: "Yes, the goal is complete.",
+			},
+		] as Message[];
+
+		expect(hydrateSessionMessages(messages)).toEqual([
+			{
+				kind: "assistant_text",
+				text: "Yes, the goal is complete.",
+				streaming: false,
+				mode: "act",
+			},
 		]);
 	});
 

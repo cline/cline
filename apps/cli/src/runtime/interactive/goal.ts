@@ -42,14 +42,32 @@ export function formatGoalTaskPrompt(goal: string): string {
 	return formatUserCommandBlock(goal, "goal");
 }
 
+const GOAL_VERIFICATION_PROMPT_PREFIX =
+	"Are you sure you've completed the goal:";
+const GOAL_VERIFICATION_PROMPT_MARKER =
+	"This verification prompt is the only time you may call mark_goal_complete.";
+
 export function formatGoalVerificationPrompt(goal: string): string {
 	return [
-		`Are you sure you've completed the goal: ${goal}`,
+		`${GOAL_VERIFICATION_PROMPT_PREFIX} ${goal}`,
 		"",
-		"This verification prompt is the only time you may call mark_goal_complete.",
+		GOAL_VERIFICATION_PROMPT_MARKER,
 		"If yes, call mark_goal_complete with a concise summary.",
 		"If not, continue the remaining work before calling mark_goal_complete.",
 	].join("\n");
+}
+
+/**
+ * Detects the runtime-generated goal verification prompt so transcript
+ * surfaces can hide it from user bubbles, the same way the act-mode
+ * continuation prompt is hidden. The goal text is dynamic, so this matches
+ * the fixed prefix plus the fixed instruction line instead of exact equality.
+ */
+export function isGoalVerificationPrompt(text: string): boolean {
+	return (
+		text.startsWith(GOAL_VERIFICATION_PROMPT_PREFIX) &&
+		text.includes(GOAL_VERIFICATION_PROMPT_MARKER)
+	);
 }
 
 function parseMarkGoalCompleteInput(input: unknown): { summary?: string } {

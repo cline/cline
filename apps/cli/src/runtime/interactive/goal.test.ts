@@ -3,6 +3,7 @@ import {
 	createInteractiveGoalGuard,
 	formatGoalTaskPrompt,
 	formatGoalVerificationPrompt,
+	isGoalVerificationPrompt,
 	MAX_GOAL_VERIFICATION_ROUNDS,
 	sendTurnWithGoalVerification,
 } from "./goal";
@@ -214,6 +215,26 @@ describe("sendTurnWithGoalVerification", () => {
 		});
 
 		expect(result).toEqual(completed(4));
+	});
+});
+
+describe("isGoalVerificationPrompt", () => {
+	it("detects verification prompts for any goal text", () => {
+		expect(
+			isGoalVerificationPrompt(formatGoalVerificationPrompt("fix tests")),
+		).toBe(true);
+		expect(
+			isGoalVerificationPrompt(
+				formatGoalVerificationPrompt("a goal\nspanning lines"),
+			),
+		).toBe(true);
+	});
+
+	it("does not flag ordinary user messages", () => {
+		expect(isGoalVerificationPrompt("fix tests")).toBe(false);
+		expect(
+			isGoalVerificationPrompt("Are you sure you've completed the goal: x"),
+		).toBe(false);
 	});
 });
 

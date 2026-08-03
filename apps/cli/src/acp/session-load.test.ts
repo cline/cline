@@ -1,5 +1,6 @@
 import type { AgentSideConnection } from "@agentclientprotocol/sdk";
 import { describe, expect, it, vi } from "vitest";
+import { formatGoalVerificationPrompt } from "../runtime/interactive/goal";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 import {
 	replaySessionHistory,
@@ -95,6 +96,15 @@ describe("translateHistoricalMessage", () => {
 			translateHistoricalMessage({
 				role: "user",
 				content: `<user_input mode="act">${ACT_MODE_CONTINUATION_PROMPT}</user_input>`,
+			}),
+		).toEqual([]);
+	});
+
+	it("does not replay the synthetic goal verification prompt", () => {
+		expect(
+			translateHistoricalMessage({
+				role: "user",
+				content: `<user_input mode="act">${formatGoalVerificationPrompt("fix tests")}</user_input>`,
 			}),
 		).toEqual([]);
 	});

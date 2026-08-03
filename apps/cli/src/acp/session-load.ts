@@ -8,16 +8,20 @@ import {
 	type Message,
 	type ToolResultContent,
 } from "@cline/shared";
+import { isGoalVerificationPrompt } from "../runtime/interactive/goal";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 /**
- * The act-mode continuation prompt is runtime-generated, not typed by the
- * user, so it must not replay as a user turn. Mirrors the TUI transcript
- * hydration filter in tui/utils/hydrate-messages.ts.
+ * The act-mode continuation and goal verification prompts are
+ * runtime-generated, not typed by the user, so they must not replay as user
+ * turns. Mirrors the TUI transcript hydration filter in
+ * tui/utils/hydrate-messages.ts.
  */
 function isSyntheticUserText(text: string): boolean {
-	return text === ACT_MODE_CONTINUATION_PROMPT;
+	return (
+		text === ACT_MODE_CONTINUATION_PROMPT || isGoalVerificationPrompt(text)
+	);
 }
 
 /**

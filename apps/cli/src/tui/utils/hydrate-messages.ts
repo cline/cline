@@ -4,6 +4,7 @@ import {
 	type Message,
 	parseUserInputMode,
 } from "@cline/shared";
+import { isGoalVerificationPrompt } from "../../runtime/interactive/goal";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
@@ -17,10 +18,13 @@ function getDisplayRole(msg: PersistedMessage): string | undefined {
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
 }
 
-// The act-mode continuation prompt is runtime-generated, not typed by the
-// user, so it should not surface as a user bubble in the transcript.
+// The act-mode continuation and goal verification prompts are
+// runtime-generated, not typed by the user, so they should not surface as
+// user bubbles in the transcript.
 function isSyntheticUserText(text: string): boolean {
-	return text === ACT_MODE_CONTINUATION_PROMPT;
+	return (
+		text === ACT_MODE_CONTINUATION_PROMPT || isGoalVerificationPrompt(text)
+	);
 }
 
 function stringifyToolResult(
