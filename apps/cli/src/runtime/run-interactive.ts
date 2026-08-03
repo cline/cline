@@ -816,11 +816,15 @@ export async function runInteractive(
 			await applyModeChange(mode);
 		},
 		onNewSession: async () => {
-			await sessionRuntime.resetForNewSession();
-			// A fresh session discards the conversation the goal belonged to.
-			// Cleared only after the reset succeeds so a failed transition
-			// leaves the current conversation's goal intact.
-			goalGuard.clearGoal();
+			// Once a reset is attempted the old conversation's continuity is no
+			// longer guaranteed (the runtime can discard the active session
+			// before failing), so the goal is always dropped: a stale goal must
+			// never verify or complete against a different conversation.
+			try {
+				await sessionRuntime.resetForNewSession();
+			} finally {
+				goalGuard.clearGoal();
+			}
 		},
 		onModelChange: () =>
 			applyInteractiveModelChange({
@@ -830,10 +834,13 @@ export async function runInteractive(
 			}),
 		onSessionRestart: async () => {
 			await sessionRuntime.ensureReady();
-			await sessionRuntime.restartEmpty();
-			// Cleared only after the restart succeeds so a failed transition
-			// leaves the current conversation's goal intact.
-			goalGuard.clearGoal();
+			// See onNewSession: the goal is dropped even when the restart
+			// fails, because the old conversation may already be gone.
+			try {
+				await sessionRuntime.restartEmpty();
+			} finally {
+				goalGuard.clearGoal();
+			}
 		},
 		onAccountChange: async () => {
 			await sessionRuntime.ensureReady();
@@ -853,14 +860,17 @@ export async function runInteractive(
 		// directly. Ensuring a session first would mint an empty history entry
 		// when the TUI was launched through `cline history`.
 		onResumeSession: async (sessionId: string) => {
-			const resumed = await resumeInteractiveSession(sessionRuntime, sessionId);
 			// The resumed session is a different conversation than the one the
 			// goal was set in (fork keeps the goal: it continues the same
-			// conversation under a new session id). Cleared only after the
-			// resume succeeds so a failed transition leaves the current
-			// conversation's goal intact.
-			goalGuard.clearGoal();
-			return resumed;
+			// conversation under a new session id). The goal is dropped even
+			// when the resume fails, because the resume may have stopped the
+			// old session before failing — a stale goal must never verify or
+			// complete against whichever conversation runs next.
+			try {
+				return await resumeInteractiveSession(sessionRuntime, sessionId);
+			} finally {
+				goalGuard.clearGoal();
+			}
 		},
 		onExportHistorySession: async (sessionId, format) =>
 			await exportHistorySession({

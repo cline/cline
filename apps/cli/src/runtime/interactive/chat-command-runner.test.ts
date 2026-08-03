@@ -197,7 +197,9 @@ describe("runInteractiveChatCommand", () => {
 		expect(order).toEqual(["reset", "clear"]);
 	});
 
-	it("keeps the active goal when the session reset fails", async () => {
+	it("drops the goal even when the session reset fails", async () => {
+		// A failing reset can still have discarded the old conversation, so
+		// the goal must not survive to attach to whichever session runs next.
 		const config = makeConfig();
 		const runtime = makeRuntime();
 		runtime.resetForNewSession = vi.fn(async () => {
@@ -223,7 +225,7 @@ describe("runInteractiveChatCommand", () => {
 				},
 			}),
 		).rejects.toThrow("reset failed");
-		expect(clear).not.toHaveBeenCalled();
+		expect(clear).toHaveBeenCalledTimes(1);
 	});
 
 	it("returns plugin command submit prompts as model input", async () => {

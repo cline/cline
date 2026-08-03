@@ -93,11 +93,15 @@ export async function runInteractiveChatCommand(input: {
 			}
 		},
 		reset: async () => {
-			await input.sessionRuntime.resetForNewSession();
-			// A session reset discards the conversation the goal belonged to.
-			// Cleared only after the reset succeeds so a failed transition
-			// leaves the current conversation's goal intact.
-			await input.goal?.clear();
+			// Once a reset is attempted the old conversation's continuity is no
+			// longer guaranteed (the runtime can discard the active session
+			// before failing), so the goal is always dropped: a stale goal must
+			// never verify or complete against a different conversation.
+			try {
+				await input.sessionRuntime.resetForNewSession();
+			} finally {
+				await input.goal?.clear();
+			}
 		},
 		stop: async () => {
 			input.stop();
