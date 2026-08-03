@@ -121,13 +121,18 @@ export default defineConfig({
 					) {
 						return "vendor-codemirror"
 					}
-					if (id.includes("lucide-react")) {
-						return "vendor-lucide"
-					}
-					if (id.includes("framer-motion")) {
-						return "vendor-motion"
-					}
-					return "vendor"
+				if (id.includes("lucide-react")) {
+					return "vendor-lucide"
+				}
+				// framer-motion is intentionally NOT split out: @heroui (in the
+				// default vendor chunk) imports it, while framer-motion re-exports
+				// motion-dom/motion-utils (also in the default vendor chunk) and
+				// needs React from it. Splitting it off created a circular chunk
+				// dependency (vendor <-> vendor-motion); the webview crashed at
+				// load with "Cannot read properties of undefined (reading
+				// 'createContext')" because vendor-motion evaluated React
+				// top-level before the main vendor chunk finished initializing.
+				return "vendor"
 				},
 				// Disable compact output for dev build
 				compact: !isDevBuild,
