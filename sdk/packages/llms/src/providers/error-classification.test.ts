@@ -1,3 +1,9 @@
+import {
+	APICallError,
+	NoOutputGeneratedError,
+	RetryError,
+	TypeValidationError,
+} from "ai";
 import { describe, expect, it } from "vitest";
 import { classifyProviderError } from "./error-classification";
 
@@ -161,6 +167,171 @@ describe("classifyProviderError", () => {
 			const cyclic: Record<string, unknown> = { message: "boom" };
 			cyclic.cause = cyclic;
 			expect(classifyProviderError(cyclic)).toBe("unknown");
+		});
+	});
+
+	describe("typed AI SDK error instances", () => {
+		const overflowApiCallError = () =>
+			new APICallError({
+				message: "Bad Request",
+				url: "https://api.anthropic.com/v1/messages",
+				requestBodyValues: {},
+				statusCode: 400,
+				responseBody: JSON.stringify({
+					type: "error",
+					error: {
+						type: "invalid_request_error",
+						message: "prompt is too long: 213462 tokens > 200000 maximum",
+					},
+				}),
+			});
+
+		it("classifies an APICallError 400 with a prompt-too-long body", () => {
+			expect(classifyProviderError(overflowApiCallError())).toBe(
+				"context_window_exceeded",
+			);
+		});
+
+		it("treats the typed statusCode as authoritative: 429 vetoes token wording", () => {
+			const error = new APICallError({
+				message: "Too Many Requests",
+				url: "https://api.anthropic.com/v1/messages",
+				requestBodyValues: {},
+				statusCode: 429,
+				responseBody: JSON.stringify({
+					error: {
+						message: "Request tokens exceed your available quota.",
+					},
+				}),
+			});
+			expect(classifyProviderError(error)).toBe("unknown");
+		});
+
+		it("treats the typed statusCode as authoritative: 500 vetoes context wording", () => {
+			const error = new APICallError({
+				message: "Internal Server Error",
+				url: "https://api.openai.com/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 500,
+				responseBody: JSON.stringify({
+					error: {
+						message: "internal error computing maximum context length",
+					},
+				}),
+			});
+			expect(classifyProviderError(error)).toBe("unknown");
+		});
+
+		it("treats the typed statusCode as authoritative: an explicit overflow code cannot override it", () => {
+			const withStatus = (statusCode: number) =>
+				new APICallError({
+					message: "Request failed",
+					url: "https://api.openai.com/v1/chat/completions",
+					requestBodyValues: {},
+					statusCode,
+					responseBody: JSON.stringify({
+						error: {
+							message: "This model's maximum context length is 128000 tokens.",
+							code: "context_length_exceeded",
+						},
+					}),
+				});
+			expect(classifyProviderError(withStatus(429))).toBe("unknown");
+			expect(classifyProviderError(withStatus(500))).toBe("unknown");
+			// The gate must not swallow genuine overflow rejections.
+			expect(classifyProviderError(withStatus(400))).toBe(
+				"context_window_exceeded",
+			);
+		});
+
+		it("unwraps a RetryError to its last attempt's error", () => {
+			const error = new RetryError({
+				message: "Failed after 3 attempts.",
+				reason: "maxRetriesExceeded",
+				errors: [new Error("fetch failed"), overflowApiCallError()],
+			});
+			expect(classifyProviderError(error)).toBe("context_window_exceeded");
+		});
+
+		it("classifies an untyped final RetryError attempt without earlier attempts vetoing it", () => {
+			// Attempt 1 was a retryable 429; the final attempt is a plain
+			// (untyped) overflow rejection. The earlier rate limit must not
+			// veto the final attempt's verdict.
+			const error = new RetryError({
+				message: "Failed after 2 attempts.",
+				reason: "errorNotRetryable",
+				errors: [
+					new APICallError({
+						message: "Too Many Requests",
+						url: "https://api.anthropic.com/v1/messages",
+						requestBodyValues: {},
+						statusCode: 429,
+						responseBody: JSON.stringify({
+							error: {
+								type: "rate_limit_error",
+								message: "Rate limit reached.",
+							},
+						}),
+					}),
+					{
+						status: 400,
+						error: {
+							type: "invalid_request_error",
+							message: "prompt is too long: 213462 tokens > 200000 maximum",
+						},
+					},
+				],
+			});
+			expect(classifyProviderError(error)).toBe("context_window_exceeded");
+		});
+
+		it("does not let earlier RetryError attempts fake an overflow for an untyped final attempt", () => {
+			const error = new RetryError({
+				message: "Failed after 2 attempts.",
+				reason: "errorNotRetryable",
+				errors: [
+					{
+						status: 400,
+						error: {
+							message: "prompt is too long: 213462 tokens > 200000 maximum",
+						},
+					},
+					new Error("fetch failed: other side closed"),
+				],
+			});
+			expect(classifyProviderError(error)).toBe("unknown");
+		});
+
+		it("classifies a TypeValidationError by the gateway payload in value", () => {
+			// A real instance of the ENG-2394 failure: the Vercel gateway streams
+			// the upstream rejection as the value that failed schema validation.
+			const error = new TypeValidationError({
+				value: {
+					error_type: "validation_error",
+					error_message: JSON.stringify({
+						error: {
+							message:
+								"This model's maximum context length is 40960 tokens. However, you requested 100 output tokens and your prompt contains at least 40861 input tokens.",
+							code: 400,
+						},
+					}),
+				},
+				cause: Object.assign(
+					new Error(
+						'[\n  {\n    "code": "invalid_union",\n    "path": [],\n    "message": "Invalid input"\n  }\n]',
+					),
+					{ name: "ZodError" },
+				),
+			});
+			expect(classifyProviderError(error)).toBe("context_window_exceeded");
+		});
+
+		it("recurses through a generic AISDKError wrapper's cause", () => {
+			const error = new NoOutputGeneratedError({
+				message: "No output generated.",
+				cause: overflowApiCallError(),
+			});
+			expect(classifyProviderError(error)).toBe("context_window_exceeded");
 		});
 	});
 });
