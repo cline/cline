@@ -296,6 +296,13 @@ message State {
   // must ignore `state_json` and use `delta_json` instead.
   // The webview reconciles deltas convergently, gated by version.
   optional string delta_json = 2;
+  // Out-of-band monotonic state version. Lets the webview gate a full
+  // snapshot *before* JSON.parse-ing it: a snapshot whose version is not
+  // strictly newer than the last applied one can be dropped immediately,
+  // avoiding the main-thread cost of parsing a stale/duplicate full state.
+  // Mirrors `stateData.stateVersion` inside `state_json` (kept in sync by
+  // the backend senders).
+  optional int32 state_version = 3;
 }
 
 message TerminalProfiles {

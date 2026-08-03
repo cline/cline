@@ -264,6 +264,77 @@ export function applyBatchPrepend(
 	}
 }
 
+/**
+ * Batch-merge a snapshot's message array into the replica in a single
+ * O(N+M) pass (N = existing messages, M = incoming messages), preserving
+ * existing transcript order and the per-ts highest-seq rule.
+ *
+ * This replaces the previous O(N²) loop (`applyMessage` per message, each
+ * rebuilding the full array + Map). For a 50-message window this drops the
+ * snapshot-merge cost from ~2500 element copies to ~100.
+ */
+function mergeMessagesBatch(state: ReplicaState, incomingMessages: ClineMessage[]): ReplicaState {
+	if (incomingMessages.length === 0) {
+		return state
+	}
+
+	// Phase 1 — dedupe incoming by ts (keep highest seq) without touching arrays.
+	const freshestIncoming = new Map<number, ClineMessage>()
+	for (const message of incomingMessages) {
+		const existing = freshestIncoming.get(message.ts)
+		if (existing === undefined || seqOf(message) >= seqOf(existing)) {
+			freshestIncoming.set(message.ts, message)
+		}
+	}
+
+	// Phase 2 — decide which ts actually change the transcript.
+	let changed = false
+	for (const [ts, incoming] of freshestIncoming) {
+		const existingSeq = state.seqByTs.get(ts)
+		if (existingSeq === undefined || seqOf(incoming) >= existingSeq) {
+			changed = true
+			break
+		}
+	}
+	if (!changed) {
+		return state
+	}
+
+	// Phase 3 — single array/Map rebuild: replace updated ts in place,
+	// append genuinely new ts (in incoming order) at the end.
+	// Per-ts freshness guard: only replace when the incoming copy is at
+	// equal-or-newer seq than what the replica already holds, so a mixed
+	// snapshot (e.g. a truncated window that lacks the newest copy of a
+	// usage-bearing api_req_started row) can never regress the transcript.
+	const seqByTs = new Map(state.seqByTs)
+	const messages: ClineMessage[] = []
+	for (const message of state.messages) {
+		const replacement = freshestIncoming.get(message.ts)
+		if (replacement !== undefined) {
+			// Consume the incoming copy either way so the trailing loop can't
+			// re-append a rejected (stale) copy and duplicate the ts.
+			freshestIncoming.delete(message.ts)
+			const existingSeq = seqByTs.get(message.ts)
+			if (existingSeq === undefined || seqOf(replacement) >= existingSeq) {
+				messages.push(replacement)
+				seqByTs.set(replacement.ts, seqOf(replacement))
+			} else {
+				messages.push(message)
+			}
+		} else {
+			messages.push(message)
+		}
+	}
+	for (const message of incomingMessages) {
+		if (freshestIncoming.has(message.ts)) {
+			messages.push(message)
+			seqByTs.set(message.ts, seqOf(message))
+		}
+	}
+
+	return { ...state, messages, seqByTs }
+}
+
 export function applyStateSnapshot(
 	state: ReplicaState,
 	snapshotMessages: ClineMessage[],
@@ -300,9 +371,7 @@ export function applyStateSnapshot(
 
 	// Merge each message; never shrink the transcript for the same task/epoch.
 	let next = state
-	for (const message of snapshotMessages) {
-		next = applyMessage(next, message)
-	}
+	next = mergeMessagesBatch(next, snapshotMessages)
 	if (snapshotVersion > next.stateVersion) {
 		next = next === state ? { ...state } : next
 		next.stateVersion = snapshotVersion

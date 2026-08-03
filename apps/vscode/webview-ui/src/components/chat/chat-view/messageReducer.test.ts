@@ -233,5 +233,21 @@ describe("messageReducer — deterministic", () => {
 			expect(tsList(s)).toContain(1)
 			expect(tsList(s)).toContain(2)
 		})
+
+		it("a snapshot with a LOWER-seq copy of an existing ts does NOT regress the transcript", () => {
+			// Regression: mergeMessagesBatch Phase 3 used to replace every matching ts
+			// unconditionally. A mixed snapshot — e.g. a truncated tail window lacking
+			// the newest copy of a usage-bearing api_req_started row — could then
+			// roll the high-seq copy back, zeroing the session billing in the header.
+			let s = createReplicaState()
+			s = applyMessage(s, msg(1, 1, 1, false, "task"))
+			const usage: ClineMessage = { ts: 2, type: "say", say: "api_req_started", text: "usage", seq: 10, epoch: 1 }
+			s = applyMessage(s, usage)
+			// Stale snapshot: carries the older seq-5 copy of ts 2, plus an unrelated ts.
+			s = applyStateSnapshot(s, [msg(2, 5, 1, false, "usage"), msg(3, 6, 1, false, "new")], 1, 2)
+			expect(tsList(s)).toEqual([1, 2, 3])
+			// The high-seq copy (seq 10) must be retained, not rolled back to seq 5.
+			expect(s.messages.find((m) => m.ts === 2)?.seq).toBe(10)
+		})
 	})
 })

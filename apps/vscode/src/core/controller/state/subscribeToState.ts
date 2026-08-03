@@ -45,6 +45,8 @@ export async function subscribeToState(
 		await responseStream(
 			{
 				stateJson: initialStateJson,
+				// Out-of-band version lets the webview gate BEFORE JSON.parse.
+				stateVersion: initialState.stateVersion,
 			},
 			false, // Not the last message
 		)
@@ -76,6 +78,8 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 		responseStream(
 			{
 				stateJson,
+				// Out-of-band version lets the webview gate BEFORE JSON.parse.
+				stateVersion: state.stateVersion,
 			},
 			false, // Not the last message
 		).catch((error) => {
@@ -149,6 +153,8 @@ export async function requestFullSync(controller: Controller, _request: StringRe
 		responseStream(
 			{
 				stateJson,
+				// Out-of-band version lets the webview gate BEFORE JSON.parse.
+				stateVersion: state.stateVersion,
 			},
 			false,
 		).catch((error) => {

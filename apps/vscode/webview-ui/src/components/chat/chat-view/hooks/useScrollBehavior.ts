@@ -296,7 +296,34 @@ export function useScrollBehavior(
 
 	useEffect(() => clearLayoutSettleScrollTimers, [clearLayoutSettleScrollTimers])
 
+	// Track the previous first/last row ts so a length change can be classified:
+	//  - append (last ts changed)  -> keep bottom pinning
+	//  - prepend (first ts changed, last unchanged) -> history loaded above; the
+	//    user is scrolled up browsing older messages, so do NOT yank to bottom
+	const prevFirstRowTsRef = useRef<number | undefined>(undefined)
+	const prevLastRowTsRef = useRef<number | undefined>(undefined)
+
 	useEffect(() => {
+		const firstRow = groupedMessages[0]
+		const lastRow = groupedMessages.at(-1)
+		const firstTs = Array.isArray(firstRow) ? firstRow[0]?.ts : firstRow?.ts
+		const lastTs = Array.isArray(lastRow) ? lastRow.at(-1)?.ts : lastRow?.ts
+
+		const prevFirst = prevFirstRowTsRef.current
+		const prevLast = prevLastRowTsRef.current
+		prevFirstRowTsRef.current = firstTs
+		prevLastRowTsRef.current = lastTs
+
+		const isPrepend = prevFirst !== undefined && prevLast !== undefined && lastTs === prevLast && firstTs !== prevFirst
+
+		// History prepend: keep the current viewport anchored instead of jumping
+		// to the bottom. Virtuoso maintains scroll offset by content position, so
+		// the visible rows stay put as the prepended rows enter above.
+		if (isPrepend) {
+			disableAutoScrollRef.current = true
+			return
+		}
+
 		if (!disableAutoScrollRef.current) {
 			scrollToBottomSmooth()
 			setTimeout(() => {

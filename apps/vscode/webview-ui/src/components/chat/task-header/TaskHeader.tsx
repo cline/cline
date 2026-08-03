@@ -209,7 +209,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							onSendMessage={onSendMessage}
 							tokensIn={tokensIn}
 							tokensOut={tokensOut}
-							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
 					</div>
 				)}

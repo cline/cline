@@ -35,6 +35,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	// The task's history ID (string ULID) — needed by loadHistoryBatch. MessagesArea
 	// subscribes to the low-frequency context for this one field.
 	const { currentTaskItem } = useExtensionState()
+	// Stable Virtuoso key. Previously `key={task.ts}` with task = messages.at(0):
+	// prepending older history changes messages[0] (the OLDEST message), so every
+	// scroll-up batch remounted the whole list and initialTopMostItemIndex slammed
+	// the view back to the bottom (the scroll bounce). The task ULID only changes
+	// when the user actually switches tasks.
+	const virtuosoKey = currentTaskItem?.id ?? task.ts ?? "no-task"
 
 	const {
 		virtuosoRef,
@@ -140,6 +146,15 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		[expandedRows, inputValue],
 	)
 
+	// Stable per-row keys: without computeItemKey, Virtuoso falls back to the
+	// index, so prepending history shifts every row's identity and forces a
+	// full re-render of the visible window (contributing to the scroll jump).
+	// Keys are derived from each row's content ts, which never changes.
+	const computeItemKey = useCallback((_index: number, item: ClineMessage | ClineMessage[]) => {
+		const ts = Array.isArray(item) ? item[0]?.ts : item?.ts
+		return ts ?? -1
+	}, [])
+
 	// ThinkingLoader rendered as Virtuoso Footer instead of synthetic data row.
 	// This prevents the data array reference from changing during streaming,
 	// which avoids Virtuoso rebuilding its DOM on every chunk.
@@ -162,9 +177,14 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	 * Handle scroll-up (startReached): load older messages when user scrolls past
 	 * the truncation window top boundary.
 	 */
+	const historyLoadInFlightRef = useRef(false)
 	const handleStartReached = useCallback(() => {
 		// Only load if messages are truncated and there are more available
 		if (!messageTruncated || !hasMoreMessages || !task?.ts) return
+		// In-flight lock: startReached fires on every render while the top edge
+		// is visible; without the lock, each re-render after a prepend would
+		// issue another identical loadHistoryBatch call.
+		if (historyLoadInFlightRef.current) return
 
 		// Get the oldest message timestamp from grouped data
 		const firstRow = groupedMessages[0]
@@ -173,7 +193,10 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		const beforeTs = firstMsg?.ts
 		if (!beforeTs || typeof beforeTs !== "number") return
 
-		loadHistoryBatch(currentTaskItem?.id ?? "", beforeTs)
+		historyLoadInFlightRef.current = true
+		void loadHistoryBatch(currentTaskItem?.id ?? "", beforeTs).finally(() => {
+			historyLoadInFlightRef.current = false
+		})
 	}, [messageTruncated, hasMoreMessages, task, groupedMessages, loadHistoryBatch, currentTaskItem?.id])
 
 	// Build the context value for MessageRowContext.Provider
@@ -241,6 +264,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 						atBottomThreshold={10}
 						className="scrollable grow overflow-y-scroll"
 						components={virtuosoComponents}
+						computeItemKey={computeItemKey}
 						data={groupedMessages}
 						increaseViewportBy={{
 							top: 500,
@@ -248,7 +272,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 						}}
 						initialTopMostItemIndex={initialIndex}
 						itemContent={itemContent}
-						key={task.ts}
+						key={virtuosoKey}
 						rangeChanged={handleRangeChanged}
 						ref={virtuosoRef}
 						startReached={handleStartReached}

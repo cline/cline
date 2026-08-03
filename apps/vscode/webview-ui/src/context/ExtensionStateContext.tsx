@@ -349,6 +349,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		customPrompt: undefined,
 		useAutoCondense: false,
 		compactionStrategy: "basic",
+		autoCompactThreshold: undefined,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
 		favoritedModelIds: [],
@@ -458,10 +459,21 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	/**
-	 * Track the last applied state version so we can detect gaps in delta
+	 * Track the last applied delta version so we can detect gaps in delta
 	 * messages and request a full-sync fallback from the backend.
 	 */
 	const lastStateVersionRef = useRef(0)
+
+	/**
+	 * Track the last applied FULL-SNAPSHOT stateVersion (SdkController's
+	 * minter.nextSeq() space). This is a SEPARATE counter from the delta
+	 * version space (state-post-debouncer's internal counter). Mixing the two
+	 * would cause the V17 out-of-band snapshot gate to drop every subsequent
+	 * full snapshot (delta versions run far ahead of snapshot versions), which
+	 * would silently break settings changes / task switching that rely on full
+	 * snapshots.
+	 */
+	const lastSnapshotVersionRef = useRef(0)
 
 	/**
 	 * Request a full state snapshot from the backend via the streaming subscription.
@@ -472,6 +484,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response: any) => {
 				if (response.stateJson) {
+					// V17 (P0): gate BEFORE parsing using the snapshot-version high-water mark.
+					const oobStateVersion = response.stateVersion ?? 0
+					if (oobStateVersion > 0 && oobStateVersion <= lastSnapshotVersionRef.current) {
+						return
+					}
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						const incomingStateVersion = stateData.stateVersion ?? 0
@@ -525,7 +542,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							setDidHydrateState(true)
 							return newState
 						})
-						lastStateVersionRef.current = incomingStateVersion
+						lastSnapshotVersionRef.current = Math.max(lastSnapshotVersionRef.current, incomingStateVersion)
 					} catch (error) {
 						console.error("Error parsing state JSON during full sync:", error)
 					}
@@ -638,6 +655,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			onResponse: (response: any) => {
 				// CHANNEL 1: Full state snapshot (ground truth — replaces everything)
 				if (response.stateJson) {
+					// V17 (P0): gate BEFORE parsing. The backend mirrors the snapshot's
+					// stateVersion in the out-of-band `response.stateVersion` field, so a
+					// stale/duplicate/out-of-order snapshot (already superseded by a newer
+					// snapshot or by deltas) can be dropped without paying the main-thread
+					// cost of JSON.parse-ing the whole ExtensionState.
+					// NOTE: uses the SNAPSHOT version space (lastSnapshotVersionRef), which is
+					// distinct from the delta version space (lastStateVersionRef). Mixing the
+					// two would drop every subsequent full snapshot because delta versions
+					// run far ahead of snapshot versions.
+					const oobStateVersion = response.stateVersion ?? 0
+					if (oobStateVersion > 0 && oobStateVersion <= lastSnapshotVersionRef.current) {
+						return
+					}
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						const incomingStateVersion = stateData.stateVersion ?? 0
@@ -699,7 +729,10 @@ export const ExtensionStateContextProvider: React.FC<{
 							return newState
 						})
 
-						lastStateVersionRef.current = incomingStateVersion
+						// V17: track the SNAPSHOT version high-water mark (separate from the
+						// delta version space) so the out-of-band gate can drop stale full
+						// snapshots while the delta gap detector stays independent.
+						lastSnapshotVersionRef.current = Math.max(lastSnapshotVersionRef.current, incomingStateVersion)
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
 					}
