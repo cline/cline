@@ -4,7 +4,12 @@ import {
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 } from "@cline/shared";
 import { logHubMessage } from "../hub-server-logging";
-import { errorReply, type HubTransportContext, okReply } from "./context";
+import {
+	errorReply,
+	type HubTransportContext,
+	okReply,
+	type PendingCapabilityRequest,
+} from "./context";
 
 export const CAPABILITY_RECONNECT_GRACE_MS = 30_000;
 
@@ -29,7 +34,7 @@ export async function requestCapability(
 		targetClientId,
 	});
 	return await new Promise((resolve, reject) => {
-		ctx.pendingCapabilityRequests.set(requestId, {
+		const pending: PendingCapabilityRequest = {
 			sessionId,
 			targetClientId,
 			capabilityName,
@@ -40,7 +45,7 @@ export async function requestCapability(
 					requestId,
 					sessionId,
 					capabilityName,
-					targetClientId,
+					targetClientId: pending.targetClientId,
 					ok: result.ok,
 					error: result.error,
 					durationMs: Math.round(performance.now() - startedAt),
@@ -49,14 +54,15 @@ export async function requestCapability(
 					reject(
 						new Error(
 							result.error ||
-								`Capability ${capabilityName} was rejected by ${targetClientId}.`,
+								`Capability ${capabilityName} was rejected by ${pending.targetClientId}.`,
 						),
 					);
 					return;
 				}
 				resolve(result.payload);
 			},
-		});
+		};
+		ctx.pendingCapabilityRequests.set(requestId, pending);
 		ctx.publish(
 			ctx.buildEvent(
 				"capability.requested",

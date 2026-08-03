@@ -33,6 +33,7 @@ import {
 } from "./capability-handlers";
 import {
 	asPlainRecord,
+	cancelContributionOwnerEviction,
 	deleteSessionState,
 	ensureSessionParticipant,
 	ensureSessionState,
@@ -802,12 +803,38 @@ export async function handleSessionClaimClientContributions(
 			"Client is not registered with this hub.",
 		);
 	}
-	const session = await readHubSessionRecord(ctx, sessionId);
+	const existingState = ctx.sessionState.get(sessionId);
+	if (existingState) cancelContributionOwnerEviction(existingState);
+	const session = await readHubSessionRecord(ctx, sessionId).catch((error) => {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+		throw error;
+	});
 	if (!session) {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
 		return errorReply(
 			envelope,
 			"session_not_found",
 			`Unknown session: ${sessionId}`,
+		);
+	}
+	if (!ctx.clients.has(clientId)) {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+		return errorReply(
+			envelope,
+			"client_not_found",
+			"Client disconnected before its contribution claim completed.",
 		);
 	}
 	const state = ensureSessionParticipant(
@@ -1132,7 +1159,9 @@ export async function handleSessionDelete(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	if (deleted) {
+	const sessionAbsent =
+		deleted || !(await ctx.sessionHost.getSession(sessionId));
+	if (sessionAbsent) {
 		cancelPendingCapabilityRequests(
 			ctx,
 			(request) => request.sessionId === sessionId,

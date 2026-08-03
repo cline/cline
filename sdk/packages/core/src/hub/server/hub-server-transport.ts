@@ -47,6 +47,7 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	cancelContributionOwnerEviction,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -304,6 +305,9 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		for (const state of this.sessionState.values()) {
+			cancelContributionOwnerEviction(state);
+		}
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {

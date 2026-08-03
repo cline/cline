@@ -56,6 +56,14 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	function deferred<T>() {
+		let resolve!: (value: T) => void;
+		const promise = new Promise<T>((next) => {
+			resolve = next;
+		});
+		return { promise, resolve };
+	}
+
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -1037,6 +1045,187 @@ describe("HubServerTransport boundaries", () => {
 		});
 	});
 
+	it("rejects a superseded owner after a capability is rebound", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		const state = ensureSessionState(
+			ctx,
+			"session-1",
+			"owner-client",
+			"creator",
+		);
+		state.clientContributionOwners = new Map([
+			["tool_executor.askQuestion", "owner-client"],
+		]);
+		for (const clientId of ["owner-client", "reconnected-client"]) {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "web" },
+			});
+		}
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("reconnected-client", (event) => events.push(event));
+		const response = ctx.requestCapability(
+			"session-1",
+			"tool_executor.askQuestion",
+			{ question: "Continue?" },
+			"owner-client",
+		);
+		await Promise.resolve();
+		const requestId = String(
+			events.find((event) => event.event === "capability.requested")?.payload
+				?.requestId ?? "",
+		);
+
+		await transport.handleCommand({
+			version: "v1",
+			command: "session.claim_client_contributions",
+			clientId: "reconnected-client",
+			sessionId: "session-1",
+			payload: { capabilityNames: ["tool_executor.askQuestion"] },
+		});
+		const staleReply = await transport.handleCommand({
+			version: "v1",
+			command: "capability.respond",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { requestId, ok: true, payload: { result: "stale" } },
+		});
+		expect(staleReply).toMatchObject({
+			ok: false,
+			error: { code: "capability_wrong_client" },
+		});
+
+		await transport.handleCommand({
+			version: "v1",
+			command: "capability.respond",
+			clientId: "reconnected-client",
+			sessionId: "session-1",
+			payload: { requestId, ok: false },
+		});
+		await expect(response).rejects.toThrow("rejected by reconnected-client");
+	});
+
+	it("keeps contribution state while a claim validates the session", async () => {
+		vi.useFakeTimers();
+		try {
+			const lookup = deferred<Record<string, unknown>>();
+			const getSession = vi.fn(() => lookup.promise);
+			const transport = createTransport({ sessionHost: { getSession } });
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			for (const clientId of ["owner-client", "reconnected-client"]) {
+				await transport.handleCommand({
+					version: "v1",
+					command: "client.register",
+					clientId,
+					payload: { clientId, clientType: "web" },
+				});
+			}
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+
+			const claim = transport.handleCommand({
+				version: "v1",
+				command: "session.claim_client_contributions",
+				clientId: "reconnected-client",
+				sessionId: "session-1",
+				payload: { capabilityNames: ["tool_executor.askQuestion"] },
+			});
+			await vi.waitFor(() => expect(getSession).toHaveBeenCalled());
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(true);
+
+			lookup.resolve({
+				sessionId: "session-1",
+				status: "completed",
+				startedAt: new Date(0).toISOString(),
+				updatedAt: new Date(0).toISOString(),
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+			expect((await claim).ok).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("rejects a claimant that disconnects during session validation", async () => {
+		vi.useFakeTimers();
+		try {
+			const lookup = deferred<Record<string, unknown>>();
+			const getSession = vi.fn(() => lookup.promise);
+			const transport = createTransport({ sessionHost: { getSession } });
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			for (const clientId of ["owner-client", "reconnected-client"]) {
+				await transport.handleCommand({
+					version: "v1",
+					command: "client.register",
+					clientId,
+					payload: { clientId, clientType: "web" },
+				});
+			}
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			const claim = transport.handleCommand({
+				version: "v1",
+				command: "session.claim_client_contributions",
+				clientId: "reconnected-client",
+				sessionId: "session-1",
+				payload: { capabilityNames: ["tool_executor.askQuestion"] },
+			});
+			await vi.waitFor(() => expect(getSession).toHaveBeenCalled());
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "reconnected-client",
+			});
+			lookup.resolve({
+				sessionId: "session-1",
+				status: "completed",
+				startedAt: new Date(0).toISOString(),
+				updatedAt: new Date(0).toISOString(),
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+
+			expect(await claim).toMatchObject({
+				ok: false,
+				error: { code: "client_not_found" },
+			});
+			expect(state.participants.has("reconnected-client")).toBe(false);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("allows claims against sessions without registered contributions", async () => {
 		const transport = createTransport();
 		await transport.handleCommand({
@@ -1117,6 +1306,23 @@ describe("HubServerTransport boundaries", () => {
 
 			await vi.advanceTimersByTimeAsync(30_000);
 			expect(ctx.sessionState.has("session-1")).toBe(false);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "late-client",
+				payload: { clientId: "late-client", clientType: "web" },
+			});
+			const claimReply = await transport.handleCommand({
+				version: "v1",
+				command: "session.claim_client_contributions",
+				clientId: "late-client",
+				sessionId: "session-1",
+				payload: { capabilityNames: ["tool_executor.askQuestion"] },
+			});
+			expect(claimReply).toMatchObject({
+				ok: true,
+				payload: { capabilityNames: [] },
+			});
 		} finally {
 			vi.useRealTimers();
 		}
@@ -1669,6 +1875,85 @@ describe("HubServerTransport boundaries", () => {
 
 			await vi.advanceTimersByTimeAsync(30_000);
 			expect(resolved).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("cleans stale Hub state only when the session is absent", async () => {
+		for (const sessionStillExists of [false, true]) {
+			const deleteSession = vi.fn().mockResolvedValue(false);
+			const getSession = vi.fn().mockResolvedValue(
+				sessionStillExists
+					? {
+							sessionId: "session-1",
+							status: "completed",
+							startedAt: new Date(0).toISOString(),
+							updatedAt: new Date(0).toISOString(),
+							workspaceRoot: "/tmp/project",
+							cwd: "/tmp/project",
+						}
+					: undefined,
+			);
+			const transport = createTransport({
+				sessionHost: { deleteSession, getSession },
+			});
+			const ctx = getContext(transport);
+			ensureSessionState(ctx, "session-1", "owner-client", "creator");
+			const resolved = vi.fn();
+			ctx.pendingCapabilityRequests.set("capreq-delete", {
+				sessionId: "session-1",
+				targetClientId: "owner-client",
+				capabilityName: "tool_executor.askQuestion",
+				resolve: resolved,
+			});
+
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.delete",
+				sessionId: "session-1",
+			});
+
+			expect(reply).toMatchObject({ ok: true, payload: { deleted: false } });
+			expect(ctx.sessionState.has("session-1")).toBe(sessionStillExists);
+			expect(ctx.pendingCapabilityRequests.has("capreq-delete")).toBe(
+				sessionStillExists,
+			);
+			expect(resolved).toHaveBeenCalledTimes(sessionStillExists ? 0 : 1);
+		}
+	});
+
+	it("clears contribution eviction timers when the transport stops", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const state = ensureSessionState(
+				ctx,
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			state.clientContributionOwners = new Map([
+				["tool_executor.askQuestion", "owner-client"],
+			]);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "owner-client",
+				payload: { clientId: "owner-client", clientType: "web" },
+			});
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			expect(state.contributionOwnerEvictionTimer).toBeDefined();
+
+			await transport.stop();
+			expect(state.contributionOwnerEvictionTimer).toBeUndefined();
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(ctx.sessionState.has("session-1")).toBe(true);
 		} finally {
 			vi.useRealTimers();
 		}
