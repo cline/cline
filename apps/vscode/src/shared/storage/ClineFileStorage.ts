@@ -11,6 +11,11 @@ export interface ClineFileStorageOptions {
 	 * If not set, uses the system default.
 	 */
 	fileMode?: number
+	/**
+	 * JSONL append-log compaction threshold (default 10_000). Exposed so tests
+	 * can exercise the compact-merge path without appending 10k+ entries.
+	 */
+	jsonlCompactThreshold?: number
 }
 
 /**
@@ -48,6 +53,7 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 			const jsonlPath = filePath.replace(/\.json$/, ".jsonl") || `${filePath}.jsonl`
 			this.jsonlStore = new ClineJsonlStorage(jsonlPath, {
 				fileMode: options?.fileMode,
+				compactThreshold: options?.jsonlCompactThreshold,
 			})
 			// On first load with JSONL enabled, hydrate from JSONL if it exists;
 			// otherwise fall through to the legacy JSON path for backward compat.
@@ -102,6 +108,15 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 					jsonlEntries[key] = this.data[key]
 				}
 				this.jsonlStore.setBatch(jsonlEntries as Record<string, unknown | undefined>)
+
+				// V16 §6 — periodic compact-merge: once the append log grows past
+				// the threshold, rewrite the main JSON from the in-memory cache and
+				// shrink the log. This keeps the .json file a live, recoverable
+				// mirror so a torn .jsonl append can never lose state.
+				if (this.jsonlStore.getEntryCount() >= this.jsonlStore.compactThresholdValue) {
+					this.writeToDisk()
+					this.jsonlStore.compact()
+				}
 			} else {
 				this.writeToDisk()
 			}
@@ -120,7 +135,23 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 		try {
 			// JSONL mode: read from JSONL file (fall back to legacy .json if JSONL doesn't exist)
 			if (this.jsonlStore) {
-				return this.jsonlStore.readAll() as Record<string, T>
+				const { state, corruptLines } = this.jsonlStore.readAllWithDiagnostics()
+				// V16 §6 — disaster recovery: a torn append (crash mid-write) can
+				// leave unparseable lines. Rather than returning an empty cache,
+				// fall back to the main .json mirror (kept fresh by the periodic
+				// compact-merge in setBatch) when it exists.
+				if (corruptLines > 0 && fs.existsSync(this.fsPath)) {
+					Logger.warn(`[${this.name}] ${corruptLines} corrupt line(s) in JSONL, recovering from ${this.fsPath}`)
+					try {
+						const recovered = JSON.parse(fs.readFileSync(this.fsPath, "utf-8")) as Record<string, T>
+						if (recovered && typeof recovered === "object") {
+							return recovered
+						}
+					} catch (jsonError) {
+						Logger.error(`[${this.name}] main JSON fallback also failed:`, jsonError)
+					}
+				}
+				return state as Record<string, T>
 			}
 			// Legacy mode: read full JSON file
 			if (fs.existsSync(this.fsPath)) {

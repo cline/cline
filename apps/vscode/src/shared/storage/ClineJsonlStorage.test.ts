@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import * as fs from "node:fs"
-import * as path from "node:path"
 import * as os from "node:os"
+import * as path from "node:path"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { ClineJsonlStorage } from "./ClineJsonlStorage"
 
 describe("ClineJsonlStorage", () => {
@@ -114,5 +114,32 @@ describe("ClineJsonlStorage", () => {
 		const s = new ClineJsonlStorage(filePath)
 		expect(s.readAll()).toEqual({})
 		expect(s.get("anything")).toBeUndefined()
+	})
+
+	it("should skip corrupt lines and report them via diagnostics", () => {
+		const filePath = path.join(tmpDir, "corrupt.jsonl")
+		fs.writeFileSync(
+			filePath,
+			'{"k":"a","v":1,"ts":1}\n{"k":"b", broken\n{"k":"c","v":3,"ts":3}\n{not json at all}\n',
+			"utf-8",
+		)
+		const s = new ClineJsonlStorage(filePath)
+
+		// Healthy entries survive; corrupt lines are skipped without crashing.
+		expect(s.readAll()).toEqual({ a: 1, c: 3 })
+		const diag = s.readAllWithDiagnostics()
+		expect(diag.state).toEqual({ a: 1, c: 3 })
+		expect(diag.corruptLines).toBe(2)
+	})
+
+	it("should report a fully unreadable file as corrupt", () => {
+		const filePath = path.join(tmpDir, "unreadable.jsonl")
+		fs.writeFileSync(filePath, "{truncated and torn", "utf-8")
+		// Simulate a file we cannot even open.
+		fs.chmodSync(filePath, 0o000)
+		const s = new ClineJsonlStorage(filePath)
+		const diag = s.readAllWithDiagnostics()
+		expect(diag.corruptLines).toBeGreaterThan(0)
+		fs.chmodSync(filePath, 0o600)
 	})
 })

@@ -29,6 +29,12 @@ export default defineConfig({
 			"src/hosts/vscode/vscode-settings-bridge.test.ts",
 			"src/utils/windows-job-object.test.ts",
 			"src/dev/debug-harness/benchmark/**/*.test.ts",
+			// V16 additions: headless storage (JSONL mixed-write + disaster
+			// recovery) and the terminal-pool LRU/busy-timeout policy. These are
+			// vitest-native suites (no `vscode` import) so they run headlessly.
+			"src/shared/storage/ClineJsonlStorage.test.ts",
+			"src/shared/storage/ClineFileStorage.test.ts",
+			"src/hosts/vscode/terminal/terminal-pool.test.ts",
 		],
 		environment: "node",
 		setupFiles: ["./src/test/vitest-setup.ts"],

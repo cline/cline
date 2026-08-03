@@ -63,14 +63,29 @@ export class ClineJsonlStorage {
 	}
 
 	readAll(): Record<string, unknown> {
-		if (!fs.existsSync(this.fsPath)) return {}
+		return this.readAllWithDiagnostics().state
+	}
+
+	/**
+	 * V16 §6 — disaster-recovery read. Replays the JSONL and reports how many
+	 * lines were unparseable. Callers (ClineFileStorage) use `corruptLines > 0`
+	 * to fall back to the main JSON file instead of silently returning an
+	 * empty cache after a torn/corrupt append.
+	 */
+	readAllWithDiagnostics(): { state: Record<string, unknown>; corruptLines: number } {
+		if (!fs.existsSync(this.fsPath)) {
+			return { state: {}, corruptLines: 0 }
+		}
 		try {
 			const content = fs.readFileSync(this.fsPath, "utf-8")
-			if (!content) return {}
-			return replay(content)
+			if (!content) {
+				return { state: {}, corruptLines: 0 }
+			}
+			return replayWithDiagnostics(content)
 		} catch (error) {
 			Logger.error(`[ClineJsonlStorage] failed to read from ${this.fsPath}:`, error)
-			return {}
+			// Unreadable file counts as fully corrupt so the caller can fall back.
+			return { state: {}, corruptLines: 1 }
 		}
 	}
 
@@ -81,16 +96,21 @@ export class ClineJsonlStorage {
 			const state = this.readAll()
 			if (Object.keys(state).length === 0) return
 			const now = Date.now()
-			const lines = Object.entries(state)
-				.map(([k, v]) => JSON.stringify({ k, v, ts: now }))
-				.join("\n") + "\n"
+			const lines =
+				Object.entries(state)
+					.map(([k, v]) => JSON.stringify({ k, v, ts: now }))
+					.join("\n") + "\n"
 			const tmpPath = `${this.fsPath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.jsonl`
 			try {
 				fs.writeFileSync(tmpPath, lines, { flag: "wx", encoding: "utf-8", mode: this.fileMode })
 				fs.renameSync(tmpPath, this.fsPath)
 				this.entryCount = Object.keys(state).length
 			} catch (writeError) {
-				try { fs.unlinkSync(tmpPath) } catch { /* ignore */ }
+				try {
+					fs.unlinkSync(tmpPath)
+				} catch {
+					/* ignore */
+				}
 				throw writeError
 			}
 		} catch (error) {
@@ -100,7 +120,14 @@ export class ClineJsonlStorage {
 		}
 	}
 
-	getEntryCount(): number { return this.entryCount }
+	getEntryCount(): number {
+		return this.entryCount
+	}
+
+	/** Public threshold so ClineFileStorage can trigger its own compact-merge. */
+	get compactThresholdValue(): number {
+		return this.compactThreshold
+	}
 
 	private appendEntry(key: string, value: unknown): void {
 		this.appendLines([JSON.stringify({ k: key, v: value, ts: Date.now() })])
@@ -127,20 +154,31 @@ export class ClineJsonlStorage {
 			const content = fs.readFileSync(this.fsPath, "utf-8")
 			if (!content) return 0
 			return content.trim().split("\n").filter(Boolean).length
-		} catch { return 0 }
+		} catch {
+			return 0
+		}
 	}
 }
 
 function replay(content: string): Record<string, unknown> {
+	return replayWithDiagnostics(content).state
+}
+
+function replayWithDiagnostics(content: string): { state: Record<string, unknown>; corruptLines: number } {
 	const state: Record<string, unknown> = {}
+	let corruptLines = 0
 	for (const line of content.trim().split("\n")) {
 		if (!line.trim()) continue
 		try {
 			const entry = JSON.parse(line) as JsonlEntry
 			if (entry && typeof entry.k === "string") {
 				entry.v === null ? delete state[entry.k] : (state[entry.k] = entry.v)
+			} else {
+				corruptLines++
 			}
-		} catch { continue }
+		} catch {
+			corruptLines++
+		}
 	}
-	return state
+	return { state, corruptLines }
 }
