@@ -153,7 +153,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "dark",
 		label: "Cline Dark",
-		description: "The Cline dark palette",
+		description: "Cline's accents on deep charcoal",
 		variant: "dark",
 		background: "#14161b",
 		foreground: "#e8eaed",
@@ -161,7 +161,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "light",
 		label: "Cline Light",
-		description: "The Cline light palette",
+		description: "Crisp white, high-contrast accents",
 		variant: "light",
 		background: "#ffffff",
 		foreground: "#1a1a1a",
@@ -169,7 +169,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "tokyo-night",
 		label: "Tokyo Night",
-		description: "Based on the Tokyo Night theme",
+		description: "Moody blues and neon city glow",
 		variant: "dark",
 		background: "#1a1b26",
 		foreground: "#c0caf5",
@@ -203,7 +203,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "gruvbox-dark",
 		label: "Gruvbox Dark",
-		description: "Based on the Gruvbox dark theme",
+		description: "Retro warmth, earthy and amber",
 		variant: "dark",
 		background: "#282828",
 		foreground: "#ebdbb2",
@@ -237,7 +237,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "nord",
 		label: "Nord",
-		description: "Based on the Nord theme",
+		description: "Cool arctic blues and frosted teals",
 		variant: "dark",
 		background: "#2e3440",
 		foreground: "#d8dee9",
@@ -271,7 +271,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "dracula",
 		label: "Dracula",
-		description: "Based on the Dracula theme",
+		description: "Vivid color on a dark violet night",
 		variant: "dark",
 		background: "#282a36",
 		foreground: "#f8f8f2",
@@ -305,7 +305,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "catppuccin-mocha",
 		label: "Catppuccin Mocha",
-		description: "Based on the Catppuccin Mocha theme",
+		description: "Soothing pastels on warm mocha",
 		variant: "dark",
 		background: "#1e1e2e",
 		foreground: "#cdd6f4",
@@ -339,7 +339,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "one-dark",
 		label: "One Dark",
-		description: "Based on the Atom One Dark theme",
+		description: "Atom's balanced, easygoing dark",
 		variant: "dark",
 		background: "#282c34",
 		foreground: "#abb2bf",
@@ -373,7 +373,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "solarized-dark",
 		label: "Solarized Dark",
-		description: "Based on the Solarized dark theme",
+		description: "Low-glare teal depths, easy on eyes",
 		variant: "dark",
 		background: "#002b36",
 		foreground: "#93a1a1",
@@ -407,7 +407,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 	{
 		id: "solarized-light",
 		label: "Solarized Light",
-		description: "Based on the Solarized light theme",
+		description: "Warm parchment with muted accents",
 		variant: "light",
 		background: "#fdf6e3",
 		foreground: "#657b83",
