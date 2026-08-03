@@ -164,6 +164,33 @@ describe("runInteractiveChatCommand", () => {
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
 	});
 
+	it("clears the active goal when a chat command resets the session", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		const clear = vi.fn(() => "Goal cleared.");
+
+		const result = await runInteractiveChatCommand({
+			prompt: "/new",
+			enabled: true,
+			config,
+			host: chatCommandHost,
+			chatCommandState: makeState(config),
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: () => {},
+			sessionRuntime: runtime,
+			stop: () => {},
+			goal: {
+				set: () => ({ reply: "" }),
+				status: () => "status",
+				clear,
+			},
+		});
+
+		expect(result.handled).toBe(true);
+		expect(clear).toHaveBeenCalledTimes(1);
+		expect(runtime.resetForNewSession).toHaveBeenCalledTimes(1);
+	});
+
 	it("returns plugin command submit prompts as model input", async () => {
 		const config = makeConfig();
 		const runtime = makeRuntime();

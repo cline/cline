@@ -93,6 +93,8 @@ export async function runInteractiveChatCommand(input: {
 			}
 		},
 		reset: async () => {
+			// A session reset discards the conversation the goal belonged to.
+			await input.goal?.clear();
 			await input.sessionRuntime.resetForNewSession();
 		},
 		stop: async () => {

@@ -120,6 +120,18 @@ describe("createInteractiveGoalGuard", () => {
 		const guard = createInteractiveGoalGuard();
 		expect(guard.beginVerification()).toBeUndefined();
 	});
+
+	it("revokes verification authorization via resetVerification", async () => {
+		const guard = createInteractiveGoalGuard();
+		guard.setGoal("fix tests");
+		guard.beginVerification();
+
+		guard.resetVerification();
+
+		expect(guard.getActiveGoal()?.awaitingVerification).toBe(false);
+		const result = await guard.markGoalCompleteTool.execute({}, toolContext);
+		expect(result).toMatchObject({ completed: false });
+	});
 });
 
 describe("sendTurnWithGoalVerification", () => {
@@ -215,6 +227,54 @@ describe("sendTurnWithGoalVerification", () => {
 		});
 
 		expect(result).toEqual(completed(4));
+	});
+
+	it("closes verification authorization whenever the sequence ends with the goal active", async () => {
+		const guard = createInteractiveGoalGuard();
+		guard.setGoal("fix tests");
+
+		// Cap reached with the goal still active.
+		await sendTurnWithGoalVerification({
+			goalGuard: guard,
+			sendInitialTurn: async () => completed(1),
+			sendVerificationTurn: async () => completed(1),
+		});
+		expect(guard.getActiveGoal()?.awaitingVerification).toBe(false);
+
+		// Verification turn that did not complete (e.g. aborted).
+		await sendTurnWithGoalVerification({
+			goalGuard: guard,
+			sendInitialTurn: async () => completed(1),
+			sendVerificationTurn: async () => ({
+				finishReason: "aborted",
+				iterations: 1,
+			}),
+		});
+		expect(guard.getActiveGoal()?.awaitingVerification).toBe(false);
+	});
+
+	it("refuses mark_goal_complete during the next work turn after a stale verification", async () => {
+		const guard = createInteractiveGoalGuard();
+		guard.setGoal("fix tests");
+		// Simulate authorization left dangling by an interrupted sequence.
+		guard.beginVerification();
+
+		const initialTurnToolResult: unknown[] = [];
+		const result = await sendTurnWithGoalVerification({
+			goalGuard: guard,
+			sendInitialTurn: async () => {
+				// The model tries to complete the goal during ordinary work.
+				initialTurnToolResult.push(
+					await guard.markGoalCompleteTool.execute({}, toolContext),
+				);
+				return { finishReason: "aborted", iterations: 1 };
+			},
+			sendVerificationTurn: async () => completed(1),
+		});
+
+		expect(initialTurnToolResult[0]).toMatchObject({ completed: false });
+		expect(guard.getActiveGoal()?.goal).toBe("fix tests");
+		expect(result).toEqual({ finishReason: "aborted", iterations: 1 });
 	});
 });
 

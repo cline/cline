@@ -191,6 +191,18 @@ export function createInteractiveGoalGuard() {
 			active = { ...active, awaitingVerification: true };
 			return active;
 		},
+		/**
+		 * Revokes verification authorization. Called when a verification
+		 * sequence ends without completing the goal (and defensively before
+		 * each new submission), so mark_goal_complete cannot succeed during an
+		 * ordinary work turn using authorization left over from an earlier
+		 * verification turn.
+		 */
+		resetVerification(): void {
+			if (active?.awaitingVerification) {
+				active = { ...active, awaitingVerification: false };
+			}
+		},
 	};
 }
 
@@ -203,29 +215,43 @@ export function createInteractiveGoalGuard() {
 export async function sendTurnWithGoalVerification<
 	T extends { finishReason: string; iterations: number },
 >(input: {
-	goalGuard: Pick<InteractiveGoalGuard, "beginVerification">;
+	goalGuard: Pick<
+		InteractiveGoalGuard,
+		"beginVerification" | "resetVerification"
+	>;
 	sendInitialTurn: () => Promise<T | undefined>;
 	sendVerificationTurn: (prompt: string) => Promise<T | undefined>;
 }): Promise<T | undefined> {
+	// The initial turn is ordinary work: revoke any verification
+	// authorization left over from an earlier sequence (e.g. an aborted
+	// verification turn) so mark_goal_complete refuses during it.
+	input.goalGuard.resetVerification();
 	let result = await input.sendInitialTurn();
-	for (let round = 0; round < MAX_GOAL_VERIFICATION_ROUNDS; round += 1) {
-		if (result?.finishReason !== "completed") {
-			return result;
+	try {
+		for (let round = 0; round < MAX_GOAL_VERIFICATION_ROUNDS; round += 1) {
+			if (result?.finishReason !== "completed") {
+				return result;
+			}
+			const pending = input.goalGuard.beginVerification();
+			if (!pending) {
+				return result;
+			}
+			const verification = await input.sendVerificationTurn(
+				formatGoalVerificationPrompt(pending.goal),
+			);
+			if (!verification) {
+				return result;
+			}
+			result = {
+				...verification,
+				iterations: result.iterations + verification.iterations,
+			};
 		}
-		const pending = input.goalGuard.beginVerification();
-		if (!pending) {
-			return result;
-		}
-		const verification = await input.sendVerificationTurn(
-			formatGoalVerificationPrompt(pending.goal),
-		);
-		if (!verification) {
-			return result;
-		}
-		result = {
-			...verification,
-			iterations: result.iterations + verification.iterations,
-		};
+		return result;
+	} finally {
+		// Every exit path is either before beginVerification or after its
+		// verification turn finished, so closing authorization here can never
+		// revoke a verification turn that is still in flight.
+		input.goalGuard.resetVerification();
 	}
-	return result;
 }
