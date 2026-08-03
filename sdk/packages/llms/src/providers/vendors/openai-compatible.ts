@@ -6,6 +6,7 @@ import type {
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
+import { ensureStreamPartStartMiddleware } from "../middleware/ensure-stream-part-start";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -146,7 +147,10 @@ export async function createOpenAICompatibleProviderModule(
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware: [
+					splitToolImagesMiddleware,
+					ensureStreamPartStartMiddleware,
+				],
 			}),
 	};
 }
