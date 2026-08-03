@@ -4,7 +4,11 @@ import {
 	CLINE_ENVIRONMENTS,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
+import {
+	BUILTIN_SPECS,
+	buildKimiForCodingModels,
+	resolveProviderApiLineBaseUrl,
+} from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 
@@ -214,6 +218,85 @@ describe("built-in provider metadata", () => {
 				contextWindow: expect.any(Number),
 			}),
 		);
+	});
+
+	it("exposes Kimi's documented K3 and K2.7 model IDs and enables thinking by default", async () => {
+		const models = await getModelsForProvider("kimi-for-coding");
+		const provider = await getProvider("kimi-for-coding");
+
+		expect(provider?.defaultModelId).toBe("kimi-for-coding");
+		expect(Object.keys(models)).toEqual([
+			"k3",
+			"k3-256k",
+			"kimi-for-coding",
+			"kimi-for-coding-highspeed",
+		]);
+		expect(models.k3).toMatchObject({
+			id: "k3",
+			name: "Kimi K3",
+			contextWindow: 1048576,
+			maxTokens: 131072,
+			family: "kimi-k3",
+			capabilities: expect.arrayContaining(["tools", "reasoning"]),
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["k3-256k"]).toMatchObject({
+			id: "k3-256k",
+			contextWindow: 262144,
+			maxInputTokens: 262144,
+			family: "kimi-k3",
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["kimi-for-coding"]).toMatchObject({
+			id: "kimi-for-coding",
+			name: "Kimi K2.7 Code",
+			contextWindow: 262144,
+			maxTokens: 32768,
+			capabilities: expect.arrayContaining(["images", "tools", "reasoning"]),
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["kimi-for-coding-highspeed"]).toMatchObject({
+			id: "kimi-for-coding-highspeed",
+			name: "Kimi K2.7 Code HighSpeed",
+			family: "kimi-k2",
+			metadata: { reasoningDefaultOn: true },
+		});
+	});
+
+	it("layers curated metadata over generated Kimi models and keeps only documented IDs", () => {
+		const models = buildKimiForCodingModels({
+			k3: {
+				id: "k3",
+				name: "Kimi K3",
+				contextWindow: 1_048_576,
+				maxTokens: 131_072,
+				family: "kimi-k3",
+			},
+			"kimi-for-coding-highspeed": {
+				id: "kimi-for-coding-highspeed",
+				name: "Kimi For Coding HighSpeed",
+				family: "kimi-k2",
+			},
+			"k3-experimental": {
+				id: "k3-experimental",
+				name: "Kimi K3 Experimental",
+				family: "kimi-k3",
+			},
+		});
+
+		expect(Object.keys(models)).toEqual(["k3", "kimi-for-coding-highspeed"]);
+		expect(models.k3).toMatchObject({
+			contextWindow: 1_048_576,
+			maxTokens: 131_072,
+			family: "kimi-k3",
+			description: expect.stringContaining("Moderato"),
+			metadata: { reasoningDefaultOn: true },
+		});
+		expect(models["kimi-for-coding-highspeed"]).toMatchObject({
+			name: "Kimi K2.7 Code HighSpeed",
+			family: "kimi-k2",
+			metadata: { reasoningDefaultOn: true },
+		});
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {

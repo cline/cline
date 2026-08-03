@@ -11,6 +11,7 @@ import {
 	getModelReasoningControls,
 	isAnthropicCompatibleModel,
 	isQwenModel,
+	modelReasoningDefaultsOn,
 	modelRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
@@ -79,6 +80,30 @@ export const ANTHROPIC_ROUTING_METADATA = createAnthropicRoutingMetadata();
 export const QWEN_CACHE_ROUTING_METADATA = createAnthropicRoutingMetadata({
 	promptCacheRoutes: [QWEN_PROMPT_CACHE_ROUTE],
 	reasoningRoutes: [],
+});
+
+const KIMI_FOR_CODING_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-thinking",
+};
+
+const KIMI_K2_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-k2",
+};
+
+const KIMI_K3_REASONING_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "kimi-k3",
+};
+
+export const KIMI_FOR_CODING_ROUTING_METADATA = createAnthropicRoutingMetadata({
+	promptCacheRoutes: [],
+	reasoningRoutes: [
+		KIMI_FOR_CODING_REASONING_ROUTE,
+		KIMI_K2_REASONING_ROUTE,
+		KIMI_K3_REASONING_ROUTE,
+	],
 });
 
 export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =
@@ -361,7 +386,9 @@ export function buildAnthropicProviderOptions(
 		request.reasoning?.enabled === true ||
 		request.reasoning?.effort !== undefined ||
 		(typeof request.reasoning?.budgetTokens === "number" &&
-			request.reasoning.budgetTokens > 0);
+			request.reasoning.budgetTokens > 0) ||
+		(request.reasoning?.enabled === undefined &&
+			modelReasoningDefaultsOn({ request, context }));
 
 	let thinking: Record<string, unknown> | undefined;
 	if (request.reasoning?.enabled === false && policy.kind !== "none") {
@@ -397,6 +424,7 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 	effort?: string;
 	maxTokens?: number;
 	explicitBudgetTokens?: number;
+	supportsManualThinking?: boolean;
 }) {
 	const minimumBudget = ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
 	const maximumBudget = Math.min(
@@ -421,10 +449,11 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 
 	if (
 		(!options.modelId && !options.family) ||
-		!isAnthropicCompatibleModel({
-			modelId: options.modelId,
-			family: options.family,
-		})
+		(!options.supportsManualThinking &&
+			!isAnthropicCompatibleModel({
+				modelId: options.modelId,
+				family: options.family,
+			}))
 	) {
 		return undefined;
 	}
@@ -459,6 +488,7 @@ function resolveAnthropicManualBudget(
 		effort: request.reasoning?.effort,
 		maxTokens: request.maxTokens,
 		explicitBudgetTokens,
+		supportsManualThinking: true,
 	});
 }
 
