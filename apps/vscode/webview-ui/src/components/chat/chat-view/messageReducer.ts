@@ -33,11 +33,28 @@ export interface ReplicaState {
 	 * phase (e.g. "streaming"). `undefined` for classic/legacy state with no turnState.
 	 */
 	turnState?: TurnState
+	/**
+	 * True while the visible transcript is a truncated window of a longer conversation (older
+	 * messages can still be loaded via loadHistoryBatch). Owned by the state snapshot so it is
+	 * reset automatically whenever the conversation fence (epoch) is bumped — a stale value from
+	 * a previous task can otherwise lock the scroll-up pagination in a wrong state.
+	 */
+	messageTruncated?: boolean
+	/** Total number of messages in the full conversation (visible + older batches). */
+	totalMessageCount?: number
 }
 
 /** Create an empty replica. */
 export function createReplicaState(): ReplicaState {
-	return { messages: [], epoch: 0, seqByTs: new Map(), stateVersion: 0, turnState: undefined }
+	return {
+		messages: [],
+		epoch: 0,
+		seqByTs: new Map(),
+		stateVersion: 0,
+		turnState: undefined,
+		messageTruncated: false,
+		totalMessageCount: undefined,
+	}
 }
 
 /**
@@ -53,7 +70,14 @@ function seqOf(message: ClineMessage): number {
 }
 
 /** Replace the replica's transcript wholesale at a new epoch (new task / history load). */
-function resetTo(epoch: number, messages: ClineMessage[], stateVersion: number, turnState?: TurnState): ReplicaState {
+function resetTo(
+	epoch: number,
+	messages: ClineMessage[],
+	stateVersion: number,
+	turnState?: TurnState,
+	messageTruncated?: boolean,
+	totalMessageCount?: number,
+): ReplicaState {
 	const seqByTs = new Map<number, number>()
 	for (const m of messages) {
 		const existing = seqByTs.get(m.ts)
@@ -61,7 +85,15 @@ function resetTo(epoch: number, messages: ClineMessage[], stateVersion: number, 
 			seqByTs.set(m.ts, seqOf(m))
 		}
 	}
-	return { messages: [...messages], epoch, seqByTs, stateVersion, turnState }
+	return {
+		messages: [...messages],
+		epoch,
+		seqByTs,
+		stateVersion,
+		turnState,
+		messageTruncated,
+		totalMessageCount,
+	}
 }
 
 /**
@@ -226,6 +258,9 @@ export function applyBatchPrepend(
 		messages: merged,
 		epoch,
 		seqByTs,
+		// The batch response reports the full conversation size; adopt it so the UI
+		// header can show accurate progress even after older pages are prepended.
+		totalMessageCount: newTotalCount ?? state.totalMessageCount,
 	}
 }
 
@@ -235,14 +270,25 @@ export function applyStateSnapshot(
 	snapshotEpoch = 0,
 	snapshotVersion = 0,
 	snapshotTurnState?: TurnState,
+	snapshotMessageTruncated?: boolean,
+	snapshotTotalCount?: number,
 ): ReplicaState {
 	if (snapshotEpoch < state.epoch) {
 		return state
 	}
 
 	if (snapshotEpoch > state.epoch) {
-		// New task/render: replace transcript AND adopt the snapshot's turnState wholesale.
-		return resetTo(snapshotEpoch, snapshotMessages, snapshotVersion, snapshotTurnState)
+		// New task/render: replace transcript AND adopt the snapshot's turnState +
+		// pagination metadata wholesale (a truncated flag from the previous task must
+		// never leak into the new conversation).
+		return resetTo(
+			snapshotEpoch,
+			snapshotMessages,
+			snapshotVersion,
+			snapshotTurnState,
+			snapshotMessageTruncated,
+			snapshotTotalCount,
+		)
 	}
 
 	// Same epoch.
@@ -260,6 +306,14 @@ export function applyStateSnapshot(
 	if (snapshotVersion > next.stateVersion) {
 		next = next === state ? { ...state } : next
 		next.stateVersion = snapshotVersion
+	}
+	// The extension stamps pagination metadata on every snapshot; adopt the freshest
+	// values so a short-task snapshot can clear a stale truncated flag, and vice-versa.
+	// Messages only ever grow within an epoch, so "undefined" here means "not truncated".
+	next = {
+		...next,
+		messageTruncated: snapshotMessageTruncated,
+		totalMessageCount: snapshotTotalCount ?? next.totalMessageCount,
 	}
 	// Gate turnState by seq so a stale snapshot cannot revert a newer phase.
 	next = applyTurnState(next, snapshotTurnState)
