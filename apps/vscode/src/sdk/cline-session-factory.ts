@@ -51,6 +51,7 @@ import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
+import { systemPromptCacheTracker } from "./system-prompt-cache"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -803,6 +804,19 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
+
+	// V16 §2 — prompt-caching wiring: the final prompt is now complete (base +
+	// rules + preferred language). Track it so successive builds (and Plan ⇄ Act
+	// switches) can be measured for shared-prefix stability. A stable prefix is
+	// the precondition for Anthropic/Bedrock cache_control to hit; violations
+	// are logged as warnings by the tracker.
+	const promptCacheMetrics = systemPromptCacheTracker.track(systemPrompt, mode)
+	Logger.log(
+		`[SessionFactory] System prompt cache: mode=${promptCacheMetrics.mode} ` +
+			`modeIndependentPrefix=${promptCacheMetrics.modeIndependentPrefixChars} chars, ` +
+			`sharedPrefixRatio=${promptCacheMetrics.sharedPrefixRatio.toFixed(4)}, ` +
+			`estimatedHitRate=${systemPromptCacheTracker.estimateCacheHitRate().toFixed(4)}`,
+	)
 
 	// Core resolves providers against the SDK registry, which uses the SDK's
 	// own provider id spelling (e.g. "openai-compatible" rather than the
