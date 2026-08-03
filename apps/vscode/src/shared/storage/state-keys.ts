@@ -21,6 +21,31 @@ import { LanguageModelChatSelector } from "vscode"
 import { type BlobStoreSettings } from "./types"
 
 // ============================================================================
+// NESTED MODE CONFIGURATION (V14)
+//
+// The plan/act mode provider+model settings historically lived as ~90 flat
+// global-state keys (planModeApiModelId, actModeOpenRouterModelId, …). V14
+// converges them into a nested per-mode record while keeping the flat keys in
+// sync (dual-write) so downgrades never lose data — see
+// src/sdk/mode-config-migration.ts.
+// ============================================================================
+
+/**
+ * Nested per-mode configuration produced by migrating the flat planMode/actMode
+ * global-state keys (V14). Keys are the flat key suffix after stripping the mode
+ * segment — e.g. "planModeApiModelId" -> "apiModelId",
+ * "geminiPlanModeThinkingLevel" -> "geminiThinkingLevel". Values keep their
+ * original shapes so the record round-trips back to flat keys losslessly.
+ */
+export type ModeConfigurations = Partial<Record<Mode, Record<string, unknown>>>
+
+/**
+ * Sentinel bumped when the flat → nested migration has run. Absent (or < 1)
+ * means the migration still needs to run.
+ */
+export const MODE_CONFIGURATION_VERSION = 1
+
+// ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
@@ -235,6 +260,10 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeNousResearchModelId: { default: undefined as string | undefined },
 	actModeVercelAiGatewayModelId: { default: undefined as string | undefined },
 	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
+
+	// Nested mode configuration (V14): migrated from the flat planMode*/actMode* keys
+	modeConfigurations: { default: undefined as ModeConfigurations | undefined },
+	modeConfigurationVersion: { default: 0 as number },
 
 	// Model-specific settings
 	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },

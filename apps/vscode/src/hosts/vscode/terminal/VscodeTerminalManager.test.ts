@@ -66,4 +66,55 @@ describe("VscodeTerminalManager", () => {
 		assert.equal(getAllTerminalsStub.called, true)
 		assert.equal(executeCommandStub.calledOnceWith(`cd "${targetCwd}"`), true)
 	})
+
+	it("drops a user-closed terminal from the registry so the LRU never reuses it", () => {
+		// Capture the onDidCloseTerminal listener registered by the constructor.
+		const closeListeners: Array<(terminal: vscode.Terminal) => void> = []
+		const onDidCloseStub = sandbox.stub(vscode.window, "onDidCloseTerminal").callsFake((listener) => {
+			closeListeners.push(listener)
+			return { dispose: sandbox.stub() }
+		})
+
+		// Recreate the manager so the constructor registers through the stub.
+		manager.disposeAll()
+		manager = new VscodeTerminalManager()
+		assert.equal(onDidCloseStub.called, true)
+
+		const terminal = {
+			shellIntegration: {
+				cwd: vscode.Uri.file("/tmp/a"),
+				executeCommand: sandbox.stub().returns({ read: () => createNeverEndingStream() }),
+			},
+			show: sandbox.stub(),
+		} as unknown as vscode.Terminal
+		const terminalInfo = TerminalRegistry.createTerminal("/tmp/a")
+		terminalInfo.terminal = terminal
+
+		assert.equal(TerminalRegistry.getAllTerminals().length, 1)
+
+		// Fire the close event exactly as VS Code would.
+		for (const listener of closeListeners) {
+			listener(terminal)
+		}
+
+		assert.equal(TerminalRegistry.getAllTerminals().length, 0)
+	})
+
+	it("ignores close events for terminals it does not track", () => {
+		const closeListeners: Array<(terminal: vscode.Terminal) => void> = []
+		const removeTerminalSpy = sandbox.spy(TerminalRegistry, "removeTerminal")
+		sandbox.stub(vscode.window, "onDidCloseTerminal").callsFake((listener) => {
+			closeListeners.push(listener)
+			return { dispose: sandbox.stub() }
+		})
+
+		manager.disposeAll()
+		manager = new VscodeTerminalManager()
+
+		const foreignTerminal = { show: sandbox.stub() } as unknown as vscode.Terminal
+		for (const listener of closeListeners) {
+			listener(foreignTerminal)
+		}
+		assert.equal(removeTerminalSpy.called, false)
+	})
 })

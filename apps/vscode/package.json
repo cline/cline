@@ -342,7 +342,101 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.language": {
+					"type": "string",
+					"enum": [
+						"English",
+						"中文",
+						"日本語",
+						"한국어",
+						"Français",
+						"Deutsch",
+						"Español",
+						"Русский",
+						"Português",
+						"Italiano",
+						"العربية",
+						"हिन्दी",
+						"Türkçe"
+					],
+					"description": "Preferred language for Cline's responses."
+				},
+				"cline.requestTimeoutMs": {
+					"type": "number",
+					"description": "Timeout in milliseconds for API requests (0 = no timeout)."
+				},
+				"cline.terminalConnectionTimeout": {
+					"type": "number",
+					"description": "Timeout in milliseconds while waiting for terminal shell integration to connect."
+				},
+				"cline.terminalReuseEnabled": {
+					"type": "boolean",
+					"description": "Reuse an existing idle terminal for new commands."
+				},
+				"cline.terminalExecutionMode": {
+					"type": "string",
+					"enum": [
+						"vscode",
+						"node"
+					],
+					"description": "How terminal commands are executed (vscode = VS Code terminal, node = background node process)."
+				},
+				"cline.defaultTerminalProfile": {
+					"type": "string",
+					"description": "Terminal profile used when creating new terminals."
+				},
+				"cline.backgroundEditEnabled": {
+					"type": "boolean",
+					"description": "Allow Cline to edit files in the background without explicit approval."
+				},
+				"cline.enableCheckpoints": {
+					"type": "boolean",
+					"description": "Enable git-based checkpoints for file changes."
+				},
+				"cline.autoCompact": {
+					"type": "boolean",
+					"description": "Automatically compact the conversation context when approaching the model's context window."
+				},
+				"cline.hooksEnabled": {
+					"type": "boolean",
+					"description": "Enable Cline lifecycle hooks."
+				},
+				"cline.showFeatureTips": {
+					"type": "boolean",
+					"description": "Show feature tips and announcements."
+				},
+				"cline.mcpDisplayMode": {
+					"type": "string",
+					"enum": [
+						"normal",
+						"compact"
+					],
+					"description": "How MCP servers are displayed in the MCP view."
+				},
+				"cline.maxConsecutiveMistakes": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 10,
+					"description": "Maximum consecutive tool mistakes allowed before Cline pauses for user input."
+				},
+				"cline.subagentsEnabled": {
+					"type": "boolean",
+					"description": "Enable subagents for parallel task execution."
+				},
+				"cline.worktreesEnabled": {
+					"type": "boolean",
+					"description": "Enable git worktrees for isolated task branches."
+				},
+				"cline.yoloMode": {
+					"type": "boolean",
+					"description": "Enable YOLO mode (fully autonomous, no approval prompts)."
+				},
+				"cline.openTelemetryEnabled": {
+					"type": "boolean",
+					"description": "Enable OpenTelemetry instrumentation and exporting."
+				}
+			}
 		}
 	},
 	"scripts": {

@@ -94,10 +94,41 @@ export default defineConfig({
 		sourcemap: isDevBuild ? "inline" : false,
 		rollupOptions: {
 			output: {
-				inlineDynamicImports: true,
+				// V14 §2.5: physical code splitting. Removing inlineDynamicImports
+				// lets React.lazy() chunks become real files that the webview
+				// downloads on demand — previously every lazy component (including
+				// the ~1MB Mermaid runtime) was bundled into the single 7MB+
+				// index.js. Heavy vendors are pinned to dedicated chunks so the
+				// main entry stays small.
 				entryFileNames: `assets/[name].js`,
-				chunkFileNames: `assets/[name].js`,
+				chunkFileNames: `assets/[name]-[hash].js`,
 				assetFileNames: `assets/[name].[ext]`,
+				manualChunks(id) {
+					if (!id.includes("node_modules")) {
+						return undefined
+					}
+					if (id.includes("mermaid")) {
+						return "vendor-mermaid"
+					}
+					if (id.includes("firebase")) {
+						return "vendor-firebase"
+					}
+					if (
+						id.includes("codemirror") ||
+						id.includes("@codemirror") ||
+						id.includes("@uiw") ||
+						id.includes("lezer")
+					) {
+						return "vendor-codemirror"
+					}
+					if (id.includes("lucide-react")) {
+						return "vendor-lucide"
+					}
+					if (id.includes("framer-motion")) {
+						return "vendor-motion"
+					}
+					return "vendor"
+				},
 				// Disable compact output for dev build
 				compact: !isDevBuild,
 				// Add generous formatting for dev build

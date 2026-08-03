@@ -44,6 +44,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { createVscodeSettingsDeps, VscodeSettingsBridge } from "@/hosts/vscode/vscode-settings-bridge"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -60,6 +61,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
+import { runModeConfigMigration } from "./mode-config-migration"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -246,6 +248,11 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
+	// V14 §3.2: imports `cline.*` settings.json values into StateManager.
+	// The keys are declared in package.json `contributes.configuration`, giving
+	// users IntelliSense, Settings Sync and remote-config support.
+	private settingsBridge?: VscodeSettingsBridge
+
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
 	}
@@ -258,6 +265,19 @@ export class Controller {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
 		syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
+		// V14 §3.1: one-shot flat → nested mode configuration migration. The
+		// nested record is dual-written while the flat keys stay in place, so the
+		// change is downgrade-safe and idempotent (version sentinel).
+		this.migrateModeConfiguration()
+		// V14 §3.2: import `cline.*` settings.json values (IntelliSense-backed via
+		// package.json contributes.configuration) into StateManager. The initial
+		// import never clobbers UI-chosen values; live edits apply immediately.
+		this.settingsBridge = new VscodeSettingsBridge(createVscodeSettingsDeps(), {
+			readState: (stateKey) => this.stateManager.getGlobalStateKey(stateKey as never),
+			writeState: (stateKey, value) => this.stateManager.setGlobalState(stateKey as never, value as never),
+		})
+		this.settingsBridge.importInitial()
+		this.settingsBridge.start()
 		this.sdkTelemetry = createVscodeSdkTelemetryHandle()
 		this.statePostDebouncer = new StatePostDebouncer({
 			debounceMs: Controller.STATE_POST_DEBOUNCE_MS,
@@ -632,6 +652,28 @@ export class Controller {
 		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
 	}
 
+	/**
+	 * V14 §3.1: run the flat → nested mode configuration migration once.
+	 * Reads all global-state entries, migrates any legacy planMode/actMode
+	 * keys into `modeConfigurations`, and bumps the version sentinel so the
+	 * migration never runs again. Flat keys are left untouched (dual-write,
+	 * downgrade-safe).
+	 */
+	private migrateModeConfiguration(): void {
+		const current = this.stateManager.getAllGlobalStateAndSettings()
+		const version = this.stateManager.getGlobalSettingsKey("modeConfigurationVersion")
+		const migrated = runModeConfigMigration(current, version, {
+			getFlat: (key) => (current as Record<string, unknown>)[key],
+			setNested: (configurations, nextVersion) => {
+				this.stateManager.setGlobalState("modeConfigurations", configurations)
+				this.stateManager.setGlobalState("modeConfigurationVersion", nextVersion)
+			},
+		})
+		if (migrated) {
+			Logger.log("[SdkController] Migrated flat plan/act mode keys into modeConfigurations")
+		}
+	}
+
 	getProviderConfigStore(): ProviderConfigStore {
 		return this.providerConfigStore
 	}
@@ -762,6 +804,7 @@ export class Controller {
 		// Tear down the debounced state-post machinery before downstream resources
 		// are disposed below — see StatePostDebouncer.dispose().
 		await this.statePostDebouncer.dispose()
+		this.settingsBridge?.dispose()
 		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub

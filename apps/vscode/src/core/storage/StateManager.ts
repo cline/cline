@@ -596,6 +596,18 @@ export class StateManager {
 	}
 
 	/**
+	 * Returns a shallow snapshot of the current global settings + state cache.
+	 * Used by one-shot migrations (e.g. the V14 flat → nested mode
+	 * configuration migration) that need to scan arbitrary keys.
+	 */
+	getAllGlobalStateAndSettings(): Partial<GlobalStateAndSettings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.globalStateCache }
+	}
+
+	/**
 	 * Get method for global state keys - reads from in-memory cache
 	 */
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {

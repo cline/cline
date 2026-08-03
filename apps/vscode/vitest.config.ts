@@ -21,6 +21,14 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
 			"src/core/controller/models/__tests__/refreshGroqModels.test.ts",
+			// V14 additions: settings bridge, Windows Job Object, mode migration.
+			// These must be exact file paths (or narrow globs): the broader
+			// `src/utils/**` / `src/hosts/vscode/**` patterns also match mocha
+			// suites (fs.test.ts, VscodeTerminalManager.test.ts, hostbridge…)
+			// which can only run inside the real VS Code extension host.
+			"src/hosts/vscode/vscode-settings-bridge.test.ts",
+			"src/utils/windows-job-object.test.ts",
+			"src/dev/debug-harness/benchmark/**/*.test.ts",
 		],
 		environment: "node",
 		setupFiles: ["./src/test/vitest-setup.ts"],

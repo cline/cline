@@ -133,6 +133,22 @@ export class VscodeTerminalManager {
 		} catch (error) {
 			Logger.error("Error setting up onDidChangeTerminalState", error)
 		}
+
+		// V14 §2.1: when the user closes a terminal, drop it from the registry and
+		// release its tracked process so the LRU never resurrects a dead terminal
+		// (which previously kept stale entries until the 5-minute busy timeout).
+		const closeDisposable = vscode.window.onDidCloseTerminal((terminal) => {
+			const terminalInfo = this.findTerminalInfoByTerminal(terminal)
+			if (!terminalInfo) {
+				return
+			}
+			const id = terminalInfo.id
+			TerminalRegistry.removeTerminal(id)
+			this.terminalIds.delete(id)
+			this.processes.delete(id)
+			Logger.log(`[TerminalManager] Terminal ${id} closed by user; removed from registry`)
+		})
+		this.disposables.push(closeDisposable)
 	}
 
 	//Find a TerminalInfo by its VSCode Terminal instance

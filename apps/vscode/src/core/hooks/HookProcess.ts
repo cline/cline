@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { terminateProcessTree } from "@/utils/process-termination"
+import { isWindowsJobObjectSupported } from "@/utils/windows-job-object"
 import { EventEmitter } from "events"
 import { Logger } from "@/shared/services/Logger"
 import { resolveWindowsPowerShellExecutable } from "@/utils/powershell"
@@ -180,6 +181,10 @@ export class HookProcess extends EventEmitter {
 							detached: launchConfig.detached,
 							cwd: this.cwd, // Execute from the determined workspace root
 							windowsHide: true,
+							// V14 §2.4: bind the hook process (and any grandchildren) to a
+							// Windows Job Object so a hard-killed extension host cannot
+							// strand orphaned processes.
+							...(isWindowsJobObjectSupported() ? { windowsJob: true } : {}),
 						})
 
 						let didEmitEmptyLine = false

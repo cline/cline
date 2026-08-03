@@ -37,6 +37,13 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
+	{
+		id: "subagents",
+		label: "Subagents",
+		description: "Delegate independent sub-tasks to subagents running in parallel for multi-step work.",
+		stateKey: "subagentsEnabled",
+		settingKey: "subagentsEnabled",
+	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
