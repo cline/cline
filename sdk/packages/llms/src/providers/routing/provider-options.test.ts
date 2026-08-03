@@ -1155,6 +1155,58 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			// Guards the catalog dependency: a model that advertises no
+			// user-facing reasoning control emits no chat template kwargs, even
+			// though its family would otherwise route through this rule.
+			name: "Chutes Kimi advertising no reasoning control -> no chat template patch",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					lacks: [
+						"chat_template_kwargs",
+						"thinking",
+						"reasoningEffort",
+						"effort",
+					],
+				},
+			],
+		},
+		{
+			name: "Chutes Kimi advertising a toggle -> chat template patch",
+			request: {
+				providerId: "chutes",
+				modelId: "moonshotai/Kimi-K2.6-TEE",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "kimi-k2",
+				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
+			},
+			expect: [
+				{
+					bucket: "chutes",
+					has: {
+						chat_template_kwargs: {
+							thinking: true,
+							preserve_thinking: true,
+						},
+					},
+					lacks: ["thinking", "reasoningEffort", "effort"],
+				},
+			],
+		},
+		{
 			name: "Chutes Kimi K2.6 TEE unset reasoning -> no chat template patch",
 			request: {
 				providerId: "chutes",
@@ -1270,7 +1322,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "Chutes thinking-only Qwen family ignores explicit disable",
+			name: "Chutes mandatory-thinking Qwen advertises no control -> explicit disable is dropped",
 			request: {
 				providerId: "chutes",
 				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
@@ -1279,6 +1331,9 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: {
 				family: "qwen",
 				capabilities: ["text", "reasoning"],
+				// models.dev advertises `reasoning_options = []` for this model:
+				// reasoning with no user-facing control.
+				reasoningOptions: [],
 			},
 			expect: [
 				{
@@ -1302,7 +1357,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "Chutes thinking-only classification is stable across display name changes",
+			name: "Chutes mandatory-thinking classification is stable across display name changes",
 			request: {
 				providerId: "chutes",
 				modelId: "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
@@ -1311,6 +1366,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: {
 				family: "qwen",
 				capabilities: ["text", "reasoning"],
+				reasoningOptions: [],
 				modelName: "Qwen3 235B Super Fast Non-Thinking Edition",
 			},
 			expect: [
@@ -1335,7 +1391,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "Chutes Qwen model not in thinking-only set receives toggle regardless of display name",
+			name: "Chutes Qwen advertising a toggle receives it regardless of display name",
 			request: {
 				providerId: "chutes",
 				modelId: "Qwen/Qwen4-New-Model-TEE",
@@ -1344,6 +1400,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: {
 				family: "qwen",
 				capabilities: ["text", "reasoning"],
+				reasoningOptions: [{ type: "toggle" }],
 				modelName: "Qwen4 Thinking Ultra",
 			},
 			expect: [
@@ -1368,11 +1425,8 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "chutes",
-					has: {
-						thinking: { type: "adaptive" },
-						reasoningEffort: "high",
-					},
-					lacks: ["chat_template_kwargs"],
+					has: { reasoningEffort: "high" },
+					lacks: ["chat_template_kwargs", "thinking"],
 				},
 			],
 		},
@@ -1409,11 +1463,8 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "chutes",
-					has: {
-						thinking: { type: "adaptive" },
-						reasoningEffort: "high",
-					},
-					lacks: ["chat_template_kwargs"],
+					has: { reasoningEffort: "high" },
+					lacks: ["chat_template_kwargs", "thinking"],
 				},
 			],
 		},
