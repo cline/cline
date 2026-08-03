@@ -58,9 +58,29 @@ function checkIsOpenAIContextWindowError(error: unknown): boolean {
 	}
 }
 
-function checkIsAnthropicContextWindowError(response: any): boolean {
+export function checkIsAnthropicContextWindowError(response: any): boolean {
 	try {
-		return response?.error?.error?.type === "invalid_request_error"
+		// Anthropic returns `invalid_request_error` for many conditions that have nothing to do with
+		// context size (malformed params, invalid tool schema, oversized image, unknown model id), so
+		// the error type alone cannot identify an overflow — it needs a context-specific message too.
+		if (response?.error?.error?.type !== "invalid_request_error") {
+			return false
+		}
+
+		// The Anthropic SDK puts the response body on `error` and, when that body has no top-level
+		// `message`, JSON-stringifies it into the APIError's own `message` — so either path can carry
+		// the overflow text depending on how the error reached us.
+		const messages: unknown[] = [response?.error?.error?.message, response?.message].filter((msg) => msg != null)
+
+		// Anthropic-authored overflow wire messages, matching the patterns the Vercel and Bedrock
+		// branches in this file already use for the same provider messages.
+		const CONTEXT_ERROR_PATTERNS = [
+			/prompt is too long.*tokens?\s*>\s*\d+\s*maximum/i,
+			/input is too long/i,
+			/input length and max_tokens exceed context limit/i,
+		] as const
+
+		return messages.some((msg) => CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(String(msg))))
 	} catch {
 		return false
 	}
