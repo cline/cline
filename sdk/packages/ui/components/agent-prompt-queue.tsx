@@ -10,7 +10,7 @@ export interface AgentPromptQueueItem {
 }
 
 export interface AgentPromptQueueProps {
-	items: AgentPromptQueueItem[];
+	items: readonly AgentPromptQueueItem[];
 	onEdit: (id: string, prompt: string) => Promise<void> | void;
 	onRemove: (id: string) => Promise<void> | void;
 	onSteer: (id: string) => Promise<void> | void;
@@ -78,12 +78,17 @@ function Icon({ name, small = false }: { name: IconName; small?: boolean }) {
 	);
 }
 
-async function runHostCallback(callback: () => Promise<void> | void) {
+async function runHostCallback(
+	callback: () => Promise<void> | void,
+	fallbackMessage: string,
+): Promise<string | null> {
 	try {
 		await callback();
-		return true;
-	} catch {
-		return false;
+		return null;
+	} catch (error) {
+		return error instanceof Error && error.message
+			? error.message
+			: fallbackMessage;
 	}
 }
 
@@ -96,6 +101,10 @@ export function AgentPromptQueue({
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editingValue, setEditingValue] = useState("");
 	const [pendingId, setPendingId] = useState<string | null>(null);
+	const [actionError, setActionError] = useState<{
+		id: string;
+		message: string;
+	} | null>(null);
 	const [expanded, setExpanded] = useState(false);
 	const queueId = useId();
 
@@ -108,9 +117,18 @@ export function AgentPromptQueue({
 		async (item: AgentPromptQueueItem) => {
 			const prompt = editingValue.trim();
 			if (!prompt || pendingId) return;
+			setActionError(null);
 			setPendingId(item.id);
 			try {
-				if (await runHostCallback(() => onEdit(item.id, prompt))) cancelEdit();
+				const message = await runHostCallback(
+					() => onEdit(item.id, prompt),
+					"Could not update the queued prompt.",
+				);
+				if (message) {
+					setActionError({ id: item.id, message });
+				} else {
+					cancelEdit();
+				}
 			} finally {
 				setPendingId(null);
 			}
@@ -121,11 +139,16 @@ export function AgentPromptQueue({
 	const runAction = useCallback(
 		async (item: AgentPromptQueueItem, action: "steer" | "remove") => {
 			if (pendingId) return;
+			setActionError(null);
 			setPendingId(item.id);
 			try {
-				await runHostCallback(() =>
-					action === "steer" ? onSteer(item.id) : onRemove(item.id),
+				const message = await runHostCallback(
+					() => (action === "steer" ? onSteer(item.id) : onRemove(item.id)),
+					action === "steer"
+						? "Could not steer the queued prompt."
+						: "Could not remove the queued prompt.",
 				);
+				if (message) setActionError({ id: item.id, message });
 			} finally {
 				setPendingId(null);
 			}
@@ -138,6 +161,12 @@ export function AgentPromptQueue({
 			cancelEdit();
 		}
 	}, [cancelEdit, editingId, items]);
+
+	useEffect(() => {
+		if (actionError && !items.some((item) => item.id === actionError.id)) {
+			setActionError(null);
+		}
+	}, [actionError, items]);
 
 	useEffect(() => {
 		if (items.length === 0) setExpanded(false);
@@ -167,9 +196,13 @@ export function AgentPromptQueue({
 				{items.map((item) => {
 					const isEditing = editingId === item.id;
 					const isPending = pendingId === item.id;
+					// While any action is in flight every action is a no-op, so
+					// present every control as disabled rather than just the busy row.
+					const isBusy = pendingId !== null;
 					const hasAttachments = (item.attachmentCount ?? 0) > 0;
 					return (
 						<div
+							aria-busy={isPending || undefined}
 							className="cline-ui-agent-prompt-queue__item"
 							data-steer={item.steer || undefined}
 							key={item.id}
@@ -218,6 +251,14 @@ export function AgentPromptQueue({
 										) : null}
 									</div>
 								)}
+								{actionError?.id === item.id ? (
+									<p
+										className="cline-ui-agent-prompt-queue__error"
+										role="alert"
+									>
+										{actionError.message}
+									</p>
+								) : null}
 							</div>
 							<div className="cline-ui-agent-prompt-queue__actions">
 								{isEditing ? (
@@ -225,7 +266,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Save queued prompt"
 											className="cline-ui-agent-prompt-queue__action"
-											disabled={isPending || editingValue.trim().length === 0}
+											disabled={isBusy || editingValue.trim().length === 0}
 											onClick={() => void submitEdit(item)}
 											type="button"
 										>
@@ -234,7 +275,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Cancel editing queued prompt"
 											className="cline-ui-agent-prompt-queue__action"
-											disabled={isPending}
+											disabled={isBusy}
 											onClick={cancelEdit}
 											type="button"
 										>
@@ -247,7 +288,7 @@ export function AgentPromptQueue({
 											<button
 												aria-label="Steer queued prompt"
 												className="cline-ui-agent-prompt-queue__action"
-												disabled={isPending}
+												disabled={isBusy}
 												onClick={() => void runAction(item, "steer")}
 												title="Steer next"
 												type="button"
@@ -258,7 +299,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Edit queued prompt"
 											className="cline-ui-agent-prompt-queue__action"
-											disabled={isPending}
+											disabled={isBusy}
 											onClick={() => {
 												setEditingId(item.id);
 												setEditingValue(item.prompt);
@@ -270,7 +311,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Remove queued prompt"
 											className="cline-ui-agent-prompt-queue__action"
-											disabled={isPending}
+											disabled={isBusy}
 											onClick={() => void runAction(item, "remove")}
 											type="button"
 										>

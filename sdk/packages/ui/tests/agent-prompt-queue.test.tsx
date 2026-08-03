@@ -173,6 +173,50 @@ describe("AgentPromptQueue", () => {
 				'[aria-label="Save queued prompt"]',
 			)?.disabled,
 		).toBe(false);
+		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not edit prompt",
+		);
+	});
+
+	it("surfaces remove failures and clears them on retry", async () => {
+		const onRemove = vi
+			.fn()
+			.mockRejectedValueOnce(new Error(""))
+			.mockResolvedValueOnce(undefined);
+		await act(async () =>
+			root.render(
+				<AgentPromptQueue
+					items={[{ id: "one", prompt: "Original", steer: false }]}
+					onEdit={vi.fn()}
+					onRemove={onRemove}
+					onSteer={vi.fn()}
+				/>,
+			),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>("button[aria-expanded]")
+				?.click(),
+		);
+
+		const removeButton = () =>
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Remove queued prompt"]',
+			);
+		await act(async () => {
+			removeButton()?.click();
+			await Promise.resolve();
+		});
+		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not remove the queued prompt.",
+		);
+
+		await act(async () => {
+			removeButton()?.click();
+			await Promise.resolve();
+		});
+		expect(onRemove).toHaveBeenCalledTimes(2);
+		expect(container.querySelector('[role="alert"]')).toBeNull();
 	});
 
 	it("renders nothing without queued prompts", async () => {

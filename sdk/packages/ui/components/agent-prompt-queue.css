@@ -123,6 +123,14 @@
 	font-weight: var(--font-weight-medium);
 }
 
+.cline-ui-agent-prompt-queue__error {
+	margin: 0.25rem 0 0;
+	color: var(--destructive);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
 .cline-ui-agent-prompt-queue__editor {
 	display: block;
 	width: 100%;
