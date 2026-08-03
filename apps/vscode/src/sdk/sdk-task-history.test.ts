@@ -1,13 +1,15 @@
 import type { SessionHistoryRecord } from "@cline/core"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
+import { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { resolvePaginationSourceMessages, SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -835,3 +837,66 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		startSession,
 	}
 }
+
+describe("resolvePaginationSourceMessages", () => {
+	const makeMessages = (n: number): ClineMessage[] =>
+		Array.from({ length: n }, (_, i) => ({
+			ts: i + 1,
+			type: "say",
+			say: "text",
+			text: `m${i}`,
+			partial: false,
+		}))
+
+	it("returns the open task's transcript when its id matches the requested task", () => {
+		const diskMessages = makeMessages(60)
+		const openMessages = makeMessages(60)
+		let diskCalled = false
+
+		const result = resolvePaginationSourceMessages("task-a", openMessages, "task-a", () => {
+			diskCalled = true
+			return diskMessages
+		})
+
+		expect(diskCalled).toBe(false)
+		expect(result).toBe(openMessages)
+	})
+
+	it("falls back to the disk read when no task is open", () => {
+		const diskMessages = makeMessages(60)
+		const result = resolvePaginationSourceMessages(undefined, undefined, "task-a", () => diskMessages)
+		expect(result).toBe(diskMessages)
+	})
+
+	it("falls back to the disk read when the requested task is not the open one", () => {
+		const diskMessages = makeMessages(60)
+		const result = resolvePaginationSourceMessages("task-b", makeMessages(60), "task-a", () => diskMessages)
+		expect(result).toBe(diskMessages)
+	})
+
+	it("falls back to the disk read when the open task has no transcript", () => {
+		const diskMessages = makeMessages(60)
+		const result = resolvePaginationSourceMessages("task-a", undefined, "task-a", () => diskMessages)
+		expect(result).toBe(diskMessages)
+	})
+
+	it("guards the pagination root cause: re-translation re-mints ts, so a disk re-read can never serve the webview's beforeTs cursor", () => {
+		// This is why loadHistoryBatch must apply the cursor against the open task's
+		// transcript instead of a fresh getClineMessages() read: two translation passes
+		// of the same persisted messages mint completely different ts values, so the
+		// backend's findIndex(m.ts < beforeTs) is always -1 (empty batch, hasMore=false).
+		const persisted = [
+			{ role: "user", content: "Build the feature" },
+			{ role: "assistant", content: [{ type: "text", text: "Done" }] },
+			{ role: "user", content: "Follow up" },
+		] as never
+		const minter = new MessageIdMinter()
+
+		const snapshotPass = sdkMessagesToClineMessages(persisted, minter)
+		const pagePass = sdkMessagesToClineMessages(persisted, minter)
+
+		const beforeTs = snapshotPass[0].ts
+		const hasMessagesBefore = pagePass.some((m) => (m.ts || 0) < beforeTs)
+		expect(hasMessagesBefore).toBe(false)
+	})
+})

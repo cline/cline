@@ -92,7 +92,7 @@ import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
-import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { resolvePaginationSourceMessages, SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
@@ -1614,8 +1614,18 @@ export class Controller {
 			})
 		}
 
-		// Load all messages for this task
-		const allMessages = await this.taskHistory.getClineMessages(taskId)
+		// Load all messages for this task. Prefer the OPEN task's in-memory transcript:
+		// its ClineMessage ts values were minted by the same translator pass that built
+		// the webview's snapshot, so the webview's beforeTs cursor is directly comparable.
+		// A disk re-read (getClineMessages) re-mints ts through the process-wide counter on
+		// every call, so all messages would sort AFTER the cursor, beforeIndex === -1, and
+		// the backend would answer empty + hasMore=false forever (scroll-up loading dies).
+		const allMessages = await resolvePaginationSourceMessages(
+			this.task?.taskId,
+			this.task?.messageStateHandler.getClineMessages(),
+			taskId,
+			() => this.taskHistory.getClineMessages(taskId),
+		)
 		const totalCount = allMessages.length
 
 		// Sort newest-first for batch filtering
@@ -2086,10 +2096,12 @@ export class Controller {
 				}
 			}
 
-			const processedTaskHistory = Array.from(mergedTaskHistoryById.values())
-				.filter((item) => item.ts && item.task)
-				.sort((a, b) => b.ts - a.ts)
-				.slice(0, 100)
+			// Search the FULL merged list for the current task's item: slicing to the
+			// top-100 window would leave currentTaskItem undefined when the open task is
+			// older than the visible window, which disables scroll-up pagination (the
+			// webview derives the loadHistoryBatch taskId from currentTaskItem.id).
+			const fullTaskHistory = Array.from(mergedTaskHistoryById.values()).filter((item) => item.ts && item.task)
+			const processedTaskHistory = fullTaskHistory.sort((a, b) => b.ts - a.ts).slice(0, 100)
 
 			let queuedPrompts: ExtensionState["queuedPrompts"] = []
 			const activeSession = this.sessions.getActiveSession()
@@ -2108,9 +2120,7 @@ export class Controller {
 			const minter = this.messageTranslatorState.getMinter()
 			return {
 				...state,
-				currentTaskItem: this.task?.taskId
-					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
-					: undefined,
+				currentTaskItem: this.task?.taskId ? fullTaskHistory.find((item) => item.id === this.task?.taskId) : undefined,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,

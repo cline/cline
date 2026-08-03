@@ -171,6 +171,34 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 	}
 }
 
+/**
+ * Resolve the message array a pagination cursor must be applied against.
+ *
+ * The webview's `beforeTs` cursor is minted by the SAME translator pass that
+ * produced the messages currently on screen — the open task's in-memory
+ * transcript (`MessageStateHandler`). The disk read path (`getClineMessages`)
+ * re-mints `ts` through the process-wide MessageIdMinter on EVERY call, so ts
+ * values differ between the snapshot pass and the next page request: re-minted
+ * messages always sort AFTER the webview's cursor, `beforeIndex` is -1 forever,
+ * and the backend answers with an empty batch + `hasMore=false`, silently
+ * killing scroll-up history loading.
+ *
+ * Therefore the open task's transcript is the authoritative pagination source
+ * when its id matches the requested task. The disk path remains a fallback for
+ * tasks that are not open (e.g. a stale in-flight request after switching tasks).
+ */
+export function resolvePaginationSourceMessages(
+	openTaskId: string | undefined,
+	openTaskMessages: ClineMessage[] | undefined,
+	taskId: string,
+	loadFromDisk: () => ClineMessage[] | Promise<ClineMessage[]>,
+): ClineMessage[] | Promise<ClineMessage[]> {
+	if (openTaskId !== undefined && openTaskId === taskId && openTaskMessages) {
+		return openTaskMessages
+	}
+	return loadFromDisk()
+}
+
 export class SdkTaskHistory {
 	private cachedHistoryHost?: VscodeSessionHost
 	private cachedHistoryHostPromise?: Promise<VscodeSessionHost>

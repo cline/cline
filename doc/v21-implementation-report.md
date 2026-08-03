@@ -1,8 +1,10 @@
 # V21 实施报告 — 历史分页回弹修复、历史对话计费显示修复、Auto Compact 阈值用户可配置
 
-> 承接 V20（webview chunk 循环依赖修复，空白面板定论）。V21 完成三件事：
+> 承接 V20（webview chunk 循环依赖修复，空白面板定论）。V21 完成五件事：
 > ① 历史消息上拉加载回弹修复；② 历史对话计费显示失效（$0.00）根因修复；
-> ③ Auto Compact 触发阈值从硬编码 90% 改为用户可配置（设置页 50-100%）。
+> ③ Auto Compact 触发阈值从硬编码 90% 改为用户可配置（设置页 50-100%）；
+> ④ 追加：历史消息滚到头永不触发加载的根因修复（ts 游标域不匹配）；
+> ⑤ 追加：CI 双平台回归失败修复（Ubuntu JSONL 解析、Windows SQLite WAL）。
 
 ---
 
@@ -12,6 +14,8 @@
 |:---|:---|:---|:---|
 | 🔴 P0 | 问题2：历史对话计费显示失效（$0.00） | `readPersistedMessagesFile` V18 默认 `limit:50` → `isTruncated=false` → 分页永不触发 → 50 条外消息（含 `api_req_started` 计费行）不可达；次因 `mergeMessagesBatch` Phase 3 无条件替换 | ✅ 全量读取恢复（limit 改显式 opt-in）+ seq 新鲜度守卫回归 |
 | 🟡 P1 | 问题1：历史消息上拉加载回弹 | `MessagesArea` 缺稳定 key / prepend 后滚动定位失败 | ✅ 稳定 task key + `computeItemKey` + prepend 不滚底 + in-flight 锁 |
+| 🔴 P0（追加） | 问题4：历史消息滚到头**永不触发**加载 | `ClineMessage.ts` 为进程内单调计数器，每次磁盘回读（`getClineMessages`）都重新铸造 → 快照与 `loadHistoryBatch` 的 ts 域不一致 → `beforeIndex === -1` → 空批次 + `hasMore=false` 永久锁死；次因 `currentTaskItem` 从 top-100 切片查找，旧任务打开时取不到 | ✅ `loadHistoryBatch` 改读**当前打开任务的内存 transcript**（同一铸造域）；`currentTaskItem` 改为全量列表查找 |
+| 🟢 P2（追加） | 问题5：CI 双平台回归失败 | Ubuntu：V18 JSONL `.messages.json` 被旧测试按整文件 `JSON.parse`；Windows：`HubServerTransport` 惰性建 `SqliteCronStore` → 测试进程并发开 `~/.cline/data/db/cron.db` WAL → 磁盘 I/O 错误 | ✅ 新增 `messages-artifact.ts` 共享助手（自动识别 JSONL/旧 JSON）；测试全部改用 `dbPath: ":memory:"` |
 | 🟡 P1 | 问题3：Auto Compact 阈值不可配置 | `COMPACTION_TRIGGER_RATIO=0.9` 硬编码，SDK 配置无字段 | ✅ 全链路用户可配置（proto → 设置 → global-settings → SDK triggerRatio → 触发计算） |
 
 ---
@@ -63,7 +67,84 @@ readPersistedMessagesFile(默认 limit:50)   ← V18 引入，仅读 JSONL 尾�
 
 ---
 
-## 四、🟡 P1：问题3 — Auto Compact 阈值用户可配置
+## 四、🔴 P0（追加）：问题4 — 历史消息滚到头永不触发加载
+
+### 4.1 症状
+
+V21 打包版实测：长对话**向上滚动到顶不加载更早消息**（回弹问题修复后仍无法翻页），
+`ExtensionStateContext` 日志出现 `loadHistoryBatch` 空批次响应后 `hasMoreMessages=false`，
+此后滚动到顶的门控 `!hasMoreMessages` 永久短路。
+
+### 4.2 根因链（双链叠加）
+
+**主因 — ts 游标域不匹配（每次磁盘回读都重新铸造 ts）：**
+
+```
+ClineMessage.ts 不是墙钟，而是进程级 MessageIdMinter 的单调计数器（message-id-minter.ts）
+  → showTaskWithId 加载历史：getClineMessages → sdkMessagesToClineMessages 铸造 1..N（快照域）
+  → 滚动到顶：loadHistoryBatch → getClineMessages 再次磁盘回读 → 同一批消息铸造 N+1..2N（新域）
+    → beforeTs（快照域，如 51）< 新域所有值（如 201..400）→ findIndex(m.ts < beforeTs) === -1
+      → 返回空批次 + hasMore=false → 前端 setHasMoreMessages(false) → 门控永久短路
+```
+
+已验证：对同一批持久化消息用同一 minter 连续翻译两次，ts 分别为 `[1..7]` 与 `[8..14]`，
+两次铸造成的 ts 无任何交集（回归测试 `sdk-task-history.test.ts` 固化该断言）。
+
+**次因 — `currentTaskItem` 从 top-100 切片查找：**
+
+`getStateToPostToWebview` 中 `currentTaskItem = processedTaskHistory.find(...)`，
+而 `processedTaskHistory` 是 `slice(0, 100)` 的窗口。打开**早于最近 100 条**的旧任务时
+`currentTaskItem === undefined` → webview 以 `""` 调 `loadHistoryBatch` → 后端空批次短路，
+分页在未发出请求前就已失效。
+
+### 4.3 修复
+
+1. **`sdk-task-history.ts` 新增 `resolvePaginationSourceMessages()`**：分页游标必须作用在
+   **当前打开任务的内存 transcript**（`MessageStateHandler`）上 —— 它与 webview 快照同属
+   一次翻译铸造，ts 域直接可比；磁盘回读仅作为任务未打开时的兜底（如切任务后滞留的
+   在途请求）。
+2. **`SdkController.loadHistoryBatch`**：改用该解析器（`this.task?.taskId === taskId` 时
+   读 `this.task.messageStateHandler.getClineMessages()`），否则回退 `getClineMessages()`。
+3. **`SdkController.getStateToPostToWebview`**：`currentTaskItem` 改为在**全量**合并列表
+   （`fullTaskHistory`，切片前）中查找；`taskHistory` 字段仍保留 top-100 窗口。
+
+### 4.4 测试
+
+- `sdk-task-history.test.ts` 新增 5 用例：打开任务命中/未打开/任务不匹配/无 transcript
+  四种源选择分支 + ts 域不稳定根因守卫（35 项全绿）。
+- `sdk-task-control-coordinator` / `message-translator` / `task-proxy` 回归 136 项全绿。
+
+---
+
+## 五、🟢 P2（追加）：问题5 — CI 双平台回归失败修复
+
+### 5.1 症状
+
+- **Ubuntu**：`per-turn-metrics.live.test.ts` / `messages-contract.live.test.ts` 失败 ——
+  `.messages.json` 自 V18 起是 JSONL（首行 `{"header":...}` + 每行 `{"message":...}`），
+  旧测试仍按整文件 `JSON.parse`。
+- **Windows**：`settings.test.ts` / `fetch-wiring.test.ts` 失败 —— `HubServerTransport`
+  构造时惰性创建 `HubScheduleService` → `SqliteCronStore` 打开真实
+  `~/.cline/data/db/cron.db`，并行测试进程竞争 WAL（`PRAGMA journal_mode = WAL`）抛磁盘
+  I/O 错误。
+
+### 5.2 修复
+
+1. **新增 `apps/cli/src/tests/helpers/messages-artifact.ts`**：`findMessagesArtifacts` +
+   `readMessagesArtifact`，自动识别 JSONL 与旧版 pretty-printed JSON 两种格式；
+   两个 live 测试改由共享助手读取。
+2. **`settings.test.ts`（3 处）/ `fetch-wiring.test.ts`（2 处）**：`HubServerTransport`
+   全部补 `scheduleOptions: { dbPath: ":memory:" }`（沿用 `boundary.test.ts` 先例），
+   隔离 SQLite 状态。
+
+### 5.3 测试
+
+- `settings.test.ts` + `fetch-wiring.test.ts` 7/7 通过；CLI 类型检查通过；
+  bun 冒烟验证 JSONL / 旧 JSON 双格式解析正确。
+
+---
+
+## 六、🟡 P1：问题3 — Auto Compact 阈值用户可配置
 
 ### 4.1 改动链路（自上而下）
 
@@ -108,7 +189,7 @@ readPersistedMessagesFile(默认 limit:50)   ← V18 引入，仅读 JSONL 尾�
 
 ---
 
-## 五、验证状态
+## 七、验证状态
 
 | 项 | 结果 |
 |:---|:---|
@@ -116,6 +197,9 @@ readPersistedMessagesFile(默认 limit:50)   ← V18 引入，仅读 JSONL 尾�
 | SDK 单测 global-settings / compaction（核心） | ✅ 14 + 56 全绿 |
 | 扩展端类型检查（`bunx tsc --noEmit`） | ✅ |
 | 扩展端单测 cline-session-factory / sdk-compaction / sdk-session-config-builder | ✅ 57 + 5 + 3 全绿 |
+| 扩展端单测 sdk-task-history（新增 5 用例） | ✅ 35 全绿 |
+| 扩展端单测 sdk-task-control-coordinator / message-translator / task-proxy 回归 | ✅ 136 全绿 |
+| CLI 单测 settings / fetch-wiring（SQLite 隔离修复） | ✅ 7 全绿 |
 | webview 类型检查 | ✅ |
 | webview 单测 FeatureSettingsSection | ✅ 14 全绿 |
 | webview 构建（`bun run build:webview`） | ✅ 32.86s |
@@ -128,8 +212,9 @@ readPersistedMessagesFile(默认 limit:50)   ← V18 引入，仅读 JSONL 尾�
 
 ---
 
-## 六、产物
+## 八、产物
 
 - 打包：`apps/vscode/dist/cline-v21-auto-compact-threshold.vsix`（8,338,172 B，52 files）
 - 验收：vsce 全流程（类型检查 + lint + webview 构建 + 生产 bundle）通过；
-  VSCodium 实启动扩展激活无错误；webview 页面级 e2e 待环境恢复窗口捕获后复跑
+  VSCodium 实启动扩展激活无错误；webview 页面级 e2e 待环境恢复窗口捕获后复跑；
+  CI（Ubuntu JSONL / Windows SQLite）修复后双平台测试通过。
