@@ -21,14 +21,8 @@ import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
 } from "../cline-account";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getUserMessageBackground,
-	palette,
-	type TerminalTheme,
-} from "../palette";
+import { getUserMessageBackground, palette } from "../palette";
+import type { ResolvedTheme } from "../themes";
 import type { ChatEntry } from "../types";
 import { formatCompactionDividerLabel } from "../utils/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
@@ -331,11 +325,11 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 function ClinePassSubscriptionErrorView(props: {
 	defaultFg?: string;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const subscriptionUrl = getCliSubscriptionUrl();
 	const [planFeatures, setPlanFeatures] = useState<string[]>([]);
-	const planAccent = getModeAccent("plan", props.terminalTheme);
+	const planAccent = props.theme.accents.plan;
 
 	useEffect(() => {
 		if (!props.loadIndividualSubscriptionPlans) {
@@ -404,9 +398,9 @@ function ClinePassSubscriptionErrorView(props: {
 
 function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	defaultFg?: string;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
-	const planAccent = getModeAccent("plan", props.terminalTheme);
+	const planAccent = props.theme.accents.plan;
 
 	return (
 		<box flexDirection="row">
@@ -464,7 +458,7 @@ function CompactionDividerRow(props: {
 function ClinePassLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const detail = getClinePassLimitDetailMessage(props.message) ?? props.message;
 
@@ -491,7 +485,7 @@ function ClinePassLimitErrorView(props: {
 					<code
 						content="--provider cline"
 						filetype="bash"
-						syntaxStyle={getSyntaxStyle(props.terminalTheme)}
+						syntaxStyle={getSyntaxStyle(props.theme)}
 						selectable
 					/>
 					<text fg={props.defaultFg} selectable content="." />
@@ -572,12 +566,11 @@ export function ChatEntryView(props: {
 	/** Mode the entry was produced in (resolved with the current-mode fallback). */
 	mode?: SyntaxAccentMode;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
-	const { entry, accent = palette.act, mode = "act", terminalTheme } = props;
-	const terminalBg = useTerminalBackground();
-	const defaultFg = getDefaultForeground(terminalBg);
-	const userMsgBg = getUserMessageBackground(terminalBg);
+	const { entry, accent = palette.act, mode = "act", theme } = props;
+	const defaultFg = theme.defaultForeground;
+	const userMsgBg = getUserMessageBackground(theme.background);
 
 	switch (entry.kind) {
 		case "user":
@@ -633,7 +626,7 @@ export function ChatEntryView(props: {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
+							syntaxStyle={getSyntaxStyle(theme, mode)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>
@@ -666,7 +659,7 @@ export function ChatEntryView(props: {
 				return (
 					<ClineOrgIndividualInferenceSubscriptionErrorView
 						defaultFg={defaultFg}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}
@@ -677,7 +670,7 @@ export function ChatEntryView(props: {
 						loadIndividualSubscriptionPlans={
 							props.loadIndividualSubscriptionPlans
 						}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}
@@ -686,7 +679,7 @@ export function ChatEntryView(props: {
 					<ClinePassLimitErrorView
 						message={entry.text}
 						defaultFg={defaultFg}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}

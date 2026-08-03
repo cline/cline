@@ -19,11 +19,8 @@ import {
 	TrackedRobot,
 	type useMouseTracker,
 } from "../../components/tracked-robot";
-import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../../hooks/use-terminal-background";
-import { getDefaultForeground, getModeAccent, palette } from "../../palette";
+import { useTheme } from "../../hooks/use-theme";
+import { palette } from "../../palette";
 import { FIELD_ORDER } from "./fields";
 import {
 	type ClinePassSubscriptionOption,
@@ -35,8 +32,7 @@ import {
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
 
 function useDefaultFg(): string | undefined {
-	const terminalBg = useTerminalBackground();
-	return getDefaultForeground(terminalBg);
+	return useTheme().defaultForeground;
 }
 
 function getClinePassSubscriptionOptionId(index: number): string {
@@ -494,8 +490,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	subscriptionUrl: string;
 }) {
 	const defaultFg = useDefaultFg();
-	const terminalTheme = useTerminalTheme();
-	const planAccent = getModeAccent("plan", terminalTheme);
+	const planAccent = useTheme().accents.plan;
 	const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 	const isLoading = props.status === "loading";
 	const isSubscribed = props.status === "subscribed";

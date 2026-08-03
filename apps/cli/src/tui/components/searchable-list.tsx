@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import { getDefaultForeground, palette } from "../palette";
+import { useTheme } from "../hooks/use-theme";
+import { palette } from "../palette";
 
 export interface SearchableItem {
 	key: string;
@@ -229,8 +229,7 @@ export function SearchableList(props: {
 	emptyText?: string;
 	borderColor?: string;
 }) {
-	const terminalBg = useTerminalBackground();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const defaultFg = useTheme().defaultForeground;
 	const {
 		items,
 		selected,

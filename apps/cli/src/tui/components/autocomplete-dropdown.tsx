@@ -3,8 +3,8 @@ import type {
 	AutocompleteMode,
 	AutocompleteOption,
 } from "../hooks/use-autocomplete";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import { getDefaultForeground, palette } from "../palette";
+import { useTheme } from "../hooks/use-theme";
+import { palette } from "../palette";
 
 const MAX_ROWS = 7;
 export const DROPDOWN_MAX_HEIGHT = MAX_ROWS + 2;
@@ -122,8 +122,7 @@ function OptionRow(props: {
 	accent: string;
 	onSelect: (option: AutocompleteOption) => void;
 }) {
-	const terminalBg = useTerminalBackground();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const defaultFg = useTheme().defaultForeground;
 	const { opt, isSelected, rowBudget, mode, accent, onSelect } = props;
 
 	if (opt.isHeader) {
