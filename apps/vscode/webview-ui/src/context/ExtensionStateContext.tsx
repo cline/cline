@@ -474,18 +474,28 @@ export const ExtensionStateContextProvider: React.FC<{
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						const incomingStateVersion = stateData.stateVersion ?? 0
+
+						// Route the snapshot's transcript through the convergent-replica reducer:
+						// merge by ts/seq within the same epoch (never truncate), replace on a
+						// newer epoch, ignore stale/older snapshots. Pagination metadata
+						// travels with the snapshot so it is owned/reset by the conversation fence.
+						const prevEpoch = replicaRef.current.epoch
 						replicaRef.current = reducerApplyStateSnapshot(
 							replicaRef.current,
 							stateData.clineMessages ?? [],
 							stateData.epoch ?? 0,
 							incomingStateVersion,
 							stateData.turnState,
+							stateData.messageTruncated,
+							stateData.totalMessageCount,
 						)
-						// Publish the (seq-gated) transcript through the messages context (V12 方案3).
-						publishReplica({
-							messageTruncated: stateData.messageTruncated,
-							totalMessageCount: stateData.totalMessageCount,
-						})
+						if (replicaRef.current.epoch !== prevEpoch) {
+							setHasMoreMessages(true)
+						}
+
+						// Publish the (seq-gated) transcript + pagination metadata through the
+						// high-frequency messages context (V12 方案3).
+						publishReplica()
 
 						const {
 							clineMessages: _clineMessages,
@@ -583,42 +593,36 @@ export const ExtensionStateContextProvider: React.FC<{
 	// within a single animation frame are merged into ONE setReplicaMessages,
 	// so streaming bursts do not render intermediate frames.
 	const messageFlushSchedulerRef = useRef<FrameCoalescer | null>(null)
-	const pendingReplicaFieldsRef = useRef<{ messageTruncated?: boolean; totalMessageCount?: number } | undefined>(undefined)
-
 	/**
 	 * Publish the current replica to the messages context. Only triggers a
 	 * re-render when the transcript actually changed (reference comparison —
-	 * the reducer returns the same object for no-op merges).
+	 * the reducer returns the same object for no-op merges). Pagination
+	 * metadata (messageTruncated / totalMessageCount) is owned by the replica
+	 * itself (see messageReducer.ts), so it resets automatically on task
+	 * switch instead of leaking stale values from the previous conversation.
 	 */
-	const publishReplica = useCallback((fields?: { messageTruncated?: boolean; totalMessageCount?: number }) => {
-		if (fields) {
-			pendingReplicaFieldsRef.current = { ...pendingReplicaFieldsRef.current, ...fields }
-		}
+	const publishReplica = useCallback(() => {
 		if (!messageFlushSchedulerRef.current) {
 			messageFlushSchedulerRef.current = createFrameCoalescer(() => {
 				const replica = replicaRef.current
-				const fieldsToPublish = pendingReplicaFieldsRef.current
-				pendingReplicaFieldsRef.current = undefined
 				setReplicaMessages((prev) => {
 					const transcriptChanged =
 						prev.clineMessages !== replica.messages ||
 						prev.turnState !== replica.turnState ||
 						prev.epoch !== replica.epoch ||
-						prev.stateVersion !== replica.stateVersion
+						prev.stateVersion !== replica.stateVersion ||
+						prev.messageTruncated !== replica.messageTruncated ||
+						prev.totalMessageCount !== replica.totalMessageCount
 					if (!transcriptChanged) {
-						return fieldsToPublish &&
-							(fieldsToPublish.messageTruncated !== prev.messageTruncated ||
-								fieldsToPublish.totalMessageCount !== prev.totalMessageCount)
-							? { ...prev, ...fieldsToPublish }
-							: prev
+						return prev
 					}
 					return {
 						clineMessages: replica.messages,
 						turnState: replica.turnState,
 						epoch: replica.epoch,
 						stateVersion: replica.stateVersion,
-						messageTruncated: fieldsToPublish?.messageTruncated ?? prev.messageTruncated,
-						totalMessageCount: fieldsToPublish?.totalMessageCount ?? prev.totalMessageCount,
+						messageTruncated: replica.messageTruncated,
+						totalMessageCount: replica.totalMessageCount,
 					}
 				})
 			}, scheduleAnimationFrame)
@@ -639,23 +643,25 @@ export const ExtensionStateContextProvider: React.FC<{
 
 						// Route the snapshot's transcript through the convergent-replica reducer:
 						// merge by ts/seq within the same epoch (never truncate), replace on a
-						// newer epoch, ignore stale/older snapshots.
+						// newer epoch, ignore stale/older snapshots. Pagination metadata
+						// travels with the snapshot so it is owned/reset by the conversation fence.
+						const prevEpoch = replicaRef.current.epoch
 						replicaRef.current = reducerApplyStateSnapshot(
 							replicaRef.current,
 							stateData.clineMessages ?? [],
 							stateData.epoch ?? 0,
 							incomingStateVersion,
 							stateData.turnState,
+							stateData.messageTruncated,
+							stateData.totalMessageCount,
 						)
-
+						if (replicaRef.current.epoch !== prevEpoch) {
+							setHasMoreMessages(true)
+						}
+						
 						// Publish the (seq-gated) transcript + pagination metadata through the
-						// high-frequency messages context; keep the low-frequency main state free
-						// of message fields so snapshots carrying only settings don't re-render
-						// the message list (V12 方案3).
-						publishReplica({
-							messageTruncated: stateData.messageTruncated,
-							totalMessageCount: stateData.totalMessageCount,
-						})
+						// high-frequency messages context (V12 方案3).
+						publishReplica()
 
 						const {
 							clineMessages: _clineMessages,
@@ -1159,7 +1165,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				replicaRef.current = reducerApplyBatchPrepend(replicaRef.current, incoming, undefined, response.totalCount)
 
 				// Publish the merged transcript + pagination metadata through the messages context
-				publishReplica({ totalMessageCount: response.totalCount })
+				publishReplica()
 
 				// Update hasMore flag from response
 				if (response.hasMore !== undefined) {
