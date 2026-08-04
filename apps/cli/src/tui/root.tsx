@@ -11,8 +11,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
-import type { RepoStatus } from "../utils/repo-status";
-import { readRepoStatus } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
@@ -48,6 +46,7 @@ import { useMcpManager } from "./hooks/use-mcp-manager";
 import { useModelSelector } from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
+import { useRepoStatus } from "./hooks/use-repo-status";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
@@ -77,9 +76,10 @@ function App(props: TuiProps) {
 	const isDialogOpen = useDialogState((s: { isOpen: boolean }) => s.isOpen);
 	const { height: termHeight, width: termWidth } = useTerminalDimensions();
 
-	const [repoStatus, setRepoStatus] = useState<RepoStatus>(
-		props.initialRepoStatus ?? { branch: null, diffStats: null },
-	);
+	const { repoStatus, refreshRepoStatus } = useRepoStatus({
+		cwd: props.config.cwd,
+		initialStatus: props.initialRepoStatus,
+	});
 	const { queuedPrompts, handlePendingPrompts } = useQueuedPrompts();
 	const [selectedQueuedPromptId, setSelectedQueuedPromptId] = useState<
 		string | null
@@ -134,12 +134,6 @@ function App(props: TuiProps) {
 		systemCommands,
 		skillCommands,
 	});
-
-	const refreshRepoStatus = useCallback(() => {
-		readRepoStatus(props.config.cwd)
-			.then(setRepoStatus)
-			.catch(() => {});
-	}, [props.config.cwd]);
 
 	const refocusTextareaRef = useRef<() => void>(() => {});
 	const populateInputRef = useRef<(value: string) => void>(() => {});
