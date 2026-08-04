@@ -18,6 +18,7 @@ import {
 	resolveConnectorDebugLogPath,
 	spawnDetachedConnector,
 	terminateProcess,
+	tryClaimConnectorStateFile,
 	writeJsonFile,
 } from "./common";
 import type {
@@ -261,6 +262,36 @@ export abstract class ConnectorBase<Options, State>
 			return state;
 		}
 		return undefined;
+	}
+
+	/**
+	 * Exclusively claim the connector state path for this process before
+	 * connecting to Slack/Discord/etc. Prevents two foreground (`-i`) or
+	 * racing detached launches from both opening socket-mode with the same
+	 * bot token.
+	 */
+	protected claimConnectorInstance(input: {
+		statePath: string;
+		createState: (claimId: string) => State & { claimId: string; pid: number };
+		readState: (path: string) => State | undefined;
+		getPid: (state: State) => number;
+	}): { claimed: true; claimId: string } | { claimed: false; running?: State } {
+		const existing = input.readState(input.statePath);
+		if (existing && isProcessRunning(input.getPid(existing))) {
+			return { claimed: false, running: existing };
+		}
+		const claim = tryClaimConnectorStateFile(
+			input.statePath,
+			input.createState,
+		);
+		if (!claim) {
+			const raced = input.readState(input.statePath);
+			return {
+				claimed: false,
+				...(raced ? { running: raced } : {}),
+			};
+		}
+		return { claimed: true, claimId: claim.claimId };
 	}
 
 	/**

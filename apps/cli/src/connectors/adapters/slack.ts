@@ -28,7 +28,7 @@ import {
 	enqueueThreadTurn,
 	startConnectorWebhookServer,
 } from "../chat-runtime";
-import { isProcessRunning } from "../common";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
 	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
@@ -684,6 +684,9 @@ class SlackConnector extends ConnectorBase<
 				Boolean(
 					value &&
 						typeof value === "object" &&
+						// claimId is optional: state files written by older CLI
+						// versions predate claiming and must stay manageable
+						// (already-running detection, status, stop).
 						typeof (value as SlackConnectorState).pid === "number" &&
 						typeof (value as SlackConnectorState).userName === "string",
 				),
@@ -751,14 +754,18 @@ class SlackConnector extends ConnectorBase<
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const stateStorePath = this.resolveStateStorePath(options.userName);
-		const staleState = this.removeStaleState(
-			statePath,
-			(path) => this.readConnectorState(path),
-			(state) => state.pid,
-		);
+		const existingState = this.readConnectorState(statePath);
+		const staleState =
+			existingState && !isProcessRunning(existingState.pid)
+				? existingState
+				: undefined;
 		if (staleState) {
 			clearBindingSessionIds<SlackThreadState>(bindingsPath);
 		}
+		const formatAlreadyRunning = (state: SlackConnectorState) =>
+			state.connectionMode === "socket"
+				? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
+				: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`;
 		const backgroundExitCode = await this.maybeRunInBackground({
 			rawArgs,
 			io,
@@ -767,10 +774,7 @@ class SlackConnector extends ConnectorBase<
 			statePath,
 			readState: (path) => this.readConnectorState(path),
 			isRunning: (state) => isProcessRunning(state.pid),
-			formatAlreadyRunningMessage: (state) =>
-				state.connectionMode === "socket"
-					? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
-					: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatAlreadyRunningMessage: formatAlreadyRunning,
 			formatBackgroundStartMessage: (pid) =>
 				`[slack] starting background connector pid=${pid} user=${options.userName} mode=${options.connectionMode}`,
 			foregroundHint:
@@ -779,6 +783,34 @@ class SlackConnector extends ConnectorBase<
 		});
 		if (backgroundExitCode !== undefined) {
 			return backgroundExitCode;
+		}
+
+		// Foreground / detached-child path: exclusively claim the instance before
+		// opening Slack socket-mode so a second process cannot share the token.
+		const startedAt = new Date().toISOString();
+		const claim = this.claimConnectorInstance({
+			statePath,
+			createState: (claimId) => ({
+				claimId,
+				userName: options.userName,
+				connectionMode: options.connectionMode,
+				pid: process.pid,
+				rpcAddress: "pending",
+				startedAt,
+				...(options.connectionMode === "webhook"
+					? { port: options.port, baseUrl: options.baseUrl }
+					: {}),
+			}),
+			readState: (path) => this.readConnectorState(path),
+			getPid: (state) => state.pid,
+		});
+		if (!claim.claimed) {
+			io.writeln(
+				claim.running
+					? formatAlreadyRunning(claim.running)
+					: `[slack] connector already running for user=${options.userName}`,
+			);
+			return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -868,6 +900,7 @@ class SlackConnector extends ConnectorBase<
 		});
 		await client.connect();
 		this.writeConnectorState(statePath, {
+			claimId: claim.claimId,
 			userName: options.userName,
 			connectionMode: options.connectionMode,
 			pid: process.pid,
@@ -875,7 +908,7 @@ class SlackConnector extends ConnectorBase<
 			...(options.connectionMode === "webhook"
 				? { port: options.port, baseUrl: options.baseUrl }
 				: {}),
-			startedAt: new Date().toISOString(),
+			startedAt,
 		});
 
 		let stopping = false;
