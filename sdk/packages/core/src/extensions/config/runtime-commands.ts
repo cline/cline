@@ -60,13 +60,22 @@ function listCommandsForKind(
 export function listAvailableRuntimeCommandsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 ): AvailableRuntimeCommand[] {
-	const byName = new Map<string, AvailableRuntimeCommand>();
-	for (const command of [
+	const commands = [
 		...listCommandsForKind(watcher, "workflow"),
 		...listCommandsForKind(watcher, "skill"),
-	]) {
-		if (!byName.has(command.name)) {
-			byName.set(command.name, command);
+	];
+	const countsByName = new Map<string, number>();
+	for (const command of commands) {
+		countsByName.set(command.name, (countsByName.get(command.name) ?? 0) + 1);
+	}
+	const byName = new Map<string, AvailableRuntimeCommand>();
+	for (const command of commands) {
+		const name =
+			countsByName.get(command.name) === 1
+				? command.name
+				: `${command.name}-${command.kind}`;
+		if (!byName.has(name)) {
+			byName.set(name, { ...command, name });
 		}
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));

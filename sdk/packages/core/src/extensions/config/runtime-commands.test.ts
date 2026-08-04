@@ -64,20 +64,26 @@ Run the release workflow.`,
 		}
 	});
 
-	it("expands slash commands with workflow precedence and ignores disabled entries", async () => {
+	it("qualifies colliding commands by kind and ignores disabled entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
-		const skillDir = join(tempRoot, "skills", "ship");
+		const skillDir = join(tempRoot, "skills", "publish-ui");
 		const workflowsDir = join(tempRoot, "workflows");
 		await mkdir(skillDir, { recursive: true });
 		await mkdir(workflowsDir, { recursive: true });
-		await writeFile(join(skillDir, "SKILL.md"), "Use the ship skill.");
 		await writeFile(
-			join(workflowsDir, "ship.md"),
+			join(skillDir, "SKILL.md"),
 			`---
-name: ship
+name: publish-ui
 ---
-Run the ship workflow.`,
+Use the publish UI skill.`,
+		);
+		await writeFile(
+			join(workflowsDir, "publish-ui.md"),
+			`---
+name: Publish UI
+---
+Run the publish UI workflow.`,
 		);
 		await writeFile(
 			join(workflowsDir, "disabled.md"),
@@ -96,12 +102,24 @@ Do not run this workflow.`,
 
 		try {
 			await watcher.refreshAll();
-			expect(resolveRuntimeSlashCommandFromWatcher("/ship", watcher)).toBe(
-				"Run the ship workflow.",
-			);
-			expect(resolveRuntimeSlashCommandFromWatcher("/ship now", watcher)).toBe(
-				"Run the ship workflow. now",
-			);
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/publish-ui", watcher),
+			).toBe("/publish-ui");
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/publish-ui-workflow", watcher),
+			).toBe("Run the publish UI workflow.");
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/publish-ui-skill now", watcher),
+			).toBe("Use the publish UI skill. now");
+			expect(
+				listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
+					name: command.name,
+					kind: command.kind,
+				})),
+			).toEqual([
+				{ name: "publish-ui-skill", kind: "skill" },
+				{ name: "publish-ui-workflow", kind: "workflow" },
+			]);
 			expect(resolveRuntimeSlashCommandFromWatcher("/disabled", watcher)).toBe(
 				"/disabled",
 			);

@@ -79,11 +79,11 @@ type UserInstructionCommand = {
 	id: string;
 	name: string;
 	description?: string;
+	kind?: "skill" | "workflow";
 };
 
 type UserInstructionConfigResponse = {
-	skills?: UserInstructionCommand[];
-	workflows?: UserInstructionCommand[];
+	runtimeCommands?: UserInstructionCommand[];
 };
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
@@ -97,17 +97,9 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
 ): SlashCommand[] {
-	const commands = [
-		...(Array.isArray(response.workflows) ? response.workflows : []).map(
-			(command) => ({ ...command, kind: "Workflow" }),
-		),
-		...(Array.isArray(response.skills) ? response.skills : []).map(
-			(command) => ({
-				...command,
-				kind: "Skill",
-			}),
-		),
-	];
+	const commands = Array.isArray(response.runtimeCommands)
+		? response.runtimeCommands
+		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
 	return commands.flatMap((command) => {
 		const name = command.name.trim().toLowerCase().replace(/\s+/g, "-");
@@ -118,7 +110,9 @@ export function buildUserInstructionSlashCommands(
 		return [
 			{
 				name,
-				description: command.description?.trim() || `${command.kind} command`,
+				description:
+					command.description?.trim() ||
+					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
 			},
 		];
 	});

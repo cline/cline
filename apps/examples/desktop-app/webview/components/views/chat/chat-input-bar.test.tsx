@@ -53,18 +53,24 @@ describe("ChatInputBar", () => {
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
-				workflows: [
-					{ id: "workflow:release", name: "Release", description: "Ship it" },
-				],
-				skills: [
-					{ id: "skill:publish-ui", name: "Publish UI" },
-					{ id: "skill:fork", name: "fork" },
-					{ id: "skill:release", name: "release" },
+				runtimeCommands: [
+					{
+						id: "workflow:release",
+						name: "release",
+						description: "Ship it",
+						kind: "workflow",
+					},
+					{
+						id: "skill:publish-ui",
+						name: "publish-ui-skill",
+						kind: "skill",
+					},
+					{ id: "skill:fork", name: "fork", kind: "skill" },
 				],
 			}),
 		).toEqual([
 			{ name: "release", description: "Ship it" },
-			{ name: "publish-ui", description: "Skill command" },
+			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
 	});
 
