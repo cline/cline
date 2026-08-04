@@ -27,13 +27,15 @@ export function normalizeRuntimeCommandName(name: string): string {
 		.replace(/\s+/g, "-")
 		.replace(/[^a-z0-9_.:@-]+/g, "-")
 		.replace(/-+/g, "-")
-		.replace(/^-+|-+$/g, "");
+		.replace(/^-+/, "")
+		.replace(/-+$/, "");
 }
 
 function stableRuntimeCommandSuffix(id: string): string {
 	const slug = normalizeRuntimeCommandName(id)
 		.replace(/[^a-z0-9_-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
+		.replace(/^-+/, "")
+		.replace(/-+$/, "");
 	const hash = createHash("sha256").update(id).digest("hex").slice(0, 12);
 	return `${slug || "command"}-${hash}`;
 }
