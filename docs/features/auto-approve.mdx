@@ -24,7 +24,7 @@ Auto Approve is evaluated per tool call. When Cline is about to read a file, edi
 
 A few details matter:
 
-- **Which build you have**: Cline currently ships the new SDK-based extension and the previous one together in a single install, and a loader picks one per window. Their auto-approve menus differ. The quickest tell is the command toggle: "Execute safe commands" means the previous build, "Execute commands" means the new one. To choose explicitly, set `cline.rollout.bundleOverride` to `next` or `legacy` in VS Code settings and reload the window; `auto` follows the rollout.
+- **Which build you have**: Cline currently ships the new SDK-based extension and the previous one together in a single install, and a loader picks one per window. Their auto-approve menus differ. The quickest tell is the command toggle: "Execute safe commands" means the previous build, "Execute commands" means the new one. To choose explicitly, set `cline.rollout.bundleOverride` to `next` or `legacy` in VS Code settings and reload the window; `auto` follows the rollout. On the Cline Nightly build the setting is `cline-nightly.rollout.bundleOverride`.
 - **Terminal commands**: the two builds decide command approval differently. See [Terminal commands](#terminal-commands) below.
 - **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds.
 
