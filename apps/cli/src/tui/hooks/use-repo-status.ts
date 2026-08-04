@@ -7,17 +7,11 @@ import {
 } from "../../utils/repo-status";
 
 /**
- * Fallback cadence for catching branch changes the HEAD watcher misses
- * (e.g. filesystems where fs.watch is unreliable) and for keeping diff
- * stats reasonably fresh while the app is idle.
- */
-const REPO_STATUS_POLL_INTERVAL_MS = 5_000;
-
-/**
  * Tracks the git branch / diff stats shown in the status bar. Beyond the
  * explicit refreshes triggered after agent turns, it watches the repo's HEAD
  * so branch switches made outside the CLI (another terminal, an editor) show
- * up immediately, with slow polling as a safety net.
+ * up promptly. The watcher is event-driven with a cheap in-process stat
+ * backstop; git subprocesses only run when HEAD actually changed.
  */
 export function useRepoStatus(options: {
 	cwd: string;
@@ -61,14 +55,6 @@ export function useRepoStatus(options: {
 	useEffect(() => {
 		return watchGitHead(cwd, refreshRepoStatus);
 	}, [cwd, refreshRepoStatus]);
-
-	useEffect(() => {
-		const interval = setInterval(
-			refreshRepoStatus,
-			REPO_STATUS_POLL_INTERVAL_MS,
-		);
-		return () => clearInterval(interval);
-	}, [refreshRepoStatus]);
 
 	return { repoStatus, refreshRepoStatus };
 }

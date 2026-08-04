@@ -102,6 +102,13 @@ describe("git head watcher", () => {
 		});
 		await new Promise((resolve) => setTimeout(resolve, 200));
 	});
+
+	it("survives a git dir that cannot be watched", async () => {
+		dispose = watchGitHead(dir, () => {}, {
+			resolveDir: async () => join(dir, "does-not-exist"),
+		});
+		await new Promise((resolve) => setTimeout(resolve, 200));
+	});
 });
 
 describe("isSameRepoStatus", () => {
