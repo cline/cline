@@ -188,13 +188,8 @@ class DesktopClient {
 		}
 
 		try {
-			const endpoint = await this.getBackendEndpoint();
-			const url = new URL(endpoint);
-			url.protocol = url.protocol === "wss:" ? "https:" : "http:";
-			url.pathname = "/telemetry/error";
-			url.search = "";
-			url.hash = "";
-			const response = await fetch(url, {
+			const endpoint = await resolveDesktopBackendHttpEndpoint();
+			const response = await fetch(`${endpoint}/telemetry/error`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
@@ -245,10 +240,14 @@ class DesktopClient {
 	}
 
 	private rejectPending(errorMessage: string) {
-		this.reportError({
-			operation: "webview.transport_closed",
-			error: new Error(errorMessage),
-		});
+		// Only report closures that actually drop in-flight requests; a clean
+		// transport close (app quit, sidecar restart) is not an error.
+		if (this.pending.size > 0) {
+			this.reportError({
+				operation: "webview.transport_closed",
+				error: new Error(errorMessage),
+			});
+		}
 		for (const requestId of this.pending.keys()) {
 			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}

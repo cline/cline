@@ -190,6 +190,9 @@ describe("DesktopClient command deadlines", () => {
 		await vi.advanceTimersByTimeAsync(120_000);
 		await rejection;
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			"http://127.0.0.1:3126/telemetry/error",
+		);
 		expect(
 			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
 		).toMatchObject({
@@ -214,6 +217,26 @@ describe("DesktopClient command deadlines", () => {
 
 		socket.close();
 		await rejection;
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.transport_closed",
+		});
+	});
+
+	it("does not report a transport closure with no pending requests", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke<{ ok: boolean }>(
+			"get_process_context",
+		);
+		const socket = await connectLatestSocket();
+		socket.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+
+		socket.close();
+		await Promise.resolve();
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("removes an unbounded request when WebSocket.send throws", async () => {
