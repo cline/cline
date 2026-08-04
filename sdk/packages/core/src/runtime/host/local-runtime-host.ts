@@ -2012,6 +2012,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		notifyTeamRunWaiters(session);
 
+		// Drain an in-flight run before tearing anything down. `stopSession` aborts
+		// first for exactly this reason; callers that arrive here another way — hub
+		// `dispose()` on a restart, most notably — otherwise hit two failures at
+		// once: the runtime refuses to shut down while a run is in progress, and the
+		// plugin sandbox is SIGTERMed with tool calls still pending, so those calls
+		// reject with "plugin-sandbox process exited". A connector turn awaiting the
+		// run sees whichever surfaced first instead of an answer.
+		if (!session.aborting && !session.agent.canStartRun()) {
+			session.aborting = true;
+			session.agent.abort(new Error(input.shutdownReason));
+		}
+
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
 			cleanupErrors.push(error);
@@ -2104,6 +2116,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		};
 
+		// Drain an in-flight run before tearing anything down, the same way
+		// stopSession does for its non-interactive path.
+		//
+		// Without this, releasing a session that is mid-run fails twice over: the
+		// runtime refuses to shut down ("a run is in progress") and that error is
+		// rethrown below, and the plugin sandbox is SIGTERMed while tool calls are
+		// still pending, so those calls reject with "plugin-sandbox process exited".
+		// A connector turn awaiting the run sees whichever surfaced first instead of
+		// an answer — which is what a hub restart looked like from Slack.
+		if (!session.aborting && !session.agent.canStartRun()) {
+			session.aborting = true;
+			session.agent.abort(new Error(reason));
+		}
 		try {
 			await session.agent.shutdown(reason);
 		} catch (error) {

@@ -6212,4 +6212,90 @@ describe("LocalRuntimeHost", () => {
 			expect(emissions[0]).toMatchObject({ source: "shutdown" });
 		});
 	});
+
+	describe("LocalRuntimeHost releasing a session mid-run", () => {
+		it("aborts and drains the run before shutting the sandbox down", async () => {
+			// A hub restart disposes its sessions. Tearing one down while a run is in
+			// flight used to reject shutdown ("a run is in progress") and SIGTERM the
+			// plugin sandbox with tool calls still pending, so a connector turn awaiting
+			// the run got an error instead of an answer.
+			const order: string[] = [];
+			let running = true;
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-mid-run"),
+				getConversationId: vi.fn().mockReturnValue("conv-mid-run"),
+				abort: vi.fn(() => {
+					order.push("agent.abort");
+					running = false;
+				}),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				// Reports "busy" until the abort lands, like a live run.
+				canStartRun: vi.fn(() => !running),
+				shutdown: vi.fn(async () => {
+					order.push("agent.shutdown");
+				}),
+			};
+			const runtimeShutdown = vi.fn(async () => {
+				order.push("runtime.shutdown");
+				if (running) {
+					throw new Error(
+						"SessionRuntime.shutdown called while a run is in progress (agentId=agent-mid-run)",
+					);
+				}
+			});
+			const runtimeBuilder = {
+				build: vi
+					.fn()
+					.mockReturnValue({ tools: [], shutdown: runtimeShutdown }),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: new FileSessionService(
+					join(isolatedHomeDir, "sessions"),
+				),
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+
+			const started = await manager.startSession({
+				config: {
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					systemPrompt: "You are a test agent",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			});
+			const session = (
+				manager as unknown as {
+					sessions: Map<
+						string,
+						{ pluginSandboxShutdown?: () => Promise<void> }
+					>;
+				}
+			).sessions.get(started.sessionId);
+			if (!session) {
+				throw new Error("session was not registered");
+			}
+			session.pluginSandboxShutdown = async () => {
+				order.push("sandbox.shutdown");
+			};
+
+			// dispose() is what a hub restart runs.
+			await manager.dispose("hub_restart");
+
+			// The abort has to come first, so the runtime drains instead of refusing and
+			// the sandbox is only killed once no tool call can be pending.
+			expect(order[0]).toBe("agent.abort");
+			expect(order).toContain("sandbox.shutdown");
+			expect(order.indexOf("agent.abort")).toBeLessThan(
+				order.indexOf("sandbox.shutdown"),
+			);
+			expect(agent.abort).toHaveBeenCalledTimes(1);
+		});
+	});
 });
