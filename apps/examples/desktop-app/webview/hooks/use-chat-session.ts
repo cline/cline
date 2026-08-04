@@ -1563,6 +1563,12 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (
+						optimisticUserMessageId &&
+						optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
+					) {
+						optimisticImmediatePromptRef.current.rpcState = "queued";
+					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
 					return;
