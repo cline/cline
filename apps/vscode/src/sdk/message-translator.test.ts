@@ -3724,6 +3724,12 @@ describe("tool display paths are relativized to the cwd", () => {
 		expect(parseTool(result.messages[0].text).path).toBe("/etc/hosts")
 	})
 
+	it("treats an in-cwd entry named with a '..' prefix as inside the cwd", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/..config/x.ts` }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("..config/x.ts")
+	})
+
 	it("renders the cwd itself as its basename", () => {
 		const state = stateWithCwd()
 		const result = translateSessionEvent(toolEvent("content_start", "list_files", { path: CWD }), state)

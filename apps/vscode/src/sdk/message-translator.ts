@@ -546,12 +546,19 @@ function toDisplaySayTool(sayTool: ClineSayTool, cwd: string | undefined): Cline
 		return sayTool
 	}
 	if (sayTool.tool === "readFile") {
+		// The webview's readFile card opens `content` in the editor on click, so it
+		// carries the absolute path (classic-extension behavior). Already-absolute
+		// paths pass through untouched — path.resolve would rewrite a drive-less
+		// absolute path onto the current drive on Windows.
+		const openTarget = sayTool.path
+			? path.isAbsolute(sayTool.path)
+				? sayTool.path
+				: path.resolve(cwd, sayTool.path)
+			: sayTool.content
 		return {
 			...sayTool,
 			path: toDisplayPath(sayTool.path, cwd),
-			// The webview's readFile card opens `content` in the editor on click,
-			// so it carries the absolute path (classic-extension behavior).
-			content: sayTool.path ? path.resolve(cwd, sayTool.path) : sayTool.content,
+			content: openTarget,
 		}
 	}
 	return {
@@ -578,7 +585,9 @@ function toDisplayPath(rawPath: string | undefined, cwd: string): string | undef
 		return path.basename(rawPath).replace(/\\/g, "/")
 	}
 	// Outside the cwd (or on another drive on Windows) — keep the absolute path.
-	if (relative.startsWith("..") || path.isAbsolute(relative)) {
+	// Match ".." only as a whole segment so an in-cwd entry literally named
+	// "..config" is not misclassified as outside.
+	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
 		return rawPath.replace(/\\/g, "/")
 	}
 	return relative.replace(/\\/g, "/")
