@@ -7,16 +7,20 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { ChatInputBar } from "./chat-input-bar";
 
-const { loadProviderModelCatalogMock, loadProviderModelsMock } = vi.hoisted(
-	() => ({
-		loadProviderModelCatalogMock: vi.fn(),
-		loadProviderModelsMock: vi.fn(),
-	}),
-);
+const {
+	loadProviderModelCatalogMock,
+	loadProviderModelsMock,
+	subscribeToProviderModelsMock,
+} = vi.hoisted(() => ({
+	loadProviderModelCatalogMock: vi.fn(),
+	loadProviderModelsMock: vi.fn(),
+	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+}));
 
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderModels: subscribeToProviderModelsMock,
 }));
 
 let container: HTMLDivElement;
@@ -31,6 +35,7 @@ beforeEach(() => {
 		providerReasoningModels: { cline: [] },
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -101,6 +106,16 @@ describe("ChatInputBar", () => {
 
 		await render("idle");
 		await vi.waitFor(() => {
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("cline");
+		});
+		const providerModelsListener =
+			subscribeToProviderModelsMock.mock.calls[0]?.[0];
+		await act(async () => {
+			providerModelsListener?.("cline", [
+				{ id: "refreshed-model", name: "Refreshed model" },
+			]);
+		});
+		await vi.waitFor(() => {
 			const trigger = container.querySelector<HTMLButtonElement>(
 				'[aria-label="Thinking level"]',
 			);
@@ -125,6 +140,7 @@ describe("ChatInputBar", () => {
 		expect(
 			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
 		).toHaveLength(2);
+		expect(container.textContent).toContain("refreshed-model");
 		await act(async () =>
 			container
 				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
