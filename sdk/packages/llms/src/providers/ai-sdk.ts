@@ -13,6 +13,7 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	modelSupportsImages,
 	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
@@ -80,6 +81,7 @@ function buildCachedAiSdkMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: shouldIncludeImages(context),
 	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
@@ -266,6 +268,12 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
+function shouldIncludeImages(context: GatewayProviderContext): boolean {
+	// Capability resolution (incl. the unknown/missing -> omit policy) lives in
+	// `modelSupportsImages` so every request path applies the same rule.
+	return modelSupportsImages(context.model);
+}
+
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
@@ -280,9 +288,10 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
+	const supportsImages = options?.supportsImages ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
@@ -387,6 +396,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages,
 	});
 }
 
@@ -1213,6 +1223,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
+							supportsImages: shouldIncludeImages(context),
 						});
 				const providerOptions = composeAiSdkProviderOptions(
 					request,

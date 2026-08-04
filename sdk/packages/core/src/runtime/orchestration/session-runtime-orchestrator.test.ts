@@ -855,6 +855,42 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 
+it("omits tool image support when the resolved model has no image capability", async () => {
+	// Runtime boundary: an unknown / text-only catalog entry (here a ModelInfo
+	// with no `capabilities`) must resolve tool admission to
+	// modelSupportsImages=false, matching request formatting. Otherwise
+	// read_files would read an image, report success, and add it to history,
+	// yet the formatter would strip it — the model would never receive the
+	// image it was told was read.
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			providerId: "cline",
+			modelId: "text-only-model",
+			knownModels: { "text-only-model": { id: "text-only-model" } },
+			tools: [
+				{
+					name: "read_file",
+					description: "read a file",
+					inputSchema: {},
+					execute: vi.fn(async () => "ok"),
+				},
+			],
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	const runtimeConfig = configs[0];
+	if (!runtimeConfig) {
+		throw new Error("Expected runtime config");
+	}
+	expect(runtimeConfig.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
+});
+
 describe("SessionRuntime.run", () => {
 	it("invokes the injected AgentRuntime and returns an AgentResult", async () => {
 		const { deps, calls } = withFakeRuntime({

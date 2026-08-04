@@ -107,6 +107,29 @@ export interface GatewayModelDefinition {
 	metadata?: Record<string, JsonValue | undefined>;
 }
 
+/**
+ * Resolve whether a model accepts image input from its declared capabilities.
+ *
+ * Policy (single source of truth for every request path — request formatting
+ * and tool admission alike): a model receives image content only when it
+ * *explicitly* declares the `images` capability. Missing/unknown capabilities
+ * (including an absent model) resolve to `false` — a model whose catalog entry
+ * omits `capabilities` is treated as text-only and never sent images, since
+ * text-only endpoints (e.g. Z.AI GLM) reject any request containing a non-text
+ * content block (`messages.content.type is invalid`). Keeping this in the model
+ * layer prevents each caller from interpreting an incomplete catalog
+ * differently.
+ *
+ * Accepts any capability-bearing model shape (`GatewayModelDefinition`,
+ * `ModelInfo`, …) so both request formatting and tool admission apply the
+ * identical rule.
+ */
+export function modelSupportsImages(
+	model: { capabilities?: readonly string[] } | null | undefined,
+): boolean {
+	return model?.capabilities?.includes("images") ?? false;
+}
+
 export interface GatewayProviderManifest {
 	id: string;
 	name: string;
