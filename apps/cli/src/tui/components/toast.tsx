@@ -1,5 +1,5 @@
 import { useTerminalDimensions } from "@opentui/react";
-import { palette } from "../palette";
+import { useTheme } from "../hooks/use-theme";
 
 export type ToastVariant = "info" | "success" | "error";
 
@@ -8,19 +8,19 @@ export type ToastState = {
 	variant: ToastVariant;
 };
 
-const variantColor: Record<ToastVariant, string> = {
-	info: palette.selection,
-	success: palette.success,
-	error: palette.error,
-};
-
 export function Toast(props: { toast: ToastState | null }) {
 	const { width } = useTerminalDimensions();
+	const theme = useTheme();
 
 	if (!props.toast) {
 		return null;
 	}
 
+	const variantColor: Record<ToastVariant, string> = {
+		info: theme.accents.act,
+		success: theme.accents.success,
+		error: theme.accents.error,
+	};
 	const availableWidth = Math.max(1, width - 4);
 	const maxWidth = Math.min(44, availableWidth);
 	const right = width < 32 ? 0 : 2;
