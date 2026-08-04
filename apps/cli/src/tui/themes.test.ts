@@ -126,6 +126,23 @@ describe("resolveTheme", () => {
 			expect(resolved.syntax.comment).toBeTruthy();
 		}
 	});
+
+	it("derives a readable selection pair per theme", () => {
+		// Dark-theme accents are light, so selected text flips to black.
+		const dark = resolveTheme(AUTO_THEME_ID, noDetection);
+		expect(dark.selection).toBe(dark.accents.act);
+		expect(dark.textOnSelection).toBe("#000000");
+
+		// Light-theme accents are darkened for contrast, so text flips to white.
+		const light = resolveTheme("light", noDetection);
+		expect(light.selection).toBe(light.accents.act);
+		expect(light.textOnSelection).toBe("#ffffff");
+
+		for (const definition of THEMES) {
+			const resolved = resolveTheme(definition.id, noDetection);
+			expect(["#000000", "#ffffff"]).toContain(resolved.textOnSelection);
+		}
+	});
 });
 
 describe("theme helpers", () => {

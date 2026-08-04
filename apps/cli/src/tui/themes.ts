@@ -134,6 +134,10 @@ export interface ResolvedTheme {
 	background: string | null;
 	/** Default text color; undefined keeps the renderer default (white). */
 	defaultForeground: string | undefined;
+	/** Background for selected rows/buttons on the main themed surface. */
+	selection: string;
+	/** Text color readable on top of `selection`. */
+	textOnSelection: string;
 	accents: ThemeAccents;
 	diff: ThemeDiffPalette;
 	syntax: ThemeSyntaxColors;
@@ -451,6 +455,19 @@ export function normalizeThemeId(id: string | undefined | null): string {
 	return trimmed && THEMES_BY_ID.has(trimmed) ? trimmed : AUTO_THEME_ID;
 }
 
+// Below this WCAG relative luminance, white text has the higher contrast
+// ratio against the background; above it, black does. Derived from
+// (L + 0.05)^2 = 1.05 * 0.05.
+const WHITE_TEXT_LUMINANCE_CUTOFF = 0.179;
+
+function relativeLuminance(hex: string): number {
+	const channel = (offset: number) => {
+		const c = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+		return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
+
 function mixHex(base: string, tint: string, amount: number): string {
 	const a = hexToOklab(base);
 	const b = hexToOklab(tint);
@@ -513,6 +530,14 @@ export function resolveTheme(
 			: diffPalettes[variant]),
 		...definition.diff,
 	};
+	// Selected rows highlight with the act accent; the text on top flips
+	// between black and white, picking whichever has the higher WCAG
+	// contrast ratio against the accent.
+	const selection = accents.act;
+	const textOnSelection =
+		relativeLuminance(selection) > WHITE_TEXT_LUMINANCE_CUTOFF
+			? "#000000"
+			: "#ffffff";
 	return {
 		id: definition.id,
 		label: definition.label,
@@ -521,6 +546,8 @@ export function resolveTheme(
 		background,
 		defaultForeground:
 			definition.foreground ?? getDefaultForeground(background),
+		selection,
+		textOnSelection,
 		accents,
 		diff,
 		syntax,
