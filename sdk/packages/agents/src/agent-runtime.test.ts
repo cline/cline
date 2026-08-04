@@ -9,14 +9,20 @@ import type {
 } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	resetSdkErrorRateLimiterForTests,
+	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
+
+beforeEach(() => {
+	resetSdkErrorRateLimiterForTests();
+});
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
@@ -2315,6 +2321,58 @@ describe("AgentRuntime", () => {
 			inputTokens: 200,
 			outputTokens: 40,
 			totalCost: 1.0,
+		});
+	});
+});
+
+describe("AgentRuntime sdk.error reporting", () => {
+	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {
+		return capture.mock.calls
+			.map(([call]) => call as { event: string; properties?: unknown })
+			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
+	}
+
+	it("does not re-report model stream failures the model layer already owns", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Upstream returned HTTP 429",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(sdkErrorEvents(capture)).toHaveLength(0);
+		// The structured lifecycle event still records the failure.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "agent.run-failed" }),
+		);
+	});
+
+	it("still reports failures that originate in the run loop itself", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// An empty response is a loop-originated failure no model layer saw.
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "Model returned empty response",
 		});
 	});
 });

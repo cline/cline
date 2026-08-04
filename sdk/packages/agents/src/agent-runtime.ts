@@ -1797,14 +1797,22 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				captureSdkError(this.config.telemetry, {
-					component: "agents",
-					operation: "agent.run",
-					error: event.error,
-					severity: "error",
-					handled: false,
-					context: metadata as TelemetryProperties,
-				});
+				// `errorClass` is derived only when the run failed on a model
+				// stream error (see the guard in `execute`'s catch), and the
+				// model layer reports those at its own error boundary
+				// (`provider.stream`) — re-reporting them here exactly doubled
+				// `sdk.error` volume. Report only failures that originate in
+				// the run loop itself.
+				if (event.errorClass === undefined) {
+					captureSdkError(this.config.telemetry, {
+						component: "agents",
+						operation: "agent.run",
+						error: event.error,
+						severity: "error",
+						handled: false,
+						context: metadata as TelemetryProperties,
+					});
+				}
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);

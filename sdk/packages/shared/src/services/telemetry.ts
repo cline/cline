@@ -143,6 +143,87 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+// `sdk.error` is a diagnostic firehose: a process stuck in a retry loop
+// (e.g. an unattended agent re-hitting a rate-limited provider) can emit the
+// same failure thousands of times and drown the signal. Identical failures
+// are therefore capped per process: the first few per hour emit normally,
+// the rest are only counted, and the count surfaces as `suppressed_count` on
+// the next emission once the window rolls over — a hot loop stays visible
+// without flooding. State is in-memory only and the cap never throws.
+
+/** Identical `sdk.error` emissions allowed per key per window. */
+export const SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW = 5;
+/** Suppression window for identical `sdk.error` emissions. */
+export const SDK_ERROR_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+/** Bound on distinct failure keys tracked; the oldest key is evicted. */
+const SDK_ERROR_RATE_LIMIT_MAX_TRACKED_KEYS = 512;
+
+interface SdkErrorWindow {
+	startMs: number;
+	emitted: number;
+	suppressed: number;
+}
+
+const sdkErrorWindows = new Map<string, SdkErrorWindow>();
+
+/** Clear per-process `sdk.error` rate-limit state (test isolation). */
+export function resetSdkErrorRateLimiterForTests(): void {
+	sdkErrorWindows.clear();
+}
+
+/**
+ * One key per distinct failure. The message is normalized (digit runs
+ * collapsed, whitespace folded, case-insensitive, bounded) so messages that
+ * differ only by counters or ids — `"iteration 14"` vs `"iteration 99"` —
+ * coalesce instead of each getting a fresh budget.
+ */
+function sdkErrorRateLimitKey(
+	event: string,
+	properties: TelemetryProperties,
+): string {
+	const message =
+		typeof properties.error_message === "string"
+			? properties.error_message
+			: "";
+	return [
+		event,
+		properties.component,
+		properties.operation,
+		properties.error_type,
+		message
+			.replace(/\d+/g, "#")
+			.replace(/\s+/g, " ")
+			.trim()
+			.toLowerCase()
+			.slice(0, 256),
+	].join("\u0000");
+}
+
+function admitSdkError(key: string): { emit: boolean; suppressed: number } {
+	const now = Date.now();
+	const window = sdkErrorWindows.get(key);
+	if (window && now - window.startMs < SDK_ERROR_RATE_LIMIT_WINDOW_MS) {
+		if (window.emitted < SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW) {
+			window.emitted += 1;
+			return { emit: true, suppressed: 0 };
+		}
+		window.suppressed += 1;
+		return { emit: false, suppressed: window.suppressed };
+	}
+	// New key or expired window: emit, carrying forward the count of
+	// emissions suppressed in the previous window.
+	const suppressed = window?.suppressed ?? 0;
+	sdkErrorWindows.delete(key);
+	if (sdkErrorWindows.size >= SDK_ERROR_RATE_LIMIT_MAX_TRACKED_KEYS) {
+		const oldest = sdkErrorWindows.keys().next();
+		if (!oldest.done) {
+			sdkErrorWindows.delete(oldest.value);
+		}
+	}
+	sdkErrorWindows.set(key, { startMs: now, emitted: 1, suppressed: 0 });
+	return { emit: true, suppressed };
+}
+
 export function captureAgentUnexpectedReasoningTokens(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureAgentUnexpectedReasoningTokensInput,
@@ -200,9 +281,24 @@ export function captureSdkError(
 	if (!telemetry) {
 		return;
 	}
+	const event = input.event ?? SDK_ERROR_TELEMETRY_EVENT;
+	const properties = buildSdkErrorProperties(input);
+	let suppressed = 0;
+	try {
+		const decision = admitSdkError(sdkErrorRateLimitKey(event, properties));
+		if (!decision.emit) {
+			return;
+		}
+		suppressed = decision.suppressed;
+	} catch {
+		// The volume cap must never block error reporting.
+	}
 	telemetry.capture({
-		event: input.event ?? SDK_ERROR_TELEMETRY_EVENT,
-		properties: buildSdkErrorProperties(input),
+		event,
+		properties:
+			suppressed > 0
+				? { ...properties, suppressed_count: suppressed }
+				: properties,
 	});
 }
 

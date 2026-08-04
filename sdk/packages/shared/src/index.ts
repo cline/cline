@@ -471,6 +471,7 @@ export {
 	captureSdkError,
 	captureTaskLifecycleEvent,
 	normalizeSdkError,
+	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
