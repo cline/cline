@@ -279,6 +279,7 @@ export {
 	buildClineSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 	processWorkspaceInfo,
 } from "./prompt/cline";
 export type {
