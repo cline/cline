@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { setHomeDirIfUnset } from "@cline/core";
-import { captureSdkError, isHubDaemonProcess } from "@cline/shared";
+import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -144,7 +144,9 @@ async function main() {
 }
 
 async function runEntrypoint(): Promise<void> {
-	if (isHubDaemonProcess()) {
+	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
+	// from handing it to every process they spawn.
+	if (claimHubDaemonProcess()) {
 		await import("@cline/core/hub/daemon-entry");
 		return;
 	}

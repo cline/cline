@@ -1,5 +1,5 @@
 // Ollama vendor backed by the native Ollama API (`/api/chat`) via the
-// `ai-sdk-ollama` AI SDK provider (which wraps the official `ollama` client).
+// `ollama-ai-provider-v2` AI SDK provider.
 //
 // Ollama cannot be driven through the generic OpenAI-compatible path
 // (`/v1/chat/completions`): that endpoint ignores Ollama's proprietary
@@ -9,25 +9,29 @@
 // `options.num_ctx` per request; this boundary maps the provider-neutral
 // model `contextWindow` onto it.
 
-import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
-import { createOllama } from "ai-sdk-ollama";
-import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
+// The installed package is patched (see
+// `patches/ollama-ai-provider-v2@4.0.1.patch`) to preserve four native wire
+// contracts the upstream 4.0.1 release breaks: an unset `think` must be
+// omitted rather than sent as `false`, mid-stream `{"error": ...}` objects
+// must surface as stream errors instead of being dropped before a clean
+// finish, attachment-only user turns must send string `content` (not `[]`),
+// and tool results must carry the documented `tool_name` field.
+// `ollama.wire.test.ts` locks each contract at the real provider boundary;
+// drop the patch once an upstream release covers them.
+import { createOllama } from "ollama-ai-provider-v2";
 import { ensureFetch, resolveApiKey } from "../http";
 import { createRetryEmptyResponseMiddleware } from "../middleware/retry-empty-response";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
-/** See {@link OLLAMA_DEFAULT_CONTEXT_WINDOW} — re-exported under the wire-format name. */
-export const OLLAMA_DEFAULT_NUM_CTX = OLLAMA_DEFAULT_CONTEXT_WINDOW;
-
 /**
- * Normalize a configured base URL to the origin the `ollama` client expects
- * as its `host` (the client appends `/api/...` itself).
+ * Normalize a configured base URL to the native Ollama API root expected by
+ * the provider (it appends endpoint paths such as `/chat`).
  *
  * Users configure hosts like `http://localhost:11434` or
  * `https://ollama.com`; configs saved by the 4.0.0 OpenAI-compatible
@@ -40,21 +44,7 @@ export function normalizeOllamaBaseUrl(
 	if (!trimmed) {
 		return undefined;
 	}
-	return trimmed.replace(/\/(?:v1|api)$/, "");
-}
-
-/**
- * Resolve the `num_ctx` to request from the resolved model's context window.
- * `num_ctx` stays an Ollama wire-format detail: callers express intent through
- * the provider-neutral model `contextWindow` (from the model catalog or the
- * user's configured context window), and this boundary maps it onto the wire.
- */
-export function readOllamaNumCtx(context: GatewayProviderContext): number {
-	const value = context.model?.contextWindow ?? context.model?.maxInputTokens;
-	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-		return Math.floor(value);
-	}
-	return OLLAMA_DEFAULT_NUM_CTX;
+	return `${trimmed.replace(/\/(?:v1|api)$/, "")}/api`;
 }
 
 /**
@@ -135,19 +125,23 @@ export async function createOllamaProviderModule(
 ): Promise<ProviderFactoryResult> {
 	// An API key is only needed for Ollama Cloud (ollama.com); local servers
 	// accept unauthenticated requests, so a missing key is not an error.
-	// `ai-sdk-ollama` turns `apiKey` into an `Authorization: Bearer` header.
+	// The provider accepts auth through headers. An explicit configured header
+	// wins over the convenience API-key setting.
 	const apiKey = await resolveApiKey(config);
 	const baseURL = normalizeOllamaBaseUrl(config.baseUrl);
+	const headers = {
+		...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+		...config.headers,
+	};
 	const provider = createOllama({
 		...(baseURL ? { baseURL } : {}),
-		...(apiKey ? { apiKey } : {}),
-		...(config.headers ? { headers: config.headers } : {}),
+		...(Object.keys(headers).length > 0 ? { headers } : {}),
+		compatibility: "strict",
 		fetch: withOllamaResponseTimeout(
 			ensureFetch(config.fetch),
 			readOllamaTimeoutMs(config),
 		),
 	});
-	const numCtx = readOllamaNumCtx(context);
 	// Retry empty responses (a common local-backend glitch that otherwise
 	// hard-fails the task). Outermost so each retry re-runs the whole request.
 	// `splitToolImagesMiddleware` is inner, for the same reason as the
@@ -159,9 +153,7 @@ export async function createOllamaProviderModule(
 	return {
 		model: (modelId) =>
 			wrapLanguageModel({
-				model: provider(modelId, {
-					options: { num_ctx: numCtx },
-				}) as LanguageModelV4,
+				model: provider.chat(modelId),
 				middleware: [retryEmptyResponseMiddleware, splitToolImagesMiddleware],
 			}),
 	};
