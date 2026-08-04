@@ -142,9 +142,16 @@ class DesktopClient {
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
 	private recentErrorReports = new Map<string, number>();
+	private reportedErrorObjects = new WeakSet<object>();
 
 	reportError(report: DesktopErrorReport): void {
 		const error = report.error;
+		if (typeof error === "object" && error !== null) {
+			if (this.reportedErrorObjects.has(error)) {
+				return;
+			}
+			this.reportedErrorObjects.add(error);
+		}
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		const errorType = error instanceof Error ? error.name : "Error";
 		const dedupeKey = `${report.operation}:${report.command ?? ""}:${errorType}:${errorMessage}`;

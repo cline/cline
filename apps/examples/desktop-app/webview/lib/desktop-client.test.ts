@@ -105,6 +105,24 @@ afterEach(() => {
 });
 
 describe("DesktopClient command deadlines", () => {
+	it("reports the same error object only once across local and global handlers", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("native command failed");
+
+		desktopClient.reportError({
+			operation: "webview.native_command",
+			error,
+			command: "get_update_status",
+		});
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+	});
+
 	it("keeps an explicitly unbounded command pending past the default deadline", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		let settled = false;
