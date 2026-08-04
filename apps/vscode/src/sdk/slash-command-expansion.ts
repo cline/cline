@@ -140,6 +140,14 @@ function findRuntimeCommand(
 	const typedCanonical = canonicalWorkflowName(typedName)
 	const record = workflowRecords.find((r) => canonicalWorkflowName(fileBasename(r.filePath)) === typedCanonical)
 	if (record) {
+		// Match by the stable record id: the SDK normalizes command names
+		// (e.g. "Ship It" -> "ship-it"), so the configured record name no
+		// longer compares equal to the command token. Keep the canonical-name
+		// comparison as a fallback for callers that pass records without ids.
+		const byId = record.id === undefined ? undefined : commands.find((command) => command.id === record.id)
+		if (byId) {
+			return byId
+		}
 		const recordCanonical = canonicalWorkflowName(record.name)
 		return commands.find((command) => canonicalWorkflowName(command.name) === recordCanonical)
 	}
