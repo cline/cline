@@ -3382,18 +3382,25 @@ describe("sdk-gateway", () => {
 			modelId: "qwen/qwen3.6-plus",
 			providerOptionsKey: "cline",
 			aliasKey: undefined,
+			// Unlisted on the cline catalog: no advertised controls, so
+			// gateway reasoning stays suppressed for Qwen ids.
+			expectedReasoning: undefined,
 		},
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
 			providerOptionsKey: "vercel-ai-gateway",
 			aliasKey: "vercelAiGateway",
+			// models.dev advertises toggle + budget_tokens controls, so the
+			// high-effort request is translated into a derived token budget.
+			expectedReasoning: { max_tokens: 25_600 },
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
 		modelId,
 		providerOptionsKey,
 		aliasKey,
+		expectedReasoning,
 	}) => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -3462,9 +3469,20 @@ describe("sdk-gateway", () => {
 				expect.objectContaining(expectedCacheControl),
 			);
 		}
+		if (expectedReasoning) {
+			expect(qwenCall.providerOptions?.[providerOptionsKey]).toEqual(
+				expect.objectContaining({ reasoning: expectedReasoning }),
+			);
+		} else {
+			expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
+				expect.objectContaining({
+					reasoning: expect.anything(),
+				}),
+			);
+		}
 		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
 			expect.objectContaining({
-				reasoning: expect.anything(),
+				thinking: expect.anything(),
 			}),
 		);
 		expect(qwenCall.providerOptions?.anthropic).not.toEqual(
@@ -3777,30 +3795,31 @@ describe("sdk-gateway", () => {
 				},
 			}),
 		);
+		await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
 
-		expect(streamTextSpy).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoning: { enabled: true },
-					}),
-					openrouter: expect.objectContaining({
-						reasoning: { enabled: true, max_tokens: 19_200 },
-					}),
-				}),
-			}),
-		);
-		expect(streamTextSpy).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openrouter: expect.objectContaining({
-						reasoning: { effort: "none" },
-					}),
-				}),
-			}),
-		);
+		// The openrouter catalog advertises an explicitly empty
+		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
+		// so no reasoning options are forwarded either way.
+		for (const callIndex of [0, 1]) {
+			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown> | undefined>;
+			};
+			expect(call.providerOptions?.openrouter).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+			expect(call.providerOptions?.openaiCompatible).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+		}
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({
@@ -3826,6 +3845,20 @@ describe("sdk-gateway", () => {
 					}),
 					"vercel-ai-gateway": expect.objectContaining({
 						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
+		// Unlisted GLM ids keep the routed include shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			5,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						reasoning: { enabled: true },
+					}),
+					cline: expect.objectContaining({
+						reasoning: { enabled: true },
 					}),
 				}),
 			}),
