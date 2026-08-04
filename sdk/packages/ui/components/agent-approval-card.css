@@ -10,6 +10,7 @@
 }
 
 .cline-ui-agent-approval-card__button {
+	padding-block: 0;
 	font-family: inherit;
 	font-size: inherit;
 	font-style: inherit;

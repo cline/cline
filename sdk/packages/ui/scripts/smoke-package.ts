@@ -155,6 +155,7 @@ async function verifyTailwindContract(
 		"border-style:solid",
 		"font-family:inherit",
 		"margin:.5rem 0 0",
+		"padding-block:0",
 	]) {
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
