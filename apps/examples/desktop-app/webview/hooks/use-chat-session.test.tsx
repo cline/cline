@@ -854,6 +854,14 @@ describe("useChatSession", () => {
 			});
 		});
 		expect(current.status).toBe("running");
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toEqual([
+			expect.objectContaining({
+				id: "queued_user_queued-prompt-1",
+				content: "First prompt",
+			}),
+		]);
 
 		// The turn ends: chat_done is the only completion signal for queued
 		// turns, so it must clear the busy status.

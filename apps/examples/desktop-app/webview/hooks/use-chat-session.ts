@@ -310,6 +310,11 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const optimisticImmediatePromptRef = useRef<{
+		id: string;
+		prompt: string;
+		sessionId: string;
+	} | null>(null);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
@@ -964,10 +969,27 @@ export function useChatSession() {
 				clearLiveToolRefs();
 				setStatus("running");
 				if (userLabel || userImages.length > 0) {
+					const optimisticPrompt = optimisticImmediatePromptRef.current;
+					const reconciledOptimisticPrompt =
+						optimisticPrompt?.sessionId === listeningSessionId &&
+						optimisticPrompt.prompt === userLabel
+							? optimisticPrompt
+							: null;
+					if (reconciledOptimisticPrompt) {
+						optimisticImmediatePromptRef.current = null;
+					}
 					setMessages((prev) => {
 						const userMessageId = promptId
 							? `queued_user_${promptId}`
 							: makeId("user");
+						if (reconciledOptimisticPrompt) {
+							const reconciled = updateMessageById(
+								prev,
+								reconciledOptimisticPrompt.id,
+								(message) => ({ ...message, id: userMessageId }),
+							);
+							if (reconciled !== prev) return reconciled;
+						}
 						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
@@ -1369,8 +1391,21 @@ export function useChatSession() {
 				: null;
 			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
+			const clearOptimisticImmediatePrompt = () => {
+				if (
+					optimisticUserMessageId &&
+					optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
+				) {
+					optimisticImmediatePromptRef.current = null;
+				}
+			};
 
 			if (optimisticUserMessageId) {
+				optimisticImmediatePromptRef.current = {
+					id: optimisticUserMessageId,
+					prompt: userLabel,
+					sessionId: plannedSessionId,
+				};
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1400,6 +1435,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await pendingSessionStart;
 					} catch (err) {
+						clearOptimisticImmediatePrompt();
 						if (optimisticQueuedPromptId) {
 							setPromptsInQueue((prev) =>
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -1424,6 +1460,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
+						clearOptimisticImmediatePrompt();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1446,6 +1483,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
+						clearOptimisticImmediatePrompt();
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
@@ -1460,6 +1498,7 @@ export function useChatSession() {
 				}
 				const serializedAttachmentsResult = await serializedAttachmentsTask;
 				if (!serializedAttachmentsResult.ok) {
+					clearOptimisticImmediatePrompt();
 					setErrorState(
 						errorMessage(serializedAttachmentsResult.error),
 						activeSessionId,
@@ -1518,6 +1557,9 @@ export function useChatSession() {
 				}
 
 				const result = payload.result as ChatApiResult | undefined;
+				if (result) {
+					clearOptimisticImmediatePrompt();
+				}
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
 					setStatus("cancelled");
@@ -1706,6 +1748,7 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
+				clearOptimisticImmediatePrompt();
 				if (abortedRef.current) {
 					setStatus("cancelled");
 					return;

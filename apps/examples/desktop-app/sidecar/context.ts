@@ -360,25 +360,7 @@ function handleCoreSessionEvent(
 					session,
 					mapped.map((item) => item.id),
 				);
-				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
-				if (
-					previous.length > mapped.length &&
-					previous[0] &&
-					previous[0].id !== mapped[0]?.id
-				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						serializeQueuedPromptStart({
-							promptId: previous[0].id,
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-							userImages: previous[0].userImages,
-						}),
-					);
-				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
