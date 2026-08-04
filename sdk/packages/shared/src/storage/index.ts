@@ -23,6 +23,7 @@ export {
 	resolveClineDir,
 	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
+	resolveConnectorLogPath,
 	resolveConnectorSettingsPath,
 	resolveConnectorsDbPath,
 	resolveCronDbPath,

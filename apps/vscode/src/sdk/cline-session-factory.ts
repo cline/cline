@@ -885,6 +885,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
+			// The extension never exposes switch_to_act_mode (unlike the CLI):
+			// matching the legacy extension, the user must flip the Plan/Act
+			// toggle themselves, so the plan contract must not tell the model to
+			// call a tool it does not have.
+			planModeSwitchTool: false,
 		})
 		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
 	} catch (error) {
@@ -1025,12 +1030,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 /**
  * Build the StartSessionInput for a new task.
  *
- * IMPORTANT: We pass `interactive: true` but NO `prompt`. This creates the
- * session and returns immediately — the runtime host only executes a turn when
- * a prompt is sent. The caller should then call `core.send({ sessionId, prompt })`
- * to run the first turn. This cleanly separates session creation from
- * inference, preventing the gRPC handler from blocking until the first
- * agent turn completes.
+ * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates the
+ * session in memory and returns immediately; no persisted session row or
+ * artifacts are created yet. The caller then uses
+ * `core.send({ sessionId, prompt })` for the first user turn, which persists
+ * that same session ID before inference. This keeps initialization responsive
+ * without leaving empty history entries when the user never sends a message.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	return {
