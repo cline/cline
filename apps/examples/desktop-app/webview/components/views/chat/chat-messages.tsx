@@ -1,6 +1,6 @@
 "use client";
 
-import { AgentApprovalCard } from "@cline/ui";
+import { AgentApprovalCard, AgentAskQuestion } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -33,7 +33,6 @@ import {
 	Loader2,
 	type LucideIcon,
 	MessageCircleQuestionMarkIcon,
-	MessagesSquare,
 	PanelsTopLeftIcon,
 	PencilIcon,
 	SearchCodeIcon,
@@ -660,13 +659,29 @@ function ChatMessagesImpl({
 								/>
 							) : null}
 							{pendingAskQuestions.length > 0 ? (
-								<AskQuestionPanel
-									items={pendingAskQuestions}
-									onAnswer={(requestId, answer) =>
-										handleAskQuestionAnswer(requestId, answer)
-									}
-									pendingActions={askQuestionActions}
-									requestErrors={askQuestionErrors}
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={pendingAskQuestions.map((item) => ({
+										description: (
+											<>
+												Request {item.requestId}
+												{item.context?.iteration != null
+													? ` · Iteration ${item.context.iteration}`
+													: ""}
+											</>
+										),
+										id: item.requestId,
+										meta: (
+											<>
+												<Clock3 className="h-3 w-3" />
+												{formatApprovalTimestamp(item.createdAt)}
+											</>
+										),
+										options: item.options,
+										question: item.question,
+									}))}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
 								/>
 							) : null}
 							{renderItems.map((item) => {
@@ -1001,83 +1016,6 @@ function ToolApprovalPanel({
 							}
 							title={item.toolName}
 						/>
-					);
-				})}
-			</div>
-		</section>
-	);
-}
-
-function AskQuestionPanel({
-	items,
-	pendingActions,
-	requestErrors,
-	onAnswer,
-}: {
-	items: AskQuestionRequestItem[];
-	pendingActions: Record<string, string>;
-	requestErrors: Record<string, string>;
-	onAnswer: (requestId: string, answer: string) => void;
-}) {
-	return (
-		<section className="rounded-xl border border-blue-400/40 bg-blue-500/5 p-3">
-			<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-				<MessagesSquare className="h-4 w-4 text-blue-500" />
-				Follow-up question
-			</div>
-			<p className="mt-1 text-xs text-muted-foreground">
-				Choose one option to continue the current agent turn.
-			</p>
-			<div className="mt-3 flex flex-col gap-2">
-				{items.map((item) => {
-					const pendingAnswer = pendingActions[item.requestId];
-					const isPending = Boolean(pendingAnswer);
-					const error = requestErrors[item.requestId];
-					return (
-						<div
-							className="rounded-lg border border-border/80 bg-background/70 p-3"
-							key={item.requestId}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="text-sm font-medium text-foreground">
-									{item.question}
-								</div>
-								<div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-									<Clock3 className="h-3 w-3" />
-									{formatApprovalTimestamp(item.createdAt)}
-								</div>
-							</div>
-							<div className="mt-1 text-[11px] text-muted-foreground">
-								Request {item.requestId}
-								{item.context?.iteration != null
-									? ` · Iteration ${item.context.iteration}`
-									: ""}
-							</div>
-							{error ? (
-								<div className="mt-2 text-xs text-destructive">{error}</div>
-							) : null}
-							<div className="mt-3 flex flex-wrap items-center gap-2">
-								{item.options.map((option) => (
-									<Button
-										disabled={isPending}
-										key={option}
-										onClick={() => onAnswer(item.requestId, option)}
-										size="sm"
-										type="button"
-										variant="outline"
-									>
-										{pendingAnswer === option ? (
-											<>
-												<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-												Sending...
-											</>
-										) : (
-											option
-										)}
-									</Button>
-								))}
-							</div>
-						</div>
 					);
 				})}
 			</div>

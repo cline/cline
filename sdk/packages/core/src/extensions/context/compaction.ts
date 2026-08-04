@@ -41,6 +41,14 @@ export interface ContextPipelinePrepareTurnInput {
 	systemPrompt: string;
 	tools: unknown[];
 	model: CoreCompactionContext["model"];
+	/**
+	 * Set by the runtime when the provider rejected the previous request as
+	 * exceeding the model's context window. Forces a compaction regardless of
+	 * the token-estimate trigger (the estimate just proved wrong) and uses the
+	 * deterministic basic strategy — recovery must not depend on another
+	 * successful LLM request.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -282,6 +290,9 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
+		const effectiveMode: CoreCompactionMode = context.overflowRecovery
+			? "overflow_recovery"
+			: mode;
 		const apiMessageTokens = context.apiMessages.reduce(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
@@ -311,7 +322,7 @@ export function createContextCompactionPrepareTurn(
 		);
 		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
-			mode,
+			mode: effectiveMode,
 			strategy,
 			iteration: context.iteration,
 			providerId: config.providerId,
@@ -330,12 +341,12 @@ export function createContextCompactionPrepareTurn(
 			apiMessagesJsonChars: safeJsonSize(context.apiMessages),
 			...summarizeToolResults(context.apiMessages),
 		});
-		if (mode === "auto" && !shouldCompact) {
+		if (effectiveMode === "auto" && !shouldCompact) {
 			return undefined;
 		}
 		let requestTargetTokens: number;
 		let messageTargetTokens: number;
-		if (mode === "auto") {
+		if (effectiveMode === "auto") {
 			requestTargetTokens = resolveAutoRequestTargetTokens({
 				maxInputTokens,
 				modelMaxTokens: context.model.info?.maxTokens,
@@ -362,7 +373,8 @@ export function createContextCompactionPrepareTurn(
 			iteration: context.iteration,
 			messages: context.messages,
 			model: context.model,
-			mode,
+			mode: effectiveMode,
+			abortSignal: context.abortSignal,
 			budget: {
 				request: {
 					inputTokens: requestInputTokens,
@@ -383,20 +395,27 @@ export function createContextCompactionPrepareTurn(
 		};
 
 		const statusReason =
-			mode === "manual" ? "manual_compaction" : "auto_compaction";
-		context.emitStatusNotice?.(
-			mode === "manual" ? "compacting" : "auto-compacting",
-			{
-				kind: statusReason,
-				reason: statusReason,
-				phase: "started",
-				iteration: context.iteration,
-				triggerTokens: requestTriggerTokens,
-				targetTokens: requestTargetTokens,
-				maxInputTokens,
-				messageTargetTokens,
-			},
-		);
+			effectiveMode === "manual"
+				? "manual_compaction"
+				: effectiveMode === "overflow_recovery"
+					? "overflow_recovery_compaction"
+					: "auto_compaction";
+		const noticePrefix =
+			effectiveMode === "manual"
+				? ""
+				: effectiveMode === "overflow_recovery"
+					? "overflow-recovery-"
+					: "auto-";
+		context.emitStatusNotice?.(`${noticePrefix}compacting`, {
+			kind: statusReason,
+			reason: statusReason,
+			phase: "started",
+			iteration: context.iteration,
+			triggerTokens: requestTriggerTokens,
+			targetTokens: requestTargetTokens,
+			maxInputTokens,
+			messageTargetTokens,
+		});
 
 		const beforeMessageCount = context.messages.length;
 		const startedAt = Date.now();
@@ -413,7 +432,71 @@ export function createContextCompactionPrepareTurn(
 		};
 		let executedStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;
-		if (userCompaction?.compact) {
+		if (effectiveMode === "overflow_recovery") {
+			// The provider already rejected the request, so recovery must end
+			// deterministically: the agentic strategy's own summarizer call could
+			// overflow the same window (its input budgeting trusts the same
+			// estimator that just undercounted). A custom compactor gets first
+			// shot — it sees mode "overflow_recovery" and owns its transcript
+			// invariants — but its result is held to the same bar basic
+			// compaction aims for: strictly smaller than the input (the runtime
+			// refuses to retry with a request that is not smaller) AND within
+			// the recovery token target. A marginal shrink would spend the
+			// run's single retry on a request that still cannot fit. On throw,
+			// decline, or an insufficient result, basic compaction runs so
+			// recovery never depends on another successful LLM request.
+			if (userCompaction?.compact) {
+				try {
+					result = await userCompaction.compact(compactionContext);
+				} catch (error) {
+					if (isCompactionCancellation(error, context.abortSignal)) {
+						throw error;
+					}
+					config.logger?.log(
+						"Custom compaction failed during overflow recovery; falling back to basic compaction",
+						{
+							severity: "warn",
+							...describeCompactionError(error),
+						},
+					);
+					result = undefined;
+				}
+				if (result?.messages) {
+					const customMessageTokens = result.messages.reduce(
+						(total: number, message) => total + estimateMessageTokens(message),
+						0,
+					);
+					// The full acceptance bar, covering every degenerate size: a
+					// non-empty transcript (an empty one erases the request being
+					// retried), strictly smaller than the input (the runtime
+					// refuses a retry that is not smaller), and within the
+					// recovery token target (a marginal shrink spends the run's
+					// single retry on a request that still cannot fit). Both size
+					// comparisons use the token estimator rather than serialized
+					// length so they are expressed in the same unit as the target.
+					const acceptable =
+						result.messages.length > 0 &&
+						customMessageTokens < messageInputTokens &&
+						customMessageTokens <= messageTargetTokens;
+					if (!acceptable) {
+						config.logger?.log(
+							"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to basic compaction",
+							{
+								severity: "warn",
+								customMessageCount: result.messages.length,
+								customMessageTokens,
+								messageTargetTokens,
+							},
+						);
+						result = undefined;
+					}
+				}
+			}
+			if (!result?.messages) {
+				executedStrategy = "basic";
+				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+			}
+		} else if (userCompaction?.compact) {
 			result = await userCompaction.compact(compactionContext);
 		} else {
 			try {
@@ -473,24 +556,21 @@ export function createContextCompactionPrepareTurn(
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
 			} as Record<string, unknown>);
-			context.emitStatusNotice?.(
-				mode === "manual" ? "compacted" : "auto-compacted",
-				{
-					kind: statusReason,
-					reason: statusReason,
-					phase: "completed",
-					iteration: context.iteration,
-					tokensBefore: requestInputTokens,
-					tokensAfter: afterRequestTokens,
-					messagesBefore: beforeMessageCount,
-					messagesAfter: result.messages.length,
-					maxInputTokens,
-				},
-			);
+			context.emitStatusNotice?.(`${noticePrefix}compacted`, {
+				kind: statusReason,
+				reason: statusReason,
+				phase: "completed",
+				iteration: context.iteration,
+				tokensBefore: requestInputTokens,
+				tokensAfter: afterRequestTokens,
+				messagesBefore: beforeMessageCount,
+				messagesAfter: result.messages.length,
+				maxInputTokens,
+			});
 			captureCompactionExecuted(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: executedStrategy,
-				mode,
+				mode: effectiveMode,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
@@ -514,7 +594,7 @@ export function createContextCompactionPrepareTurn(
 				captureCompactionBudgetEmergency(config.telemetry, {
 					ulid: telemetryUlid,
 					strategy: executedStrategy,
-					mode,
+					mode: effectiveMode,
 					policyIntent: result.budget.policyIntent,
 					actionCount: result.budget.actionCount,
 					warningCount: result.budget.warningCount,
@@ -533,20 +613,17 @@ export function createContextCompactionPrepareTurn(
 				});
 			}
 		} else {
-			context.emitStatusNotice?.(
-				mode === "manual" ? "compaction-skipped" : "auto-compaction-skipped",
-				{
-					kind: statusReason,
-					reason: statusReason,
-					phase: "skipped",
-					iteration: context.iteration,
-					maxInputTokens,
-				},
-			);
+			context.emitStatusNotice?.(`${noticePrefix}compaction-skipped`, {
+				kind: statusReason,
+				reason: statusReason,
+				phase: "skipped",
+				iteration: context.iteration,
+				maxInputTokens,
+			});
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,
 				strategy: executedStrategy,
-				mode,
+				mode: effectiveMode,
 				reason: "no_result",
 				tokensBefore: requestInputTokens,
 				triggerTokens: requestTriggerTokens,

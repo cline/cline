@@ -64,6 +64,7 @@ export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	classifyProviderError,
 	createHandler,
 	createHandlerAsync,
 	extractClineFreeModelLimitResetTime,

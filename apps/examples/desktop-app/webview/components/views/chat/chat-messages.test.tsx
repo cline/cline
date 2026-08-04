@@ -665,6 +665,41 @@ describe("ChatMessages tool disclosures", () => {
 	});
 });
 
+describe("ChatMessages follow-up questions", () => {
+	it("forwards answers from the shared question panel", async () => {
+		const onAnswerAskQuestion = vi.fn();
+		await renderMessages(
+			[
+				{
+					content: "Help me choose",
+					createdAt: 1,
+					id: "user-1",
+					role: "user",
+					sessionId: "session-1",
+				},
+			],
+			{
+				onAnswerAskQuestion,
+				pendingAskQuestions: [
+					{
+						createdAt: "2026-07-31T00:00:00.000Z",
+						options: ["Continue", "Stop"],
+						question: "Continue this task?",
+						requestId: "request-1",
+					},
+				],
+			},
+		);
+
+		const answer = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Continue",
+		);
+		await act(async () => answer?.click());
+
+		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
+	});
+});
+
 describe("ChatMessages image attachments", () => {
 	it("renders persisted image blocks in the user message", async () => {
 		await renderMessages([

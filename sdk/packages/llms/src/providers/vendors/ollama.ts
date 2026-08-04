@@ -9,7 +9,7 @@
 // `options.num_ctx` per request; this boundary maps the provider-neutral
 // model `contextWindow` onto it.
 
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
@@ -208,7 +208,7 @@ export async function createOllamaProviderModule(
 				model: provider(modelId, {
 					options: { num_ctx: numCtx },
 					...(think !== undefined ? { think } : {}),
-				}) as LanguageModelV3,
+				}) as LanguageModelV4,
 				middleware: [retryEmptyResponseMiddleware, splitToolImagesMiddleware],
 			}),
 	};
