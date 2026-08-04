@@ -27,9 +27,9 @@ User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribut
  * run_commands intentionally stays available in plan mode -- it is essential
  * for read-only investigation -- so the contract must spell out that it is
  * inspection-only there. Prompting is the first line of defense; the
- * run_commands command guard (blockFileEditingCommands in the plan tool
- * preset) is the hard backstop that rejects file-editing commands with a
- * tool error instead of executing them.
+ * plan-mode command-guard hook (registered by the core runtime builder for
+ * plan-mode sessions) is the hard backstop that rejects file-editing
+ * run_commands calls with a tool error before approval or execution.
  */
 export const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
 

@@ -27,13 +27,12 @@ describe("default tool presets", () => {
 		expect(ToolPresets.yolo.enableWebFetch).toBe(false);
 	});
 
-	it("hard-blocks file-editing commands only in plan mode", () => {
+	it("keeps shell access enabled in plan mode", () => {
 		// Plan mode keeps run_commands for read-only investigation; the
-		// command guard is the hard backstop behind the prompt contract.
+		// plan-mode command-guard hook registered by the runtime builder is
+		// the hard backstop behind the prompt contract.
 		expect(ToolPresets.plan.enableBash).toBe(true);
-		expect(ToolPresets.plan.blockFileEditingCommands).toBe(true);
-		expect("blockFileEditingCommands" in ToolPresets.act).toBe(false);
-		expect("blockFileEditingCommands" in ToolPresets.yolo).toBe(false);
+		expect(ToolPresets.plan.enableEditor).toBe(false);
 	});
 
 	it("yolo preset excludes ask_question even when its executor exists", () => {

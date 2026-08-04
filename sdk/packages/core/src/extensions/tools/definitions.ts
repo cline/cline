@@ -16,10 +16,6 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import {
-	findFileEditingCommand,
-	formatPlanModeBlockedCommandError,
-} from "./command-guard";
 import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -190,13 +186,6 @@ async function executeShellCommands(
 		timeoutMs: number;
 		timeoutSource: "default_setting" | "configured_setting";
 		telemetry?: ITelemetryService;
-		/**
-		 * Pre-execution guard: returns a short description of why the command
-		 * is blocked (e.g. plan-mode file mutation), or undefined to allow it.
-		 */
-		commandGuard?: (
-			command: string | StructuredCommandInput,
-		) => string | undefined;
 	},
 ): Promise<ToolOperationResult[]> {
 	const { executor, cwd, context, timeoutMs, timeoutSource, telemetry } =
@@ -206,15 +195,6 @@ async function executeShellCommands(
 		commands.map(async (command): Promise<ToolOperationResult> => {
 			const startedAt = Date.now();
 			const query = formatRunCommandQueryPreview(command);
-			const blockedReason = options.commandGuard?.(command);
-			if (blockedReason) {
-				return {
-					query,
-					result: "",
-					error: formatPlanModeBlockedCommandError(blockedReason),
-					success: false,
-				};
-			}
 			try {
 				const output = await withTimeout(
 					executor(command, cwd, context),
@@ -476,10 +456,7 @@ export function buildRunCommandsDescription(
  */
 export function createShellTool(
 	executor: ShellExecutor,
-	config: Pick<
-		DefaultToolsConfig,
-		"cwd" | "bashTimeoutMs" | "telemetry" | "blockFileEditingCommands"
-	> & {
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs" | "telemetry"> & {
 		shell?: string | (() => string);
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
@@ -490,17 +467,13 @@ export function createShellTool(
 			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 	const isWindows = process.platform === "win32";
-	const blockFileEditingCommands = config.blockFileEditingCommands === true;
 	const configShell = config.shell;
 	const resolveShell =
 		typeof configShell === "function"
 			? configShell
 			: () => configShell ?? getDefaultShell(process.platform);
 	const describe = () =>
-		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows) +
-		(blockFileEditingCommands
-			? " NOTE: You are in plan mode, so this tool is read-only: commands that create, modify, or delete files (including output redirection to files outside /tmp) are blocked and fail with an error."
-			: "");
+		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
 
 	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
@@ -521,9 +494,6 @@ export function createShellTool(
 				timeoutMs,
 				timeoutSource,
 				telemetry: config.telemetry,
-				commandGuard: blockFileEditingCommands
-					? findFileEditingCommand
-					: undefined,
 			});
 		},
 	});
