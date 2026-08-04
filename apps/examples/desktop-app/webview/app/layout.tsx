@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/toaster";
+import { WebviewErrorReporting } from "@/components/webview-error-reporting";
 import { HUB_THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -46,7 +47,7 @@ export default function RootLayout({
 				/>
 			</head>
 			<body className="h-full min-h-screen font-sans antialiased">
-				{children}
+				<WebviewErrorReporting>{children}</WebviewErrorReporting>
 				<Toaster />
 				<Analytics />
 			</body>

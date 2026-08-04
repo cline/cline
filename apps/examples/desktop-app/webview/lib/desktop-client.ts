@@ -88,7 +88,36 @@ type PendingRequest = {
 	resolve: (value: unknown) => void;
 	reject: (error: Error) => void;
 	timeoutId?: ReturnType<typeof setTimeout>;
+	command: string;
+	startedAt: number;
 };
+
+export type DesktopCommandFailureReason =
+	| "timeout"
+	| "transport_unavailable"
+	| "error";
+
+export type DesktopCommandFailureReport = {
+	command: string;
+	durationMs: number;
+	reason: DesktopCommandFailureReason;
+	transportState: DesktopTransportState;
+};
+
+type DesktopCommandFailureListener = (
+	report: DesktopCommandFailureReport,
+) => void;
+
+// Registered by lib/client-telemetry.ts; kept as an injection point (instead
+// of importing the reporter here) so the transport layer has no dependency
+// on telemetry and reporting failures can never break command dispatch.
+let commandFailureListener: DesktopCommandFailureListener | null = null;
+
+export function setDesktopCommandFailureListener(
+	listener: DesktopCommandFailureListener | null,
+): void {
+	commandFailureListener = listener;
+}
 
 type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
@@ -162,9 +191,35 @@ class DesktopClient {
 		return pending;
 	}
 
+	private reportCommandFailure(
+		pending: Pick<PendingRequest, "command" | "startedAt">,
+		reason: DesktopCommandFailureReason,
+	) {
+		// Reporting a failed report would loop forever the moment the
+		// transport goes down, which is exactly when reports fail.
+		if (!commandFailureListener || pending.command === "report_client_event") {
+			return;
+		}
+		try {
+			commandFailureListener({
+				command: pending.command,
+				durationMs: Math.max(0, Date.now() - pending.startedAt),
+				reason,
+				transportState: this.transportState,
+			});
+		} catch {
+			// Telemetry must never break command dispatch.
+		}
+	}
+
 	private rejectPending(errorMessage: string) {
 		for (const requestId of this.pending.keys()) {
-			this.takePending(requestId)?.reject(new Error(errorMessage));
+			const pending = this.takePending(requestId);
+			if (!pending) {
+				continue;
+			}
+			this.reportCommandFailure(pending, "transport_unavailable");
+			pending.reject(new Error(errorMessage));
 		}
 	}
 
@@ -197,6 +252,7 @@ class DesktopClient {
 			return;
 		}
 		if (!response.ok) {
+			this.reportCommandFailure(pending, "error");
 			pending.reject(new Error(response.error || "Desktop command failed"));
 			return;
 		}
@@ -293,9 +349,22 @@ class DesktopClient {
 			return await tryTauriInvoke<T>(command, args);
 		}
 
-		await this.ensureConnected();
+		const startedAt = Date.now();
+		try {
+			await this.ensureConnected();
+		} catch (error) {
+			this.reportCommandFailure(
+				{ command, startedAt },
+				"transport_unavailable",
+			);
+			throw error;
+		}
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
+			this.reportCommandFailure(
+				{ command, startedAt },
+				"transport_unavailable",
+			);
 			throw new Error("Desktop backend transport unavailable");
 		}
 
@@ -320,6 +389,7 @@ class DesktopClient {
 							if (!pending) {
 								return;
 							}
+							this.reportCommandFailure(pending, "timeout");
 							pending.reject(
 								new Error(`Desktop command timed out waiting for ${command}`),
 							);
@@ -328,11 +398,17 @@ class DesktopClient {
 				resolve: (value) => resolve(value as T),
 				reject,
 				timeoutId,
+				command,
+				startedAt,
 			});
 			try {
 				socket.send(JSON.stringify(request));
 			} catch (error) {
 				this.takePending(id);
+				this.reportCommandFailure(
+					{ command, startedAt },
+					"transport_unavailable",
+				);
 				throw error;
 			}
 		});

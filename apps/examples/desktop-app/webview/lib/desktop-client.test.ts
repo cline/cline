@@ -170,3 +170,104 @@ describe("DesktopClient command deadlines", () => {
 		).toBe(0);
 	});
 });
+
+describe("DesktopClient command failure reporting", () => {
+	it("reports timed out commands with the command name and duration", async () => {
+		const { desktopClient, setDesktopCommandFailureListener } = await import(
+			"./desktop-client"
+		);
+		const reports: unknown[] = [];
+		setDesktopCommandFailureListener((report) => reports.push(report));
+		const invocation = desktopClient.invoke("get_process_context");
+		await connectLatestSocket();
+		const rejection = expect(invocation).rejects.toThrow(
+			"Desktop command timed out waiting for get_process_context",
+		);
+
+		await vi.advanceTimersByTimeAsync(120_000);
+		await rejection;
+
+		expect(reports).toEqual([
+			{
+				command: "get_process_context",
+				durationMs: 120_000,
+				reason: "timeout",
+				transportState: "connected",
+			},
+		]);
+		setDesktopCommandFailureListener(null);
+	});
+
+	it("reports commands the sidecar answered with an error", async () => {
+		const { desktopClient, setDesktopCommandFailureListener } = await import(
+			"./desktop-client"
+		);
+		const reports: Array<{ command: string; reason: string }> = [];
+		setDesktopCommandFailureListener((report) => reports.push(report));
+		const invocation = desktopClient.invoke("list_chat_sessions");
+		const socket = await connectLatestSocket();
+		const request = socket.lastRequest();
+		socket.onmessage?.({
+			data: JSON.stringify({
+				type: "response",
+				id: request.id,
+				ok: false,
+				error: "boom",
+			}),
+		});
+
+		await expect(invocation).rejects.toThrow("boom");
+		expect(reports).toEqual([
+			expect.objectContaining({
+				command: "list_chat_sessions",
+				reason: "error",
+			}),
+		]);
+		setDesktopCommandFailureListener(null);
+	});
+
+	it("reports pending commands as transport_unavailable when the socket closes", async () => {
+		const { desktopClient, setDesktopCommandFailureListener } = await import(
+			"./desktop-client"
+		);
+		const reports: Array<{ command: string; reason: string }> = [];
+		setDesktopCommandFailureListener((report) => reports.push(report));
+		const invocation = desktopClient.invoke("list_chat_sessions");
+		const socket = await connectLatestSocket();
+		const rejection = expect(invocation).rejects.toThrow(
+			"Desktop backend transport closed",
+		);
+
+		socket.close();
+		await rejection;
+		expect(reports).toEqual([
+			expect.objectContaining({
+				command: "list_chat_sessions",
+				reason: "transport_unavailable",
+			}),
+		]);
+		setDesktopCommandFailureListener(null);
+	});
+
+	it("never reports failures of report_client_event itself", async () => {
+		const { desktopClient, setDesktopCommandFailureListener } = await import(
+			"./desktop-client"
+		);
+		const reports: unknown[] = [];
+		setDesktopCommandFailureListener((report) => reports.push(report));
+		const invocation = desktopClient.invoke(
+			"report_client_event",
+			{ event: "sdk.error", properties: {} },
+			{ timeoutMs: 5_000 },
+		);
+		await connectLatestSocket();
+		const rejection = expect(invocation).rejects.toThrow(
+			"Desktop command timed out waiting for report_client_event",
+		);
+
+		await vi.advanceTimersByTimeAsync(5_000);
+		await rejection;
+		expect(reports).toEqual([]);
+		setDesktopCommandFailureListener(null);
+	});
+});

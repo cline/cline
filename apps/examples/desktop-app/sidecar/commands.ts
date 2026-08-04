@@ -54,6 +54,7 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
+import { handleReportClientEvent } from "./client-events";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -1546,6 +1547,11 @@ export async function handleCommand(
 			provider: providerId,
 			cancelled: cancelProviderOAuthLogin(providerId),
 		};
+	}
+
+	// ── Webview telemetry relay ────────────────────────────────────────
+	if (command === "report_client_event") {
+		return handleReportClientEvent(ctx, args);
 	}
 
 	// ── Global settings ────────────────────────────────────────────────
