@@ -15,6 +15,7 @@ export default defineConfig({
 			"src/core/controller/state/**/*.test.ts",
 			"src/core/controller/slash/**/*.test.ts",
 			"src/services/mcp/__tests__/settingsLock.test.ts",
+			"src/services/telemetry/__tests__/telemetry-pipeline-parity.test.ts",
 			"src/shared/model-catalog/provider-helpers.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
 			"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
