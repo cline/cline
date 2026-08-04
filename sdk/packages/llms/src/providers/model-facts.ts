@@ -195,7 +195,8 @@ export function isQwenModel(options: {
 // require non-alphanumeric boundaries so ids like "gpt-4o" or "yolo1" never
 // match, while namespaced ids like "openai/o3-mini" do.
 const OPENAI_O_SERIES_MODEL_ID_PATTERN = /(^|[^a-z0-9])o[134](?=$|[^a-z0-9])/;
-const OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN = /gpt-?5(?=$|[^a-z0-9])/;
+const OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN =
+	/(^|[^a-z0-9])gpt-?5(?=$|[^a-z0-9])/;
 
 export function isOpenAIReasoningEraModelId(
 	modelId: string | undefined,

@@ -31,6 +31,7 @@ describe("isOpenAIReasoningEraModelId", () => {
 			"gpt5-nano",
 			"openai/gpt-5.2",
 			"GPT-5-Mini",
+			"azure-gpt-5-mini",
 		]) {
 			expect(isOpenAIReasoningEraModelId(modelId), modelId).toBe(true);
 		}
@@ -53,6 +54,9 @@ describe("isOpenAIReasoningEraModelId", () => {
 			"solo3",
 			"o13-custom",
 			"grok-4",
+			"chatgpt-5",
+			"somegpt-5-custom",
+			"xgpt5",
 		]) {
 			expect(isOpenAIReasoningEraModelId(modelId), modelId).toBe(false);
 		}
