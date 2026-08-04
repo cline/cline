@@ -16,7 +16,7 @@ import {
 const createOllamaMock = vi.hoisted(() => vi.fn());
 const ollamaModelMock = vi.hoisted(() =>
 	vi.fn((modelId: string, _settings?: unknown) => ({
-		specificationVersion: "v3",
+		specificationVersion: "v4",
 		provider: "ollama",
 		modelId,
 	})),
