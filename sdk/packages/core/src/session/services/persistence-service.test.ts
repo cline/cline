@@ -39,6 +39,69 @@ describe("UnifiedSessionPersistenceService", () => {
 		}
 	});
 
+	it("does not allocate a session while rejecting messages for an unknown id", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "unknown-session-messages-"),
+		);
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "not-allocated";
+
+		await expect(
+			service.persistSessionMessages(sessionId, [
+				{ role: "user", content: "do not orphan me" },
+			]),
+		).rejects.toThrow(
+			`Cannot persist messages for unknown session: ${sessionId}`,
+		);
+		expect(await service.listSessions()).toEqual([]);
+		expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
+	});
+
+	sqliteIt(
+		"re-adopts the session row from the on-disk manifest when the DB row is missing",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "readopt-row-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "readopt-row-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "resumed-session-without-row";
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude-sonnet",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+			// Simulate a rebuilt session DB: artifacts on disk, row gone.
+			store.run("DELETE FROM sessions WHERE session_id = ?", [sessionId]);
+
+			await service.persistSessionMessages(sessionId, [
+				{ role: "user", content: "hello again" },
+			]);
+
+			const payload = JSON.parse(
+				readFileSync(artifacts.messagesPath, "utf8"),
+			) as { messages?: unknown[] };
+			expect(payload.messages).toHaveLength(1);
+			const rows = await service.listSessions();
+			expect(rows.map((row) => row.sessionId)).toContain(sessionId);
+		},
+	);
+
 	it("persists compaction state as a separate session artifact", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-artifact-"));
 		tempDirs.push(sessionsDir);
@@ -279,6 +342,8 @@ describe("UnifiedSessionPersistenceService", () => {
 			await service.createRootSessionWithArtifacts({
 				sessionId: rootSessionId,
 				source: SessionSource.CLI,
+				mode: "user",
+				version: "3.99.0",
 				pid: process.pid,
 				interactive: false,
 				provider: "anthropic",
@@ -354,14 +419,30 @@ describe("UnifiedSessionPersistenceService", () => {
 				agent?: string;
 				sessionId?: string;
 				taskType?: string;
+				origin?: {
+					source?: string;
+					mode?: string;
+					sessionId?: string;
+					parentThreadId?: string;
+					subagent?: string;
+					version?: string;
+				};
 				messages: Array<Record<string, unknown>>;
 			};
 			const user = payload.messages[0] as Record<string, unknown>;
 			const assistant = payload.messages[1] as Record<string, unknown>;
 
 			expect(payload.agent).toBe("teammate");
-			expect(payload.sessionId).toBe(rootSessionId);
+			expect(payload.sessionId).toBe(teammateSessionId);
 			expect(payload.taskType).toBe("team");
+			expect(payload.origin).toEqual({
+				source: "cli",
+				mode: "team",
+				sessionId: teammateSessionId,
+				parentThreadId: rootSessionId,
+				subagent: "java-haiku-agent",
+				version: "3.99.0",
+			});
 			expect(assistant.id).toEqual(expect.any(String));
 			expect(user.agent).toBeUndefined();
 			expect(user.sessionId).toBeUndefined();
@@ -588,10 +669,13 @@ describe("UnifiedSessionPersistenceService", () => {
 					contents: expect.stringContaining('"role": "user"'),
 					row: expect.objectContaining({
 						sessionId,
-						metadata: {
+						metadata: expect.objectContaining({
 							blobUpload: true,
+							sessionHistoryOrigin: {
+								mode: "user",
+							},
 							title: "hello",
-						},
+						}),
 					}),
 				}),
 			);

@@ -150,7 +150,10 @@ export interface LocalRuntimeStartOptions {
 
 export interface StartSessionInput {
 	config: StartSessionConfig;
+	/** The process/client that starts the session. E.g., "vscode", "cli". */
 	source?: SessionSource;
+	/** How the session was initiated, such as user, automation, or subagent. */
+	mode?: string;
 	prompt?: string;
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
