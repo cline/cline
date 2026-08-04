@@ -252,6 +252,18 @@ describe("resolveBedrockModelId", () => {
 				region: "us-gov-west-1",
 			}),
 		).toBe("us-gov.anthropic.claude-sonnet-5");
+		// Tier-first naming is matched generically, so future tiers are covered
+		// without pattern-list updates.
+		expect(
+			resolveBedrockModelId("anthropic.claude-fable-5", {
+				region: "us-east-1",
+			}),
+		).toBe("us.anthropic.claude-fable-5");
+		expect(
+			resolveBedrockModelId("anthropic.claude-newtier-6", {
+				region: "us-east-1",
+			}),
+		).toBe("us.anthropic.claude-newtier-6");
 	});
 
 	it("prefixes other profile-only foundation models", () => {
@@ -263,6 +275,11 @@ describe("resolveBedrockModelId", () => {
 		expect(
 			resolveBedrockModelId("amazon.nova-pro-v1:0", { region: "us-east-1" }),
 		).toBe("us.amazon.nova-pro-v1:0");
+		expect(
+			resolveBedrockModelId("amazon.nova-2-lite-v1:0", {
+				region: "us-east-1",
+			}),
+		).toBe("us.amazon.nova-2-lite-v1:0");
 		expect(
 			resolveBedrockModelId("deepseek.r1-v1:0", { region: "us-west-2" }),
 		).toBe("us.deepseek.r1-v1:0");
@@ -330,11 +347,17 @@ describe("resolveBedrockModelId", () => {
 	});
 
 	it("leaves on-demand-capable models untouched unless cross-region inference is enabled", () => {
-		expect(
-			resolveBedrockModelId("anthropic.claude-3-5-sonnet-20241022-v2:0", {
-				region: "us-east-1",
-			}),
-		).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0");
+		for (const modelId of [
+			"anthropic.claude-3-5-sonnet-20241022-v2:0",
+			"anthropic.claude-v2:1",
+			"anthropic.claude-instant-v1",
+			"amazon.nova-canvas-v1:0",
+			"amazon.titan-text-express-v1",
+		]) {
+			expect(resolveBedrockModelId(modelId, { region: "us-east-1" })).toBe(
+				modelId,
+			);
+		}
 		expect(
 			resolveBedrockModelId("anthropic.claude-3-5-sonnet-20241022-v2:0", {
 				region: "us-east-1",

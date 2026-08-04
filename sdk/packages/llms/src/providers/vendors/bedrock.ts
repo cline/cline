@@ -51,12 +51,15 @@ const BEDROCK_GEO_PROFILE_PREFIX_PATTERN =
 // models missing from the list keep working through the cross-region
 // inference setting.
 const BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS: readonly RegExp[] = [
-	// Claude 4.x+ era models use tier-first naming (claude-sonnet-4-6,
-	// claude-opus-5, claude-haiku-4-5-..., claude-fable-5, ...).
-	/^anthropic\.claude-(?:haiku|sonnet|opus|fable)-/,
+	// Every Anthropic model since Claude 3.7 launched profile-only, and all of
+	// them use tier-first naming (claude-sonnet-4-6, claude-opus-5,
+	// claude-haiku-4-5-..., claude-fable-5, ...). Match tier-first ids by
+	// excluding the frozen set of legacy naming schemes (claude-3-5-sonnet-...,
+	// claude-v2, claude-instant-v1) so future tiers work without list updates.
+	/^anthropic\.claude-(?![0-9]|v[0-9]|instant)/,
 	// Claude 3.7 predates tier-first naming but launched profile-only.
 	/^anthropic\.claude-3-7-/,
-	/^amazon\.nova-(?:micro|lite|pro|premier)/,
+	/^amazon\.nova-(?:2|micro|lite|pro|premier)/,
 	/^deepseek\./,
 	/^meta\.llama3-[23]-/,
 	/^meta\.llama4-/,
