@@ -212,6 +212,15 @@ export class ConnectorSupervisor {
 				};
 			}
 			await this.stop({ channel, instanceId, disableAutostart: false });
+		} else if (existing) {
+			// A dead entry can still act: a pending backoff timer would spawn a
+			// second process for this instance once it fires — untracked, so
+			// unstoppable — and an exit-cleanup chain still in flight would
+			// schedule that timer after this replacement is made. Retire the old
+			// entry explicitly; both paths check for "stopped" and stand down.
+			this.cancelRestart(existing);
+			existing.state = "stopped";
+			existing.child?.removeAllListeners("exit");
 		}
 		const entry: SupervisedEntry = {
 			channel,

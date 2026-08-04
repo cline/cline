@@ -357,6 +357,74 @@ describe("ConnectorSupervisor", () => {
 		expect(harness.supervisor.list()[0]?.restarts).toBe(1);
 	});
 
+	it("cancels a pending backoff restart when a new start replaces the entry", async () => {
+		// A user runs `cline connect` while the instance is waiting out its
+		// backoff. The old entry's timer must not survive the replacement: it
+		// holds a closure over the old entry, so firing it would spawn a second
+		// process for the same instance — untracked by the map, so invisible to
+		// list() and unreachable by stop() — two processes on one bot token.
+		const children = [
+			new FakeChild(1300),
+			new FakeChild(1301),
+			new FakeChild(1302),
+		];
+		const harness = createHarness({ children });
+		await harness.supervisor.start({
+			channel: "slack",
+			instanceId: "cline-slack",
+			args: ["--bot-token", "xoxb"],
+		});
+
+		children[0]?.exit(1);
+		await flush();
+		expect(harness.supervisor.list()[0]?.state).toBe("backoff");
+		expect(harness.pendingTimers()).toBe(1);
+
+		const second = await harness.supervisor.start({
+			channel: "slack",
+			instanceId: "cline-slack",
+			args: ["--bot-token", "xoxb"],
+		});
+
+		expect(second.started).toBe(true);
+		expect(harness.pendingTimers()).toBe(0);
+
+		// Even well past every possible backoff, nothing else may spawn.
+		harness.advance(RESTART_MAX_DELAY_MS);
+		await flush();
+		expect(harness.spawnProcess).toHaveBeenCalledTimes(2);
+		expect(harness.supervisor.list()).toHaveLength(1);
+		expect(harness.supervisor.list()[0]?.state).toBe("running");
+	});
+
+	it("does not schedule a restart for an entry replaced while its cleanup was in flight", async () => {
+		// Between a crash and its restart timer there is a window where the
+		// exit-cleanup chain is still running and no timer exists yet to cancel.
+		// A replacement made in that window must make the chain stand down
+		// instead of scheduling a restart for the retired entry.
+		const children = [new FakeChild(1400), new FakeChild(1401)];
+		const harness = createHarness({ children });
+		await harness.supervisor.start({
+			channel: "slack",
+			instanceId: "cline-slack",
+			args: ["--bot-token", "xoxb"],
+		});
+
+		children[0]?.exit(1);
+		// No flush: the cleanup chain has not completed when the start arrives.
+		const second = await harness.supervisor.start({
+			channel: "slack",
+			instanceId: "cline-slack",
+			args: ["--bot-token", "xoxb"],
+		});
+		await flush();
+
+		expect(second.started).toBe(true);
+		expect(harness.pendingTimers()).toBe(0);
+		expect(harness.spawnProcess).toHaveBeenCalledTimes(2);
+		expect(harness.supervisor.list()).toHaveLength(1);
+	});
+
 	it("restarts a connector that was started with no arguments", async () => {
 		// A connector configured entirely through the connector store launches with
 		// an empty argv. Emptiness must not be mistaken for "argv unknown", or the
