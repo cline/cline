@@ -468,8 +468,9 @@ orchestrator used by core and hub layers.
    tool availability, config extension loading (`rules`, `skills`,
    `plugins`), trigger source, and a notes directory that is injected into
    the system prompt. The automation runtime adapters explicitly persist
-   `mode: "automation"` for every run. Event runs include the normalized trigger
-   event context in the prompt.
+   `mode: "automation"` for every run and record the spec-defined trigger
+   source as `sessionHistoryOrigin.trigger` in session metadata. Event runs
+   include the normalized trigger event context in the prompt.
 8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
    `.cline/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,

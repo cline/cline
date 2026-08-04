@@ -44,6 +44,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
 	type SessionCompactionState,
@@ -56,7 +57,6 @@ import {
 	type CoreSessionSnapshot,
 	coreSessionSnapshotToRecord,
 } from "../../session/session-snapshot";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import type {
 	CoreSettingsListInput,
 	CoreSettingsMutationResult,

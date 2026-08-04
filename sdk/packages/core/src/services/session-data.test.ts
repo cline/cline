@@ -121,6 +121,23 @@ describe("messages file provenance", () => {
 		});
 	});
 
+	it("records the automation trigger for scheduled runs", () => {
+		const row = createSessionRow({
+			source: "core",
+			metadata: withSessionHistoryOriginMetadata(undefined, {
+				mode: "automation",
+				trigger: "hub-schedule",
+			}),
+		});
+
+		expect(resolveMessagesFileContext(row).origin).toEqual({
+			source: "core",
+			mode: "automation",
+			sessionId: "root-session",
+			trigger: "hub-schedule",
+		});
+	});
+
 	it("writes subagent lineage under the actual child session ID", () => {
 		const childSessionId = makeSubSessionId("root-session", "guardian");
 		const row = createSessionRow({

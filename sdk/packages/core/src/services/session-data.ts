@@ -282,6 +282,7 @@ export type MessagesFileContext = {
 		parentThreadId?: string;
 		subagent?: string;
 		version?: string;
+		trigger?: string;
 	};
 };
 
@@ -296,6 +297,7 @@ export function resolveMessagesFileContext(
 		...(row.parentSessionId ? { parentThreadId: row.parentSessionId } : {}),
 		...(row.agentId ? { subagent: row.agentId } : {}),
 		...(historyOrigin?.version ? { version: historyOrigin.version } : {}),
+		...(historyOrigin?.trigger ? { trigger: historyOrigin.trigger } : {}),
 	};
 	const teamTaskMatch = parseTeamTaskSubSessionId(row.sessionId);
 	if (teamTaskMatch) {

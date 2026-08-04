@@ -9,6 +9,12 @@ const SESSION_HISTORY_ORIGIN_METADATA_KEY = "sessionHistoryOrigin";
 export interface SessionHistoryOriginMetadata {
 	mode: string;
 	version?: string;
+	/**
+	 * The trigger that initiated the session, when it is not a direct user
+	 * action. E.g., the `source` label of the automation spec that started a
+	 * scheduled run.
+	 */
+	trigger?: string;
 }
 
 function trimNonEmptyString(value: unknown): string | undefined {
@@ -66,9 +72,11 @@ export function readSessionHistoryOriginMetadata(
 		return undefined;
 	}
 	const version = trimNonEmptyString(record.version);
+	const trigger = trimNonEmptyString(record.trigger);
 	return {
 		mode,
 		...(version ? { version } : {}),
+		...(trigger ? { trigger } : {}),
 	};
 }
 
@@ -77,16 +85,19 @@ export function withSessionHistoryOriginMetadata(
 	origin: {
 		mode?: string;
 		version?: string;
+		trigger?: string;
 	},
 ): Record<string, unknown> {
 	const existing = readSessionHistoryOriginMetadata(metadata);
 	const mode = trimNonEmptyString(origin.mode) ?? existing?.mode ?? "user";
 	const version = trimNonEmptyString(origin.version) ?? existing?.version;
+	const trigger = trimNonEmptyString(origin.trigger) ?? existing?.trigger;
 	return {
 		...(metadata ?? {}),
 		[SESSION_HISTORY_ORIGIN_METADATA_KEY]: {
 			mode,
 			...(version ? { version } : {}),
+			...(trigger ? { trigger } : {}),
 		},
 	};
 }

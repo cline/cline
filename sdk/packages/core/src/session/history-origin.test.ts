@@ -29,9 +29,22 @@ describe("session history origin", () => {
 		const metadata = withSessionHistoryOriginMetadata(undefined, {
 			mode: "automation",
 			version: "3.98.1",
+			trigger: "hub-schedule",
 		});
 
 		expect(withSessionHistoryOriginMetadata(metadata, {})).toEqual(metadata);
+	});
+
+	it("records the trigger that initiated an automation session", () => {
+		const metadata = withSessionHistoryOriginMetadata(undefined, {
+			mode: "automation",
+			trigger: "custom-trigger",
+		});
+
+		expect(readSessionHistoryOriginMetadata(metadata)).toEqual({
+			mode: "automation",
+			trigger: "custom-trigger",
+		});
 	});
 
 	it("falls back to user when no mode is provided", () => {

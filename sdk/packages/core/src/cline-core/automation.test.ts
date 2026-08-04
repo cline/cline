@@ -35,6 +35,12 @@ describe("createClineCoreAutomationRuntimeHandlers", () => {
 			expect.objectContaining({
 				source: "vscode",
 				mode: "automation",
+				sessionMetadata: {
+					sessionHistoryOrigin: {
+						mode: "automation",
+						trigger: "custom-trigger",
+					},
+				},
 				config: expect.objectContaining({ mode: "act" }),
 			}),
 		);
