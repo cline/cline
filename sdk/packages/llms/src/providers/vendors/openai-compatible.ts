@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
@@ -137,7 +137,7 @@ export async function createOpenAICompatibleProviderModule(
 		// Completions wire format does NOT support multimodal tool messages
 		// (the `@ai-sdk/openai-compatible` chat-messages converter
 		// `JSON.stringify`s the parts array, losing image bytes). The
-		// middleware operates on the typed `LanguageModelV3Prompt` BEFORE
+		// middleware operates on the typed `LanguageModelV4Prompt` BEFORE
 		// the converter runs, so the converter sees only text-only tool
 		// messages with adjacent multimodal user messages — the wire
 		// pattern that classic Cline used in production for years (see
@@ -145,7 +145,7 @@ export async function createOpenAICompatibleProviderModule(
 		// on origin/main).
 		model: (modelId) =>
 			wrapLanguageModel({
-				model: provider(modelId) as LanguageModelV3,
+				model: provider(modelId) as LanguageModelV4,
 				middleware: splitToolImagesMiddleware,
 			}),
 	};

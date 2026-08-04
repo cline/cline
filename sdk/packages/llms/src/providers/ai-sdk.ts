@@ -16,7 +16,13 @@ import {
 	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
+import {
+	type CallSettings,
+	jsonSchema,
+	NoSuchToolError,
+	streamText,
+	type ToolSet,
+} from "ai";
 import { nanoid } from "nanoid";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
@@ -384,9 +390,7 @@ function toAiSdkMessages(
 	});
 }
 
-function toAiSdkTools(
-	request: GatewayStreamRequest,
-): Record<string, unknown> | undefined {
+function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 	if (!request.tools?.length) {
 		return undefined;
 	}
@@ -396,17 +400,16 @@ function toAiSdkTools(
 	// accept common weak-model shapes like a bare string for a string[]
 	// property). Rejecting here would return an error to the model without
 	// the tool's own input handling ever seeing the call.
-	return Object.fromEntries(
-		request.tools.map((definition) => [
-			definition.name,
-			{
-				description: definition.description,
-				inputSchema: jsonSchema(
-					normalizeAiSdkToolInputSchema(definition.inputSchema),
-				) as never,
-			} as unknown,
-		]),
-	);
+	const tools: ToolSet = {};
+	for (const definition of request.tools) {
+		tools[definition.name] = {
+			description: definition.description,
+			inputSchema: jsonSchema(
+				normalizeAiSdkToolInputSchema(definition.inputSchema),
+			),
+		};
+	}
+	return tools;
 }
 
 interface RepairableToolCall {
@@ -1234,7 +1237,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					model: provider.model(context.model.id) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
-					tools: tools as never,
+					...(tools ? { tools } : {}),
 					abortSignal: request.signal,
 					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
