@@ -17,6 +17,7 @@ import {
 	PuzzleIcon,
 	SparklesIcon,
 	Trash2Icon,
+	TriangleAlertIcon,
 } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 import { Switch } from "@/components/ui/switch"
@@ -401,6 +402,34 @@ const MarketplaceStyles = () => (
 			overflow-wrap: anywhere;
 			word-break: break-word;
 			white-space: normal;
+		}
+
+		.marketplace-row-error {
+			margin-top: 4px;
+			display: flex;
+			gap: 5px;
+			align-items: flex-start;
+			color: var(--vscode-errorForeground);
+			font-size: calc(var(--vscode-font-size) * 0.85);
+			line-height: 1.35;
+		}
+
+		.marketplace-row-error svg {
+			flex: none;
+			width: 13px;
+			height: 13px;
+			margin-top: 1px;
+		}
+
+		/* Load failures can carry a full child-process stack; keep the row
+		   readable and leave the rest to the hover title. */
+		.marketplace-row-error span {
+			display: -webkit-box;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			overflow-wrap: anywhere;
+			word-break: break-word;
 		}
 
 		.marketplace-row-meta {
@@ -826,6 +855,30 @@ const McpManagementPanel = ({
 	)
 }
 
+// The extension sends a redacted, length-capped excerpt, so the row and the
+// hover title show the same bounded text; the hover only lifts the line clamp.
+// The untruncated error lives in the "Cline" output channel.
+const TRUNCATION_MARKER = "…"
+const FULL_DETAIL_HINT = 'Full error text is in the "Cline" output channel.'
+
+const LocalEntryLoadError = ({ entries }: { entries: MarketplaceLocalInstalledEntry[] }) => {
+	const messages = [...new Set(entries.map((entry) => entry.error?.trim()).filter((message): message is string => !!message))]
+	if (messages.length === 0) return null
+	return (
+		<>
+			{messages.map((message) => (
+				<div
+					className="marketplace-row-error"
+					key={message}
+					title={message.endsWith(TRUNCATION_MARKER) ? `${message}\n\n${FULL_DETAIL_HINT}` : message}>
+					<TriangleAlertIcon aria-hidden />
+					<span>Failed to load: {message}</span>
+				</div>
+			))}
+		</>
+	)
+}
+
 const LocalInstalledRow = ({
 	entry,
 	onUninstall,
@@ -848,6 +901,7 @@ const LocalInstalledRow = ({
 					<span className="marketplace-row-name">{entry.name || entry.id}</span>
 				</div>
 				{entry.description && <div className="marketplace-row-description">{entry.description}</div>}
+				<LocalEntryLoadError entries={[entry]} />
 				<div className="marketplace-row-meta">
 					{origin && <span className="marketplace-pill">{origin}</span>}
 					{entry.path && <span className="marketplace-path">{entry.path}</span>}
@@ -908,6 +962,7 @@ const InstalledMarketplaceRow = ({
 				{(entry.description || entry.tagline) && (
 					<div className="marketplace-row-description">{entry.description || entry.tagline}</div>
 				)}
+				<LocalEntryLoadError entries={matchedLocalEntries} />
 				<div className="marketplace-row-meta">
 					<span className="marketplace-pill">Marketplace</span>
 					{matchedLocalEntries.map((localEntry) => {

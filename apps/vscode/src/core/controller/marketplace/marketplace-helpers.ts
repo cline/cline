@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { homedir, platform } from "node:os"
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path"
 import {
 	disablePluginMcpServersInSettings,
 	discoverPluginModulePaths,
+	getLatestPluginLoadReport,
 	installMcpServer,
 	installPlugin,
 	isMarketplaceSkillInstalled,
@@ -36,6 +37,7 @@ import {
 	ToggleMarketplaceLocalInstalledEntryRequest,
 } from "@shared/proto/cline/marketplace"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 type MarketplaceType = "mcp" | "skill" | "plugin"
@@ -50,6 +52,7 @@ const MARKETPLACE_CATALOG_URL = "https://cline.github.io/marketplace/catalog.jso
 const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git"
 const INSTALL_COMMAND_TIMEOUT_MS = 120_000
 const MAX_OUTPUT_CHARS = 12_000
+const MAX_PLUGIN_ERROR_CHARS = 400
 const SECRET_PATTERN =
 	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i
 const SECRET_KEY_VALUE_PATTERN =
@@ -442,26 +445,88 @@ function getPluginDisplayName(filePath: string, searchRoot: string): string {
 	return basename(filePath, extname(filePath))
 }
 
-async function listPluginLocalEntries(): Promise<MarketplaceLocalInstalledEntry[]> {
-	const workspacePath = HostProvider.isInitialized() ? (await HostProvider.workspace.getWorkspacePaths({})).paths[0] : undefined
-	const roots = resolvePluginConfigSearchPaths(workspacePath).filter((directory) => existsSync(directory))
-	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? [])
-	const entries: MarketplaceLocalInstalledEntry[] = []
-	for (const root of roots) {
-		for (const pluginPath of discoverPluginModulePaths(root)) {
-			entries.push(
-				MarketplaceLocalInstalledEntry.create({
-					id: pluginPath,
-					type: "plugin",
-					name: getPluginDisplayName(pluginPath, root),
-					path: pluginPath,
-					source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
-					enabled: !disabledPlugins.has(pluginPath),
-				}),
-			)
+/**
+ * A load failure carries the sandbox child's stderr tail, so it is both long and
+ * as untrusted as any other subprocess output. Redact it on the same terms as
+ * install output and flatten it into one bounded line. The untruncated redacted
+ * text goes to the output channel.
+ */
+function formatPluginLoadError(message: string): string {
+	const flattened = redactOutput(message).replace(/\s+/g, " ").trim()
+	return flattened.length > MAX_PLUGIN_ERROR_CHARS ? `${flattened.slice(0, MAX_PLUGIN_ERROR_CHARS).trimEnd()}…` : flattened
+}
+
+/** Report timestamp whose failures have already reached the output channel. */
+let loggedPluginReportAt: number | undefined
+
+/**
+ * Read the plugin load result the last session recorded and index it by plugin
+ * path. Without this the Installed list only proves a file exists on disk, so a
+ * plugin that never loads still renders as healthy.
+ *
+ * Listing must never load plugins itself. That would run plugin modules and
+ * `setup()` a second time, including in workspaces the user has not trusted, and
+ * a probe that resolves the sandbox runtime differently from the session would
+ * report failures the session never hit. The session bootstrap is the only thing
+ * that loads plugins; this renders what it found.
+ */
+function collectPluginLoadErrors(): { errors: Map<string, string>; validatedPaths: Set<string> } {
+	const errors = new Map<string, string>()
+	const validatedPaths = new Set<string>()
+	const report = getLatestPluginLoadReport()
+	if (!report) return { errors, validatedPaths }
+
+	// A plugin whose entry file changed after the session ran has no current
+	// verdict. Reusing the old one would blame the edit the user just made to
+	// fix it, so treat it as unvalidated until another session loads it.
+	const hasCurrentVerdict = (pluginPath: string): boolean => {
+		try {
+			return statSync(pluginPath).mtimeMs <= report.recordedAt
+		} catch {
+			return false
 		}
 	}
-	return entries
+	for (const pluginPath of [...report.pluginPaths, ...report.failures.map((failure) => failure.pluginPath)]) {
+		if (hasCurrentVerdict(pluginPath)) validatedPaths.add(resolve(pluginPath))
+	}
+
+	const shouldLog = loggedPluginReportAt !== report.recordedAt
+	for (const failure of report.failures) {
+		const key = resolve(failure.pluginPath)
+		if (!validatedPaths.has(key) || errors.has(key)) continue
+		if (shouldLog) {
+			Logger.error(
+				`[marketplace] plugin failed to load during ${failure.phase}: ${failure.pluginPath}`,
+				redactOutput(failure.message),
+			)
+		}
+		errors.set(key, formatPluginLoadError(failure.message))
+	}
+	loggedPluginReportAt = report.recordedAt
+	return { errors, validatedPaths }
+}
+
+async function listPluginLocalEntries(): Promise<MarketplaceLocalInstalledEntry[]> {
+	const workspacePath = await getWorkspacePath()
+	const roots = resolvePluginConfigSearchPaths(workspacePath).filter((directory) => existsSync(directory))
+	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? [])
+	const { errors, validatedPaths } = collectPluginLoadErrors()
+	return roots.flatMap((root) =>
+		discoverPluginModulePaths(root).map((pluginPath) => {
+			const key = resolve(pluginPath)
+			const enabled = !disabledPlugins.has(pluginPath)
+			return MarketplaceLocalInstalledEntry.create({
+				id: pluginPath,
+				type: "plugin",
+				name: getPluginDisplayName(pluginPath, root),
+				path: pluginPath,
+				source: isGlobalClinePath(pluginPath) ? "global" : "workspace",
+				enabled,
+				// A plugin no session has tried to load yet is unknown, not healthy.
+				error: enabled && validatedPaths.has(key) ? errors.get(key) : undefined,
+			})
+		}),
+	)
 }
 
 export async function listLocalMarketplaceInstalledEntries(controller: Controller): Promise<MarketplaceLocalInstalledEntries> {

@@ -682,4 +682,192 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			"ChatGPT-Account-Id": "acct-derived",
 		});
 	});
+	it("records the plugin load report so hosts can report health without reloading", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		const failure = {
+			pluginPath: "/plugins/broken.ts",
+			phase: "setup" as const,
+			message: "setup threw",
+		};
+
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAgentPluginPaths: vi.fn(() => [
+				"/plugins/broken.ts",
+				"/plugins/ok.ts",
+			]),
+			resolveAndLoadAgentPlugins: vi.fn(async () => ({
+				extensions: [],
+				failures: [failure],
+				pluginPaths: ["/plugins/broken.ts", "/plugins/ok.ts"],
+				warnings: [],
+			})),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const { clearPluginLoadReport, getLatestPluginLoadReport } = await import(
+			"./plugin-load-diagnostics"
+		);
+		clearPluginLoadReport();
+
+		await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-report",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		const report = getLatestPluginLoadReport();
+		expect(report?.pluginPaths).toEqual([
+			"/plugins/broken.ts",
+			"/plugins/ok.ts",
+		]);
+		expect(report?.failures).toEqual([failure]);
+		expect(report?.providerId).toBe("cline");
+	});
+
+	it("blames every discovered plugin when the sandbox never starts", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAgentPluginPaths: vi.fn(() => [
+				"/plugins/one.ts",
+				"/plugins/two.ts",
+			]),
+			resolveAndLoadAgentPlugins: vi.fn(async () => {
+				throw new Error("plugin-sandbox process exited (code=1)");
+			}),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const { clearPluginLoadReport, getLatestPluginLoadReport } = await import(
+			"./plugin-load-diagnostics"
+		);
+		clearPluginLoadReport();
+
+		await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-sandbox-down",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		const report = getLatestPluginLoadReport();
+		expect(report?.failures.map((entry) => entry.pluginPath)).toEqual([
+			"/plugins/one.ts",
+			"/plugins/two.ts",
+		]);
+		expect(report?.failures[0]?.message).toContain(
+			"plugin-sandbox process exited",
+		);
+	});
+	it("records the session's plugin load report for host diagnostics surfaces", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAgentPluginPaths: vi.fn(() => ["/plugins/a.ts"]),
+			resolveAndLoadAgentPlugins: vi.fn(async () => ({
+				extensions: [],
+				failures: [
+					{
+						pluginPath: "/plugins/a.ts",
+						phase: "setup",
+						message: "setup threw",
+					},
+				],
+				pluginPaths: ["/plugins/a.ts", "/plugins/b.ts"],
+				warnings: [],
+			})),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const { clearPluginLoadReport, getLatestPluginLoadReport } = await import(
+			"./plugin-load-diagnostics"
+		);
+		clearPluginLoadReport();
+
+		await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-report",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		const report = getLatestPluginLoadReport();
+		expect(report?.pluginPaths).toEqual(["/plugins/a.ts", "/plugins/b.ts"]);
+		expect(report?.failures).toEqual([
+			{ pluginPath: "/plugins/a.ts", phase: "setup", message: "setup threw" },
+		]);
+	});
+
+	it("attributes a failed plugin load to every plugin the session would have loaded", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAgentPluginPaths: vi.fn(() => ["/plugins/a.ts", "/plugins/b.ts"]),
+			resolveAndLoadAgentPlugins: vi.fn(async () => {
+				throw new Error("plugin-sandbox process exited (code=1)");
+			}),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const { clearPluginLoadReport, getLatestPluginLoadReport } = await import(
+			"./plugin-load-diagnostics"
+		);
+		clearPluginLoadReport();
+
+		await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-sandbox-down",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		const report = getLatestPluginLoadReport();
+		expect(report?.pluginPaths).toEqual(["/plugins/a.ts", "/plugins/b.ts"]);
+		expect(report?.failures.map((failure) => failure.pluginPath)).toEqual([
+			"/plugins/a.ts",
+			"/plugins/b.ts",
+		]);
+		expect(report?.failures[0]?.message).toContain(
+			"plugin-sandbox process exited",
+		);
+	});
 });
