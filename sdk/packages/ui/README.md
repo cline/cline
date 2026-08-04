@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent approval-card, Aurora, hero-heading, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Agent ask-question, approval-card, Aurora, hero-heading, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
@@ -59,6 +59,9 @@ welcome heading and respects reduced-motion preferences.
 
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
+
+`AgentAskQuestion` is controlled presentation; the host owns pending answers,
+errors, and response transport.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
