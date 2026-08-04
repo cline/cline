@@ -453,7 +453,7 @@ describe("ChatInputBar token ring", () => {
 		return container.querySelector<HTMLButtonElement>("#token-usage");
 	};
 
-	it("waits for input usage and model context metadata", async () => {
+	it("waits for token usage and model context metadata", async () => {
 		expect(
 			await renderTokenUsage({
 				toolCalls: 0,
@@ -461,19 +461,20 @@ describe("ChatInputBar token ring", () => {
 				tokensOut: 0,
 			}),
 		).toBeNull();
-		expect(
-			await renderTokenUsage(
-				{
-					toolCalls: 0,
-					tokensIn: 0,
-					tokensOut: 500,
-				},
-				2000,
-			),
-		).toBeNull();
+		const outputOnly = await renderTokenUsage(
+			{
+				toolCalls: 0,
+				tokensIn: 0,
+				tokensOut: 500,
+			},
+			2000,
+		);
+		expect(outputOnly?.getAttribute("aria-label")).toBe(
+			"Context window: 500 of 2,000 tokens used (25%)",
+		);
 	});
 
-	it("fills from input only and sits immediately after the workspace selector", async () => {
+	it("fills from input and output and sits immediately after the workspace selector", async () => {
 		const trigger = await renderTokenUsage(
 			{
 				toolCalls: 0,
@@ -483,31 +484,36 @@ describe("ChatInputBar token ring", () => {
 			2000,
 		);
 		expect(trigger?.getAttribute("aria-label")).toBe(
-			"Context window: 1,000 of 2,000 input tokens used (50%)",
+			"Context window: 1,500 of 2,000 tokens used (75%)",
 		);
 		expect(trigger?.textContent).toBe("");
 		const ring = trigger?.querySelector("svg");
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
-		const progressCircle = trigger?.querySelector("circle.stroke-orange-500");
+		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
 		const circumference = 2 * Math.PI * 8.5;
 		expect(
 			Number(progressCircle?.getAttribute("stroke-dashoffset")),
-		).toBeCloseTo(circumference * 0.5);
+		).toBeCloseTo(circumference * 0.25);
 
-		const workspaceSelector = trigger?.parentElement?.querySelector("#git-branch-btn");
-		expect(workspaceSelector).not.toBeNull();
-		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
-		expect(trigger?.parentElement?.contains(workspaceSelector)).toBe(true);
+		if (!trigger?.parentElement) {
+			throw new Error("Expected token usage trigger group");
+		}
+		const usageGroup = trigger.parentElement;
+		const workspaceSelector = usageGroup.querySelector("#git-branch-btn");
+		if (!workspaceSelector) {
+			throw new Error("Expected workspace selector in token usage group");
+		}
+		expect(usageGroup.classList.contains("gap-0")).toBe(true);
+		expect(usageGroup.contains(workspaceSelector)).toBe(true);
 		expect(
 			Boolean(
-				trigger?.compareDocumentPosition(workspaceSelector as Node) &
+				trigger.compareDocumentPosition(workspaceSelector) &
 					Node.DOCUMENT_POSITION_PRECEDING,
 			),
 		).toBe(true);
-		expect(container.textContent).not.toContain("1,500 tokens");
 	});
 
 	it("changes the ring from primary to orange at 50% and red at 75%", async () => {
@@ -536,6 +542,7 @@ describe("ChatInputBar token ring", () => {
 				toolCalls: 0,
 				tokensIn: 500_000,
 				tokensOut: 500,
+				cacheReadTokens: 125_000,
 				totalCostUsd: 0.0142,
 			},
 			1_000_000,
@@ -545,37 +552,30 @@ describe("ChatInputBar token ring", () => {
 		});
 
 		const panel = document.querySelector("#token-usage-panel");
-		expect(panel?.textContent).toContain("Context window500k / 1.0M (50%)");
-		expect(panel?.querySelector(".bg-primary")).not.toBeNull();
+		expect(panel?.textContent).toContain("Context window500.5k / 1.0M (50%)");
+		expect(panel?.textContent).toContain("Input tokens500,000");
 		expect(panel?.textContent).toContain("Output tokens500");
+		expect(panel?.textContent).toContain("Cached tokens125,000");
 		expect(panel?.textContent).toContain("Cost$0.014");
+		const uncachedSegment = panel?.querySelector<HTMLElement>(
+			'[data-token-kind="uncached-input"]',
+		);
+		const cachedSegment = panel?.querySelector<HTMLElement>(
+			'[data-token-kind="cached-input"]',
+		);
+		const outputSegment = panel?.querySelector<HTMLElement>(
+			'[data-token-kind="output"]',
+		);
+		expect(uncachedSegment?.classList.contains("bg-primary")).toBe(true);
+		expect(uncachedSegment?.style.width).toBe("37.5%");
+		expect(cachedSegment?.classList.contains("bg-primary/60")).toBe(true);
+		expect(cachedSegment?.style.backgroundImage).toContain("linear-gradient");
+		expect(cachedSegment?.style.width).toBe("12.5%");
+		expect(outputSegment?.classList.contains("bg-blue-500")).toBe(true);
+		expect(outputSegment?.style.backgroundImage).toContain("linear-gradient");
+		expect(outputSegment?.style.width).toBe("0.05%");
 		expect(panel?.textContent).not.toContain("Total");
 		expect(panel?.textContent).not.toContain("usage limit");
-	});
-
-	it("changes the popover progress bar to orange above 50% and red above 75%", async () => {
-		const trigger = await renderTokenUsage(
-			{ toolCalls: 0, tokensIn: 501, tokensOut: 0 },
-			1000,
-		);
-		await act(async () => {
-			trigger?.click();
-		});
-		expect(
-			document
-				.querySelector("#token-usage-panel")
-				?.querySelector(".bg-orange-500"),
-		).not.toBeNull();
-
-		await renderTokenUsage(
-			{ toolCalls: 0, tokensIn: 751, tokensOut: 0 },
-			1000,
-		);
-		expect(
-			document
-				.querySelector("#token-usage-panel")
-				?.querySelector(".bg-red-500"),
-		).not.toBeNull();
 	});
 
 	it("saturates at 100% with the critical ring color", async () => {
