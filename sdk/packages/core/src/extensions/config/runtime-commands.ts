@@ -19,6 +19,10 @@ type CommandRecord = {
 	item: SkillConfig | WorkflowConfig;
 };
 
+function normalizeRuntimeCommandName(name: string): string {
+	return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
 function resolveCommandDescription(
 	item: SkillConfig | WorkflowConfig,
 	kind: RuntimeCommandKind,
@@ -45,7 +49,7 @@ function listCommandsForKind(
 		.filter(({ record }) => isCommandEnabled(record.item))
 		.map(({ id, record }) => ({
 			id,
-			name: record.item.name,
+			name: normalizeRuntimeCommandName(record.item.name),
 			instructions: record.item.instructions,
 			description: resolveCommandDescription(record.item, kind),
 			kind,
@@ -79,7 +83,7 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	if (!match) {
 		return input;
 	}
-	const name = match[1];
+	const name = normalizeRuntimeCommandName(match[1]);
 	if (!name) {
 		return input;
 	}

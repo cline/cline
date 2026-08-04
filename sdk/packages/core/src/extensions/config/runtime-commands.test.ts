@@ -116,6 +116,41 @@ Do not run this workflow.`,
 		}
 	});
 
+	it("normalizes configured names into resolvable slash command tokens", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "publish-ui");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: "  Publish UI  "
+---
+Publish the UI package.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [join(tempRoot, "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			expect(listAvailableRuntimeCommandsFromWatcher(watcher)[0]?.name).toBe(
+				"publish-ui",
+			);
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/publish-ui now", watcher),
+			).toBe("Publish the UI package. now");
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/PUBLISH-UI now", watcher),
+			).toBe("Publish the UI package. now");
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("leaves workflow display description blank when no description is set", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
