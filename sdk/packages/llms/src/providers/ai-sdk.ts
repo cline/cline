@@ -29,6 +29,7 @@ import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	requiresGeminiContinuationTurn,
 	resolveModelFamily,
 } from "./model-facts";
 import {
@@ -80,6 +81,8 @@ function buildCachedAiSdkMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		request,
+		context,
 	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
@@ -280,7 +283,11 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: {
+		includeReasoning?: boolean;
+		request?: GatewayStreamRequest;
+		context?: GatewayProviderContext;
+	},
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -383,6 +390,21 @@ function toAiSdkMessages(
 		) {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
+	}
+
+	if (
+		options?.request &&
+		options.context &&
+		requiresGeminiContinuationTurn({
+			request: options.request,
+			context: options.context,
+		}) &&
+		normalizedMessages.at(-1)?.role === "assistant"
+	) {
+		normalizedMessages.push({
+			role: "user",
+			content: [{ type: "text", text: "Continue." }],
+		});
 	}
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
@@ -1213,6 +1235,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
+							request,
+							context,
 						});
 				const providerOptions = composeAiSdkProviderOptions(
 					request,

@@ -211,6 +211,22 @@ export function resolveGeminiThinkingMode(input: {
 			: undefined;
 }
 
+export function requiresGeminiContinuationTurn(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	if (
+		input.context.provider.id !== "gemini" &&
+		input.context.provider.id !== "vertex"
+	) {
+		return false;
+	}
+
+	return /(^|[/\s])gemini-(?:3\.5-flash-lite|3\.6-flash)(?:[-\s]|$)/.test(
+		geminiModelDescriptor(input),
+	);
+}
+
 function modelFamilyMatches(
 	family: string | undefined,
 	routeFamily: string | undefined,
