@@ -36,6 +36,7 @@ export interface ResolveAgentPluginPathsOptions {
 	pluginPaths?: ReadonlyArray<string>;
 	workspacePath?: string;
 	cwd?: string;
+	includeDisabled?: boolean;
 }
 
 function isDirectory(path: string): boolean {
@@ -187,7 +188,8 @@ export function resolveAgentPluginPaths(
 		cwd,
 	);
 
-	return mergePluginPaths([...configuredPaths, ...discoveredFromSearchPaths]);
+	const paths = [...configuredPaths, ...discoveredFromSearchPaths];
+	return options.includeDisabled ? dedupePaths(paths) : mergePluginPaths(paths);
 }
 
 function resolveAgentPluginPathsBestEffort(

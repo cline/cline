@@ -5,6 +5,7 @@ export type CoreSettingsType =
 	| "skills"
 	| "workflows"
 	| "rules"
+	| "plugins"
 	| "tools"
 	| "mcp";
 
@@ -12,6 +13,7 @@ export type CoreSettingsItemKind =
 	| "skill"
 	| "workflow"
 	| "rule"
+	| "plugin"
 	| "tool"
 	| "mcp";
 
@@ -33,11 +35,24 @@ export interface CoreSettingsItem {
 	toggleable?: boolean;
 	pluginName?: string;
 	pluginPath?: string;
+	contributions?: CorePluginContributions;
+}
+
+export interface CorePluginContributions {
+	capabilities: string[];
+	tools: string[];
+	skills: string[];
+	rules: string[];
+	hooks: string[];
+	commands: string[];
+	mcpServers: string[];
+	providers: string[];
 }
 
 export interface CoreSettingsSnapshot {
 	workflows: CoreSettingsItem[];
 	rules: CoreSettingsItem[];
+	plugins: CoreSettingsItem[];
 	skills: CoreSettingsItem[];
 	tools: CoreSettingsItem[];
 	mcp: CoreSettingsItem[];

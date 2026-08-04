@@ -516,9 +516,9 @@ export {
 	RESTART_COUNTER_RESET_MS,
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
-	setActiveConnectorSupervisor,
 	STOP_SIGKILL_TIMEOUT_MS,
 	STOP_SIGTERM_TIMEOUT_MS,
+	setActiveConnectorSupervisor,
 } from "./services/connectors/connector-supervisor";
 export {
 	FeatureFlagsService,
@@ -615,6 +615,7 @@ export {
 } from "./services/plugin-mcp-settings";
 export type {
 	ListPluginToolsResult,
+	PluginContributionSummary,
 	PluginToolSummary,
 } from "./services/plugin-tools";
 export {
@@ -814,6 +815,7 @@ export {
 	resolveMessageDisplayRole,
 } from "./session/user-run-messages";
 export type {
+	CorePluginContributions,
 	CoreSettingsItem,
 	CoreSettingsItemKind,
 	CoreSettingsItemSource,

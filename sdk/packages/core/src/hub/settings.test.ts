@@ -19,6 +19,7 @@ describe("hub settings commands", () => {
 					toggleable: true,
 				},
 			],
+			plugins: [],
 			tools: [],
 			mcp: [],
 		};

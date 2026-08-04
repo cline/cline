@@ -4,6 +4,7 @@ export {
 } from "./settings-service";
 export type {
 	ClineCoreSettingsApi,
+	CorePluginContributions,
 	CoreSettingsItem,
 	CoreSettingsItemKind,
 	CoreSettingsItemSource,
