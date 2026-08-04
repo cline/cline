@@ -1,4 +1,6 @@
 import { truncateSplit } from "@cline/shared";
+import type { BuiltinSkill } from "./builtin-skills";
+import { isSkillAllowed, toAllowedSkillSet } from "./skill-allowlist";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
@@ -18,6 +20,18 @@ export type AvailableRuntimeCommand = {
 type CommandRecord = {
 	item: SkillConfig | WorkflowConfig;
 };
+
+function builtinSkillCommands(
+	builtinSkills: ReadonlyArray<BuiltinSkill>,
+): AvailableRuntimeCommand[] {
+	return builtinSkills.map(({ id, skill }) => ({
+		id,
+		name: skill.name,
+		instructions: skill.instructions,
+		description: resolveCommandDescription(skill, "skill"),
+		kind: "skill",
+	}));
+}
 
 function resolveCommandDescription(
 	item: SkillConfig | WorkflowConfig,
@@ -55,14 +69,28 @@ function listCommandsForKind(
 
 export function listAvailableRuntimeCommandsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
+	allowedSkillNames?: ReadonlyArray<string>,
 ): AvailableRuntimeCommand[] {
+	// The session skill allowlist governs every surface a skill can reach,
+	// including built-ins: an explicit empty allowlist disables all skills.
+	// Workflows are not skills and are never filtered by it.
+	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const byName = new Map<string, AvailableRuntimeCommand>();
 	for (const command of [
+		...builtinSkillCommands(builtinSkills),
 		...listCommandsForKind(watcher, "workflow"),
 		...listCommandsForKind(watcher, "skill"),
 	]) {
-		if (!byName.has(command.name)) {
-			byName.set(command.name, command);
+		if (
+			command.kind === "skill" &&
+			!isSkillAllowed(command.id, command.name, allowedSkills)
+		) {
+			continue;
+		}
+		const normalizedName = command.name.trim().toLowerCase();
+		if (!byName.has(normalizedName)) {
+			byName.set(normalizedName, command);
 		}
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -71,6 +99,8 @@ export function listAvailableRuntimeCommandsFromWatcher(
 export function resolveRuntimeSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
+	builtinSkills: ReadonlyArray<BuiltinSkill> = [],
+	allowedSkillNames?: ReadonlyArray<string>,
 ): string {
 	if (!input.startsWith("/") || input.length < 2) {
 		return input;
@@ -85,8 +115,10 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	}
 	const commandLength = name.length + 1;
 	const remainder = input.slice(commandLength);
-	const matched = listAvailableRuntimeCommandsFromWatcher(watcher).find(
-		(command) => command.name === name,
-	);
+	const matched = listAvailableRuntimeCommandsFromWatcher(
+		watcher,
+		builtinSkills,
+		allowedSkillNames,
+	).find((command) => command.name === name);
 	return matched ? `${matched.instructions}${remainder}` : input;
 }

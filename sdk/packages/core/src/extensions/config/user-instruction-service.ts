@@ -1,5 +1,6 @@
 import type { AgentExtension } from "@cline/shared";
 import type { SkillsExecutorWithMetadata } from "../tools";
+import { type BuiltinSkill, listBuiltinSkills } from "./builtin-skills";
 import {
 	type AvailableRuntimeCommand,
 	listAvailableRuntimeCommandsFromWatcher,
@@ -38,8 +39,13 @@ export interface UserInstructionConfigService {
 	listRecords<TConfig extends UserInstructionConfig = UserInstructionConfig>(
 		type: UserInstructionConfigType,
 	): UserInstructionConfigRecord<TConfig>[];
-	listRuntimeCommands(): AvailableRuntimeCommand[];
-	resolveRuntimeSlashCommand(input: string): string;
+	listRuntimeCommands(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): AvailableRuntimeCommand[];
+	resolveRuntimeSlashCommand(
+		input: string,
+		allowedSkillNames?: ReadonlyArray<string>,
+	): string;
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean;
 	createSkillsExecutor?(
 		allowedSkillNames?: ReadonlyArray<string>,
@@ -47,7 +53,7 @@ export interface UserInstructionConfigService {
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
-			"watcher" | "watcherReady"
+			"watcher" | "watcherReady" | "builtinSkills"
 		>,
 	): AgentExtension;
 }
@@ -58,9 +64,22 @@ class DefaultUserInstructionConfigService
 	private readonly watcher: UserInstructionConfigWatcher;
 	private ready: Promise<void> | undefined;
 	private stopped = false;
+	private readonly workspacePath: string | undefined;
 
 	constructor(options?: CreateUserInstructionConfigServiceOptions) {
 		this.watcher = createUserInstructionConfigWatcher(options);
+		this.workspacePath = options?.skills?.workspacePath;
+	}
+
+	private builtinSkills(): BuiltinSkill[] {
+		// Report the directories this watcher actually scans (including
+		// explicit overrides and per-type roots), not re-derived defaults.
+		return listBuiltinSkills({
+			workspacePath: this.workspacePath,
+			ruleDirectories: this.watcher.getConfiguredDirectories("rule"),
+			skillDirectories: this.watcher.getConfiguredDirectories("skill"),
+			workflowDirectories: this.watcher.getConfiguredDirectories("workflow"),
+		});
 	}
 
 	start(): Promise<void> {
@@ -98,18 +117,34 @@ class DefaultUserInstructionConfigService
 		);
 	}
 
-	listRuntimeCommands(): AvailableRuntimeCommand[] {
-		return listAvailableRuntimeCommandsFromWatcher(this.watcher);
+	listRuntimeCommands(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): AvailableRuntimeCommand[] {
+		return listAvailableRuntimeCommandsFromWatcher(
+			this.watcher,
+			this.builtinSkills(),
+			allowedSkillNames,
+		);
 	}
 
-	resolveRuntimeSlashCommand(input: string): string {
-		return resolveRuntimeSlashCommandFromWatcher(input, this.watcher);
+	resolveRuntimeSlashCommand(
+		input: string,
+		allowedSkillNames?: ReadonlyArray<string>,
+	): string {
+		return resolveRuntimeSlashCommandFromWatcher(
+			input,
+			this.watcher,
+			this.builtinSkills(),
+			allowedSkillNames,
+		);
 	}
 
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean {
-		return getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).some(
-			(skill) => !skill.disabled,
-		);
+		return getConfiguredSkillsFromWatcher(
+			this.watcher,
+			allowedSkillNames,
+			this.builtinSkills(),
+		).some((skill) => !skill.disabled);
 	}
 
 	createSkillsExecutor(
@@ -119,19 +154,21 @@ class DefaultUserInstructionConfigService
 			this.watcher,
 			(this.ready ?? Promise.resolve()).catch(() => {}),
 			allowedSkillNames,
+			this.builtinSkills(),
 		);
 	}
 
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
-			"watcher" | "watcherReady"
+			"watcher" | "watcherReady" | "builtinSkills"
 		>,
 	): AgentExtension {
 		return createUserInstructionPlugin({
 			...options,
 			watcher: this.watcher,
 			watcherReady: (this.ready ?? Promise.resolve()).catch(() => {}),
+			builtinSkills: this.builtinSkills(),
 		});
 	}
 }

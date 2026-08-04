@@ -3,8 +3,46 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 
-export const LEGACY_RESUME_MODEL_WARNING =
+const LEGACY_RESUME_WARNING_MARKER = "[cline-legacy-resume-warning:v1]"
+const HISTORICAL_LEGACY_RESUME_MODEL_WARNING =
 	"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of."
+export const LEGACY_RESUME_MODEL_WARNING = `${LEGACY_RESUME_WARNING_MARKER}
+Warning: this conversation was created by an older Cline runtime. Tool names, configuration paths, file formats, and product instructions in the earlier conversation may be obsolete. Do not rely on earlier configuration guidance or remembered file locations. Use the tools and host-provided configuration locations available in the current session, and verify current product behavior before diagnosing a migration or configuration problem.`
+
+function isLegacyResumeWarningText(text: string): boolean {
+	return text.includes(LEGACY_RESUME_WARNING_MARKER) || text.includes(HISTORICAL_LEGACY_RESUME_MODEL_WARNING)
+}
+
+function removeLegacyResumeWarningText(text: string): string {
+	return text.replace(LEGACY_RESUME_MODEL_WARNING, "").replace(HISTORICAL_LEGACY_RESUME_MODEL_WARNING, "").trim()
+}
+
+function upgradeLegacyResumeWarning<T extends { role: string; content: unknown }>(message: T): T {
+	const replaceHistoricalWarning = (text: string): string =>
+		text.includes(LEGACY_RESUME_WARNING_MARKER)
+			? text
+			: text.replace(HISTORICAL_LEGACY_RESUME_MODEL_WARNING, LEGACY_RESUME_MODEL_WARNING)
+	if (typeof message.content === "string") {
+		return {
+			...message,
+			content: replaceHistoricalWarning(message.content),
+		}
+	}
+	if (Array.isArray(message.content)) {
+		return {
+			...message,
+			content: message.content.map((block) =>
+				block && typeof block === "object" && typeof (block as { text?: unknown }).text === "string"
+					? {
+							...block,
+							text: replaceHistoricalWarning((block as { text: string }).text),
+						}
+					: block,
+			),
+		}
+	}
+	return message
+}
 
 function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefined {
 	if (!block || typeof block !== "object") {
@@ -52,7 +90,7 @@ function messageContainsLegacyResumeWarning(message: unknown): boolean {
 	}
 	const content = (message as { content?: unknown }).content
 	if (typeof content === "string") {
-		return content.includes(LEGACY_RESUME_MODEL_WARNING)
+		return isLegacyResumeWarningText(content)
 	}
 	if (Array.isArray(content)) {
 		return content.some(
@@ -60,18 +98,19 @@ function messageContainsLegacyResumeWarning(message: unknown): boolean {
 				block &&
 				typeof block === "object" &&
 				typeof (block as { text?: unknown }).text === "string" &&
-				(block as { text: string }).text.includes(LEGACY_RESUME_MODEL_WARNING),
+				isLegacyResumeWarningText((block as { text: string }).text),
 		)
 	}
 	return false
 }
 
 export function appendLegacyResumeWarning<T extends { role: string; content: unknown }>(messages: T[]): T[] {
-	if (messages.some(messageContainsLegacyResumeWarning)) {
-		return messages
+	const upgradedMessages = messages.map(upgradeLegacyResumeWarning)
+	if (upgradedMessages.some(messageContainsLegacyResumeWarning)) {
+		return upgradedMessages
 	}
 	return [
-		...messages,
+		...upgradedMessages,
 		{
 			role: "user",
 			content: LEGACY_RESUME_MODEL_WARNING,
@@ -132,11 +171,18 @@ export function mergeLegacyUiMessagesWithResumedSdkMessages(
 	legacyUiMessages: ClineMessage[],
 	sdkClineMessages: ClineMessage[],
 ): ClineMessage[] {
-	const warningIndex = sdkClineMessages.findIndex((message) => message.text?.includes(LEGACY_RESUME_MODEL_WARNING))
+	const warningIndex = sdkClineMessages.findIndex(
+		(message) => typeof message.text === "string" && isLegacyResumeWarningText(message.text),
+	)
 	if (warningIndex === -1) {
 		return sdkClineMessages
 	}
 
-	const resumedMessages = sdkClineMessages.slice(warningIndex + 1)
+	const warningMessage = sdkClineMessages[warningIndex]
+	const remainingWarningMessageText = warningMessage?.text ? removeLegacyResumeWarningText(warningMessage.text) : ""
+	const resumedMessages = [
+		...(warningMessage && remainingWarningMessageText ? [{ ...warningMessage, text: remainingWarningMessageText }] : []),
+		...sdkClineMessages.slice(warningIndex + 1),
+	]
 	return [...legacyUiMessages, ...resumedMessages]
 }
