@@ -805,6 +805,104 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).not.toContain("application/octet-stream");
 	});
 
+	it("keeps webp binary image parts when no supported media types are given", () => {
+		const image = new Uint8Array([1, 2, 3, 4]);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/webp" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/webp" }],
+			},
+		]);
+	});
+
+	it("replaces webp binary image parts when the provider excludes webp", () => {
+		const image = new Uint8Array([1, 2, 3, 4]);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/webp" }],
+				},
+			],
+			{ supportedImageMediaTypes: ["image/png", "image/jpeg"] },
+		);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("image/webp");
+	});
+
+	it("replaces webp data-url string images when the provider excludes webp", () => {
+		const image = `data:image/webp;base64,${imageData(8)}`;
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/webp" }],
+				},
+			],
+			{ supportedImageMediaTypes: ["image/png", "image/jpeg"] },
+		);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("image/webp");
+	});
+
+	it("replaces webp data-url URL images when the provider excludes webp", () => {
+		const image = new URL(`data:image/webp;base64,${imageData(8)}`);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/webp" }],
+				},
+			],
+			{ supportedImageMediaTypes: ["image/png", "image/jpeg"] },
+		);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("image/webp");
+	});
+
+	it("keeps webp images when the provider supports webp", () => {
+		const image = new Uint8Array([1, 2, 3, 4]);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/webp" }],
+				},
+			],
+			{ supportedImageMediaTypes: ["image/png", "image/webp"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/webp" }],
+			},
+		]);
+	});
+
 	it("replaces over-budget binary image parts", () => {
 		const oversizedImage = new Uint8Array(6 * 1024 * 1024 + 1);
 		const messages = formatMessagesForAiSdk(undefined, [

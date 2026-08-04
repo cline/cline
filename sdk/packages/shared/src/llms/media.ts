@@ -354,10 +354,12 @@ export function validateAndReserveImageMedia(
 	data: string,
 	budget: MediaBudgetOptions,
 	state: MediaBudgetState,
+	supportedMediaTypes?: readonly string[],
 ): ImageMediaValidationResult {
 	const validation = validateImageMedia(mediaType, data, {
 		maxEncodedBytes: budget.maxImageEncodedBytes,
 		maxDecodedBytes: budget.maxImageDecodedBytes,
+		supportedMediaTypes,
 	});
 	if (!validation.ok) {
 		recordOmittedImage(state, validation.reason);

@@ -192,6 +192,7 @@ function toImageDataPart(
 function toUserImagePart(
 	image: Extract<AiSdkFormatterPart, { type: "image" }>,
 	state: MediaBudgetState,
+	supportedMediaTypes?: readonly string[],
 ): AiSdkMessagePart {
 	if (image.image instanceof URL) {
 		if (image.image.protocol === "data:") {
@@ -203,6 +204,7 @@ function toUserImagePart(
 					maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
 				},
 				state,
+				supportedMediaTypes,
 			);
 			if (!validation.ok) {
 				return imageOmittedTextPart();
@@ -248,6 +250,7 @@ function toUserImagePart(
 				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
 			},
 			state,
+			supportedMediaTypes,
 		);
 		if (!validation.ok) {
 			return imageOmittedTextPart();
@@ -264,9 +267,10 @@ function toUserImagePart(
 	const decodedBytes = image.image.byteLength;
 	const encodedBytes = imageBase64LengthForDecodedBytes(decodedBytes);
 	const mediaType = image.mediaType?.toLowerCase() ?? "image/png";
-	const supportedMediaTypes: readonly string[] = SUPPORTED_IMAGE_MEDIA_TYPES;
+	const effectiveMediaTypes: readonly string[] =
+		supportedMediaTypes ?? SUPPORTED_IMAGE_MEDIA_TYPES;
 	if (
-		!supportedMediaTypes.includes(mediaType) ||
+		!effectiveMediaTypes.includes(mediaType) ||
 		reserveImageMediaBytes(
 			encodedBytes,
 			decodedBytes,
@@ -523,7 +527,10 @@ export function toAiSdkToolResultOutput(
 export function formatMessagesForAiSdk(
 	systemContent: string | AiSdkMessagePart[] | undefined,
 	messages: readonly AiSdkFormatterMessage[],
-	options?: { assistantToolCallArgKey?: "args" | "input" },
+	options?: {
+		assistantToolCallArgKey?: "args" | "input";
+		supportedImageMediaTypes?: readonly string[];
+	},
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
 	const result: AiSdkMessage[] = [];
@@ -591,7 +598,13 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(toUserImagePart(part, mediaState));
+					messageParts.push(
+						toUserImagePart(
+							part,
+							mediaState,
+							options?.supportedImageMediaTypes,
+						),
+					);
 					break;
 				case "file":
 					messageParts.push({

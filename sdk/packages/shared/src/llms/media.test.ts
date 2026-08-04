@@ -67,6 +67,18 @@ describe("image media validation", () => {
 		).toMatchObject({ ok: false, reason: "decoded_limit" });
 	});
 
+	it("honours caller supplied supported media types", () => {
+		const state = createMediaBudgetState();
+		expect(
+			validateAndReserveImageMedia("image/webp", "aGVsbG8=", {}, state, [
+				"image/png",
+			]),
+		).toMatchObject({ ok: false, reason: "unsupported_media_type" });
+		expect(
+			validateAndReserveImageMedia("image/webp", "aGVsbG8=", {}, state),
+		).toMatchObject({ ok: true, mediaType: "image/webp" });
+	});
+
 	it("rejects oversized encoded payloads before base64 syntax validation", () => {
 		expect(
 			validateImageMedia("image/png", "not-base64-and-too-long", {
