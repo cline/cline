@@ -79,48 +79,20 @@ function listCommandsForKind(
 export function listAvailableRuntimeCommandsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 ): AvailableRuntimeCommand[] {
-	const commands = [
-		...listCommandsForKind(watcher, "workflow"),
-		...listCommandsForKind(watcher, "skill"),
-	];
-	const countsByName = new Map<string, number>();
-	const countsByNameAndKind = new Map<string, number>();
-	for (const command of commands) {
-		countsByName.set(command.name, (countsByName.get(command.name) ?? 0) + 1);
-		const kindKey = `${command.name}:${command.kind}`;
-		countsByNameAndKind.set(
-			kindKey,
-			(countsByNameAndKind.get(kindKey) ?? 0) + 1,
-		);
-	}
-	const candidates = commands.map((command) => {
-		let name = command.name;
-		if (countsByName.get(command.name) !== 1) {
-			name = `${command.name}-${command.kind}`;
-			if (countsByNameAndKind.get(`${command.name}:${command.kind}`) !== 1) {
-				name = `${name}-${stableRuntimeCommandSuffix(command.id)}`;
-			}
-		}
-		return { command, name };
-	});
-	const countsByCandidate = new Map<string, number>();
-	for (const candidate of candidates) {
-		countsByCandidate.set(
-			candidate.name,
-			(countsByCandidate.get(candidate.name) ?? 0) + 1,
-		);
-	}
+	// Workflows are effectively deprecated in favor of skills, so a skill owns
+	// its token outright and a workflow whose normalized name collides with it
+	// is dropped rather than renamed — renaming would silently change command
+	// tokens users already rely on. Same-kind collisions resolve to the
+	// first entry in the deterministic (name, id) sort from
+	// listCommandsForKind, so ownership is stable across discovery order.
 	const byName = new Map<string, AvailableRuntimeCommand>();
-	for (const candidate of candidates) {
-		const { command } = candidate;
-		const name =
-			countsByCandidate.get(candidate.name) === 1
-				? candidate.name
-				: `${candidate.name}-${command.kind}-${stableRuntimeCommandSuffix(command.id)}`;
-		if (byName.has(name)) {
-			throw new Error(`Duplicate runtime slash command token '/${name}'.`);
+	for (const command of [
+		...listCommandsForKind(watcher, "skill"),
+		...listCommandsForKind(watcher, "workflow"),
+	]) {
+		if (!byName.has(command.name)) {
+			byName.set(command.name, command);
 		}
-		byName.set(name, { ...command, name });
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

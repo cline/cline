@@ -64,7 +64,7 @@ Run the release workflow.`,
 		}
 	});
 
-	it("qualifies colliding commands by kind and ignores disabled entries", async () => {
+	it("prefers the skill when a workflow name collides and ignores disabled entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
 		const skillDir = join(tempRoot, "skills", "publish-ui");
@@ -103,23 +103,14 @@ Do not run this workflow.`,
 		try {
 			await watcher.refreshAll();
 			expect(
-				resolveRuntimeSlashCommandFromWatcher("/publish-ui", watcher),
-			).toBe("/publish-ui");
-			expect(
-				resolveRuntimeSlashCommandFromWatcher("/publish-ui-workflow", watcher),
-			).toBe("Run the publish UI workflow.");
-			expect(
-				resolveRuntimeSlashCommandFromWatcher("/publish-ui-skill now", watcher),
+				resolveRuntimeSlashCommandFromWatcher("/publish-ui now", watcher),
 			).toBe("Use the publish UI skill. now");
 			expect(
 				listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
 					name: command.name,
 					kind: command.kind,
 				})),
-			).toEqual([
-				{ name: "publish-ui-skill", kind: "skill" },
-				{ name: "publish-ui-workflow", kind: "workflow" },
-			]);
+			).toEqual([{ name: "publish-ui", kind: "skill" }]);
 			expect(resolveRuntimeSlashCommandFromWatcher("/disabled", watcher)).toBe(
 				"/disabled",
 			);
@@ -169,7 +160,7 @@ Publish the UI package.`,
 		}
 	});
 
-	it("keeps every same-kind normalized name collision reachable", async () => {
+	it("resolves same-kind normalized name collisions deterministically", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
 		const stableSkillsDir = join(tempRoot, "stable-skills");
@@ -201,17 +192,14 @@ Publish the preview UI.`,
 			});
 			try {
 				await watcher.refreshAll();
-				return Object.fromEntries(
-					listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => [
-						command.instructions,
-						{
-							name: command.name,
-							resolved: resolveRuntimeSlashCommandFromWatcher(
-								`/${command.name}`,
-								watcher,
-							),
-						},
-					]),
+				return listAvailableRuntimeCommandsFromWatcher(watcher).map(
+					(command) => ({
+						name: command.name,
+						resolved: resolveRuntimeSlashCommandFromWatcher(
+							`/${command.name}`,
+							watcher,
+						),
+					}),
 				);
 			} finally {
 				watcher.stop();
@@ -226,17 +214,15 @@ Publish the preview UI.`,
 			previewSkillsDir,
 			stableSkillsDir,
 		]);
+		// One command owns the token, and ownership is independent of the
+		// directory discovery order (first entry in the (name, id) sort wins).
 		expect(reversed).toEqual(forward);
-		expect(Object.keys(forward)).toHaveLength(2);
-		for (const [instructions, command] of Object.entries(forward)) {
-			expect(command.name).toMatch(
-				/^publish-ui-skill-publish-ui-[a-f0-9]{12}$/,
-			);
-			expect(command.resolved).toBe(instructions);
-		}
+		expect(forward).toEqual([
+			{ name: "publish-ui", resolved: "Publish the stable UI." },
+		]);
 	});
 
-	it("keeps generated qualification from colliding with configured names", async () => {
+	it("drops a colliding workflow without renaming other commands", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
 		const skillDir = join(tempRoot, "skills", "foo");
@@ -267,21 +253,20 @@ Run the explicitly named foo-skill workflow.`,
 
 		try {
 			await watcher.refreshAll();
-			const commands = listAvailableRuntimeCommandsFromWatcher(watcher);
-			expect(commands).toHaveLength(3);
-			expect(new Set(commands.map((command) => command.name)).size).toBe(3);
 			expect(
-				new Set(
-					commands.map((command) =>
-						resolveRuntimeSlashCommandFromWatcher(`/${command.name}`, watcher),
-					),
-				),
-			).toEqual(
-				new Set([
-					"Use the foo skill.",
-					"Run the foo workflow.",
-					"Run the explicitly named foo-skill workflow.",
-				]),
+				listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
+					name: command.name,
+					kind: command.kind,
+				})),
+			).toEqual([
+				{ name: "foo", kind: "skill" },
+				{ name: "foo-skill", kind: "workflow" },
+			]);
+			expect(resolveRuntimeSlashCommandFromWatcher("/foo", watcher)).toBe(
+				"Use the foo skill.",
+			);
+			expect(resolveRuntimeSlashCommandFromWatcher("/foo-skill", watcher)).toBe(
+				"Run the explicitly named foo-skill workflow.",
 			);
 		} finally {
 			watcher.stop();

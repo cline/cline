@@ -79,16 +79,19 @@ describe("expandSlashCommands", () => {
 		)
 	})
 
-	it("applies workflow toggles to collision-qualified runtime commands", () => {
-		const qualified = workflow("publish-ui-workflow", "Run the publish UI workflow.")
-		qualified.id = "publish ui"
+	it("applies workflow toggles to normalized runtime command names", () => {
+		// The SDK normalizes "Publish UI" into the token "publish-ui", while the
+		// toggle set is keyed by the configured name, so the disabled lookup has
+		// to go through the record id.
+		const normalized = workflow("publish-ui", "Run the publish UI workflow.")
+		normalized.id = "publish ui"
 		const records = [{ id: "publish ui", name: "Publish UI", filePath: "/repo/workflows/publish-ui.md" }]
 		expect(
-			expandSlashCommands("/publish-ui-workflow", [qualified], {
+			expandSlashCommands("/publish-ui", [normalized], {
 				workflowRecords: records,
 				disabledWorkflowNames: new Set(["Publish UI"]),
 			}),
-		).toBe("/publish-ui-workflow")
+		).toBe("/publish-ui")
 	})
 })
 
