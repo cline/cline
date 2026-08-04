@@ -14,6 +14,15 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
+// The installed package is patched (see
+// `patches/ollama-ai-provider-v2@4.0.1.patch`) to preserve four native wire
+// contracts the upstream 4.0.1 release breaks: an unset `think` must be
+// omitted rather than sent as `false`, mid-stream `{"error": ...}` objects
+// must surface as stream errors instead of being dropped before a clean
+// finish, attachment-only user turns must send string `content` (not `[]`),
+// and tool results must carry the documented `tool_name` field.
+// `ollama.wire.test.ts` locks each contract at the real provider boundary;
+// drop the patch once an upstream release covers them.
 import { createOllama } from "ollama-ai-provider-v2";
 import { ensureFetch, resolveApiKey } from "../http";
 import { createRetryEmptyResponseMiddleware } from "../middleware/retry-empty-response";
