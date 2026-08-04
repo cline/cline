@@ -1,3 +1,4 @@
+@import "./theme/component-theme.css";
 @import "./components/agent-approval-card.css";
 @import "./components/agent-ask-question.css";
 @import "./components/agent-aurora.css";
@@ -5,3 +6,5 @@
 @import "./components/agent-quick-actions.css";
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
+
+@source "./components";
