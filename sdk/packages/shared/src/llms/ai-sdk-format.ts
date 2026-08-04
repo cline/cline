@@ -86,6 +86,16 @@ type AiSdkContentBlock =
 	| { type: "image"; data: string; mediaType: string };
 type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
 
+/**
+ * AI SDK 7 tool-result media part (`LanguageModelV4`-era canonical shape).
+ * `data` is the tagged file-data union rather than a bare base64 string.
+ */
+type ToolResultImagePart = {
+	type: "file";
+	data: { type: "data"; data: string };
+	mediaType: string;
+};
+
 interface StripImagesResult {
 	value: unknown;
 	changed: boolean;
@@ -161,15 +171,16 @@ function parseUrlProtocol(value: string): string | undefined {
 	}
 }
 
-function toImageDataPart(
+/**
+ * Build a tool-result `content` media part. AI SDK 7 collapsed the
+ * `image-*`/`file-*` tool-result variants into a single `file` part whose
+ * `data` is a tagged union; the old variants still round-trip through a
+ * runtime shim but log a deprecation warning on every request.
+ */
+function toToolResultImagePart(
 	image: AiSdkImageContentBlock,
 	state: MediaBudgetState,
-):
-	| { type: "image-data"; data: string; mediaType: string }
-	| {
-			type: "text";
-			text: string;
-	  } {
+): ToolResultImagePart | { type: "text"; text: string } {
 	const validation = validateAndReserveImageMedia(
 		image.mediaType,
 		image.data,
@@ -182,10 +193,36 @@ function toImageDataPart(
 	if (!validation.ok) {
 		return imageOmittedTextPart();
 	}
+	return toolResultImagePart(validation.base64, validation.mediaType);
+}
+
+function toolResultImagePart(
+	base64: string,
+	mediaType: string,
+): ToolResultImagePart {
 	return {
-		type: "image-data",
-		data: validation.base64,
-		mediaType: validation.mediaType,
+		type: "file",
+		data: { type: "data", data: base64 },
+		mediaType,
+	};
+}
+
+/**
+ * Build a user-message media part. AI SDK 7 deprecated the `image` message
+ * part in favour of a `file` part carrying an image `mediaType`, so this
+ * always emits `file`. `mediaType` is required on `file` parts; when the
+ * source did not carry one we fall back to the bare `image` top-level type,
+ * which AI SDK 7 resolves per-provider (auto-detecting the subtype from
+ * inline bytes where it can).
+ */
+function userMediaPart(
+	data: string | Uint8Array | ArrayBuffer | URL,
+	mediaType: string | undefined,
+): AiSdkMessagePart {
+	return {
+		type: "file",
+		data,
+		mediaType: mediaType ?? "image",
 	};
 }
 
@@ -207,11 +244,10 @@ function toUserImagePart(
 			if (!validation.ok) {
 				return imageOmittedTextPart();
 			}
-			return {
-				type: "image",
-				image: `data:${validation.mediaType};base64,${validation.base64}`,
-				mediaType: validation.mediaType,
-			};
+			return userMediaPart(
+				`data:${validation.mediaType};base64,${validation.base64}`,
+				validation.mediaType,
+			);
 		}
 		if (image.image.protocol !== "http:" && image.image.protocol !== "https:") {
 			return imageOmittedTextPart();
@@ -219,11 +255,7 @@ function toUserImagePart(
 		if (!reserveRemoteImageUrlBudget(state)) {
 			return imageOmittedTextPart();
 		}
-		return {
-			type: "image",
-			image: image.image,
-			mediaType: image.mediaType,
-		};
+		return userMediaPart(image.image, image.mediaType);
 	}
 
 	if (typeof image.image === "string") {
@@ -232,11 +264,7 @@ function toUserImagePart(
 			if (!reserveRemoteImageUrlBudget(state)) {
 				return imageOmittedTextPart();
 			}
-			return {
-				type: "image",
-				image: image.image,
-				mediaType: image.mediaType,
-			};
+			return userMediaPart(image.image, image.mediaType);
 		}
 		const isDataUrl = protocol === "data:";
 
@@ -252,13 +280,12 @@ function toUserImagePart(
 		if (!validation.ok) {
 			return imageOmittedTextPart();
 		}
-		return {
-			type: "image",
-			image: isDataUrl
+		return userMediaPart(
+			isDataUrl
 				? `data:${validation.mediaType};base64,${validation.base64}`
 				: validation.base64,
-			mediaType: validation.mediaType,
-		};
+			validation.mediaType,
+		);
 	}
 
 	const decodedBytes = image.image.byteLength;
@@ -280,11 +307,7 @@ function toUserImagePart(
 		return imageOmittedTextPart();
 	}
 
-	return {
-		type: "image",
-		image: image.image,
-		mediaType,
-	};
+	return userMediaPart(image.image, mediaType);
 }
 
 /**
@@ -330,11 +353,11 @@ function stripImagesFromOutput(
 						data: obj.data,
 						mediaType: obj.mediaType,
 					} satisfies AiSdkImageContentBlock;
-					const part = toImageDataPart(image, state);
-					if (part.type === "image-data") {
+					const part = toToolResultImagePart(image, state);
+					if (part.type === "file") {
 						images.push({
 							type: "image",
-							data: part.data,
+							data: part.data.data,
 							mediaType: part.mediaType,
 						});
 					} else {
@@ -379,11 +402,11 @@ function stripImagesFromOutput(
 				data: obj.data,
 				mediaType: obj.mediaType,
 			} satisfies AiSdkImageContentBlock;
-			const part = toImageDataPart(image, state);
-			if (part.type === "image-data") {
+			const part = toToolResultImagePart(image, state);
+			if (part.type === "file") {
 				images.push({
 					type: "image",
-					data: part.data,
+					data: part.data.data,
 					mediaType: part.mediaType,
 				});
 				return {
@@ -455,7 +478,7 @@ export function toAiSdkToolResultOutput(
 			type: "content",
 			value: output.map((block) =>
 				block.type === "image"
-					? toImageDataPart(block, mediaState)
+					? toToolResultImagePart(block, mediaState)
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
 		};
@@ -486,11 +509,9 @@ export function toAiSdkToolResultOutput(
 				type: "content",
 				value: [
 					{ type: "text", text: headerText },
-					...images.map((image) => ({
-						type: "image-data",
-						data: image.data,
-						mediaType: image.mediaType,
-					})),
+					...images.map((image) =>
+						toolResultImagePart(image.data, image.mediaType),
+					),
 				],
 			};
 		}

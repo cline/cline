@@ -1051,8 +1051,8 @@ describe("sdk-gateway", () => {
 								text: "whats in the pic",
 							}),
 							expect.objectContaining({
-								type: "image",
-								image: "data:image/png;base64,aGVsbG8=",
+								type: "file",
+								data: "data:image/png;base64,aGVsbG8=",
 								mediaType: "image/png",
 							}),
 						]),

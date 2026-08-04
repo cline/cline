@@ -207,7 +207,7 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
-	it("forwards image content blocks as AI SDK content/image-data parts", () => {
+	it("forwards image content blocks as AI SDK content file parts", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
 				role: "user",
@@ -242,8 +242,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -258,7 +258,7 @@ describe("formatMessagesForAiSdk", () => {
 		// `read_files` returns its output as a `ToolOperationResult[]` whose
 		// `result` is a content-block array `[{type:'text'}, {type:'image'}]`.
 		// `formatMessagesForAiSdk` (via `toAiSdkToolResultOutput`) must walk
-		// the tree, hoist any nested image blocks out as native `image-data`
+		// the tree, hoist any nested image blocks out as native `file`
 		// content parts, and forward the remaining metadata as a JSON-encoded
 		// text block so the model receives multimodal input rather than a
 		// JSON-stringified base64 blob.
@@ -333,8 +333,8 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -371,8 +371,8 @@ describe("formatMessagesForAiSdk", () => {
 					}),
 				},
 				{
-					type: "image-data",
-					data: "QkFTRTY0REFUQQ==",
+					type: "file",
+					data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 					mediaType: "image/jpeg",
 				},
 			],
@@ -383,7 +383,7 @@ describe("formatMessagesForAiSdk", () => {
 		// Regression: a `read_files` call with multiple image paths returns
 		// a single `ToolOperationResult[]` whose entries each carry one
 		// `{type:'image', data, mediaType}` block. All of them must end up
-		// as native `image-data` content parts attached to the tool-result.
+		// as native `file` content parts attached to the tool-result.
 		// Previously only the first was preserved (or all were lost on the
 		// SDK-direct path), causing the model to "see" the wrong image set.
 		const messages = formatMessagesForAiSdk(undefined, [
@@ -438,7 +438,7 @@ describe("formatMessagesForAiSdk", () => {
 			},
 		]);
 
-		// Both images must end up as image-data content parts on the
+		// Both images must end up as file content parts on the
 		// tool-result output, and no orphaned image messages may remain.
 		expect(messages).toEqual([
 			{
@@ -480,13 +480,13 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "SlBFR0RBVEE=",
+									type: "file",
+									data: { type: "data", data: "SlBFR0RBVEE=" },
 									mediaType: "image/jpeg",
 								},
 								{
-									type: "image-data",
-									data: "UE5HREFUQQ==",
+									type: "file",
+									data: { type: "data", data: "UE5HREFUQQ==" },
 									mediaType: "image/png",
 								},
 							],
@@ -583,8 +583,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -765,7 +765,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -782,7 +782,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -848,8 +848,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -871,8 +871,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -979,7 +979,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).toContain(
 			"[media omitted: invalid or exceeds size limit]",
 		);
-		expect(serialized).not.toContain('"type":"image-data"');
+		expect(serialized).not.toContain('"type":"file"');
 		expect(serialized).not.toContain("PHN2Zz4=");
 		expect(serialized).not.toContain(oversizedImage);
 	});
