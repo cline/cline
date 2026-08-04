@@ -28,10 +28,11 @@ import {
 	type ClineCore,
 	Llms,
 	ProviderSettingsManager,
+	resolveProviderApiKeyFromSettings,
 	SessionSource,
 } from "@cline/core";
 import { isLikelyAuthError, type Message } from "@cline/shared";
-import { getPersistedProviderApiKey } from "../commands/auth";
+import { getPersistedProviderApiKey, isOAuthProvider } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
@@ -56,6 +57,15 @@ import {
 	usesClineAccount,
 } from "./organizations";
 import { requestAcpToolApproval } from "./permissions";
+import {
+	type AcpProviderChoice,
+	type AcpProviderState,
+	buildProviderConfigOption,
+	PROVIDER_CONFIG_ID,
+	requiresAcpProviderAuth,
+	resolveAcpProviderApiKey,
+	selectableAcpProviders,
+} from "./providers";
 import { replaySessionHistory } from "./session-load";
 import {
 	describeAgentError,
@@ -214,7 +224,7 @@ export class AcpAgent implements Agent {
 				currentModelId: defaultModelId,
 			},
 			configOptions: [
-				await buildProviderConfigOption(providerId),
+				await this.providerConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
 				...(organizationOption ? [organizationOption] : []),
@@ -292,7 +302,7 @@ export class AcpAgent implements Agent {
 				availableModels,
 				currentModelId: session.currentModelId,
 			},
-			configOptions: await buildAllConfigOptions(session),
+			configOptions: await this.buildAllConfigOptions(session),
 		};
 	}
 
@@ -434,17 +444,38 @@ export class AcpAgent implements Agent {
 		const value = params.value as string;
 
 		switch (params.configId) {
-			case "provider": {
+			case PROVIDER_CONFIG_ID: {
 				if (process.env.CLINE_PROVIDER) {
 					throw RequestError.invalidParams(
 						undefined,
 						"Cannot change provider: CLINE_PROVIDER environment variable is set",
 					);
 				}
-				if (!isAcpAuthMethodId(value)) {
+				const choices = await this.resolveProviderChoices();
+				if (
+					!selectableAcpProviders(choices).some((choice) => choice.id === value)
+				) {
 					throw RequestError.invalidParams(
 						undefined,
 						`Unknown provider: ${value}`,
+					);
+				}
+				if (
+					requiresAcpProviderAuth({
+						isOAuthProvider: isOAuthProvider(value),
+						isConfigured: choices.configured.some(
+							(choice) => choice.id === value,
+						),
+						envApiKey: process.env.CLINE_API_KEY,
+						persistedApiKey: resolveProviderApiKeyFromSettings(
+							this.providerSettingsManager,
+							value,
+						),
+					})
+				) {
+					throw RequestError.authRequired(
+						undefined,
+						`Not signed in to provider: ${value}`,
 					);
 				}
 
@@ -458,12 +489,18 @@ export class AcpAgent implements Agent {
 				// current one when it's offered there too, otherwise fall back to the
 				// provider's declared default rather than whichever model happens to
 				// be listed first (for cline-pass that is an unrelated free model).
+				// Providers that discover their models at runtime (ollama, lmstudio)
+				// ship an empty catalog, so fall back to the stored model before
+				// leaving the session without one.
 				const providerModels = await Llms.getModelsForProvider(value);
-				session.currentModelId = await resolveDefaultModelId(
-					value,
-					session.currentModelId,
-					providerModels,
-				);
+				session.currentModelId =
+					(await resolveDefaultModelId(
+						value,
+						session.currentModelId,
+						providerModels,
+					)) ||
+					this.providerSettingsManager.getProviderSettings(value)?.model ||
+					"";
 				break;
 			}
 
@@ -518,7 +555,7 @@ export class AcpAgent implements Agent {
 				);
 		}
 
-		const configOptions = await buildAllConfigOptions(session);
+		const configOptions = await this.buildAllConfigOptions(session);
 		const organizationOption = await this.getOrganizationConfigOption(
 			session.currentProviderId,
 		);
@@ -567,6 +604,42 @@ export class AcpAgent implements Agent {
 
 	private get accountApiKey(): string {
 		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+	}
+
+	private async resolveProviderChoices(): Promise<
+		Pick<AcpProviderState, "authMethods" | "configured">
+	> {
+		const configuredIds = Object.keys(
+			this.providerSettingsManager.read().providers,
+		);
+		const [authMethods, configured] = await Promise.all([
+			Promise.all(ACP_AUTH_METHODS.map((m) => toAcpProviderChoice(m.id))),
+			Promise.all(configuredIds.map(toAcpProviderChoice)),
+		]);
+		return { authMethods, configured };
+	}
+
+	private async providerConfigOption(
+		currentProviderId: string,
+	): Promise<SessionConfigOption> {
+		return buildProviderConfigOption({
+			...(await this.resolveProviderChoices()),
+			currentProviderId,
+		});
+	}
+
+	private async buildAllConfigOptions(
+		session: SessionState,
+	): Promise<SessionConfigOption[]> {
+		const [providerOption, providerModels] = await Promise.all([
+			this.providerConfigOption(session.currentProviderId),
+			Llms.getModelsForProvider(session.currentProviderId),
+		]);
+		return [
+			providerOption,
+			buildModelConfigOption(session.currentModelId, providerModels),
+			buildModeConfigOption(session.currentMode),
+		];
 	}
 
 	private async getOrganizationConfigOption(
@@ -720,7 +793,16 @@ export class AcpAgent implements Agent {
 		const workspaceRoot = resolveWorkspaceRoot(cwd);
 		// Resolve credentials: env vars take precedence, then session provider.
 		const providerId = process.env.CLINE_PROVIDER ?? session.currentProviderId;
-		const apiKey = process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+		const apiKey = resolveAcpProviderApiKey({
+			providerId,
+			envApiKey: process.env.CLINE_API_KEY,
+			persistedApiKey: resolveProviderApiKeyFromSettings(
+				this.providerSettingsManager,
+				providerId,
+			),
+			authProviderId: this.authResult?.providerId,
+			authApiKey: this.authResult?.apiKey,
+		});
 		const systemPrompt = await resolveSystemPrompt({
 			cwd,
 			providerId,
@@ -808,27 +890,9 @@ function toAcpPromptError(error: Error): RequestError {
 		: RequestError.internalError({ message }, message);
 }
 
-async function buildProviderConfigOption(
-	currentProviderId: string,
-): Promise<SessionConfigOption> {
-	const options = await Promise.all(
-		ACP_AUTH_METHODS.map(async (m) => {
-			const provider = await Llms.getProvider(m.id);
-			return {
-				value: m.id,
-				name: provider?.name ?? m.id,
-			};
-		}),
-	);
-	return {
-		type: "select",
-		id: "provider",
-		name: "Provider",
-		description: "The authentication provider to use",
-		category: "model",
-		currentValue: currentProviderId,
-		options,
-	};
+async function toAcpProviderChoice(id: string): Promise<AcpProviderChoice> {
+	const provider = await Llms.getProvider(id);
+	return { id, name: provider?.name ?? id };
 }
 
 function buildModelConfigOption(
@@ -871,20 +935,6 @@ function buildModeConfigOption(currentMode: string): SessionConfigOption {
 			},
 		],
 	};
-}
-
-async function buildAllConfigOptions(
-	session: SessionState,
-): Promise<SessionConfigOption[]> {
-	const [providerOption, providerModels] = await Promise.all([
-		buildProviderConfigOption(session.currentProviderId),
-		Llms.getModelsForProvider(session.currentProviderId),
-	]);
-	return [
-		providerOption,
-		buildModelConfigOption(session.currentModelId, providerModels),
-		buildModeConfigOption(session.currentMode),
-	];
 }
 
 function extractTextFromContentBlocks(blocks: ContentBlock[]): string {
