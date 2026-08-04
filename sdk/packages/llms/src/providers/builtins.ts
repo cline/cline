@@ -1077,14 +1077,6 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "minimax",
-		name: "MiniMax",
-		description: "MiniMax models via Anthropic-compatible API",
-		family: "anthropic",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
-		defaultModelId: "MiniMax-M2.5",
-		apiKeyEnv: ["MINIMAX_API_KEY"],
-		modelsProviderId: "minimax",
-		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
 		apiLineBaseUrls: {
 			china: "https://api.minimaxi.com/anthropic/v1",
 			international: "https://api.minimax.io/anthropic/v1",

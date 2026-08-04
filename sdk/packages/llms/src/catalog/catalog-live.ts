@@ -183,6 +183,9 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	if (model.modalities?.input?.includes("image")) {
 		capabilities.push("images");
 	}
+	if (model.modalities?.input?.includes("video")) {
+		capabilities.push("video");
+	}
 	if (model.modalities?.input?.includes("pdf")) {
 		capabilities.push("files");
 	}

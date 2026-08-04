@@ -11,6 +11,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	type CheckpointEntry,
+	createCheckpointHooks,
+} from "../hooks/checkpoint-hooks";
+import {
 	applyCheckpointToWorktree,
 	beginWorktreeRestoreTransaction,
 	createCheckpointRestorePlan,
@@ -24,6 +28,57 @@ function git(cwd: string, args: string[]): string {
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
 	}).trim();
+}
+
+/**
+ * Creates a checkpoint of the CURRENT worktree through the real creation hook,
+ * so the snapshot captures untracked files as a third parent exactly like
+ * production. Returns the recorded checkpoint entry.
+ */
+async function snapshotCurrentWorktree(
+	cwd: string,
+	sessionId = "snap",
+): Promise<CheckpointEntry> {
+	let metadata: Record<string, unknown> | undefined;
+	const hooks = createCheckpointHooks({
+		cwd,
+		sessionId,
+		readSessionMetadata: async () => metadata,
+		writeSessionMetadata: async (next) => {
+			metadata = next;
+		},
+	});
+	const userMessage = {
+		id: "user-make-a-change",
+		role: "user" as const,
+		content: [{ type: "text" as const, text: "make a change" }],
+		createdAt: 1,
+	};
+	const snapshot = {
+		agentId: "agent_1",
+		parentAgentId: undefined,
+		conversationId: "conv_1",
+		runId: "run_1",
+		status: "running" as const,
+		iteration: 1,
+		messages: [userMessage],
+		pendingToolCalls: [],
+		usage: {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		},
+	};
+	await hooks.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
+	await hooks.beforeModel?.({ snapshot, request: { messages: [], tools: [] } });
+	const checkpoint = (
+		metadata?.checkpoint as { latest?: CheckpointEntry } | undefined
+	)?.latest;
+	if (!checkpoint) {
+		throw new Error("failed to record a checkpoint for the current worktree");
+	}
+	return checkpoint;
 }
 
 function createRepo(cwd: string): void {
@@ -80,7 +135,7 @@ describe("applyCheckpointToWorktree", () => {
 		writeFileSync(join(dir, "tracked.txt"), "discarded later state\n", "utf8");
 		git(dir, ["add", "tracked.txt"]);
 		git(dir, ["commit", "-m", "discarded later commit"]);
-		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+		writeFileSync(join(dir, "later-untracked.txt"), "keep me\n", "utf8");
 
 		await applyCheckpointToWorktree(dir, {
 			ref: checkpointRef,
@@ -92,8 +147,60 @@ describe("applyCheckpointToWorktree", () => {
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
 			"checkpoint state\n",
 		);
-		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		// Legacy 2-parent stash (no untracked third parent): untracked files
+		// cannot be reconstructed, so they are left untouched rather than
+		// destroyed.
+		expect(readFileSync(join(dir, "later-untracked.txt"), "utf8")).toBe(
+			"keep me\n",
+		);
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
+	it("fully rewinds a snapshot checkpoint: untracked reverted, created-after removed, no apply conflict", async () => {
+		// State captured by the checkpoint: a tracked edit plus an untracked
+		// file at "v2".
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint\n", "utf8");
+		writeFileSync(join(dir, "untracked.md"), "v2\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir);
+		// The snapshot must carry the untracked third parent.
+		expect(git(dir, ["cat-file", "-t", `${checkpoint.ref}^3`])).toBe("commit");
+
+		// Work done after the checkpoint: mutate tracked, mutate the untracked
+		// file to different content (this is the "already exists" apply-conflict
+		// case), and create a brand-new file.
+		writeFileSync(join(dir, "tracked.txt"), "later\n", "utf8");
+		writeFileSync(join(dir, "untracked.md"), "v3\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "made later\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("checkpoint\n");
+		// Untracked file modified after the checkpoint is reverted to its
+		// checkpoint-time content (from the ^3 parent), not left at "v3".
+		expect(readFileSync(join(dir, "untracked.md"), "utf8")).toBe("v2\n");
+		// A file created after the checkpoint is rewound away.
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+	});
+
+	it("keeps .gitignored files when rewinding a snapshot checkpoint", async () => {
+		writeFileSync(join(dir, ".gitignore"), "ignored.log\n", "utf8");
+		git(dir, ["add", ".gitignore"]);
+		git(dir, ["commit", "-m", "add gitignore"]);
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint\n", "utf8");
+		writeFileSync(join(dir, "kept.txt"), "keep\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir);
+
+		writeFileSync(join(dir, "tracked.txt"), "later\n", "utf8");
+		writeFileSync(join(dir, "ignored.log"), "build output\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("checkpoint\n");
+		expect(readFileSync(join(dir, "kept.txt"), "utf8")).toBe("keep\n");
+		// git clean -fd (no -x) never touches ignored paths.
+		expect(readFileSync(join(dir, "ignored.log"), "utf8")).toBe(
+			"build output\n",
+		);
 	});
 
 	it("infers a kindless stash checkpoint without treating it as a commit", async () => {
@@ -126,7 +233,7 @@ describe("applyCheckpointToWorktree", () => {
 		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
 		git(dir, ["add", "tracked.txt"]);
 		git(dir, ["commit", "-m", "discarded commit"]);
-		writeFileSync(join(dir, "later-untracked.txt"), "discard me\n", "utf8");
+		writeFileSync(join(dir, "later-untracked.txt"), "keep me\n", "utf8");
 
 		await applyCheckpointToWorktree(dir, {
 			ref: checkpointRef,
@@ -135,7 +242,10 @@ describe("applyCheckpointToWorktree", () => {
 		});
 
 		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("base\n");
-		expect(existsSync(join(dir, "later-untracked.txt"))).toBe(false);
+		// HEAD-commit fallback (no untracked third parent): untracked left alone.
+		expect(readFileSync(join(dir, "later-untracked.txt"), "utf8")).toBe(
+			"keep me\n",
+		);
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointRef);
 	});
 

@@ -1,0 +1,43 @@
+.cline-ui-agent-ask-question {
+	/* Defaults match the desktop palette (blue-500/blue-400); hosts may override. */
+	--cline-ui-agent-ask-question-accent: oklch(62.3% 0.214 259.815);
+	--cline-ui-agent-ask-question-accent-border: oklch(70.7% 0.165 254.624);
+}
+
+.cline-ui-agent-ask-question,
+.cline-ui-agent-ask-question__item,
+.cline-ui-agent-ask-question__option {
+	box-sizing: border-box;
+	border-style: solid;
+}
+
+.cline-ui-agent-ask-question__option {
+	font-family: inherit;
+	font-size: inherit;
+	font-style: inherit;
+	font-variant: inherit;
+	letter-spacing: inherit;
+	line-height: inherit;
+}
+
+.cline-ui-agent-ask-question__spinner {
+	animation: cline-ui-agent-ask-question-spin 1s linear infinite;
+}
+
+.cline-ui-agent-ask-question__option:has(
+		> .cline-ui-agent-ask-question__spinner
+	) {
+	padding-inline: 0.625rem;
+}
+
+@keyframes cline-ui-agent-ask-question-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-agent-ask-question__spinner {
+		animation: none;
+	}
+}

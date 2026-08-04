@@ -1,4 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger } from "@cline/shared";
 import { countUserRunMessages } from "../session/user-run-messages";
@@ -92,6 +95,157 @@ async function runGit(
 	};
 }
 
+async function runGitWithIndex(
+	cwd: string,
+	indexFile: string,
+	args: string[],
+): Promise<string> {
+	const result = await execFile("git", ["-C", cwd, ...args], {
+		windowsHide: true,
+		env: { ...process.env, GIT_INDEX_FILE: indexFile },
+	});
+	return result.stdout.trim();
+}
+
+/**
+ * Builds a commit whose tree contains only the current untracked (but not
+ * git-ignored) files, without touching the working tree or the real index.
+ * This mirrors the third parent that `git stash create --include-untracked`
+ * records, which the plain `git stash create` used elsewhere omits. Returns
+ * `undefined` when there are no untracked files to capture.
+ */
+async function createUntrackedParentCommit(
+	cwd: string,
+): Promise<string | undefined> {
+	const listing = await execFile(
+		"git",
+		["-C", cwd, "ls-files", "--others", "--exclude-standard", "-z"],
+		{ windowsHide: true, maxBuffer: 1024 * 1024 * 64 },
+	);
+	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
+	if (untrackedFiles.length === 0) {
+		return undefined;
+	}
+	const tempDir = await mkdtemp(join(tmpdir(), "cline-checkpoint-"));
+	const indexFile = join(tempDir, "index");
+	const pathspecFile = join(tempDir, "pathspec");
+	try {
+		// Feed paths via a NUL-delimited pathspec file so large untracked sets
+		// cannot overflow the command-line argument limit.
+		await writeFile(pathspecFile, `${untrackedFiles.join("\0")}\0`);
+		await runGitWithIndex(cwd, indexFile, [
+			"add",
+			"--force",
+			"--pathspec-from-file",
+			pathspecFile,
+			"--pathspec-file-nul",
+		]);
+		const tree = await runGitWithIndex(cwd, indexFile, ["write-tree"]);
+		if (!tree) {
+			return undefined;
+		}
+		const commit = await runGitWithIndex(cwd, indexFile, [
+			"commit-tree",
+			tree,
+			"-m",
+			"untracked files on cline checkpoint",
+		]);
+		return commit || undefined;
+	} finally {
+		await rm(tempDir, { recursive: true, force: true });
+	}
+}
+
+/**
+ * Creates a stash-compatible snapshot commit of the working tree that, unlike
+ * `git stash create`, also captures untracked files as a third parent. The
+ * checkpoint restore path rewinds untracked files for snapshots that carry
+ * this third parent, so any file the agent created (or an untracked file it
+ * changed) can be brought back to its checkpoint-time state. Returns
+ * `undefined` when there is nothing to snapshot (clean working tree with no
+ * untracked files), letting the caller fall back to a HEAD commit checkpoint.
+ */
+async function createWorktreeStashCommit(
+	cwd: string,
+	message: string,
+): Promise<string | undefined> {
+	const stashRef = (await runGit(cwd, ["stash", "create", message])).stdout;
+	const untrackedParent = await createUntrackedParentCommit(cwd);
+
+	if (stashRef) {
+		if (!untrackedParent) {
+			// Tracked changes only — the plain stash already captures them.
+			return stashRef;
+		}
+		const tree = (await runGit(cwd, ["rev-parse", `${stashRef}^{tree}`]))
+			.stdout;
+		const base = (await runGit(cwd, ["rev-parse", `${stashRef}^1`])).stdout;
+		const indexParent = (await runGit(cwd, ["rev-parse", `${stashRef}^2`]))
+			.stdout;
+		if (!tree || !base || !indexParent) {
+			return stashRef;
+		}
+		return (
+			(
+				await runGit(cwd, [
+					"commit-tree",
+					tree,
+					"-p",
+					base,
+					"-p",
+					indexParent,
+					"-p",
+					untrackedParent,
+					"-m",
+					message,
+				])
+			).stdout || stashRef
+		);
+	}
+
+	// Tracked worktree is clean. Only synthesize a stash when there are
+	// untracked files to preserve; otherwise the caller uses a HEAD checkpoint.
+	if (!untrackedParent) {
+		return undefined;
+	}
+	const head = (await runGit(cwd, ["rev-parse", "HEAD"])).stdout;
+	const headTree = (await runGit(cwd, ["rev-parse", "HEAD^{tree}"])).stdout;
+	if (!head || !headTree) {
+		return undefined;
+	}
+	// The index parent mirrors the (unchanged) HEAD tree so the synthesized
+	// commit has the two/three-parent shape `git stash apply` expects.
+	const indexParent = (
+		await runGit(cwd, [
+			"commit-tree",
+			headTree,
+			"-p",
+			head,
+			"-m",
+			"index on cline checkpoint",
+		])
+	).stdout;
+	if (!indexParent) {
+		return undefined;
+	}
+	return (
+		(
+			await runGit(cwd, [
+				"commit-tree",
+				headTree,
+				"-p",
+				head,
+				"-p",
+				indexParent,
+				"-p",
+				untrackedParent,
+				"-m",
+				message,
+			])
+		).stdout || undefined
+	);
+}
+
 /**
  * Deletes all private git refs under refs/cline/checkpoints/{sessionId}/ that
  * were created by the checkpoint system to keep stash objects reachable.
@@ -155,6 +309,15 @@ export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
 	let repoSupported: boolean | undefined;
+	// Number of messages present when the current run started, captured in
+	// beforeRun. For hosts that append the run's prompt *after* beforeRun (e.g.
+	// `AgentRuntime.run(input)`), the delta since this index holds the new user
+	// message and is a reliable "new user turn" signal. It is only a hint, not
+	// the sole gate: hosts that seed the prompt *before* the run (SessionRuntime
+	// calls `run("")` with the prompt already in initialMessages) leave the
+	// delta empty, and a fresh hook instance after a process restart resets it
+	// to undefined — so the durable persisted checkpoint history is what
+	// actually prevents duplicate/overwriting checkpoints.
 	let rootRunMessageStart: number | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
@@ -215,8 +378,7 @@ export function createCheckpointHooks(
 		const message = `${CHECKPOINT_STASH_MESSAGE_PREFIX}${options.sessionId} run=${runCount}`;
 		let ref = "";
 		try {
-			const result = await runGit(options.cwd, ["stash", "create", message]);
-			ref = result.stdout.trim();
+			ref = (await createWorktreeStashCommit(options.cwd, message)) ?? "";
 		} catch (error) {
 			warn(
 				options.logger,
@@ -264,23 +426,40 @@ export function createCheckpointHooks(
 			if (snapshot.parentAgentId != null || snapshot.iteration !== 1) {
 				return undefined;
 			}
+			// Messages the runtime appended after beforeRun. When the host passes
+			// the prompt as run input this delta contains the new user turn; when
+			// the host seeds it beforehand (or the hook is a fresh instance after
+			// a restart) the delta is empty, so it is only a positive hint.
 			const currentRunMessages = snapshot.messages.slice(
 				rootRunMessageStart ?? Math.max(0, snapshot.messages.length - 1),
 			);
 			rootRunMessageStart = undefined;
-			if (countUserRunMessages(currentRunMessages) < 1) {
-				return undefined;
-			}
+			// Span-aware count so numbering survives compaction (which folds
+			// several user turns into one summary message carrying userRunSpan).
 			const runCount = countUserRunMessages(snapshot.messages);
 			if (runCount < 1) {
+				return undefined;
+			}
+			const metadata = await options.readSessionMetadata();
+			const existing = readCheckpointMetadata(metadata);
+			// A run warrants a checkpoint when it introduces a new user turn.
+			// `introducedUserRun` catches the run-input path (and refreshes the
+			// entry on edit-and-regenerate); `alreadyCheckpointed`, read from the
+			// durable session history, catches the seeded-prompt path and, unlike
+			// any in-memory counter, still holds after a process restart. Skip
+			// only when neither applies: a continuation/resumption re-running a
+			// run that was already checkpointed (which must NOT overwrite the
+			// pre-run snapshot with the now-mutated workspace).
+			const introducedUserRun = countUserRunMessages(currentRunMessages) >= 1;
+			const alreadyCheckpointed =
+				existing?.history.some((entry) => entry.runCount === runCount) ?? false;
+			if (!introducedUserRun && alreadyCheckpointed) {
 				return undefined;
 			}
 			const entry = await createCheckpoint(runCount);
 			if (!entry) {
 				return undefined;
 			}
-			const metadata = await options.readSessionMetadata();
-			const existing = readCheckpointMetadata(metadata);
 			if (existing?.latest.ref === entry.ref) {
 				return undefined;
 			}

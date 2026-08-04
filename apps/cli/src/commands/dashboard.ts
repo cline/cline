@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import open from "open";
 import { configureSandboxEnvironment } from "../utils/helpers";
+import open from "../utils/open";
 import { c } from "../utils/output";
 
 export interface DashboardServerHandle {
