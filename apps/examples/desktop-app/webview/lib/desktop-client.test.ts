@@ -123,6 +123,41 @@ describe("DesktopClient command deadlines", () => {
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 	});
 
+	it("allows the global handler to retry when local error delivery fails", async () => {
+		fetchMock
+			.mockRejectedValueOnce(new Error("sidecar unavailable"))
+			.mockResolvedValueOnce(new Response(null, { status: 202 }));
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("native command failed");
+
+		desktopClient.reportError({
+			operation: "webview.native_command",
+			error,
+			command: "get_update_status",
+		});
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.unhandled_rejection",
+			handled: false,
+		});
+
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+		await Promise.resolve();
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("keeps an explicitly unbounded command pending past the default deadline", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		let settled = false;

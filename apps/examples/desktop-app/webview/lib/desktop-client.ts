@@ -143,6 +143,7 @@ class DesktopClient {
 	private endpoint: string | null = null;
 	private recentErrorReports = new Map<string, number>();
 	private reportedErrorObjects = new WeakSet<object>();
+	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
 
 	reportError(report: DesktopErrorReport): void {
 		const error = report.error;
@@ -150,44 +151,69 @@ class DesktopClient {
 			if (this.reportedErrorObjects.has(error)) {
 				return;
 			}
-			this.reportedErrorObjects.add(error);
+			const pendingDelivery = this.errorObjectDeliveries.get(error);
+			if (pendingDelivery) {
+				void pendingDelivery.then((delivered) => {
+					if (!delivered) this.reportError(report);
+				});
+				return;
+			}
 		}
+
+		const delivery = this.deliverErrorReport(report);
+		if (typeof error === "object" && error !== null) {
+			this.errorObjectDeliveries.set(error, delivery);
+			void delivery.then((delivered) => {
+				if (delivered) this.reportedErrorObjects.add(error);
+				if (this.errorObjectDeliveries.get(error) === delivery) {
+					this.errorObjectDeliveries.delete(error);
+				}
+			});
+		}
+	}
+
+	private async deliverErrorReport(
+		report: DesktopErrorReport,
+	): Promise<boolean> {
+		const error = report.error;
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		const errorType = error instanceof Error ? error.name : "Error";
 		const dedupeKey = `${report.operation}:${report.command ?? ""}:${errorType}:${errorMessage}`;
 		const now = Date.now();
 		if ((this.recentErrorReports.get(dedupeKey) ?? 0) > now - 10_000) {
-			return;
+			return true;
 		}
-		this.recentErrorReports.set(dedupeKey, now);
 		for (const [key, timestamp] of this.recentErrorReports) {
 			if (timestamp <= now - 10_000) this.recentErrorReports.delete(key);
 		}
 
-		void this.getBackendEndpoint()
-			.then((endpoint) => {
-				const url = new URL(endpoint);
-				url.protocol = url.protocol === "wss:" ? "https:" : "http:";
-				url.pathname = "/telemetry/error";
-				url.search = "";
-				url.hash = "";
-				return fetch(url, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						operation: report.operation,
-						errorMessage,
-						errorType,
-						handled: report.handled ?? true,
-						command: report.command,
-						timeoutMs: report.timeoutMs,
-						transportState: this.transportState,
-					}),
-				});
-			})
-			.catch(() => {
-				// Error reporting must never affect the desktop UI error path.
+		try {
+			const endpoint = await this.getBackendEndpoint();
+			const url = new URL(endpoint);
+			url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+			url.pathname = "/telemetry/error";
+			url.search = "";
+			url.hash = "";
+			const response = await fetch(url, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					operation: report.operation,
+					errorMessage,
+					errorType,
+					handled: report.handled ?? true,
+					command: report.command,
+					timeoutMs: report.timeoutMs,
+					transportState: this.transportState,
+				}),
 			});
+			if (!response.ok) return false;
+			this.recentErrorReports.set(dedupeKey, Date.now());
+			return true;
+		} catch {
+			// Error reporting must never affect the desktop UI error path.
+			return false;
+		}
 	}
 
 	private setTransportState(next: DesktopTransportState) {
