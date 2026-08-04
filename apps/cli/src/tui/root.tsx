@@ -138,14 +138,22 @@ function App(props: TuiProps) {
 		skillCommands,
 	});
 
+	const repoStatusInFlightRef = useRef(false);
 	const refreshRepoStatus = useCallback(() => {
+		// Skip if the previous read is still running (slow git on huge repos)
+		// so poll ticks never stack subprocesses or apply stale results.
+		if (repoStatusInFlightRef.current) return;
+		repoStatusInFlightRef.current = true;
 		readRepoStatus(props.config.cwd)
 			.then((next) =>
 				// Keep the previous object when nothing changed so poll ticks
 				// don't re-render the app.
 				setRepoStatus((prev) => (isSameRepoStatus(prev, next) ? prev : next)),
 			)
-			.catch(() => {});
+			.catch(() => {})
+			.finally(() => {
+				repoStatusInFlightRef.current = false;
+			});
 	}, [props.config.cwd]);
 
 	// Poll so branch switches made outside the CLI (another terminal, an
