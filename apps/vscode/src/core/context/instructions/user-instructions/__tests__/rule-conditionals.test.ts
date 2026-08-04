@@ -1,3 +1,4 @@
+import { describe, it } from "bun:test"
 import { expect } from "chai"
 import { evaluateRuleConditionals, extractPathLikeStrings } from "../rule-conditionals"
 

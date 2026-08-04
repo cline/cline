@@ -19,6 +19,7 @@ import {
 	inferProviderOptionsTarget,
 	type ProviderOptionMatchInput,
 } from "./provider-options-types";
+import { normalizeReasoningRequest } from "./reasoning-options";
 import { type ProviderOptionsPatch, toProviderOptionsKey } from "./utils";
 
 export type { AiSdkProviderOptionsTarget } from "./provider-options-types";
@@ -76,17 +77,18 @@ export function composeAiSdkProviderOptions(
 		request.providerId,
 	),
 ): Record<string, unknown> {
-	const providerOptionsKey = toProviderOptionsKey(request.providerId);
+	const normalizedRequest = normalizeReasoningRequest(request, context);
+	const providerOptionsKey = toProviderOptionsKey(normalizedRequest.providerId);
 	const family = resolveModelFamily(context);
 	const isAnthropicCompatibleModelId = isAnthropicCompatibleModel({
-		modelId: request.modelId,
+		modelId: normalizedRequest.modelId,
 		family,
 	});
 	const anthropicReasoningPolicy = isAnthropicCompatibleModelId
-		? resolveAnthropicReasoningRequestPolicy(request, context)
+		? resolveAnthropicReasoningRequestPolicy(normalizedRequest, context)
 		: undefined;
 	const matchInput: ProviderOptionMatchInput = {
-		request,
+		request: normalizedRequest,
 		context,
 		providerOptionsKey,
 		target,
@@ -99,12 +101,15 @@ export function composeAiSdkProviderOptions(
 	);
 	const suppressions = resolveProviderOptionSuppressions(matchedRules);
 	const compatibleOptions = buildCompatibleProviderOptions({
-		request,
+		request: normalizedRequest,
 		context,
 		target,
 		suppressions,
 	});
-	const anthropicOptions = buildAnthropicProviderOptions(request, context);
+	const anthropicOptions = buildAnthropicProviderOptions(
+		normalizedRequest,
+		context,
+	);
 	const buildInput = {
 		...matchInput,
 		compatibleOptions,

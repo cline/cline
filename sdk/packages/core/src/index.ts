@@ -5,6 +5,26 @@
  */
 
 export * as Llms from "@cline/llms";
+export {
+	ClineFreeModelLimitError,
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
+	extractClinePassLimitMessage,
+	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
+} from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AddProviderActionRequest,
@@ -13,6 +33,7 @@ export type {
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
 	AgentExtensionCommand as AgentPluginCommand,
+	AgentExtensionCommandResult,
 	AgentHooks,
 	AgentMode,
 	AgentResult,
@@ -32,15 +53,20 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
+	IFeatureFlagsProvider,
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
-	OAuthProviderId,
 	ProviderActionRequest,
 	ProviderCatalogResponse,
 	ProviderListItem,
@@ -82,6 +108,8 @@ export {
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeSdkError,
@@ -89,6 +117,7 @@ export {
 	parseUserCommandEnvelope,
 	registerDisposable,
 	SDK_ERROR_TELEMETRY_EVENT,
+	stripUtf8Bom,
 } from "@cline/shared";
 export * from "@cline/shared/storage";
 export {
@@ -103,11 +132,13 @@ export {
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
+	type ClineSubscriptionPlan,
 	executeClineAccountAction,
 	type FeaturebaseTokenResponse,
 	isClineAccountActionRequest,
 	type ProviderActionExecutor,
 	RpcClineAccountService,
+	type UserCurrentPlan,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
 } from "./account";
@@ -117,7 +148,6 @@ export {
 } from "./auth/client";
 export {
 	completeClineDeviceAuth,
-	createClineOAuthProvider,
 	getValidClineCredentials,
 	loginClineOAuth,
 	refreshClineToken,
@@ -125,20 +155,30 @@ export {
 } from "./auth/cline";
 export {
 	getValidOpenAICodexCredentials,
-	isOpenAICodexTokenExpired,
 	loginOpenAICodex,
-	normalizeOpenAICodexCredentials,
-	openaiCodexOAuthProvider,
 	refreshOpenAICodexToken,
 } from "./auth/codex";
 export {
-	createOcaOAuthProvider,
-	createOcaRequestHeaders,
-	generateOcaOpcRequestId,
 	getValidOcaCredentials,
 	loginOcaOAuth,
 	refreshOcaToken,
 } from "./auth/oca";
+export {
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey,
+	getProviderAuthHandler,
+	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
+	isOAuthProvider,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderAuthHandler,
+	type ProviderAuthLoginInput,
+	type ProviderAuthRefreshInput,
+	type ProviderAuthSaveCredentialsInput,
+	type ProviderOAuthCredentials,
+	resolveProviderApiKeyFromSettings,
+	saveProviderOAuthCredentials,
+} from "./auth/provider-auth-registry";
 export type {
 	LocalOAuthServer,
 	LocalOAuthServerOptions,
@@ -176,6 +216,8 @@ export type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	HubOptions,
 	RemoteOptions,
 	RestoreInput,
@@ -197,6 +239,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	AvailableRuntimeCommand,
@@ -239,6 +282,7 @@ export {
 export {
 	type AuthorizeMcpServerOAuthOptions,
 	type AuthorizeMcpServerOAuthResult,
+	augmentMcpTimeoutError,
 	authorizeMcpServerOAuth,
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
@@ -265,6 +309,11 @@ export {
 	type McpServerSnapshot,
 	type McpServerTransportConfig,
 	type McpSettingsFile,
+	type McpSettingsLockOptions,
+	McpSettingsLockTimeoutError,
+	type McpSettingsMutator,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
 	type McpSseTransportConfig,
 	type McpStdioTransportConfig,
 	type McpStreamableHttpTransportConfig,
@@ -280,6 +329,9 @@ export {
 	type SetMcpServerDisabledOptions,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+	updateMcpSettingsFile,
+	updateMcpSettingsFileSync,
 } from "./extensions/mcp";
 export {
 	type AgentTask,
@@ -289,10 +341,19 @@ export {
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
 	bootstrapAgentTeams,
+	buildConfiguredAgentToolDescriptors,
+	buildConfiguredAgentToolName,
 	buildDelegatedAgentConfig,
 	buildTeamProgressSummary,
+	type ConfiguredAgentConfig,
+	type ConfiguredAgentInput,
+	type ConfiguredAgentLoadResult,
+	type ConfiguredAgentReadError,
+	type ConfiguredAgentToolConfig,
+	type ConfiguredAgentToolDescriptor,
 	type CreateAgentTeamsToolsOptions,
 	createAgentTeamsTools,
+	createConfiguredAgentTools,
 	createDelegatedAgent,
 	createDelegatedAgentConfigProvider,
 	createSpawnAgentTool,
@@ -300,6 +361,8 @@ export {
 	type DelegatedAgentConnectionConfig,
 	type DelegatedAgentKind,
 	type DelegatedAgentRuntimeConfig,
+	loadConfiguredAgentConfigs,
+	parseConfiguredAgentConfig,
 	reviveTeamStateDates,
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,
@@ -346,6 +409,11 @@ export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
+	hashSecret,
+	sdkDebug,
+	setSdkLogger,
+} from "./logging/early-logger";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	type PreparedRemoteConfigCoreIntegration,
@@ -357,6 +425,11 @@ export {
 } from "./remote-config/integration";
 export type { RuntimeCapabilities } from "./runtime/capabilities";
 export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
+export type {
+	ConnectionUpdate,
+	ConnectionUpdateInput,
+} from "./runtime/config/connection-update";
+export { buildConnectionUpdate } from "./runtime/config/connection-update";
 export { listSessionHistoryFromBackend } from "./runtime/host/history";
 export type { SessionBackend } from "./runtime/host/host";
 export {
@@ -381,14 +454,25 @@ export type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionUsageSummary,
+	StartSessionConfig,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
+export {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "./runtime/orchestration/runtime-oauth-token-manager";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
@@ -409,24 +493,108 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
-export type { GlobalSettings } from "./services/global-settings";
+export { listActiveConnectors } from "./services/connectors/active-connectors";
+export {
+	disableConnectorAutostart,
+	getPersistedConnectorConnection,
+	persistConnectorConnection,
+	type ReconnectAttempt,
+	type ReconnectPersistedConnectorsOptions,
+	type ReconnectTarget,
+	reconnectPersistedConnectors,
+	removePersistedConnectorConnection,
+} from "./services/connectors/connector-autostart";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
+export type {
+	GlobalCompactionMode,
+	GlobalCompactionStrategy,
+	GlobalPlanActMode,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
+	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
+	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
+export type {
+	MarketplaceActionResult,
+	MarketplaceEntryInput,
+	MarketplacePrimitiveType,
+	MarketplaceSpawnCommand,
+	MarketplaceSpawnResult,
+	UninstallMarketplaceEntryOptions,
+} from "./services/marketplace";
+export {
+	findInstalledGlobalMarketplaceSkillName,
+	getGlobalMarketplaceSkillPaths,
+	getMarketplaceSkillCandidates,
+	isMarketplaceSkillInstalled,
+	marketplaceEntryKey,
+	resolveMarketplaceMcpServerName,
+	uninstallMarketplaceEntry,
+	uninstallMarketplaceMcpServerFromSettings,
+	uninstallMarketplacePlugin,
+	uninstallMarketplaceSkill,
+} from "./services/marketplace";
+export type {
+	McpInstallOptions,
+	McpInstallResult,
+} from "./services/mcp-install";
+export {
+	buildMcpInstallTransport,
+	installMcpServer,
+	parseMcpInstallArgs,
+} from "./services/mcp-install";
+export type {
+	ParsedPluginSource,
+	PluginInstallOptions,
+	PluginInstallResult,
+	PluginInstallSourceType,
+	PluginMcpOAuthCandidate,
+} from "./services/plugin-install";
+export {
+	collectPluginMcpOAuthCandidates,
+	installPlugin,
+	isOfficialPluginSlug,
+	parsePluginSource,
+} from "./services/plugin-install";
+export type {
+	PluginMcpSettingsMutation,
+	PluginMcpSettingsSyncResult,
+	RemovePluginMcpServersFromSettingsOptions,
+	SyncPluginMcpServersToSettingsOptions,
+} from "./services/plugin-mcp-settings";
+export {
+	disablePluginMcpServersInSettings,
+	removePluginMcpServersFromSettings,
+	syncPluginMcpServersToSettings,
+} from "./services/plugin-mcp-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,
@@ -435,6 +603,20 @@ export {
 	listPluginTools,
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
+export {
+	ensureCustomProvidersLoadedSync,
+	readModelsFileSync,
+	resolveModelsRegistryPath,
+	type StoredModelEntry,
+	type StoredProviderEntry,
+	syncStoredProviderRegistration,
+	writeModelsFileSync,
+} from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
@@ -442,7 +624,9 @@ export {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	listLocalProviders,
+	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
@@ -468,7 +652,9 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDeviceId, resolveCoreDistinctId } from "./services/telemetry";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
 	TelemetryAgentIdentityProperties,
@@ -483,6 +669,7 @@ export {
 	CORE_TELEMETRY_EVENTS,
 	captureAgentCreated,
 	captureAgentTeamCreated,
+	captureAgentUnexpectedReasoningTokens,
 	captureAuthFailed,
 	captureAuthLoggedOut,
 	captureAuthStarted,
@@ -496,6 +683,7 @@ export {
 	captureMentionFailed,
 	captureMentionSearchResults,
 	captureMentionUsed,
+	captureMistakeLimitReached,
 	captureModeSwitch,
 	captureProviderApiError,
 	captureProviderConfigured,
@@ -552,7 +740,20 @@ export {
 	generateWorkspaceInfoWithDiagnostics,
 	normalizeWorkspacePath,
 } from "./services/workspace/workspace-manifest";
-export { readSessionCheckpointHistory } from "./session/checkpoint-restore";
+export {
+	buildCheckpointWorkspaceDiff,
+	type CheckpointComparePlan,
+	type CheckpointContentDiff,
+	type CheckpointWorkspaceCompareResult,
+	compareCheckpointToWorkspace,
+	createCheckpointComparePlan,
+} from "./session/checkpoint-diff";
+export {
+	createRestoredCheckpointMetadata,
+	findCheckpointForRun,
+	readSessionCheckpointHistory,
+	trimMessagesBeforeUserRun,
+} from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
@@ -584,6 +785,13 @@ export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
+export {
+	countUserRunMessages,
+	getUserRunSpan,
+	isUserRunMessage,
+	type MessageDisplayRole,
+	resolveMessageDisplayRole,
+} from "./session/user-run-messages";
 export type {
 	CoreSettingsItem,
 	CoreSettingsItemKind,
@@ -600,12 +808,14 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageImage,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
 	ChatSessionConfigSchema,
@@ -619,33 +829,57 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { createContextCompactionPrepareTurn } from "./extensions/context/compaction";
+export {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "./extensions/context/compaction";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
+	type ApplyPatchExecutor,
+	type ApplyPatchInput,
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
+	CommandExitError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
+	computePatchChanges,
+	createApplyPatchExecutor,
 	createBuiltinTools,
 	createDefaultExecutors,
+	createDefaultShellExecutor,
 	createDefaultTools,
 	createDefaultToolsWithPreset,
+	createEditorExecutor,
+	createShellExecutor,
+	createShellTool,
 	createToolPoliciesWithPreset,
 	type DefaultExecutorsOptions,
 	type DefaultToolName,
 	DefaultToolNames,
 	type DefaultToolsConfig,
+	type EditFileInput,
+	type EditorExecutor,
+	type EditorExecutorOptions,
 	getCoreAcpToolNames,
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	MAX_COMMAND_OUTPUT_CHARS,
+	PATCH_MARKERS,
+	PatchActionType,
+	type PatchFileChange,
 	resolveCoreSelectedToolIds,
+	type ShellExecutor,
+	type ShellExecutorOptions,
+	type StructuredCommandInput,
+	StructuredCommandInputSchema,
 	TEAM_TOOL_NAMES,
 	type ToolCatalogEntry,
 	type ToolExecutors,
 	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,
+	truncateCommandOutput,
 } from "./extensions/tools";
 export {
 	type ClineRecommendedModel,
@@ -730,11 +964,18 @@ export {
 	TelemetryService,
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
+export {
+	createSessionCompactionState,
+	parseSessionCompactionState,
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "./session/models/session-compaction";
 // Compatibility barrel (legacy imports).
 export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
+	ClineCoreStartConfig,
 	CoreAgentMode,
 	CoreCheckpointConfig,
 	CoreCheckpointContext,

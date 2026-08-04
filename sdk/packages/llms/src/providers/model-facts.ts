@@ -3,7 +3,68 @@ import type {
 	GatewayProviderContext,
 	GatewayReasoningFormat,
 	GatewayStreamRequest,
+	ModelReasoningOption,
+	ReasoningEffort,
 } from "@cline/shared";
+import { REASONING_LEVELS } from "@cline/shared";
+
+const ACTIVE_REASONING_EFFORTS = REASONING_LEVELS.filter(
+	(level): level is ReasoningEffort => level !== "none",
+);
+
+interface ModelReasoningControls {
+	effort?: Extract<ModelReasoningOption, { type: "effort" }>;
+	budget?: Extract<ModelReasoningOption, { type: "budget_tokens" }>;
+	toggle: boolean;
+	efforts: ReasoningEffort[];
+	supportsOff: boolean;
+	supportsDefault: boolean;
+}
+
+export function getModelReasoningControls(
+	options: readonly ModelReasoningOption[] | undefined,
+): ModelReasoningControls | undefined {
+	if (options === undefined) {
+		return undefined;
+	}
+
+	const effort = options.find((option) => option.type === "effort");
+	const budget = options.find((option) => option.type === "budget_tokens");
+	const toggle = options.some((option) => option.type === "toggle");
+	const advertised = new Set(effort?.values ?? []);
+	return {
+		effort,
+		budget,
+		toggle,
+		efforts: ACTIVE_REASONING_EFFORTS.filter((value) => advertised.has(value)),
+		supportsOff: toggle || advertised.has("none"),
+		supportsDefault: advertised.has("default"),
+	};
+}
+
+export function normalizeReasoningEffort(
+	effort: ReasoningEffort,
+	supportedEfforts: readonly ReasoningEffort[],
+): ReasoningEffort | undefined {
+	if (supportedEfforts.length === 0) {
+		return undefined;
+	}
+	if (supportedEfforts.includes(effort)) {
+		return effort;
+	}
+
+	const requestedIndex = ACTIVE_REASONING_EFFORTS.indexOf(effort);
+	return supportedEfforts.reduce((nearest, candidate) => {
+		const nearestDistance = Math.abs(
+			ACTIVE_REASONING_EFFORTS.indexOf(nearest) - requestedIndex,
+		);
+		const candidateDistance = Math.abs(
+			ACTIVE_REASONING_EFFORTS.indexOf(candidate) - requestedIndex,
+		);
+		// On a tie, preserve more capability.
+		return candidateDistance <= nearestDistance ? candidate : nearest;
+	});
+}
 
 export function resolveModelFamily(
 	context: GatewayProviderContext,
@@ -25,6 +86,39 @@ function normalizedModelId(
 	request: Pick<GatewayStreamRequest, "modelId">,
 ): string {
 	return normalizeRoutingValue(request.modelId) ?? "";
+}
+
+function geminiModelDescriptor(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): string {
+	return [
+		input.request.modelId,
+		input.context.model.id,
+		input.context.model.name,
+		input.context.model.metadata?.family,
+	]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+}
+
+function isProviderBaseOrigin(
+	context: GatewayProviderContext,
+	origin: string,
+): boolean {
+	const baseUrl = normalizeRoutingValue(
+		context.config.baseUrl ?? context.provider.api,
+	)?.replace(/\/+$/, "");
+	if (!baseUrl) {
+		return false;
+	}
+
+	try {
+		return new URL(baseUrl).origin.toLowerCase() === origin;
+	} catch {
+		return baseUrl === origin || baseUrl.startsWith(`${origin}/`);
+	}
 }
 
 function isAnthropicLineageValue(value: string | undefined): boolean {
@@ -75,6 +169,10 @@ export function isClaudeModelId(modelId: string | undefined): boolean {
 	return isClaudeLineageValue(modelId);
 }
 
+export function isClaudeFableModelId(modelId: string | undefined): boolean {
+	return normalizeRoutingValue(modelId)?.includes("claude-fable") ?? false;
+}
+
 export function isQwenModel(options: {
 	modelId?: string;
 	family?: string;
@@ -85,6 +183,32 @@ export function isQwenModel(options: {
 	}
 
 	return isQwenLineageValue(options.modelId);
+}
+
+export function resolveGeminiThinkingMode(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): "level" | "budget" | undefined {
+	const controls = getModelReasoningControls(
+		input.context.model.reasoningOptions,
+	);
+	if (controls) {
+		return controls.effort
+			? "level"
+			: controls.budget || controls.toggle
+				? "budget"
+				: undefined;
+	}
+
+	// Legacy/offline catalogs do not yet carry reasoning_options. Keep their
+	// wire choice in one fallback boundary; live models use metadata above.
+	const descriptor = geminiModelDescriptor(input);
+	return /(^|[/\s])gemini-3([.-]|$)/.test(descriptor)
+		? "level"
+		: /(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
+				descriptor.includes("gemini-flash-latest")
+			? "budget"
+			: undefined;
 }
 
 function modelFamilyMatches(
@@ -162,6 +286,15 @@ export function isGlmModel(
 	return family.includes("glm") || normalizedModelId(request).includes("glm");
 }
 
+export function isMiniMaxM3Model(
+	request: Pick<GatewayStreamRequest, "modelId">,
+	_context: GatewayProviderContext,
+): boolean {
+	const modelId = normalizedModelId(request);
+
+	return modelId === "minimax-m3" || modelId === "minimax/minimax-m3";
+}
+
 export function isKimiK26Family(context: GatewayProviderContext): boolean {
 	return normalizedFamily(context) === "kimi-k2.6";
 }
@@ -194,6 +327,22 @@ export function isOllamaQwen3ModelIdFallback(
 	return (
 		request.providerId === "ollama" &&
 		normalizedModelId(request).includes("qwen3")
+	);
+}
+
+export function isCerebrasProvider(
+	request: Pick<GatewayStreamRequest, "providerId">,
+	context: GatewayProviderContext,
+): boolean {
+	const providerIds = [
+		request.providerId,
+		context.config.providerId,
+		context.provider.id,
+	].map((id) => id.toLowerCase());
+
+	return (
+		providerIds.includes("cerebras") ||
+		isProviderBaseOrigin(context, "https://api.cerebras.ai")
 	);
 }
 

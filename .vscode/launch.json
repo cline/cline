@@ -51,7 +51,8 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
-				"CLINE_ENVIRONMENT": "staging"
+				"CLINE_ENVIRONMENT": "staging",
+				"CLINE_DIR": "${userHome}/.cline_staging"
 			}
 		},
 		{
@@ -75,7 +76,8 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
-				"CLINE_ENVIRONMENT": "local"
+				"CLINE_ENVIRONMENT": "local",
+				"CLINE_DIR": "${userHome}/.cline_local"
 			}
 		},
 		{
@@ -126,10 +128,7 @@
 				"${workspaceFolder}/apps/vscode/dist-standalone/**/*.js"
 			],
 			"preLaunchTask": "compile-standalone",
-			"runtimeExecutable": "npx",
-			"runtimeArgs": [
-				"tsx"
-			],
+			"runtimeExecutable": "bun",
 			"program": "scripts/test-standalone-core-api-server.ts",
 			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
@@ -183,7 +182,7 @@
 			"name": "Open Storybook",
 			"type": "node",
 			"request": "launch",
-			"runtimeExecutable": "npm",
+			"runtimeExecutable": "bun",
 			"runtimeArgs": [
 				"run",
 				"storybook"

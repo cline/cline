@@ -63,6 +63,14 @@ async function loadFamilyFactory(
 				const module = await import("./ai-sdk");
 				return module.createDifyProvider;
 			}
+			case "ollama": {
+				const module = await import("./ai-sdk");
+				return module.createOllamaProvider;
+			}
+			case "sap-ai-core": {
+				const module = await import("./ai-sdk");
+				return module.createSapAiCoreProvider;
+			}
 		}
 	})();
 
@@ -90,6 +98,17 @@ export const BUILTIN_PROVIDER_REGISTRATIONS: GatewayProviderRegistration[] =
 			...spec.defaults,
 			apiKeyEnv: spec.apiKeyEnv,
 			baseUrl: spec.defaults?.baseUrl,
+			// Surface the regional endpoint facts as a default option so the
+			// registry can resolve a base URL from a caller-selected
+			// `options.apiLine` (see GatewayRegistry.createProvider).
+			...(spec.apiLineBaseUrls
+				? {
+						options: {
+							...(spec.defaults?.options ?? {}),
+							apiLineBaseUrls: spec.apiLineBaseUrls,
+						},
+					}
+				: {}),
 		},
 		loadProvider: async () => ({
 			createProvider: await loadFamilyFactory(resolveRuntimeFamily(spec)),

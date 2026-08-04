@@ -218,11 +218,13 @@ export function parseHubClientContributions(
 function serializeToolContext(
 	context: AgentToolContext,
 ): Record<string, unknown> {
+	const metadata = context.metadata ? { ...context.metadata } : undefined;
 	return {
 		agentId: context.agentId,
 		conversationId: context.conversationId,
 		iteration: context.iteration,
-		metadata: context.metadata,
+		metadata:
+			metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }
 
@@ -377,6 +379,8 @@ function createUserInstructionServiceProxy(
 			configuredSkills(snapshot, allowedSkillNames).some(
 				(entry) => !entry.disabled,
 			),
+		createSkillsExecutor: (allowedSkillNames) =>
+			createSnapshotSkillsExecutor(snapshot, allowedSkillNames),
 		createExtension: (options): AgentExtension => ({
 			name: "cline-hub-user-instructions",
 			manifest: {

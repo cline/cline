@@ -12,33 +12,42 @@ export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
 export {
 	createApplyPatchTool,
 	createAskQuestionTool,
-	createBashTool,
 	createDefaultTools,
 	createEditorTool,
 	createReadFilesTool,
 	createSearchTool,
+	createShellTool,
 	createSkillsTool,
 	createSubmitAndExitTool,
 	createWebFetchTool,
-	createWindowsShellTool,
 } from "./definitions";
 // Built-in Executors
 export {
 	type ApplyPatchExecutorOptions,
-	type BashExecutorOptions,
+	CommandExitError,
+	computePatchChanges,
 	createApplyPatchExecutor,
-	createBashExecutor,
 	createDefaultExecutors,
+	createDefaultShellExecutor,
 	createEditorExecutor,
 	createFileReadExecutor,
 	createSearchExecutor,
+	createShellExecutor,
 	createWebFetchExecutor,
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,
+	PATCH_MARKERS,
+	PatchActionType,
+	type PatchFileChange,
 	type SearchExecutorOptions,
+	type ShellExecutorOptions,
 	type WebFetchExecutorOptions,
 } from "./executors/index";
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "./executors/output-limits";
 export {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolRoutingConfig,
@@ -82,6 +91,8 @@ export {
 	SearchCodebaseInputSchema,
 	type SkillsInput,
 	SkillsInputSchema,
+	type StructuredCommandInput,
+	StructuredCommandInputSchema,
 	type SubmitInput,
 	SubmitInputSchema,
 	type WebFetchRequest,
@@ -92,13 +103,13 @@ export { TEAM_TOOL_NAMES } from "./team/team-tools";
 export type {
 	ApplyPatchExecutor,
 	AskQuestionExecutor,
-	BashExecutor,
 	CreateDefaultToolsOptions,
 	DefaultToolName,
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
 	SearchExecutor,
+	ShellExecutor,
 	SkillsExecutor,
 	SkillsExecutorSkillMetadata,
 	SkillsExecutorWithMetadata,
@@ -112,7 +123,7 @@ export type {
 // Convenience: Create Tools with Built-in Executors
 // =============================================================================
 
-import type { AgentTool } from "@cline/shared";
+import { type AgentTool, getDefaultShell } from "@cline/shared";
 import { createDefaultTools } from "./definitions";
 import {
 	createDefaultExecutors,
@@ -126,11 +137,16 @@ import type { CreateDefaultToolsOptions, ToolExecutors } from "./types";
 export interface CreateBuiltinToolsOptions
 	extends Omit<CreateDefaultToolsOptions, "executors"> {
 	/**
-	 * Configuration for the built-in executors
+	 * Configuration for the built-in executors. `bash.shell` is used when the
+	 * top-level `shell` option is not set; the top-level option takes precedence.
 	 */
 	executorOptions?: DefaultExecutorsOptions;
 	/**
-	 * Optional executor overrides/additions for tools without built-ins
+	 * Optional executor overrides/additions for tools without built-ins.
+	 * An overriding `bash` executor replaces the built-in one wholesale: it
+	 * decides its own shell, and the resolved `shell` option only shapes the
+	 * run_commands description. Overriders must honor that shell themselves
+	 * to keep the description truthful.
 	 */
 	executors?: Partial<ToolExecutors>;
 }
@@ -170,14 +186,29 @@ export function createBuiltinTools(
 		executors: executorOverrides,
 		...toolsConfig
 	} = options;
+	// The top-level shell is the public tool configuration and takes precedence
+	// over the legacy executor-specific location. Resolve it once so prompting
+	// and execution cannot disagree.
+	const shell =
+		toolsConfig.shell ??
+		executorOptions.bash?.shell ??
+		getDefaultShell(process.platform);
+	const resolvedExecutorOptions: DefaultExecutorsOptions = {
+		...executorOptions,
+		bash: {
+			...executorOptions.bash,
+			shell,
+		},
+	};
 
 	const executors = {
-		...createDefaultExecutors(executorOptions),
+		...createDefaultExecutors(resolvedExecutorOptions),
 		...(executorOverrides ?? {}),
 	};
 
 	return createDefaultTools({
 		...toolsConfig,
+		shell,
 		executors,
 	});
 }

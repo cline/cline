@@ -81,6 +81,8 @@ export interface AgentTokenUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	/** Provider-reported hidden reasoning tokens, when available. */
+	reasoningTokenCount?: number;
 }
 
 /**
@@ -135,6 +137,8 @@ export interface AgentRuntimeStateSnapshot {
 	pendingToolCalls: readonly string[];
 	usage: AgentUsage;
 	lastError?: string;
+	/** Classification of `lastError` when it came from a provider stream. */
+	lastErrorClass?: ProviderErrorClass;
 }
 
 // =============================================================================
@@ -209,6 +213,12 @@ export interface AgentRuntimePrepareTurnContext {
 		info?: ModelInfo;
 	};
 	signal?: AbortSignal;
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -226,6 +236,14 @@ export type AgentModelFinishReason =
 	| "max-tokens"
 	| "aborted"
 	| "error";
+
+/**
+ * Coarse classification of a provider error, derived from the raw provider
+ * error object before it is flattened into a display string. Shared by the
+ * runtime's recovery policy and telemetry (`error_class`). Extend with new
+ * classes (auth, rate_limit, billing, ...) as consumers need them.
+ */
+export type ProviderErrorClass = "context_window_exceeded" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
@@ -252,6 +270,7 @@ export type AgentModelEvent =
 			type: "finish";
 			reason: AgentModelFinishReason;
 			error?: string;
+			errorClass?: ProviderErrorClass;
 	  };
 
 export interface AgentModel {
@@ -300,6 +319,7 @@ export interface AgentBeforeToolResult {
 	stop?: boolean;
 	reason?: string;
 	input?: unknown;
+	policy?: ToolPolicy;
 }
 
 export interface AgentAfterToolContext {
@@ -435,9 +455,11 @@ export interface AgentRuntimeConfig {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	/**
-	 * Optional host-owned context pipeline that can rewrite the transcript
-	 * before each model request. When it returns messages, the runtime replaces
-	 * its in-memory transcript so compaction persists into the final run result.
+	 * Optional host-owned request projection hook invoked before each model call.
+	 *
+	 * Returned messages affect only the provider request for the current call.
+	 * They do not replace the canonical runtime transcript, are not persisted as
+	 * session history, and are not reflected in AgentRunResult.messages.
 	 */
 	prepareTurn?: (
 		context: AgentRuntimePrepareTurnContext,
@@ -542,6 +564,8 @@ export type AgentRuntimeEvent =
 			type: "run-failed";
 			snapshot: AgentRuntimeStateSnapshot;
 			error: Error;
+			/** Classification of the provider error that failed the run. */
+			errorClass?: ProviderErrorClass;
 	  };
 
 // =============================================================================

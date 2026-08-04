@@ -58,8 +58,10 @@ export type TelegramConnectorState = {
 
 export type ConnectSlackOptions = {
 	userName: string;
+	connectionMode: "webhook" | "socket";
 	botToken?: string;
 	signingSecret?: string;
+	appToken?: string;
 	clientId?: string;
 	clientSecret?: string;
 	encryptionKey?: string;
@@ -77,15 +79,16 @@ export type ConnectSlackOptions = {
 	hookCommand?: string;
 	port: number;
 	host: string;
-	baseUrl: string;
+	baseUrl?: string;
 };
 
 export type SlackConnectorState = {
 	userName: string;
+	connectionMode?: "webhook" | "socket";
 	pid: number;
 	rpcAddress: string;
-	port: number;
-	baseUrl: string;
+	port?: number;
+	baseUrl?: string;
 	startedAt: string;
 };
 
@@ -94,6 +97,8 @@ export type ConnectDiscordOptions = {
 	applicationId: string;
 	botToken: string;
 	publicKey: string;
+	ownerUserId?: string;
+	allowBotAuthors: boolean;
 	mentionRoleIds?: string[];
 	cwd: string;
 	model?: string;

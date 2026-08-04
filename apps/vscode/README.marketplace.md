@@ -1,7 +1,3 @@
-<div align="center"><sub>
-English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
-</sub></div>
-
 # Cline
 <div align="center">
 <table>
@@ -19,7 +15,7 @@ English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md
 <a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
 </td>
 <td align="center">
-<a href="https://docs.cline.bot/getting-started/for-new-coders" target="_blank"><strong>Getting Started</strong></a>
+<a href="https://docs.cline.bot/getting-started/installing-cline" target="_blank"><strong>Getting Started</strong></a>
 </td>
 </tbody>
 </table>
@@ -38,7 +34,7 @@ Thanks to [Claude Sonnet's agentic coding capabilities](https://www.anthropic.c
 4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
 
 > [!TIP]
-> Follow [this guide](https://docs.cline.bot/features/customization/opening-cline-in-sidebar) to open Cline on the right side of your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
+> Follow [this guide](https://docs.cline.bot/usage/ide#move-cline-to-the-right-sidebar) to open Cline on the right side of your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
 
 ---
 
@@ -58,9 +54,9 @@ The extension also keeps track of total tokens and API usage cost for the entire
 
 ### Run Commands in Terminal
 
-Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive the output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
+Cline can execute commands and receive their output to install packages, run build scripts, deploy applications, manage databases, and run tests, all while adapting to your dev environment & toolchain to get the job done right.
 
-For long running processes like dev servers, use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
+By default, commands run in a visible VS Code terminal, using the [shell integration API introduced in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api) to stream output as commands run and let you watch or interact with them directly. You can switch to running commands in a background process instead (Settings → Terminal → Terminal Execution Mode).
 
 <!-- Transparent pixel to create line break after floating image -->
 

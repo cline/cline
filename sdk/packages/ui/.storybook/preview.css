@@ -1,0 +1,22 @@
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/azeret-mono/latin.css";
+@import "tailwindcss";
+@import "../theme/index.css";
+@import "../components/agent-chat/agent-chat.css";
+
+@source "../components";
+@source "../stories";
+@source ".";
+
+html,
+body,
+#storybook-root {
+	min-height: 100%;
+}
+
+.cline-storybook-surface {
+	min-height: 100vh;
+	box-sizing: border-box;
+	background: var(--background);
+	color: var(--foreground);
+}

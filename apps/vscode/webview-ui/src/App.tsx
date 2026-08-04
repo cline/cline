@@ -3,7 +3,9 @@ import { useCallback, useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
+import MarketplaceView from "./components/marketplace/MarketplaceView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
+import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
 import WorktreesView from "./components/worktrees/WorktreesView"
@@ -17,6 +19,7 @@ const AppContent = () => {
 		didHydrateState,
 		showWelcome,
 		shouldShowAnnouncement,
+		showMarketplace,
 		showMcp,
 		mcpTab,
 		showSettings,
@@ -33,6 +36,7 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		closeMarketplaceView,
 		hideAnnouncement,
 	} = useExtensionState()
 
@@ -56,6 +60,14 @@ const AppContent = () => {
 		showUpdateAnnouncementModal()
 	}, [didHydrateState, showWelcome, shouldShowAnnouncement, showAnnouncement, showUpdateAnnouncementModal])
 
+	// Open the ClinePass subscription page once auth completes. Lives here (not in OnboardingView)
+	// because handleAuthCallback unmounts onboarding before the clineUser update arrives.
+	useEffect(() => {
+		if (clineUser?.uid) {
+			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
+		}
+	}, [clineUser?.uid, clineUser?.appBaseUrl])
+
 	if (!didHydrateState) {
 		return null
 	}
@@ -68,6 +80,7 @@ const AppContent = () => {
 		<div className="flex h-screen w-full flex-col">
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showMarketplace && <MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (
 				<AccountView
@@ -81,7 +94,7 @@ const AppContent = () => {
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMcp || showAccount || showWorktrees}
+				isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>

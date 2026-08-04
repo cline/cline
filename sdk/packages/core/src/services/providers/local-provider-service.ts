@@ -1,18 +1,21 @@
 import * as LlmsModels from "@cline/llms";
-import {
-	type AddProviderActionRequest,
-	getClineEnvironmentConfig,
-	type ITelemetryService,
-	type OAuthProviderId,
-	type ProviderCapability,
-	type ProviderListItem,
-	type ProviderModel,
-	type SaveProviderSettingsActionRequest,
+import type {
+	AddProviderActionRequest,
+	ITelemetryService,
+	ProviderCapability,
+	ProviderConfigField,
+	ProviderConfigFieldPrimitive,
+	ProviderListItem,
+	ProviderModel,
+	SaveProviderSettingsActionRequest,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
-import { loginClineOAuth } from "../../auth/cline";
-import { loginOpenAICodex } from "../../auth/codex";
-import { loginOcaOAuth } from "../../auth/oca";
+import {
+	getProviderAuthHandler,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderOAuthCredentials,
+	saveProviderOAuthCredentials,
+} from "../../auth/provider-auth-registry";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
@@ -21,6 +24,7 @@ import type {
 	ProviderProtocol,
 	ProviderSettings,
 } from "../../services/llms/provider-settings";
+import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -35,6 +39,12 @@ import {
 } from "./model-source";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
+
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
+export interface ListLocalProvidersOptions {
+	isClinePassEnabled?: boolean;
+}
 
 export interface UpdateLocalProviderRequest {
 	providerId: string;
@@ -114,18 +124,27 @@ async function resolveProviderModelMap(
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
-	if (!config) {
+	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
+	if (!config && !isClinePass) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
+			loadLatestOnInit: isClinePass,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
 		config,
 	);
+
+	if (providerId === "litellm" && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+	if (isClinePass && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
 
 	return resolved?.knownModels
 		? {
@@ -161,6 +180,111 @@ function getPopularRank(metadata: Record<string, unknown> | undefined): number {
 	return typeof value === "number" && Number.isFinite(value)
 		? value
 		: Number.MAX_SAFE_INTEGER;
+}
+
+function isProviderConfigField(input: unknown): input is ProviderConfigField {
+	if (!input || typeof input !== "object") return false;
+	const field = input as Record<string, unknown>;
+	return (
+		typeof field.path === "string" &&
+		field.path.trim().length > 0 &&
+		typeof field.label === "string" &&
+		field.label.trim().length > 0 &&
+		["text", "password", "url", "number", "select", "boolean"].includes(
+			String(field.type),
+		)
+	);
+}
+
+function readProviderConfigFields(
+	metadata: Record<string, unknown> | undefined,
+): ProviderConfigField[] | undefined {
+	const fields = metadata?.configFields;
+	if (!Array.isArray(fields)) {
+		return undefined;
+	}
+	return fields.filter(isProviderConfigField);
+}
+
+const API_KEY_CONFIG_FIELD: ProviderConfigField = {
+	path: "apiKey",
+	label: "API Key",
+	type: "password",
+	placeholder: "Enter API key...",
+	description: "API key issued by the provider.",
+	secret: true,
+};
+
+const BASE_URL_CONFIG_FIELD: ProviderConfigField = {
+	path: "baseUrl",
+	label: "Base URL",
+	type: "url",
+	placeholder: "https://...",
+	description: "Base endpoint used for provider requests.",
+};
+
+function fallbackProviderConfigFields(
+	info: Awaited<ReturnType<typeof LlmsModels.getProvider>>,
+): ProviderConfigField[] {
+	if (!info) {
+		return [API_KEY_CONFIG_FIELD];
+	}
+	if (info.source !== "system") {
+		return info.baseUrl
+			? [API_KEY_CONFIG_FIELD, BASE_URL_CONFIG_FIELD]
+			: [API_KEY_CONFIG_FIELD];
+	}
+	const fields: ProviderConfigField[] = [];
+	if (info.env?.length) {
+		fields.push(API_KEY_CONFIG_FIELD);
+	}
+	if (info.baseUrl) {
+		fields.push(BASE_URL_CONFIG_FIELD);
+	}
+	return fields;
+}
+
+function getPathValue(input: unknown, path: string): unknown {
+	return path.split(".").reduce<unknown>((current, segment) => {
+		if (!current || typeof current !== "object") return undefined;
+		return (current as Record<string, unknown>)[segment];
+	}, input);
+}
+
+function toConfigPrimitive(
+	value: unknown,
+): ProviderConfigFieldPrimitive | undefined {
+	if (
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean" ||
+		value === null
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function resolveConfigValues(
+	fields: readonly ProviderConfigField[] | undefined,
+	settings: ProviderSettings | undefined,
+	info: { baseUrl?: string } | undefined,
+): Record<string, ProviderConfigFieldPrimitive> | undefined {
+	if (!fields?.length) return undefined;
+
+	const values: Record<string, ProviderConfigFieldPrimitive> = {};
+	for (const field of fields) {
+		const persistedValue = toConfigPrimitive(
+			field.path === "baseUrl" && settings?.baseUrl === undefined
+				? info?.baseUrl
+				: getPathValue(settings, field.path),
+		);
+		const value = persistedValue ?? field.defaultValue;
+		if (value !== undefined) {
+			values[field.path] = value;
+		}
+	}
+	return values;
 }
 
 function normalizeHeaders(
@@ -529,8 +653,29 @@ export async function deleteLocalProvider(
 	};
 }
 
+export function markLocalProviderEnabled(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	options: { tokenSource?: ProviderTokenSource } = {},
+): { providerId: string; enabled: true; settingsPath: string } {
+	const id = providerId.trim();
+	if (!id) throw new Error("providerId is required");
+
+	const directSettings = manager.read().providers[id]?.settings;
+	manager.saveProviderSettings(
+		{
+			...(directSettings ?? {}),
+			provider: id,
+		},
+		{ setLastUsed: false, tokenSource: options.tokenSource },
+	);
+
+	return { providerId: id, enabled: true, settingsPath: manager.getFilePath() };
+}
+
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
+	options: ListLocalProvidersOptions = {},
 ): Promise<{ providers: ProviderListItem[]; settingsPath: string }> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
@@ -543,12 +688,16 @@ export async function listLocalProviders(
 					LlmsModels.getModelsForProvider(id),
 				]);
 				const modelList = toSortedProviderModels(registeredModels);
-				const persistedSettings = state.providers[id]?.settings;
+				const directSettings = state.providers[id]?.settings;
+				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
 					info?.capabilities,
 					persistedSettings?.capabilities,
 				);
+				const configFields =
+					readProviderConfigFields(info?.metadata) ??
+					fallbackProviderConfigFields(info);
 				return {
 					provider: {
 						id,
@@ -556,7 +705,7 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(persistedSettings),
+						enabled: Boolean(directSettings),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
@@ -571,6 +720,12 @@ export async function listLocalProviders(
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
+						configFields,
+						configValues: resolveConfigValues(
+							configFields,
+							persistedSettings,
+							info,
+						),
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
@@ -585,7 +740,12 @@ export async function listLocalProviders(
 			a.provider.id.localeCompare(b.provider.id)
 		);
 	});
-	const providers = providerEntries.map((entry) => entry.provider);
+	let providers = providerEntries.map((entry) => entry.provider);
+	if (options.isClinePassEnabled !== true) {
+		providers = providers.filter(
+			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
+		);
+	}
 
 	return { providers, settingsPath: manager.getFilePath() };
 }
@@ -598,6 +758,39 @@ export async function getLocalProviderModels(
 	const modelMap = await resolveProviderModelMap(id, config);
 	const models = toSortedProviderModels(modelMap);
 	return { providerId: id, models };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function applySettingsObjectPatch(
+	current: unknown,
+	patch: unknown,
+): Record<string, unknown> | undefined {
+	if (!isPlainObject(patch)) {
+		return isPlainObject(current) ? { ...current } : undefined;
+	}
+
+	const next = isPlainObject(current) ? { ...current } : {};
+	for (const [key, value] of Object.entries(patch)) {
+		if (value == null || value === "") {
+			delete next[key];
+			continue;
+		}
+		if (isPlainObject(value)) {
+			const merged = applySettingsObjectPatch(next[key], value);
+			if (merged && Object.keys(merged).length > 0) {
+				next[key] = merged;
+			} else {
+				delete next[key];
+			}
+			continue;
+		}
+		next[key] = value;
+	}
+
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function saveLocalProviderSettings(
@@ -655,12 +848,9 @@ export function saveLocalProviderSettings(
 		"oca",
 	] as const) {
 		if (Object.hasOwn(request, key) && request[key] != null) {
-			next[key] = {
-				...(typeof next[key] === "object" && next[key] != null
-					? (next[key] as object)
-					: {}),
-				...(request[key] as object),
-			};
+			const merged = applySettingsObjectPatch(next[key], request[key]);
+			if (merged) next[key] = merged;
+			else delete next[key];
 		}
 	}
 
@@ -703,39 +893,23 @@ export async function refreshProviderModelsFromSource(
 	return { providerId: id, refreshed: true, modelsCount: result.modelsCount };
 }
 
-export function normalizeOAuthProvider(provider: string): OAuthProviderId {
+export function normalizeOAuthProvider(provider: string): string {
 	const normalized = provider.trim().toLowerCase();
-	if (normalized === "codex" || normalized === "openai-codex")
-		return "openai-codex";
-	if (normalized === "cline" || normalized === "oca") return normalized;
-	throw new Error(
-		`provider "${provider}" does not support OAuth login (supported: cline, oca, openai-codex)`,
-	);
-}
-
-function toProviderApiKey(
-	providerId: OAuthProviderId,
-	credentials: { access: string },
-): string {
-	if (providerId === "cline") {
-		return credentials.access.startsWith("workos:")
-			? credentials.access
-			: `workos:${credentials.access}`;
-	}
-	return credentials.access;
+	const handler = getProviderAuthHandler(normalized);
+	if (handler) return handler.providerId;
+	throw new Error(`provider "${provider}" does not support OAuth login`);
 }
 
 export async function loginLocalProvider(
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
-): Promise<{
-	access: string;
-	refresh: string;
-	expires: number;
-	accountId?: string;
-}> {
+): Promise<ProviderOAuthCredentials> {
+	const handler = getProviderAuthHandler(providerId);
+	if (!handler) {
+		throw new Error(`provider "${providerId}" does not support OAuth login`);
+	}
 	const callbacks = createOAuthClientCallbacks({
 		onPrompt: async (prompt) => prompt.defaultValue ?? "",
 		openUrl,
@@ -743,55 +917,42 @@ export async function loginLocalProvider(
 			throw error instanceof Error ? error : new Error(String(error));
 		},
 	});
-
-	if (providerId === "cline") {
-		return loginClineOAuth({
-			apiBaseUrl:
-				existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			useWorkOSDeviceAuth: true,
-			callbacks,
-			telemetry,
-		});
-	}
-	if (providerId === "oca")
-		return loginOcaOAuth({ mode: existing?.oca?.mode, callbacks, telemetry });
-	return loginOpenAICodex({
-		onAuth: callbacks.onAuth,
-		onPrompt: callbacks.onPrompt,
-		onProgress: callbacks.onProgress,
-		onManualCodeInput: callbacks.onManualCodeInput,
-		telemetry,
-	});
+	return handler.login({ settings: existing, callbacks, telemetry });
 }
 
 export function saveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
-	credentials: {
-		access: string;
-		refresh: string;
-		expires: number;
-		accountId?: string;
-	},
+	credentials: ProviderOAuthCredentials,
+	options?: { setLastUsed?: boolean },
 ): ProviderSettings {
-	const auth = {
-		...(existing?.auth ?? {}),
-		accessToken: toProviderApiKey(providerId, credentials),
-		refreshToken: credentials.refresh,
-		accountId: credentials.accountId,
-		expiresAt: credentials.expires,
-	} as ProviderSettings["auth"] & { expiresAt?: number };
+	return saveProviderOAuthCredentials({
+		manager,
+		providerId,
+		settings: existing,
+		credentials,
+		setLastUsed: options?.setLastUsed,
+	});
+}
 
-	const merged: ProviderSettings = {
-		...(existing ?? {
-			provider: providerId as ProviderSettings["provider"],
-		}),
-		provider: providerId as ProviderSettings["provider"],
-		auth,
-	};
-	manager.saveProviderSettings(merged, { tokenSource: "oauth" });
-	return merged;
+export async function loginAndSaveLocalProviderOAuthCredentials(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	openUrl: (url: string) => void,
+	telemetry?: ITelemetryService,
+): Promise<ProviderSettings> {
+	const callbacks = createOAuthClientCallbacks({
+		onPrompt: async (prompt) => prompt.defaultValue ?? "",
+		openUrl,
+		onOpenUrlError: ({ error }) => {
+			throw error instanceof Error ? error : new Error(String(error));
+		},
+	});
+	return loginAndSaveProviderOAuthCredentials(manager, providerId, {
+		callbacks,
+		telemetry,
+	});
 }
 
 export function resolveLocalClineAuthToken(

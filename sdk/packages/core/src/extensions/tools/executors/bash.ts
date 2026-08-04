@@ -5,17 +5,33 @@
  */
 
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	getDefaultShell,
-	getShellArgs,
+	getShellInvocation,
 } from "@cline/shared";
-import type { BashExecutor } from "../types";
+import { TimeoutError } from "../helpers";
+import type { ShellExecutor } from "../types";
+import {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "./output-limits";
+
+export class CommandExitError extends Error {
+	constructor(
+		readonly exitCode: number,
+		readonly output: string,
+	) {
+		super(`Command exited with code ${exitCode}`);
+		this.name = "CommandExitError";
+	}
+}
 
 /**
- * Options for the bash executor
+ * Options for the shell executor
  */
-export interface BashExecutorOptions {
+export interface ShellExecutorOptions {
 	/**
 	 * Shell to use for execution
 	 * @default "/bin/bash" on Unix, "powershell" on Windows
@@ -29,8 +45,18 @@ export interface BashExecutorOptions {
 	timeoutMs?: number;
 
 	/**
-	 * Maximum output size in bytes
-	 * @default 1_000_000 (1MB)
+	 * Maximum output kept, in characters. Output beyond this is
+	 * middle-truncated: the head and tail are preserved and the middle is
+	 * elided, since build and test failures usually live at the end of the
+	 * output.
+	 * @default 48_000 — see MAX_COMMAND_OUTPUT_CHARS in output-limits.ts
+	 */
+	maxOutputChars?: number;
+
+	/**
+	 * @deprecated Misnamed — the limit was always enforced in characters,
+	 * not bytes. Use {@link maxOutputChars}; this alias is honored when
+	 * maxOutputChars is not set.
 	 */
 	maxOutputBytes?: number;
 
@@ -51,15 +77,63 @@ interface SpawnConfig {
 	args: string[];
 	cwd: string;
 	env: Record<string, string>;
+	input?: string;
+}
+
+/**
+ * Collects stream output with bounded memory: the first half of the budget
+ * is kept verbatim, the rest rolls so the latest output always survives.
+ */
+function createRollingCollector(maxChars: number) {
+	const headLimit = Math.ceil(maxChars / 2);
+	const tailLimit = Math.max(1, maxChars - headLimit);
+	// StringDecoder keeps multibyte UTF-8 sequences split across stream
+	// chunks intact instead of corrupting them at chunk boundaries.
+	const decoder = new StringDecoder("utf8");
+	let head = "";
+	let tail = "";
+	let totalChars = 0;
+
+	const appendText = (text: string): void => {
+		if (!text) return;
+		totalChars += text.length;
+		const headRoom = headLimit - head.length;
+		if (headRoom > 0) {
+			head += text.slice(0, headRoom);
+			tail = (tail + text.slice(headRoom)).slice(-tailLimit);
+			return;
+		}
+		tail = (tail + text).slice(-tailLimit);
+	};
+
+	return {
+		append(data: Buffer): void {
+			appendText(decoder.write(data));
+		},
+		snapshot() {
+			// Flush bytes the decoder buffered for an incomplete multibyte
+			// sequence at end-of-stream; otherwise the final characters of
+			// non-ASCII output are silently dropped.
+			appendText(decoder.end());
+			return {
+				text: head + tail,
+				totalChars,
+				dropped: totalChars > head.length + tail.length,
+			};
+		},
+	};
 }
 
 function spawnAndCollect(
 	config: SpawnConfig,
 	context: AgentToolContext,
 	timeoutMs: number,
-	maxOutputBytes: number,
+	maxOutputChars: number,
 	combineOutput: boolean,
 ): Promise<string> {
+	if (context.signal?.aborted) {
+		return Promise.reject(new Error("Command was aborted"));
+	}
 	return new Promise((resolve, reject) => {
 		const isWindows = process.platform === "win32";
 
@@ -68,12 +142,15 @@ function spawnAndCollect(
 			env: { ...process.env, ...config.env },
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
+			// Prevent a console window from flashing on Windows when the
+			// parent process has no console (or a different console).
+			// No-op on non-Windows platforms.
+			windowsHide: true,
 		});
 		const childPid = child.pid;
 
-		let stdout = "";
-		let stderr = "";
-		let outputSize = 0;
+		const stdout = createRollingCollector(maxOutputChars);
+		const stderr = createRollingCollector(maxOutputChars);
 		let killed = false;
 		let settled = false;
 
@@ -83,15 +160,43 @@ function spawnAndCollect(
 			fn();
 		};
 
-		const killProcessTree = () => {
+		const killProcessTree = async (): Promise<void> => {
 			if (!childPid) return;
 			if (isWindows) {
-				const killer = spawn(
-					"taskkill",
-					["/pid", String(childPid), "/T", "/F"],
-					{ stdio: "ignore", shell: true, windowsHide: true },
-				);
-				killer.unref();
+				await new Promise<void>((done) => {
+					let finished = false;
+					let killer: ReturnType<typeof spawn>;
+					const finish = () => {
+						if (finished) return;
+						finished = true;
+						clearTimeout(watchdog);
+						done();
+					};
+					try {
+						killer = spawn(
+							"taskkill.exe",
+							["/PID", String(childPid), "/T", "/F"],
+							{ stdio: "ignore", shell: false, windowsHide: true },
+						);
+					} catch {
+						child.kill();
+						done();
+						return;
+					}
+					const watchdog = setTimeout(() => {
+						killer.kill();
+						child.kill();
+						finish();
+					}, 5_000);
+					killer.once("error", () => {
+						child.kill();
+						finish();
+					});
+					killer.once("close", (code) => {
+						if (code !== 0) child.kill();
+						finish();
+					});
+				});
 				return;
 			}
 			try {
@@ -101,106 +206,146 @@ function spawnAndCollect(
 			}
 		};
 
-		const killAndReject = (error: Error) => {
-			killed = true;
-			killProcessTree();
-			settle(() => reject(error));
-		};
-
-		const timeout = setTimeout(
-			() => killAndReject(new Error(`Command timed out after ${timeoutMs}ms`)),
-			timeoutMs,
-		);
-
+		let timeout: NodeJS.Timeout;
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
-
-		if (context.signal) {
-			context.signal.addEventListener("abort", abortHandler);
-		}
-
 		const cleanup = () => {
 			clearTimeout(timeout);
 			context.signal?.removeEventListener("abort", abortHandler);
 		};
+		const killAndReject = (error: Error) => {
+			if (killed || settled) return;
+			killed = true;
+			cleanup();
+			void killProcessTree().finally(() => settle(() => reject(error)));
+		};
+
+		timeout = setTimeout(
+			() =>
+				killAndReject(
+					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
+				),
+			timeoutMs,
+		);
+
+		if (context.signal) {
+			context.signal.addEventListener("abort", abortHandler, { once: true });
+			if (context.signal.aborted) abortHandler();
+		}
 
 		child.stdout?.on("data", (data: Buffer) => {
-			outputSize += data.length;
-			if (outputSize <= maxOutputBytes) stdout += data.toString();
+			stdout.append(data);
 		});
 
 		child.stderr?.on("data", (data: Buffer) => {
-			outputSize += data.length;
-			if (outputSize <= maxOutputBytes) stderr += data.toString();
+			stderr.append(data);
 		});
 
 		child.on("close", (code) => {
 			cleanup();
 			if (killed) return;
 
-			let output = combineOutput
-				? stdout + (stderr ? `\n[stderr]\n${stderr}` : "")
-				: stdout;
-
-			if (outputSize > maxOutputBytes) {
-				output += `\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
-			}
+			const out = stdout.snapshot();
+			const err = stderr.snapshot();
 
 			if (code !== 0) {
-				settle(() =>
-					reject(new Error(stderr || `Command exited with code ${code}`)),
-				);
+				const exitCode = code ?? 1;
+				let failureOutput = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				const totalChars = combineOutput
+					? out.totalChars + err.totalChars
+					: out.totalChars;
+				if (dropped || failureOutput.length > maxOutputChars) {
+					failureOutput = truncateCommandOutput(failureOutput, {
+						maxChars: maxOutputChars,
+						totalChars,
+					});
+				}
+				const result =
+					failureOutput.length > 0
+						? `[Command exited with code ${exitCode}]\n${failureOutput}`
+						: `[Command exited with code ${exitCode}]`;
+				settle(() => reject(new CommandExitError(exitCode, result)));
 			} else {
+				let output = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				if (dropped || output.length > maxOutputChars) {
+					const totalChars = combineOutput
+						? out.totalChars + err.totalChars
+						: out.totalChars;
+					output = truncateCommandOutput(output, {
+						maxChars: maxOutputChars,
+						totalChars,
+					});
+				}
 				settle(() => resolve(output));
 			}
 		});
 
 		child.on("error", (error) => {
 			cleanup();
+			if (killed) return;
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
 		});
+
+		child.stdin?.on("error", (error) => {
+			if (killed || settled) return;
+			killAndReject(
+				new Error(`Failed to write command input: ${error.message}`),
+			);
+		});
+		child.stdin?.end(config.input, "utf8");
 	});
 }
 
 /**
- * Create a bash executor using Node.js spawn
+ * Create a shell executor using Node.js spawn
  *
  * @example
  * ```typescript
- * const bash = createBashExecutor({
+ * const shell = createShellExecutor({
  *   timeoutMs: 60000, // 1 minute timeout
  *   shell: "/bin/zsh",
  * })
  *
- * const output = await bash("ls -la", "/path/to/project", context)
+ * const output = await shell("ls -la", "/path/to/project", context)
  * ```
  */
-export function createBashExecutor(
-	options: BashExecutorOptions = {},
-): BashExecutor {
+export function createShellExecutor(
+	options: ShellExecutorOptions = {},
+): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,
-		maxOutputBytes = 1_000_000,
 		env = {},
 		combineOutput = true,
 	} = options;
+	const maxOutputChars =
+		options.maxOutputChars ??
+		options.maxOutputBytes ??
+		MAX_COMMAND_OUTPUT_CHARS;
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
+		const invocation = isStructured
+			? { args: command.args ?? [] }
+			: getShellInvocation(shell, command);
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
-				args: isStructured
-					? (command.args ?? [])
-					: getShellArgs(shell, command),
+				args: invocation.args,
 				cwd,
 				env,
+				input: invocation.input,
 			},
 			context,
 			timeoutMs,
-			maxOutputBytes,
+			maxOutputChars,
 			combineOutput,
 		);
 	};

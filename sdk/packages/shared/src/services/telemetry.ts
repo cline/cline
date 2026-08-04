@@ -34,6 +34,11 @@ export interface CaptureSdkErrorInput {
 	component: SdkTelemetryErrorComponent;
 	operation: string;
 	error: unknown;
+	/**
+	 * A useful message derived while the caller still has domain-specific error
+	 * context. The raw error remains the source of type, code, and status.
+	 */
+	errorMessage?: string;
 	severity?: SdkTelemetryErrorSeverity;
 	handled?: boolean;
 	context?: TelemetryProperties;
@@ -41,8 +46,58 @@ export interface CaptureSdkErrorInput {
 	messageLimit?: number;
 }
 
+export const AGENT_UNEXPECTED_REASONING_TOKENS_EVENT =
+	"agent.reasoning.unexpected_tokens";
+
+export interface CaptureAgentUnexpectedReasoningTokensInput {
+	sessionId?: string;
+	agentId: string;
+	runId?: string;
+	iteration: number;
+	providerId?: string;
+	modelId?: string;
+	requestedThinking: false;
+	reasoningTokenCount: number;
+}
+
+export const TASK_PROVIDER_REQUEST_STARTED_EVENT =
+	"task.provider_request_started";
+export const TASK_PROVIDER_STREAM_STARTED_EVENT =
+	"task.provider_stream_started";
+export const TASK_FIRST_CHUNK_RECEIVED_EVENT = "task.first_chunk_received";
+export const TASK_PROVIDER_STREAM_FAILED_EVENT = "task.provider_stream_failed";
+export const TASK_CANCELLED_EVENT = "task.cancelled";
+
+export interface CaptureTaskLifecycleEventInput {
+	event: string;
+	sessionId?: string;
+	ulid?: string;
+	agentId?: string;
+	conversationId?: string;
+	runId?: string;
+	iteration?: number;
+	providerId?: string;
+	modelId?: string;
+	phase?: string;
+	durationMs?: number;
+	eventType?: string;
+	error?: unknown;
+	/**
+	 * Classification of `error` (e.g. context_window_exceeded), emitted as
+	 * `error_class` alongside the normalized error fields.
+	 */
+	errorClass?: string;
+	messageLimit?: number;
+}
+
 export interface TelemetryMetadata {
 	extension_version: string;
+	/**
+	 * The version of the host-side Cline distribution package: the JetBrains plugin version
+	 * (e.g. 1.1.61) on JetBrains, the extension version on VSCode (where it matches
+	 * `extension_version`). Absent when the host does not report one.
+	 */
+	host_plugin_version?: string;
 	cline_type: string;
 	platform: string;
 	platform_version: string;
@@ -88,6 +143,56 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+export function captureAgentUnexpectedReasoningTokens(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureAgentUnexpectedReasoningTokensInput,
+): void {
+	telemetry?.capture({
+		event: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+		properties: stripUndefinedTelemetryProperties({
+			sessionId: input.sessionId,
+			agentId: input.agentId,
+			runId: input.runId,
+			iteration: input.iteration,
+			providerId: input.providerId,
+			modelId: input.modelId,
+			requestedThinking: input.requestedThinking,
+			reasoningTokenCount: input.reasoningTokenCount,
+		}),
+	});
+}
+
+export function captureTaskLifecycleEvent(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureTaskLifecycleEventInput,
+): void {
+	if (!telemetry) {
+		return;
+	}
+	telemetry.capture({
+		event: input.event,
+		properties: stripUndefinedTelemetryProperties({
+			sessionId: input.sessionId,
+			ulid: input.ulid ?? input.sessionId,
+			agentId: input.agentId,
+			conversationId: input.conversationId,
+			runId: input.runId,
+			iteration: input.iteration,
+			provider: input.providerId,
+			providerId: input.providerId,
+			model: input.modelId,
+			modelId: input.modelId,
+			phase: input.phase,
+			durationMs: input.durationMs,
+			eventType: input.eventType,
+			...(input.error === undefined
+				? {}
+				: normalizeSdkError(input.error, input.messageLimit)),
+			error_class: input.errorClass,
+		}),
+	});
+}
+
 export function captureSdkError(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureSdkErrorInput,
@@ -110,20 +215,35 @@ export function buildSdkErrorProperties(
 		operation: input.operation,
 		severity: input.severity ?? "error",
 		handled: input.handled ?? true,
-		...normalizeSdkError(input.error, input.messageLimit),
+		...normalizeSdkError(input.error, input.messageLimit, input.errorMessage),
 	};
+}
+
+function stripUndefinedTelemetryProperties(
+	properties: TelemetryProperties,
+): TelemetryProperties {
+	const result: TelemetryProperties = {};
+	for (const [key, value] of Object.entries(properties)) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
 }
 
 export function normalizeSdkError(
 	error: unknown,
 	messageLimit = DEFAULT_ERROR_MESSAGE_LIMIT,
+	errorMessage?: string,
 ): TelemetryProperties {
 	const record = isRecord(error) ? error : undefined;
 	const errorObject = error instanceof Error ? error : undefined;
 	const message =
-		errorObject?.message ??
+		stringValue(errorMessage) ??
+		stringValue(errorObject?.message) ??
 		stringValue(record?.message) ??
-		(typeof error === "string" ? error : String(error));
+		fallbackErrorString(error) ??
+		"Unknown error";
 	const code = stringOrNumberValue(record?.code);
 	const status =
 		numberValue(record?.status) ??
@@ -175,6 +295,14 @@ function stringValue(value: unknown): string | undefined {
 		: undefined;
 }
 
+function fallbackErrorString(error: unknown): string | undefined {
+	if (error instanceof Error) {
+		return undefined;
+	}
+	const value = typeof error === "string" ? error : String(error);
+	return value === "[object Object]" ? undefined : stringValue(value);
+}
+
 function stringOrNumberValue(value: unknown): string | number | undefined {
 	if (typeof value === "string" && value.trim().length > 0) {
 		return value;
@@ -199,7 +327,7 @@ export interface OpenTelemetryClientConfig {
 
 	/**
 	 * Metrics exporter type(s) - can be comma-separated for multiple exporters
-	 * Examples: "console", "otlp", "prometheus", "console,otlp"
+	 * Examples: "console", "otlp", "console,otlp"
 	 */
 	metricsExporter?: string;
 

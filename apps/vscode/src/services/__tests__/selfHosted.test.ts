@@ -1,3 +1,4 @@
+import { afterEach, describe, it } from "bun:test"
 /**
  * Tests for selfHosted mode behavior across PostHog-based services.
  * When ClineEndpoint.isSelfHosted() returns true, all PostHog functionality should be disabled.

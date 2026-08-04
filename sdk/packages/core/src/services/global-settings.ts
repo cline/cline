@@ -29,9 +29,29 @@ const GlobalSettingsStringListSchema = z
 		return normalized.length > 0 ? normalized : undefined;
 	});
 
+const GlobalCompactionStrategySchema = z
+	.enum(["basic", "agentic"])
+	.catch("agentic");
+
+export type GlobalCompactionStrategy = z.infer<
+	typeof GlobalCompactionStrategySchema
+>;
+
+/** Compaction strategy plus the "off" state surfaced by the CLI settings UI. */
+export type GlobalCompactionMode = GlobalCompactionStrategy | "off";
+
+const GlobalPlanActModeSchema = z.enum(["plan", "act"]);
+
+export type GlobalPlanActMode = z.infer<typeof GlobalPlanActModeSchema>;
+
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
+		autoUpdateEnabled: z.boolean().default(true).catch(true),
+		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		compactionEnabled: z.boolean().optional().catch(undefined),
+		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
+		toolAutoApprove: z.boolean().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -39,11 +59,29 @@ export const GlobalSettingsSchema = z
 	.transform((settings) => {
 		const normalized: {
 			telemetryOptOut: boolean;
+			autoUpdateEnabled: boolean;
+			compactionStrategy?: GlobalCompactionStrategy;
+			compactionEnabled?: boolean;
+			planActMode?: GlobalPlanActMode;
+			toolAutoApprove?: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
+			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
 		};
+		if (settings.compactionStrategy) {
+			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (settings.compactionEnabled !== undefined) {
+			normalized.compactionEnabled = settings.compactionEnabled;
+		}
+		if (settings.planActMode) {
+			normalized.planActMode = settings.planActMode;
+		}
+		if (settings.toolAutoApprove !== undefined) {
+			normalized.toolAutoApprove = settings.toolAutoApprove;
+		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
 		}
@@ -158,6 +196,78 @@ export function setTelemetryOptOutGlobally(
 		},
 		options,
 	);
+}
+
+export function isAutoUpdateEnabledGlobally(): boolean {
+	return readGlobalSettings().autoUpdateEnabled;
+}
+
+export function setAutoUpdateEnabledGlobally(
+	autoUpdateEnabled: boolean,
+	options: WriteGlobalSettingsOptions = {},
+): void {
+	writeGlobalSettings(
+		{
+			...readGlobalSettings(),
+			autoUpdateEnabled,
+		},
+		options,
+	);
+}
+
+export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
+	return readGlobalSettings().compactionStrategy ?? "agentic";
+}
+
+export function setCompactionStrategyGlobally(
+	compactionStrategy: GlobalCompactionStrategy,
+): void {
+	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
+}
+
+/**
+ * Returns the persisted compaction mode including the disabled state, or
+ * undefined when the user never chose one (callers apply their own default).
+ */
+export function readCompactionModeGlobally(): GlobalCompactionMode | undefined {
+	const settings = readGlobalSettings();
+	if (settings.compactionEnabled === false) {
+		return "off";
+	}
+	return settings.compactionStrategy;
+}
+
+/**
+ * Persists the full compaction mode. Selecting "off" keeps the previously
+ * chosen strategy so re-enabling compaction restores it.
+ */
+export function setCompactionModeGlobally(mode: GlobalCompactionMode): void {
+	const settings = readGlobalSettings();
+	if (mode === "off") {
+		writeGlobalSettings({ ...settings, compactionEnabled: false });
+		return;
+	}
+	writeGlobalSettings({
+		...settings,
+		compactionEnabled: true,
+		compactionStrategy: mode,
+	});
+}
+
+export function readPlanActModeGlobally(): GlobalPlanActMode | undefined {
+	return readGlobalSettings().planActMode;
+}
+
+export function setPlanActModeGlobally(planActMode: GlobalPlanActMode): void {
+	writeGlobalSettings({ ...readGlobalSettings(), planActMode });
+}
+
+export function readToolAutoApproveGlobally(): boolean | undefined {
+	return readGlobalSettings().toolAutoApprove;
+}
+
+export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
 }
 
 export function resolveDisabledToolNames(

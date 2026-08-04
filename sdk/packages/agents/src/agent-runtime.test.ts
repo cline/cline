@@ -7,6 +7,14 @@ import type {
 	AgentTool,
 	ITelemetryService,
 } from "@cline/shared";
+import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
 
@@ -50,6 +58,31 @@ const createEchoTool = (): AgentTool<{ text: string }, { echoed: string }> => ({
 	},
 });
 
+function createTelemetryMock(): {
+	telemetry: ITelemetryService;
+	capture: ReturnType<typeof vi.fn>;
+} {
+	const capture = vi.fn();
+	return {
+		capture,
+		telemetry: {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService,
+	};
+}
+
 describe("AgentRuntime", () => {
 	it("completes a simple turn without tools", async () => {
 		const model = new ScriptedModel([
@@ -66,6 +99,273 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("hello");
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails a turn that hits the model output token limit before completion", async () => {
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, logger });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages).toHaveLength(2);
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "reasoning", text: "thinking..." }],
+		});
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agent loop caught error",
+			expect.objectContaining({
+				severity: "error",
+				status: "failed",
+				errorMessage: expect.stringContaining("maximum output token limit"),
+				iteration: 1,
+				assistantContentPartCount: 1,
+			}),
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			"Agent run failed",
+			expect.objectContaining({
+				error: expect.objectContaining({
+					message: expect.stringContaining("maximum output token limit"),
+				}),
+			}),
+		);
+	});
+
+	it("does not persist an empty assistant message when the model stream fails", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
+		]);
+		const addedMessages: AgentMessage[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "message-added") {
+				addedMessages.push(event.message);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("upstream failed");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
+	});
+
+	it("recovers from a context-window overflow with a forced compaction and one retry", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const overflowEvent: AgentModelEvent = {
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		};
+		const model = new ScriptedModel([
+			() => [overflowEvent],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model, prepareTurn });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(prepareTurn.mock.calls[0]?.[0].overflowRecovery).toBeUndefined();
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+		// The retried request uses the compacted transcript.
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				message: "context window exceeded — compacting and retrying",
+				metadata: expect.objectContaining({
+					kind: "context_overflow_recovery",
+				}),
+			}),
+		);
+	});
+
+	it("recovers from an unclassified overflow by classifying the finish message", async () => {
+		// Models that do not classify at their own error boundary (custom
+		// AgentModel implementations, adapters carrying only a flattened
+		// message) must still reach recovery.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`Please review ${"lots of context ".repeat(50)}`,
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+	});
+
+	it("does not treat an unrelated stream failure as an overflow", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "fetch failed: socket closed",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("fetch failed: socket closed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "input is too long for requested model",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"no conversation history to compact",
+		);
+		expect(result.error?.message).toContain(
+			"input is too long for requested model",
+		);
+		// The doomed request is not re-sent.
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with guidance when overflow occurs and no prepare-turn pipeline exists", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry a second consecutive overflow in the same run", async () => {
+		const overflow = (): AgentModelEvent[] => [
+			{
+				type: "finish",
+				reason: "error",
+				error: "prompt is too long",
+				errorClass: "context_window_exceeded",
+			},
+		];
+		const model = new ScriptedModel([overflow, overflow]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "x" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`A long request ${"with plenty of transcript ".repeat(30)}`,
+		);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"still exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it("does not complete or persist history when the model returns no content", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
 	});
 
 	it("executes a tool call and continues the loop", async () => {
@@ -169,9 +469,16 @@ describe("AgentRuntime", () => {
 					),
 			),
 		).toBe(true);
+		expect(
+			addedMessages.find((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === "steer now",
+				),
+			)?.metadata?.userRunSpan,
+		).toBe(0);
 	});
 
-	it("injects pending user messages before prepareTurn rewrites the transcript", async () => {
+	it("injects pending user messages before prepareTurn projects the provider request", async () => {
 		const consumePendingUserMessage = vi.fn(() => "steer before prepare");
 		const prepareTurn = vi.fn(
 			(context: { messages: readonly AgentMessage[] }) => ({
@@ -225,7 +532,7 @@ describe("AgentRuntime", () => {
 		});
 	});
 
-	it("lets prepareTurn compact tool results after pending user input is added", async () => {
+	it("lets prepareTurn project tool results after pending user input is added", async () => {
 		const consumePendingUserMessage = vi.fn(() => "latest steering");
 		const hugeToolOutput = "x".repeat(100_000);
 		const prepareTurn = vi.fn(
@@ -318,6 +625,7 @@ describe("AgentRuntime", () => {
 						(part) => part.type === "text" && part.text.includes("submit"),
 					),
 				).toBe(true);
+				expect(reminder?.metadata?.userRunSpan).toBe(0);
 				return [
 					{
 						type: "tool-call-delta",
@@ -442,7 +750,7 @@ describe("AgentRuntime", () => {
 	it("preserves structured multimodal tool results for the next model request", async () => {
 		const structuredOutput = [
 			{ type: "text", text: "Successfully read image" },
-			{ type: "image", data: "BASE64DATA", mediaType: "image/jpeg" },
+			{ type: "image", data: "QkFTRTY0REFUQQ==", mediaType: "image/jpeg" },
 		];
 		const model = new ScriptedModel([
 			() => [
@@ -600,6 +908,73 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("applies beforeTool approval policy overrides before executing tools", async () => {
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "live policy denied",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_live_policy",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "live policy denied" },
+				});
+				return [
+					{ type: "text-delta", text: "live policy handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: true } },
+			hooks: {
+				beforeTool: () => ({ policy: { autoApprove: false } }),
+			},
+			requestToolApproval,
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("live policy handled");
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			iteration: 1,
+			toolCallId: "call_live_policy",
+			toolName: "echo",
+			input: { text: "hi" },
+			policy: { autoApprove: false },
+		});
+	});
+
 	it("stores tool calls but skips execution when metadata disables external execution", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const model = new ScriptedModel([
@@ -712,6 +1087,123 @@ describe("AgentRuntime", () => {
 				},
 			}),
 		]);
+	});
+
+	it("normalizes JSON-encoded string fields when the tool schema expects arrays", async () => {
+		const executeTool = vi.fn(async (input: { commands: string[] }) => ({
+			joined: input.commands.join(" && "),
+		}));
+		const beforeTool = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_commands",
+					toolName: "commands",
+					inputText: JSON.stringify({
+						commands: JSON.stringify(["git status", "bun test"]),
+					}),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolName: "commands",
+					output: { joined: "git status && bun test" },
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "commands",
+					description: "Run commands",
+					inputSchema: {
+						type: "object",
+						properties: {
+							commands: {
+								type: "array",
+								items: { type: "string" },
+							},
+						},
+					},
+					execute: executeTool,
+				},
+			],
+			hooks: {
+				beforeTool,
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ commands: ["git status", "bun test"] },
+			expect.anything(),
+		);
+		expect(beforeTool).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: { commands: ["git status", "bun test"] },
+				toolCall: expect.objectContaining({
+					input: { commands: ["git status", "bun test"] },
+				}),
+			}),
+		);
+	});
+
+	it("preserves JSON-looking strings when the tool schema expects strings", async () => {
+		const executeTool = vi.fn(async (input: { text: string }) => ({
+			echoed: input.text,
+		}));
+		const jsonText = JSON.stringify({ keep: "as text" });
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_text",
+					toolName: "echo_json",
+					inputText: JSON.stringify({ text: jsonText }),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo_json",
+					description: "Echo JSON-looking text",
+					inputSchema: {
+						type: "object",
+						properties: {
+							text: { type: "string" },
+						},
+					},
+					execute: executeTool,
+				},
+			],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ text: jsonText },
+			expect.anything(),
+		);
 	});
 
 	it("treats an unset maxIterations as unlimited", async () => {
@@ -846,6 +1338,7 @@ describe("AgentRuntime", () => {
 						outputTokens: 7,
 						cacheReadTokens: 3,
 						cacheWriteTokens: 2,
+						reasoningTokenCount: 5,
 						totalCost: 0.42,
 					},
 				},
@@ -876,8 +1369,294 @@ describe("AgentRuntime", () => {
 			outputTokens: 7,
 			cacheReadTokens: 3,
 			cacheWriteTokens: 2,
+			reasoningTokenCount: 5,
 			cost: 0.42,
 		});
+	});
+
+	it("captures telemetry when disabled reasoning still reports reasoning tokens", async () => {
+		const telemetry = {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService;
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "usage",
+					usage: {
+						inputTokens: 12,
+						outputTokens: 7,
+						reasoningTokenCount: 5,
+					},
+				},
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { thinking: false },
+			messageModelInfo: {
+				id: "z-ai/glm-4.7",
+				provider: "openrouter",
+			},
+			telemetry,
+		});
+
+		await runtime.run("Hi");
+
+		expect(telemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+				properties: expect.objectContaining({
+					providerId: "openrouter",
+					modelId: "z-ai/glm-4.7",
+					requestedThinking: false,
+					reasoningTokenCount: 5,
+					iteration: 1,
+				}),
+			}),
+		);
+	});
+
+	it("captures task lifecycle telemetry around a successful model stream", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				provider: "openrouter",
+			},
+			telemetry,
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		]);
+		expect(taskEvents[0]).toEqual(
+			expect.objectContaining({
+				event: TASK_PROVIDER_REQUEST_STARTED_EVENT,
+				properties: expect.objectContaining({
+					agentId: "agent-1",
+					conversationId: "conversation-1",
+					sessionId: "session-1",
+					ulid: "session-1",
+					iteration: 1,
+					provider: "openrouter",
+					providerId: "openrouter",
+					model: "anthropic/claude-sonnet-4.6",
+					modelId: "anthropic/claude-sonnet-4.6",
+					phase: "provider_request_started",
+				}),
+			}),
+		);
+		expect(taskEvents[2]?.properties).toEqual(
+			expect.objectContaining({
+				eventType: "text-delta",
+				phase: "first_chunk_received",
+			}),
+		);
+	});
+
+	it("captures task lifecycle telemetry when the provider stream fails", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-flash",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_FAILED_EVENT,
+		]);
+		expect(taskEvents[1]?.properties).toEqual(
+			expect.objectContaining({
+				error_message: "No scripted model step available",
+				error_type: "Error",
+				phase: "provider_request_started",
+				provider: "cline",
+				model: "deepseek/deepseek-v4-flash",
+			}),
+		);
+	});
+
+	it("captures task cancellation without reporting provider failure", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveStreamStarted: (() => void) | undefined;
+		const streamStarted = new Promise<void>((resolve) => {
+			resolveStreamStarted = resolve;
+		});
+		const model = new ScriptedModel([
+			async function* (request: AgentModelRequest) {
+				await new Promise<void>((_resolve, reject) => {
+					request.signal?.addEventListener(
+						"abort",
+						() => reject(request.signal?.reason),
+						{ once: true },
+					);
+					resolveStreamStarted?.();
+				});
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-pro",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const run = runtime.run("Hi");
+		await streamStarted;
+		runtime.abort("user cancelled");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+			TASK_CANCELLED_EVENT,
+		]);
+		expect(taskEvents[2]?.properties).toEqual(
+			expect.objectContaining({
+				error_message: "user cancelled",
+				error_type: "AgentRuntimeAbortError",
+			}),
+		);
+	});
+
+	it("does not report provider failure when cancelled before stream opens", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveStreamCalled: (() => void) | undefined;
+		const streamCalled = new Promise<void>((resolve) => {
+			resolveStreamCalled = resolve;
+		});
+		const model: AgentModel = {
+			async stream(request: AgentModelRequest) {
+				resolveStreamCalled?.();
+				await new Promise<void>((resolve) => {
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				});
+				return toAsyncIterable([]);
+			},
+		};
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-pro",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const run = runtime.run("Hi");
+		await streamCalled;
+		runtime.abort("user cancelled before stream opened");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_CANCELLED_EVENT,
+		]);
+	});
+
+	it("does not emit provider request telemetry when cancelled during beforeModel hooks", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveHookStarted: (() => void) | undefined;
+		const hookStarted = new Promise<void>((resolve) => {
+			resolveHookStarted = resolve;
+		});
+		let resolveHook: (() => void) | undefined;
+		const hookCanFinish = new Promise<void>((resolve) => {
+			resolveHook = resolve;
+		});
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "should not happen" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			sessionId: "session-1",
+			telemetry,
+			hooks: {
+				beforeModel: async () => {
+					resolveHookStarted?.();
+					await hookCanFinish;
+				},
+			},
+		});
+
+		const run = runtime.run("Hi");
+		await hookStarted;
+		runtime.abort("user cancelled during hook");
+		resolveHook?.();
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		expect(model.requests).toHaveLength(0);
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_CANCELLED_EVENT,
+		]);
 	});
 
 	it("stops a run from beforeModel hooks and returns an aborted result", async () => {
@@ -902,11 +1681,11 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(0);
 	});
 
-	it("runs prepareTurn before beforeModel and persists rewritten messages", async () => {
-		const compactedMessage: AgentMessage = {
-			id: "msg_compacted",
+	it("projects the provider request without overwriting canonical messages", async () => {
+		const projectedMessage: AgentMessage = {
+			id: "msg_projected",
 			role: "user",
-			content: [{ type: "text", text: "compacted context" }],
+			content: [{ type: "text", text: "projected context" }],
 			createdAt: 1,
 		};
 		const notices: string[] = [];
@@ -919,19 +1698,19 @@ describe("AgentRuntime", () => {
 				reason: "auto_compaction",
 			});
 			return {
-				messages: [compactedMessage],
-				systemPrompt: "compacted system",
+				messages: [projectedMessage],
+				systemPrompt: "projected system",
 			};
 		});
 		const beforeModel = vi.fn(({ request }) => {
-			expect(request.systemPrompt).toBe("compacted system");
-			expect(request.messages).toEqual([compactedMessage]);
+			expect(request.systemPrompt).toBe("projected system");
+			expect(request.messages).toEqual([projectedMessage]);
 			return undefined;
 		});
 		const model = new ScriptedModel([
 			(request) => {
-				expect(request.systemPrompt).toBe("compacted system");
-				expect(request.messages).toEqual([compactedMessage]);
+				expect(request.systemPrompt).toBe("projected system");
+				expect(request.messages).toEqual([projectedMessage]);
 				return [
 					{ type: "text-delta", text: "done" },
 					{ type: "finish", reason: "stop" },
@@ -955,22 +1734,128 @@ describe("AgentRuntime", () => {
 		expect(prepareTurn).toHaveBeenCalledTimes(1);
 		expect(beforeModel).toHaveBeenCalledTimes(1);
 		expect(notices).toEqual(["auto-compacting"]);
-		expect(result.messages[0]).toEqual(compactedMessage);
+		expect(model.requests[0]?.messages).toEqual([projectedMessage]);
+		expect(result.messages[0]).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "large context" }],
+		});
 		expect(result.messages).toHaveLength(2);
+		expect(result.messages).not.toContainEqual(projectedMessage);
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("merges beforeModel options metadata into the model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.options?.metadata).toMatchObject({
+					sessionId: "session-1",
+					runId: "run-1",
+					iteration: 1,
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { metadata: { existing: true } },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							sessionId: "session-1",
+							runId: "run-1",
+							iteration: 1,
+						},
+					},
+				}),
+			},
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+		expect(model.requests[0]?.options?.metadata).toMatchObject({
+			existing: true,
+			sessionId: "session-1",
+			runId: "run-1",
+			iteration: 1,
+		});
+	});
+
+	it("stamps runtime identity metadata onto model requests", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).toMatchObject({
+					sessionId: "session-runtime",
+					agentId: "agent-runtime",
+					conversationId: "conversation-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session-runtime",
+			agentId: "agent-runtime",
+			conversationId: "conversation-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not synthesize session or conversation ids in model request metadata", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).not.toHaveProperty("sessionId");
+				expect(metadata).not.toHaveProperty("conversationId");
+				expect(metadata).toMatchObject({
+					agentId: "agent-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			agentId: "agent-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
 		expect(model.requests).toHaveLength(1);
 	});
 
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
-		const compactedMessage: AgentMessage = {
-			id: "msg_compacted",
+		const projectedMessage: AgentMessage = {
+			id: "msg_projected",
 			role: "user",
-			content: [{ type: "text", text: "compacted context" }],
+			content: [{ type: "text", text: "projected context" }],
 			createdAt: 1,
 		};
 		const model = new ScriptedModel([
 			(request) => {
 				expect(request.systemPrompt).toBe("original system");
-				expect(request.messages).toEqual([compactedMessage]);
+				expect(request.messages).toEqual([projectedMessage]);
 				return [
 					{ type: "text-delta", text: "done" },
 					{ type: "finish", reason: "stop" },
@@ -980,7 +1865,7 @@ describe("AgentRuntime", () => {
 		const runtime = new AgentRuntime({
 			model,
 			systemPrompt: "original system",
-			prepareTurn: () => ({ messages: [compactedMessage] }),
+			prepareTurn: () => ({ messages: [projectedMessage] }),
 		});
 
 		await runtime.run("large context");
@@ -1341,6 +2226,14 @@ describe("AgentRuntime", () => {
 
 		expect(result.status).toBe("failed");
 		expect(events).toContain("run-failed");
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agent loop caught error",
+			expect.objectContaining({
+				severity: "error",
+				status: "failed",
+				errorMessage: "model failed",
+			}),
+		);
 		expect(logger.error).toHaveBeenCalled();
 		expect(telemetry.capture).toHaveBeenCalled();
 	});

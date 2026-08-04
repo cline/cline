@@ -22,9 +22,8 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.apiKey).toEqual({
 			note: "Keep empty if no API key for local inference.",
 		});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"http://localhost:11434/v1",
-		);
+		// The native-API vendor appends /api itself; the default is a bare host.
+		expect(result.fields.baseUrl?.defaultValue).toBe("http://localhost:11434");
 	});
 
 	it("returns api-key auth with apiKey + baseUrl for LM Studio", () => {
@@ -84,14 +83,35 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
-	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
+	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Azure AI Foundry/i);
 		expect(result.fields.apiKey).toEqual({});
 		expect(result.fields.baseUrl?.defaultValue).toBe(
 			"https://api.openai.com/v1",
 		);
+		expect(result.fields.azureApiVersion).toMatchObject({
+			label: "Azure API Version (optional)",
+			placeholder: "2025-01-01-preview",
+			optional: true,
+		});
+	});
+
+	it("returns Vertex GCP config fields with optional API key", () => {
+		const result = getProviderConfigFields("vertex");
+		expect(result.providerId).toBe("vertex");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Application Default Credentials/i);
+		expect(Object.keys(result.fields)).toEqual([
+			"gcpProjectId",
+			"gcpRegion",
+			"apiKey",
+		]);
+		expect(result.fields.gcpProjectId?.label).toBe("Google Cloud Project ID");
+		expect(result.fields.gcpRegion?.defaultValue).toBe("us-central1");
+		expect(result.fields.apiKey?.optional).toBe(true);
 	});
 
 	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {
@@ -108,6 +128,25 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.awsRegion?.placeholder).toBe("us-east-1");
 		expect(result.fields.apiKey?.optional).toBe(true);
 		expect(result.fields.awsProfile?.optional).toBe(true);
+	});
+
+	it("returns SAP AI Core client credential fields instead of a generic API key", () => {
+		const result = getProviderConfigFields("sapaicore");
+		expect(result.providerId).toBe("sapaicore");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/not a generic API key/i);
+		expect(Object.keys(result.fields)).toEqual([
+			"baseUrl",
+			"sapClientId",
+			"sapClientSecret",
+			"sapTokenUrl",
+			"sapResourceGroup",
+			"sapDeploymentId",
+		]);
+		expect(result.fields.apiKey).toBeUndefined();
+		expect(result.fields.baseUrl?.label).toBe("AI Core Base URL");
+		expect(result.fields.sapResourceGroup?.optional).toBe(true);
+		expect(result.fields.sapDeploymentId?.optional).toBe(true);
 	});
 
 	it("falls back to a single api-key field for unknown providers", () => {

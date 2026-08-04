@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentExtensionCommandResult,
+	AgentExtensionMcpServer,
+	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
 	Message,
@@ -23,6 +26,12 @@ export type SandboxedPluginSetupContext = Pick<
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
+	/**
+	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
+	 * to raise the ceiling without touching code.
+	 */
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
@@ -44,6 +53,13 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	user?: SandboxedPluginSetupContext["user"];
 	/** Enables a logger bridge that forwards sandbox log calls to the host. */
 	logger?: SandboxedPluginSetupContext["logger"];
+	/**
+	 * Enables the telemetry bridge (`ctx.telemetry`) for sandboxed plugins.
+	 * Set only when the host has a live telemetry service to route
+	 * `plugin_telemetry` events into, so plugin feature-detection of
+	 * `ctx.telemetry` means "someone is listening" in both execution modes.
+	 */
+	telemetryAvailable?: boolean;
 }
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -63,6 +79,13 @@ type SandboxedContributionDescriptor = {
 	metadata?: Record<string, unknown>;
 };
 
+type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
+	id: string;
+	ruleId: string;
+	content?: string;
+	hasContentHandler?: boolean;
+};
+
 type SandboxedAutomationEventTypeDescriptor =
 	AgentExtensionAutomationEventType & {
 		id: string;
@@ -77,9 +100,11 @@ type SandboxedPluginDescriptor = {
 	contributions: {
 		tools: SandboxedContributionDescriptor[];
 		commands: SandboxedContributionDescriptor[];
+		rules: SandboxedRuleDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
 	};
@@ -97,10 +122,12 @@ function normalizeDescriptor(
 		contributions: {
 			tools: descriptor.contributions?.tools ?? [],
 			commands: descriptor.contributions?.commands ?? [],
+			rules: descriptor.contributions?.rules ?? [],
 			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
 			providers: descriptor.contributions?.providers ?? [],
 			automationEventTypes:
 				descriptor.contributions?.automationEventTypes ?? [],
+			mcpServers: descriptor.contributions?.mcpServers ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
 		},
@@ -202,8 +229,25 @@ const BOOTSTRAP = resolveBootstrap();
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
 	fallback: number,
+	envVarName?: string,
 ): number {
-	return typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : fallback;
+	if (typeof timeoutMs === "number" && timeoutMs > 0) {
+		return timeoutMs;
+	}
+	if (envVarName) {
+		const raw = process.env[envVarName];
+		if (raw) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return parsed;
+			}
+		}
+	}
+	return fallback;
 }
 
 export async function loadSandboxedPlugins(
@@ -211,6 +255,7 @@ export async function loadSandboxedPlugins(
 ): Promise<
 	{
 		extensions: AgentConfig["extensions"];
+		pluginPaths: string[];
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -221,7 +266,11 @@ export async function loadSandboxedPlugins(
 			: { bootstrapScript: BOOTSTRAP.script }),
 		onEvent: options.onEvent,
 	});
-	const importTimeoutMs = withTimeoutFallback(options.importTimeoutMs, 4000);
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
@@ -238,6 +287,7 @@ export async function loadSandboxedPlugins(
 		user: options.user,
 		workspaceInfo: options.workspaceInfo,
 		loggerEnabled: Boolean(options.logger),
+		telemetryEnabled: options.telemetryAvailable === true,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -288,6 +338,13 @@ export async function loadSandboxedPlugins(
 						contributionTimeoutMs,
 						reinitialize,
 					);
+					registerRules(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
 					registerMessageBuilders(
 						api,
 						sandbox,
@@ -313,6 +370,7 @@ export async function loadSandboxedPlugins(
 	return {
 		extensions,
 		failures: initialized.failures,
+		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
 			await sandbox.shutdown();
 		},
@@ -323,6 +381,113 @@ export async function loadSandboxedPlugins(
 // ---------------------------------------------------------------------------
 // Contribution registration helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Tool contexts and hook payloads cross the sandbox process boundary over
+ * JSON IPC, so they must survive JSON.stringify. Host code must not place
+ * live host objects (telemetry services, sockets, abort signals) on them,
+ * but a single offender would otherwise fail every sandboxed call — the
+ * telemetry service on toolContextMetadata did exactly that ("JSON.stringify
+ * cannot serialize cyclic structures"). These helpers are the safety net:
+ * the first attempt sends the payload untouched (no extra serialization on
+ * the happy path); only when the runtime rejects it as non-serializable do
+ * we retry with a JSON-safe clone and warn.
+ */
+function isSerializationError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	// Bun: "JSON.stringify cannot serialize cyclic structures." /
+	//      "JSON.stringify cannot serialize BigInt."
+	// Node: "Converting circular structure to JSON" /
+	//       "Do not know how to serialize a BigInt"
+	return /cyclic|circular|bigint/i.test(message);
+}
+
+/**
+ * Deep-clone into a JSON-safe shape: cycles and non-serializable leaves
+ * (functions, symbols, bigints) are dropped, `toJSON` (e.g. Date) is
+ * honored. Fallback path only — never run on the happy path.
+ */
+function toJsonSafePayload(
+	value: unknown,
+	ancestors = new WeakSet<object>(),
+): unknown {
+	if (value === null || typeof value !== "object") {
+		return typeof value === "function" ||
+			typeof value === "symbol" ||
+			typeof value === "bigint"
+			? undefined
+			: value;
+	}
+	if (ancestors.has(value)) {
+		return undefined;
+	}
+	const withToJson = value as { toJSON?: () => unknown };
+	if (typeof withToJson.toJSON === "function") {
+		try {
+			return withToJson.toJSON();
+		} catch {
+			return undefined;
+		}
+	}
+	ancestors.add(value);
+	try {
+		if (Array.isArray(value)) {
+			return value.map(
+				(entry) => toJsonSafePayload(entry, ancestors) ?? null,
+			);
+		}
+		const out: Record<string, unknown> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			const safe = toJsonSafePayload(entry, ancestors);
+			if (safe !== undefined) {
+				out[key] = safe;
+			}
+		}
+		return out;
+	} finally {
+		ancestors.delete(value);
+	}
+}
+
+const warnedNonSerializablePayloads = new Set<string>();
+
+function warnNonSerializablePayloadOnce(
+	kind: "tool" | "hook",
+	name: string,
+	error: unknown,
+): void {
+	const key = `${kind}:${name}`;
+	if (warnedNonSerializablePayloads.has(key)) {
+		return;
+	}
+	warnedNonSerializablePayloads.add(key);
+	const message = error instanceof Error ? error.message : String(error);
+	console.warn(
+		`[plugin-sandbox] ${kind} "${name}" received a payload that is not JSON-serializable (${message}); ` +
+			"retrying with non-serializable values dropped. Host-only objects must not be placed on tool contexts or hook payloads.",
+	);
+}
+
+/**
+ * Invoke a sandbox call with the raw payload; if the IPC layer rejects it as
+ * non-serializable, retry once with a JSON-safe clone instead of failing the
+ * call.
+ */
+async function callWithSerializableFallback<T>(
+	invoke: (payload: unknown) => Promise<T>,
+	payload: unknown,
+	onSanitized: (error: unknown) => void,
+): Promise<T> {
+	try {
+		return await invoke(payload);
+	} catch (error) {
+		if (!isSerializationError(error)) {
+			throw error;
+		}
+		onSanitized(error);
+		return await invoke(toJsonSafePayload(payload));
+	}
+}
 
 function registerTools(
 	api: AgentExtensionApi,
@@ -342,33 +507,46 @@ function registerTools(
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
 			execute: async (input: unknown, context: unknown) => {
-				try {
-					return await sandbox.call(
-						"executeTool",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: td.id,
-							input,
-							context,
-						},
-						{ timeoutMs },
-					);
-				} catch (error) {
-					if (!isUnknownPluginIdError(error)) {
-						throw error;
+				// The fallback must cover the whole IPC payload: `input` can be
+				// rewritten by beforeTool hooks or programmatic callers, so it is
+				// just as capable of smuggling a non-serializable value as the
+				// context is.
+				const invoke = async (payload: unknown) => {
+					const { input: sandboxInput, context: sandboxContext } =
+						payload as { input: unknown; context: unknown };
+					try {
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input: sandboxInput,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input: sandboxInput,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
 					}
-					await reinitialize();
-					return await sandbox.call(
-						"executeTool",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: td.id,
-							input,
-							context,
-						},
-						{ timeoutMs },
-					);
-				}
+				};
+				return await callWithSerializableFallback(
+					invoke,
+					{ input, context },
+					(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
+				);
 			},
 		};
 		api.registerTool(tool);
@@ -388,7 +566,7 @@ function registerCommands(
 			description: cd.description,
 			handler: async (input: string) => {
 				try {
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -402,7 +580,7 @@ function registerCommands(
 						throw error;
 					}
 					await reinitialize();
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -413,6 +591,49 @@ function registerCommands(
 					);
 				}
 			},
+		});
+	}
+}
+
+function registerRules(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const rule of descriptor.contributions?.rules ?? []) {
+		api.registerRule({
+			id: rule.ruleId,
+			source: rule.source,
+			content:
+				rule.hasContentHandler === true
+					? async () => {
+							try {
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							} catch (error) {
+								if (!isUnknownPluginIdError(error)) {
+									throw error;
+								}
+								await reinitialize();
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							}
+						}
+					: (rule.content ?? ""),
 		});
 	}
 }
@@ -440,6 +661,10 @@ function registerSimpleContributions(
 			examples: eventType.examples,
 			metadata: eventType.metadata,
 		});
+	}
+
+	for (const mcpServer of descriptor.contributions?.mcpServers ?? []) {
+		api.registerMcpServer(mcpServer);
 	}
 }
 
@@ -507,23 +732,28 @@ function makeHookHandler(
 	reinitialize: () => Promise<void>,
 ): (payload: unknown) => Promise<unknown> {
 	return async (payload: unknown) => {
-		try {
-			return await sandbox.call(
-				"invokeHook",
-				{ pluginId, hookName, payload },
-				{ timeoutMs },
-			);
-		} catch (error) {
-			if (!isUnknownPluginIdError(error)) {
-				throw error;
+		const invoke = async (sandboxPayload: unknown) => {
+			try {
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
+			} catch (error) {
+				if (!isUnknownPluginIdError(error)) {
+					throw error;
+				}
+				await reinitialize();
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
 			}
-			await reinitialize();
-			return await sandbox.call(
-				"invokeHook",
-				{ pluginId, hookName, payload },
-				{ timeoutMs },
-			);
-		}
+		};
+		return await callWithSerializableFallback(invoke, payload, (error) =>
+			warnNonSerializablePayloadOnce("hook", hookName, error),
+		);
 	};
 }
 

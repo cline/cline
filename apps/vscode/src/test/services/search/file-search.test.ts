@@ -1,8 +1,8 @@
-import * as fileSearch from "@services/search/file-search"
-import * as childProcess from "child_process"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
+import * as actualFileSearch from "@services/search/file-search"
+import * as actualChildProcess from "child_process"
 import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
-import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
@@ -10,30 +10,80 @@ import { HostProvider } from "@/hosts/host-provider"
 import { SearchWorkspaceItemsRequest_SearchItemType, SearchWorkspaceItemsResponse } from "@/shared/proto/host/workspace"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
+// bun loads real ESM, so sinon cannot stub the `@services/search/file-search`
+// namespace exports ("ES Modules cannot be stubbed"). Two seams are needed:
+//
+//  1. child_process.spawn — the SUT's real `executeRipgrepForFiles` calls its
+//     own `getSpawnFunction()` (which returns `childProcess.spawn`) via an
+//     internal binding that mock.module on the file-search module CANNOT
+//     intercept. Mocking `child_process.spawn` itself reaches it. `spawnImpl` is
+//     swapped per-test (replacing the old `sandbox.stub(fileSearch,
+//     "getSpawnFunction")`).
+//  2. file-search self-exports — the tests that stub `executeRipgrepForFiles` /
+//     `searchWorkspaceFiles` call them through the `fileSearch` namespace, so a
+//     mock.module with mutable delegates intercepts those direct calls. Real
+//     implementations are captured before mock.module to avoid recursion.
+//
+// `fs.promises.*` and `HostProvider.workspace/window.*` are plain objects whose
+// methods sinon CAN still stub directly, so those keep `sandbox.stub`.
+const realSpawn = actualChildProcess.spawn
+let spawnImpl: typeof actualChildProcess.spawn | null = null
+const childProcessNamespace = {
+	...actualChildProcess,
+	spawn: ((...args: Parameters<typeof actualChildProcess.spawn>) =>
+		(spawnImpl ?? realSpawn)(...args)) as typeof actualChildProcess.spawn,
+}
+const childProcessMock = () => ({ ...childProcessNamespace, default: childProcessNamespace })
+mock.module("child_process", childProcessMock)
+mock.module("node:child_process", childProcessMock)
+
+const realExecuteRipgrepForFiles = actualFileSearch.executeRipgrepForFiles
+const realSearchWorkspaceFiles = actualFileSearch.searchWorkspaceFiles
+let executeRipgrepOverride: typeof actualFileSearch.executeRipgrepForFiles | null = null
+let searchWorkspaceFilesOverride: typeof actualFileSearch.searchWorkspaceFiles | null = null
+const fileSearchMock = () => ({
+	...actualFileSearch,
+	executeRipgrepForFiles: ((...args: Parameters<typeof actualFileSearch.executeRipgrepForFiles>) =>
+		(executeRipgrepOverride ?? realExecuteRipgrepForFiles)(...args)) as typeof actualFileSearch.executeRipgrepForFiles,
+	searchWorkspaceFiles: ((...args: Parameters<typeof actualFileSearch.searchWorkspaceFiles>) =>
+		(searchWorkspaceFilesOverride ?? realSearchWorkspaceFiles)(...args)) as typeof actualFileSearch.searchWorkspaceFiles,
+})
+mock.module("@services/search/file-search", fileSearchMock)
+mock.module("@/services/search/file-search", fileSearchMock)
+
+import * as fileSearch from "@services/search/file-search"
+
 describe("File Search", () => {
 	let sandbox: sinon.SinonSandbox
 	let spawnStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+		// Replace child_process.spawn for this test. `spawnStub` keeps the same
+		// (command, options) call shape the old getSpawnFunction wrapper had.
 		spawnStub = sandbox.stub()
+		spawnImpl = ((command: string, options?: unknown) => spawnStub(command, options)) as typeof actualChildProcess.spawn
+		// Reset self-export overrides each test.
+		executeRipgrepOverride = null
+		searchWorkspaceFilesOverride = null
 
-		// Create a wrapper function that matches the signature of childProcess.spawn
-		const spawnWrapper: typeof childProcess.spawn = (command, options) => spawnStub(command, options)
-
-		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
 		sandbox.stub(fs.promises, "lstat").resolves({ isDirectory: () => false } as fs.Stats)
 
 		// Mock fs.access to return true for both Unix and Windows ripgrep binary paths
 		const accessStub = sandbox.stub(fs.promises, "access")
 		accessStub.withArgs("/mock/path/rg").resolves()
 		accessStub.withArgs("/mock/path/rg.exe").resolves()
+		accessStub.withArgs("/mock/path/to/binary/rg").resolves()
+		accessStub.withArgs("/mock/path/to/binary/rg.exe").resolves()
 
 		setVscodeHostProviderMock()
 	})
 
 	afterEach(() => {
 		sandbox.restore()
+		spawnImpl = null
+		executeRipgrepOverride = null
+		searchWorkspaceFilesOverride = null
 	})
 
 	describe("executeRipgrepForFiles", () => {
@@ -58,7 +108,7 @@ describe("File Search", () => {
 				stdout: mockStdout,
 				stderr: mockStderr,
 				on: sinon.stub().returns({}),
-			} as unknown as childProcess.ChildProcess)
+			} as unknown as actualChildProcess.ChildProcess)
 
 			// Instead of stubbing path functions, we'll stub the executeRipgrepForFiles function
 			// to return a predictable result for this test
@@ -70,8 +120,8 @@ describe("File Search", () => {
 				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
 			]
 
-			// Create a new stub for executeRipgrepForFiles
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(expectedResult)
+			// Override executeRipgrepForFiles (via mock.module delegate) for this test
+			executeRipgrepOverride = async () => expectedResult
 
 			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
 
@@ -123,7 +173,7 @@ describe("File Search", () => {
 					}
 					return this
 				},
-			} as unknown as childProcess.ChildProcess)
+			} as unknown as actualChildProcess.ChildProcess)
 
 			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
 				`ripgrep failed to spawn: ${mockError}`,
@@ -156,12 +206,52 @@ describe("File Search", () => {
 					return this
 				},
 				kill: () => {},
-			} as unknown as childProcess.ChildProcess)
+			} as unknown as actualChildProcess.ChildProcess)
 
 			const err = await fileSearch.executeRipgrepForFiles("/workspace", 5000).catch((e) => e)
 			should(err.message).match(/ripgrep exited with code 2/)
 			should(err).have.property("name", "RipgrepError")
 			should(err.stderr).match(/No such file or directory/)
+		})
+
+		it("falls back to a system ripgrep when the bundled binary path is missing", async () => {
+			setVscodeHostProviderMock({
+				getBinaryLocation: async () => "/missing/rg",
+			})
+
+			const accessStub = fs.promises.access as sinon.SinonStub
+			accessStub.withArgs("/missing/rg").rejects(new Error("missing"))
+			accessStub.withArgs("/usr/bin/rg", fs.constants.X_OK).resolves()
+
+			const mockStdout = new Readable({
+				read() {
+					this.push("/workspace/src/main.ts\n")
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						setImmediate(() => callback(0))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as actualChildProcess.ChildProcess)
+
+			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
+			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+
+			should(spawnStub.firstCall.args[0]).equal(process.platform === "win32" ? "rg.exe" : "/usr/bin/rg")
+			should(result).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
 		})
 	})
 
@@ -173,10 +263,11 @@ describe("File Search", () => {
 				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			// Directly stub the searchWorkspaceFiles function for this test
-			// This avoids issues with the executeRipgrepForFiles function
-			const searchStub = sandbox.stub(fileSearch, "searchWorkspaceFiles")
-			searchStub.withArgs("", "/workspace", 2).resolves({ items: mockItems.slice(0, 2), source: "ripgrep" })
+			// Override searchWorkspaceFiles (via mock.module delegate) for this test
+			searchWorkspaceFilesOverride = (async () => ({
+				items: mockItems.slice(0, 2),
+				source: "ripgrep",
+			})) as typeof realSearchWorkspaceFiles
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
 
@@ -210,6 +301,41 @@ describe("File Search", () => {
 			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
 		})
 
+		it("continues search when the host cannot return open tabs", async () => {
+			sandbox.stub(HostProvider.window, "getOpenTabs").rejects(new Error("getOpenTabs unavailable"))
+			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").rejects({ code: 12, message: "not implemented" })
+
+			const mockStdout = new Readable({
+				read() {
+					this.push("/workspace/src/main.ts\n")
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						setImmediate(() => callback(0))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as actualChildProcess.ChildProcess)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+
+			should(result.source).equal("ripgrep")
+			should(result.items).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
+		})
+
 		it("should apply fuzzy matching for non-empty query", async () => {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
@@ -217,7 +343,7 @@ describe("File Search", () => {
 				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(mockItems)
+			executeRipgrepOverride = async () => mockItems
 			const fzfStub = {
 				find: sinon.stub().returns([{ item: mockItems[1], score: 0 }]),
 			}
@@ -229,13 +355,13 @@ describe("File Search", () => {
 
 			// Use a more reliable approach to mock dynamic imports
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, _workspacePath, limit) => {
+			searchWorkspaceFilesOverride = (async (query: string, _workspacePath: string, limit: number) => {
 				if (!query.trim()) {
 					return { items: mockItems.slice(0, limit), source: "ripgrep" }
 				}
 				// Simulate the fuzzy search behavior
 				return { items: [mockItems[1]], source: "ripgrep" }
-			})
+			}) as typeof realSearchWorkspaceFiles
 
 			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
 

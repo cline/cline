@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
@@ -49,6 +56,188 @@ describe("ProviderSettingsManager", () => {
 			reloaded.getProviderConfig("anthropic", { includeKnownModels: false }),
 		).not.toHaveProperty("knownModels");
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
+	});
+
+	it("writes atomically, leaving no temp file behind", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{ provider: "anthropic", apiKey: "test-key" },
+			{ setLastUsed: true },
+		);
+
+		const siblings = readdirSync(tempDir);
+		expect(siblings).toEqual(["provider-settings.json"]);
+	});
+
+	it("preserves the previous file when the staged write cannot be renamed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		manager.saveProviderSettings(
+			{ provider: "anthropic", apiKey: "before" },
+			{ setLastUsed: true },
+		);
+		const before = readFileSync(filePath, "utf8");
+
+		// Occupying the temp path with a directory makes writeFileSync fail,
+		// simulating a mid-write crash: the destination must be untouched.
+		mkdirSync(`${filePath}.${process.pid}.tmp`);
+		expect(() =>
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "after" },
+				{ setLastUsed: true },
+			),
+		).toThrow();
+		rmSync(`${filePath}.${process.pid}.tmp`, { recursive: true, force: true });
+
+		expect(readFileSync(filePath, "utf8")).toBe(before);
+	});
+
+	it("resolves auth storage settings for providers registered with a storage provider id", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				baseUrl: "https://api.example.test",
+				auth: {
+					accessToken: "workos:shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+		expect(manager.getProviderConfig("cline-pass")).toMatchObject({
+			providerId: "cline-pass",
+			apiKey: "workos:shared-token",
+			baseUrl: "https://api.example.test",
+		});
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.2",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			model: "cline-pass/glm-5.2",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+	});
+
+	it("falls back to cline when last-used provider is cline-pass and the feature is disabled", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				baseUrl: "https://api.example.test",
+				auth: {
+					accessToken: "workos:shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.2",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(manager.getLastUsedProviderSettings()).toMatchObject({
+			provider: "cline-pass",
+			model: "cline-pass/glm-5.2",
+		});
+		expect(
+			manager.getLastUsedProviderSettings({ isClinePassEnabled: false }),
+		).toEqual({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+		expect(
+			manager.getLastUsedProviderConfig({ isClinePassEnabled: false }),
+		).toMatchObject({
+			providerId: "cline",
+			apiKey: "workos:shared-token",
+			baseUrl: "https://api.example.test",
+		});
+	});
+
+	it("returns default cline settings when cline-pass is last-used and no cline settings exist", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.2",
+			},
+			{ setLastUsed: true },
+		);
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(
+			manager.getLastUsedProviderSettings({ isClinePassEnabled: false }),
+		).toEqual({ provider: "cline" });
+		expect(
+			manager.getLastUsedProviderConfig({ isClinePassEnabled: false })
+				?.providerId,
+		).toBe("cline");
 	});
 
 	it("migrates legacy provider settings during manager construction", () => {

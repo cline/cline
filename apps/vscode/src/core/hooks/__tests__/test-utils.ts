@@ -1,9 +1,12 @@
+import { spyOn } from "bun:test"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import should from "should"
 import sinon from "sinon"
+import { HostProvider } from "../../../hosts/host-provider"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { setVscodeHostProviderMock } from "../../../test/host-provider-test-utils"
 import * as diskModule from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { HookDiscoveryCache } from "../HookDiscoveryCache"
@@ -60,17 +63,36 @@ export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Pl
 	return path.join(hooksDir, hookFileName(hookName, platform))
 }
 
-export function stubHookDirs(sandbox: sinon.SinonSandbox, dirs: string[]): sinon.SinonStub {
-	const existing = diskModule.getAllHooksDirs as unknown as sinon.SinonStub
-	if (existing && typeof existing.getCall === "function") {
-		existing.resolves(dirs)
-		return existing
-	}
+// bun loads real ESM, so sinon cannot stub the `getAllHooksDirs` namespace
+// export ("ES Modules cannot be stubbed"). Use bun's spyOn, which can replace
+// ESM namespace bindings in place. The spy is tracked module-locally so the
+// per-env cleanup can restore it (the sandbox arg is retained for call-site
+// compatibility but is unused for this export).
+let hooksDirsSpy: ReturnType<typeof spyOn> | undefined
 
-	return sandbox.stub(diskModule, "getAllHooksDirs").resolves(dirs)
+export function stubHookDirs(_sandbox: sinon.SinonSandbox, dirs: string[]): ReturnType<typeof spyOn> {
+	if (!hooksDirsSpy) {
+		hooksDirsSpy = spyOn(diskModule, "getAllHooksDirs")
+	}
+	hooksDirsSpy.mockImplementation(async () => dirs)
+	return hooksDirsSpy
+}
+
+function restoreHookDirsSpy(): void {
+	hooksDirsSpy?.mockRestore()
+	hooksDirsSpy = undefined
 }
 
 export async function createHookTestEnv(): Promise<HookTestEnv> {
+	// Hook execution emits telemetry, which lazily constructs TelemetryService
+	// via HostProvider.env.getHostVersion(). Under mocha's single-process run an
+	// earlier suite left HostProvider initialized; bun's per-file isolation does
+	// not, so initialize it here (idempotent) to keep the telemetry path from
+	// throwing "HostProvider not setup".
+	if (!HostProvider.isInitialized()) {
+		setVscodeHostProviderMock()
+	}
+
 	const sandbox = sinon.createSandbox()
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 	const hooksDir = await createHooksDirectory(tempDir)
@@ -96,6 +118,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 		sandbox,
 		cleanup: async () => {
 			sandbox.restore()
+			restoreHookDirsSpy()
 			resetHookCache()
 			await removeTempDirWithRetry(tempDir)
 		},
@@ -188,7 +211,7 @@ export async function writeHookScriptForPlatform(hookPath: string, nodeScript: s
 	if (process.platform === "win32") {
 		const jsPath = `${hookPath}.js`
 		const ps1Path = `${hookPath}.ps1`
-		const psBridge = buildPowerShellNodeBridge(process.execPath, path.basename(jsPath))
+		const psBridge = buildPowerShellNodeBridge(resolveNodeExecutableForBridge(), path.basename(jsPath))
 
 		await fs.writeFile(jsPath, nodeScript)
 		await fs.writeFile(ps1Path, psBridge)
@@ -199,15 +222,38 @@ export async function writeHookScriptForPlatform(hookPath: string, nodeScript: s
 	await fs.chmod(hookPath, 0o755)
 }
 
+let cachedBridgeNodePath: string | undefined
+
+// Under `bun test`, process.execPath is bun.exe. Prefer a real node executable
+// for the companion script: bun.exe on Windows intermittently dropped piped
+// stdout when the script exited right after console.log, which made the hook
+// suites flaky on Windows CI. Node is already a hard prerequisite of this suite
+// on every platform (the Unix variants run via the `#!/usr/bin/env node`
+// shebang), so falling back to process.execPath only matters when node is
+// missing from PATH entirely.
+function resolveNodeExecutableForBridge(): string {
+	if (!cachedBridgeNodePath) {
+		cachedBridgeNodePath = Bun.which("node") ?? process.execPath
+	}
+	return cachedBridgeNodePath
+}
+
 function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
 	const escapedNodePath = nodePath.replace(/'/g, "''")
 	const escapedJsFileName = jsFileName.replace(/'/g, "''")
 
+	// Launch node without PowerShell pipeline plumbing: the child inherits this
+	// powershell process's own stdin/stdout/stderr pipes, so the hook input JSON
+	// flows directly from HookProcess to node and node's output flows directly
+	// back. The previous `[Console]::In.ReadToEnd()` + `$inputData | & node`
+	// pipeline was flaky on Windows CI: when the node script exited without
+	// reading stdin (most fixtures don't), PowerShell's pipeline write raced the
+	// child exit and, with $ErrorActionPreference = 'Stop', intermittently
+	// terminated the bridge with exit code 1 and dropped the script's stdout.
 	return [
 		`$ErrorActionPreference = 'Stop'`,
 		`$scriptPath = Join-Path -Path $PSScriptRoot -ChildPath '${escapedJsFileName}'`,
-		`$inputData = [Console]::In.ReadToEnd()`,
-		`$inputData | & '${escapedNodePath}' $scriptPath`,
+		`& '${escapedNodePath}' $scriptPath`,
 		`if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`,
 		`exit 0`,
 	].join("\n")

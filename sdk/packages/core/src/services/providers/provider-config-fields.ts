@@ -1,11 +1,19 @@
 import * as LlmsModels from "@cline/llms";
-import { isOAuthProviderId } from "@cline/shared";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 
 export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
+	| "azureApiVersion"
 	| "awsRegion"
-	| "awsProfile";
+	| "awsProfile"
+	| "gcpProjectId"
+	| "gcpRegion"
+	| "sapClientId"
+	| "sapClientSecret"
+	| "sapTokenUrl"
+	| "sapResourceGroup"
+	| "sapDeploymentId";
 
 export interface ProviderConfigFieldRequirement {
 	defaultValue?: string;
@@ -28,8 +36,16 @@ export interface ProviderConfigFields {
 const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
+	"azureApiVersion",
 	"awsRegion",
 	"awsProfile",
+	"gcpProjectId",
+	"gcpRegion",
+	"sapClientId",
+	"sapClientSecret",
+	"sapTokenUrl",
+	"sapResourceGroup",
+	"sapDeploymentId",
 ];
 
 interface ProviderConfigFieldMetadata {
@@ -43,6 +59,39 @@ interface ProviderConfigFieldMetadata {
 const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 	Record<string, ProviderConfigFieldMetadata>
 > = {
+	"openai-compatible": {
+		description:
+			"For Azure AI Foundry deployments, use a Base URL ending at /openai/deployments/<deployment> and set the Azure API version.",
+		fields: {
+			azureApiVersion: {
+				label: "Azure API Version (optional)",
+				placeholder: "2025-01-01-preview",
+				note: "Required for Azure AI Foundry deployment URLs.",
+				optional: true,
+			},
+		},
+	},
+	vertex: {
+		mode: "replace",
+		description:
+			"Vertex AI can use Google Cloud Application Default Credentials with a project/region. An API key is optional for supported Gemini models.",
+		fields: {
+			gcpProjectId: {
+				label: "Google Cloud Project ID",
+				placeholder: "my-gcp-project",
+			},
+			gcpRegion: {
+				label: "Google Cloud Region",
+				placeholder: "us-central1",
+				defaultValue: "us-central1",
+			},
+			apiKey: {
+				label: "API Key (optional)",
+				placeholder: "Leave blank to use Google Cloud credentials",
+				optional: true,
+			},
+		},
+	},
 	bedrock: {
 		mode: "replace",
 		description:
@@ -68,6 +117,39 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 		fields: {
 			apiKey: {
 				note: "Keep empty if no API key for local inference.",
+			},
+		},
+	},
+	sapaicore: {
+		mode: "replace",
+		description:
+			"SAP AI Core uses OAuth client credentials and an AI Core API URL, not a generic API key.",
+		fields: {
+			baseUrl: {
+				label: "AI Core Base URL",
+				placeholder: "https://api.ai.<region>.aws.ml.hana.ondemand.com",
+			},
+			sapClientId: {
+				label: "Client ID",
+				placeholder: "sb-...|xsuaa_std!b...",
+			},
+			sapClientSecret: {
+				label: "Client Secret",
+				placeholder: "SAP AI Core client secret",
+			},
+			sapTokenUrl: {
+				label: "Token URL",
+				placeholder: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+			},
+			sapResourceGroup: {
+				label: "Resource Group",
+				placeholder: "default",
+				optional: true,
+			},
+			sapDeploymentId: {
+				label: "Deployment ID",
+				placeholder: "SAP AI Core deployment id",
+				optional: true,
 			},
 		},
 	},
@@ -143,7 +225,7 @@ export function getProviderConfigFields(
 	providerId: string,
 ): ProviderConfigFields {
 	const id = LlmsModels.normalizeProviderId(providerId);
-	if (isOAuthProviderId(id)) {
+	if (isOAuthProvider(id)) {
 		return { providerId: id, authMethod: "oauth", fields: {} };
 	}
 

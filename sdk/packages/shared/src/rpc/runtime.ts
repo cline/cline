@@ -1,5 +1,6 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
+import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
@@ -144,9 +145,37 @@ export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 export interface ProviderModel {
 	id: string;
 	name: string;
+	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+}
+
+export type ProviderConfigFieldType =
+	| "text"
+	| "password"
+	| "url"
+	| "number"
+	| "select"
+	| "boolean";
+
+export type ProviderConfigFieldPrimitive = string | number | boolean | null;
+
+export interface ProviderConfigFieldOption {
+	label: string;
+	value: Exclude<ProviderConfigFieldPrimitive, null>;
+}
+
+export interface ProviderConfigField {
+	path: string;
+	label: string;
+	type: ProviderConfigFieldType;
+	description?: string;
+	placeholder?: string;
+	required?: boolean;
+	secret?: boolean;
+	options?: ProviderConfigFieldOption[];
+	defaultValue?: ProviderConfigFieldPrimitive;
 }
 
 export interface ProviderListItem {
@@ -165,6 +194,8 @@ export interface ProviderListItem {
 	capabilities?: ProviderCapability[];
 	authDescription: string;
 	baseUrlDescription: string;
+	configFields?: ProviderConfigField[];
+	configValues?: Record<string, ProviderConfigFieldPrimitive>;
 	modelList?: ProviderModel[];
 	family?: string;
 }
@@ -178,8 +209,6 @@ export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
-
-import type { OAuthProviderId } from "../types/auth";
 
 export const ProviderCapabilitySchema = z.enum([
 	"reasoning",
@@ -265,7 +294,7 @@ export interface SaveProviderSettingsActionRequest {
 	// Reasoning/thinking configuration
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		effort?: ReasoningLevel;
 		budgetTokens?: number;
 	};
 	// AWS/Bedrock configuration
@@ -395,6 +424,6 @@ export type ProviderActionRequest =
 	| ClineAccountActionRequest;
 
 export interface ProviderOAuthLoginResponse {
-	provider: OAuthProviderId;
+	provider: string;
 	accessToken: string;
 }

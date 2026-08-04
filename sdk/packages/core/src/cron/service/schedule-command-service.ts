@@ -4,7 +4,7 @@ import type {
 	HubScheduleCreateInput,
 	HubScheduleUpdateInput,
 } from "@cline/shared";
-import { createSessionId } from "@cline/shared";
+import { createSessionId, readHubScheduleMode } from "@cline/shared";
 import type { HubScheduleService } from "./schedule-service";
 
 function okReply(
@@ -95,9 +95,14 @@ export class HubScheduleCommandService {
 					});
 				case "schedule.trigger":
 					return okReply(envelope, {
-						execution: await this.schedules.triggerScheduleNow(
-							String(envelope.payload?.scheduleId ?? ""),
-						),
+						execution:
+							envelope.payload?.wait === false
+								? this.schedules.triggerScheduleNowDetached(
+										String(envelope.payload?.scheduleId ?? ""),
+									)
+								: await this.schedules.triggerScheduleNow(
+										String(envelope.payload?.scheduleId ?? ""),
+									),
 					});
 				case "schedule.list_executions":
 					return okReply(envelope, {
@@ -153,6 +158,7 @@ export class HubScheduleCommandService {
 	private toCreateInput(
 		payload: Record<string, unknown>,
 	): HubScheduleCreateInput {
+		const mode = readHubScheduleMode(payload, "yolo");
 		const modelSelection =
 			payload.modelSelection &&
 			typeof payload.modelSelection === "object" &&
@@ -167,12 +173,14 @@ export class HubScheduleCommandService {
 		return {
 			...(payload as unknown as HubScheduleCreateInput),
 			modelSelection,
+			mode,
 		};
 	}
 
 	private toUpdateInput(
 		payload: Record<string, unknown>,
 	): HubScheduleUpdateInput {
+		const mode = readHubScheduleMode(payload);
 		const modelSelection =
 			payload.modelSelection &&
 			typeof payload.modelSelection === "object" &&
@@ -188,6 +196,7 @@ export class HubScheduleCommandService {
 		return {
 			...(payload as unknown as HubScheduleUpdateInput),
 			modelSelection,
+			...(mode === undefined ? {} : { mode }),
 		};
 	}
 }

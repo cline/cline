@@ -13,14 +13,6 @@ export const formatPrice = (price: number) => {
 }
 
 /**
- * Helper function to format token prices for display
- * @param price The price per million tokens
- */
-export const formatTokenPrice = (price: number) => {
-	return `${formatPrice(price)}/million tokens`
-}
-
-/**
  * Helper function to determine if a model supports thinking budget
  */
 export const hasThinkingBudget = (modelInfo: ModelInfo): boolean => {
@@ -49,13 +41,6 @@ export const supportsPromptCache = (modelInfo: ModelInfo): boolean => {
 }
 
 /**
- * Helper function to format token limits for display
- */
-export const formatTokenLimit = (limit: number): string => {
-	return limit.toLocaleString()
-}
-
-/**
  * Parses a price input string to a number, handling edge cases like
  * incomplete decimals (e.g., ".", ".5", "0.") gracefully.
  *
@@ -67,6 +52,6 @@ export const parsePrice = (value: string, defaultValue: number): number => {
 	if (value === "" || value === ".") {
 		return defaultValue
 	}
-	const num = parseFloat(value)
+	const num = Number.parseFloat(value)
 	return isNaN(num) ? defaultValue : num
 }

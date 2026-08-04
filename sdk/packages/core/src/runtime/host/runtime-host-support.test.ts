@@ -13,7 +13,11 @@ afterEach(async () => {
 });
 
 describe("readPersistedMessagesFile", () => {
-	it("strips wrapped user_input envelopes from user history messages", async () => {
+	it("returns persisted messages verbatim, wrappers included", async () => {
+		// The user_input wrapper records which mode each message was sent in
+		// and session restarts re-seed through this read path, so stripping
+		// here would destroy that history a little more on every restart.
+		// Display surfaces format for themselves via formatDisplayUserInput.
 		const dir = await mkdtemp(join(tmpdir(), "runtime-host-support-"));
 		tempDirs.push(dir);
 		const messagesPath = join(dir, "messages.json");
@@ -33,7 +37,7 @@ describe("readPersistedMessagesFile", () => {
 					content: [
 						{
 							type: "text",
-							text: '<user_input mode="plan">inspect repo</user_input>',
+							text: '<user_input mode="plan"><mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\ninspect repo</user_input>',
 						},
 					],
 				},
@@ -43,12 +47,14 @@ describe("readPersistedMessagesFile", () => {
 
 		const messages = await readPersistedMessagesFile(messagesPath);
 
-		expect(messages[0]?.content).toBe("spawn a team of agents");
+		expect(messages[0]?.content).toBe(
+			'<user_input mode="act">spawn a team of agents</user_input>',
+		);
 		expect(messages[1]?.content).toBe("Working on it.");
 		expect(messages[2]?.content).toEqual([
 			{
 				type: "text",
-				text: "inspect repo",
+				text: '<user_input mode="plan"><mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\ninspect repo</user_input>',
 			},
 		]);
 	});

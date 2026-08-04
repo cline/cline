@@ -61,8 +61,10 @@
  * JetBrains exports trusted certificates from the OS and writes them to a
  * temporary file, then configures node TLS by setting NODE_EXTRA_CA_CERTS.
  *
- * CLI users should set the NODE_EXTRA_CA_CERTS environment variable if
- * necessary, because node does not automatically use the OS' trusted certs.
+ * The CLI's npm wrapper (bin/cline) does the same automatically: it harvests
+ * the OS trust store and points the child's NODE_EXTRA_CA_CERTS at a managed
+ * bundle, because the Bun runtime does not read the OS store on its own. A
+ * user-set NODE_EXTRA_CA_CERTS is merged in rather than replaced.
  *
  * ## Limitations in JetBrains & CLI
  *
@@ -93,11 +95,11 @@
  * ```
  */
 
-import OpenAI, { ClientOptions as OpenAIClientOptions } from "openai"
 import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
-import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 
-let mockFetch: typeof globalThis.fetch | undefined
+type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
+
+let mockFetch: FetchFunction | undefined
 
 /**
  * Platform-configured fetch that respects proxy settings.
@@ -123,7 +125,8 @@ export const fetch: typeof globalThis.fetch = (() => {
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
-	return (input: string | URL | Request, init?: RequestInit): Promise<Response> => (mockFetch || baseFetch)(input, init)
+	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
 
 /**
@@ -134,7 +137,7 @@ export const fetch: typeof globalThis.fetch = (() => {
  * @param callback `fetch` will be mocked for the duration of `callback()`.
  * @returns the result of `callback()`.
  */
-export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callback: () => T): T {
+export function mockFetchForTesting<T>(theFetch: FetchFunction, callback: () => T): T {
 	const originalMockFetch = mockFetch
 	mockFetch = theFetch
 	let willResetSync = true
@@ -145,9 +148,8 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
 			return result.finally(() => {
 				mockFetch = originalMockFetch
 			}) as typeof result
-		} else {
-			return result
 		}
+		return result
 	} finally {
 		if (willResetSync) {
 			mockFetch = originalMockFetch
@@ -171,26 +173,16 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
  * })
  * ```
  */
-export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.fetch } {
+export function getAxiosSettings(): {
+	adapter?: any
+	fetch?: typeof globalThis.fetch
+	maxBodyLength?: number
+	maxContentLength?: number
+} {
 	return {
 		adapter: "fetch" as any,
 		fetch, // Use our configured fetch
+		maxBodyLength: Number.POSITIVE_INFINITY,
+		maxContentLength: Number.POSITIVE_INFINITY,
 	}
-}
-
-/**
- * Creates an OpenAI client with proper proxy support and external headers.
- * Use this instead of creating OpenAI clients directly to ensure consistent
- * configuration across all providers.
- */
-export function createOpenAIClient(options: OpenAIClientOptions): OpenAI {
-	const externalHeaders = buildExternalBasicHeaders()
-	return new OpenAI({
-		...options,
-		defaultHeaders: {
-			...externalHeaders,
-			...options.defaultHeaders,
-		},
-		fetch, // Use configured fetch with proxy support
-	})
 }

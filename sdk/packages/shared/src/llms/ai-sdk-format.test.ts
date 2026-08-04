@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+	EMPTY_CONTENT_TEXT,
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
 
 describe("formatMessagesForAiSdk", () => {
+	const imageData = (byteLength: number, fill = 1) =>
+		Buffer.alloc(byteLength, fill).toString("base64");
+
 	it("omits empty system messages", () => {
 		const messages = formatMessagesForAiSdk("", [
 			{
@@ -34,6 +38,42 @@ describe("formatMessagesForAiSdk", () => {
 			{
 				role: "user",
 				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+	});
+
+	it("replaces empty string user and assistant messages with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: "" },
+			{ role: "assistant", content: "   \n\t  " },
+			{ role: "user", content: [{ type: "text", text: "continue" }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+			},
+		]);
+	});
+
+	it("replaces empty content arrays with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "assistant", content: [] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			},
 		]);
 	});
@@ -180,7 +220,7 @@ describe("formatMessagesForAiSdk", () => {
 							{ type: "text", text: "Successfully read image" },
 							{
 								type: "image",
-								data: "BASE64DATA",
+								data: "QkFTRTY0REFUQQ==",
 								mediaType: "image/jpeg",
 							},
 						],
@@ -203,7 +243,7 @@ describe("formatMessagesForAiSdk", () => {
 								{ type: "text", text: "Successfully read image" },
 								{
 									type: "image-data",
-									data: "BASE64DATA",
+									data: "QkFTRTY0REFUQQ==",
 									mediaType: "image/jpeg",
 								},
 							],
@@ -248,7 +288,7 @@ describe("formatMessagesForAiSdk", () => {
 									{ type: "text", text: "Successfully read image" },
 									{
 										type: "image",
-										data: "BASE64DATA",
+										data: "QkFTRTY0REFUQQ==",
 										mediaType: "image/jpeg",
 									},
 								],
@@ -294,7 +334,7 @@ describe("formatMessagesForAiSdk", () => {
 								},
 								{
 									type: "image-data",
-									data: "BASE64DATA",
+									data: "QkFTRTY0REFUQQ==",
 									mediaType: "image/jpeg",
 								},
 							],
@@ -312,7 +352,7 @@ describe("formatMessagesForAiSdk", () => {
 				{ type: "text", text: "Successfully read image" },
 				{
 					type: "image",
-					data: "BASE64DATA",
+					data: "QkFTRTY0REFUQQ==",
 					mediaType: "image/jpeg",
 				},
 			],
@@ -332,7 +372,7 @@ describe("formatMessagesForAiSdk", () => {
 				},
 				{
 					type: "image-data",
-					data: "BASE64DATA",
+					data: "QkFTRTY0REFUQQ==",
 					mediaType: "image/jpeg",
 				},
 			],
@@ -374,7 +414,7 @@ describe("formatMessagesForAiSdk", () => {
 									{ type: "text", text: "Successfully read image" },
 									{
 										type: "image",
-										data: "JPEGDATA",
+										data: "SlBFR0RBVEE=",
 										mediaType: "image/jpeg",
 									},
 								],
@@ -386,7 +426,7 @@ describe("formatMessagesForAiSdk", () => {
 									{ type: "text", text: "Successfully read image" },
 									{
 										type: "image",
-										data: "PNGDATA",
+										data: "UE5HREFUQQ==",
 										mediaType: "image/png",
 									},
 								],
@@ -441,12 +481,12 @@ describe("formatMessagesForAiSdk", () => {
 								},
 								{
 									type: "image-data",
-									data: "JPEGDATA",
+									data: "SlBFR0RBVEE=",
 									mediaType: "image/jpeg",
 								},
 								{
 									type: "image-data",
-									data: "PNGDATA",
+									data: "UE5HREFUQQ==",
 									mediaType: "image/png",
 								},
 							],
@@ -498,7 +538,7 @@ describe("formatMessagesForAiSdk", () => {
 							{ type: "text", text: "Successfully read image" },
 							{
 								type: "image",
-								data: "BASE64DATA",
+								data: "QkFTRTY0REFUQQ==",
 								mediaType: "image/jpeg",
 							},
 						],
@@ -544,7 +584,7 @@ describe("formatMessagesForAiSdk", () => {
 								{ type: "text", text: "Successfully read image" },
 								{
 									type: "image-data",
-									data: "BASE64DATA",
+									data: "QkFTRTY0REFUQQ==",
 									mediaType: "image/jpeg",
 								},
 							],
@@ -589,6 +629,7 @@ describe("formatMessagesForAiSdk", () => {
 	});
 
 	it("never emits content output for errors", () => {
+		const image = "QkFTRTY0REFUQQ==";
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
 				role: "user",
@@ -602,7 +643,7 @@ describe("formatMessagesForAiSdk", () => {
 							{ type: "text", text: "boom" },
 							{
 								type: "image",
-								data: "BASE64DATA",
+								data: image,
 								mediaType: "image/jpeg",
 							},
 						],
@@ -621,19 +662,13 @@ describe("formatMessagesForAiSdk", () => {
 						toolName: "read_file",
 						output: {
 							type: "error-json",
-							value: [
-								{ type: "text", text: "boom" },
-								{
-									type: "image",
-									data: "BASE64DATA",
-									mediaType: "image/jpeg",
-								},
-							],
+							value: ["boom", "[media omitted: invalid or exceeds size limit]"],
 						},
 					},
 				],
 			},
 		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
 	});
 
 	it("preserves providerOptions on reasoning parts", () => {
@@ -681,6 +716,344 @@ describe("formatMessagesForAiSdk", () => {
 			type: "text",
 			value: "contents",
 		});
+	});
+
+	it("does not reshape text-only structured tool result output", () => {
+		expect(
+			toAiSdkToolResultOutput({
+				result: [{ type: "text", text: "hello" }],
+			}),
+		).toEqual({
+			type: "json",
+			value: {
+				result: [{ type: "text", text: "hello" }],
+			},
+		});
+	});
+
+	it("replaces invalid direct user images with text placeholders before provider formatting", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "inspect" },
+					{
+						type: "image",
+						image: "data:image/jpeg;base64,/9j/",
+						mediaType: "image/png",
+					},
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("data:image/jpeg;base64,/9j/");
+	});
+
+	it("keeps raw base64 string images without mediaType by defaulting to png", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("keeps binary image parts without mediaType by defaulting to png", () => {
+		const image = new Uint8Array([1, 2, 3, 4]);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("replaces binary image parts with unsupported media types", () => {
+		const image = new Uint8Array([1, 2, 3, 4]);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "image", image, mediaType: "application/octet-stream" },
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("application/octet-stream");
+	});
+
+	it("replaces over-budget binary image parts", () => {
+		const oversizedImage = new Uint8Array(6 * 1024 * 1024 + 1);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "image", image: oversizedImage, mediaType: "image/png" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "[media omitted: invalid or exceeds size limit]",
+					},
+				],
+			},
+		]);
+	});
+
+	it("validates and budgets data URL objects before provider formatting", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						image: new URL(`data:image/jpeg;base64,${image}`),
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						image: `data:image/jpeg;base64,${image}`,
+						mediaType: "image/jpeg",
+					},
+				],
+			},
+		]);
+	});
+
+	it("validates uppercase data URL strings without an explicit mediaType", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image: `DATA:image/jpeg;base64,${image}` }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						image: `data:image/jpeg;base64,${image}`,
+						mediaType: "image/jpeg",
+					},
+				],
+			},
+		]);
+	});
+
+	it("charges remote URL image parts against the aggregate media budget", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "image", image: new URL("https://example.com/a.png") },
+					{ type: "image", image: new URL("https://example.com/b.png") },
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain("https://example.com/a.png");
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("https://example.com/b.png");
+	});
+
+	it("charges remote string image URLs against the aggregate media budget", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "image", image: "https://example.com/a.png" },
+					{ type: "image", image: "https://example.com/b.png" },
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain("https://example.com/a.png");
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain("https://example.com/b.png");
+	});
+
+	it("replaces oversized direct user images with text placeholders", () => {
+		const oversizedImage = imageData(4 * 1024 * 1024);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						image: oversizedImage,
+						mediaType: "image/png",
+					},
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain(oversizedImage);
+	});
+
+	it("replaces invalid and oversized tool-result images with text placeholders before provider formatting", () => {
+		const oversizedImage = imageData(4 * 1024 * 1024);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: [
+							{
+								query: "/tmp/image.svg",
+								result: [
+									{ type: "text", text: "Successfully read image" },
+									{
+										type: "image",
+										data: "PHN2Zz4=",
+										mediaType: "image/svg+xml",
+									},
+									{
+										type: "image",
+										data: oversizedImage,
+										mediaType: "image/png",
+									},
+								],
+								success: true,
+							},
+						],
+					},
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain('"type":"image-data"');
+		expect(serialized).not.toContain("PHN2Zz4=");
+		expect(serialized).not.toContain(oversizedImage);
+	});
+
+	it("replaces malformed image-shaped tool-result objects with placeholders", () => {
+		const hiddenPayload = imageData(1024);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "custom_tool",
+						output: {
+							result: {
+								type: "image",
+								data: hiddenPayload,
+							},
+						},
+					},
+				],
+			},
+		]);
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain(hiddenPayload);
+	});
+
+	it("replaces image-shaped error tool-result objects with placeholders", () => {
+		const hiddenPayload = imageData(1024);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "custom_tool",
+						isError: true,
+						output: {
+							result: {
+								type: "image",
+								data: hiddenPayload,
+								mediaType: "image/png",
+							},
+						},
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "custom_tool",
+						output: {
+							type: "error-json",
+							value: {
+								result: "[media omitted: invalid or exceeds size limit]",
+							},
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(hiddenPayload);
 	});
 });
 

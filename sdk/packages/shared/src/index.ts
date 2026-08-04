@@ -18,6 +18,27 @@ export {
 } from "./connectors/events";
 export type * from "./connectors/options";
 export type {
+	ActiveConnectorRecord,
+	ConfiguredConnectorRecord,
+	ConnectorCatalogEntry,
+	ConnectorChannel,
+	ConnectorChannelsResponse,
+	ConnectorFieldCondition,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	ConnectorSecurityDef,
+	ConnectorSecurityFieldDef,
+} from "./connectors/platforms";
+export {
+	buildConnectorConnectArgs,
+	CONNECTOR_CATALOG,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	mergeConnectorConnectArgs,
+	shouldIncludeConnectorField,
+} from "./connectors/platforms";
+export type {
 	AutomationEventEnvelope,
 	CronEventSpec,
 	CronOneOffSpec,
@@ -45,7 +66,15 @@ export type {
 	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
+	AgentExtensionCommandResult,
 	AgentExtensionHooks,
+	AgentExtensionMcpEnv,
+	AgentExtensionMcpEnvValue,
+	AgentExtensionMcpServer,
+	AgentExtensionMcpSseTransport,
+	AgentExtensionMcpStdioTransport,
+	AgentExtensionMcpStreamableHttpTransport,
+	AgentExtensionMcpTransport,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
@@ -62,6 +91,16 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export {
+	FEATURE_FLAGS,
+	type FeatureFlag,
+	FeatureFlagDefaultValue,
+	type FeatureFlagPayload,
+	type FeatureFlagsAndPayloads,
+	type FeatureFlagsContext,
+	type FeatureFlagsSettings,
+	type IFeatureFlagsProvider,
+} from "./feature-flags";
 export type { HookControl } from "./hooks/contracts";
 export type {
 	AgentAbortHookPayload,
@@ -100,11 +139,38 @@ export type {
 	AiSdkMessagePart,
 } from "./llms/ai-sdk-format";
 export {
+	EMPTY_CONTENT_TEXT,
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
-export type * from "./llms/gateway";
+export * from "./llms/gateway";
+export {
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_BASE64_BYTES,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageMediaLimits,
+	type ImageMediaValidationFailure,
+	type ImageMediaValidationResult,
+	type ImageMediaValidationSuccess,
+	imageBase64DecodedByteLength,
+	imageBase64EncodedByteLength,
+	imageBase64LengthForDecodedBytes,
+	imageFileMaxDecodedBytesForBase64Limit,
+	isBase64Char,
+	isCanonicalBase64,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
+	type ResolvedMediaBudget,
+	reserveImageMediaBytes,
+	resolveMediaBudget,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveImageMedia,
+	validateImageMedia,
+} from "./llms/media";
 export type {
 	ContentBlock,
 	FileContent,
@@ -135,6 +201,7 @@ export {
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 } from "./llms/model-info";
+export { mergeModelOptions } from "./llms/model-options";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
@@ -142,8 +209,22 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
-export { estimateTokens } from "./llms/tokens";
+export {
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
+export { serializeAbortReason } from "./llms/requests";
+export {
+	CHARS_PER_TOKEN,
+	estimateRequestInputTokens,
+	estimateTokens,
+	type TokenEstimatedRequest,
+} from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -156,31 +237,60 @@ export {
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
+export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
+	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
-export { getDefaultShell, getShellArgs } from "./parse/shell";
+export { decodeJwtPayload } from "./parse/jwt";
+export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export {
+	getDefaultShell,
+	getShellArgs,
+	getShellInvocation,
+	getShellKind,
+	type ShellInvocation,
+	type ShellKind,
+} from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
+	stripUtf8Bom,
+	trimNonEmpty,
 	truncateSplit,
 	truncateStr,
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
-export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
+	buildClineSystemPrompt,
+	MODE_TAG_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS,
+	processWorkspaceInfo,
+} from "./prompt/cline";
+export type {
+	ModeSwitchNotice,
+	ModeSwitchNoticeTracker,
+} from "./prompt/format";
+export {
+	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	parseUserInputMode,
+	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearRemoteConfigSessionBlobUpload,
@@ -271,6 +381,10 @@ export type {
 	ProviderCapability,
 	ProviderCatalogResponse,
 	ProviderClient,
+	ProviderConfigField,
+	ProviderConfigFieldOption,
+	ProviderConfigFieldPrimitive,
+	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
 	ProviderModelsResponse,
@@ -327,12 +441,18 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export type { ConnectorCliLaunchSpec } from "./runtime/hub-daemon-env";
 export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
+	readConnectorCliLaunchSpec,
+	setConnectorCliLaunchSpec,
 } from "./runtime/hub-daemon-env";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
+	CaptureTaskLifecycleEventInput,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -345,10 +465,18 @@ export type {
 	TelemetryValue,
 } from "./services/telemetry";
 export {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureTaskLifecycleEvent,
 	normalizeSdkError,
 	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {
@@ -387,14 +515,13 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
-export type { OAuthProviderId } from "./types/auth";
-export {
-	AUTH_ERROR_PATTERNS,
-	isLikelyAuthError,
-	isOAuthProviderId,
-	OAUTH_PROVIDER_IDS,
-} from "./types/auth";
+export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export { initVcr } from "./vcr";

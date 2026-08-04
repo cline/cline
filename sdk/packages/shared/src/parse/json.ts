@@ -84,3 +84,118 @@ export function safeJsonParse<T>(raw: string): T | undefined {
 		return undefined;
 	}
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function schemaTypes(schema: Record<string, unknown>): string[] {
+	const type = schema.type;
+	if (typeof type === "string") {
+		return [type];
+	}
+	return Array.isArray(type)
+		? type.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
+function schemaAcceptsKind(
+	schema: Record<string, unknown>,
+	kind: "array" | "object",
+): boolean {
+	const types = schemaTypes(schema);
+	if (types.includes(kind)) {
+		return true;
+	}
+
+	for (const key of ["anyOf", "oneOf", "allOf"] as const) {
+		const branches = schema[key];
+		if (
+			Array.isArray(branches) &&
+			branches.some(
+				(branch) => isRecord(branch) && schemaAcceptsKind(branch, kind),
+			)
+		) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function parseJsonStringForSchema(
+	value: unknown,
+	schema: Record<string, unknown>,
+) {
+	if (typeof value !== "string") {
+		return value;
+	}
+
+	const trimmed = value.trim();
+	const expectsArray = schemaAcceptsKind(schema, "array");
+	const expectsObject = schemaAcceptsKind(schema, "object");
+	if (
+		(!expectsArray || !trimmed.startsWith("[")) &&
+		(!expectsObject || !trimmed.startsWith("{"))
+	) {
+		return value;
+	}
+
+	try {
+		const parsed = JSON.parse(trimmed) as unknown;
+		if (Array.isArray(parsed)) {
+			return expectsArray ? parsed : value;
+		}
+		if (isRecord(parsed)) {
+			return expectsObject ? parsed : value;
+		}
+		return value;
+	} catch {
+		return value;
+	}
+}
+
+export function normalizeJsonLikeStringsForSchema(
+	input: unknown,
+	schema: Record<string, unknown>,
+): unknown {
+	const value = parseJsonStringForSchema(input, schema);
+
+	if (Array.isArray(value)) {
+		const items = schema.items;
+		if (!isRecord(items)) {
+			return value;
+		}
+		let changed = false;
+		const normalized = value.map((item) => {
+			const next = normalizeJsonLikeStringsForSchema(item, items);
+			changed ||= next !== item;
+			return next;
+		});
+		return changed ? normalized : value;
+	}
+
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	const properties = schema.properties;
+	if (!isRecord(properties)) {
+		return value;
+	}
+
+	let changed = false;
+	const normalized: Record<string, unknown> = { ...value };
+	for (const [key, propertySchema] of Object.entries(properties)) {
+		if (!(key in value) || !isRecord(propertySchema)) {
+			continue;
+		}
+		const next = normalizeJsonLikeStringsForSchema(value[key], propertySchema);
+		if (next !== value[key]) {
+			normalized[key] = next;
+			changed = true;
+		}
+	}
+
+	return changed ? normalized : value;
+}

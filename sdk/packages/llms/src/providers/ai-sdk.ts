@@ -6,19 +6,35 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
+	ProviderErrorClass,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { jsonSchema, streamText } from "ai";
+import {
+	type CallSettings,
+	jsonSchema,
+	NoSuchToolError,
+	streamText,
+	type ToolSet,
+} from "ai";
 import { nanoid } from "nanoid";
-import { z } from "zod";
+import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
-import { isAnthropicCompatibleModel, resolveModelFamily } from "./model-facts";
+import {
+	isAnthropicCompatibleModel,
+	isCerebrasProvider,
+	resolveModelFamily,
+} from "./model-facts";
+import {
+	recordProviderRequestCapture,
+	wrapFetchForProviderRequestCapture,
+} from "./provider-request-capture";
 import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
@@ -40,18 +56,31 @@ interface GatewayNormalizedUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	reasoningTokenCount?: number;
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+export function buildAiSdkStreamConfig(
+	request: GatewayStreamRequest,
+	_context: GatewayProviderContext,
+): Partial<CallSettings> {
+	return {
+		...(request.maxTokens !== undefined
+			? { maxOutputTokens: request.maxTokens }
+			: {}),
+		temperature: request.temperature,
+	};
+}
 
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
-	const aiMessages = toAiSdkMessages(request.messages, systemPrompt) as Array<
-		Record<string, unknown>
-	>;
+	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
+		includeReasoning: shouldIncludeReasoningHistory(request, context),
+	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -71,6 +100,172 @@ function buildCachedAiSdkMessages(
 	return aiMessages;
 }
 
+function resolveStickySession(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+):
+	| {
+			transport: "json-body" | "header";
+			field: string;
+			value: string;
+	  }
+	| undefined {
+	const stickySession = context.provider.metadata?.stickySession;
+	if (!stickySession) {
+		return undefined;
+	}
+	const metadata = request.metadata;
+	const value =
+		metadata && typeof metadata === "object"
+			? metadata[stickySession.metadataKey]
+			: undefined;
+	if (typeof value !== "string") {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	return {
+		transport: stickySession.transport,
+		field: stickySession.field,
+		value: trimmed,
+	};
+}
+
+type FetchBodyText =
+	| { source: "init-body"; text: string }
+	| { request: Request; source: "request"; text: string };
+
+async function bodyTextFromFetchInput(
+	input: Parameters<typeof fetch>[0],
+	init: Parameters<typeof fetch>[1],
+): Promise<FetchBodyText | undefined> {
+	const body = init?.body;
+	if (body === null) {
+		return undefined;
+	}
+	if (typeof body === "string") {
+		return { source: "init-body", text: body };
+	}
+	if (body instanceof URLSearchParams) {
+		return { source: "init-body", text: body.toString() };
+	}
+	if (body instanceof ArrayBuffer) {
+		return { source: "init-body", text: Buffer.from(body).toString("utf8") };
+	}
+	if (ArrayBuffer.isView(body)) {
+		return {
+			source: "init-body",
+			text: Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString(
+				"utf8",
+			),
+		};
+	}
+	if (body !== undefined) {
+		return undefined;
+	}
+	if (input instanceof Request) {
+		try {
+			return {
+				request: input,
+				source: "request",
+				text: await input.clone().text(),
+			};
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
+
+async function injectJsonBodyStickySession(
+	input: Parameters<typeof fetch>[0],
+	init: Parameters<typeof fetch>[1],
+	stickySession: { field: string; value: string },
+): Promise<Parameters<typeof fetch>> {
+	const bodyText = await bodyTextFromFetchInput(input, init);
+	if (!bodyText?.text.trim().startsWith("{")) {
+		return [input, init];
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(bodyText.text);
+	} catch {
+		return [input, init];
+	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return [input, init];
+	}
+	const body = parsed as Record<string, unknown>;
+	const existingValue = body[stickySession.field];
+	if (typeof existingValue !== "string" || !existingValue.trim()) {
+		body[stickySession.field] = stickySession.value;
+	}
+	const nextBody = JSON.stringify(body);
+	if (bodyText.source === "init-body") {
+		return [input, { ...init, body: nextBody }];
+	}
+	return [new Request(bodyText.request, { body: nextBody }), init];
+}
+
+function injectHeaderStickySession(
+	input: Parameters<typeof fetch>[0],
+	init: Parameters<typeof fetch>[1],
+	stickySession: { field: string; value: string },
+): Parameters<typeof fetch> {
+	const headers = new Headers(
+		input instanceof Request ? input.headers : undefined,
+	);
+	new Headers(init?.headers).forEach((value, key) => {
+		headers.set(key, value);
+	});
+	if (!headers.get(stickySession.field)?.trim()) {
+		headers.set(stickySession.field, stickySession.value);
+	}
+	return [input, { ...init, headers }];
+}
+
+function wrapFetchForStickySession(
+	baseFetch: typeof fetch | undefined,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): typeof fetch | undefined {
+	const stickySession = resolveStickySession(request, context);
+	if (!stickySession) {
+		return baseFetch;
+	}
+	const delegate = baseFetch ?? globalThis.fetch;
+	if (!delegate) {
+		return baseFetch;
+	}
+	const sessionFetch = (async (input, init) => {
+		const [nextInput, nextInit] =
+			stickySession.transport === "json-body"
+				? await injectJsonBodyStickySession(input, init, stickySession)
+				: injectHeaderStickySession(input, init, stickySession);
+		return delegate(nextInput, nextInit);
+	}) as typeof fetch;
+	const delegateWithPreconnect = delegate as typeof fetch & {
+		preconnect?: (...args: unknown[]) => unknown;
+	};
+	if (typeof delegateWithPreconnect.preconnect === "function") {
+		(
+			sessionFetch as typeof fetch & {
+				preconnect?: (...args: unknown[]) => unknown;
+			}
+		).preconnect = delegateWithPreconnect.preconnect.bind(delegate);
+	}
+	return sessionFetch;
+}
+
+function shouldIncludeReasoningHistory(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	return !isCerebrasProvider(request, context);
+}
+
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
@@ -85,11 +280,14 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
+	options?: { includeReasoning?: boolean },
 ) {
+	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
 		const content: AiSdkFormatterPart[] = [];
+		let skippedReasoning = false;
 		for (const part of message.content) {
 			if (part.type === "text") {
 				content.push({ type: "text", text: sanitizeSurrogates(part.text) });
@@ -97,6 +295,10 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "reasoning") {
+				if (!includeReasoning) {
+					skippedReasoning = true;
+					continue;
+				}
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
@@ -140,7 +342,9 @@ function toAiSdkMessages(
 			if (part.type === "tool-call") {
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
-					metadata?.thoughtSignature ?? metadata?.thought_signature;
+					metadata?.thoughtSignature ??
+					metadata?.signature ??
+					metadata?.thought_signature;
 				content.push({
 					type: "tool-call",
 					toolCallId: part.toolCallId,
@@ -168,9 +372,15 @@ function toAiSdkMessages(
 			}
 		}
 
+		// A message left empty only because its reasoning was dropped is
+		// omitted entirely instead of forwarded as an empty turn.
+		const emptiedByDroppedReasoning = !includeReasoning && skippedReasoning;
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
-		} else if (message.role === "user" || message.role === "assistant") {
+		} else if (
+			!emptiedByDroppedReasoning &&
+			(message.role === "user" || message.role === "assistant")
+		) {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
 	}
@@ -180,34 +390,68 @@ function toAiSdkMessages(
 	});
 }
 
-function toAiSdkTools(
-	request: GatewayStreamRequest,
-): Record<string, unknown> | undefined {
+function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 	if (!request.tools?.length) {
 		return undefined;
 	}
 
-	return Object.fromEntries(
-		request.tools.map((definition) => [
-			definition.name,
-			{
-				description: definition.description,
-				inputSchema: jsonSchema(
-					normalizeAiSdkToolInputSchema(definition.inputSchema),
-					{
-						validate: async (value) => {
-							const result = await z
-								.fromJSONSchema(definition.inputSchema)
-								.safeParseAsync(value);
-							return result.success
-								? { success: true, value: result.data }
-								: { success: false, error: result.error };
-						},
-					},
-				) as never,
-			} as unknown,
-		]),
-	);
+	// No validate callback on purpose: schema validation belongs to the tools
+	// themselves (core executors validate with lenient union schemas that
+	// accept common weak-model shapes like a bare string for a string[]
+	// property). Rejecting here would return an error to the model without
+	// the tool's own input handling ever seeing the call.
+	const tools: ToolSet = {};
+	for (const definition of request.tools) {
+		tools[definition.name] = {
+			description: definition.description,
+			inputSchema: jsonSchema(
+				normalizeAiSdkToolInputSchema(definition.inputSchema),
+			),
+		};
+	}
+	return tools;
+}
+
+interface RepairableToolCall {
+	toolCallId: string;
+	toolName: string;
+	input: string;
+}
+
+/**
+ * Last-chance repair for tool calls whose arguments are not valid JSON
+ * (truncated payloads, single quotes, unescaped newlines — common with
+ * weaker models). Runs the raw argument text through the shared jsonrepair
+ * strategies; unknown tool names and already-valid JSON are not repairable
+ * here, and returning null preserves the AI SDK's original error behavior.
+ */
+export async function repairMalformedToolCall<T extends RepairableToolCall>({
+	toolCall,
+	error,
+}: {
+	toolCall: T;
+	error: unknown;
+}): Promise<T | null> {
+	if (NoSuchToolError.isInstance(error)) {
+		return null;
+	}
+	if (typeof toolCall.input !== "string" || toolCall.input.trim() === "") {
+		return null;
+	}
+	try {
+		JSON.parse(toolCall.input);
+		// Valid JSON means the failure was a schema mismatch, not a parse
+		// error. That is left to the tool executor's own lenient union
+		// schemas; there is nothing to repair here.
+		return null;
+	} catch {
+		// Not valid JSON — attempt repair below.
+	}
+	const repaired = parseJsonStream(toolCall.input);
+	if (repaired === toolCall.input || typeof repaired === "string") {
+		return null;
+	}
+	return { ...toolCall, input: JSON.stringify(repaired) };
 }
 
 function normalizeAiSdkToolInputSchema(
@@ -345,6 +589,39 @@ function getNestedUsageValue(
 		current = (current as Record<string, unknown>)[key];
 	}
 	return getNumericValue(current) ?? 0;
+}
+
+type UsagePath = readonly [string] | readonly [string, string];
+
+const REASONING_TOKEN_PATHS: UsagePath[] = [
+	["outputTokenDetails", "reasoningTokens"],
+	["output_tokens_details", "reasoning_tokens"],
+	["completion_tokens_details", "reasoning_tokens"],
+	["reasoningTokens"],
+	["reasoning_tokens"],
+];
+
+function getUsageValueByPath(source: unknown, path: UsagePath): number {
+	let current: unknown = source;
+	for (const key of path) {
+		if (!current || typeof current !== "object") {
+			return 0;
+		}
+		current = (current as Record<string, unknown>)[key];
+	}
+	return getNumericValue(current) ?? 0;
+}
+
+function firstUsageValue(sources: unknown[], paths: UsagePath[]): number {
+	for (const source of sources) {
+		for (const path of paths) {
+			const value = getUsageValueByPath(source, path);
+			if (value > 0) {
+				return value;
+			}
+		}
+	}
+	return 0;
 }
 
 function extractProviderNestedUsage(
@@ -535,6 +812,10 @@ export function normalizeUsage(
 				"cache_creation_input_tokens",
 			),
 	};
+	const reasoningTokenCount = firstUsageValue(
+		[usage, rawUsage, providerUsage ?? {}],
+		REASONING_TOKEN_PATHS,
+	);
 	const resolvedTotalCost =
 		totalCost !== undefined
 			? totalCost
@@ -544,6 +825,7 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
 			: {}),
@@ -604,12 +886,19 @@ function extractGoogleThoughtMetadata(
 		providerMetadata?.google && typeof providerMetadata.google === "object"
 			? (providerMetadata.google as Record<string, unknown>)
 			: undefined;
+	const vertexMetadata =
+		providerMetadata?.vertex && typeof providerMetadata.vertex === "object"
+			? (providerMetadata.vertex as Record<string, unknown>)
+			: undefined;
 
 	if (
 		typeof metadata.thoughtSignature !== "string" &&
-		typeof googleMetadata?.thoughtSignature === "string"
+		typeof (
+			googleMetadata?.thoughtSignature ?? vertexMetadata?.thoughtSignature
+		) === "string"
 	) {
-		metadata.thoughtSignature = googleMetadata.thoughtSignature;
+		metadata.thoughtSignature =
+			googleMetadata?.thoughtSignature ?? vertexMetadata?.thoughtSignature;
 	}
 	if (
 		typeof metadata.thought_signature !== "string" &&
@@ -621,17 +910,35 @@ function extractGoogleThoughtMetadata(
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
+/**
+ * A stream error captured while the raw provider error object is still in
+ * hand: the flattened display message plus its classification. Both are
+ * derived here because the structure needed to classify does not survive
+ * `extractErrorMessage`.
+ */
+interface CapturedStreamError {
+	message: string;
+	errorClass: ProviderErrorClass;
+}
+
+function captureStreamError(error: unknown): CapturedStreamError {
+	return {
+		message: extractErrorMessage(error),
+		errorClass: classifyProviderError(error),
+	};
+}
+
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
-	capturedError?: { current: string | undefined },
+	capturedError?: { current: CapturedStreamError | undefined },
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
-	let streamError: string | undefined;
+	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 
@@ -741,7 +1048,7 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? extractErrorMessage(part.error);
+						capturedError?.current ?? captureStreamError(part.error);
 					break;
 				}
 
@@ -758,7 +1065,7 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? extractErrorMessage(error);
+		streamError = capturedError?.current ?? captureStreamError(error);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -773,7 +1080,7 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? extractErrorMessage(error);
+				streamError = capturedError?.current ?? captureStreamError(error);
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -793,7 +1100,8 @@ async function* emitAiSdkEvents(
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
-		error: streamError,
+		error: streamError?.message,
+		errorClass: streamError?.errorClass,
 	};
 }
 
@@ -857,6 +1165,16 @@ async function createProviderModule(
 			const { createDifyProviderModule } = await import("./vendors/community");
 			return createDifyProviderModule(config);
 		}
+		case "ollama": {
+			const { createOllamaProviderModule } = await import("./vendors/ollama");
+			return createOllamaProviderModule(config, context);
+		}
+		case "sapaicore": {
+			const { createSapAiCoreProviderModule } = await import(
+				"./vendors/community"
+			);
+			return createSapAiCoreProviderModule(config);
+		}
 	}
 }
 
@@ -865,11 +1183,22 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 		async *stream(request, context) {
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
-			const capturedError: { current: string | undefined } = {
+			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
 			try {
-				const provider = await createProviderModule(kind, config, context);
+				const provider = await createProviderModule(
+					kind,
+					{
+						...config,
+						fetch: wrapFetchForStickySession(
+							wrapFetchForProviderRequestCapture(config.fetch, request),
+							request,
+							context,
+						),
+					},
+					context,
+				);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
@@ -880,29 +1209,46 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
+				const messages = shouldApplyPromptCache(request, context)
+					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
+					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
+							includeReasoning: shouldIncludeReasoningHistory(request, context),
+						});
+				const providerOptions = composeAiSdkProviderOptions(
+					request,
+					context,
+					kind,
+				) as never;
+				const requestConfig = provider.buildStreamConfig
+					? provider.buildStreamConfig(request, context)
+					: buildAiSdkStreamConfig(request, context);
+				recordProviderRequestCapture({
+					stage: "ai_sdk_prompt",
+					request,
+					payload: {
+						messages,
+						...(useSystemOption ? { system: systemPrompt } : {}),
+						tools,
+						providerOptions,
+						...requestConfig,
+					},
+				});
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
-					messages: (shouldApplyPromptCache(request, context)
-						? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-						: toAiSdkMessages(request.messages, messagesSystemPrompt)) as never,
+					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
-					tools: tools as never,
-					temperature: request.temperature,
-					...(request.maxTokens !== undefined
-						? { maxOutputTokens: request.maxTokens }
-						: {}),
+					...(tools ? { tools } : {}),
 					abortSignal: request.signal,
+					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
-					providerOptions: composeAiSdkProviderOptions(
-						request,
-						context,
-						kind,
-					) as never,
+					providerOptions,
+					...requestConfig,
 					onError: ({ error: streamError }) => {
-						const msg = extractErrorMessage(streamError);
-						capturedError.current = msg;
+						const captured = captureStreamError(streamError);
+						const msg = captured.message;
+						capturedError.current = captured;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
@@ -919,6 +1265,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
+							errorMessage: msg,
 							severity: "error",
 							handled: true,
 							context: {
@@ -947,7 +1294,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const msg = capturedError.current ?? extractErrorMessage(error);
+				const captured = capturedError.current ?? captureStreamError(error);
+				const msg = captured.message;
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -964,6 +1312,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
+					errorMessage: msg,
 					severity: "error",
 					handled: true,
 					context: {
@@ -976,6 +1325,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					type: "finish",
 					reason: "error",
 					error: msg,
+					errorClass: captured.errorClass,
 				};
 			}
 		},
@@ -994,3 +1344,5 @@ export const createClaudeCodeProvider = createAiSdkProvider("claude-code");
 export const createOpenAICodexProvider = createAiSdkProvider("openai-codex");
 export const createOpenCodeProvider = createAiSdkProvider("opencode");
 export const createDifyProvider = createAiSdkProvider("dify");
+export const createOllamaProvider = createAiSdkProvider("ollama");
+export const createSapAiCoreProvider = createAiSdkProvider("sapaicore");

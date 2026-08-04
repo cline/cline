@@ -1,13 +1,15 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import OpenRouterModelPicker from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Component to display OpenRouter balance information
@@ -59,25 +61,35 @@ interface OpenRouterProviderProps {
  */
 export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { config, write } = useProviderConfig("openrouter")
+	const [openRouterApiKey, setOpenRouterApiKey] = useState(apiConfiguration?.openRouterApiKey || "")
+	const apiKeyLength = config?.apiKeyLength || apiConfiguration?.openRouterApiKey?.length
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength,
+		onApiKeyChange: setOpenRouterApiKey,
+		providerName: "OpenRouter",
+		write,
+	})
+
+	useEffect(() => {
+		setOpenRouterApiKey(apiConfiguration?.openRouterApiKey || "")
+	}, [apiConfiguration?.openRouterApiKey])
 
 	return (
 		<div>
 			<div>
 				<DebouncedTextField
-					initialValue={apiConfiguration?.openRouterApiKey || ""}
-					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
+					initialValue={savedApiKeyMask}
+					onChange={handleApiKeyChange}
 					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
 					type="password">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
-						{apiConfiguration?.openRouterApiKey && (
-							<OpenRouterBalanceDisplay apiKey={apiConfiguration.openRouterApiKey} />
-						)}
+						{openRouterApiKey && <OpenRouterBalanceDisplay apiKey={openRouterApiKey} />}
 					</div>
 				</DebouncedTextField>
-				{!apiConfiguration?.openRouterApiKey && (
+				{!openRouterApiKey && (
 					<VSCodeButton
 						appearance="secondary"
 						onClick={async () => {
@@ -101,11 +113,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 				</p>
 			</div>
 
-			{showModelOptions && (
-				<>
-					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} showProviderRouting={true} />
-				</>
-			)}
+			{showModelOptions && <OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} showProviderRouting={true} />}
 		</div>
 	)
 }

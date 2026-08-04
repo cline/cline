@@ -1,10 +1,32 @@
-import { initVcr } from "@cline/shared";
+import { AgentRuntimeAbortError } from "@cline/agents";
+import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { reconnectDaemonConnectors } from "../../services/connectors/daemon-connector-reconnect";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
+
+let resolveHubDaemonReady!: () => void;
+let rejectHubDaemonReady!: (error: unknown) => void;
+
+/**
+ * Resolves only after the daemon WebSocket server is listening and its process
+ * lifecycle handlers are installed.
+ */
+export const hubDaemonReady = new Promise<void>((resolve, reject) => {
+	resolveHubDaemonReady = resolve;
+	rejectHubDaemonReady = reject;
+});
+
+// The daemon entrypoint also runs standalone, where no importer observes the
+// readiness promise. Keep startup failures handled by the fatal path below.
+void hubDaemonReady.catch(() => undefined);
 
 function parseArgs(argv: string[]): {
 	cwd: string;
@@ -57,17 +79,34 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
-	const server = await startHubWebSocketServer({
-		host: endpoint.host,
-		port: endpoint.port,
-		pathname: endpoint.pathname,
-		owner: resolveSharedHubOwnerContext(),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		cronOptions: { workspaceRoot: options.cwd },
-	});
+	const daemonTelemetry = createHubDaemonTelemetry();
+
+	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	try {
+		server = await startHubWebSocketServer({
+			host: endpoint.host,
+			port: endpoint.port,
+			pathname: endpoint.pathname,
+			owner:
+				resolveClineBuildEnv() === "production"
+					? resolveProductionHubOwnerContext()
+					: resolveSharedHubOwnerContext(),
+			telemetry: daemonTelemetry.telemetry,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				telemetry: daemonTelemetry.telemetry,
+			}),
+			cronOptions: { workspaceRoot: options.cwd },
+		});
+	} catch (error) {
+		// Flush before the top-level catch exits so failed daemon starts are
+		// still visible in telemetry instead of dying silently.
+		await daemonTelemetry.dispose().catch(() => undefined);
+		throw error;
+	}
 
 	const shutdown = async (): Promise<void> => {
 		await server.close();
+		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
 
@@ -92,7 +131,12 @@ async function main(): Promise<void> {
 				);
 			})
 			.finally(() => {
-				process.exit(1);
+				void daemonTelemetry
+					.dispose()
+					.catch(() => undefined)
+					.finally(() => {
+						process.exit(1);
+					});
 			});
 	};
 
@@ -106,15 +150,32 @@ async function main(): Promise<void> {
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
+		if (reason instanceof AgentRuntimeAbortError) {
+			process.stderr.write(
+				`[hub-daemon] ignored agent runtime abort rejection: ${reason.message}\n`,
+			);
+			return;
+		}
 		shutdownFatal("unhandledRejection", reason);
 	});
 
+	resolveHubDaemonReady();
+	try {
+		await reconnectDaemonConnectors();
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(
+			`[hub-daemon] connector reconnect failed: ${message}\n`,
+		);
+	}
 	await new Promise<void>(() => {
 		// keep daemon process alive
 	});
 }
 
 void main().catch((error) => {
+	rejectHubDaemonReady(error);
 	const message =
 		error instanceof Error ? error.stack || error.message : String(error);
 	process.stderr.write(`[hub-daemon] fatal: ${message}\n`);

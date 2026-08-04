@@ -1,7 +1,34 @@
-import type { OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { ClineRecommendedModel, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 
+export const CLINEPASS_GROUP = "cline-pass"
+
+export interface RecommendedModelsData {
+	recommended: ClineRecommendedModel[]
+	free: ClineRecommendedModel[]
+	clinePass: ClineRecommendedModel[]
+}
+
+type RecommendedModelsResponseLike = {
+	recommended?: ClineRecommendedModel[]
+	free?: ClineRecommendedModel[]
+	clinePass?: ClineRecommendedModel[]
+}
+
+export function getRecommendedModelsData(response: RecommendedModelsResponseLike): RecommendedModelsData | undefined {
+	const recommended = response.recommended ?? []
+	const free = response.free ?? []
+	const clinePass = response.clinePass ?? []
+
+	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
+		return undefined
+	}
+
+	return { recommended, free, clinePass }
+}
+
 export interface OnboardingModelsByGroup {
+	clinePass: ModelGroup[]
 	free: ModelGroup[]
 	power: ModelGroup[]
 }
@@ -11,20 +38,33 @@ interface ModelGroup {
 	models: OnboardingModel[]
 }
 
+function isClinePassOnboardingModel(model: OnboardingModel): boolean {
+	return model.group === CLINEPASS_GROUP
+}
+
 export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
 	const { models } = groupedModels
 
+	const clinePassModels = models.filter(isClinePassOnboardingModel)
 	const freeModels = models.filter((m) => m.group === "free")
 	const frontierModels = models.filter((m) => m.group === "frontier")
 	const openSourceModels = models.filter((m) => m.group === "open source")
 
 	return {
+		clinePass: clinePassModels.length > 0 ? [{ group: CLINEPASS_GROUP, models: clinePassModels }] : [],
 		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
 		power: [
 			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),
 			...(openSourceModels.length > 0 ? [{ group: "open source", models: openSourceModels }] : []),
 		],
 	}
+}
+
+export function getOnboardingGroupDisplayName(group: string): string {
+	if (group === CLINEPASS_GROUP) {
+		return "ClinePass"
+	}
+	return group
 }
 
 export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
@@ -41,22 +81,6 @@ export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
 		return "$$$"
 	}
 	return "$$"
-}
-
-export function getOverviewLabel(overview: number): string {
-	if (overview >= 95) {
-		return "Top Performer"
-	}
-	if (overview >= 80) {
-		return "Great"
-	}
-	if (overview >= 60) {
-		return "Good"
-	}
-	if (overview >= 50) {
-		return "Average"
-	}
-	return "Below Average"
 }
 
 export function getCapabilities(modelInfo: OpenRouterModelInfo): string[] {

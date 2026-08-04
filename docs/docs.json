@@ -10,7 +10,8 @@
 	},
 	"logo": {
 		"light": "/assets/Cline_Logo-complete_black.png",
-		"dark": "/assets/Cline_Logo-complete_white.png"
+		"dark": "/assets/Cline_Logo-complete_white.png",
+		"href": "https://cline.bot/"
 	},
 	"favicon": {
 		"light": "/assets/robot_panel_light.png",
@@ -64,11 +65,13 @@
 						"pages": [
 							"cline-overview",
 							"getting-started/installing-cline",
+							"getting-started/cline-provider",
+							"getting-started/clinepass",
+							"getting-started/free-models",
 							{
-								"group": "Models & Providers",
+								"group": "Other Models & Providers",
 								"pages": [
 									"getting-started/authorizing-with-cline",
-									"getting-started/cline-provider",
 									"running-models-locally/overview",
 									{
 										"group": "Cloud Providers",
@@ -89,6 +92,7 @@
 											"provider-config/openai",
 											"provider-config/openai-compatible",
 											"provider-config/openrouter",
+											"provider-config/poolside",
 											"provider-config/zai",
 											"provider-config/other-30-plus-providers"
 										]
@@ -114,12 +118,13 @@
 											"cli/samples/github-issue-rca",
 											"cli/samples/github-integration",
 											"cli/samples/github-pr-review",
-											"cli/samples/model-orchestration"
+											"cli/samples/model-orchestration",
+											"cli/samples/supply-chain-alerts"
 										]
-									},
-									"cli/acp-editor-integrations"
+									}
 								]
 							},
+							"usage/acp",
 							{
 								"group": "Kanban",
 								"pages": [
@@ -298,7 +303,7 @@
 								"group": "Control Other Cline Features",
 								"pages": [
 									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
 								]
 							},
 							{
@@ -363,11 +368,19 @@
 	],
 	"redirects": [
 		{
+			"source": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace",
+			"destination": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
+		},
+		{
 			"source": "/usage/cli",
 			"destination": "/usage/cli-overview"
 		},
 		{
 			"source": "/getting-started/installing-cline-jetbrains",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/getting-started/for-new-coders",
 			"destination": "/getting-started/installing-cline"
 		},
 		{
@@ -620,7 +633,7 @@
 		},
 		{
 			"source": "/features/customization/opening-cline-in-sidebar",
-			"destination": "/getting-started/installing-cline"
+			"destination": "/usage/ide#move-cline-to-the-right-sidebar"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
@@ -645,10 +658,6 @@
 		{
 			"source": "/features/slash-commands/smol",
 			"destination": "/core-workflows/using-commands#smol"
-		},
-		{
-			"source": "/features/slash-commands/explain-changes",
-			"destination": "/core-workflows/using-commands#explain-changes"
 		},
 		{
 			"source": "/features/slash-commands/new-rule",
@@ -760,7 +769,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/acp-editor-integrations"
+			"destination": "/usage/acp"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",

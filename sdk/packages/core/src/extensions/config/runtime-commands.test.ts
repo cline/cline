@@ -42,7 +42,7 @@ Run the release workflow.`,
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			expect(listAvailableRuntimeCommandsFromWatcher(watcher)).toEqual([
 				{
 					id: "debug",
@@ -95,7 +95,7 @@ Do not run this workflow.`,
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			expect(resolveRuntimeSlashCommandFromWatcher("/ship", watcher)).toBe(
 				"Run the ship workflow.",
 			);
@@ -136,7 +136,7 @@ Review the current branch and summarize findings.
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			expect(listAvailableRuntimeCommandsFromWatcher(watcher)).toEqual([
 				{
 					id: "review",
@@ -167,7 +167,7 @@ Review the current branch and summarize findings.
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			expect(resolveRuntimeSlashCommandFromWatcher("/review", watcher)).toBe(
 				"Use the review skill.",
 			);

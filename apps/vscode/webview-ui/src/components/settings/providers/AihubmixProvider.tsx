@@ -3,11 +3,11 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -25,7 +25,7 @@ interface AIhubmixProviderProps {
 export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIhubmixProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("aihubmix", apiConfiguration, currentMode)
 
 	const [models, setModels] = useState<Record<string, ModelInfo>>({})
 
