@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
 	const fromEnv = process.env.TAURI_ENV_TARGET_TRIPLE ?? process.env.TARGET;
@@ -38,11 +39,17 @@ const main = async () => {
 	const outfile = `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
 	const bunTarget = resolveBunCompileTarget(targetTriple);
 
+	// Telemetry config must be inlined into the compiled binary: a packaged
+	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
+	// without this the sidecar silently ships with telemetry disabled.
+	// Verify with `<binary> --telemetry-selfcheck` after building.
+	const defines = telemetryDefineArgs();
+
 	await $`mkdir -p src-tauri/bin`;
 	if (bunTarget) {
-		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} --outfile ${outfile}`;
+		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
 	} else {
-		await $`bun build ./sidecar/index.ts --compile --outfile ${outfile}`;
+		await $`bun build ./sidecar/index.ts --compile ${defines} --outfile ${outfile}`;
 	}
 };
 

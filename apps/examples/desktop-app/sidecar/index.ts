@@ -1,5 +1,8 @@
 import { homedir } from "node:os";
-import { setHomeDirIfUnset } from "@cline/core";
+import {
+	createClineTelemetryServiceConfig,
+	setHomeDirIfUnset,
+} from "@cline/core";
 import { isHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
@@ -136,7 +139,39 @@ async function main() {
 	);
 }
 
+/**
+ * Prints whether the telemetry configuration that was inlined at build time
+ * (see scripts/telemetry-define-args.ts) actually made it into this binary,
+ * then exits. CI runs this against the packaged sidecar and fails the
+ * publish when a release-grade build reports `"enabled":false`, so a
+ * regression in the build-time inlining can never ship silently again.
+ */
+function runTelemetrySelfcheck(): void {
+	const config = createClineTelemetryServiceConfig();
+	let otlpEndpointHost = "";
+	if (config.otlpEndpoint) {
+		try {
+			otlpEndpointHost = new URL(config.otlpEndpoint).host;
+		} catch {
+			otlpEndpointHost = "invalid-endpoint-url";
+		}
+	}
+	process.stdout.write(
+		`${JSON.stringify({
+			telemetry_selfcheck: true,
+			enabled: config.enabled === true,
+			otlp_endpoint_host: otlpEndpointHost,
+			logs_exporter: config.logsExporter ?? "",
+			metrics_exporter: config.metricsExporter ?? "",
+		})}\n`,
+	);
+}
+
 async function runEntrypoint(): Promise<void> {
+	if (process.argv.includes("--telemetry-selfcheck")) {
+		runTelemetrySelfcheck();
+		return;
+	}
 	if (isHubDaemonProcess()) {
 		await import("@cline/core/hub/daemon-entry");
 		return;

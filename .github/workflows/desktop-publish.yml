@@ -231,6 +231,20 @@ jobs:
         working-directory: apps/examples/desktop-app
         run: bunx tauri build --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
         env:
+          # Telemetry config for the sidecar binary. Tauri's beforeBuildCommand
+          # (`bun run build` -> build:sidecar:bin) compiles the sidecar during
+          # this step and inlines these values into the binary via `--define`
+          # (scripts/telemetry-define-args.ts); a packaged app launched from
+          # Finder/the Dock has no runtime env, so build-time inlining is the
+          # only way the shipped sidecar can ever report telemetry.
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           # Developer ID signing (Tauri imports the cert into a temp keychain)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -243,6 +257,27 @@ jobs:
           # Updater artifact signing (minisign keypair, independent of Apple)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Guardrail: assert the telemetry config actually made it into the
+      # compiled sidecar. Missing env on the build step (or a regression in
+      # the --define inlining) would otherwise ship a release with telemetry
+      # silently disabled — exactly what happened for every release before
+      # this check existed. Both targets run on the macOS runner: the
+      # non-native one executes under Rosetta 2.
+      - name: Verify sidecar telemetry config was inlined
+        working-directory: apps/examples/desktop-app
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          SELFCHECK=$(./src-tauri/bin/code-sidecar-"$TARGET" --telemetry-selfcheck)
+          echo "$SELFCHECK"
+          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+            echo "Packaged sidecar reports telemetry disabled."
+            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+            echo "'Build, sign, and notarize desktop bundle' step and the"
+            echo "--define inlining in scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
 
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
