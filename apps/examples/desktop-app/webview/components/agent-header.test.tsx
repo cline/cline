@@ -31,6 +31,19 @@ describe("AgentHeader title bar", () => {
 			container.querySelector("header")?.getAttribute("data-tauri-drag-region"),
 		).toBe("deep");
 	});
+
+	it("renders a read-only title as draggable text", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="Read-only session" />);
+		});
+
+		expect(
+			container.querySelector('span[title="Read-only session"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('button[title="Read-only session"]'),
+		).toBeNull();
+	});
 });
 
 describe("AgentHeader title editor", () => {

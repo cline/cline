@@ -140,7 +140,14 @@ export function AgentHeader({
 					}
 					tone={statusTone}
 				/>
-				{isEditingTitle ? (
+				{!canEditTitle ? (
+					<span
+						className="min-w-0 truncate text-sm font-medium text-foreground"
+						title={threadTitle}
+					>
+						{threadTitle}
+					</span>
+				) : isEditingTitle ? (
 					<form
 						className="m-0 min-w-0 max-w-full shrink-0"
 						onSubmit={(event) => {
@@ -174,7 +181,7 @@ export function AgentHeader({
 							canEditTitle &&
 								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
 						)}
-						disabled={!canEditTitle || renamingTitle}
+						disabled={renamingTitle}
 						onClick={(event) => {
 							if (!canEditTitle || renamingTitle) {
 								return;
