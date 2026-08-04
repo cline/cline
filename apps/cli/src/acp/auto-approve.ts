@@ -28,5 +28,5 @@ export function parseAutoApproveValue(value: unknown): boolean | undefined {
 		return value;
 	}
 
-	return value === "true";
+	return value === "true" ? true : value === "false" ? false : undefined;
 }
