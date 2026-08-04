@@ -123,7 +123,10 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7">
+		<header
+			className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
+			data-tauri-drag-region="deep"
+		>
 			{/* Left: thread title */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<SessionStatus

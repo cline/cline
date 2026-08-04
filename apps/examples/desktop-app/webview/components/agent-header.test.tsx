@@ -21,6 +21,18 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("AgentHeader title bar", () => {
+	it("makes non-interactive header space draggable", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="A session" />);
+		});
+
+		expect(
+			container.querySelector("header")?.getAttribute("data-tauri-drag-region"),
+		).toBe("deep");
+	});
+});
+
 describe("AgentHeader title editor", () => {
 	it("preserves the displayed title width when editing starts", async () => {
 		await act(async () => {
