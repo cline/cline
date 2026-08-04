@@ -46,17 +46,6 @@ export const diffPalettes = {
 	},
 } as const;
 
-export function getModeAccent(
-	mode: string,
-	theme: TerminalTheme = "dark",
-): string {
-	return mode === "plan" ? themePalette[theme].plan : themePalette[theme].act;
-}
-
-export function getSuccessColor(theme: TerminalTheme = "dark"): string {
-	return themePalette[theme].success;
-}
-
 // Input field adaptive color system
 //
 // The input field background needs to be visibly distinct from the terminal
@@ -207,6 +196,8 @@ export function getModeInputPlaceholder(
 		base.b + (warm ? CHROMA_NUDGE * 2 : -CHROMA_NUDGE * 2),
 	);
 }
+
+export { hexToOklab, oklabToHex };
 
 function srgbToLinear(c: number): number {
 	return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

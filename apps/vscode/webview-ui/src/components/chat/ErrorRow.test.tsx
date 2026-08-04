@@ -196,7 +196,7 @@ describe("ErrorRow", () => {
 
 		it("renders entitlement error when ClineError detects ClineNotSubscribedError", async () => {
 			const cliMessage =
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true"
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan:"
 			const mockClineError = {
 				message: cliMessage,
 				isErrorType: vi.fn((type) => type === "entitlement"),

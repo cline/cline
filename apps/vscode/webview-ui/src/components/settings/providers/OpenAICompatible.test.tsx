@@ -241,6 +241,26 @@ describe("OpenAICompatibleProvider", () => {
 		expect(screen.getByLabelText("OpenAI Compatible API key")).toHaveValue("••••••••••••")
 	})
 
+	it("persists base URL and API key edits made before config loads", async () => {
+		// The initial provider-config read resolves asynchronously; edits made
+		// in that window must still be written, not silently dropped.
+		mocks.useProviderConfig.mockReturnValue({
+			config: undefined,
+			commitSelection: mocks.commitSelection,
+			write: mocks.write,
+		})
+		renderProvider()
+		await act(async () => {})
+
+		fireEvent.change(screen.getByPlaceholderText("Enter base URL..."), {
+			target: { value: "http://early.example:1234/v1" },
+		})
+		fireEvent.change(screen.getByLabelText("OpenAI Compatible API key"), { target: { value: "early-secret" } })
+
+		expect(mocks.write).toHaveBeenCalledWith({ baseUrl: "http://early.example:1234/v1" })
+		expect(mocks.write).toHaveBeenCalledWith({ apiKey: "early-secret" })
+	})
+
 	it("writes a newly entered API key without echoing a stored key into config", async () => {
 		renderProvider()
 		await act(async () => {})
@@ -447,38 +467,6 @@ describe("OpenAICompatibleProvider", () => {
 				outputPrice: 2,
 				supportsVision: true,
 			},
-		})
-	})
-
-	it("restores the R1 checkbox from authored override readback", async () => {
-		setCommittedSelection({ isR1FormatRequired: true })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("restores the R1 checkbox from canonical resolved apiFormat", async () => {
-		setCommittedSelection({}, { apiFormat: ApiFormat.R1_CHAT })
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		expect(screen.getByRole("checkbox", { name: "Enable R1 messages format" })).toBeChecked()
-	})
-
-	it("persists the R1 checkbox as one explicit override", async () => {
-		renderProvider()
-		await act(async () => {})
-		fireEvent.click(screen.getByText("Model Configuration"))
-
-		fireEvent.click(screen.getByRole("checkbox", { name: "Enable R1 messages format" }))
-
-		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
-			providerId: "custom-openai",
-			modelId: "custom-model",
-			overrides: { isR1FormatRequired: true },
 		})
 	})
 

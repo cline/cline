@@ -13,6 +13,7 @@ export interface ModelsDevModel {
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
+	reasoning_options?: ModelInfo["reasoningOptions"];
 	structured_output?: boolean;
 	temperature?: boolean;
 	release_date?: string;
@@ -182,6 +183,9 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	if (model.modalities?.input?.includes("image")) {
 		capabilities.push("images");
 	}
+	if (model.modalities?.input?.includes("video")) {
+		capabilities.push("video");
+	}
 	if (model.modalities?.input?.includes("pdf")) {
 		capabilities.push("files");
 	}
@@ -242,6 +246,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
+		reasoningOptions: model.reasoning_options,
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,

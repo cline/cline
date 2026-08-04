@@ -25,10 +25,12 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
+		setPendingResponse,
 		clineAsk,
 		lastMessage,
 	} = chatState
 	const cancelInFlightRef = useRef(false)
+	const pendingResponseIdRef = useRef(0)
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
@@ -45,17 +47,26 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its alias `/smol`) must run a real SDK manual
-			// compaction via the condense RPC — sending the literal text to the
-			// model would make it improvise a fake summary instead of compacting
-			// the context window (CLINE-2503). With no active task there is nothing
-			// to compact, so fall through to normal new-task handling.
-			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
+			// `/compact` (and its aliases `/smol` and `/newtask`) must run a real
+			// SDK manual compaction via the condense RPC — sending the literal
+			// text to the model would make it improvise a fake summary instead of
+			// compacting the context window (CLINE-2503). `/newtask` aliases
+			// compaction because condensing achieves its goal (continue working
+			// with a fresh, summarized context) without the legacy new_task tool.
+			// With no active task there is nothing to compact, so fall through to
+			// normal new-task handling.
+			if (
+				messages.length > 0 &&
+				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
+			) {
+				// Clear the input before awaiting the RPC — condense resolves only
+				// after compaction finishes, and the typed command lingering in the
+				// field the whole time reads as if the send didn't register.
+				setInputValue("")
+				setActiveQuote(null)
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
 					console.error("Failed to compact task:", err),
 				)
-				setInputValue("")
-				setActiveQuote(null)
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
@@ -94,33 +105,61 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
+				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
+					const id = ++pendingResponseIdRef.current
+					// A follow-up submitted during an active stream is queued/steering feedback.
+					// The authoritative streaming UI is already current, so forcing a loader could
+					// duplicate it alongside content that is still visibly streaming.
+					if (turnState?.phase !== "streaming") {
+						setPendingResponse({
+							id,
+							turnStateSeq: turnState?.seq,
+							messageCount: messages.length,
+						})
+					}
+					const optimisticMessage = pendingMessage
+						? {
+								afterTs: Math.max(0, ...messages.map((message) => message.ts)),
+								message: pendingMessage,
+							}
+						: undefined
+					if (optimisticMessage) {
+						setPendingUserMessage(optimisticMessage)
+					}
+					return { id, optimisticMessage }
+				}
+				const rollbackPendingResponse = (
+					id: number,
+					optimisticMessage: ReturnType<typeof beginPendingResponse>["optimisticMessage"],
+				) => {
+					setPendingResponse((current) => (current?.id === id ? undefined : current))
+					if (optimisticMessage) {
+						setPendingUserMessage((current) => (current === optimisticMessage ? undefined : current))
+					}
+				}
 				const sendAskResponseWithPendingState = async (
 					request: ReturnType<typeof AskResponseRequest.create>,
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
 					clearSentMessageState()
-					if (options.showPendingMessage) {
-						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
-						setPendingUserMessage({
-							afterTs,
-							message: {
-								ts: Date.now(),
-								type: "say",
-								say: "user_feedback",
-								text: request.text ?? "",
-								images: request.images,
-								files: request.files,
-								partial: false,
-							},
-						})
-					}
+					const { id, optimisticMessage } = beginPendingResponse(
+						options.showPendingMessage
+							? {
+									ts: Date.now(),
+									type: "say",
+									say: "user_feedback",
+									text: request.text ?? "",
+									images: request.images,
+									files: request.files,
+									partial: false,
+								}
+							: undefined,
+					)
 					try {
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
-						if (options.showPendingMessage) {
-							setPendingUserMessage(undefined)
-						}
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
@@ -134,9 +173,19 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "task",
+						text: messageToSend,
+						images,
+						files,
+						partial: false,
+					})
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
@@ -155,6 +204,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+						// Resuming a task opened from history rebuilds the SDK session before the
+						// extension echoes say:user_feedback, so without an optimistic bubble the
+						// user's message would not appear until the (slow) resume finishes — the
+						// chat would show only the Thinking loader in the meantime.
 						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -162,6 +215,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								images,
 								files,
 							}),
+							{ showPendingMessage: turnState?.phase !== "streaming" },
 						)
 						messageSent = true
 					} else {
@@ -266,6 +320,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingResponse,
 			chatState,
 		],
 	)

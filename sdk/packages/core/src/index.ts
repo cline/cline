@@ -282,6 +282,7 @@ export {
 export {
 	type AuthorizeMcpServerOAuthOptions,
 	type AuthorizeMcpServerOAuthResult,
+	augmentMcpTimeoutError,
 	authorizeMcpServerOAuth,
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
@@ -528,6 +529,7 @@ export {
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
@@ -538,6 +540,7 @@ export {
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
+	setTuiThemeGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
@@ -651,7 +654,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
-export { resolveCoreDistinctId } from "./services/telemetry";
+export { resolveCoreDeviceId, resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
@@ -748,8 +751,10 @@ export {
 	createCheckpointComparePlan,
 } from "./session/checkpoint-diff";
 export {
+	createRestoredCheckpointMetadata,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
+	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
@@ -782,6 +787,13 @@ export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
+export {
+	countUserRunMessages,
+	getUserRunSpan,
+	isUserRunMessage,
+	type MessageDisplayRole,
+	resolveMessageDisplayRole,
+} from "./session/user-run-messages";
 export type {
 	CoreSettingsItem,
 	CoreSettingsItemKind,
@@ -855,6 +867,7 @@ export {
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
 	MAX_COMMAND_OUTPUT_CHARS,
+	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
 	resolveCoreSelectedToolIds,

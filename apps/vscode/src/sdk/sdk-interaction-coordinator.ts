@@ -236,7 +236,13 @@ export class SdkInteractionCoordinator {
 	}
 
 	clearPending(reason: string): void {
+		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
+		// before session teardown so the run can unwind instead of remaining suspended;
+		// use an empty answer so the lifecycle reason is not presented as user input.
+		resolveAsk?.("")
+
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {

@@ -23,6 +23,26 @@ export function messageToAgentMessages(
 	const baseId = message.id ?? generateMessageId();
 	let nonToolSegmentCount = 0;
 	let nonToolBlocks: Exclude<ContentBlock, ToolResultContent>[] = [];
+	const storedUserRunSpan =
+		message.role === "user" &&
+		typeof message.metadata?.userRunSpan === "number" &&
+		Number.isInteger(message.metadata.userRunSpan) &&
+		message.metadata.userRunSpan >= 0
+			? message.metadata.userRunSpan
+			: undefined;
+	let userRunSpanAssigned = false;
+	const segmentMetadata = (
+		representsUserContent: boolean,
+	): MessageWithMetadata["metadata"] => {
+		if (storedUserRunSpan === undefined) {
+			return message.metadata;
+		}
+		if (representsUserContent && !userRunSpanAssigned) {
+			userRunSpanAssigned = true;
+			return message.metadata;
+		}
+		return { ...message.metadata, userRunSpan: 0 };
+	};
 
 	const flushNonToolBlocks = () => {
 		if (nonToolBlocks.length === 0) {
@@ -38,7 +58,7 @@ export function messageToAgentMessages(
 			role: message.role,
 			content: nonToolBlocks.map(contentBlockToAgentPart),
 			createdAt: message.ts ?? Date.now(),
-			metadata: message.metadata,
+			metadata: segmentMetadata(true),
 			modelInfo: message.modelInfo,
 			metrics: metricsToAgentMetrics(message.metrics),
 		});
@@ -82,7 +102,7 @@ export function messageToAgentMessages(
 			role: "tool",
 			content: [toolResultContentToAgentPart(block)],
 			createdAt: message.ts ?? Date.now(),
-			metadata: message.metadata,
+			metadata: segmentMetadata(false),
 		});
 	}
 	flushNonToolBlocks();

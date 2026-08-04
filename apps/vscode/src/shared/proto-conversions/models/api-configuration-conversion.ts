@@ -211,7 +211,6 @@ function convertOpenAiCompatibleModelInfoToProto(
 		description: info.description,
 		tiers: info.tiers || [],
 		temperature: info.temperature,
-		isR1FormatRequired: info.isR1FormatRequired,
 	}
 }
 
@@ -237,7 +236,6 @@ function convertProtoToOpenAiCompatibleModelInfo(
 		description: info.description,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
-		isR1FormatRequired: info.isR1FormatRequired,
 	}
 }
 

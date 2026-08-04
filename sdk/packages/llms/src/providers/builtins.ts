@@ -485,6 +485,7 @@ function modelInfoToGateway(
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
 		capabilities: [...capabilities],
+		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }
@@ -888,7 +889,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "anthropic/claude-sonnet-4.6",
+		defaultModelId: "anthropic/claude-sonnet-5",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
@@ -1076,14 +1077,6 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "minimax",
-		name: "MiniMax",
-		description: "MiniMax models via Anthropic-compatible API",
-		family: "anthropic",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
-		defaultModelId: "MiniMax-M2.5",
-		apiKeyEnv: ["MINIMAX_API_KEY"],
-		modelsProviderId: "minimax",
-		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
 		apiLineBaseUrls: {
 			china: "https://api.minimaxi.com/anthropic/v1",
 			international: "https://api.minimax.io/anthropic/v1",

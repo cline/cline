@@ -11,6 +11,7 @@ import {
 	readModelsFile,
 	registerCustomProvider,
 	resolveModelsRegistryPath,
+	toProviderModel,
 } from "./local-provider-registry";
 import {
 	addLocalProvider,
@@ -77,7 +78,6 @@ describe("models registry parsing", () => {
 							cacheReadsPrice: 0.25,
 							cacheWritesPrice: 1.5,
 							temperature: 0.2,
-							isR1FormatRequired: true,
 						},
 					},
 				},
@@ -110,7 +110,6 @@ describe("models registry parsing", () => {
 					cacheWrite: 1.5,
 				},
 				temperature: 0.2,
-				apiFormat: "r1",
 			},
 		});
 	});
@@ -138,7 +137,6 @@ describe("models registry parsing", () => {
 							cacheReadsPrice: -1,
 							temperature: -1,
 							apiFormat: "openai-responses",
-							isR1FormatRequired: false,
 						},
 					},
 				},
@@ -153,7 +151,6 @@ describe("models registry parsing", () => {
 			supportsReasoning: false,
 			outputPrice: 2,
 			apiFormat: "openai-responses",
-			isR1FormatRequired: false,
 		});
 		if (!entry) {
 			throw new Error("expected normalized provider entry");
@@ -750,6 +747,19 @@ describe("addLocalProvider – capabilities", () => {
 	});
 
 	afterEach(() => cleanup());
+
+	it("exposes the model context window to provider catalog consumers", () => {
+		expect(
+			toProviderModel("wide-model", {
+				name: "Wide Model",
+				contextWindow: 1_000_000,
+			}),
+		).toMatchObject({
+			id: "wide-model",
+			name: "Wide Model",
+			contextWindow: 1_000_000,
+		});
+	});
 
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {

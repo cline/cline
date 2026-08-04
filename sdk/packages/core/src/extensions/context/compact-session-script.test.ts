@@ -27,6 +27,8 @@ function runScript(strategy: "agentic" | "basic") {
 		{
 			encoding: "utf8",
 			env: { ...process.env, ANTHROPIC_API_KEY: "" },
+			timeout: 20_000,
+			windowsHide: true,
 		},
 	);
 }
@@ -35,15 +37,17 @@ describe("test:compaction script", () => {
 	it("allows provider metadata for basic compaction without an API key", () => {
 		const result = runScript("basic");
 
+		expect(result.error).toBeUndefined();
 		expect(result.status, result.stderr).toBe(0);
 		expect(result.stderr).toContain("Running basic compaction");
 		expect(result.stderr).not.toContain("Missing API key");
-	});
+	}, 30_000);
 
 	it("still requires an API key for agentic compaction", () => {
 		const result = runScript("agentic");
 
+		expect(result.error).toBeUndefined();
 		expect(result.status).not.toBe(0);
 		expect(result.stderr).toContain("Missing API key in ANTHROPIC_API_KEY");
-	});
+	}, 30_000);
 });

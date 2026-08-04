@@ -57,7 +57,6 @@ import {
 	captureAuthRunRetry,
 	captureMistakeLimitReached,
 } from "../../services/telemetry/core-events";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
@@ -848,7 +847,6 @@ export class SessionRuntime {
 				modelSupportsImages:
 					modelInfo?.capabilities?.includes("images") ?? true,
 				...this.config.toolContextMetadata,
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: this.telemetry,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
@@ -1022,6 +1020,7 @@ export class SessionRuntime {
 					provider: this.config.providerId,
 					info: modelInfo,
 				},
+				overflowRecovery: context.overflowRecovery,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {

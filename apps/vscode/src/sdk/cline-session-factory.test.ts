@@ -264,6 +264,13 @@ describe("normalizeSdkBaseUrl", () => {
 	it("preserves explicit user paths", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
+
+	it("inherits the AskSage default /server path when the custom URL has no path", () => {
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
+			"https://asksage.internal.example/custom",
+		)
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -293,6 +300,39 @@ describe("normalizeProviderReasoningSettings", () => {
 		const result = normalizeProviderReasoningSettings({ effort: "medium" })
 
 		expect(result).toEqual({ reasoningEffort: "medium" })
+	})
+
+	it("honors a migrated legacy budget as thinking-on with a derived effort", () => {
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 1024 })).toEqual({
+			thinking: true,
+			reasoningEffort: "low",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 6000 })).toEqual({
+			thinking: true,
+			reasoningEffort: "medium",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 32_767 })).toEqual({
+			thinking: true,
+			reasoningEffort: "high",
+		})
+	})
+
+	it("derives an effort from the budget when enabled without an effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "medium" })
+	})
+
+	it("prefers an explicit effort over a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "xhigh", budgetTokens: 1024 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "xhigh" })
+	})
+
+	it("keeps disabled reasoning off even with a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: false, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: false })
 	})
 })
 
@@ -419,6 +459,52 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).toMatchObject({
 			providerId: "openai-compatible",
 			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("resolves the AskSage base URL from the legacy asksageApiUrl state field", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+			asksageApiKey: "asksage-key",
+			asksageApiUrl: "https://asksage.internal.example/server",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("asksage")
+		// Without this mapping the custom URL saved in legacy state was
+		// silently ignored and requests went to the builtin default
+		// (https://api.asksage.ai/server).
+		expect(config.baseUrl).toBe("https://asksage.internal.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.internal.example/server",
+		})
+	})
+
+	it("falls back to the providers.json AskSage base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "asksage") {
+				return undefined
+			}
+			return {
+				provider: "asksage",
+				apiKey: "asksage-key",
+				baseUrl: "https://asksage.migrated.example/server",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("https://asksage.migrated.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.migrated.example/server",
 		})
 	})
 

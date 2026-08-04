@@ -82,6 +82,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		},
 		[write],
 	)
+	const handleBaseUrlClear = useCallback(async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear LM Studio base URL:", error)
+			throw error
+		}
+	}, [write])
 
 	const handleModelChange = useCallback(
 		(modelId: string) => {
@@ -154,6 +162,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				initialValue={config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl}
 				label="Use custom base URL"
 				onChange={handleBaseUrlChange}
+				onClear={handleBaseUrlClear}
 				placeholder="Default: http://localhost:1234"
 			/>
 
