@@ -302,6 +302,17 @@ export interface DefaultToolsConfig {
 	enableSubmitAndExit?: boolean;
 
 	/**
+	 * Hard-block run_commands entries that create, modify, or delete files
+	 * (rm/mv/cp, in-place editors like `sed -i`, output redirection to files,
+	 * git commands that change the working tree, package-manager installs,
+	 * ...). Blocked commands are not executed and fail with a plan-mode tool
+	 * error instead. Enabled by the plan tool preset so run_commands stays
+	 * read-only in plan mode.
+	 * @default false
+	 */
+	blockFileEditingCommands?: boolean;
+
+	/**
 	 * Current working directory for tools that need it
 	 */
 	cwd?: string;

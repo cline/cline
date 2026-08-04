@@ -102,6 +102,28 @@ describe("createVscodeRunCommandsTool", () => {
 		expect(tool.description).toContain("Commands run through cmd.exe")
 	})
 
+	it("hard-blocks file-editing commands in plan mode without touching the terminal", async () => {
+		const getTerminalManager = vi.fn(() => {
+			throw new Error("Blocked commands must not reach the terminal")
+		})
+		const tool = createVscodeRunCommandsTool({
+			cwd: "/workspace",
+			getTerminalManager,
+			blockFileEditingCommands: true,
+		})
+
+		const results = (await tool.execute(
+			{ commands: ["rm -rf build"] },
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 1 },
+		)) as Array<{ success: boolean; error?: string }>
+
+		expect(getTerminalManager).not.toHaveBeenCalled()
+		expect(results).toHaveLength(1)
+		expect(results[0].success).toBe(false)
+		expect(results[0].error).toContain("PLAN MODE")
+		expect(tool.description).toContain("plan mode")
+	})
+
 	it("re-derives the description from the current profile on each read", () => {
 		Object.defineProperty(process, "platform", { value: "win32" })
 		mocks.existsSync.mockReturnValue(true)

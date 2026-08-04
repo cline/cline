@@ -145,6 +145,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 						getTerminalManager: options.getTerminalManager,
 						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 						foregroundCommands: options.foregroundCommands,
+						// Plan mode keeps run_commands for read-only inspection;
+						// the guard hard-blocks file-editing commands. Mode
+						// switches rebuild the session, re-deriving this flag.
+						blockFileEditingCommands: inputWithRemoteConfig.config.mode === "plan",
 					})
 					return {
 						...inputWithRemoteConfig,

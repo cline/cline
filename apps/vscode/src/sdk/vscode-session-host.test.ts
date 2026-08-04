@@ -159,10 +159,27 @@ describe("VscodeSessionHost telemetry wiring", () => {
 			cwd: "/workspace",
 			getTerminalManager: undefined,
 			vscodeTerminalExecutionMode: undefined,
+			blockFileEditingCommands: false,
 		})
 		expect(result.source).toBe("vscode")
 		expect(result.config.extensions).toEqual([{ name: "remote-config" }])
 		expect(result.config.extraTools).toEqual([{ name: "remote-tool" }, { name: "vscode-tool" }])
+	})
+
+	it("enables the run_commands file-editing guard for plan-mode sessions", async () => {
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		await bootstrap.applyToStartSessionInput({ config: { cwd: "/workspace", mode: "plan" } })
+
+		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith(
+			{} as never,
+			expect.objectContaining({ blockFileEditingCommands: true }),
+		)
 	})
 })
 

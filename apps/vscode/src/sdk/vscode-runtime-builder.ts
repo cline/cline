@@ -57,6 +57,12 @@ export interface VscodeExtraToolsOptions {
 	vscodeTerminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/**
+	 * Hard-block file-editing commands in run_commands (plan mode). Captured
+	 * from the session mode when the tool set is built; a plan/act switch
+	 * rebuilds the session and re-derives it.
+	 */
+	blockFileEditingCommands?: boolean
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
@@ -99,6 +105,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 				bashTimeoutMs: executionMode === "vscodeTerminal" ? VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS : undefined,
 				vscodeTerminalExecutionMode: executionMode,
 				foregroundCommands: options.foregroundCommands,
+				blockFileEditingCommands: options.blockFileEditingCommands,
 			}),
 		)
 		Logger.log(

@@ -76,6 +76,12 @@ export interface VscodeRunCommandsToolOptions {
 	 * kills the process tree.
 	 */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/**
+	 * Hard-block file-editing commands before execution (plan mode). Forwarded
+	 * to the SDK shell tool wrapper, which rejects mutating commands with a
+	 * plan-mode tool error instead of running them.
+	 */
+	blockFileEditingCommands?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +537,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 	return createShellTool(createVscodeShellExecutor(options, state), {
 		cwd: options.cwd,
 		bashTimeoutMs: options.bashTimeoutMs,
+		blockFileEditingCommands: options.blockFileEditingCommands,
 		shell: () => {
 			state.snapshot = takeShellSnapshot()
 			return state.snapshot.shell
