@@ -6,7 +6,38 @@ import { sanitizeInitialMessagesForSessionStart } from "./initial-message-saniti
 export const LEGACY_RESUME_MODEL_WARNING =
 	"Warning: this is a legacy conversation, which means tool names may have changed. Please use the most up-to-date tools you are aware of."
 
-function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefined {
+/**
+ * Legacy (Anthropic-format) `tool_result` blocks carry no `name` field, but
+ * SDK tool results must name their originating tool: providers such as
+ * Gemini require `functionResponse.name` to match the paired function call
+ * and reject the whole request when it is empty. Index the history's
+ * `tool_use` blocks so each converted `tool_result` can recover its tool
+ * name from the paired call.
+ */
+function collectToolUseNames(apiHistory: unknown[]): Map<string, string> {
+	const names = new Map<string, string>()
+	for (const raw of apiHistory) {
+		if (!raw || typeof raw !== "object") {
+			continue
+		}
+		const content = (raw as { content?: unknown }).content
+		if (!Array.isArray(content)) {
+			continue
+		}
+		for (const block of content) {
+			if (!block || typeof block !== "object") {
+				continue
+			}
+			const record = block as Record<string, unknown>
+			if (record.type === "tool_use" && typeof record.id === "string" && typeof record.name === "string") {
+				names.set(record.id, record.name)
+			}
+		}
+	}
+	return names
+}
+
+function anthropicContentBlockToSdkBlock(block: unknown, toolUseNames: ReadonlyMap<string, string>): ContentBlock | undefined {
 	if (!block || typeof block !== "object") {
 		return undefined
 	}
@@ -28,7 +59,10 @@ function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefin
 				? {
 						type: "tool_result",
 						tool_use_id: record.tool_use_id,
-						name: typeof record.name === "string" ? record.name : "",
+						name:
+							typeof record.name === "string" && record.name.length > 0
+								? record.name
+								: (toolUseNames.get(record.tool_use_id) ?? ""),
 						content: typeof record.content === "string" ? record.content : JSON.stringify(record.content ?? ""),
 						is_error: typeof record.is_error === "boolean" ? record.is_error : undefined,
 					}
@@ -80,6 +114,7 @@ export function appendLegacyResumeWarning<T extends { role: string; content: unk
 }
 
 export function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: HistoryItem): MessageWithMetadata[] {
+	const toolUseNames = collectToolUseNames(apiHistory)
 	const messages = apiHistory.flatMap((raw): MessageWithMetadata[] => {
 		if (!raw || typeof raw !== "object") {
 			return []
@@ -101,7 +136,7 @@ export function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem
 
 		if (Array.isArray(record.content)) {
 			const content = record.content.flatMap((block) => {
-				const converted = anthropicContentBlockToSdkBlock(block)
+				const converted = anthropicContentBlockToSdkBlock(block, toolUseNames)
 				if (role === "user" && converted?.type === "text") {
 					return [{ ...converted, text: formatDisplayUserInput(converted.text) }]
 				}
