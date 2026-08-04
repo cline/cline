@@ -185,6 +185,32 @@ export function isQwenModel(options: {
 	return isQwenLineageValue(options.modelId);
 }
 
+// OpenAI reasoning-era chat models: the o-series (o1/o3/o4, including -mini,
+// -pro, and dated variants) and the gpt-5 family (including gpt-5-chat).
+// These models diverge from classic chat-completions parameter rules — most
+// importantly they reject `max_tokens` and require `max_completion_tokens`.
+// Detection is an id-pattern fallback (mirroring the legacy extension's
+// OpenAI handler) because OpenAI-compatible endpoints accept free-form,
+// user-typed model ids with no catalog metadata to rely on. The patterns
+// require non-alphanumeric boundaries so ids like "gpt-4o" or "yolo1" never
+// match, while namespaced ids like "openai/o3-mini" do.
+const OPENAI_O_SERIES_MODEL_ID_PATTERN = /(^|[^a-z0-9])o[134](?=$|[^a-z0-9])/;
+const OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN = /gpt-?5(?=$|[^a-z0-9])/;
+
+export function isOpenAIReasoningEraModelId(
+	modelId: string | undefined,
+): boolean {
+	const normalized = normalizeRoutingValue(modelId);
+	if (!normalized) {
+		return false;
+	}
+
+	return (
+		OPENAI_O_SERIES_MODEL_ID_PATTERN.test(normalized) ||
+		OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN.test(normalized)
+	);
+}
+
 export function resolveGeminiThinkingMode(input: {
 	request: Pick<GatewayStreamRequest, "modelId">;
 	context: GatewayProviderContext;
