@@ -190,6 +190,7 @@ function updateMessageById(
 type SessionUsageSummary = {
 	tokensIn: number;
 	tokensOut: number;
+	cacheReadTokens: number;
 	totalCostUsd: number;
 };
 
@@ -210,6 +211,7 @@ function summarizeSessionUsage(
 ): SessionUsageSummary | undefined {
 	let tokensIn: number | undefined;
 	let tokensOut: number | undefined;
+	let cacheReadTokens: number | undefined;
 	let totalCostUsd = 0;
 	let hasCost = false;
 
@@ -218,10 +220,12 @@ function summarizeSessionUsage(
 		if (!meta) continue;
 		if (
 			typeof meta.inputTokens === "number" ||
-			typeof meta.outputTokens === "number"
+			typeof meta.outputTokens === "number" ||
+			typeof meta.cacheReadTokens === "number"
 		) {
 			tokensIn = meta.inputTokens ?? 0;
 			tokensOut = meta.outputTokens ?? 0;
+			cacheReadTokens = meta.cacheReadTokens ?? 0;
 		}
 		if (typeof meta.totalCost === "number") {
 			totalCostUsd += meta.totalCost;
@@ -235,6 +239,7 @@ function summarizeSessionUsage(
 	return {
 		tokensIn: tokensIn ?? 0,
 		tokensOut: tokensOut ?? 0,
+		cacheReadTokens: cacheReadTokens ?? 0,
 		totalCostUsd,
 	};
 }
@@ -277,6 +282,7 @@ export function useChatSession() {
 	const [toolCalls, setToolCalls] = useState(0);
 	const [tokensIn, setTokensIn] = useState(0);
 	const [tokensOut, setTokensOut] = useState(0);
+	const [cacheReadTokens, setCacheReadTokens] = useState(0);
 	const [totalCostUsd, setTotalCostUsd] = useState(0);
 	const [fileDiffs, setFileDiffs] = useState<SessionFileDiff[]>([]);
 	const [diffSummary, setDiffSummary] =
@@ -329,6 +335,7 @@ export function useChatSession() {
 	);
 	const persistedTokensIn = persistedUsage?.tokensIn;
 	const persistedTokensOut = persistedUsage?.tokensOut;
+	const persistedCacheReadTokens = persistedUsage?.cacheReadTokens;
 	const persistedTotalCostUsd = persistedUsage?.totalCostUsd;
 	// ---- Ref syncs ----
 
@@ -351,6 +358,7 @@ export function useChatSession() {
 		}
 		setTokensIn(persistedTokensIn);
 		setTokensOut(persistedTokensOut);
+		setCacheReadTokens(persistedCacheReadTokens ?? 0);
 		// Move newly persisted spend out of the live ledger. Multiple queued turns
 		// may finish before their message metadata is hydrated, so this ledger is
 		// session-wide rather than tied only to the currently active turn.
@@ -364,7 +372,12 @@ export function useChatSession() {
 		);
 		lastPersistedCostUsdRef.current = persistedTotalCostUsd;
 		setTotalCostUsd(persistedTotalCostUsd + unpersistedCostUsdRef.current);
-	}, [persistedTokensIn, persistedTokensOut, persistedTotalCostUsd]);
+	}, [
+		persistedTokensIn,
+		persistedTokensOut,
+		persistedCacheReadTokens,
+		persistedTotalCostUsd,
+	]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
@@ -408,6 +421,7 @@ export function useChatSession() {
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
+		setCacheReadTokens(0);
 		setTotalCostUsd(0);
 		setFileDiffs([]);
 		setDiffSummary(EMPTY_DIFF_SUMMARY);
@@ -1006,6 +1020,9 @@ export function useChatSession() {
 				}
 				if (typeof usage.outputTokens === "number") {
 					setTokensOut(usage.outputTokens);
+				}
+				if (typeof usage.cacheReadTokens === "number") {
+					setCacheReadTokens(usage.cacheReadTokens);
 				}
 				const cost = usage.cost;
 				if (typeof cost === "number") {
@@ -1634,6 +1651,11 @@ export function useChatSession() {
 				if (typeof outputTokens === "number") {
 					setTokensOut(outputTokens);
 				}
+				const resultCacheReadTokens =
+					result?.usage?.cacheReadTokens ?? result?.cacheReadTokens;
+				if (typeof resultCacheReadTokens === "number") {
+					setCacheReadTokens(resultCacheReadTokens);
+				}
 				const totalCost =
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
@@ -1652,6 +1674,7 @@ export function useChatSession() {
 					assistantMessageId &&
 					(typeof inputTokens === "number" ||
 						typeof outputTokens === "number" ||
+						typeof resultCacheReadTokens === "number" ||
 						typeof totalCost === "number")
 				) {
 					setMessages((prev) =>
@@ -1667,6 +1690,10 @@ export function useChatSession() {
 									typeof outputTokens === "number"
 										? outputTokens
 										: msg.meta?.outputTokens,
+								cacheReadTokens:
+									typeof resultCacheReadTokens === "number"
+										? resultCacheReadTokens
+										: msg.meta?.cacheReadTokens,
 								totalCost:
 									typeof totalCost === "number"
 										? totalCost
@@ -2173,6 +2200,7 @@ export function useChatSession() {
 			toolCalls,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
 			totalCostUsd,
 			additions: diffSummary.additions,
 			deletions: diffSummary.deletions,
@@ -2182,6 +2210,7 @@ export function useChatSession() {
 			diffSummary.deletions,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
 			totalCostUsd,
 			toolCalls,
 		],
