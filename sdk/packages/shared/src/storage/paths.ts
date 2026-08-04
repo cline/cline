@@ -8,7 +8,15 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import type { PluginManifest } from "..";
 import {
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
@@ -583,6 +591,57 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 		}
 	}
 	return discovered.sort((a, b) => a.localeCompare(b));
+}
+
+function readPluginPackageName(packageJsonPath: string): string | undefined {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			name?: unknown;
+		};
+		return typeof packageJson.name === "string" && packageJson.name.trim()
+			? packageJson.name.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+/**
+ * Resolves a human-readable name for a plugin entry module by walking up from
+ * the entry file toward `searchRoot` (or the filesystem root when omitted) and
+ * returning the first `package.json` `name` found. Nameless `package.json`
+ * files are skipped so installed plugins still pick up the wrapper manifest
+ * name written by `cline plugin install`. Falls back to the entry file's
+ * basename when no named package is found.
+ */
+export function getPluginDisplayName(
+	filePath: string,
+	searchRoot?: string,
+): string {
+	const root = searchRoot ? resolve(searchRoot) : undefined;
+	let current = dirname(resolve(filePath));
+	while (!root || isPathWithin(root, current)) {
+		const packageName = readPluginPackageName(
+			join(current, PLUGIN_PACKAGE_JSON_FILE_NAME),
+		);
+		if (packageName) {
+			return packageName;
+		}
+		const parent = dirname(current);
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return basename(filePath, extname(filePath));
 }
 
 export function resolveConfiguredPluginModulePaths(

@@ -1,3 +1,5 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -6,6 +8,7 @@ import {
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,
+	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -276,5 +279,82 @@ describe("chat workspace paths", () => {
 		"/home/user/.cline/data/workspaces",
 	])("rejects non-chat workspace path %s", (path) => {
 		expect(isChatWorkspacePath(path)).toBe(false);
+	});
+});
+
+describe("getPluginDisplayName", () => {
+	let pluginsRoot = "";
+
+	afterEach(() => {
+		if (pluginsRoot) {
+			rmSync(pluginsRoot, { recursive: true, force: true });
+			pluginsRoot = "";
+		}
+	});
+
+	function createPluginsRoot(): string {
+		pluginsRoot = mkdtempSync(join(tmpdir(), "cline-plugin-name-"));
+		return pluginsRoot;
+	}
+
+	it("uses the nearest package.json name", () => {
+		const root = createPluginsRoot();
+		const packageDir = join(
+			root,
+			"_installed",
+			"official",
+			"my-plugin-abc123",
+			"package",
+		);
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			join(packageDir, "package.json"),
+			JSON.stringify({ name: "agent-browser" }),
+		);
+		const entryPath = join(packageDir, "index.ts");
+		writeFileSync(entryPath, "export default {};");
+
+		expect(getPluginDisplayName(entryPath, root)).toBe("agent-browser");
+	});
+
+	it("skips nameless package.json files and uses the install wrapper name", () => {
+		const root = createPluginsRoot();
+		const installDir = join(root, "_installed", "official", "my-plugin-abc123");
+		const packageDir = join(installDir, "package");
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			join(packageDir, "package.json"),
+			JSON.stringify({ private: true }),
+		);
+		writeFileSync(
+			join(installDir, "package.json"),
+			JSON.stringify({ name: "my-plugin", private: true }),
+		);
+		const entryPath = join(packageDir, "index.ts");
+		writeFileSync(entryPath, "export default {};");
+
+		expect(getPluginDisplayName(entryPath, root)).toBe("my-plugin");
+	});
+
+	it("does not read package.json files above the search root", () => {
+		const root = createPluginsRoot();
+		writeFileSync(
+			join(root, "package.json"),
+			JSON.stringify({ name: "outside-root" }),
+		);
+		const pluginDir = join(root, "plugins");
+		mkdirSync(pluginDir, { recursive: true });
+		const entryPath = join(pluginDir, "standalone.ts");
+		writeFileSync(entryPath, "export default {};");
+
+		expect(getPluginDisplayName(entryPath, pluginDir)).toBe("standalone");
+	});
+
+	it("falls back to the entry file basename without a package name", () => {
+		const root = createPluginsRoot();
+		const entryPath = join(root, "index.ts");
+		writeFileSync(entryPath, "export default {};");
+
+		expect(getPluginDisplayName(entryPath, root)).toBe("index");
 	});
 });
