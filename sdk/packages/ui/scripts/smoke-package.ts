@@ -14,6 +14,7 @@ const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentAskQuestion,
 	AgentApprovalCard,
 	AgentAurora,
 	AgentHeroHeading,
@@ -38,6 +39,7 @@ const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (
 	!AgentApprovalCard ||
+	!AgentAskQuestion ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentPromptQueue ||
@@ -129,6 +131,7 @@ async function verifyTailwindContract(
 		"max-h-44",
 		"not-last:border-b",
 		"focus-visible:outline-3",
+		"min-h-8",
 		"resize-none",
 	]) {
 		expectCandidate(css, candidate);
