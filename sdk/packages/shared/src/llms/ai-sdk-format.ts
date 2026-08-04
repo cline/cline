@@ -4,6 +4,7 @@ import {
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	IMAGE_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
 	type MediaBudgetState,
 	reserveImageMediaBytes,
@@ -287,6 +288,17 @@ function toUserImagePart(
 	};
 }
 
+interface StripImagesOptions {
+	/**
+	 * When true, valid image blocks are collected into `images` for the
+	 * caller to hoist into native multimodal parts. When false, they are
+	 * replaced inline with `inlineImagePlaceholder` text instead (used for
+	 * error outputs and for models without image input support).
+	 */
+	hoistImages: boolean;
+	inlineImagePlaceholder: string;
+}
+
 /**
  * Recursively walk a tool-result `output` value, removing any AI-SDK image
  * content blocks (`{type:'image', data, mediaType}`) and collecting them
@@ -301,8 +313,9 @@ function stripImagesFromOutput(
 	value: unknown,
 	images: AiSdkImageContentBlock[],
 	state: MediaBudgetState,
-	hoistImages = true,
+	options: StripImagesOptions,
 ): StripImagesResult {
+	const { hoistImages, inlineImagePlaceholder } = options;
 	if (value == null || typeof value !== "object") {
 		return { value, changed: false, mediaChanged: false };
 	}
@@ -320,7 +333,7 @@ function stripImagesFromOutput(
 					typeof obj.mediaType === "string"
 				) {
 					if (!hoistImages) {
-						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						out.push(inlineImagePlaceholder);
 						changed = true;
 						mediaChanged = true;
 						continue;
@@ -356,7 +369,7 @@ function stripImagesFromOutput(
 					continue;
 				}
 			}
-			const stripped = stripImagesFromOutput(item, images, state, hoistImages);
+			const stripped = stripImagesFromOutput(item, images, state, options);
 			out.push(stripped.value);
 			changed ||= stripped.changed;
 			mediaChanged ||= stripped.mediaChanged;
@@ -369,7 +382,7 @@ function stripImagesFromOutput(
 		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
 			if (!hoistImages) {
 				return {
-					value: IMAGE_OMITTED_PLACEHOLDER,
+					value: inlineImagePlaceholder,
 					changed: true,
 					mediaChanged: true,
 				};
@@ -405,7 +418,7 @@ function stripImagesFromOutput(
 	let changed = false;
 	let mediaChanged = false;
 	for (const [k, v] of Object.entries(obj)) {
-		const stripped = stripImagesFromOutput(v, images, state, hoistImages);
+		const stripped = stripImagesFromOutput(v, images, state, options);
 		out[k] = stripped.value;
 		changed ||= stripped.changed;
 		mediaChanged ||= stripped.mediaChanged;
@@ -436,7 +449,9 @@ export function toAiSdkToolResultOutput(
 	output: unknown,
 	isError = false,
 	mediaState: MediaBudgetState = createMediaBudgetState(),
+	options?: { supportsImages?: boolean },
 ): Record<string, unknown> {
+	const supportsImages = options?.supportsImages ?? true;
 	if (typeof output === "string") {
 		return {
 			type: isError ? "error-text" : "text",
@@ -450,12 +465,17 @@ export function toAiSdkToolResultOutput(
 	// falls through to the `json` branch below and the base64 image data
 	// is sent to the model as a JSON string — the model cannot see it and
 	// will hallucinate the image's contents.
+	// When the target model does not support image input, the image blocks
+	// are substituted with placeholder text instead so the model knows an
+	// image was there.
 	if (!isError && isAiSdkContentBlockArray(output)) {
 		return {
 			type: "content",
 			value: output.map((block) =>
 				block.type === "image"
-					? toImageDataPart(block, mediaState)
+					? supportsImages
+						? toImageDataPart(block, mediaState)
+						: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
 		};
@@ -469,14 +489,16 @@ export function toAiSdkToolResultOutput(
 	// text block followed by the extracted images. Without this, the wire
 	// converter JSON-serialises the whole tree and the model receives the
 	// base64 bytes as opaque text.
+	// For models without image input support, images are replaced inline
+	// with placeholder text instead of being hoisted.
 	if (output !== null && typeof output === "object") {
 		const images: AiSdkImageContentBlock[] = [];
-		const stripped = stripImagesFromOutput(
-			output,
-			images,
-			mediaState,
-			!isError,
-		);
+		const stripped = stripImagesFromOutput(output, images, mediaState, {
+			hoistImages: !isError && supportsImages,
+			inlineImagePlaceholder: supportsImages
+				? IMAGE_OMITTED_PLACEHOLDER
+				: IMAGE_UNSUPPORTED_PLACEHOLDER,
+		});
 		if (!isError && images.length > 0) {
 			const headerText =
 				typeof stripped.value === "string"
@@ -523,9 +545,21 @@ export function toAiSdkToolResultOutput(
 export function formatMessagesForAiSdk(
 	systemContent: string | AiSdkMessagePart[] | undefined,
 	messages: readonly AiSdkFormatterMessage[],
-	options?: { assistantToolCallArgKey?: "args" | "input" },
+	options?: {
+		assistantToolCallArgKey?: "args" | "input";
+		/**
+		 * Whether the target model advertises image input. When false, image
+		 * parts (user-attached and inside tool results) are substituted with
+		 * `IMAGE_UNSUPPORTED_PLACEHOLDER` text so the request stays valid for
+		 * text-only models while the model still learns an image was there.
+		 * Defaults to true. The substitution happens here at request-build
+		 * time only — stored conversation history is never mutated.
+		 */
+		supportsImages?: boolean;
+	},
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
+	const supportsImages = options?.supportsImages ?? true;
 	const result: AiSdkMessage[] = [];
 	const mediaState = createMediaBudgetState();
 
@@ -591,7 +625,11 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(toUserImagePart(part, mediaState));
+					messageParts.push(
+						supportsImages
+							? toUserImagePart(part, mediaState)
+							: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+					);
 					break;
 				case "file":
 					messageParts.push({
@@ -624,6 +662,7 @@ export function formatMessagesForAiSdk(
 							part.output,
 							part.isError ?? false,
 							mediaState,
+							{ supportsImages },
 						),
 					});
 					break;
