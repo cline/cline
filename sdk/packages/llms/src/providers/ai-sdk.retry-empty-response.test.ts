@@ -299,16 +299,18 @@ const ollamaDoStreamMock = vi.hoisted(() =>
 	vi.fn<() => Promise<LanguageModelV4StreamResult>>(),
 );
 
-vi.mock("ai-sdk-ollama", () => ({
-	createOllama: () => (modelId: string) => ({
-		specificationVersion: "v4",
-		provider: "ollama",
-		modelId,
-		supportedUrls: {},
-		doGenerate: async () => {
-			throw new Error("doGenerate is not used by the streaming path");
-		},
-		doStream: ollamaDoStreamMock,
+vi.mock("ollama-ai-provider-v2", () => ({
+	createOllama: () => ({
+		chat: (modelId: string) => ({
+			specificationVersion: "v4",
+			provider: "ollama",
+			modelId,
+			supportedUrls: {},
+			doGenerate: async () => {
+				throw new Error("doGenerate is not used by the streaming path");
+			},
+			doStream: ollamaDoStreamMock,
+		}),
 	}),
 }));
 
