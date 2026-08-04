@@ -65,6 +65,8 @@ class FakeWebSocket {
 
 const sockets: FakeWebSocket[] = [];
 const originalWebSocket = globalThis.WebSocket;
+const originalFetch = globalThis.fetch;
+const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
 
 async function connectLatestSocket(options?: {
 	sendError?: Error;
@@ -88,6 +90,8 @@ beforeEach(() => {
 	vi.resetModules();
 	sockets.length = 0;
 	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+	globalThis.fetch = fetchMock as unknown as typeof fetch;
+	fetchMock.mockClear();
 	(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
 		"ws://127.0.0.1:3126/transport";
 });
@@ -96,6 +100,7 @@ afterEach(() => {
 	vi.clearAllTimers();
 	vi.useRealTimers();
 	globalThis.WebSocket = originalWebSocket;
+	globalThis.fetch = originalFetch;
 	delete (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__;
 });
 
@@ -131,6 +136,15 @@ describe("DesktopClient command deadlines", () => {
 
 		await vi.advanceTimersByTimeAsync(120_000);
 		await rejection;
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.command_timeout",
+			command: "get_process_context",
+			timeoutMs: 120_000,
+			transportState: "connected",
+		});
 	});
 
 	it("rejects an unbounded command when the transport closes", async () => {
