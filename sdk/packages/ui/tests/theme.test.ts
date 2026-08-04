@@ -177,9 +177,14 @@ describe("@cline/ui theme contract", () => {
 
 	it("provides composable Tailwind and optional base entry points", () => {
 		const theme = read("theme.css");
+		const componentTheme = read("component-theme.css");
 		const base = read("base.css");
 		const markdown = readComponent("markdown.css");
 		const index = read("index.css");
+		const components = readFileSync(
+			join(packageRoot, "components.css"),
+			"utf8",
+		);
 
 		expect(theme).not.toContain("tokens.css");
 		expect(theme).toContain("@custom-variant dark");
@@ -201,7 +206,20 @@ describe("@cline/ui theme contract", () => {
 		}
 		for (const token of mappedColorTokens) {
 			expect(theme).toContain(`--color-${token}: var(--${token});`);
+			expect(componentTheme).toMatch(
+				new RegExp(
+					`--color-cline-ui-${token}:\\s*var\\(\\s*--${token}\\s*\\);`,
+				),
+			);
 		}
+		expect(componentTheme).toContain("@custom-variant cline-ui-dark");
+		expect(componentTheme).not.toContain("@custom-variant dark ");
+		expect(componentTheme).toContain(
+			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
+		);
+		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
+		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
+		expect(components).toContain('@import "./theme/component-theme.css";');
 		expect(base).toContain(
 			'@import "../components/markdown.css" layer(components);',
 		);
@@ -215,6 +233,39 @@ describe("@cline/ui theme contract", () => {
 		expect(index).toBe(
 			'@import "./tokens.css";\n@import "./theme.css";\n@import "./base.css";\n',
 		);
+	});
+
+	it("keeps embedded component utility names host-safe", () => {
+		const componentSources = [
+			"agent-approval-card.tsx",
+			"agent-quick-actions.tsx",
+			"search-combobox.tsx",
+			"session-status.tsx",
+		]
+			.map(readComponent)
+			.join("\n");
+		const genericUtilities = [
+			"bg-background",
+			"bg-primary",
+			"border-border",
+			"font-medium",
+			"font-mono",
+			"outline-ring",
+			"rounded-md",
+			"rounded-lg",
+			"rounded-xl",
+			"text-foreground",
+			"text-muted-foreground",
+			"text-xs",
+			"text-sm",
+		];
+		for (const utility of genericUtilities) {
+			expect(componentSources).not.toMatch(
+				new RegExp(`(?<![a-z0-9-])${utility}(?![a-z0-9-])`),
+			);
+		}
+		expect(componentSources).not.toMatch(/(?<!cline-ui-)dark:/);
+		expect(componentSources).toContain("cline-ui-dark:");
 	});
 
 	it("exports every documented CSS entry point", () => {
