@@ -9,7 +9,7 @@ import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import { setDistinctId } from "../logging/distinctId"
+import { getDeviceId, setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
@@ -267,8 +267,6 @@ export class TelemetryService {
 		WORKSPACE: {
 			// Track workspace initialization
 			INITIALIZED: "workspace.initialized",
-			// Track initialization errors
-			INIT_ERROR: "workspace.init_error",
 			// Track VCS detection
 			VCS_DETECTED: "workspace.vcs_detected",
 			// Track multi-root checkpoint operations
@@ -307,8 +305,6 @@ export class TelemetryService {
 			LEGACY_TASK_MIGRATION: "task.legacy_task_migration",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
-			// Tracks when a diff edit (replace_in_file) operation fails
-			DIFF_EDIT_FAILED: "task.diff_edit_failed",
 			// Tracks when the browser tool is started
 			BROWSER_TOOL_START: "task.browser_tool_start",
 			// Tracks when the browser tool is completed
@@ -508,6 +504,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(event.properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event.event, propertiesWithMetadata, false)
 	}
@@ -521,6 +518,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event, propertiesWithMetadata, true)
 	}
@@ -548,10 +546,16 @@ export class TelemetryService {
 	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
 		return {
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 			...(this.userId ? { userId: this.userId } : {}),
 			...this.activeOrg,
 			...(extra ?? {}),
 		}
+	}
+
+	private getDeviceIdProperty(): TelemetryProperties {
+		const deviceId = getDeviceId()
+		return deviceId ? { device_id: deviceId } : {}
 	}
 
 	private recordCounter(
@@ -1183,27 +1187,6 @@ export class TelemetryService {
 				ulid,
 				action,
 				durationMs,
-			},
-		})
-	}
-
-	/**
-	 * Records when a diff edit (replace_in_file) operation fails
-	 * @param ulid Unique identifier for the task
-	 * @param modelId The model ID being used
-	 * @param provider The API provider being used
-	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
-	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
-	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
-			properties: {
-				ulid,
-				errorType,
-				modelId,
-				provider,
-				isNativeToolCall,
 			},
 		})
 	}
@@ -1904,24 +1887,6 @@ export class TelemetryService {
 		// Retire the previous series to avoid leaking gauge entries when the flag flips.
 		this.recordGauge("cline.workspace.active_roots", null, {
 			is_multi_root: !isMultiRoot,
-		})
-	}
-
-	/**
-	 * Records workspace initialization errors
-	 * @param error The error that occurred
-	 * @param fallbackMode Whether system fell back to single-root mode
-	 * @param workspaceCount Number of workspace folders detected
-	 */
-	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
-			properties: {
-				error_type: error.constructor.name,
-				error_message: error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH),
-				fallback_to_single_root: fallbackMode,
-				workspace_count: workspaceCount ?? 0,
-			},
 		})
 	}
 

@@ -11,22 +11,10 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
-// Anthropic models that support thinking/reasoning mode
 const PROVIDER_ID = "anthropic"
-
-export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
-	"claude-sonnet-4-6",
-	"claude-3-7-sonnet-20250219",
-	"claude-sonnet-4-20250514",
-	"claude-opus-4-20250514",
-	"claude-opus-4-1-20250805",
-	"claude-sonnet-4-5-20250929",
-	"claude-haiku-4-5-20251001",
-]
 
 /**
  * Props for the AnthropicProvider component
@@ -72,6 +60,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))
 	}
+	const handleBaseUrlClear = async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear Anthropic base URL:", error)
+			throw error
+		}
+	}
 
 	const handleModelChange = (modelId: string) => {
 		if (!modelId) {
@@ -86,9 +82,9 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		)
 	}
 
-	const handleAdaptiveThinkingChange = (effort: string) => {
+	const handleReasoningEffortChange = (effort: string) => {
 		void write({ reasoning: { enabled: effort !== "none", effort } }).catch((err) =>
-			console.error("Failed to update Anthropic adaptive thinking:", err),
+			console.error("Failed to update Anthropic reasoning effort:", err),
 		)
 	}
 
@@ -107,6 +103,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 					initialValue={config?.baseUrl}
 					label="Use custom base URL"
 					onChange={handleBaseUrlChange}
+					onClear={handleBaseUrlClear}
 					placeholder="Default: https://api.anthropic.com"
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
 				/>
@@ -128,10 +125,15 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
-							onEffortChange={handleAdaptiveThinkingChange}
+							onEffortChange={handleReasoningEffortChange}
 						/>
-					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					) : selectedModelInfo.supportsReasoning === true ? (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
 					) : null}
 
 					<ModelInfoView

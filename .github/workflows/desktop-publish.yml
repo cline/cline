@@ -31,6 +31,45 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
+      # Companion to the presence check in `build`, and the half that actually
+      # establishes scope. This job declares no environment, so a signing secret
+      # that resolves here can only be a repository or organization secret —
+      # meaning it is still readable by every workflow in the repo, which is the
+      # thing the PublishDesktop environment exists to prevent. Neither check
+      # proves provenance alone (an environment-gated job resolves repository
+      # secrets too, with environment values merely taking precedence), but
+      # together they do: empty here plus present in `build` means the value came
+      # from the environment.
+      - name: Verify signing secrets are not repository-scoped
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          unscoped=()
+          for name in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT \
+                      APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -z "${!name}" ] || unscoped+=("$name")
+          done
+
+          if [ ${#unscoped[@]} -gt 0 ]; then
+            echo "These signing secrets resolve in a job with no environment:"
+            printf '  - %s\n' "${unscoped[@]}"
+            echo
+            echo "That means they are still repository or organization secrets and"
+            echo "are readable by any workflow in this repo. Delete them at that"
+            echo "level and add them to the PublishDesktop environment instead."
+            exit 1
+          fi
+
+          echo "No signing secret resolves outside the PublishDesktop environment."
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -81,6 +120,14 @@ jobs:
   build:
     name: Build macOS (${{ matrix.arch }})
     needs: validate
+    # The Apple signing/notarization and Tauri updater secrets live in the
+    # PublishDesktop environment rather than at repository level, so they are
+    # readable only by this job and only once a required reviewer approves the
+    # run. Defense in depth: this `if` is advisory because a dispatched branch
+    # runs its own copy of this file; the enforced gate is the PublishDesktop
+    # environment's deployment-branch policy, which must also allow only main.
+    if: github.ref == 'refs/heads/main'
+    environment: PublishDesktop
     runs-on: macos-latest
     timeout-minutes: 90
     strategy:
@@ -92,6 +139,46 @@ jobs:
           - target: x86_64-apple-darwin
             arch: x86_64
     steps:
+      # A secret missing here is dangerous rather than merely broken: Tauri skips
+      # code signing when APPLE_CERTIFICATE is empty and skips notarization when
+      # APPLE_API_KEY is empty, both silently, so the build would still succeed
+      # and publish an unsigned, un-notarized bundle. Only the missing updater
+      # key is caught later (by the .sig check in "Collect artifacts"). Fail up
+      # front instead, before any build work, if the environment is misconfigured.
+      - name: Verify PublishDesktop secrets are present
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT \
+                      APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing from the PublishDesktop environment:"
+            printf '  - %s\n' "${missing[@]}"
+            echo
+            echo "Check that every secret above is set on the PublishDesktop"
+            echo "environment and that this job still declares"
+            echo "'environment: PublishDesktop'."
+            exit 1
+          fi
+
+          # Deliberately not phrased as "resolved from PublishDesktop": a
+          # non-empty value here could also be a repository or organization
+          # secret. The repository-scope check in `validate` is what rules that
+          # out.
+          echo "All 8 signing secrets are present."
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:

@@ -65,6 +65,50 @@ The Cline panel is a chat interface where you communicate with Cline. You need t
   </Tab>
 </Tabs>
 
+### Move Cline to the Right Sidebar
+
+This step is optional, but recommended. By default, Cline opens in the left sidebar, replacing your file explorer. Moving Cline to the right sidebar lets you keep your project files visible on the left while chatting with Cline on the right, so you can watch your workspace change as Cline works. (JetBrains already opens Cline on the right, so no setup is needed there.)
+
+<Tabs>
+  <Tab title="VS Code / Windsurf">
+    <Steps>
+      <Step title="Open the secondary sidebar">
+        Click the button in the top-right of the editor that toggles the right side panel (typically used for GitHub Copilot chat), or use the `Option/Alt + Cmd/Ctrl + B` shortcut.
+      </Step>
+      <Step title="Drag the Cline icon">
+        Drag the Cline icon from the Activity Bar on the left over to the top of the right panel.
+      </Step>
+    </Steps>
+
+    <Frame>
+      <img
+        src="https://storage.googleapis.com/cline_public_images/vscode_right_view.gif"
+        alt="Moving Cline to the right sidebar in VS Code"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Cursor">
+    <Steps>
+      <Step title="Switch to a vertical Activity Bar">
+        Cursor uses a horizontal activity bar by default ([details](https://cursor.com/docs/configuration/migrations/vscode#activity-bar-orientation)). To switch to vertical, open Settings (`Cmd/Ctrl + Shift + P` → "Preferences: Open Settings (UI)"), search for `workbench.activityBar.orientation`, set it to `vertical`, and restart Cursor.
+      </Step>
+      <Step title="Open the AI Pane">
+        Click the Cursor cube icon in the top-right that opens Cursor's agent panel on the right.
+      </Step>
+      <Step title="Drag Cline into the AI Pane">
+        Drag the Cline icon from the Activity Bar directly into the AI Pane sidebar.
+      </Step>
+    </Steps>
+
+    <Frame>
+      <img
+        src="https://storage.googleapis.com/cline_public_images/Cursor-sidebar.gif"
+        alt="Moving Cline to the right sidebar in Cursor"
+      />
+    </Frame>
+  </Tab>
+</Tabs>
+
 ## Step 3: Give Cline a Task
 
 Now you'll tell Cline what to build. You communicate with Cline by typing messages in the text input box, just like a chat app.

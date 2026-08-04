@@ -29,6 +29,8 @@ export interface FileOperationSummary {
 
 export interface CompactionSummaryMetadata {
 	kind: "compaction_summary";
+	displayRole: "system";
+	userRunSpan: number;
 	summary: string;
 	details: FileOperationSummary;
 	tokensBefore: number;
@@ -216,6 +218,13 @@ export function getCompactionSummaryMetadata(
 	const details = metadata.details as Record<string, unknown> | undefined;
 	return {
 		kind: "compaction_summary",
+		displayRole: "system",
+		userRunSpan:
+			typeof metadata.userRunSpan === "number" &&
+			Number.isInteger(metadata.userRunSpan) &&
+			metadata.userRunSpan >= 0
+				? metadata.userRunSpan
+				: 1,
 		summary: String(metadata.summary ?? ""),
 		details: {
 			readFiles: Array.isArray(details?.readFiles)
@@ -721,6 +730,7 @@ export function buildSummaryMessage(options: {
 	summary: string;
 	fileOps: FileOperationSummary;
 	tokensBefore: number;
+	userRunSpan: number;
 }): MessageWithMetadata {
 	return {
 		role: "user",
@@ -732,6 +742,8 @@ export function buildSummaryMessage(options: {
 		],
 		metadata: {
 			kind: "compaction_summary",
+			displayRole: "system",
+			userRunSpan: options.userRunSpan,
 			summary: options.summary,
 			details: options.fileOps,
 			tokensBefore: options.tokensBefore,

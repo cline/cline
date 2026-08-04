@@ -25,6 +25,35 @@ describe("SDK error telemetry", () => {
 		expect(normalized.error_message).toHaveLength(48);
 	});
 
+	it("uses a stable fallback for errors without a message", () => {
+		expect(normalizeSdkError(new Error("")).error_message).toBe(
+			"Unknown error",
+		);
+		expect(normalizeSdkError([]).error_message).toBe("Unknown error");
+		expect(normalizeSdkError({}).error_message).toBe("Unknown error");
+	});
+
+	it("prefers an explicitly extracted message while preserving raw metadata", () => {
+		const normalized = normalizeSdkError(
+			Object.assign(
+				new Error("No output generated. Check the stream for errors."),
+				{
+					code: "invalid_request_error",
+					statusCode: 400,
+				},
+			),
+			undefined,
+			"prompt is too long",
+		);
+
+		expect(normalized).toMatchObject({
+			error_type: "Error",
+			error_message: "prompt is too long",
+			error_code: "invalid_request_error",
+			error_status: 400,
+		});
+	});
+
 	it("captures canonical SDK error events with context", () => {
 		const telemetry = {
 			capture: vi.fn(),
