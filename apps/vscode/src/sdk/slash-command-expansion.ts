@@ -81,6 +81,8 @@ const REMOTE_CONFIG_PATH_REGEX = /[/\\]\.cline[/\\]remote-config[/\\]/
 
 /** The discovered workflow files toggle filtering and matching operate on. */
 export interface WorkflowRecordRef {
+	/** Stable runtime command ID. */
+	id?: string
 	/** Command name (frontmatter `name`, or file basename without extension). */
 	name: string
 	/** Absolute path of the workflow file. */
@@ -172,8 +174,11 @@ export function expandSlashCommands(
 		if (!command) {
 			continue
 		}
-		if (command.kind === "workflow" && disabledWorkflowNames.has(command.name)) {
-			continue
+		if (command.kind === "workflow") {
+			const configuredName = workflowRecords.find((record) => record.id === command.id)?.name ?? command.name
+			if (disabledWorkflowNames.has(configuredName)) {
+				continue
+			}
 		}
 		const start = (match.index ?? 0) + match[1].length
 		const end = start + token.length

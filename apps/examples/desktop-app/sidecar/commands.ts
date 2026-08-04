@@ -842,11 +842,20 @@ async function listUserInstructionConfigs(
 		const message = error instanceof Error ? error.message : String(error);
 		warnings.push(`user instructions: ${message}`);
 	}
-	const rules = loadUserInstructionSnapshot("rule");
-	const workflows = loadUserInstructionSnapshot("workflow");
-	const skills = loadUserInstructionSnapshot("skill");
-	const runtimeCommands = userInstructionService.listRuntimeCommands();
-	userInstructionService.stop();
+	let rules: unknown[];
+	let workflows: unknown[];
+	let skills: unknown[];
+	let runtimeCommands: ReturnType<
+		typeof userInstructionService.listRuntimeCommands
+	>;
+	try {
+		rules = loadUserInstructionSnapshot("rule");
+		workflows = loadUserInstructionSnapshot("workflow");
+		skills = loadUserInstructionSnapshot("skill");
+		runtimeCommands = userInstructionService.listRuntimeCommands();
+	} finally {
+		userInstructionService.stop();
+	}
 	const pluginTools = await listPluginTools({
 		workspacePath: workspaceRoot,
 		cwd: workspaceRoot,

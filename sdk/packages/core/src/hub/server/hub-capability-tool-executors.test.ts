@@ -254,6 +254,9 @@ describe("hub client runtime capabilities", () => {
 		expect(service?.resolveRuntimeSlashCommand("/ship now")).toBe(
 			"Ship it carefully. now",
 		);
+		expect(service?.resolveRuntimeSlashCommand("/SHIP now")).toBe(
+			"Ship it carefully. now",
+		);
 		expect(request).toHaveBeenCalledWith(
 			"session-1",
 			HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,

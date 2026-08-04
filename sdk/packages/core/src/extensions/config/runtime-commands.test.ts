@@ -172,9 +172,10 @@ Publish the UI package.`,
 	it("keeps every same-kind normalized name collision reachable", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
-		const skillsDir = join(tempRoot, "skills");
-		const firstSkillDir = join(skillsDir, "publish-ui-stable");
-		const secondSkillDir = join(skillsDir, "publish-ui-preview");
+		const stableSkillsDir = join(tempRoot, "stable-skills");
+		const previewSkillsDir = join(tempRoot, "preview-skills");
+		const firstSkillDir = join(stableSkillsDir, "publish-ui-stable");
+		const secondSkillDir = join(previewSkillsDir, "publish-ui-preview");
 		await mkdir(firstSkillDir, { recursive: true });
 		await mkdir(secondSkillDir, { recursive: true });
 		await writeFile(
@@ -192,26 +193,128 @@ name: publish-ui
 Publish the preview UI.`,
 		);
 
+		const loadCommandOwnership = async (directories: string[]) => {
+			const watcher = createUserInstructionConfigWatcher({
+				skills: { directories },
+				rules: { directories: [] },
+				workflows: { directories: [] },
+			});
+			try {
+				await watcher.refreshAll();
+				return Object.fromEntries(
+					listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => [
+						command.instructions,
+						{
+							name: command.name,
+							resolved: resolveRuntimeSlashCommandFromWatcher(
+								`/${command.name}`,
+								watcher,
+							),
+						},
+					]),
+				);
+			} finally {
+				watcher.stop();
+			}
+		};
+
+		const forward = await loadCommandOwnership([
+			stableSkillsDir,
+			previewSkillsDir,
+		]);
+		const reversed = await loadCommandOwnership([
+			previewSkillsDir,
+			stableSkillsDir,
+		]);
+		expect(reversed).toEqual(forward);
+		expect(Object.keys(forward)).toHaveLength(2);
+		for (const [instructions, command] of Object.entries(forward)) {
+			expect(command.name).toMatch(
+				/^publish-ui-skill-publish-ui-[a-f0-9]{12}$/,
+			);
+			expect(command.resolved).toBe(instructions);
+		}
+	});
+
+	it("keeps generated qualification from colliding with configured names", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "foo");
+		const workflowsDir = join(tempRoot, "workflows");
+		await mkdir(skillDir, { recursive: true });
+		await mkdir(workflowsDir, { recursive: true });
+		await writeFile(join(skillDir, "SKILL.md"), "Use the foo skill.");
+		await writeFile(
+			join(workflowsDir, "foo.md"),
+			`---
+name: foo
+---
+Run the foo workflow.`,
+		);
+		await writeFile(
+			join(workflowsDir, "foo-skill.md"),
+			`---
+name: foo-skill
+---
+Run the explicitly named foo-skill workflow.`,
+		);
+
 		const watcher = createUserInstructionConfigWatcher({
-			skills: { directories: [skillsDir] },
+			skills: { directories: [join(tempRoot, "skills")] },
 			rules: { directories: [] },
-			workflows: { directories: [] },
+			workflows: { directories: [workflowsDir] },
 		});
 
 		try {
 			await watcher.refreshAll();
 			const commands = listAvailableRuntimeCommandsFromWatcher(watcher);
-			expect(commands.map((command) => command.name)).toEqual([
-				"publish-ui-skill-publish-ui",
-				"publish-ui-skill-publish-ui-2",
-			]);
+			expect(commands).toHaveLength(3);
+			expect(new Set(commands.map((command) => command.name)).size).toBe(3);
 			expect(
 				new Set(
 					commands.map((command) =>
 						resolveRuntimeSlashCommandFromWatcher(`/${command.name}`, watcher),
 					),
 				),
-			).toEqual(new Set(["Publish the stable UI.", "Publish the preview UI."]));
+			).toEqual(
+				new Set([
+					"Use the foo skill.",
+					"Run the foo workflow.",
+					"Run the explicitly named foo-skill workflow.",
+				]),
+			);
+		} finally {
+			watcher.stop();
+		}
+	});
+
+	it("produces tokens accepted by slash command UIs", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "ship-review");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: " Ship & Review 🚀 "
+---
+Ship and review.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [join(tempRoot, "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			expect(listAvailableRuntimeCommandsFromWatcher(watcher)[0]?.name).toBe(
+				"ship-review",
+			);
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/SHIP-&-REVIEW now", watcher),
+			).toBe("Ship and review. now");
 		} finally {
 			watcher.stop();
 		}

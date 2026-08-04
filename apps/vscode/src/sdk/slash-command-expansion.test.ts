@@ -78,6 +78,18 @@ describe("expandSlashCommands", () => {
 			"Use the debugging skill.",
 		)
 	})
+
+	it("applies workflow toggles to collision-qualified runtime commands", () => {
+		const qualified = workflow("publish-ui-workflow", "Run the publish UI workflow.")
+		qualified.id = "publish ui"
+		const records = [{ id: "publish ui", name: "Publish UI", filePath: "/repo/workflows/publish-ui.md" }]
+		expect(
+			expandSlashCommands("/publish-ui-workflow", [qualified], {
+				workflowRecords: records,
+				disabledWorkflowNames: new Set(["Publish UI"]),
+			}),
+		).toBe("/publish-ui-workflow")
+	})
 })
 
 describe("buildDisabledWorkflowNames", () => {

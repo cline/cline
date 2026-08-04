@@ -102,7 +102,7 @@ export function buildUserInstructionSlashCommands(
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
 	return commands.flatMap((command) => {
-		const name = command.name.trim().toLowerCase().replace(/\s+/g, "-");
+		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
 		}

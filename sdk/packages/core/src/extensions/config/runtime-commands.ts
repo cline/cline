@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { truncateSplit } from "@cline/shared";
 import type {
 	SkillConfig,
@@ -19,14 +20,22 @@ type CommandRecord = {
 	item: SkillConfig | WorkflowConfig;
 };
 
-function normalizeRuntimeCommandName(name: string): string {
-	return name.trim().toLowerCase().replace(/\s+/g, "-");
+export function normalizeRuntimeCommandName(name: string): string {
+	return name
+		.trim()
+		.toLowerCase()
+		.replace(/\s+/g, "-")
+		.replace(/[^a-z0-9_.:@-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-+|-+$/g, "");
 }
 
-function normalizeRuntimeCommandId(id: string): string {
-	return normalizeRuntimeCommandName(id)
+function stableRuntimeCommandSuffix(id: string): string {
+	const slug = normalizeRuntimeCommandName(id)
 		.replace(/[^a-z0-9_-]+/g, "-")
 		.replace(/^-+|-+$/g, "");
+	const hash = createHash("sha256").update(id).digest("hex").slice(0, 12);
+	return `${slug || "command"}-${hash}`;
 }
 
 function resolveCommandDescription(
@@ -55,12 +64,14 @@ function listCommandsForKind(
 		.filter(({ record }) => isCommandEnabled(record.item))
 		.map(({ id, record }) => ({
 			id,
-			name: normalizeRuntimeCommandName(record.item.name),
+			name:
+				normalizeRuntimeCommandName(record.item.name) ||
+				`${kind}-${stableRuntimeCommandSuffix(id)}`,
 			instructions: record.item.instructions,
 			description: resolveCommandDescription(record.item, kind),
 			kind,
 		}))
-		.sort((a, b) => a.name.localeCompare(b.name));
+		.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
 export function listAvailableRuntimeCommandsFromWatcher(
@@ -80,21 +91,32 @@ export function listAvailableRuntimeCommandsFromWatcher(
 			(countsByNameAndKind.get(kindKey) ?? 0) + 1,
 		);
 	}
-	const byName = new Map<string, AvailableRuntimeCommand>();
-	for (const command of commands) {
+	const candidates = commands.map((command) => {
 		let name = command.name;
 		if (countsByName.get(command.name) !== 1) {
 			name = `${command.name}-${command.kind}`;
 			if (countsByNameAndKind.get(`${command.name}:${command.kind}`) !== 1) {
-				const id = normalizeRuntimeCommandId(command.id) || "command";
-				name = `${name}-${id}`;
+				name = `${name}-${stableRuntimeCommandSuffix(command.id)}`;
 			}
 		}
-		const baseName = name;
-		let suffix = 2;
-		while (byName.has(name)) {
-			name = `${baseName}-${suffix}`;
-			suffix += 1;
+		return { command, name };
+	});
+	const countsByCandidate = new Map<string, number>();
+	for (const candidate of candidates) {
+		countsByCandidate.set(
+			candidate.name,
+			(countsByCandidate.get(candidate.name) ?? 0) + 1,
+		);
+	}
+	const byName = new Map<string, AvailableRuntimeCommand>();
+	for (const candidate of candidates) {
+		const { command } = candidate;
+		const name =
+			countsByCandidate.get(candidate.name) === 1
+				? candidate.name
+				: `${candidate.name}-${command.kind}-${stableRuntimeCommandSuffix(command.id)}`;
+		if (byName.has(name)) {
+			throw new Error(`Duplicate runtime slash command token '/${name}'.`);
 		}
 		byName.set(name, { ...command, name });
 	}
@@ -112,11 +134,12 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	if (!match) {
 		return input;
 	}
-	const name = normalizeRuntimeCommandName(match[1]);
+	const rawName = match[1];
+	const name = normalizeRuntimeCommandName(rawName);
 	if (!name) {
 		return input;
 	}
-	const commandLength = name.length + 1;
+	const commandLength = rawName.length + 1;
 	const remainder = input.slice(commandLength);
 	const matched = listAvailableRuntimeCommandsFromWatcher(watcher).find(
 		(command) => command.name === name,
