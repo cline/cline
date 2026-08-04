@@ -3156,9 +3156,9 @@ describe("sdk-gateway", () => {
 		};
 		// Bedrock's Converse API only understands `cachePoint` markers; the
 		// Anthropic `cache_control` dialect must not leak into the request.
-		expect(
-			bedrockStreamCall.providerOptions?.bedrock ?? {},
-		).not.toHaveProperty("cache_control");
+		expect(bedrockStreamCall.providerOptions?.bedrock ?? {}).not.toHaveProperty(
+			"cache_control",
+		);
 		expect(
 			bedrockStreamCall.providerOptions?.anthropic ?? {},
 		).not.toHaveProperty("cache_control");
