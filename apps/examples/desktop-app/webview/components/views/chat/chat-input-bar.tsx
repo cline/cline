@@ -75,6 +75,17 @@ type SlashCommand = {
 	description?: string;
 };
 
+type UserInstructionCommand = {
+	id: string;
+	name: string;
+	description?: string;
+};
+
+type UserInstructionConfigResponse = {
+	skills?: UserInstructionCommand[];
+	workflows?: UserInstructionCommand[];
+};
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
@@ -82,6 +93,36 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+export function buildUserInstructionSlashCommands(
+	response: UserInstructionConfigResponse,
+): SlashCommand[] {
+	const commands = [
+		...(Array.isArray(response.workflows) ? response.workflows : []).map(
+			(command) => ({ ...command, kind: "Workflow" }),
+		),
+		...(Array.isArray(response.skills) ? response.skills : []).map(
+			(command) => ({
+				...command,
+				kind: "Skill",
+			}),
+		),
+	];
+	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	return commands.flatMap((command) => {
+		const name = command.name.trim().toLowerCase().replace(/\s+/g, "-");
+		if (!name || seen.has(name)) {
+			return [];
+		}
+		seen.add(name);
+		return [
+			{
+				name,
+				description: command.description?.trim() || `${command.kind} command`,
+			},
+		];
+	});
+}
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
@@ -390,7 +431,6 @@ export function ChatInputBar({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-	const slashCommandsLoadedRef = useRef(false);
 	const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<
 		string | null
 	>(null);
@@ -619,35 +659,22 @@ export function ChatInputBar({
 		}
 	}, [slashOpen]);
 
-	// Lazily load workflow commands from the sidecar the first time the slash
-	// menu opens, then merge with the built-in commands.
+	// Reload user commands whenever the slash menu opens so newly installed or
+	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
-		if (!slashOpen || slashCommandsLoadedRef.current) {
+		if (!slashOpen) {
 			return;
 		}
-		slashCommandsLoadedRef.current = true;
 		let cancelled = false;
 		setSlashLoading(true);
 		desktopClient
-			.invoke<{
-				workflows?: Array<{ id: string; name: string }>;
-			}>("list_user_instruction_configs")
-			.then((response: { workflows?: Array<{ id: string; name: string }> }) => {
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
+			.then((response) => {
 				if (cancelled) return;
-				const workflows = Array.isArray(response?.workflows)
-					? response.workflows
-					: [];
-				const workflowCommands: SlashCommand[] = workflows.map(
-					(w: { id: string; name: string }) => ({
-						name: w.name.toLowerCase().replace(/\s+/g, "-"),
-						description: "Workflow command",
-					}),
-				);
-				const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
-				const dedupedWorkflows = workflowCommands.filter(
-					(c) => !builtinNames.has(c.name),
-				);
-				setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...dedupedWorkflows]);
+				setSlashCommands([
+					...BUILTIN_SLASH_COMMANDS,
+					...buildUserInstructionSlashCommands(response),
+				]);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.

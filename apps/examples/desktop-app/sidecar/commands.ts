@@ -751,6 +751,7 @@ async function listUserInstructionConfigs(
 				items.push({
 					id: record.id,
 					name: item.name ?? record.id,
+					description: item.description,
 					instructions: item.instructions,
 					path: record.filePath,
 				});
