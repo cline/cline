@@ -31,6 +31,12 @@ export type ChatSessionCommandRequest = {
 	sessionId?: string;
 	prompt?: string;
 	promptId?: string;
+	/**
+	 * Caller-minted correlation id for send: echoed back on the queue entry
+	 * and in chat_queued_prompt_start so the webview can recognize its own
+	 * prompt. Distinct from promptId, which targets existing queue entries.
+	 */
+	clientPromptId?: string;
 	checkpointRunCount?: number;
 	forkBeforeRunCount?: number;
 	delivery?: "queue" | "steer";
@@ -40,6 +46,7 @@ export type ChatSessionCommandRequest = {
 
 export type PromptInQueue = {
 	id: string;
+	clientPromptId?: string;
 	prompt: string;
 	steer: boolean;
 	attachmentCount?: number;

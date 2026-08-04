@@ -878,6 +878,7 @@ async function handleSend(
 			await manager.send({
 				sessionId,
 				prompt,
+				clientPromptId: request.clientPromptId,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -902,6 +903,7 @@ async function handleSend(
 			result = await manager.send({
 				sessionId,
 				prompt,
+				clientPromptId: request.clientPromptId,
 				delivery,
 				userImages: request.attachments?.userImages,
 				userFiles,

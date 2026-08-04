@@ -218,6 +218,11 @@ export async function handleSessionInput(
 			{
 				sessionId,
 				prompt,
+				clientPromptId:
+					typeof payload.clientPromptId === "string" &&
+					payload.clientPromptId.trim()
+						? payload.clientPromptId
+						: undefined,
 				mode: parseTurnMode(payload.mode),
 				delivery:
 					payload.delivery === "queue" || payload.delivery === "steer"

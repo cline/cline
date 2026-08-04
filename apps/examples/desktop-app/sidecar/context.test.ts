@@ -270,6 +270,7 @@ describe("Code sidecar runtime capabilities", () => {
 			payload: {
 				sessionId: "session-1",
 				id: "queued-1",
+				clientPromptId: "client-1",
 				prompt: "Delete me",
 				delivery: "queue",
 				attachmentCount: 0,
@@ -284,6 +285,7 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(JSON.parse(String(submittedEvents[0]?.event.payload.chunk))).toEqual(
 			{
 				promptId: "queued-1",
+				clientPromptId: "client-1",
 				prompt: "Delete me",
 				attachmentCount: 0,
 			},

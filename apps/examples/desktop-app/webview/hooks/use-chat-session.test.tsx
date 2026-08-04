@@ -810,6 +810,7 @@ describe("useChatSession", () => {
 	});
 
 	it("returns to a completed status when a queued turn finishes via chat_done", async () => {
+		let sentClientPromptId: string | undefined;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -817,7 +818,11 @@ describe("useChatSession", () => {
 				}
 				if (command === "chat_session_command") {
 					const request = args?.request as
-						| { action?: string; config?: { sessionId?: string } }
+						| {
+								action?: string;
+								clientPromptId?: string;
+								config?: { sessionId?: string };
+						  }
 						| undefined;
 					if (request?.action === "start") {
 						return { sessionId: request.config?.sessionId };
@@ -825,6 +830,7 @@ describe("useChatSession", () => {
 					if (request?.action === "send") {
 						// The runtime queued the prompt (e.g. the interactive loop was
 						// still starting), so the RPC resolves without a turn result.
+						sentClientPromptId = request.clientPromptId;
 						return { ok: true };
 					}
 				}
@@ -835,6 +841,7 @@ describe("useChatSession", () => {
 		await act(async () => {
 			await current.sendPrompt("First prompt");
 		});
+		expect(sentClientPromptId).toBeTruthy();
 		const chatEventHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "chat_event",
 		)?.[1] as ((payload: unknown) => void) | undefined;
@@ -847,6 +854,7 @@ describe("useChatSession", () => {
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
 					promptId: "queued-prompt-1",
+					clientPromptId: sentClientPromptId,
 					prompt: "First prompt",
 				}),
 				ts: Date.now(),
@@ -878,6 +886,7 @@ describe("useChatSession", () => {
 	});
 
 	it("reconciles an immediate prompt that the runtime auto-queues", async () => {
+		let sentClientPromptId: string | undefined;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -885,12 +894,17 @@ describe("useChatSession", () => {
 				}
 				if (command === "chat_session_command") {
 					const request = args?.request as
-						| { action?: string; config?: { sessionId?: string } }
+						| {
+								action?: string;
+								clientPromptId?: string;
+								config?: { sessionId?: string };
+						  }
 						| undefined;
 					if (request?.action === "start") {
 						return { sessionId: request.config?.sessionId };
 					}
 					if (request?.action === "send") {
+						sentClientPromptId = request.clientPromptId;
 						return { ok: true, queued: true, promptsInQueue: [] };
 					}
 				}
@@ -901,6 +915,7 @@ describe("useChatSession", () => {
 		await act(async () => {
 			await current.sendPrompt("Auto-queued prompt");
 		});
+		expect(sentClientPromptId).toBeTruthy();
 
 		const chatEventHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "chat_event",
@@ -913,6 +928,7 @@ describe("useChatSession", () => {
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
 					promptId: "auto-queued-prompt",
+					clientPromptId: sentClientPromptId,
 					prompt: "Auto-queued prompt",
 				}),
 				ts: Date.now(),
@@ -941,6 +957,7 @@ describe("useChatSession", () => {
 		}>((resolve) => {
 			resolveQueuedSend = resolve;
 		});
+		let sentClientPromptId: string | undefined;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -948,12 +965,17 @@ describe("useChatSession", () => {
 				}
 				if (command === "chat_session_command") {
 					const request = args?.request as
-						| { action?: string; config?: { sessionId?: string } }
+						| {
+								action?: string;
+								clientPromptId?: string;
+								config?: { sessionId?: string };
+						  }
 						| undefined;
 					if (request?.action === "start") {
 						return { sessionId: request.config?.sessionId };
 					}
 					if (request?.action === "send") {
+						sentClientPromptId = request.clientPromptId;
 						return await queuedSendResponse;
 					}
 				}
@@ -967,6 +989,7 @@ describe("useChatSession", () => {
 			await Promise.resolve();
 			await Promise.resolve();
 		});
+		expect(sentClientPromptId).toBeTruthy();
 
 		const chatEventHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "chat_event",
@@ -978,6 +1001,7 @@ describe("useChatSession", () => {
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
 					promptId: "auto-queued-prompt",
+					clientPromptId: sentClientPromptId,
 					prompt: "Auto-queued prompt",
 				}),
 				ts: Date.now(),
@@ -985,9 +1009,17 @@ describe("useChatSession", () => {
 			});
 		});
 
+		// The echo carries our clientPromptId, so the optimistic message is
+		// reconciled immediately — no transient duplicate while the send RPC
+		// is still pending.
 		expect(
 			current.messages.filter((message) => message.role === "user"),
-		).toHaveLength(2);
+		).toEqual([
+			expect.objectContaining({
+				id: "queued_user_auto-queued-prompt",
+				content: "Auto-queued prompt",
+			}),
+		]);
 
 		await act(async () => {
 			resolveQueuedSend?.({ ok: true, queued: true, promptsInQueue: [] });
@@ -1018,6 +1050,7 @@ describe("useChatSession", () => {
 			resolveImmediateSend = resolve;
 		});
 		let plannedSessionId = "";
+		let queuedClientPromptId: string | undefined;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1038,6 +1071,7 @@ describe("useChatSession", () => {
 					const request = args?.request as
 						| {
 								action?: string;
+								clientPromptId?: string;
 								delivery?: string;
 								config?: { sessionId?: string };
 						  }
@@ -1047,6 +1081,7 @@ describe("useChatSession", () => {
 						return { sessionId: plannedSessionId };
 					}
 					if (request?.action === "send" && request.delivery === "queue") {
+						queuedClientPromptId = request.clientPromptId;
 						return { ok: true, queued: true, promptsInQueue: [] };
 					}
 					if (request?.action === "send") {
@@ -1076,6 +1111,7 @@ describe("useChatSession", () => {
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
 					promptId: "queued-repeat",
+					clientPromptId: queuedClientPromptId,
 					prompt: "Repeat this",
 				}),
 				ts: Date.now(),

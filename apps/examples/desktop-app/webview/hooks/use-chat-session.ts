@@ -310,13 +310,18 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
-	const optimisticImmediatePromptRef = useRef<{
-		id: string;
-		prompt: string;
+	// The one immediate (non-queued) send that may still be echoed back by the
+	// runtime as a queued prompt (cold start auto-queues it). The echo carries
+	// the clientPromptId we minted, so reconciliation is an exact id match.
+	const immediateSendRef = useRef<{
+		clientPromptId: string;
+		messageId: string;
 		sessionId: string;
-		rpcState: "pending" | "queued";
-		sawMatchingQueuedStart: boolean;
 	} | null>(null);
+	// When a queued prompt started after a send began, its live message may not
+	// be persisted yet, so post-turn history reads must merge instead of
+	// replace.
+	const lastQueuedPromptStartAtRef = useRef(0);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
@@ -933,6 +938,7 @@ export function useChatSession() {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				let parsed: {
 					promptId?: string;
+					clientPromptId?: string;
 					prompt?: string;
 					attachmentCount?: number;
 					userImages?: string[];
@@ -940,6 +946,7 @@ export function useChatSession() {
 				try {
 					parsed = JSON.parse(payload.chunk) as {
 						promptId?: string;
+						clientPromptId?: string;
 						prompt?: string;
 						attachmentCount?: number;
 						userImages?: string[];
@@ -971,31 +978,32 @@ export function useChatSession() {
 				clearLiveToolRefs();
 				setStatus("running");
 				if (userLabel || userImages.length > 0) {
-					const optimisticPrompt = optimisticImmediatePromptRef.current;
-					const matchesOptimisticPrompt =
-						optimisticPrompt?.sessionId === listeningSessionId &&
-						optimisticPrompt.prompt === userLabel;
-					const shouldReconcileOptimisticPrompt =
-						matchesOptimisticPrompt && optimisticPrompt.rpcState === "queued";
-					if (shouldReconcileOptimisticPrompt) {
-						optimisticImmediatePromptRef.current = null;
-					} else if (matchesOptimisticPrompt) {
-						optimisticPrompt.sawMatchingQueuedStart = true;
+					lastQueuedPromptStartAtRef.current = Date.now();
+					const eventClientPromptId = parsed.clientPromptId?.trim();
+					const inflight = immediateSendRef.current;
+					const isOwnEcho = Boolean(
+						eventClientPromptId &&
+							inflight?.clientPromptId === eventClientPromptId &&
+							inflight.sessionId === listeningSessionId,
+					);
+					const inflightMessageId = inflight?.messageId;
+					if (isOwnEcho) {
+						immediateSendRef.current = null;
 					}
 					setMessages((prev) => {
 						const userMessageId = promptId
 							? `queued_user_${promptId}`
 							: makeId("user");
-						if (shouldReconcileOptimisticPrompt) {
+						if (isOwnEcho && inflightMessageId) {
 							if (!promptId) return prev;
 							if (prev.some((message) => message.id === userMessageId)) {
 								return prev.filter(
-									(message) => message.id !== optimisticPrompt.id,
+									(message) => message.id !== inflightMessageId,
 								);
 							}
 							const reconciled = updateMessageById(
 								prev,
-								optimisticPrompt.id,
+								inflightMessageId,
 								(message) => ({ ...message, id: userMessageId }),
 							);
 							if (reconciled !== prev) return reconciled;
@@ -1401,22 +1409,18 @@ export function useChatSession() {
 				: null;
 			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
-			const clearOptimisticImmediatePrompt = () => {
-				if (
-					optimisticUserMessageId &&
-					optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
-				) {
-					optimisticImmediatePromptRef.current = null;
+			const clientPromptId = makeId("client_prompt");
+			const clearImmediateSend = () => {
+				if (immediateSendRef.current?.clientPromptId === clientPromptId) {
+					immediateSendRef.current = null;
 				}
 			};
 
 			if (optimisticUserMessageId) {
-				optimisticImmediatePromptRef.current = {
-					id: optimisticUserMessageId,
-					prompt: userLabel,
+				immediateSendRef.current = {
+					clientPromptId,
+					messageId: optimisticUserMessageId,
 					sessionId: plannedSessionId,
-					rpcState: "pending",
-					sawMatchingQueuedStart: false,
 				};
 				addMessage({
 					id: optimisticUserMessageId,
@@ -1447,7 +1451,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await pendingSessionStart;
 					} catch (err) {
-						clearOptimisticImmediatePrompt();
+						clearImmediateSend();
 						if (optimisticQueuedPromptId) {
 							setPromptsInQueue((prev) =>
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -1472,7 +1476,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
-						clearOptimisticImmediatePrompt();
+						clearImmediateSend();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1495,7 +1499,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
-						clearOptimisticImmediatePrompt();
+						clearImmediateSend();
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
@@ -1510,7 +1514,7 @@ export function useChatSession() {
 				}
 				const serializedAttachmentsResult = await serializedAttachmentsTask;
 				if (!serializedAttachmentsResult.ok) {
-					clearOptimisticImmediatePrompt();
+					clearImmediateSend();
 					setErrorState(
 						errorMessage(serializedAttachmentsResult.error),
 						activeSessionId,
@@ -1549,6 +1553,7 @@ export function useChatSession() {
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
+					clientPromptId,
 					delivery: shouldQueue ? "queue" : undefined,
 					config: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
@@ -1563,33 +1568,17 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
-					const optimisticPrompt =
-						optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
-							? optimisticImmediatePromptRef.current
-							: null;
-					if (optimisticPrompt?.sawMatchingQueuedStart) {
-						clearOptimisticImmediatePrompt();
-						setMessages((prev) =>
-							prev.filter((message) => message.id !== optimisticPrompt.id),
-						);
-					} else if (optimisticPrompt) {
-						optimisticPrompt.rpcState = "queued";
-					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
 					return;
 				}
 
 				const result = payload.result as ChatApiResult | undefined;
-				const optimisticPrompt =
-					optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
-						? optimisticImmediatePromptRef.current
-						: null;
-				const queuedPromptStartedBeforeResponse =
-					optimisticPrompt?.sawMatchingQueuedStart === true;
 				const applyResponseHistory = (historyMessages: ChatMessage[]) => {
 					setMessages((current) =>
-						queuedPromptStartedBeforeResponse
+						// A queued prompt that started after this send began may have a
+						// live message that the history read does not contain yet.
+						lastQueuedPromptStartAtRef.current >= now
 							? mergeHydratedMessagesWithLive({
 									hydrated: historyMessages,
 									current,
@@ -1600,18 +1589,15 @@ export function useChatSession() {
 					);
 				};
 				if (result) {
-					clearOptimisticImmediatePrompt();
-				} else if (optimisticPrompt?.sawMatchingQueuedStart) {
-					clearOptimisticImmediatePrompt();
-					setMessages((prev) =>
-						prev.filter((message) => message.id !== optimisticPrompt.id),
-					);
-				} else if (optimisticPrompt && !abortedRef.current) {
-					optimisticPrompt.rpcState = "queued";
+					// The turn ran immediately, so no queue echo will arrive for this
+					// send. Without a result the runtime queued the prompt, and the
+					// ref stays armed until chat_queued_prompt_start echoes our
+					// clientPromptId back.
+					clearImmediateSend();
 				}
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
-					clearOptimisticImmediatePrompt();
+					clearImmediateSend();
 					setStatus("cancelled");
 					return;
 				}
@@ -1798,7 +1784,7 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				clearOptimisticImmediatePrompt();
+				clearImmediateSend();
 				if (abortedRef.current) {
 					setStatus("cancelled");
 					return;

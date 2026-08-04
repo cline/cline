@@ -962,6 +962,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (delivery === "queue" || delivery === "steer") {
 			this.pendingPromptsController.enqueue(input.sessionId, {
 				prompt: input.prompt,
+				clientPromptId: input.clientPromptId,
 				mode: input.mode,
 				delivery,
 				userImages: input.userImages,
