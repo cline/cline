@@ -219,6 +219,27 @@ describe("createBedrockProviderModule", () => {
 		);
 	});
 
+	it("still prefixes catalog models when a stale customModelBaseId is configured", async () => {
+		// Legacy migration copies awsBedrockCustomModelBaseId without the
+		// custom-selected flag, so a retained base id must not disable
+		// inference-profile routing for a normal catalog model.
+		const module = await createBedrockProviderModule(
+			config({
+				apiKey: "bedrock-api-key",
+				options: {
+					region: "us-east-1",
+					customModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				},
+			}),
+		);
+
+		module.model("anthropic.claude-sonnet-4-6");
+
+		expect(bedrockModelMock).toHaveBeenCalledWith(
+			"us.anthropic.claude-sonnet-4-6",
+		);
+	});
+
 	it("passes already-prefixed inference-profile ids through unmodified", async () => {
 		const module = await createBedrockProviderModule(
 			config({
@@ -323,14 +344,16 @@ describe("resolveBedrockModelId", () => {
 		);
 	});
 
-	it("never rewrites custom-model configurations", () => {
+	it("keeps custom/provisioned model ids raw on the cross-region path", () => {
+		// Not a catalog model and not a known profile-only family: no profile
+		// variant can be confirmed, so the id is preserved even with the
+		// cross-region setting enabled.
 		expect(
-			resolveBedrockModelId("anthropic.claude-sonnet-4-6", {
+			resolveBedrockModelId("my-provisioned-model", {
 				region: "us-east-1",
 				useCrossRegionInference: true,
-				customModelBaseId: "anthropic.claude-sonnet-4-6",
 			}),
-		).toBe("anthropic.claude-sonnet-4-6");
+		).toBe("my-provisioned-model");
 	});
 
 	it("falls back to the raw id for regions without a geo profile mapping", () => {
@@ -346,7 +369,7 @@ describe("resolveBedrockModelId", () => {
 		).toBe("anthropic.claude-sonnet-4-6");
 	});
 
-	it("leaves on-demand-capable models untouched unless cross-region inference is enabled", () => {
+	it("leaves on-demand-capable models untouched", () => {
 		for (const modelId of [
 			"anthropic.claude-3-5-sonnet-20241022-v2:0",
 			"anthropic.claude-v2:1",
@@ -358,12 +381,34 @@ describe("resolveBedrockModelId", () => {
 				modelId,
 			);
 		}
+	});
+
+	it("applies cross-region inference only to catalog-confirmed profile variants", () => {
+		const hasCatalogModel = (id: string) => id === "us.vendor.on-demand-model";
+		// Confirmed variant: the setting routes through the geo profile.
 		expect(
-			resolveBedrockModelId("anthropic.claude-3-5-sonnet-20241022-v2:0", {
+			resolveBedrockModelId("vendor.on-demand-model", {
 				region: "us-east-1",
 				useCrossRegionInference: true,
+				hasCatalogModel,
 			}),
-		).toBe("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+		).toBe("us.vendor.on-demand-model");
+		// Without the setting the id stays raw.
+		expect(
+			resolveBedrockModelId("vendor.on-demand-model", {
+				region: "us-east-1",
+				hasCatalogModel,
+			}),
+		).toBe("vendor.on-demand-model");
+		// No confirmed variant: never manufacture a profile id for a model that
+		// works on-demand.
+		expect(
+			resolveBedrockModelId("vendor.on-demand-model", {
+				region: "eu-west-1",
+				useCrossRegionInference: true,
+				hasCatalogModel,
+			}),
+		).toBe("vendor.on-demand-model");
 	});
 
 	it("uses the global profile when both inference settings are enabled and the variant exists", () => {
@@ -383,12 +428,12 @@ describe("resolveBedrockModelId", () => {
 		).toBe("us.anthropic.claude-sonnet-4-6");
 		// Models without a known global variant degrade to the geo profile.
 		expect(
-			resolveBedrockModelId("anthropic.claude-3-5-sonnet-20241022-v2:0", {
+			resolveBedrockModelId("anthropic.claude-3-7-sonnet-20250219-v1:0", {
 				region: "us-east-1",
 				useCrossRegionInference: true,
 				useGlobalInference: true,
 			}),
-		).toBe("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+		).toBe("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
 	});
 
 	it("prefers country profiles over apac. where AWS ships them", () => {
@@ -402,19 +447,59 @@ describe("resolveBedrockModelId", () => {
 				region: "ap-southeast-2",
 			}),
 		).toBe("au.anthropic.claude-sonnet-4-6");
-		// Other Asia-Pacific regions use the apac. geo profile.
+	});
+
+	it("uses apac. only when the catalog confirms the variant exists", () => {
+		const hasCatalogModel = (id: string) =>
+			["apac.anthropic.claude-sonnet-4-20250514-v1:0"].includes(id);
+		// Confirmed apac variant in an Asia-Pacific region.
 		expect(
 			resolveBedrockModelId("anthropic.claude-sonnet-4-20250514-v1:0", {
 				region: "ap-southeast-1",
+				hasCatalogModel,
 			}),
 		).toBe("apac.anthropic.claude-sonnet-4-20250514-v1:0");
-		// Models without a country profile fall back to apac. in those regions.
+		// Country regions degrade to a confirmed apac variant when no jp./au.
+		// variant exists.
 		expect(
-			resolveBedrockModelId("anthropic.claude-3-5-sonnet-20241022-v2:0", {
+			resolveBedrockModelId("anthropic.claude-sonnet-4-20250514-v1:0", {
 				region: "ap-northeast-1",
-				useCrossRegionInference: true,
+				hasCatalogModel,
 			}),
-		).toBe("apac.anthropic.claude-3-5-sonnet-20241022-v2:0");
+		).toBe("apac.anthropic.claude-sonnet-4-20250514-v1:0");
+		// No confirmed variant: keep the raw id instead of manufacturing an
+		// apac. id that AWS would reject as an invalid model identifier.
+		expect(
+			resolveBedrockModelId("anthropic.claude-sonnet-4-6", {
+				region: "ap-southeast-1",
+			}),
+		).toBe("anthropic.claude-sonnet-4-6");
+	});
+
+	it("resolves the expected wire id per region for a modern Claude model", () => {
+		const cases: Array<[string | undefined, string]> = [
+			["us-east-1", "us.anthropic.claude-sonnet-4-6"],
+			["us-west-2", "us.anthropic.claude-sonnet-4-6"],
+			["us-gov-west-1", "us-gov.anthropic.claude-sonnet-4-6"],
+			["eu-central-1", "eu.anthropic.claude-sonnet-4-6"],
+			["eu-west-3", "eu.anthropic.claude-sonnet-4-6"],
+			["ap-northeast-1", "jp.anthropic.claude-sonnet-4-6"],
+			["ap-northeast-3", "jp.anthropic.claude-sonnet-4-6"],
+			["ap-southeast-2", "au.anthropic.claude-sonnet-4-6"],
+			["ap-southeast-4", "au.anthropic.claude-sonnet-4-6"],
+			// No catalog-confirmed apac./geo variant: raw id preserved.
+			["ap-southeast-1", "anthropic.claude-sonnet-4-6"],
+			["ap-northeast-2", "anthropic.claude-sonnet-4-6"],
+			["ca-central-1", "anthropic.claude-sonnet-4-6"],
+			["sa-east-1", "anthropic.claude-sonnet-4-6"],
+			["me-central-1", "anthropic.claude-sonnet-4-6"],
+			[undefined, "anthropic.claude-sonnet-4-6"],
+		];
+		for (const [region, expected] of cases) {
+			expect(
+				resolveBedrockModelId("anthropic.claude-sonnet-4-6", { region }),
+			).toBe(expected);
+		}
 	});
 });
 
