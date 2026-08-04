@@ -242,6 +242,7 @@ type ChatInputBarProps = {
 		toolCalls: number;
 		tokensIn: number;
 		tokensOut: number;
+		cacheReadTokens?: number;
 		totalCostUsd?: number;
 	};
 };
@@ -897,15 +898,15 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
-						<Paperclip className="h-4 w-4" />
+						<Paperclip className="size-3" />
 					</button>
 					<input
 						accept="*/*"
@@ -1014,6 +1015,7 @@ export function ChatInputBar({
 									contextWindow: modelContextWindow,
 									tokensIn: summary.tokensIn,
 									tokensOut: summary.tokensOut,
+									cacheReadTokens: summary.cacheReadTokens ?? 0,
 									totalCost: summary.totalCostUsd,
 								}}
 							/>
@@ -1382,24 +1384,38 @@ const ModelSelector = memo(function ModelSelector({
 type TokenUsage = {
 	tokensIn: number;
 	tokensOut: number;
+	cacheReadTokens: number;
 	totalCost?: number;
 	contextWindow?: number;
 };
 
-/** Current input context relative to the selected model's context window. */
+/** Current model context relative to the selected model's context window. */
 function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 	const contextWindow = usage.contextWindow;
-	if (usage.tokensIn <= 0 || !contextWindow || contextWindow <= 0) {
+	const totalTokens = usage.tokensIn + usage.tokensOut;
+	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
 		return null;
 	}
 
 	const ratio = Math.min(
-		Math.max(usage.tokensIn / Math.max(contextWindow, 1), 0),
+		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
 		1,
 	);
 	const percent = Math.round(ratio * 100);
+	const ringColorClass =
+		ratio >= 0.75
+			? "stroke-red-500"
+			: ratio >= 0.5
+				? "stroke-orange-500"
+				: "stroke-primary";
 	const cost = formatCostUsd(usage.totalCost);
-	const contextUsageLabel = `${formatCompactTokens(usage.tokensIn)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
+	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
+	const segmentScale =
+		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
+	const segmentWidth = (tokens: number) =>
+		`${(tokens / contextWindow) * segmentScale * 100}%`;
 	const radius = 8.5;
 	const circumference = 2 * Math.PI * radius;
 
@@ -1407,12 +1423,12 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 		<Popover>
 			<PopoverTrigger asChild>
 				<Button
-					aria-label={`Context window: ${usage.tokensIn.toLocaleString()} of ${contextWindow.toLocaleString()} input tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent"
+					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
-					variant="ghost"
+					variant="text"
 				>
 					<svg
 						aria-hidden="true"
@@ -1430,7 +1446,10 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className="stroke-primary transition-[stroke-dashoffset] duration-200"
+							className={cn(
+								"transition-[stroke,stroke-dashoffset] duration-200",
+								ringColorClass,
+							)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1457,27 +1476,60 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							{contextUsageLabel}
 						</span>
 					</div>
-					<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full rounded-full bg-primary transition-[width] duration-200"
-							style={{ width: `${percent}%` }}
+							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							data-token-kind="uncached-input"
+							style={{ width: segmentWidth(uncachedInputTokens) }}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							data-token-kind="cached-input"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
+								width: segmentWidth(cachedTokens),
+							}}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							data-token-kind="output"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
+								width: segmentWidth(usage.tokensOut),
+							}}
 						/>
 					</div>
-				</div>
-				<div className="border-t border-border/70 px-3 py-2.5 text-xs">
-					<div className="flex items-center justify-between gap-4">
-						<span className="text-muted-foreground">Output tokens</span>
-						<span className="font-mono text-foreground">
-							{usage.tokensOut.toLocaleString()}
-						</span>
-					</div>
-					{cost ? (
-						<div className="mt-2 flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cost</span>
-							<span className="font-mono text-foreground">{cost}</span>
+					<div className="mt-3 space-y-2 text-xs">
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Input tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensIn.toLocaleString()}
+							</span>
 						</div>
-					) : null}
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Output tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensOut.toLocaleString()}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Cached tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.cacheReadTokens.toLocaleString()}
+							</span>
+						</div>
+						{cost ? (
+							<div className="flex items-center justify-between gap-4">
+								<span className="text-muted-foreground">Cost</span>
+								<span className="font-mono text-foreground">{cost}</span>
+							</div>
+						) : null}
+					</div>
 				</div>
 			</PopoverContent>
 		</Popover>
