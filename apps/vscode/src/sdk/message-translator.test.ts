@@ -1108,15 +1108,15 @@ describe("translateSessionEvent — inferred turn-final completion", () => {
 
 	it("does not retag when the turn ends on a tool call after the text", () => {
 		const state = new MessageTranslatorState()
-		endText(state, "Switching over now.")
+		endText(state, "Wrapping up now.")
 
-		// e.g. switch_to_act_mode (lifecycle.completesRun) ends the turn after the tool
+		// e.g. a lifecycle.completesRun tool ends the turn after the tool result
 		translateSessionEvent(
-			agentEvent({ type: "content_start", contentType: "tool", toolName: "switch_to_act_mode", input: {} }),
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "submit_and_exit", input: {} }),
 			state,
 		)
 		translateSessionEvent(
-			agentEvent({ type: "content_end", contentType: "tool", toolName: "switch_to_act_mode", output: "ok" }),
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "submit_and_exit", output: "ok" }),
 			state,
 		)
 
