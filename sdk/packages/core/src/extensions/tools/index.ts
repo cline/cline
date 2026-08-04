@@ -7,10 +7,6 @@
 // Zod Utilities
 export { validateWithZod, zodToJsonSchema } from "@cline/shared";
 // Constants
-export {
-	findFileEditingCommand,
-	formatPlanModeBlockedCommandError,
-} from "./command-guard";
 export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
 // AgentTool Definitions
 export {
