@@ -47,6 +47,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
@@ -466,47 +467,53 @@ class TelegramConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("-k <TELEGRAM_BOT_TOKEN> [options]")
-			.option(
-				"-m, --bot-username <name>",
-				"Telegram bot username; fetched from token if omitted",
-			)
-			.option("-k, --bot-token <token>", "Telegram bot token")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--no-tools", "Disable tools for Telegram sessions")
-			.option(
-				"--allowed-user-id <id>",
-				"Only allow this Telegram user ID to use the bot",
-			)
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Notes:",
-					"  - Without -i, the connector is launched in the background.",
-					"  - Tools are enabled by default for Telegram sessions.",
-					"  - Use --allowed-user-id or `cline connect` to restrict Telegram access.",
-					"  - Bot username is discovered from the Telegram bot token when omitted.",
-					"  - Provider/model default to the CLI's last-used provider settings.",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("-k <TELEGRAM_BOT_TOKEN> [options]")
+				.option(
+					"-m, --bot-username <name>",
+					"Telegram bot username; fetched from token if omitted",
+				)
+				.option("-k, --bot-token <token>", "Telegram bot token")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Telegram sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--allowed-user-id <id>",
+					"Only allow this Telegram user ID to use the bot",
+				)
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Notes:",
+						"  - Without -i, the connector is launched in the background.",
+						"  - Tools are enabled by default for Telegram sessions.",
+						"  - Use --allowed-user-id or `cline connect` to restrict Telegram access.",
+						"  - Bot username is discovered from the Telegram bot token when omitted.",
+						"  - Provider/model default to the CLI's last-used provider settings.",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectTelegramOptions {
@@ -678,6 +685,17 @@ class TelegramConnector extends ConnectorBase<
 			io.writeErr(error instanceof Error ? error.message : String(error));
 			return 1;
 		}
+	}
+
+	/**
+	 * Only knowable up front when `--bot-username` was supplied; otherwise the
+	 * username is resolved from Telegram's API during startup, and the caller
+	 * has to start this connector locally instead of through the hub.
+	 */
+	protected override instanceIdFromOptions(
+		options: ConnectTelegramOptions,
+	): string | undefined {
+		return options.botUsername;
 	}
 
 	protected override async runWithOptions(
@@ -865,7 +883,7 @@ class TelegramConnector extends ConnectorBase<
 			thread: Thread<TelegramThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {

@@ -26,9 +26,13 @@ export type UpdateManifest = {
 
 // Maps the arch token embedded in artifact file names (see the "Collect
 // artifacts" workflow step) to the platform keys the Tauri updater requests.
-const PLATFORM_KEY_BY_ARCH_SUFFIX: Record<string, string> = {
-	aarch64: "darwin-aarch64",
-	x86_64: "darwin-x86_64",
+// A universal (fat) bundle serves both macOS architectures: each slice of the
+// installed app requests its own compile-time arch key at runtime, and both
+// keys point at the same artifact and signature.
+const PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+	aarch64: ["darwin-aarch64"],
+	x86_64: ["darwin-x86_64"],
+	universal: ["darwin-aarch64", "darwin-x86_64"],
 };
 
 const getArgValue = (args: string[], name: string): string | undefined => {
@@ -45,7 +49,7 @@ const archOfUpdaterArtifact = (fileName: string): string | undefined => {
 	if (!fileName.endsWith(".app.tar.gz")) {
 		return undefined;
 	}
-	return Object.keys(PLATFORM_KEY_BY_ARCH_SUFFIX).find((arch) =>
+	return Object.keys(PLATFORM_KEYS_BY_ARCH_SUFFIX).find((arch) =>
 		fileName.includes(`_${arch}`),
 	);
 };
@@ -70,10 +74,17 @@ export const buildUpdateManifest = (options: {
 		if (!signature) {
 			throw new Error(`empty updater signature at ${signaturePath}`);
 		}
-		platforms[PLATFORM_KEY_BY_ARCH_SUFFIX[arch]] = {
-			signature,
-			url: `https://github.com/${options.repo}/releases/download/${options.tag}/${encodeURIComponent(fileName)}`,
-		};
+		for (const platformKey of PLATFORM_KEYS_BY_ARCH_SUFFIX[arch]) {
+			if (platforms[platformKey]) {
+				throw new Error(
+					`multiple updater artifacts claim platform ${platformKey}; found ${fileName} after ${platforms[platformKey].url}`,
+				);
+			}
+			platforms[platformKey] = {
+				signature,
+				url: `https://github.com/${options.repo}/releases/download/${options.tag}/${encodeURIComponent(fileName)}`,
+			};
+		}
 	}
 
 	if (Object.keys(platforms).length === 0) {
