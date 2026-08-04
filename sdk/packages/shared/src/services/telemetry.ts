@@ -166,16 +166,23 @@ interface SdkErrorWindow {
 
 const sdkErrorWindows = new Map<string, SdkErrorWindow>();
 
-/** Clear per-process `sdk.error` rate-limit state (test isolation). */
+/**
+ * Clear per-process `sdk.error` rate-limit state (test isolation).
+ *
+ * @internal Exported only so package test suites can isolate the
+ * process-wide suppression state between tests; not a supported runtime API.
+ */
 export function resetSdkErrorRateLimiterForTests(): void {
 	sdkErrorWindows.clear();
 }
 
 /**
- * One key per distinct failure. The message is normalized (digit runs
- * collapsed, whitespace folded, case-insensitive, bounded) so messages that
- * differ only by counters or ids — `"iteration 14"` vs `"iteration 99"` —
- * coalesce instead of each getting a fresh budget.
+ * One key per distinct failure. Structured discriminators (`error_status`,
+ * `error_code`) participate in the key so an HTTP 429 and an HTTP 401 never
+ * share a budget, while the message is normalized (digit runs collapsed,
+ * whitespace folded, case-insensitive, bounded) so messages that differ only
+ * by counters or ids — `"iteration 14"` vs `"iteration 99"` — coalesce
+ * instead of each getting a fresh budget.
  */
 function sdkErrorRateLimitKey(
 	event: string,
@@ -190,6 +197,8 @@ function sdkErrorRateLimitKey(
 		properties.component,
 		properties.operation,
 		properties.error_type,
+		properties.error_code ?? "",
+		properties.error_status ?? "",
 		message
 			.replace(/\d+/g, "#")
 			.replace(/\s+/g, " ")
@@ -274,12 +283,23 @@ export function captureTaskLifecycleEvent(
 	});
 }
 
+/**
+ * Report an SDK error, subject to the per-process volume cap on identical
+ * failures described above.
+ *
+ * Returns `true` when the failure is recorded — emitted, or counted toward
+ * `suppressed_count` by the volume cap — and `false` when telemetry is
+ * unavailable. Reporters that sit on a layer boundary forward the return
+ * value (see `errorReported` on the model stream's `finish` event) so outer
+ * layers know the failure is already accounted for and one underlying
+ * failure produces one event, not one per layer it propagates through.
+ */
 export function captureSdkError(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureSdkErrorInput,
-): void {
+): boolean {
 	if (!telemetry) {
-		return;
+		return false;
 	}
 	const event = input.event ?? SDK_ERROR_TELEMETRY_EVENT;
 	const properties = buildSdkErrorProperties(input);
@@ -287,7 +307,7 @@ export function captureSdkError(
 	try {
 		const decision = admitSdkError(sdkErrorRateLimitKey(event, properties));
 		if (!decision.emit) {
-			return;
+			return true;
 		}
 		suppressed = decision.suppressed;
 	} catch {
@@ -300,6 +320,7 @@ export function captureSdkError(
 				? { ...properties, suppressed_count: suppressed }
 				: properties,
 	});
+	return true;
 }
 
 export function buildSdkErrorProperties(

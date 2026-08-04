@@ -139,6 +139,68 @@ describe("SDK error rate limiting", () => {
 		expect(capture).toHaveBeenCalledTimes(SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW);
 	});
 
+	it("keeps failures with distinct error_status on separate budgets", () => {
+		const capture = vi.fn();
+		for (const status of [429, 401]) {
+			for (let i = 0; i < 100; i++) {
+				captureSdkError({ capture } as never, {
+					component: "llms",
+					operation: "provider.stream",
+					error: Object.assign(new Error(`Upstream returned HTTP ${status}`), {
+						status,
+					}),
+				});
+			}
+		}
+
+		// A hot rate-limit loop must not consume the auth failure's budget.
+		expect(capture).toHaveBeenCalledTimes(
+			2 * SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
+		);
+		const statuses = capture.mock.calls.map(
+			([call]) => call.properties.error_status,
+		);
+		expect(statuses.filter((status) => status === 429)).toHaveLength(
+			SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
+		);
+		expect(statuses.filter((status) => status === 401)).toHaveLength(
+			SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
+		);
+	});
+
+	it("keeps failures with distinct error_code on separate budgets", () => {
+		const capture = vi.fn();
+		for (const code of ["rate_limit_error", "authentication_error"]) {
+			for (let i = 0; i < 100; i++) {
+				captureSdkError({ capture } as never, {
+					component: "llms",
+					operation: "provider.stream",
+					error: Object.assign(new Error("request rejected"), { code }),
+				});
+			}
+		}
+
+		expect(capture).toHaveBeenCalledTimes(
+			2 * SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
+		);
+	});
+
+	it("returns whether the failure was recorded", () => {
+		const capture = vi.fn();
+		const input = {
+			component: "llms",
+			operation: "provider.stream",
+			error: new Error("boom"),
+		} as const;
+
+		expect(captureSdkError(undefined, input)).toBe(false);
+		expect(captureSdkError({ capture } as never, input)).toBe(true);
+		// Rate-limit-suppressed failures still count as recorded.
+		for (let i = 0; i < 100; i++) {
+			expect(captureSdkError({ capture } as never, input)).toBe(true);
+		}
+	});
+
 	it("carries suppressed_count onto the next emission after the window rolls over", () => {
 		vi.useFakeTimers();
 		const capture = captureRepeatedly(
