@@ -35,7 +35,9 @@ import {
 	type AgentRuntimeHooks,
 	type AgentRuntimePrepareTurnContext,
 	type AgentTool,
+	type AgentToolDefinition,
 	type BasicLogger,
+	buildPlanModeReminder,
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
@@ -978,10 +980,60 @@ export class SessionRuntime {
 					await this.prepareMessagesForModelRequest(messages);
 				return {
 					...control,
-					messages: preparedMessages,
+					messages: this.appendPlanModeReminder(
+						preparedMessages,
+						ctx.request.tools,
+					),
 				};
 			},
 		};
+	}
+
+	/**
+	 * Parity with the legacy extension's per-turn environment_details "PLAN
+	 * MODE" nudge: while the session mode is "plan", every outbound model
+	 * request gets a reminder appended at the tail of context so the model
+	 * does not drift into editing files mid-plan on long agentic turns.
+	 *
+	 * The reminder rides on the provider request only. It runs after
+	 * `prepareMessagesForModelRequest`, so the MessageBuilder indexes the
+	 * pristine transcript and nothing is ever persisted -- each call injects a
+	 * fresh copy instead of accumulating stale reminders in history.
+	 */
+	private appendPlanModeReminder(
+		messages: AgentMessage[],
+		tools: readonly AgentToolDefinition[],
+	): AgentMessage[] {
+		if (this.config.mode !== "plan" || messages.length === 0) {
+			return messages;
+		}
+		const reminderPart = {
+			type: "text",
+			text: buildPlanModeReminder({
+				canSwitchToActMode: tools.some(
+					(tool) => tool.name === "switch_to_act_mode",
+				),
+			}),
+		} as const;
+		const last = messages[messages.length - 1];
+		if (last.role === "user") {
+			return [
+				...messages.slice(0, -1),
+				{ ...last, content: [...last.content, reminderPart] },
+			];
+		}
+		// The prepared request usually ends with tool results ("tool" role).
+		// A trailing user text message after tool results is the same shape
+		// the steering path (consumePendingUserMessage) already produces.
+		return [
+			...messages,
+			{
+				id: `plan_mode_reminder_${Date.now()}`,
+				role: "user",
+				content: [reminderPart],
+				createdAt: Date.now(),
+			},
+		];
 	}
 
 	private createRuntimePrepareTurn(

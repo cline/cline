@@ -268,6 +268,7 @@ export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export {
 	buildClineSystemPrompt,
+	buildPlanModeReminder,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
 	processWorkspaceInfo,

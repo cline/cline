@@ -33,6 +33,7 @@ import {
 	type ReasoningEffort,
 	ReasoningEffortSchema,
 } from "../llms/reasoning-options";
+import type { AgentMode } from "../session/runtime-config";
 
 export {
 	REASONING_LEVELS,
@@ -723,6 +724,13 @@ export interface AgentConfig {
 
 	/** System prompt for the agent */
 	systemPrompt: string;
+	/**
+	 * Interaction mode the session runs in. When set to "plan", the session
+	 * runtime appends an ephemeral plan-mode reminder to the tail of every
+	 * outbound model request (provider request only -- never persisted to the
+	 * transcript) so plan-mode constraints stay at the end of context.
+	 */
+	mode?: AgentMode;
 	/** Tools available to the agent */
 	tools: AgentTool[];
 	/**

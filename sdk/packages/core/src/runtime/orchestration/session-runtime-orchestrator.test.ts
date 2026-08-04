@@ -648,6 +648,128 @@ describe("SessionRuntime message preparation", () => {
 		expect(configs).toHaveLength(0);
 	});
 
+	it("appends the plan-mode reminder to the trailing user message on every model call", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ mode: "plan" }),
+			deps,
+		);
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const request = {
+			systemPrompt: "system",
+			messages: [makeAgentMessage("m1", "user", "plan this feature")],
+			tools: [],
+		};
+		const first = await beforeModel?.({ snapshot: makeSnapshot(), request });
+		const second = await beforeModel?.({ snapshot: makeSnapshot(), request });
+
+		for (const result of [first, second]) {
+			const last = result?.messages?.at(-1);
+			expect(last?.role).toBe("user");
+			const texts = last?.content.flatMap((part) =>
+				part.type === "text" ? [part.text] : [],
+			);
+			expect(texts?.[0]).toBe("plan this feature");
+			expect(texts?.at(-1)).toContain("<system_reminder>");
+			expect(texts?.at(-1)).toContain("plan mode");
+			// No switch_to_act_mode tool in the request, so the reminder must
+			// not tell the model to call it.
+			expect(texts?.at(-1)).not.toContain("switch_to_act_mode");
+		}
+		// Injection is per-request only: repeated calls never accumulate.
+		const reminderCount = JSON.stringify(second?.messages).split(
+			"<system_reminder>",
+		).length;
+		expect(reminderCount - 1).toBe(1);
+	});
+
+	it("appends the plan-mode reminder as a trailing user message after tool results", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ mode: "plan" }),
+			deps,
+		);
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					makeAgentMessage("m1", "user", "plan this"),
+					{
+						id: "m2",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 2,
+					},
+					{
+						id: "m3",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: "file contents",
+							},
+						],
+						createdAt: 3,
+					},
+				],
+				tools: [
+					{
+						name: "switch_to_act_mode",
+						description: "switch",
+						inputSchema: { type: "object", properties: {} },
+					},
+				],
+			},
+		});
+
+		const last = result?.messages?.at(-1);
+		expect(last?.role).toBe("user");
+		expect(JSON.stringify(last?.content)).toContain("<system_reminder>");
+		// The switch tool is offered on this request, so the reminder points
+		// at it for the approval flow.
+		expect(JSON.stringify(last?.content)).toContain("switch_to_act_mode");
+		// The tool-result message stays untouched right before the reminder.
+		const secondToLast = result?.messages?.at(-2);
+		expect(JSON.stringify(secondToLast)).toContain("tool-result");
+		expect(JSON.stringify(secondToLast)).not.toContain("<system_reminder>");
+	});
+
+	it("does not inject a reminder outside plan mode", async () => {
+		for (const mode of [undefined, "act", "yolo"] as const) {
+			const { deps, configs } = withCapturingFakeRuntime();
+			const session = new SessionRuntime(makeAgentConfig({ mode }), deps);
+			await session.run("go");
+			const beforeModel = configs[0]?.hooks?.beforeModel;
+			const result = await beforeModel?.({
+				snapshot: makeSnapshot(),
+				request: {
+					systemPrompt: "system",
+					messages: [makeAgentMessage("m1", "user", "do the thing")],
+					tools: [],
+				},
+			});
+			expect(JSON.stringify(result?.messages)).not.toContain(
+				"<system_reminder>",
+			);
+		}
+	});
+
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
 		const prepareTurn = vi.fn(() => ({
 			messages: [
@@ -1490,6 +1612,75 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 			"user",
 		]);
+	});
+
+	it("sends the plan-mode reminder on every model call without persisting it", async () => {
+		const modelRequests: AgentMessage[][] = [];
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				modelRequests.push(request.messages.map((message) => ({ ...message })));
+				const turn = request.messages.filter(
+					(message) => message.role === "assistant",
+				).length;
+
+				return (async function* () {
+					if (turn === 0) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "call_inspect",
+							toolName: "inspect",
+							inputText: JSON.stringify({}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+						return;
+					}
+					yield { type: "text-delta" as const, text: "here is the plan" };
+					yield { type: "finish" as const, reason: "stop" as const };
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+				mode: "plan",
+				tools: [
+					{
+						name: "inspect",
+						description: "inspect",
+						inputSchema: { type: "object" },
+						execute: async () => ({ ok: true }),
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const result = await session.run("plan the feature");
+		expect(result.finishReason).toBe("completed");
+		expect(modelRequests).toHaveLength(2);
+
+		// Every outbound request ends with exactly one fresh reminder.
+		for (const request of modelRequests) {
+			const last = request.at(-1);
+			expect(last?.role).toBe("user");
+			expect(JSON.stringify(last?.content)).toContain("<system_reminder>");
+			const total = JSON.stringify(request).split("<system_reminder>").length;
+			expect(total - 1).toBe(1);
+		}
+
+		// The reminder is provider-request-only: neither the conversation
+		// store nor the run result carries it.
+		expect(JSON.stringify(session.getMessages())).not.toContain(
+			"<system_reminder>",
+		);
+		expect(JSON.stringify(result.messages)).not.toContain(
+			"<system_reminder>",
+		);
 	});
 
 	it("uses the error message instead of replaying prior assistant text after a tool-call stream failure", async () => {

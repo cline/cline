@@ -44,6 +44,27 @@ The run_commands tool remains available in plan mode strictly for read-only insp
 
 Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`;
 
+/**
+ * Ephemeral per-request plan-mode nudge, appended to the tail of the outbound
+ * model request on every model call while the session mode is "plan" (parity
+ * with the legacy extension's per-turn environment_details "PLAN MODE"
+ * reminder). Long agentic turns push the system prompt's plan contract far
+ * behind fresh tool results; restating the constraint at the end of context
+ * makes the model far less likely to start editing files mid-plan.
+ *
+ * The reminder is injected into the provider request only -- it is never
+ * persisted to the transcript -- so it stays at the very end of context and
+ * does not accumulate across turns.
+ */
+export function buildPlanModeReminder(options?: {
+	canSwitchToActMode?: boolean;
+}): string {
+	const switchInstruction = options?.canSwitchToActMode
+		? " Only after the user has explicitly approved your plan in a follow-up message may you use the switch_to_act_mode tool to begin implementation."
+		: "";
+	return `<system_reminder>You are still in plan mode. Keep exploring, analyzing, and refining the plan -- do NOT edit files, write code, or run state-changing commands. Present your plan and wait for the user's response.${switchInstruction}</system_reminder>`;
+}
+
 export function processWorkspaceInfo(info: WorkspaceInfo): string {
 	return JSON.stringify(
 		{

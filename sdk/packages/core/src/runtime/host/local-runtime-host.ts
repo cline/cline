@@ -655,6 +655,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			temperature: configWithProvider.temperature,
 			systemPrompt: configWithProvider.systemPrompt,
+			mode: configWithProvider.mode,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
 			prepareTurn,

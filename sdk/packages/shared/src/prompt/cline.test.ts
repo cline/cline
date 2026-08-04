@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildClineSystemPrompt,
+	buildPlanModeReminder,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
 } from "./cline";
@@ -71,5 +72,27 @@ describe("buildClineSystemPrompt mode instructions", () => {
 			overridePrompt: "You are a custom agent.",
 		});
 		expect(prompt).toBe("You are a custom agent.");
+	});
+});
+
+describe("buildPlanModeReminder", () => {
+	it("wraps the reminder in a system_reminder tag", () => {
+		const reminder = buildPlanModeReminder();
+		expect(reminder).toMatch(/^<system_reminder>[\s\S]*<\/system_reminder>$/);
+		expect(reminder).toContain("plan mode");
+		expect(reminder).toContain("do NOT edit files");
+	});
+
+	it("mentions switch_to_act_mode only when the tool is available", () => {
+		// The reminder is injected by the session runtime for ANY plan-mode
+		// session; hosts that do not register the switch tool must not have
+		// the model told to call a tool that does not exist.
+		expect(buildPlanModeReminder()).not.toContain("switch_to_act_mode");
+		expect(
+			buildPlanModeReminder({ canSwitchToActMode: false }),
+		).not.toContain("switch_to_act_mode");
+		expect(buildPlanModeReminder({ canSwitchToActMode: true })).toContain(
+			"switch_to_act_mode",
+		);
 	});
 });
