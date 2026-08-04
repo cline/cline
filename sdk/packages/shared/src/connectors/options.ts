@@ -83,7 +83,8 @@ export type ConnectSlackOptions = {
 };
 
 export type SlackConnectorState = {
-	claimId: string;
+	/** Absent in state files written by CLI versions that predate claiming. */
+	claimId?: string;
 	userName: string;
 	connectionMode?: "webhook" | "socket";
 	pid: number;

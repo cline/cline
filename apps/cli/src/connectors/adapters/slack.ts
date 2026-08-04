@@ -628,7 +628,9 @@ class SlackConnector extends ConnectorBase<
 				Boolean(
 					value &&
 						typeof value === "object" &&
-						typeof (value as SlackConnectorState).claimId === "string" &&
+						// claimId is optional: state files written by older CLI
+						// versions predate claiming and must stay manageable
+						// (already-running detection, status, stop).
 						typeof (value as SlackConnectorState).pid === "number" &&
 						typeof (value as SlackConnectorState).userName === "string",
 				),
