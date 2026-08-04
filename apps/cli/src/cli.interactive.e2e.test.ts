@@ -220,7 +220,7 @@ describe("cli interactive e2e", () => {
 				"claude-sonnet-4-6",
 				"-k",
 				"test-key",
-				"hello",
+				"seed history session",
 			],
 			{ cwd: cliRoot, encoding: "utf8", env, timeout: 60_000 },
 		);

@@ -7,7 +7,10 @@ import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
-	subscribeMock: vi.fn(() => () => undefined),
+	subscribeMock: vi.fn(
+		(_eventName: string, _handler: (payload: unknown) => void) => () =>
+			undefined,
+	),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -523,6 +526,287 @@ describe("useChatSession", () => {
 			current.messages.find((message) => message.role === "assistant")
 				?.createdAt,
 		).toBe(thinkingTimestamp);
+	});
+
+	it("updates current token usage from live usage events", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("Track this turn");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 12_000,
+					outputTokens: 500,
+					cost: 0.01,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 13_000,
+					outputTokens: 700,
+					cost: 0.02,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		expect(current.summary).toMatchObject({
+			tokensIn: 13_000,
+			tokensOut: 700,
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
+	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
+		type SendResponse = {
+			ok: true;
+			result: {
+				text: string;
+				finishReason: "completed";
+				usage: {
+					inputTokens: number;
+					outputTokens: number;
+					totalCost: number;
+				};
+			};
+		};
+		let resolveSend: ((response: SendResponse) => void) | undefined;
+		const sendResponse = new Promise<SendResponse>((resolve) => {
+			resolveSend = resolve;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await sendResponse;
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("Track this completed turn");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 12_000,
+					outputTokens: 500,
+					cost: 0.01,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({
+					inputTokens: 13_000,
+					outputTokens: 700,
+					cost: 0.02,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+
+		// The runtime may begin draining the next queued prompt before the prior
+		// send response reaches the webview. Its deltas must not affect the prior
+		// turn's completion reconciliation.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-next",
+					prompt: "Next turn",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({ cost: 0.01 }),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.04);
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 5,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-after-next",
+					prompt: "Turn after next",
+				}),
+				ts: Date.now(),
+				index: 6,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_usage",
+				chunk: JSON.stringify({ cost: 0.02 }),
+				ts: Date.now(),
+				index: 7,
+			});
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.06);
+
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					text: "Completed turn",
+					finishReason: "completed",
+					usage: {
+						inputTokens: 13_000,
+						outputTokens: 700,
+						totalCost: 0.03,
+					},
+				},
+			});
+			await sendTask;
+		});
+
+		expect(current.summary).toMatchObject({
+			tokensIn: 13_000,
+			tokensOut: 700,
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.06);
+	});
+
+	it("hydrates current token usage and cumulative cost from messages", async () => {
+		const hydratedSessionId = "session-with-usage";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "assistant-1",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "First response",
+							createdAt: 1,
+							meta: {
+								inputTokens: 10_000,
+								outputTokens: 500,
+								totalCost: 0.01,
+							},
+						},
+						{
+							id: "assistant-2",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "Latest response",
+							createdAt: 2,
+							meta: {
+								inputTokens: 24_000,
+								outputTokens: 1_000,
+								totalCost: 0.02,
+							},
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			});
+		});
+
+		expect(current.summary).toMatchObject({
+			tokensIn: 24_000,
+			tokensOut: 1_000,
+		});
+		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
 	it("returns to a completed status when a queued turn finishes via chat_done", async () => {

@@ -238,6 +238,7 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
@@ -249,7 +250,9 @@ export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
 	getShellArgs,
+	getShellInvocation,
 	getShellKind,
+	type ShellInvocation,
 	type ShellKind,
 } from "./parse/shell";
 export {

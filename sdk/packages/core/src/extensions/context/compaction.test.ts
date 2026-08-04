@@ -4,7 +4,10 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSessionCompactionState } from "../../session/models/session-compaction";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+} from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
@@ -43,6 +46,64 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 		(total, message) => total + estimateJsonTokens(message),
 		0,
 	);
+}
+
+/** Multi-turn transcript with prunable tool output for basic-compaction tests. */
+function overflowRecoveryTranscript(): MessageWithMetadata[] {
+	return [
+		{ role: "user", content: "Initial request that should survive" },
+		{
+			role: "assistant",
+			content: [
+				{ type: "text", text: "Older assistant explanation" },
+				{
+					type: "tool_use",
+					id: "tool-1",
+					name: "read_files",
+					input: { file_paths: ["/tmp/example.ts"] },
+				},
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-1",
+					name: "tool",
+					content: "tool output that should be removed",
+				},
+			],
+		},
+		{ role: "user", content: "Most recent user turn" },
+		{
+			role: "assistant",
+			content: [{ type: "text", text: "Most recent assistant reply" }],
+		},
+	];
+}
+
+/** The compaction produced messages and pruned the marked tool output. */
+function assertBasicCompactionResult(
+	result: { messages: MessageWithMetadata[] } | undefined,
+): void {
+	expect(result?.messages).toBeDefined();
+	expect(result?.messages.length).toBeGreaterThan(0);
+	for (const message of result?.messages ?? []) {
+		if (typeof message.content === "string") {
+			expect(message.content).not.toContain(
+				"tool output that should be removed",
+			);
+		} else {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					expect(block.text).not.toContain(
+						"tool output that should be removed",
+					);
+				}
+			}
+		}
+	}
 }
 
 describe("createTokenEstimator", () => {
@@ -388,6 +449,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 2,
+					userRunSpan: 1,
 				},
 			},
 		]);
@@ -496,6 +558,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 4,
+					userRunSpan: 2,
 				},
 			},
 		]);
@@ -697,6 +760,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			reason: "manual_compaction",
 			displayRole: "system",
 			messagesRemoved: 6,
+			userRunSpan: 1,
 			usageBefore: {
 				inputTokens: 600,
 				outputTokens: 30,
@@ -1180,6 +1244,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1208,6 +1274,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1254,6 +1322,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			role: "user",
 			metadata: expect.objectContaining({
 				kind: "compaction_summary",
+				displayRole: "system",
+				userRunSpan: 2,
 				details: {
 					readFiles: [],
 					modifiedFiles: [],
@@ -1786,6 +1856,8 @@ describe("createContextCompactionPrepareTurn", () => {
 				content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
 				metadata: {
 					kind: "compaction_summary",
+					displayRole: "system",
+					userRunSpan: 2,
 					summary: "earlier work",
 					details: { readFiles: [], modifiedFiles: [] },
 					tokensBefore: 100,
@@ -1858,7 +1930,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 		expect(result?.messages[0]).toMatchObject({
 			role: "user",
-			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+			metadata: expect.objectContaining({
+				kind: "compaction_summary",
+				userRunSpan: 2,
+			}),
 		});
 		expect(result?.messages.length).toBeLessThan(messages.length);
 	});
@@ -2142,24 +2217,345 @@ describe("createContextCompactionPrepareTurn", () => {
 				reason: "auto_compaction",
 			}),
 		);
-		expect(result?.messages).toBeDefined();
-		expect(result?.messages.length).toBeGreaterThan(0);
-		// Compacted messages should not contain tool_result content that was pruned.
-		for (const message of result?.messages ?? []) {
-			if (typeof message.content === "string") {
-				expect(message.content).not.toContain(
-					"tool output that should be removed",
-				);
-			} else {
-				for (const block of message.content) {
-					if (block.type === "text") {
-						expect(block.text).not.toContain(
-							"tool output that should be removed",
-						);
-					}
-				}
-			}
-		}
+		assertBasicCompactionResult(result);
+	});
+
+	it("forces a basic compaction on overflow recovery, bypassing the estimate gate", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				// Agentic is configured, but recovery must not depend on a
+				// summarizer call succeeding.
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				// Large window: the estimate-based trigger would not fire, yet
+				// the provider said otherwise — recovery must compact anyway.
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacting",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				reason: "overflow_recovery_compaction",
+			}),
+		);
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacted",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "completed",
+			}),
+		);
+		assertBasicCompactionResult(result);
+	});
+
+	it("skips overflow-recovery compaction when there is nothing to remove", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "A single oversized first prompt" },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compaction-skipped",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "skipped",
+			}),
+		);
+	});
+
+	it("uses a successful custom compactor during overflow recovery", async () => {
+		const abortSignal = new AbortController().signal;
+		const compacted = [{ role: "user" as const, content: "custom fold" }];
+		const compact = vi.fn(async (context: CoreCompactionContext) => {
+			expect(context.mode).toBe("overflow_recovery");
+			// Custom compactors receive the turn's abort signal so a stalled
+			// external call can be cancelled instead of blocking recovery.
+			expect(context.abortSignal).toBe(abortSignal);
+			return { messages: compacted };
+		});
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(result?.messages).toEqual(compacted);
+	});
+
+	it("falls back to basic compaction when a custom compactor fails during overflow recovery", async () => {
+		const compact = vi.fn(async () => {
+			throw new Error("custom compactor overflowed too");
+		});
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor does not shrink during overflow recovery", async () => {
+		// Echoes its input back — "succeeds" without removing anything, which
+		// the runtime would reject as a non-shrinking retry.
+		const compact = vi.fn(async (context: CoreCompactionContext) => ({
+			messages: context.messages,
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor returns an empty transcript", async () => {
+		// An empty result is trivially "smaller" and under target, but would
+		// erase the very request the retry is supposed to re-send.
+		const compact = vi.fn(async () => ({ messages: [] }));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor shrinks but misses the recovery target", async () => {
+		// Drops only the short final message — strictly smaller, but far above
+		// the ~50% recovery target, so the retry would still not fit.
+		const compact = vi.fn(async (context: CoreCompactionContext) => ({
+			messages: context.messages.slice(0, -1),
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor declines during overflow recovery", async () => {
+		const compact = vi.fn(async () => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
 	});
 
 	it("triggers compaction when input reaches exactly 90 percent", async () => {
@@ -3766,5 +4162,51 @@ describe("createContextCompactionPrepareTurn", () => {
 			expect.objectContaining({ messages: currentMessages }),
 		);
 		expect(saveState).not.toHaveBeenCalled();
+	});
+
+	it("passes the exact source messages to saveState so hosts can validate against them", async () => {
+		// Regression: local-runtime-host validated the persist by projecting the
+		// state against agent.getMessages(), which mid-turn can legally differ
+		// from the transcript the prepareTurn context carries (the state's hash
+		// input) — so auto-compaction persists were spuriously skipped as stale.
+		// saveState must receive the same messages the hash was computed over.
+		const compact = vi.fn().mockResolvedValue({
+			messages: [{ role: "user", content: "summary" }],
+		});
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => undefined,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "task" },
+			{ role: "assistant", content: "answer" },
+			{ role: "user", content: "follow-up" },
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(saveState).toHaveBeenCalledTimes(1);
+		const [savedState, sourceMessages] = saveState.mock.calls[0];
+		expect(sourceMessages).toBe(currentMessages);
+		expect(
+			projectSessionCompactionState(savedState, currentMessages),
+		).toBeDefined();
 	});
 });

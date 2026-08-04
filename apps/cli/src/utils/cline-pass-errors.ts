@@ -18,9 +18,16 @@ import { getClineEnvironmentConfig } from "@cline/shared";
 
 export { getClineOrgIndividualInferenceSubscriptionMessage };
 
-export const CLI_PROMO_CODE = "CLI-8OFF";
+export const CLI_PROMO_CODE = "";
 
 export function getCliSubscriptionUrl(): string {
+	if(!CLI_PROMO_CODE) {
+		return new URL(
+			`/dashboard/subscription?personal=true`,
+			getClineEnvironmentConfig().appBaseUrl,
+		).toString()
+	}
+
 	return `${new URL(
 		`/promo?code=${CLI_PROMO_CODE}&personal=true`,
 		getClineEnvironmentConfig().appBaseUrl,

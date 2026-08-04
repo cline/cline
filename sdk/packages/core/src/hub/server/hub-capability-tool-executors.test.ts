@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { handleCapabilityProgress } from "./handlers/capability-handlers";
 import type { HubTransportContext } from "./handlers/context";
 import {
@@ -111,9 +110,7 @@ describe("handleCapabilityProgress", () => {
 });
 
 describe("hub client runtime capabilities", () => {
-	it("omits process-local telemetry from proxied tool contexts", async () => {
-		const telemetry: Record<string, unknown> = {};
-		telemetry.self = telemetry;
+	it("proxies JSON-serializable tool contexts to hub clients", async () => {
 		const request: ClientContributionRequest = vi.fn(
 			async (_sessionId, _capabilityName, payload) => {
 				expect(() => JSON.stringify(payload)).not.toThrow();
@@ -145,7 +142,6 @@ describe("hub client runtime capabilities", () => {
 			iteration: 2,
 			metadata: {
 				modelSupportsImages: true,
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 			},
 		};
 

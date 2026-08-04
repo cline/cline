@@ -96,15 +96,10 @@ const worktreeMocks = vi.hoisted(() => ({
 	createTaskWorktree: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
-	runHistoryList: vi.fn<() => Promise<number | string>>(async () => 0),
+	runHistoryList: vi.fn<() => Promise<number>>(async () => 0),
 	runHistoryDelete: vi.fn(async () => 0),
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
-}));
-const historyResumeMocks = vi.hoisted(() => ({
-	spawnHistoryResume: vi.fn<() => Promise<number | undefined>>(
-		async () => undefined,
-	),
 }));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
@@ -212,7 +207,6 @@ vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
-vi.mock("./utils/history-resume", () => historyResumeMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
@@ -241,8 +235,6 @@ describe("runCli lightweight command dispatch", () => {
 		historyMocks.runHistoryExport.mockResolvedValue(0);
 		historyMocks.runHistoryUpdate.mockReset();
 		historyMocks.runHistoryUpdate.mockResolvedValue(0);
-		historyResumeMocks.spawnHistoryResume.mockReset();
-		historyResumeMocks.spawnHistoryResume.mockResolvedValue(undefined);
 		sessionMocks.getSessionRow.mockReset();
 		sessionMocks.getSessionRow.mockResolvedValue({
 			sessionId: "sess_123",
@@ -321,6 +313,10 @@ describe("runCli lightweight command dispatch", () => {
 		// Mark stdin as a TTY so that path is skipped in unit tests (real piped-input behavior is
 		// covered elsewhere). `forcePromptModeInput()` in agent tests still tightens fstat on fd 0.
 		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
 			value: true,
 			configurable: true,
 		});
@@ -480,7 +476,7 @@ describe("runCli lightweight command dispatch", () => {
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(process.exitCode).toBe(0);
+		expect(process.exitCode).toBe(1);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
@@ -617,10 +613,6 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	it("creates a worktree for default interactive mode", async () => {
-		Object.defineProperty(process.stdout, "isTTY", {
-			value: true,
-			configurable: true,
-		});
 		process.argv = ["bun", "src/index.ts", "--worktree"];
 
 		const { runCli } = await import("./main");
@@ -723,7 +715,7 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			undefined,
 			expect.objectContaining({
-				initialView: undefined,
+				startupTarget: undefined,
 			}),
 		);
 	});
@@ -734,10 +726,6 @@ describe("runCli lightweight command dispatch", () => {
 			title: "Try ClinePass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
-		Object.defineProperty(process.stdout, "isTTY", {
-			value: true,
-			configurable: true,
-		});
 		process.argv = ["bun", "src/index.ts"];
 
 		const { runCli } = await import("./main");
@@ -766,10 +754,6 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
 			provider: "cline-pass",
 			model: "cline-pass/test-model",
-		});
-		Object.defineProperty(process.stdout, "isTTY", {
-			value: true,
-			configurable: true,
 		});
 		process.argv = ["bun", "src/index.ts"];
 
@@ -875,7 +859,7 @@ describe("runCli lightweight command dispatch", () => {
 			undefined,
 			expect.objectContaining({
 				initialPrompt: "sup",
-				initialView: undefined,
+				startupTarget: undefined,
 			}),
 		);
 	});
@@ -1115,65 +1099,33 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			"sess_123",
 			expect.objectContaining({
-				initialView: "chat",
+				startupTarget: "chat",
 			}),
 		);
 	});
 
-	it("resumes a history-picked session in a child process", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(0);
+	it("opens history inside the interactive TUI for the history picker", async () => {
+		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue({
+			id: "cline-cli-cline-pass-intro",
+			title: "Try ClinePass",
+		});
 		process.argv = ["bun", "src/index.ts", "history"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(historyResumeMocks.spawnHistoryResume).toHaveBeenCalledTimes(1);
-		expect(historyResumeMocks.spawnHistoryResume).toHaveBeenCalledWith(
-			expect.objectContaining({
-				sessionId: "sess_from_history",
-				normalizedArgs: ["history"],
-				remainingArgs: ["history"],
-			}),
-		);
-		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
-		expect(process.exitCode).toBe(0);
-	});
-
-	it("propagates the child exit code when resuming from history picker", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(3);
-		process.argv = ["bun", "src/index.ts", "history"];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
-		expect(process.exitCode).toBe(3);
-		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
-	});
-
-	it("forces chat view when the history-picker child cannot launch", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
-		historyResumeMocks.spawnHistoryResume.mockResolvedValueOnce(undefined);
-		process.argv = ["bun", "src/index.ts", "history"];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
+		expect(historyMocks.runHistoryList).not.toHaveBeenCalled();
+		expect(
+			migrationNoticeMocks.getClineCliMigrationNotice,
+		).not.toHaveBeenCalled();
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
 			expect.any(Object),
 			expect.anything(),
-			"sess_from_history",
+			undefined,
 			expect.objectContaining({
 				initialPrompt: undefined,
-				initialView: "chat",
+				startupTarget: "history",
 			}),
 		);
 	});

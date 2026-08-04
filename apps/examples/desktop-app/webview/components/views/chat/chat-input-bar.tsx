@@ -10,7 +10,6 @@ import {
 	ChevronRight,
 	CircleStop,
 	Clock3,
-	Coins,
 	Cpu,
 	Paperclip,
 	Pencil,
@@ -26,6 +25,12 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Button } from "@/components/ui/button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -35,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -112,7 +118,9 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Extra", value: "xhigh" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
-const PROMPT_INPUT_FOCUSED_ROWS = 5;
+const PROMPT_INPUT_EXPANDED_ROWS = 2;
+const PROMPT_INPUT_MAX_ROWS = 5;
+const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
@@ -216,6 +224,7 @@ type ChatInputBarProps = {
 	status: ChatSessionStatus;
 	provider: string;
 	model: string;
+	modelContextWindow?: number;
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
@@ -246,6 +255,7 @@ type ChatInputBarProps = {
 		toolCalls: number;
 		tokensIn: number;
 		tokensOut: number;
+		totalCostUsd?: number;
 	};
 };
 
@@ -254,6 +264,7 @@ export function ChatInputBar({
 	status,
 	provider,
 	model,
+	modelContextWindow,
 	mode,
 	thinking,
 	reasoningEffort,
@@ -390,13 +401,6 @@ export function ChatInputBar({
 	const [queueExpanded, setQueueExpanded] = useState(false);
 	const queuedPromptsId = useId();
 
-	const tokensSummary = useMemo(() => {
-		const total = summary.tokensIn + summary.tokensOut;
-		if (total === 0) {
-			return undefined;
-		}
-		return `${total.toLocaleString()} tokens`;
-	}, [summary.tokensIn, summary.tokensOut]);
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
@@ -409,6 +413,10 @@ export function ChatInputBar({
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+	const promptInputRows =
+		variant === "welcome" || promptInputFocused
+			? PROMPT_INPUT_EXPANDED_ROWS
+			: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -945,7 +953,7 @@ export function ChatInputBar({
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
-								"min-h-16 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
 						<textarea
@@ -967,10 +975,7 @@ export function ChatInputBar({
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
 							className={cn(
-								"max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								promptInput.includes("\n")
-									? "overflow-y-auto"
-									: "overflow-y-hidden",
+								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -1066,15 +1071,44 @@ export function ChatInputBar({
 							}
 							ref={promptInputRef}
 							role="combobox"
-							rows={
-								variant === "welcome"
-									? 2
-									: promptInputFocused
-										? PROMPT_INPUT_FOCUSED_ROWS
-										: PROMPT_INPUT_COLLAPSED_ROWS
-							}
+							rows={promptInputRows}
+							style={{
+								maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+								minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+							}}
 							value={promptInput}
 						/>
+						<div className="flex shrink-0 items-center gap-2">
+							{canAbort && (
+								<button
+									aria-label="Stop agent"
+									className={cn(
+										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										variant === "welcome" ? "rounded-md" : "rounded-full",
+									)}
+									onClick={onAbort}
+									type="button"
+								>
+									<CircleStop className="size-2" />
+								</button>
+							)}
+							{(!isBusy || canSend) && (
+								<button
+									aria-label="Send message"
+									className={cn(
+										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										variant === "welcome"
+											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
+											: "rounded-full bg-primary text-background hover:bg-primary/80",
+									)}
+									disabled={!canSend}
+									onClick={handleSend}
+									type="button"
+								>
+									<ArrowUp className="size-2" />
+								</button>
+							)}
+						</div>
 					</div>
 				</div>
 				{attachments.length > 0 && (
@@ -1099,7 +1133,7 @@ export function ChatInputBar({
 				)}
 			</div>
 
-			{/* Composer settings and submit */}
+			{/* Composer settings */}
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
@@ -1122,7 +1156,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1194,64 +1228,34 @@ export function ChatInputBar({
 							))}
 						</SelectContent>
 					</Select>
-					{tokensSummary ? (
-						<span className="max-[900px]:hidden">
-							<StatusItem
-								icon={Coins}
-								label={tokensSummary}
-								hasOption={false}
-							/>
-						</span>
-					) : null}
 				</div>
 
 				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
 					{variant === "conversation" ? (
-						<div className="min-w-0 overflow-visible">
-							<WorkspaceSelector
-								currentBranch={gitBranch}
-								disabled
-								onListGitBranches={onListGitBranches}
-								onRefreshWorkspaces={onRefreshWorkspaces}
-								onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-								onSwitchGitBranch={onSwitchGitBranch}
-								onSwitchWorkspace={onSwitchWorkspace}
-								workspaces={workspaces}
-								workspaceRoot={workspaceRoot}
+						<div className="flex min-w-0 items-center gap-0">
+							<div className="min-w-0 overflow-visible">
+								<WorkspaceSelector
+									currentBranch={gitBranch}
+									disabled
+									onListGitBranches={onListGitBranches}
+									onRefreshWorkspaces={onRefreshWorkspaces}
+									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+									onSwitchGitBranch={onSwitchGitBranch}
+									onSwitchWorkspace={onSwitchWorkspace}
+									workspaces={workspaces}
+									workspaceRoot={workspaceRoot}
+								/>
+							</div>
+							<TokenUsageRing
+								usage={{
+									contextWindow: modelContextWindow,
+									tokensIn: summary.tokensIn,
+									tokensOut: summary.tokensOut,
+									totalCost: summary.totalCostUsd,
+								}}
 							/>
 						</div>
 					) : null}
-					<div className="flex shrink-0 items-center gap-2">
-						{canAbort && (
-							<button
-								aria-label="Stop agent"
-								className={cn(
-									"bg-foreground p-1.5 text-background transition-colors hover:bg-foreground/80",
-									variant === "welcome" ? "rounded-md" : "rounded-full",
-								)}
-								onClick={onAbort}
-								type="button"
-							>
-								<CircleStop className="h-4 w-4" />
-							</button>
-						)}
-						{(!isBusy || canSend) && (
-							<button
-								aria-label="Send message"
-								className={cn(
-									"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-									variant === "welcome"
-										? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-										: "rounded-full bg-foreground text-background hover:bg-foreground/80",
-								)}
-								disabled={!canSend}
-								onClick={handleSend}
-								type="button"
-							>
-								<ArrowUp className="h-4 w-4" />
-							</button>
-						)}
-					</div>
 				</div>
 			</div>
 		</div>
@@ -1612,40 +1616,121 @@ const ModelSelector = memo(function ModelSelector({
 	);
 });
 
-function StatusItem({
-	icon: Icon,
-	label,
-	onClick,
-	disabled,
-	hasOption = true,
-}: {
-	icon?: React.ComponentType<{ className?: string }>;
-	label: string;
-	onClick?: () => void;
-	disabled?: boolean;
-	hasOption?: boolean;
-}) {
-	const content = (
-		<>
-			{Icon ? <Icon className="h-3 w-3" /> : null}
-			<span className="max-[560px]:sr-only">{label}</span>
-			{hasOption ? <ChevronDown className="h-2.5 w-2.5" /> : null}
-		</>
-	);
-	if (!onClick) {
-		return <span className="flex items-center gap-1">{content}</span>;
+type TokenUsage = {
+	tokensIn: number;
+	tokensOut: number;
+	totalCost?: number;
+	contextWindow?: number;
+};
+
+/** Current input context relative to the selected model's context window. */
+function TokenUsageRing({ usage }: { usage: TokenUsage }) {
+	const contextWindow = usage.contextWindow;
+	if (usage.tokensIn <= 0 || !contextWindow || contextWindow <= 0) {
+		return null;
 	}
-	return (
-		<button
-			className={cn(
-				"flex items-center gap-1 transition-colors",
-				disabled ? "cursor-not-allowed opacity-60" : "hover:text-foreground",
-			)}
-			disabled={disabled}
-			onClick={onClick}
-			type="button"
-		>
-			{content}
-		</button>
+
+	const ratio = Math.min(
+		Math.max(usage.tokensIn / Math.max(contextWindow, 1), 0),
+		1,
 	);
+	const percent = Math.round(ratio * 100);
+	const cost = formatCostUsd(usage.totalCost);
+	const contextUsageLabel = `${formatCompactTokens(usage.tokensIn)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const radius = 8.5;
+	const circumference = 2 * Math.PI * radius;
+
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					aria-label={`Context window: ${usage.tokensIn.toLocaleString()} of ${contextWindow.toLocaleString()} input tokens used (${percent}%)`}
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent"
+					id="token-usage"
+					size="icon-sm"
+					type="button"
+					variant="ghost"
+				>
+					<svg
+						aria-hidden="true"
+						className="-rotate-90 size-3.5"
+						height="22"
+						viewBox="0 0 22 22"
+						width="22"
+					>
+						<circle
+							className="stroke-muted-foreground/20"
+							cx="11"
+							cy="11"
+							fill="none"
+							r={radius}
+							strokeWidth="4"
+						/>
+						<circle
+							className="stroke-primary transition-[stroke-dashoffset] duration-200"
+							cx="11"
+							cy="11"
+							fill="none"
+							r={radius}
+							strokeDasharray={circumference}
+							strokeDashoffset={circumference * (1 - ratio)}
+							strokeLinecap="round"
+							strokeWidth="4"
+						/>
+					</svg>
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				className="w-80 p-0"
+				id="token-usage-panel"
+				side="top"
+				sideOffset={8}
+			>
+				<div className="px-3 py-3">
+					<div className="flex items-center justify-between gap-4 text-sm">
+						<span className="text-muted-foreground">Context window</span>
+						<span className="font-mono text-xs text-foreground">
+							{contextUsageLabel}
+						</span>
+					</div>
+					<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+						<div
+							aria-hidden="true"
+							className="h-full rounded-full bg-primary transition-[width] duration-200"
+							style={{ width: `${percent}%` }}
+						/>
+					</div>
+				</div>
+				<div className="border-t border-border/70 px-3 py-2.5 text-xs">
+					<div className="flex items-center justify-between gap-4">
+						<span className="text-muted-foreground">Output tokens</span>
+						<span className="font-mono text-foreground">
+							{usage.tokensOut.toLocaleString()}
+						</span>
+					</div>
+					{cost ? (
+						<div className="mt-2 flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Cost</span>
+							<span className="font-mono text-foreground">{cost}</span>
+						</div>
+					) : null}
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+function formatCompactTokens(value: number): string {
+	if (value >= 1_000_000) {
+		return `${(value / 1_000_000).toFixed(1)}M`;
+	}
+	if (value >= 1_000) {
+		return `${formatCompactUnit(value / 1_000)}k`;
+	}
+	return value.toLocaleString();
+}
+
+function formatCompactUnit(value: number): string {
+	return value.toFixed(1).replace(/\.0$/, "");
 }

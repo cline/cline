@@ -138,9 +138,18 @@ export class AgentEventBridge {
 		fallbackAutomation?: NonNullable<
 			CoreSessionConfig["extensionContext"]
 		>["automation"],
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
 	): Promise<void> {
 		if (event.name === "plugin_log") {
 			this.handlePluginLog(rootSessionId, event.payload);
+			return;
+		}
+		if (event.name === "plugin_telemetry") {
+			this.handlePluginTelemetry(
+				rootSessionId,
+				event.payload,
+				fallbackTelemetry,
+			);
 			return;
 		}
 		if (event.name === "automation_event") {
@@ -184,6 +193,92 @@ export class AgentEventBridge {
 						? "steer"
 						: "queue";
 		this.deps.enqueuePendingPrompt(targetSessionId, { prompt, delivery });
+	}
+
+	/**
+	 * Route `plugin_telemetry` events emitted by the sandbox-side telemetry
+	 * bridge into the host telemetry service. Sandboxed plugins cannot hold
+	 * the live service (it is not JSON-serializable across the IPC boundary),
+	 * so their capture/record calls arrive as events. All plugin events are
+	 * namespaced under `plugin.` and stamped with the plugin name so they
+	 * cannot impersonate first-party events.
+	 */
+	handlePluginTelemetry(
+		rootSessionId: string,
+		payload: unknown,
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
+	): void {
+		// Plugin setup() runs during session bootstrap, before the session is
+		// registered in the sessions map — the fallback keeps setup-time
+		// telemetry (and any other pre-registration events) from being
+		// silently dropped, mirroring handlePluginLog's fallback logger.
+		const session = this.deps.getSession(rootSessionId);
+		const telemetry = session?.config.telemetry ?? fallbackTelemetry;
+		if (!telemetry || !payload || typeof payload !== "object") return;
+		const record = payload as Record<string, unknown>;
+		const pluginName =
+			typeof record.pluginName === "string" && record.pluginName
+				? record.pluginName
+				: "unknown";
+
+		if (record.kind === "event") {
+			const event = typeof record.event === "string" ? record.event.trim() : "";
+			if (!event) return;
+			const properties = {
+				...(record.properties && typeof record.properties === "object"
+					? (record.properties as Record<string, unknown>)
+					: {}),
+				plugin_name: pluginName,
+				session_id: rootSessionId,
+			};
+			if (record.required === true) {
+				telemetry.captureRequired(`plugin.${event}`, properties);
+			} else {
+				telemetry.capture({ event: `plugin.${event}`, properties });
+			}
+			return;
+		}
+
+		if (record.kind === "metric") {
+			const name = typeof record.name === "string" ? record.name.trim() : "";
+			const value = typeof record.value === "number" ? record.value : NaN;
+			if (!name || Number.isNaN(value)) return;
+			const attributes = {
+				...(record.attributes && typeof record.attributes === "object"
+					? (record.attributes as Record<string, unknown>)
+					: {}),
+				plugin_name: pluginName,
+			};
+			const description =
+				typeof record.description === "string" ? record.description : undefined;
+			const required = record.required === true;
+			const metricName = `plugin.${name}`;
+			if (record.metric === "counter") {
+				telemetry.recordCounter(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			} else if (record.metric === "histogram") {
+				telemetry.recordHistogram(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			} else if (record.metric === "gauge") {
+				telemetry.recordGauge(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			}
+		}
 	}
 
 	handlePluginLog(

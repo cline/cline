@@ -111,6 +111,7 @@ describe("SessionVersioningService", () => {
 		});
 		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
 		const retainCheckpointRefs = vi.fn(async () => undefined);
+		const cleanupStartedSession = vi.fn(async () => undefined);
 		const startSession = vi.fn(
 			async (input: { initialMessages?: unknown[] }) => {
 				expect(input.initialMessages).toEqual([
@@ -139,6 +140,7 @@ describe("SessionVersioningService", () => {
 			}),
 			startSession,
 			getStartedSessionId: (startResult) => startResult.sessionId,
+			cleanupStartedSession,
 			readRestoredSession: async () => restoredSession,
 		});
 
@@ -158,6 +160,250 @@ describe("SessionVersioningService", () => {
 				expect.objectContaining({ ref: "bbbb" }),
 			],
 		);
+		expect(cleanupStartedSession).not.toHaveBeenCalled();
+	});
+
+	it("restores the workspace before starting an editable session fork", async () => {
+		let workspaceRestored = false;
+		const applyWorkspaceCheckpoint = vi.fn(async () => {
+			workspaceRestored = true;
+		});
+		const startSession = vi.fn(
+			async (input: { initialMessages?: unknown[] }) => {
+				expect(workspaceRestored).toBe(true);
+				expect(input.initialMessages).toEqual([
+					{ role: "user", content: "first" },
+					{ role: "assistant", content: "first response" },
+				]);
+				return { sessionId: "edited-session" };
+			},
+		);
+
+		const result = await new SessionVersioningService().restoreCheckpoint({
+			sessionId: "source-session",
+			checkpointRunCount: 2,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: { marker: true },
+			getSession: async () => makeSession(),
+			readMessages: async () => messages,
+			applyWorkspaceCheckpoint,
+			retainCheckpointRefs: async () => undefined,
+			buildStartInput: (context, start) => ({
+				...start,
+				initialMessages: context.initialMessages,
+			}),
+			startSession,
+			getStartedSessionId: (startResult) => startResult.sessionId,
+			cleanupStartedSession: async () => undefined,
+		});
+
+		expect(applyWorkspaceCheckpoint).toHaveBeenCalledWith(
+			"/workspace/project",
+			expect.objectContaining({ ref: "bbbb", runCount: 2 }),
+		);
+		expect(result.sessionId).toBe("edited-session");
+		expect(result.messages).toEqual([
+			{ role: "user", content: "first" },
+			{ role: "assistant", content: "first response" },
+			{ role: "user", content: "second" },
+		]);
+	});
+
+	it("validates editable message trimming before mutating the workspace", async () => {
+		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
+		const foldedMessages = [
+			{
+				role: "user" as const,
+				content: "Compacted context",
+				metadata: {
+					kind: "compaction",
+					userRunSpan: 2,
+				},
+			},
+		];
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => foldedMessages,
+				applyWorkspaceCheckpoint,
+				startSession: async () => ({ sessionId: "should-not-start" }),
+				getStartedSessionId: (startResult) => startResult.sessionId,
+				cleanupStartedSession: async () => undefined,
+			}),
+		).rejects.toThrow("Cannot fork before run 2");
+		expect(applyWorkspaceCheckpoint).not.toHaveBeenCalled();
+	});
+
+	it("rolls the workspace back when replacement session startup fails", async () => {
+		const calls: string[] = [];
+		const rollback = vi.fn(async () => {
+			calls.push("rollback");
+		});
+		const commit = vi.fn(async () => {
+			calls.push("commit");
+		});
+		const startupError = new Error("replacement startup failed");
+		const cleanupStartedSession = vi.fn(async () => undefined);
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => messages,
+				beginWorkspaceRestoreTransaction: async () => {
+					calls.push("begin");
+					return { rollback, commit };
+				},
+				applyWorkspaceCheckpoint: async () => {
+					calls.push("apply");
+				},
+				startSession: async () => {
+					calls.push("start");
+					throw startupError;
+				},
+				getStartedSessionId: (startResult: { sessionId: string }) =>
+					startResult.sessionId,
+				cleanupStartedSession,
+			}),
+		).rejects.toBe(startupError);
+
+		expect(calls).toEqual(["begin", "apply", "start", "rollback"]);
+		expect(rollback).toHaveBeenCalledOnce();
+		expect(commit).not.toHaveBeenCalled();
+		expect(cleanupStartedSession).not.toHaveBeenCalled();
+	});
+
+	it("cleans up the replacement and rolls back when checkpoint retention fails", async () => {
+		const calls: string[] = [];
+		const retentionError = new Error("checkpoint retention failed");
+		const rollback = vi.fn(async () => {
+			calls.push("rollback");
+		});
+		const commit = vi.fn(async () => {
+			calls.push("commit");
+		});
+		const cleanupStartedSession = vi.fn(
+			async (result: { sessionId: string }) => {
+				expect(result).toEqual({ sessionId: "restored-session" });
+				calls.push("cleanup");
+			},
+		);
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: { messages: true, workspace: true },
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => messages,
+				beginWorkspaceRestoreTransaction: async () => {
+					calls.push("begin");
+					return { rollback, commit };
+				},
+				applyWorkspaceCheckpoint: async () => {
+					calls.push("apply");
+				},
+				startSession: async () => {
+					calls.push("start");
+					return { sessionId: "restored-session" };
+				},
+				getStartedSessionId: (result) => result.sessionId,
+				cleanupStartedSession,
+				retainCheckpointRefs: async () => {
+					calls.push("retain");
+					throw retentionError;
+				},
+			}),
+		).rejects.toBe(retentionError);
+
+		expect(calls).toEqual([
+			"begin",
+			"apply",
+			"start",
+			"retain",
+			"cleanup",
+			"rollback",
+		]);
+		expect(cleanupStartedSession).toHaveBeenCalledOnce();
+		expect(rollback).toHaveBeenCalledOnce();
+		expect(commit).not.toHaveBeenCalled();
+	});
+
+	it("cleans up the replacement and rolls back when restored-session loading fails", async () => {
+		const calls: string[] = [];
+		const readError = new Error("restored session read failed");
+		const rollback = vi.fn(async () => {
+			calls.push("rollback");
+		});
+		const commit = vi.fn(async () => {
+			calls.push("commit");
+		});
+
+		await expect(
+			new SessionVersioningService().restoreCheckpoint({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: { messages: true, workspace: true },
+				start: { marker: true },
+				getSession: async () => makeSession(),
+				readMessages: async () => messages,
+				beginWorkspaceRestoreTransaction: async () => {
+					calls.push("begin");
+					return { rollback, commit };
+				},
+				applyWorkspaceCheckpoint: async () => {
+					calls.push("apply");
+				},
+				startSession: async () => {
+					calls.push("start");
+					return { sessionId: "restored-session" };
+				},
+				getStartedSessionId: (result) => result.sessionId,
+				cleanupStartedSession: async () => {
+					calls.push("cleanup");
+				},
+				retainCheckpointRefs: async () => {
+					calls.push("retain");
+				},
+				readRestoredSession: async () => {
+					calls.push("read");
+					throw readError;
+				},
+			}),
+		).rejects.toBe(readError);
+
+		expect(calls).toEqual([
+			"begin",
+			"apply",
+			"start",
+			"retain",
+			"read",
+			"cleanup",
+			"rollback",
+		]);
+		expect(rollback).toHaveBeenCalledOnce();
+		expect(commit).not.toHaveBeenCalled();
 	});
 
 	it("supports workspace-only restore without starting a new session", async () => {
