@@ -194,11 +194,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: apps/examples/desktop-app/src-tauri
-          key: ${{ matrix.target }}
+      # No Rust build cache here, deliberately. This is the only job that can
+      # read the Apple signing certificate and the Tauri updater key, and a
+      # restored cache archive is attacker-controlled the moment the Actions
+      # cache is poisoned.
 
       - name: Install dependencies
         run: bun install
