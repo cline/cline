@@ -390,7 +390,10 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "Sonnet 4.6 explicit budget selects manual thinking despite adaptive effort support",
+			// Adaptive-era models reject the manual wire shape even though they
+			// also advertise a budget_tokens control, so an explicit numeric
+			// budget cannot force manual thinking; the budget is ignored.
+			name: "Sonnet 4.6 explicit budget still selects adaptive thinking when effort is advertised",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -402,6 +405,25 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 					...effortOptions(["low", "medium", "high", "max"]),
 					...budgetOptions(1024, 64_000),
 				],
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
+			name: "budget-only models keep manual thinking for explicit budgets",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 4096 },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024, 64_000),
 			},
 			expect: [
 				{

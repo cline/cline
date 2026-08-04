@@ -332,20 +332,17 @@ export function resolveAnthropicReasoningRequestPolicy(
 
 	const controls = getModelReasoningControls(context.model.reasoningOptions);
 	if (controls) {
-		if (!controls.effort && !controls.budget && !controls.toggle) {
-			return { kind: "none" };
+		// Models that advertise an effort control are adaptive-era. Their API
+		// rejects the manual wire shape (thinking.type "enabled") even when a
+		// budget_tokens control is also advertised, so a numeric request
+		// budget must not force manual thinking; the budget is ignored in
+		// favor of adaptive.
+		if (controls.effort) {
+			return { kind: "anthropic-adaptive" };
 		}
-		if (
-			typeof request.reasoning?.budgetTokens === "number" &&
-			controls.budget
-		) {
-			return { kind: "anthropic-manual" };
-		}
-		return controls.effort
-			? { kind: "anthropic-adaptive" }
-			: controls.budget || controls.toggle
-				? { kind: "anthropic-manual" }
-				: { kind: "none" };
+		return controls.budget || controls.toggle
+			? { kind: "anthropic-manual" }
+			: { kind: "none" };
 	}
 
 	// Custom/unlisted Claude-compatible models use the older manual-thinking

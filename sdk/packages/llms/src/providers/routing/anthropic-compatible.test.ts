@@ -438,6 +438,45 @@ describe("anthropic-compatible routing helpers", () => {
 		).toEqual({ kind: "anthropic-manual" });
 	});
 
+	it("keeps adaptive when a numeric budget is requested but the model advertises effort", () => {
+		const baseContext = makeContext(
+			"claude-sonnet",
+			metadataWithRouting({
+				reasoningRoutes: [{ matcher: "anthropic-compatible" }],
+			}),
+		);
+		const request = {
+			providerId: "test-provider",
+			modelId: "claude-sonnet-4-6",
+			messages: [],
+			reasoning: { enabled: true, budgetTokens: 4096 },
+		};
+
+		expect(
+			resolveAnthropicReasoningRequestPolicy(request, {
+				...baseContext,
+				model: {
+					...baseContext.model,
+					reasoningOptions: [
+						{ type: "effort", values: ["low", "medium", "high", "max"] },
+						{ type: "budget_tokens", min: 1024 },
+					],
+				},
+			}),
+		).toEqual({ kind: "anthropic-adaptive" });
+
+		// Budget-only models still honor the explicit budget via manual.
+		expect(
+			resolveAnthropicReasoningRequestPolicy(request, {
+				...baseContext,
+				model: {
+					...baseContext.model,
+					reasoningOptions: [{ type: "budget_tokens", min: 1024 }],
+				},
+			}),
+		).toEqual({ kind: "anthropic-manual" });
+	});
+
 	it("does not preserve legacy Anthropic reasoning for custom Qwen providers", () => {
 		const request = {
 			providerId: "test-provider",
