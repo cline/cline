@@ -173,6 +173,43 @@ export function isClaudeFableModelId(modelId: string | undefined): boolean {
 	return normalizeRoutingValue(modelId)?.includes("claude-fable") ?? false;
 }
 
+// Matches modern name-first Anthropic ids ("claude-sonnet-4-6",
+// "claude-opus-5", "anthropic.claude-opus-4-8-v1:0", "claude-sonnet-4.6").
+// Legacy version-first ids ("claude-3-7-sonnet") intentionally do not match.
+const CLAUDE_NAME_FIRST_VERSION_PATTERN =
+	/claude-(?:opus|sonnet|haiku|fable)-(\d+)(?:[.-](\d+))?/;
+
+/**
+ * Claude 4.6+ and 5.x ("adaptive-era") models only accept
+ * `thinking: {type: "adaptive"}` on the Anthropic API; the older manual
+ * `{type: "enabled", budgetTokens}` shape is rejected. This id heuristic is a
+ * fallback for when catalog `reasoningOptions` metadata is unavailable
+ * (offline baked catalog, user-typed unlisted ids such as
+ * "claude-opus-4-6:1m").
+ */
+export function isClaudeAdaptiveEraModelId(
+	modelId: string | undefined,
+): boolean {
+	const normalized = normalizeRoutingValue(modelId);
+	if (!normalized) {
+		return false;
+	}
+	if (isClaudeFableModelId(normalized)) {
+		return true;
+	}
+
+	const match = CLAUDE_NAME_FIRST_VERSION_PATTERN.exec(normalized);
+	if (!match) {
+		return false;
+	}
+	const major = Number(match[1]);
+	// Ignore date-stamp suffixes ("claude-sonnet-5-20260629") that would
+	// otherwise parse as an implausibly large minor version.
+	const minor =
+		match[2] !== undefined && match[2].length <= 2 ? Number(match[2]) : 0;
+	return major >= 5 || (major === 4 && minor >= 6);
+}
+
 export function isQwenModel(options: {
 	modelId?: string;
 	family?: string;

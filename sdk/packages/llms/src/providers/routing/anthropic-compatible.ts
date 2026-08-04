@@ -10,6 +10,7 @@ import {
 import {
 	getModelReasoningControls,
 	isAnthropicCompatibleModel,
+	isClaudeAdaptiveEraModelId,
 	isQwenModel,
 	modelRouteMatches,
 	resolveModelFamily,
@@ -349,7 +350,12 @@ export function resolveAnthropicReasoningRequestPolicy(
 
 	// Custom/unlisted Claude-compatible models use the older manual-thinking
 	// wire shape instead of guessing adaptive-thinking support from their id.
-	return { kind: "anthropic-manual" };
+	// Adaptive-era Claude ids (4.6+ / 5.x) are the exception: their API
+	// rejects `thinking.type: "enabled"`, so adaptive is the only shape that
+	// works when catalog reasoning metadata is unavailable.
+	return isClaudeAdaptiveEraModelId(request.modelId)
+		? { kind: "anthropic-adaptive" }
+		: { kind: "anthropic-manual" };
 }
 
 export function buildAnthropicProviderOptions(
