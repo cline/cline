@@ -63,3 +63,37 @@ A transport command observed failing from the webview side, including the
 Fired by the instrumentation in `webview/lib/desktop-client.ts` on every
 failed command round-trip (except `report_client_event` itself, to avoid
 feedback loops).
+
+### `desktop.command_failed` (component: `desktop.sidecar`)
+
+The server half of the same coin: a command handler threw inside the
+sidecar. A webview timeout only says the sidecar didn't answer; this says
+what the handler actually did.
+
+| Property | Description |
+| --- | --- |
+| `component` | `desktop.sidecar`. |
+| `command` | The transport command name (validated against `[a-z0-9_.]{1,64}`). |
+| `duration_ms` | Handler execution time. |
+| `error_type` | Error class name. |
+| `error_message` | Redacted + truncated (500 chars) message. |
+
+Fired by `sidecar/command-telemetry.ts`, which wraps every command dispatch
+in `sidecar/server.ts`. Payload contents are never included.
+
+### `desktop.command_slow` (component: `desktop.sidecar`)
+
+A command handler succeeded but took longer than 10 s — the event that
+turns a webview "timed out" mystery into "which command, how slow".
+
+| Property | Description |
+| --- | --- |
+| `component` | `desktop.sidecar`. |
+| `command` | The transport command name. |
+| `duration_ms` | Handler execution time. |
+
+Commands that legitimately block on interaction or long flows are exempt:
+`pick_workspace_directory` (native folder picker),
+`run_provider_oauth_login` (browser OAuth flow), and
+`chat_session_command` (chat turns are long-running by design). Handler
+*failures* of those commands still report `desktop.command_failed`.

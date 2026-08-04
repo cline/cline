@@ -1,4 +1,5 @@
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
+import { dispatchCommandWithTelemetry } from "./command-telemetry";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
@@ -238,9 +239,14 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				return;
 			}
 			try {
-				const result = await handleCommand(ctx, request.command, request.args, {
-					connection: ws,
-				});
+				const result = await dispatchCommandWithTelemetry(
+					ctx,
+					request.command,
+					() =>
+						handleCommand(ctx, request.command, request.args, {
+							connection: ws,
+						}),
+				);
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
