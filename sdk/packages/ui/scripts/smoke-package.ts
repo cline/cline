@@ -18,6 +18,7 @@ import {
 	AgentApprovalCard,
 	AgentAurora,
 	AgentHeroHeading,
+	AgentPromptQueue,
 	AgentQuickActions,
 	SearchCombobox,
 	SessionStatus,
@@ -41,6 +42,7 @@ if (
 	!AgentAskQuestion ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
+	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
 	!SessionStatus ||
@@ -130,6 +132,7 @@ async function verifyTailwindContract(
 		"not-last:border-b",
 		"focus-visible:outline-3",
 		"min-h-8",
+		"resize-none",
 	]) {
 		expectCandidate(css, candidate);
 	}
