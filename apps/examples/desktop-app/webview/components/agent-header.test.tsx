@@ -21,6 +21,31 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("AgentHeader title bar", () => {
+	it("makes non-interactive header space draggable", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="A session" />);
+		});
+
+		expect(
+			container.querySelector("header")?.getAttribute("data-tauri-drag-region"),
+		).toBe("deep");
+	});
+
+	it("renders a read-only title as draggable text", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="Read-only session" />);
+		});
+
+		expect(
+			container.querySelector('span[title="Read-only session"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('button[title="Read-only session"]'),
+		).toBeNull();
+	});
+});
+
 describe("AgentHeader title editor", () => {
 	it("preserves the displayed title width when editing starts", async () => {
 		await act(async () => {

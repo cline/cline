@@ -14,6 +14,7 @@ import {
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
 	type ITelemetryService,
+	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -227,6 +228,7 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 
 describe("sdk-gateway", () => {
 	beforeEach(() => {
+		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
@@ -803,6 +805,106 @@ describe("sdk-gateway", () => {
 				error_status: 400,
 			}),
 		});
+	});
+
+	it("marks the finish event as reported so the agent loop skips the same failure", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Upstream returned HTTP 429",
+			errorReported: true,
+		});
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(1);
+	});
+
+	it("does not mark the finish event as reported when telemetry is unavailable", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const finish = events.at(-1) as { errorReported?: boolean };
+		expect(finish.errorReported).not.toBe(true);
+	});
+
+	it("rate-limits identical stream failures per process", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+				statusCode: 429,
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
 	});
 
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {

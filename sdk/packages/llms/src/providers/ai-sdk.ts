@@ -919,6 +919,12 @@ function extractGoogleThoughtMetadata(
 interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
+	/**
+	 * This layer already recorded `sdk.error` telemetry for the failure.
+	 * Forwarded as `errorReported` on the `finish` event so the agent loop
+	 * does not report the same failure a second time.
+	 */
+	reported?: boolean;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
@@ -1102,6 +1108,7 @@ async function* emitAiSdkEvents(
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorReported: streamError?.reported,
 	};
 }
 
@@ -1261,7 +1268,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								severity: "error",
 							});
 						}
-						captureSdkError(context.telemetry, {
+						captured.reported = captureSdkError(context.telemetry, {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
@@ -1308,7 +1315,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				captureSdkError(context.telemetry, {
+				const reported = captureSdkError(context.telemetry, {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
@@ -1326,6 +1333,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorReported: reported || captured.reported,
 				};
 			}
 		},

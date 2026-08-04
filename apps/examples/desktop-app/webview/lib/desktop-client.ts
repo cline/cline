@@ -101,6 +101,14 @@ export type DesktopInvokeOptions = {
 	timeoutMs?: number | null;
 };
 
+export type DesktopErrorReport = {
+	operation: string;
+	error: unknown;
+	handled?: boolean;
+	command?: string;
+	timeoutMs?: number;
+};
+
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
@@ -133,6 +141,75 @@ class DesktopClient {
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
+	private recentErrorReports = new Map<string, number>();
+	private reportedErrorObjects = new WeakSet<object>();
+	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
+
+	reportError(report: DesktopErrorReport): void {
+		const error = report.error;
+		if (typeof error === "object" && error !== null) {
+			if (this.reportedErrorObjects.has(error)) {
+				return;
+			}
+			const pendingDelivery = this.errorObjectDeliveries.get(error);
+			if (pendingDelivery) {
+				void pendingDelivery.then((delivered) => {
+					if (!delivered) this.reportError(report);
+				});
+				return;
+			}
+		}
+
+		const delivery = this.deliverErrorReport(report);
+		if (typeof error === "object" && error !== null) {
+			this.errorObjectDeliveries.set(error, delivery);
+			void delivery.then((delivered) => {
+				if (delivered) this.reportedErrorObjects.add(error);
+				if (this.errorObjectDeliveries.get(error) === delivery) {
+					this.errorObjectDeliveries.delete(error);
+				}
+			});
+		}
+	}
+
+	private async deliverErrorReport(
+		report: DesktopErrorReport,
+	): Promise<boolean> {
+		const error = report.error;
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorType = error instanceof Error ? error.name : "Error";
+		const dedupeKey = `${report.operation}:${report.command ?? ""}:${errorType}:${errorMessage}`;
+		const now = Date.now();
+		if ((this.recentErrorReports.get(dedupeKey) ?? 0) > now - 10_000) {
+			return true;
+		}
+		for (const [key, timestamp] of this.recentErrorReports) {
+			if (timestamp <= now - 10_000) this.recentErrorReports.delete(key);
+		}
+
+		try {
+			const endpoint = await resolveDesktopBackendHttpEndpoint();
+			const response = await fetch(`${endpoint}/telemetry/error`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					operation: report.operation,
+					errorMessage,
+					errorType,
+					handled: report.handled ?? true,
+					command: report.command,
+					timeoutMs: report.timeoutMs,
+					transportState: this.transportState,
+				}),
+			});
+			if (!response.ok) return false;
+			this.recentErrorReports.set(dedupeKey, Date.now());
+			return true;
+		} catch {
+			// Error reporting must never affect the desktop UI error path.
+			return false;
+		}
+	}
 
 	private setTransportState(next: DesktopTransportState) {
 		this.transportState = next;
@@ -163,6 +240,14 @@ class DesktopClient {
 	}
 
 	private rejectPending(errorMessage: string) {
+		// Only report closures that actually drop in-flight requests; a clean
+		// transport close (app quit, sidecar restart) is not an error.
+		if (this.pending.size > 0) {
+			this.reportError({
+				operation: "webview.transport_closed",
+				error: new Error(errorMessage),
+			});
+		}
 		for (const requestId of this.pending.keys()) {
 			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
@@ -182,7 +267,11 @@ class DesktopClient {
 		let parsed: DesktopTransportMessage;
 		try {
 			parsed = JSON.parse(raw) as DesktopTransportMessage;
-		} catch {
+		} catch (error) {
+			this.reportError({
+				operation: "webview.transport_message_parse",
+				error,
+			});
 			return;
 		}
 
@@ -269,6 +358,10 @@ class DesktopClient {
 			.catch((error) => {
 				const message = error instanceof Error ? error.message : String(error);
 				this.transportError = message;
+				this.reportError({
+					operation: "webview.transport_connect",
+					error,
+				});
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
@@ -290,13 +383,28 @@ class DesktopClient {
 		// only when running inside the full Tauri app shell. In sidecar/web mode
 		// these are handled by the sidecar over WebSocket.
 		if (NATIVE_COMMANDS.has(command) && isTauriAvailable()) {
-			return await tryTauriInvoke<T>(command, args);
+			try {
+				return await tryTauriInvoke<T>(command, args);
+			} catch (error) {
+				this.reportError({
+					operation: "webview.native_command",
+					error,
+					command,
+				});
+				throw error;
+			}
 		}
 
 		await this.ensureConnected();
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
-			throw new Error("Desktop backend transport unavailable");
+			const error = new Error("Desktop backend transport unavailable");
+			this.reportError({
+				operation: "webview.transport_unavailable",
+				error,
+				command,
+			});
+			throw error;
 		}
 
 		const id = `desktop_${Date.now()}_${this.requestCounter++}`;
@@ -320,9 +428,16 @@ class DesktopClient {
 							if (!pending) {
 								return;
 							}
-							pending.reject(
-								new Error(`Desktop command timed out waiting for ${command}`),
+							const error = new Error(
+								`Desktop command timed out waiting for ${command}`,
 							);
+							this.reportError({
+								operation: "webview.command_timeout",
+								error,
+								command,
+								timeoutMs,
+							});
+							pending.reject(error);
 						}, timeoutMs);
 			this.pending.set(id, {
 				resolve: (value) => resolve(value as T),
@@ -333,6 +448,11 @@ class DesktopClient {
 				socket.send(JSON.stringify(request));
 			} catch (error) {
 				this.takePending(id);
+				this.reportError({
+					operation: "webview.command_send",
+					error,
+					command,
+				});
 				throw error;
 			}
 		});

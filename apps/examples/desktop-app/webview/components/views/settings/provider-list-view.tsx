@@ -10,6 +10,7 @@ import {
 	ImageIcon,
 	Link as LinkIcon,
 	Loader2,
+	Plus,
 	PlusCircle,
 	RefreshCw,
 	Search,
@@ -28,6 +29,36 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+
+const FAVORITE_MODELS_STORAGE_KEY = "cline.favorite-provider-models.v1";
+
+function readFavoriteModels(): Record<string, string[]> {
+	if (typeof window === "undefined") return {};
+	try {
+		const value = JSON.parse(
+			window.localStorage.getItem(FAVORITE_MODELS_STORAGE_KEY) ?? "{}",
+		);
+		if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+		return Object.fromEntries(
+			Object.entries(value).filter(
+				(entry): entry is [string, string[]] =>
+					typeof entry[0] === "string" &&
+					Array.isArray(entry[1]) &&
+					entry[1].every((modelId) => typeof modelId === "string"),
+			),
+		);
+	} catch {
+		return {};
+	}
+}
+
+function writeFavoriteModels(value: Record<string, string[]>): void {
+	if (typeof window === "undefined") return;
+	window.localStorage.setItem(
+		FAVORITE_MODELS_STORAGE_KEY,
+		JSON.stringify(value),
+	);
+}
 
 // -----------------------------------------------------------
 // Provider LIST content (the grid of all providers)
@@ -203,9 +234,14 @@ export function ProviderListContent({
 								onClick={() => onConfigure(prov.id)}
 								type="button"
 							>
-								<p className="min-w-0 flex-1 truncate text-[17px] font-semibold text-foreground">
-									{prov.name}
-								</p>
+								<div className="flex min-w-0 flex-1 items-baseline gap-2">
+									<p className="truncate text-[17px] font-semibold text-foreground">
+										{prov.name}
+									</p>
+									<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
+										{prov.id}
+									</p>
+								</div>
 								<p className="shrink-0 text-[15px] text-muted-foreground">
 									{prov.models === null
 										? "Models load on demand"
@@ -238,6 +274,7 @@ export function ProviderDetailContent({
 	onBack,
 	onUpdate,
 	onLoadModels,
+	onUpdateModels,
 	modelsLoading = false,
 	modelsError,
 	onOAuthLogin,
@@ -248,6 +285,7 @@ export function ProviderDetailContent({
 	onBack: () => void;
 	onUpdate: (updates: ProviderSettingsUpdate) => void;
 	onLoadModels?: () => void;
+	onUpdateModels?: (models: string[]) => void;
 	modelsLoading?: boolean;
 	modelsError?: string | null;
 	onOAuthLogin?: () => void;
@@ -266,6 +304,11 @@ export function ProviderDetailContent({
 		modelId: string;
 		providerId: string;
 	} | null>(null);
+	const [addModelState, setAddModelState] = useState<{
+		providerId: string;
+		value: string;
+	} | null>(null);
+	const [favoriteModels, setFavoriteModels] = useState(readFavoriteModels);
 	const copiedModelTimeoutRef = useRef<number | undefined>(undefined);
 
 	const configFields = provider.configFields ?? [];
@@ -277,14 +320,21 @@ export function ProviderDetailContent({
 		copiedModelState?.providerId === provider.id
 			? copiedModelState.modelId
 			: null;
+	const isAddingModel = addModelState?.providerId === provider.id;
+	const newModelId = isAddingModel ? addModelState.value : "";
 	const modelSearchQuery = modelSearch.trim().toLowerCase();
-	const filteredModelList = modelSearchQuery
+	const matchingModelList = modelSearchQuery
 		? modelList.filter(
 				(model) =>
 					model.name.toLowerCase().includes(modelSearchQuery) ||
 					model.id.toLowerCase().includes(modelSearchQuery),
 			)
 		: modelList;
+	const favoriteModelIds = new Set(favoriteModels[provider.id] ?? []);
+	const filteredModelList = [...matchingModelList].sort(
+		(a, b) =>
+			Number(favoriteModelIds.has(b.id)) - Number(favoriteModelIds.has(a.id)),
+	);
 	const isPanel = variant === "panel";
 
 	useEffect(
@@ -335,6 +385,29 @@ export function ProviderDetailContent({
 		});
 	};
 
+	const addModel = () => {
+		const modelId = newModelId.trim();
+		if (!modelId || modelList.some((model) => model.id === modelId)) {
+			return;
+		}
+		onUpdateModels?.([...modelList.map((model) => model.id), modelId]);
+		setAddModelState(null);
+	};
+
+	const toggleFavoriteModel = (modelId: string) => {
+		setFavoriteModels((current) => {
+			const providerFavorites = new Set(current[provider.id] ?? []);
+			if (providerFavorites.has(modelId)) providerFavorites.delete(modelId);
+			else providerFavorites.add(modelId);
+			const next = {
+				...current,
+				[provider.id]: Array.from(providerFavorites),
+			};
+			writeFavoriteModels(next);
+			return next;
+		});
+	};
+
 	return (
 		<ScrollArea className="h-full">
 			<div
@@ -359,14 +432,19 @@ export function ProviderDetailContent({
 							<ArrowLeft className="h-4 w-4" />
 						)}
 					</Button>
-					<h1
-						className={cn(
-							"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
-							isPanel ? "text-[24px]" : "text-[32px]",
-						)}
-					>
-						{provider.name}
-					</h1>
+					<div className="flex min-w-0 items-baseline gap-2">
+						<h1
+							className={cn(
+								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+								isPanel ? "text-[24px]" : "text-[32px]",
+							)}
+						>
+							{provider.name}
+						</h1>
+						<p className="shrink-0 font-mono text-xs text-muted-foreground">
+							{provider.id}
+						</p>
+					</div>
 				</div>
 
 				{configFields.length > 0 ? (
@@ -523,30 +601,78 @@ export function ProviderDetailContent({
 					)}
 				>
 					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
-						<h2 className="text-[17px] font-medium text-muted-foreground">
-							Models
-						</h2>
 						<div className="flex items-center gap-1">
-							<Search className="size-4 text-muted-foreground" />
+							<h2 className="mr-1 text-[17px] font-medium text-muted-foreground">
+								Models
+							</h2>
 							<Button
 								aria-label="Refresh models"
-								className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
 								disabled={modelsLoading}
 								onClick={onLoadModels}
 								variant="ghost"
 							>
 								<RefreshCw
-									className={cn("size-3", modelsLoading && "animate-spin")}
+									className={cn("size-4", modelsLoading && "animate-spin")}
 								/>
 							</Button>
 						</div>
+						{onUpdateModels ? (
+							<Button
+								aria-label="Add model"
+								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+								disabled={modelsLoading}
+								onClick={() =>
+									setAddModelState({ providerId: provider.id, value: "" })
+								}
+								variant="ghost"
+							>
+								<Plus className="size-4" />
+							</Button>
+						) : null}
 					</div>
+					{isAddingModel ? (
+						<div className="flex items-center gap-2 border-t px-4 py-3">
+							<Input
+								aria-label="New model ID"
+								autoFocus
+								className="h-9 flex-1 font-mono"
+								onChange={(event) =>
+									setAddModelState({
+										providerId: provider.id,
+										value: event.target.value,
+									})
+								}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") addModel();
+									if (event.key === "Escape") setAddModelState(null);
+								}}
+								placeholder="Model ID"
+								value={newModelId}
+							/>
+							<Button
+								disabled={!newModelId.trim()}
+								onClick={addModel}
+								size="sm"
+							>
+								Add
+							</Button>
+							<Button
+								onClick={() => setAddModelState(null)}
+								size="sm"
+								variant="ghost"
+							>
+								Cancel
+							</Button>
+						</div>
+					) : null}
 
 					{modelsError ? (
-						<div className="rounded-lg border border-border px-4 py-8 text-center">
+						<div className="border-t border-destructive/30 bg-destructive/5 px-4 py-2">
 							<p className="text-sm text-destructive">{modelsError}</p>
 						</div>
-					) : modelList.length > 0 ? (
+					) : null}
+					{modelList.length > 0 ? (
 						<div className="space-y-3">
 							<div className="mx-4 mt-4 flex items-center gap-2 rounded border border-border bg-background px-3 py-2">
 								<Search className="size-4 shrink-0 text-muted-foreground" />
@@ -603,16 +729,28 @@ export function ProviderDetailContent({
 												</button>
 											</div>
 
-											{/* Action icons */}
-											<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-												<Button
-													aria-label={`Favorite ${model.name}`}
-													className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
-													variant="ghost"
-												>
-													<Star className="h-3.5 w-3.5" />
-												</Button>
-											</div>
+											<Button
+												aria-label={
+													favoriteModelIds.has(model.id)
+														? `Unfavorite ${model.name}`
+														: `Favorite ${model.name}`
+												}
+												className={cn(
+													"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground",
+													favoriteModelIds.has(model.id)
+														? "text-amber-400"
+														: "text-muted-foreground",
+												)}
+												onClick={() => toggleFavoriteModel(model.id)}
+												variant="ghost"
+											>
+												<Star
+													className={cn(
+														"size-4",
+														favoriteModelIds.has(model.id) && "fill-current",
+													)}
+												/>
+											</Button>
 										</div>
 									))}
 								</div>
