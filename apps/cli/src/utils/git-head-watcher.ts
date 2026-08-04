@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { type FSWatcher, unwatchFile, watch, watchFile } from "node:fs";
+import { unwatchFile, watchFile } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -27,75 +27,41 @@ export async function resolveGitDir(cwd: string): Promise<string | null> {
 	}
 }
 
-/** How often the stat-based backstop checks HEAD for changes. */
-const HEAD_STAT_POLL_INTERVAL_MS = 2_000;
-
 export interface WatchGitHeadOptions {
-	debounceMs?: number;
+	intervalMs?: number;
 	/** Injectable for tests. Defaults to resolveGitDir. */
 	resolveDir?: (cwd: string) => Promise<string | null>;
 }
 
 /**
- * Watch for HEAD changes (e.g. branch checkouts made from another terminal or
- * an editor) and invoke `onHeadChange` when they happen.
+ * Invoke `onHeadChange` when the repository's HEAD changes (e.g. a branch
+ * checkout from another terminal or an editor).
  *
- * Two complementary mechanisms are armed:
+ * Uses fs.watchFile — a cheap in-process stat check on the single HEAD file —
+ * rather than fs.watch, which misses HEAD's rename-based updates on some
+ * runtimes (Bun on Linux) and delivers nothing on network mounts.
  *
- * - fs.watch on the git directory, filtered to HEAD events, for instant
- *   notification. Git replaces HEAD via rename, which silently kills
- *   file-level watchers, hence the directory watch. This is unreliable on
- *   some runtime/filesystem combinations (notably Bun on Linux drops the
- *   HEAD rename events, and network mounts may deliver nothing).
- * - fs.watchFile on the HEAD file as a backstop: an in-process stat() every
- *   couple of seconds that only fires when HEAD actually changed. No
- *   subprocesses are spawned unless a change is detected.
- *
- * Both feed a shared debounce. Failures (not a repo, fs.watch unsupported)
- * are swallowed. Returns a dispose function.
+ * Returns a dispose function. A non-repo cwd results in a no-op.
  */
 export function watchGitHead(
 	cwd: string,
 	onHeadChange: () => void,
 	options?: WatchGitHeadOptions,
 ): () => void {
-	const debounceMs = options?.debounceMs ?? 100;
+	const intervalMs = options?.intervalMs ?? 2_000;
 	const resolveDir = options?.resolveDir ?? resolveGitDir;
-	let watcher: FSWatcher | null = null;
-	let watchedHeadPath: string | null = null;
-	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let headPath: string | null = null;
 	let disposed = false;
-
-	const scheduleChange = () => {
-		if (debounceTimer) clearTimeout(debounceTimer);
-		debounceTimer = setTimeout(() => {
-			debounceTimer = null;
-			onHeadChange();
-		}, debounceMs);
-	};
 
 	void resolveDir(cwd).then((gitDir) => {
 		if (disposed || !gitDir) return;
-
-		try {
-			watcher = watch(gitDir, (_eventType, filename) => {
-				// filename can be null on some platforms; refresh in that case too.
-				if (filename && filename !== "HEAD") return;
-				scheduleChange();
-			});
-			// Without a listener an errored watcher would crash the process.
-			watcher.on("error", () => {});
-		} catch {
-			watcher = null;
-		}
-
-		watchedHeadPath = join(gitDir, "HEAD");
+		headPath = join(gitDir, "HEAD");
 		watchFile(
-			watchedHeadPath,
-			{ interval: HEAD_STAT_POLL_INTERVAL_MS, persistent: false },
+			headPath,
+			{ interval: intervalMs, persistent: false },
 			(curr, prev) => {
 				if (curr.mtimeMs !== prev.mtimeMs || curr.ino !== prev.ino) {
-					scheduleChange();
+					onHeadChange();
 				}
 			},
 		);
@@ -103,15 +69,9 @@ export function watchGitHead(
 
 	return () => {
 		disposed = true;
-		if (debounceTimer) {
-			clearTimeout(debounceTimer);
-			debounceTimer = null;
-		}
-		watcher?.close();
-		watcher = null;
-		if (watchedHeadPath) {
-			unwatchFile(watchedHeadPath);
-			watchedHeadPath = null;
+		if (headPath) {
+			unwatchFile(headPath);
+			headPath = null;
 		}
 	};
 }

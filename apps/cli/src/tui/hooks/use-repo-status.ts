@@ -9,9 +9,8 @@ import {
 /**
  * Tracks the git branch / diff stats shown in the status bar. Beyond the
  * explicit refreshes triggered after agent turns, it watches the repo's HEAD
- * so branch switches made outside the CLI (another terminal, an editor) show
- * up promptly. The watcher is event-driven with a cheap in-process stat
- * backstop; git subprocesses only run when HEAD actually changed.
+ * file so branch switches made outside the CLI (another terminal, an editor)
+ * show up promptly; git only runs when HEAD actually changed.
  */
 export function useRepoStatus(options: {
 	cwd: string;

@@ -69,9 +69,13 @@ describe("git head watcher", () => {
 	it("fires when the branch changes externally", async () => {
 		await createRepo(dir);
 		let changes = 0;
-		dispose = watchGitHead(dir, () => {
-			changes += 1;
-		});
+		dispose = watchGitHead(
+			dir,
+			() => {
+				changes += 1;
+			},
+			{ intervalMs: 50 },
+		);
 		// The watcher resolves the git dir asynchronously; give it time to arm.
 		await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -85,9 +89,13 @@ describe("git head watcher", () => {
 	it("stops firing after dispose", async () => {
 		await createRepo(dir);
 		let changes = 0;
-		const stop = watchGitHead(dir, () => {
-			changes += 1;
-		});
+		const stop = watchGitHead(
+			dir,
+			() => {
+				changes += 1;
+			},
+			{ intervalMs: 50 },
+		);
 		await new Promise((resolve) => setTimeout(resolve, 300));
 		stop();
 
