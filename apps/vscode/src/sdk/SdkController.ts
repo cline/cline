@@ -1053,6 +1053,12 @@ export class Controller {
 			requestId: clineError.requestId,
 			errorType: event.errorType,
 			failurePhase: event.failurePhase,
+			// Every event here is a failure the user actually saw: transient
+			// errors are retried inside the provider layer before any event
+			// reaches this adapter, and recoverable in-run notices are filtered
+			// out upstream. The legacy extension applies the same
+			// surfaced-failures-only rule at its emission sites, so the A/B
+			// cohorts compare directly with no query-side filtering.
 		})
 	}
 
@@ -1438,6 +1444,12 @@ export class Controller {
 				})
 			}
 
+			// The edit supersedes the old session — settle any pending tool
+			// approval / ask_question exactly like cancelTask does. Without this,
+			// the old run stays suspended forever on a promise nothing can
+			// resolve, and the stale parked resolver intercepts later responses.
+			this.interactions.clearPending("Superseded by an edited message")
+
 			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 
 			this.turnStateTracker.set("streaming")
@@ -1799,16 +1811,9 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const historyItem = (await this.taskHistory.listHistory({ hydrate: false })).find((item) => item.sessionId === id)
-		if (!historyItem) {
-			throw new Error(`Task not found in history: ${id}`)
-		}
-
-		const taskDirPath = historyItem.messagesPath
-			? path.dirname(historyItem.messagesPath)
-			: this.taskHistory.getLegacyTaskDirPath(id)
+		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
-			throw new Error(`Task history item has no artifact path: ${id}`)
+			throw new Error(`Task not found in history: ${id}`)
 		}
 
 		await fs.access(taskDirPath)

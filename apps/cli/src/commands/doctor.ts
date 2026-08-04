@@ -19,10 +19,10 @@ import {
 	type SupervisedConnectorRecord,
 } from "@cline/shared";
 import { Command } from "commander";
-import open from "open";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
+import open from "../utils/open";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
 import { listSupervisedConnectorsViaHub } from "./connect-via-hub";

@@ -135,8 +135,11 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.className).toContain("overflow-y-hidden");
-		expect(promptInput?.className).not.toContain("overflow-y-auto");
+		expect(promptInput?.rows).toBe(2);
+		expect(promptInput?.className).toContain("field-sizing-content");
+		expect(promptInput?.className).toContain("overflow-y-auto");
+		expect(promptInput?.style.minHeight).toBe("2.5rem");
+		expect(promptInput?.style.maxHeight).toBe("6.25rem");
 
 		await act(async () => {
 			if (!promptInput) return;
@@ -147,7 +150,7 @@ describe("ChatInputBar", () => {
 			setValue?.call(promptInput, "first line\nsecond line");
 			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		expect(promptInput?.className).toContain("overflow-y-auto");
+		expect(promptInput?.rows).toBe(2);
 
 		await render("starting");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
@@ -186,13 +189,14 @@ describe("ChatInputBar", () => {
 		expect(workspaceFooterSlot?.className).not.toContain("truncate");
 		expect(workspaceFooterSlot?.className).not.toContain("hidden");
 		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
-		const rightControls = workspaceFooterSlot?.parentElement;
+		const rightControls = workspaceFooterSlot?.parentElement?.parentElement;
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
-		expect(
-			rightControls?.contains(
-				container.querySelector('[aria-label="Send message"]'),
-			),
-		).toBe(true);
+		const sendTrigger = container.querySelector('[aria-label="Send message"]');
+		const stopTrigger = container.querySelector('[aria-label="Stop agent"]');
+		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
+		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		expect(rightControls?.contains(sendTrigger)).toBe(false);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
 
@@ -284,7 +288,12 @@ describe("ChatInputBar", () => {
 	});
 
 	it("shows queued prompts in an accessible list with clear priority actions", async () => {
-		const onSteerPromptInQueue = vi.fn();
+		const onSteerPromptInQueue = vi
+			.fn()
+			.mockRejectedValue(new Error("steer failed"));
+		const onEditPromptInQueue = vi
+			.fn()
+			.mockRejectedValue(new Error("edit failed"));
 		const onRemovePromptInQueue = vi.fn();
 		await act(async () => {
 			root.render(
@@ -306,7 +315,7 @@ describe("ChatInputBar", () => {
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
-						onEditPromptInQueue={vi.fn()}
+						onEditPromptInQueue={onEditPromptInQueue}
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -381,6 +390,42 @@ describe("ChatInputBar", () => {
 		});
 
 		expect(onSteerPromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+		await vi.waitFor(() =>
+			expect(queuedPrompts?.textContent).toContain("steer failed"),
+		);
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Edit queued prompt"]')
+				?.click();
+		});
+		const editor = container.querySelector<HTMLTextAreaElement>(
+			'[aria-label="Edit queued prompt"]',
+		);
+		expect(editor).not.toBeNull();
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Save queued prompt"]')
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(onEditPromptInQueue).toHaveBeenCalledWith(
+			"queued-prompt-1",
+			"What else can we update the title to?",
+		);
+		await vi.waitFor(() => {
+			expect(editor?.isConnected).toBe(true);
+			expect(queuedPrompts?.textContent).toContain("edit failed");
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[aria-label="Cancel editing queued prompt"]',
+				)
+				?.click();
+		});
 
 		await act(async () => {
 			container
@@ -390,5 +435,155 @@ describe("ChatInputBar", () => {
 		});
 
 		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+	});
+});
+
+describe("ChatInputBar token ring", () => {
+	const renderTokenUsage = async (
+		summary: Parameters<typeof ChatInputBar>[0]["summary"],
+		modelContextWindow?: number,
+	) => {
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						modelContextWindow={modelContextWindow}
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={summary}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		return container.querySelector<HTMLButtonElement>("#token-usage");
+	};
+
+	it("waits for input usage and model context metadata", async () => {
+		expect(
+			await renderTokenUsage({
+				toolCalls: 0,
+				tokensIn: 500,
+				tokensOut: 0,
+			}),
+		).toBeNull();
+		expect(
+			await renderTokenUsage(
+				{
+					toolCalls: 0,
+					tokensIn: 0,
+					tokensOut: 500,
+				},
+				2000,
+			),
+		).toBeNull();
+	});
+
+	it("fills from input only and sits immediately before the workspace selector", async () => {
+		const trigger = await renderTokenUsage(
+			{
+				toolCalls: 0,
+				tokensIn: 1000,
+				tokensOut: 500,
+			},
+			2000,
+		);
+		expect(trigger?.getAttribute("aria-label")).toBe(
+			"Context window: 1,000 of 2,000 input tokens used (50%)",
+		);
+		expect(trigger?.textContent).toBe("");
+		const ring = trigger?.querySelector("svg");
+		expect(ring?.classList.contains("size-3.5")).toBe(true);
+		expect(ring?.getAttribute("height")).toBe("22");
+		expect(ring?.getAttribute("width")).toBe("22");
+		const progressCircle = trigger?.querySelector("circle.stroke-primary");
+		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
+		const circumference = 2 * Math.PI * 8.5;
+		expect(
+			Number(progressCircle?.getAttribute("stroke-dashoffset")),
+		).toBeCloseTo(circumference * 0.5);
+
+		const workspaceSelector = container.querySelector("#git-branch-btn");
+		expect(workspaceSelector).not.toBeNull();
+		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
+		expect(trigger?.parentElement?.contains(workspaceSelector)).toBe(true);
+		expect(
+			Boolean(
+				trigger?.compareDocumentPosition(workspaceSelector as Node) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			),
+		).toBe(true);
+		expect(container.textContent).not.toContain("1,500 tokens");
+	});
+
+	it("opens only supported usage details on click", async () => {
+		const trigger = await renderTokenUsage(
+			{
+				toolCalls: 0,
+				tokensIn: 500_000,
+				tokensOut: 500,
+				totalCostUsd: 0.0142,
+			},
+			1_000_000,
+		);
+		await act(async () => {
+			trigger?.click();
+		});
+
+		const panel = document.querySelector("#token-usage-panel");
+		expect(panel?.textContent).toContain("Context window500k / 1.0M (50%)");
+		expect(panel?.textContent).toContain("Output tokens500");
+		expect(panel?.textContent).toContain("Cost$0.014");
+		expect(panel?.textContent).not.toContain("Total");
+		expect(panel?.textContent).not.toContain("usage limit");
+	});
+
+	it("saturates at 100% without switching to a destructive style", async () => {
+		const trigger = await renderTokenUsage(
+			{
+				toolCalls: 0,
+				tokensIn: 130_000,
+				tokensOut: 5_000,
+			},
+			128_000,
+		);
+		const progressCircle = trigger?.querySelector("circle.stroke-primary");
+		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+		expect(trigger?.querySelector(".stroke-destructive")).toBeNull();
 	});
 });

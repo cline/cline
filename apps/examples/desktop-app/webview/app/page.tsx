@@ -488,6 +488,8 @@ function ChatThreadPane({
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>({});
+	const [providerModelContextWindows, setProviderModelContextWindows] =
+		useState<Record<string, Record<string, number>>>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
 	// History paths lead each merge: they are ordered by session recency, so
 	// stored or stale entries only append after them.
@@ -545,6 +547,7 @@ function ChatThreadPane({
 					return;
 				}
 				const next: Record<string, { apiKey: string }> = {};
+				const nextContextWindows: Record<string, Record<string, number>> = {};
 				for (const provider of payload.providers ?? []) {
 					const id = provider.id?.trim();
 					if (!id) {
@@ -553,8 +556,21 @@ function ChatThreadPane({
 					next[id] = {
 						apiKey: provider.apiKey?.trim() ?? "",
 					};
+					const contextWindows: Record<string, number> = {};
+					for (const model of provider.modelList ?? []) {
+						if (
+							model.id &&
+							typeof model.contextWindow === "number" &&
+							Number.isFinite(model.contextWindow) &&
+							model.contextWindow > 0
+						) {
+							contextWindows[model.id] = model.contextWindow;
+						}
+					}
+					nextContextWindows[id] = contextWindows;
 				}
 				setProviderCredentials(next);
+				setProviderModelContextWindows(nextContextWindows);
 			} catch {
 				// Keep current config if provider catalog cannot be read.
 			} finally {
@@ -567,6 +583,9 @@ function ChatThreadPane({
 			cancelled = true;
 		};
 	}, []);
+
+	const modelContextWindow =
+		providerModelContextWindows[config.provider.trim()]?.[config.model.trim()];
 
 	useEffect(() => {
 		const selected = providerCredentials[config.provider];
@@ -1301,12 +1320,8 @@ function ChatThreadPane({
 			}
 			onPromptInputChange={handlePromptInputChange}
 			onReasoningChange={handleReasoningChange}
-			onSteerPromptInQueue={(promptId) => {
-				void steerPromptInQueue(promptId);
-			}}
-			onEditPromptInQueue={(promptId, prompt) => {
-				void updatePromptInQueue(promptId, prompt);
-			}}
+			onSteerPromptInQueue={steerPromptInQueue}
+			onEditPromptInQueue={updatePromptInQueue}
 			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={(nextProvider) =>
 				setConfig((prev) => {
@@ -1325,6 +1340,7 @@ function ChatThreadPane({
 			onSend={(prompt) => void handleSend(prompt)}
 			gitBranch={gitBranch}
 			model={config.model}
+			modelContextWindow={modelContextWindow}
 			mode={config.mode}
 			promptsInQueue={promptsInQueue}
 			promptDraft={promptDraft}

@@ -1042,6 +1042,7 @@ export class SessionRuntime {
 					provider: this.config.providerId,
 					info: modelInfo,
 				},
+				overflowRecovery: context.overflowRecovery,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {
