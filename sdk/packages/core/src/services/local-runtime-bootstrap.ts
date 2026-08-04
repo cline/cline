@@ -268,6 +268,7 @@ export async function prepareLocalRuntimeBootstrap(
 		userInstructionService,
 		configExtensions,
 		onTeamRestored,
+		pluginRuntime,
 		...localConfigFields
 	} = localRuntime ?? {};
 	const localConfig =
@@ -352,6 +353,8 @@ export async function prepareLocalRuntimeBootstrap(
 				logger: extensionContext.logger,
 				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
+				runtimeExecutable: pluginRuntime?.executable,
+				env: pluginRuntime?.env,
 			});
 			logPluginDiagnostics(
 				loadedPlugins.failures,
