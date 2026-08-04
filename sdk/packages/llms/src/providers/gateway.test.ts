@@ -68,7 +68,7 @@ vi.mock("ai", () => ({
 	// is exercised by its own unit tests; here we just need an identity
 	// pass-through so the vendor factories' downstream `model:` callbacks
 	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV3` interface, so we
+	// objects don't satisfy the real `LanguageModelV4` interface, so we
 	// can't call the real `wrapLanguageModel` either way.)
 	wrapLanguageModel: ({ model }: { model: unknown }) => model,
 }));
@@ -2367,11 +2367,8 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(streamTextSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				tools: undefined,
-			}),
-		);
+		const streamTextOptions = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(streamTextOptions).not.toHaveProperty("tools");
 	});
 
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {
