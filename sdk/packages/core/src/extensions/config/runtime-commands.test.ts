@@ -169,6 +169,54 @@ Publish the UI package.`,
 		}
 	});
 
+	it("keeps every same-kind normalized name collision reachable", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, "skills");
+		const firstSkillDir = join(skillsDir, "publish-ui-stable");
+		const secondSkillDir = join(skillsDir, "publish-ui-preview");
+		await mkdir(firstSkillDir, { recursive: true });
+		await mkdir(secondSkillDir, { recursive: true });
+		await writeFile(
+			join(firstSkillDir, "SKILL.md"),
+			`---
+name: Publish UI
+---
+Publish the stable UI.`,
+		);
+		await writeFile(
+			join(secondSkillDir, "SKILL.md"),
+			`---
+name: publish-ui
+---
+Publish the preview UI.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			const commands = listAvailableRuntimeCommandsFromWatcher(watcher);
+			expect(commands.map((command) => command.name)).toEqual([
+				"publish-ui-skill-publish-ui",
+				"publish-ui-skill-publish-ui-2",
+			]);
+			expect(
+				new Set(
+					commands.map((command) =>
+						resolveRuntimeSlashCommandFromWatcher(`/${command.name}`, watcher),
+					),
+				),
+			).toEqual(new Set(["Publish the stable UI.", "Publish the preview UI."]));
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("leaves workflow display description blank when no description is set", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);

@@ -23,6 +23,12 @@ function normalizeRuntimeCommandName(name: string): string {
 	return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+function normalizeRuntimeCommandId(id: string): string {
+	return normalizeRuntimeCommandName(id)
+		.replace(/[^a-z0-9_-]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
 function resolveCommandDescription(
 	item: SkillConfig | WorkflowConfig,
 	kind: RuntimeCommandKind,
@@ -65,18 +71,32 @@ export function listAvailableRuntimeCommandsFromWatcher(
 		...listCommandsForKind(watcher, "skill"),
 	];
 	const countsByName = new Map<string, number>();
+	const countsByNameAndKind = new Map<string, number>();
 	for (const command of commands) {
 		countsByName.set(command.name, (countsByName.get(command.name) ?? 0) + 1);
+		const kindKey = `${command.name}:${command.kind}`;
+		countsByNameAndKind.set(
+			kindKey,
+			(countsByNameAndKind.get(kindKey) ?? 0) + 1,
+		);
 	}
 	const byName = new Map<string, AvailableRuntimeCommand>();
 	for (const command of commands) {
-		const name =
-			countsByName.get(command.name) === 1
-				? command.name
-				: `${command.name}-${command.kind}`;
-		if (!byName.has(name)) {
-			byName.set(name, { ...command, name });
+		let name = command.name;
+		if (countsByName.get(command.name) !== 1) {
+			name = `${command.name}-${command.kind}`;
+			if (countsByNameAndKind.get(`${command.name}:${command.kind}`) !== 1) {
+				const id = normalizeRuntimeCommandId(command.id) || "command";
+				name = `${name}-${id}`;
+			}
 		}
+		const baseName = name;
+		let suffix = 2;
+		while (byName.has(name)) {
+			name = `${baseName}-${suffix}`;
+			suffix += 1;
+		}
+		byName.set(name, { ...command, name });
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
