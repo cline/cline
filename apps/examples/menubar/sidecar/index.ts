@@ -10,7 +10,11 @@ import {
 	stopLocalHubServerGracefully,
 	toHubStatusUrl,
 } from "@cline/core";
-import type { HubUINotifyPayload, SessionRecord } from "@cline/shared";
+import {
+	claimHubDaemonProcess,
+	type HubUINotifyPayload,
+	type SessionRecord,
+} from "@cline/shared";
 import { configureMenubarConnectorCliLaunch } from "./connector-cli-launch";
 
 interface TrackedClient {
@@ -940,7 +944,13 @@ async function main(): Promise<void> {
 	});
 }
 
-if (isBundledDaemonEntryInvocation()) {
+// Claim unconditionally, before the personality is decided: the spawn path sets
+// the sentinel on every daemon it launches, and this host selects the daemon by
+// argv. Leaving the variable in the environment would hand it to every process a
+// daemon-hosted session spawns — agent shell commands, MCP servers, hooks — each
+// of which would then try to become a hub daemon and die on EADDRINUSE.
+const claimedDaemonSentinel = claimHubDaemonProcess();
+if (claimedDaemonSentinel || isBundledDaemonEntryInvocation()) {
 	await import("@cline/core/hub/daemon-entry");
 } else {
 	main().catch((err) => {
