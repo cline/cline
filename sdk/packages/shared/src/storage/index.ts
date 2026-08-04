@@ -11,6 +11,7 @@ export {
 	ensureFileExists,
 	ensureHookLogDir,
 	ensureParentDir,
+	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isChatWorkspacePath,
 	isPluginModulePath,

@@ -25,6 +25,7 @@ import {
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -829,7 +830,7 @@ async function listUserInstructionConfigs(
 						continue;
 					}
 					pluginsByPath.set(filePath, {
-						name: basename(filePath, extname(filePath)),
+						name: getPluginDisplayName(filePath, directory),
 						path: filePath,
 						enabled: !disabledPlugins.has(filePath),
 					});
