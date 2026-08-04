@@ -206,6 +206,14 @@ export interface StartSessionResult {
 export interface SendSessionInput {
 	sessionId: string;
 	prompt: string;
+	/**
+	 * Optional caller-supplied correlation id. When the runtime queues the
+	 * prompt instead of running it, this id is stored on the queue entry and
+	 * echoed in pending_prompt snapshots and pending_prompt_submitted events
+	 * so the caller can recognize its own prompt. The runtime-generated queue
+	 * id remains the authoritative identifier for edit/delete.
+	 */
+	clientPromptId?: string;
 	mode?: AgentMode;
 	userImages?: string[];
 	userFiles?: string[];

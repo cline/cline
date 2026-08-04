@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeCapabilities } from "@cline/core";
+import type { CoreSessionEvent, RuntimeCapabilities } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import type { LiveSession, SidecarContext } from "./types";
@@ -15,6 +15,7 @@ const hubGetUrlMock = vi.hoisted(() => vi.fn());
 const hubIsConnectedMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const coreSubscribeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -64,6 +65,7 @@ describe("Code sidecar runtime capabilities", () => {
 		hubIsConnectedMock.mockReset();
 		nodeHubClientCtorMock.mockReset();
 		subscribeMock.mockReset();
+		coreSubscribeMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
@@ -73,9 +75,10 @@ describe("Code sidecar runtime capabilities", () => {
 		hubGetUrlMock.mockReturnValue("ws://127.0.0.1:25463/hub");
 		hubIsConnectedMock.mockReturnValue(true);
 		subscribeMock.mockReturnValue(() => {});
+		coreSubscribeMock.mockReturnValue(() => {});
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
-			subscribe: vi.fn(() => () => {}),
+			subscribe: coreSubscribeMock,
 			dispose: vi.fn(),
 		});
 	});
@@ -220,6 +223,73 @@ describe("Code sidecar runtime capabilities", () => {
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
 		});
+	});
+
+	it("only materializes a queued prompt after an explicit submitted event", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{
+					id: "queued-1",
+					prompt: "Delete me",
+					steer: false,
+					attachmentCount: 0,
+				},
+			],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+		await initializeSessionManager(ctx);
+
+		const listener = coreSubscribeMock.mock.calls[0]?.[0] as
+			| ((event: CoreSessionEvent) => void)
+			| undefined;
+		expect(listener).toBeTypeOf("function");
+
+		listener?.({
+			type: "pending_prompts",
+			payload: { sessionId: "session-1", prompts: [] },
+		});
+		expect(
+			readEvents(ctx).filter(
+				(item) =>
+					item.event.name === "chat_event" &&
+					item.event.payload.stream === "chat_queued_prompt_start",
+			),
+		).toEqual([]);
+
+		listener?.({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "queued-1",
+				clientPromptId: "client-1",
+				prompt: "Delete me",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		});
+		const submittedEvents = readEvents(ctx).filter(
+			(item) =>
+				item.event.name === "chat_event" &&
+				item.event.payload.stream === "chat_queued_prompt_start",
+		);
+		expect(submittedEvents).toHaveLength(1);
+		expect(JSON.parse(String(submittedEvents[0]?.event.payload.chunk))).toEqual(
+			{
+				promptId: "queued-1",
+				clientPromptId: "client-1",
+				prompt: "Delete me",
+				attachmentCount: 0,
+			},
+		);
 	});
 
 	it("resolves askQuestion through the websocket request/response protocol", async () => {

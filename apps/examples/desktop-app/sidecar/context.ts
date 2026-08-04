@@ -137,8 +137,9 @@ export function broadcastChunk(
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
 	return session.promptsInQueue.map(
-		({ id, prompt, steer, attachmentCount, userImages }) => ({
+		({ id, clientPromptId, prompt, steer, attachmentCount, userImages }) => ({
 			id,
+			clientPromptId,
 			prompt,
 			steer,
 			attachmentCount,
@@ -149,12 +150,14 @@ function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
 
 export function serializeQueuedPromptStart(input: {
 	promptId: string;
+	clientPromptId?: string;
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
 }): string {
 	return JSON.stringify({
 		promptId: input.promptId,
+		clientPromptId: input.clientPromptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
@@ -347,6 +350,7 @@ function handleCoreSessionEvent(
 			const mapped: PromptInQueue[] = prompts
 				.map((item) => ({
 					id: item.id ?? "",
+					clientPromptId: item.clientPromptId,
 					prompt: item.prompt ?? "",
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
@@ -360,32 +364,20 @@ function handleCoreSessionEvent(
 					session,
 					mapped.map((item) => item.id),
 				);
-				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
-				if (
-					previous.length > mapped.length &&
-					previous[0] &&
-					previous[0].id !== mapped[0]?.id
-				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						serializeQueuedPromptStart({
-							promptId: previous[0].id,
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-							userImages: previous[0].userImages,
-						}),
-					);
-				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, id, prompt, attachmentCount, userImages } =
-				event.payload;
+			const {
+				sessionId,
+				id,
+				clientPromptId,
+				prompt,
+				attachmentCount,
+				userImages,
+			} = event.payload;
 			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
 			emitChunk(
 				ctx,
@@ -393,6 +385,7 @@ function handleCoreSessionEvent(
 				"chat_queued_prompt_start",
 				serializeQueuedPromptStart({
 					promptId: id,
+					clientPromptId,
 					prompt,
 					attachmentCount: attachmentCount ?? 0,
 					userImages,

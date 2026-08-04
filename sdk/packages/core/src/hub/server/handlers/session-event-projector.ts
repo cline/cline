@@ -79,6 +79,7 @@ export async function projectSessionEvent(
 		case "pending_prompt_submitted": {
 			const prompt: SessionPendingPrompt = {
 				id: event.payload.id,
+				clientPromptId: event.payload.clientPromptId,
 				prompt: event.payload.prompt,
 				delivery: event.payload.delivery,
 				attachmentCount: event.payload.attachmentCount,

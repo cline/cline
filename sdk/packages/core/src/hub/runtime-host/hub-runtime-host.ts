@@ -1133,6 +1133,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			{
 				sessionId: input.sessionId,
 				input: input.prompt,
+				clientPromptId: input.clientPromptId,
 				mode: input.mode,
 				attachments:
 					(input.userImages?.length ?? 0) > 0 ||
@@ -1880,6 +1881,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					payload: {
 						sessionId,
 						id: prompt.id,
+						clientPromptId: prompt.clientPromptId,
 						prompt: prompt.prompt,
 						delivery: prompt.delivery,
 						attachmentCount: prompt.attachmentCount,

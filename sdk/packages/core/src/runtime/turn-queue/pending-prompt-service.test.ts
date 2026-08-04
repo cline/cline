@@ -120,6 +120,84 @@ describe("PendingPromptService", () => {
 		).toThrow("prompt cannot be empty");
 	});
 
+	it("stores a caller correlation id without replacing the queue id", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, {
+			prompt: "correlate me",
+			clientPromptId: "client-a",
+			delivery: "queue",
+		});
+
+		const [queued] = service.list(state);
+		expect(queued?.clientPromptId).toBe("client-a");
+		expect(queued?.id).not.toBe("client-a");
+		expect(queued?.id).toMatch(/^pending_/);
+	});
+
+	it("keeps the queue id and takes the newest correlation on identical-text merge", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, {
+			prompt: "same text",
+			clientPromptId: "client-old",
+			delivery: "queue",
+		});
+		const originalId = service.list(state)[0]?.id;
+
+		service.enqueue(state, {
+			prompt: "same text",
+			clientPromptId: "client-new",
+			delivery: "queue",
+		});
+		expect(state.pendingPrompts).toHaveLength(1);
+		expect(service.list(state)[0]?.id).toBe(originalId);
+		expect(service.list(state)[0]?.clientPromptId).toBe("client-new");
+
+		service.enqueue(state, { prompt: "same text", delivery: "queue" });
+		expect(service.list(state)[0]?.clientPromptId).toBe("client-new");
+	});
+
+	it("echoes the correlation id in pending_prompt_submitted on drain", async () => {
+		const sessionId = "sess-drain-correlated";
+		const session = {
+			sessionId,
+			pendingPrompts: [
+				{
+					id: "pending-1",
+					clientPromptId: "client-a",
+					prompt: "run me",
+					delivery: "queue",
+				},
+			],
+			aborting: false,
+			drainingPendingPrompts: false,
+			status: "completed",
+			agent: {
+				canStartRun: () => true,
+			},
+		} as unknown as ActiveSession;
+		const events: CoreSessionEvent[] = [];
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: (event) => events.push(event),
+			send: vi.fn().mockResolvedValue(undefined),
+		});
+
+		await controller.drain(sessionId);
+
+		const submitted = events.find(
+			(event) => event.type === "pending_prompt_submitted",
+		);
+		expect(submitted?.payload).toMatchObject({
+			id: "pending-1",
+			clientPromptId: "client-a",
+			prompt: "run me",
+		});
+	});
+
 	it("requeues a drained prompt when send fails", async () => {
 		const sessionId = "sess-drain-failure";
 		const session = {

@@ -40,6 +40,12 @@ export interface SessionTeamProgressEvent {
 
 export interface SessionPendingPrompt {
 	id: string;
+	/**
+	 * Caller-supplied correlation id echoed back verbatim. The queue id above
+	 * stays authoritative; this only lets the submitter recognize its own
+	 * prompt in snapshots and submitted events.
+	 */
+	clientPromptId?: string;
 	prompt: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
@@ -55,6 +61,7 @@ export interface SessionPendingPromptsEvent {
 export interface SessionPendingPromptSubmittedEvent {
 	sessionId: string;
 	id: string;
+	clientPromptId?: string;
 	prompt: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;

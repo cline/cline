@@ -65,6 +65,7 @@ export interface ChatAttachments {
 export interface ChatRunTurnRequest {
 	config: ChatStartSessionRequest;
 	prompt: string;
+	clientPromptId?: string;
 	attachments?: ChatAttachments;
 	delivery?: "queue" | "steer";
 }

@@ -15,6 +15,7 @@ export type PendingPromptDelivery = "queue" | "steer";
 
 export interface PendingPromptEntry {
 	id: string;
+	clientPromptId?: string;
 	prompt: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
@@ -40,6 +41,7 @@ export interface PendingPromptsControllerDeps {
 
 export interface PendingPromptEnqueueInput {
 	prompt: string;
+	clientPromptId?: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
@@ -138,7 +140,8 @@ export class PendingPromptService {
 		state: PendingPromptQueueState,
 		input: PendingPromptEnqueueInput,
 	): SessionPendingPrompt[] {
-		const { prompt, mode, delivery, userImages, userFiles } = input;
+		const { prompt, clientPromptId, mode, delivery, userImages, userFiles } =
+			input;
 		const existingIndex = state.pendingPrompts.findIndex(
 			(queued) => queued.prompt === prompt,
 		);
@@ -147,6 +150,9 @@ export class PendingPromptService {
 			const next: PendingPromptEntry = {
 				...existing,
 				prompt,
+				// Newest correlation wins, matching how the merge replaces the
+				// payload; the queue id itself never changes.
+				clientPromptId: clientPromptId ?? existing.clientPromptId,
 				mode: mode ?? existing.mode,
 				userImages: userImages ?? existing.userImages,
 				userFiles: userFiles ?? existing.userFiles,
@@ -159,6 +165,7 @@ export class PendingPromptService {
 		} else {
 			const newEntry: PendingPromptEntry = {
 				id: `pending_${Date.now()}_${nanoid(5)}`,
+				clientPromptId,
 				prompt,
 				mode,
 				delivery,
@@ -239,6 +246,7 @@ export class PendingPromptsController {
 		sessionId: string,
 		entry: {
 			prompt: string;
+			clientPromptId?: string;
 			mode?: AgentMode;
 			delivery: "queue" | "steer";
 			userImages?: string[];
@@ -341,6 +349,7 @@ export class PendingPromptsController {
 			payload: {
 				sessionId: session.sessionId,
 				id: prompt.id,
+				clientPromptId: prompt.clientPromptId,
 				prompt: prompt.prompt,
 				delivery: prompt.delivery,
 				attachmentCount: prompt.attachmentCount,
@@ -354,6 +363,7 @@ export class PendingPromptsController {
 function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 	return {
 		id: entry.id,
+		clientPromptId: entry.clientPromptId,
 		prompt: entry.prompt,
 		delivery: entry.delivery,
 		attachmentCount:
