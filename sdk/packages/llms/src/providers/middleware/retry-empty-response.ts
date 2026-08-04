@@ -1,18 +1,24 @@
-// LanguageModelV4 middleware that retries an Ollama stream when the model
-// returns an *empty* turn — no text, no reasoning, and no tool call.
+// LanguageModelV4 middleware that retries a stream when the model returns an
+// *empty* turn — no text, no reasoning, and no tool call.
 //
-// Background: local backends (Ollama especially) intermittently return a
-// response that finishes normally but carries no content at all. In Cline's
-// runtime an empty assistant turn is a hard failure ("Model returned empty
-// response"), so a single flaky generation kills the whole task. The
-// `ai-sdk-ollama` provider ships a "reliability" layer for this, but it lives
-// in `doGenerate` and *owns the tool loop* (it executes tools itself and
-// force-synthesizes a final text answer). That is fundamentally incompatible
-// with Cline, which streams via `doStream` and runs its own tool loop — a
-// tool-call-only turn is the correct, desired outcome here, not something to
-// "complete". So instead of adopting that layer, this middleware adds the one
-// piece that is safe for a streaming, self-looping host: retry only when a
-// turn produced genuinely nothing.
+// Background: providers intermittently return a response that finishes
+// normally but carries no content at all. This was first observed on local
+// backends (Ollama especially), but production telemetry shows hosted
+// backends (openrouter, cline, generic OpenAI-compatible endpoints) do the
+// same. In Cline's runtime an empty assistant turn is a hard failure ("Model
+// returned empty response"), so a single flaky generation kills the whole
+// task. The `ai-sdk-ollama` provider ships a "reliability" layer for this,
+// but it lives in `doGenerate` and *owns the tool loop* (it executes tools
+// itself and force-synthesizes a final text answer). That is fundamentally
+// incompatible with Cline, which streams via `doStream` and runs its own tool
+// loop — a tool-call-only turn is the correct, desired outcome here, not
+// something to "complete". So instead of adopting that layer, this middleware
+// adds the one piece that is safe for a streaming, self-looping host: retry
+// only when a turn produced genuinely nothing.
+//
+// It is applied to every AI SDK vendor at the central composition point in
+// `ai-sdk.ts` (see `withEmptyResponseRetry`); vendors can opt out or tune
+// attempts via `ProviderFactoryResult.retryEmptyResponses`.
 //
 // Safety properties:
 //   * A tool-call-only turn counts as content, so it is never retried.
@@ -86,7 +92,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Create a middleware that retries empty Ollama responses. Apply it as the
+ * Create a middleware that retries empty model responses. Apply it as the
  * outermost middleware (first in the `wrapLanguageModel` array) so each retry
  * re-runs the full request.
  */
@@ -171,8 +177,9 @@ export function createRetryEmptyResponseMiddleware(
 							return;
 						}
 
-						logger?.log?.("Ollama returned an empty response; retrying", {
+						logger?.log?.("Model returned an empty response; retrying", {
 							severity: "warn",
+							provider: model.provider,
 							modelId: model.modelId,
 							attempt,
 							maxAttempts,

@@ -1,3 +1,4 @@
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	AgentMessage,
 	AgentModelEvent,
@@ -22,10 +23,12 @@ import {
 	NoSuchToolError,
 	streamText,
 	type ToolSet,
+	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -1178,6 +1181,40 @@ async function createProviderModule(
 	}
 }
 
+/**
+ * Wrap a vendor-constructed model with the empty-response retry middleware.
+ *
+ * All-empty turns (no text, no reasoning, no tool call) are a cross-provider
+ * phenomenon: production telemetry shows them on hosted backends (openrouter,
+ * cline, generic OpenAI-compatible endpoints), not just local Ollama. An
+ * empty assistant turn is a hard failure in the agent runtime ("Model
+ * returned empty response"), so a single transient flake kills the task.
+ * Retrying here — the one composition point every AI SDK vendor flows
+ * through — turns those flakes into non-events while leaving the runtime's
+ * loud failure in place for models that are persistently empty.
+ *
+ * Applied as the *outermost* wrap so each retry re-runs the vendor's full
+ * request pipeline, including any vendor-level middleware attached inside
+ * `provider.model(...)`. Vendors opt out or tune attempts through
+ * `ProviderFactoryResult.retryEmptyResponses`.
+ */
+export function withEmptyResponseRetry(
+	model: unknown,
+	retryEmptyResponses: ProviderFactoryResult["retryEmptyResponses"],
+	logger: GatewayProviderContext["logger"],
+): unknown {
+	if (retryEmptyResponses === false) {
+		return model;
+	}
+	return wrapLanguageModel({
+		model: model as LanguageModelV4,
+		middleware: createRetryEmptyResponseMiddleware({
+			...retryEmptyResponses,
+			logger,
+		}),
+	});
+}
+
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
@@ -1234,7 +1271,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = streamText({
-					model: provider.model(context.model.id) as never,
+					model: withEmptyResponseRetry(
+						provider.model(context.model.id),
+						provider.retryEmptyResponses,
+						context.logger,
+					) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					...(tools ? { tools } : {}),
