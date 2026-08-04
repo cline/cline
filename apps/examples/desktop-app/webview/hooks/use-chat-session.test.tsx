@@ -574,6 +574,7 @@ describe("useChatSession", () => {
 				chunk: JSON.stringify({
 					inputTokens: 13_000,
 					outputTokens: 700,
+					cacheReadTokens: 4_000,
 					cost: 0.02,
 				}),
 				ts: Date.now(),
@@ -584,6 +585,7 @@ describe("useChatSession", () => {
 		expect(current.summary).toMatchObject({
 			tokensIn: 13_000,
 			tokensOut: 700,
+			cacheReadTokens: 4_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
@@ -766,6 +768,7 @@ describe("useChatSession", () => {
 							meta: {
 								inputTokens: 24_000,
 								outputTokens: 1_000,
+								cacheReadTokens: 8_000,
 								totalCost: 0.02,
 							},
 						},
@@ -805,6 +808,7 @@ describe("useChatSession", () => {
 		expect(current.summary).toMatchObject({
 			tokensIn: 24_000,
 			tokensOut: 1_000,
+			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
