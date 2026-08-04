@@ -11,6 +11,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
+import {
+	isSameRepoStatus,
+	type RepoStatus,
+	readRepoStatus,
+} from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
@@ -46,7 +51,6 @@ import { useMcpManager } from "./hooks/use-mcp-manager";
 import { useModelSelector } from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
-import { useRepoStatus } from "./hooks/use-repo-status";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
@@ -76,10 +80,9 @@ function App(props: TuiProps) {
 	const isDialogOpen = useDialogState((s: { isOpen: boolean }) => s.isOpen);
 	const { height: termHeight, width: termWidth } = useTerminalDimensions();
 
-	const { repoStatus, refreshRepoStatus } = useRepoStatus({
-		cwd: props.config.cwd,
-		initialStatus: props.initialRepoStatus,
-	});
+	const [repoStatus, setRepoStatus] = useState<RepoStatus>(
+		props.initialRepoStatus ?? { branch: null, diffStats: null },
+	);
 	const { queuedPrompts, handlePendingPrompts } = useQueuedPrompts();
 	const [selectedQueuedPromptId, setSelectedQueuedPromptId] = useState<
 		string | null
@@ -134,6 +137,23 @@ function App(props: TuiProps) {
 		systemCommands,
 		skillCommands,
 	});
+
+	const refreshRepoStatus = useCallback(() => {
+		readRepoStatus(props.config.cwd)
+			.then((next) =>
+				// Keep the previous object when nothing changed so poll ticks
+				// don't re-render the app.
+				setRepoStatus((prev) => (isSameRepoStatus(prev, next) ? prev : next)),
+			)
+			.catch(() => {});
+	}, [props.config.cwd]);
+
+	// Poll so branch switches made outside the CLI (another terminal, an
+	// editor) show up without requiring an agent turn.
+	useEffect(() => {
+		const interval = setInterval(refreshRepoStatus, 5_000);
+		return () => clearInterval(interval);
+	}, [refreshRepoStatus]);
 
 	const refocusTextareaRef = useRef<() => void>(() => {});
 	const populateInputRef = useRef<(value: string) => void>(() => {});
