@@ -517,6 +517,8 @@ export {
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
 	setActiveConnectorSupervisor,
+	STOP_SIGKILL_TIMEOUT_MS,
+	STOP_SIGTERM_TIMEOUT_MS,
 } from "./services/connectors/connector-supervisor";
 export {
 	FeatureFlagsService,

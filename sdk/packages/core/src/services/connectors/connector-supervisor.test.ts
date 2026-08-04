@@ -8,6 +8,7 @@ import {
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
 	setActiveConnectorSupervisor,
+	STOP_SIGTERM_TIMEOUT_MS,
 } from "./connector-supervisor";
 
 const mocks = vi.hoisted(() => ({
@@ -46,6 +47,11 @@ function createHarness(
 		autostartEnabled: boolean;
 		launchSpec: ConnectorCliLaunchSpec | undefined;
 		active: Array<{ type: string; instanceId: string; pid: number }>;
+		killProcess: (
+			pid: number,
+			signal: NodeJS.Signals,
+			alivePids: Set<number>,
+		) => void;
 	}> = {},
 ) {
 	let now = 1_000_000;
@@ -61,6 +67,7 @@ function createHarness(
 	const alivePids = new Set<number>();
 	const cleanups: string[] = [];
 	const logs: string[] = [];
+	const kills: string[] = [];
 
 	const spawnProcess = vi.fn(
 		(launcher: string, args: string[], options: Record<string, unknown>) => {
@@ -95,6 +102,16 @@ function createHarness(
 		launchSpec: () => ("launchSpec" in overrides ? overrides.launchSpec : spec),
 		spawnProcess: spawnProcess as never,
 		isProcessRunning: (pid) => alivePids.has(pid),
+		// Injected so tests never signal real pids; the default drops the pid so
+		// a stop's wait-for-exit resolves the way a real SIGTERM would.
+		killProcess: (pid, signal) => {
+			kills.push(`${pid}:${signal}`);
+			if (overrides.killProcess) {
+				overrides.killProcess(pid, signal, alivePids);
+				return;
+			}
+			alivePids.delete(pid);
+		},
 		listActive: () => (overrides.active ?? []) as never,
 		cleanupInstance: async (channel, instanceId) => {
 			cleanups.push(`${channel}:${instanceId}`);
@@ -120,6 +137,7 @@ function createHarness(
 		spawned,
 		cleanups,
 		logs,
+		kills,
 		alivePids,
 		spawnProcess,
 		advance(ms: number) {
@@ -395,6 +413,96 @@ describe("ConnectorSupervisor", () => {
 		expect(harness.spawnProcess).toHaveBeenCalledTimes(2);
 		expect(harness.supervisor.list()).toHaveLength(1);
 		expect(harness.supervisor.list()[0]?.state).toBe("running");
+	});
+
+	it("serialises a boot-time restart with a concurrent user start", async () => {
+		// Observed live: a new hub's boot reconnect restarts an adopted survivor
+		// — which suspends inside stop() waiting on the CLI cleanup — while a
+		// user `cline connect` for the same instance arrives over the hub.
+		// Unserialised, both spawned: the map tracked one process while the other
+		// lived on untracked, holding the connector's webhook port, and the
+		// tracked chain crash-looped on EADDRINUSE until it gave up.
+		mocks.getPersistedConnectorConnection.mockReturnValue({
+			channel: "slack",
+			instanceId: "cline-slack",
+			connectArgs: ["--bot-token", "stored"],
+			lastSuccessfulArgs: [],
+			enabled: true,
+			updatedAt: "",
+			lastConnectedAt: "",
+		});
+		const harness = createHarness({
+			active: [{ type: "slack", instanceId: "cline-slack", pid: 700 }],
+		});
+		harness.alivePids.add(700);
+		harness.supervisor.adoptRunningConnectors();
+
+		const [restarted, userStart] = await Promise.all([
+			harness.supervisor.start({
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: ["--bot-token", "stored"],
+				restart: true,
+			}),
+			harness.supervisor.start({
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: ["--bot-token", "stored"],
+			}),
+		]);
+
+		expect(restarted.started).toBe(true);
+		expect(userStart.started).toBe(false);
+		expect(userStart.reason).toBe("already_running");
+		// The survivor was actually stopped, exactly one replacement exists, and
+		// the supervisor tracks it.
+		expect(harness.kills).toContain("700:SIGTERM");
+		expect(harness.spawnProcess).toHaveBeenCalledTimes(1);
+		expect(harness.supervisor.list()).toHaveLength(1);
+		expect(harness.supervisor.list()[0]?.state).toBe("running");
+	});
+
+	it("waits for a stopped process to die, escalating to SIGKILL", async () => {
+		// A replacement spawned while the old process still holds the
+		// connector's listen port fails on EADDRINUSE, so stop must not return
+		// until the process is actually gone.
+		const child = new FakeChild(800);
+		const harness = createHarness({
+			children: [child],
+			killProcess: (pid, signal, alivePids) => {
+				// This process ignores SIGTERM and lingers on its port.
+				if (signal === "SIGKILL") {
+					alivePids.delete(pid);
+				}
+			},
+		});
+		await harness.supervisor.start({
+			channel: "slack",
+			instanceId: "cline-slack",
+			args: [],
+		});
+
+		let resolved = false;
+		const pending = harness.supervisor
+			.stop({ channel: "slack", instanceId: "cline-slack" })
+			.then((stopped) => {
+				resolved = true;
+				return stopped;
+			});
+
+		// Drive the exit poll past the SIGTERM window.
+		const iterations = STOP_SIGTERM_TIMEOUT_MS / 100 + 5;
+		for (let step = 0; step < iterations && !resolved; step += 1) {
+			await flush();
+			harness.advance(100);
+		}
+		await flush();
+
+		await expect(pending).resolves.toBe(true);
+		expect(harness.kills).toContain("800:SIGTERM");
+		expect(harness.kills).toContain("800:SIGKILL");
+		expect(harness.alivePids.has(800)).toBe(false);
+		expect(harness.supervisor.list()).toEqual([]);
 	});
 
 	it("does not schedule a restart for an entry replaced while its cleanup was in flight", async () => {

@@ -33,11 +33,17 @@ export const RESTART_GIVE_UP_AFTER = 5;
 export const RESTART_COUNTER_RESET_MS = 60_000;
 /** How often adopted connectors (no child handle) are checked for liveness. */
 export const ADOPTED_POLL_INTERVAL_MS = 5_000;
+/** How long a stop waits for SIGTERM to land before escalating to SIGKILL. */
+export const STOP_SIGTERM_TIMEOUT_MS = 5_000;
+/** How long a stop waits for SIGKILL to land before giving up on the wait. */
+export const STOP_SIGKILL_TIMEOUT_MS = 2_000;
+const EXIT_POLL_INTERVAL_MS = 100;
 
 export interface ConnectorSupervisorDeps {
 	launchSpec?: () => ConnectorCliLaunchSpec | undefined;
 	spawnProcess?: typeof spawn;
 	isProcessRunning?: (pid: number) => boolean;
+	killProcess?: (pid: number, signal: NodeJS.Signals) => void;
 	listActive?: typeof listActiveConnectors;
 	/**
 	 * Reap a dead instance's leftovers: state file, thread bindings and hub
@@ -117,12 +123,21 @@ function toIsoString(value: number | undefined): string | undefined {
  */
 export class ConnectorSupervisor {
 	private readonly entries = new Map<string, SupervisedEntry>();
+	/**
+	 * Tail of the in-flight start/stop chain per instance key. `start` suspends
+	 * on `stop` (which shells into the CLI for cleanup, taking seconds), and two
+	 * unserialised starts interleaving across that suspension each spawn their
+	 * own process — the map ends up tracking one while the other survives as an
+	 * untracked ghost holding the connector's credentials and ports.
+	 */
+	private readonly instanceLocks = new Map<string, Promise<unknown>>();
 	private pollTimer: unknown;
 	private disposed = false;
 
 	private readonly launchSpec: () => ConnectorCliLaunchSpec | undefined;
 	private readonly spawnProcess: typeof spawn;
 	private readonly isProcessRunning: (pid: number) => boolean;
+	private readonly killProcess: (pid: number, signal: NodeJS.Signals) => void;
 	private readonly listActive: typeof listActiveConnectors;
 	private readonly cleanupInstance?: (
 		channel: string,
@@ -141,6 +156,8 @@ export class ConnectorSupervisor {
 		this.launchSpec = deps.launchSpec ?? readConnectorCliLaunchSpec;
 		this.spawnProcess = deps.spawnProcess ?? spawn;
 		this.isProcessRunning = deps.isProcessRunning ?? defaultIsProcessRunning;
+		this.killProcess =
+			deps.killProcess ?? ((pid, signal) => process.kill(pid, signal));
 		this.listActive = deps.listActive ?? listActiveConnectors;
 		this.cleanupInstance = deps.cleanupInstance;
 		this.isAutostartEnabled =
@@ -199,7 +216,39 @@ export class ConnectorSupervisor {
 		return adopted;
 	}
 
+	/**
+	 * Serialise start/stop work per instance key. Both operations suspend
+	 * mid-flight — a stop waits for the process to die and for the CLI cleanup,
+	 * a start may embed a stop — and interleaving two of them across those
+	 * suspensions is how the map ends up tracking one process while another
+	 * lives on untracked. One instance, one queue.
+	 */
+	private withInstanceLock<T>(key: string, task: () => Promise<T>): Promise<T> {
+		const previous = this.instanceLocks.get(key) ?? Promise.resolve();
+		const run = previous.then(task, task);
+		const tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.instanceLocks.set(key, tail);
+		void tail.then(() => {
+			if (this.instanceLocks.get(key) === tail) {
+				this.instanceLocks.delete(key);
+			}
+		});
+		return run;
+	}
+
 	async start(request: ConnectorStartRequest): Promise<ConnectorStartResult> {
+		return this.withInstanceLock(
+			instanceKey(request.channel, request.instanceId),
+			() => this.startLocked(request),
+		);
+	}
+
+	private async startLocked(
+		request: ConnectorStartRequest,
+	): Promise<ConnectorStartResult> {
 		const { channel, instanceId } = request;
 		const key = instanceKey(channel, instanceId);
 		const existing = this.entries.get(key);
@@ -211,7 +260,7 @@ export class ConnectorSupervisor {
 					record: this.toRecord(existing),
 				};
 			}
-			await this.stop({ channel, instanceId, disableAutostart: false });
+			await this.stopLocked({ channel, instanceId, disableAutostart: false });
 		} else if (existing) {
 			// A dead entry can still act: a pending backoff timer would spawn a
 			// second process for this instance once it fires — untracked, so
@@ -244,6 +293,17 @@ export class ConnectorSupervisor {
 		instanceId: string;
 		disableAutostart?: boolean;
 	}): Promise<boolean> {
+		return this.withInstanceLock(
+			instanceKey(request.channel, request.instanceId),
+			() => this.stopLocked(request),
+		);
+	}
+
+	private async stopLocked(request: {
+		channel: string;
+		instanceId: string;
+		disableAutostart?: boolean;
+	}): Promise<boolean> {
 		const key = instanceKey(request.channel, request.instanceId);
 		const entry = this.entries.get(key);
 		if (request.disableAutostart !== false) {
@@ -257,14 +317,42 @@ export class ConnectorSupervisor {
 		entry.state = "stopped";
 		const pid = entry.child?.pid ?? entry.pid;
 		if (pid && this.isProcessRunning(pid)) {
-			try {
-				process.kill(pid, "SIGTERM");
-			} catch {
-				// Already gone, or not ours to signal.
+			this.signal(pid, "SIGTERM");
+			// Wait for the process to actually die. A replacement spawned while
+			// the old process still holds the connector's listen port or socket
+			// fails on it — observed as an EADDRINUSE crash loop when a webhook
+			// connector was restarted for a new hub session.
+			if (!(await this.waitForProcessExit(pid, STOP_SIGTERM_TIMEOUT_MS))) {
+				this.signal(pid, "SIGKILL");
+				await this.waitForProcessExit(pid, STOP_SIGKILL_TIMEOUT_MS);
 			}
 		}
 		await this.runCleanup(entry);
 		this.entries.delete(key);
+		return true;
+	}
+
+	private signal(pid: number, signal: NodeJS.Signals): void {
+		try {
+			this.killProcess(pid, signal);
+		} catch {
+			// Already gone, or not ours to signal.
+		}
+	}
+
+	private async waitForProcessExit(
+		pid: number,
+		timeoutMs: number,
+	): Promise<boolean> {
+		const deadline = this.now() + timeoutMs;
+		while (this.isProcessRunning(pid)) {
+			if (this.now() >= deadline) {
+				return false;
+			}
+			await new Promise<void>((resolve) => {
+				this.setTimer(resolve, EXIT_POLL_INTERVAL_MS);
+			});
+		}
 		return true;
 	}
 
@@ -293,6 +381,7 @@ export class ConnectorSupervisor {
 			this.pollTimer = undefined;
 		}
 		this.entries.clear();
+		this.instanceLocks.clear();
 	}
 
 	private spawnEntry(entry: SupervisedEntry): void {
@@ -390,14 +479,22 @@ export class ConnectorSupervisor {
 				`${signal ? ` signal=${signal}` : ""}`,
 		);
 		void this.runCleanup(entry).then(() => {
-			if (this.disposed || entry.state === "stopped") {
+			const key = instanceKey(entry.channel, entry.instanceId);
+			if (
+				this.disposed ||
+				entry.state === "stopped" ||
+				// A concurrent start may have replaced this entry while cleanup was
+				// running; the retired generation must not restart or delete the
+				// replacement's map entry.
+				this.entries.get(key) !== entry
+			) {
 				return;
 			}
 			if (!this.isAutostartEnabled(entry.channel, entry.instanceId)) {
 				this.log(
 					`[connect] not restarting ${entry.channel} connector ${entry.instanceId}: autostart is disabled`,
 				);
-				this.entries.delete(instanceKey(entry.channel, entry.instanceId));
+				this.entries.delete(key);
 				return;
 			}
 			this.scheduleRestart(entry);
@@ -424,24 +521,33 @@ export class ConnectorSupervisor {
 		this.log(
 			`[connect] restarting ${entry.channel} connector ${entry.instanceId} in ${delayMs}ms (attempt ${entry.restarts})`,
 		);
+		const key = instanceKey(entry.channel, entry.instanceId);
 		entry.restartTimer = this.setTimer(() => {
 			entry.restartTimer = undefined;
 			entry.nextRestartAt = undefined;
-			if (this.disposed || entry.state === "stopped") {
-				return;
-			}
-			const args = this.resolveRestartArgs(entry);
-			if (!args) {
-				entry.state = "failed";
-				this.log(
-					`[connect] cannot restart ${entry.channel} connector ${entry.instanceId}: no stored launch arguments`,
-				);
-				return;
-			}
-			entry.args = args;
-			entry.argsKnown = true;
-			entry.origin = "spawned";
-			this.spawnEntry(entry);
+			// Under the instance lock: a restart spawn must not interleave with a
+			// start or stop in flight for the same instance.
+			void this.withInstanceLock(key, async () => {
+				if (
+					this.disposed ||
+					entry.state === "stopped" ||
+					this.entries.get(key) !== entry
+				) {
+					return;
+				}
+				const args = this.resolveRestartArgs(entry);
+				if (!args) {
+					entry.state = "failed";
+					this.log(
+						`[connect] cannot restart ${entry.channel} connector ${entry.instanceId}: no stored launch arguments`,
+					);
+					return;
+				}
+				entry.args = args;
+				entry.argsKnown = true;
+				entry.origin = "spawned";
+				this.spawnEntry(entry);
+			});
 		}, delayMs);
 	}
 
