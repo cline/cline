@@ -58,6 +58,7 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -292,12 +293,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 			aggregateUsageBySession: this.aggregateUsageBySession,
 			emit: (event) => this.emit(event),
 			persistMessages: (sid, messages, systemPrompt) => {
+				// Fire-and-forget: an unobserved rejection here would surface as
+				// an unhandledRejection, which is fatal in the hub daemon.
 				void this.invoke<void>(
 					"persistSessionMessages",
 					sid,
 					messages,
 					systemPrompt,
-				);
+				).catch((error) => {
+					const session = this.sessions.get(sid);
+					const logger = session?.config.logger ?? this.defaultLogger;
+					logger?.error?.(
+						"Failed to persist session messages from agent event",
+						{
+							sessionId: sid,
+							error,
+						},
+					);
+					captureSdkError(session?.config.telemetry ?? this.defaultTelemetry, {
+						component: "core",
+						operation: "session.persist_messages_on_agent_event",
+						error,
+						severity: "warn",
+						handled: true,
+						context: {
+							sessionId: sid,
+							providerId: session?.config.providerId,
+							modelId: session?.config.modelId,
+						},
+					});
+				});
 			},
 			enqueuePendingPrompt: (sid, entry) =>
 				this.pendingPromptsController.enqueue(sid, entry),
@@ -530,12 +555,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const initialSessionMetadata = withSessionGitMetadata(
+		const initialSessionMetadata = withSessionHistoryOriginMetadata(
+			withSessionGitMetadata(
+				{
+					...(resumedArtifacts?.manifest.metadata ?? {}),
+					...(startInput.sessionMetadata ?? {}),
+				},
+				bootstrap.gitState,
+			),
 			{
-				...(resumedArtifacts?.manifest.metadata ?? {}),
-				...(startInput.sessionMetadata ?? {}),
+				mode: startInput.mode,
+				version: bootstrap.config.extensionContext?.client?.version,
 			},
-			bootstrap.gitState,
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build(
@@ -835,27 +866,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		this.emitStatus(sessionId, "running");
-		if (initialMessages.length > 0 && !resumedArtifacts) {
-			await this.ensureSessionPersisted(active);
-			await this.invoke<void>(
-				"persistSessionMessages",
-				active.sessionId,
-				initialMessages,
-				active.config.systemPrompt,
-			);
-			if (active.compactionState) {
-				const result = await this.persistActiveSessionCompactionState(
-					active,
-					active.compactionState,
-				);
-				if (!result.updated) {
-					active.compactionState = undefined;
-				}
-			}
-			if (!startInput.prompt?.trim()) {
-				await this.updateStatus(active, "completed", 0);
-			}
-		}
 
 		let result: AgentResult | undefined;
 		try {
@@ -1757,12 +1767,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 					modelId: session.config.modelId,
 				},
 			});
-			await this.invoke<void>(
-				"persistSessionMessages",
-				session.sessionId,
-				session.agent.getMessages(),
-				session.config.systemPrompt,
-			);
+			try {
+				await this.invoke<void>(
+					"persistSessionMessages",
+					session.sessionId,
+					session.agent.getMessages(),
+					session.config.systemPrompt,
+				);
+			} catch (persistError) {
+				// Never let a failed transcript flush mask the error that
+				// actually killed the turn; that one is what callers must see.
+				session.config.logger?.error?.(
+					"Failed to persist session messages after turn error",
+					{ sessionId: session.sessionId, error: persistError },
+				);
+			}
 			throw error;
 		} finally {
 			session.turnUsageBaseline = undefined;
@@ -1882,6 +1901,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			metadata: session.sessionMetadata,
 			startedAt: session.startedAt,
 		})) as RootSessionArtifacts;
+		if (session.compactionState) {
+			const result = await this.persistActiveSessionCompactionState(
+				session,
+				session.compactionState,
+			);
+			if (!result.updated) {
+				session.compactionState = undefined;
+			}
+		}
 	}
 
 	private async markTurnRunning(session: ActiveSession): Promise<void> {
@@ -2057,11 +2085,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			} catch (error) {
 				recordCleanupError("update_status", error);
 			}
-			try {
-				await session.agent.shutdown(input.shutdownReason);
-			} catch (error) {
-				recordCleanupError("agent_shutdown", error);
-			}
+		}
+		try {
+			await session.agent.shutdown(input.shutdownReason);
+		} catch (error) {
+			recordCleanupError("agent_shutdown", error);
 		}
 		try {
 			await Promise.resolve(session.runtime.shutdown(input.shutdownReason));
