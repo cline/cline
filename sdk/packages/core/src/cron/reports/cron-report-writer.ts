@@ -72,6 +72,17 @@ function fencedCodeBlock(content: string): string {
 }
 
 /**
+ * Keep user-controlled text inside a single Markdown inline context. Schedule
+ * titles are rendered both in a heading and inside bold text, so line breaks
+ * and Markdown punctuation must not be allowed to alter the report structure.
+ */
+function escapeMarkdownInline(value: string): string {
+	return value
+		.replace(/[\r\n\u2028\u2029]+/g, " ")
+		.replace(/[\\`*_[\]{}()#+\-.!<>|]/g, "\\$&");
+}
+
+/**
  * Hub-managed schedules use a virtual sourcePath (`hub/schedules/<id>.cron.md`)
  * that never exists on disk — the definition lives in cron.db. File-based specs
  * store a path relative to the cron specs directory; resolve it so the report
@@ -158,6 +169,7 @@ function buildHeader(
 	definition: ReturnType<typeof describeDefinitionSource>,
 	data: CronRunReportData,
 ): string {
+	const title = escapeMarkdownInline(spec.title);
 	const statusWord =
 		run.status === "done"
 			? "completed"
@@ -178,9 +190,9 @@ function buildHeader(
 			? ` in ${formatDuration(data.durationMs)}`
 			: "";
 	const lines = [
-		`# ${spec.title} — ${statusWord}`,
+		`# ${title} — ${statusWord}`,
 		"",
-		`Run of schedule **${spec.title}** (${trigger})${when}, ${statusWord}${duration}.`,
+		`Run of schedule **${title}** (${trigger})${when}, ${statusWord}${duration}.`,
 		"",
 		"## Job",
 		"",

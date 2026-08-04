@@ -59,6 +59,39 @@ afterEach(() => {
 });
 
 describe("writeCronRunReport", () => {
+	it("keeps Hub-managed schedule titles inside the heading and bold narrative", () => {
+		const report = createReport(
+			{},
+			{
+				source: "hub-schedule",
+				title: "Hub report\n# injected **heading**",
+			},
+		);
+
+		expect(report).toContain(
+			"# Hub report \\# injected \\*\\*heading\\*\\* — completed",
+		);
+		expect(report).toContain(
+			"Run of schedule **Hub report \\# injected \\*\\*heading\\*\\*** (triggered by its schedule)",
+		);
+		expect(report).not.toContain("\n# injected");
+	});
+
+	it("keeps file-based schedule titles inside the heading and bold narrative", () => {
+		const report = createReport(
+			{},
+			{ title: "File **breakout**\n## forged section" },
+		);
+
+		expect(report).toContain(
+			"# File \\*\\*breakout\\*\\* \\#\\# forged section — completed",
+		);
+		expect(report).toContain(
+			"Run of schedule **File \\*\\*breakout\\*\\* \\#\\# forged section** (triggered by its schedule)",
+		);
+		expect(report).not.toContain("\n## forged section");
+	});
+
 	it("uses fences longer than backtick runs in prompts and errors", () => {
 		const prompt =
 			"Inspect this:\n```ts\nconst value = 1;\n```\nThen continue.";
