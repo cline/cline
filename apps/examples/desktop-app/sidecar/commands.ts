@@ -7,7 +7,15 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
