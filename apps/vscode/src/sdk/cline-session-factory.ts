@@ -885,6 +885,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
+			// The extension never exposes switch_to_act_mode (unlike the CLI):
+			// matching the legacy extension, the user must flip the Plan/Act
+			// toggle themselves, so the plan contract must not tell the model to
+			// call a tool it does not have.
+			planModeSwitchTool: false,
 		})
 		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
 	} catch (error) {

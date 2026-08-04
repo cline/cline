@@ -254,6 +254,7 @@ export {
 	buildClineSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 } from "./prompt/cline";
 export type {
 	ModeSwitchNotice,
