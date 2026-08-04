@@ -1,6 +1,7 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import { getGeneratedModelsForProvider } from "../../catalog/catalog.generated-access";
 import type { ProviderFactoryResult } from "./types";
 
 type BedrockCredentials = {
@@ -22,6 +23,145 @@ const NON_BEDROCK_API_KEY_ENV = new Set([
 	"AWS_DEFAULT_REGION",
 	"AWS_PROFILE",
 ]);
+
+// Bedrock inference-profile model-id resolution.
+//
+// AWS Bedrock offers no on-demand throughput for newer foundation models:
+// they must be invoked through an inference profile — either a geo-prefixed
+// system profile id ("us." / "eu." / "apac." / "jp." / "au." / "global.") or
+// a provisioned profile ARN. Invoking the bare foundation-model id fails with
+// "Invocation of model ID ... with on-demand throughput isn't supported.
+// Retry your request with the ID or ARN of an inference profile that contains
+// this model."
+// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+//
+// This mirrors the legacy extension's cross-region inference support
+// (legacy-extension branch, apps/vscode/src/core/api/providers/bedrock.ts):
+// the user's `useCrossRegionInference` / `useGlobalInference` settings are
+// honored, and bare ids of models known to have no on-demand throughput are
+// additionally auto-prefixed so they work without the toggle.
+
+const BEDROCK_GEO_PROFILE_PREFIX_PATTERN =
+	/^(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\./;
+
+// Documented fallback-heuristic exception (see packages/llms/AGENTS.md):
+// a maintained, intentionally narrow id-pattern list of foundation models
+// that have no on-demand throughput on Bedrock. A match only rewrites ids
+// that AWS would reject outright, so it cannot break a working configuration;
+// models missing from the list keep working through the cross-region
+// inference setting.
+const BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS: readonly RegExp[] = [
+	// Claude 4.x+ era models use tier-first naming (claude-sonnet-4-6,
+	// claude-opus-5, claude-haiku-4-5-..., claude-fable-5, ...).
+	/^anthropic\.claude-(?:haiku|sonnet|opus|fable)-/,
+	// Claude 3.7 predates tier-first naming but launched profile-only.
+	/^anthropic\.claude-3-7-/,
+	/^amazon\.nova-(?:micro|lite|pro|premier)/,
+	/^deepseek\./,
+	/^meta\.llama3-[23]-/,
+	/^meta\.llama4-/,
+	/^mistral\.pixtral-large-/,
+];
+
+const JP_INFERENCE_PROFILE_REGIONS = new Set([
+	"ap-northeast-1",
+	"ap-northeast-3",
+]);
+
+const AU_INFERENCE_PROFILE_REGIONS = new Set([
+	"ap-southeast-2",
+	"ap-southeast-4",
+]);
+
+interface BedrockModelIdOptions {
+	region?: string;
+	useCrossRegionInference?: boolean;
+	useGlobalInference?: boolean;
+	customModelBaseId?: string;
+}
+
+/**
+ * Resolves the model id sent to Bedrock, prepending a geo inference-profile
+ * prefix derived from the configured AWS region when required.
+ *
+ * Ids that are already profile-prefixed, ARNs (provisioned throughput,
+ * imported/custom models, application inference profiles), and custom-model
+ * configurations are always passed through unmodified.
+ */
+export function resolveBedrockModelId(
+	modelId: string,
+	options: BedrockModelIdOptions,
+): string {
+	if (
+		options.customModelBaseId !== undefined ||
+		modelId.startsWith("arn:") ||
+		BEDROCK_GEO_PROFILE_PREFIX_PATTERN.test(modelId)
+	) {
+		return modelId;
+	}
+
+	const useCrossRegionInference = options.useCrossRegionInference === true;
+	const requiresInferenceProfile =
+		BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS.some((pattern) =>
+			pattern.test(modelId),
+		);
+	if (!useCrossRegionInference && !requiresInferenceProfile) {
+		return modelId;
+	}
+
+	if (
+		useCrossRegionInference &&
+		options.useGlobalInference === true &&
+		hasBedrockCatalogModel(`global.${modelId}`)
+	) {
+		return `global.${modelId}`;
+	}
+
+	const geoPrefix = resolveGeoProfilePrefix(modelId, options.region);
+	return geoPrefix ? `${geoPrefix}${modelId}` : modelId;
+}
+
+function resolveGeoProfilePrefix(
+	modelId: string,
+	region: string | undefined,
+): string | undefined {
+	if (!region) {
+		return undefined;
+	}
+	if (region.startsWith("us-gov-")) {
+		return "us-gov.";
+	}
+	if (region.startsWith("us-")) {
+		return "us.";
+	}
+	if (region.startsWith("eu-")) {
+		return "eu.";
+	}
+	if (region.startsWith("ap-")) {
+		// AWS ships dedicated jp./au. profiles — and no apac. profile — for the
+		// newest Claude models; the generated catalog records which prefixed
+		// variants exist, so prefer the country profile when the model has one.
+		if (
+			JP_INFERENCE_PROFILE_REGIONS.has(region) &&
+			hasBedrockCatalogModel(`jp.${modelId}`)
+		) {
+			return "jp.";
+		}
+		if (
+			AU_INFERENCE_PROFILE_REGIONS.has(region) &&
+			hasBedrockCatalogModel(`au.${modelId}`)
+		) {
+			return "au.";
+		}
+		return "apac.";
+	}
+	// Geo inference profiles are not mapped for other regions; keep the raw id.
+	return undefined;
+}
+
+function hasBedrockCatalogModel(modelId: string): boolean {
+	return modelId in getGeneratedModelsForProvider("bedrock");
+}
 
 export async function createBedrockProviderModule(
 	config: GatewayResolvedProviderConfig,
@@ -73,8 +213,19 @@ export async function createBedrockProviderModule(
 		credentialProvider,
 	});
 
+	const modelIdOptions: BedrockModelIdOptions = {
+		region:
+			readOptionalString(config.options?.region) ??
+			readOptionalString(process.env.AWS_REGION) ??
+			readOptionalString(process.env.AWS_DEFAULT_REGION),
+		useCrossRegionInference: config.options?.useCrossRegionInference === true,
+		useGlobalInference: config.options?.useGlobalInference === true,
+		customModelBaseId: readOptionalString(config.options?.customModelBaseId),
+	};
+
 	return {
-		model: (modelId) => provider(modelId),
+		model: (modelId) =>
+			provider(resolveBedrockModelId(modelId, modelIdOptions)),
 	};
 }
 
