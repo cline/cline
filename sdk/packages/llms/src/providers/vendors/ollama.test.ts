@@ -16,7 +16,7 @@ import {
 const createOllamaMock = vi.hoisted(() => vi.fn());
 const ollamaModelMock = vi.hoisted(() =>
 	vi.fn((modelId: string, _settings?: unknown) => ({
-		specificationVersion: "v3",
+		specificationVersion: "v4",
 		provider: "ollama",
 		modelId,
 	})),
@@ -93,6 +93,12 @@ describe("readOllamaTimeoutMs", () => {
 		expect(readOllamaTimeoutMs(config({ timeoutMs: -5 }))).toBe(
 			OLLAMA_DEFAULT_TIMEOUT_MS,
 		);
+	});
+
+	it("defaults to 5 minutes so model cold loads don't hit a timeout error", () => {
+		// Ollama only sends response headers once the model is loaded, so the
+		// response-start budget must cover a cold load (cline/cline#12829).
+		expect(OLLAMA_DEFAULT_TIMEOUT_MS).toBe(300_000);
 	});
 });
 

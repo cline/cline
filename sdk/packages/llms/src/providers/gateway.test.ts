@@ -13,6 +13,7 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type ITelemetryService,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -67,7 +68,7 @@ vi.mock("ai", () => ({
 	// is exercised by its own unit tests; here we just need an identity
 	// pass-through so the vendor factories' downstream `model:` callbacks
 	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV3` interface, so we
+	// objects don't satisfy the real `LanguageModelV4` interface, so we
 	// can't call the real `wrapLanguageModel` either way.)
 	wrapLanguageModel: ({ model }: { model: unknown }) => model,
 }));
@@ -129,6 +130,17 @@ function mockSuccessfulStream(): void {
 			{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
 		]),
 	});
+}
+
+function createTelemetryMock(): {
+	telemetry: ITelemetryService;
+	capture: ReturnType<typeof vi.fn>;
+} {
+	const capture = vi.fn();
+	return {
+		capture,
+		telemetry: { capture } as unknown as ITelemetryService,
+	};
 }
 
 const baseMessages: AgentMessage[] = [
@@ -745,6 +757,80 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Invalid API key",
+			errorClass: "unknown",
+		});
+	});
+
+	it("records the extracted provider message for AI SDK stream errors", async () => {
+		const rawError = Object.assign(new Error("Stream error occurred"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long",
+					code: "context_length_exceeded",
+				},
+			}),
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([
+						{ type: "error", error: new Error("No output generated") },
+					]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.stream",
+				error_message: "prompt is too long",
+				error_status: 400,
+			}),
+		});
+	});
+
+	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
+		streamTextSpy.mockImplementation(() => {
+			throw new Error("No output generated. Check the stream for errors.", {
+				cause: new Error("Invalid API key"),
+			});
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.create_or_stream",
+				error_message: "Invalid API key",
+			}),
 		});
 	});
 
@@ -786,8 +872,48 @@ describe("sdk-gateway", () => {
 				type: "finish",
 				reason: "error",
 				error: "Invalid API key",
+				errorClass: "unknown",
 			},
 		]);
+	});
+
+	it("classifies context-window overflow errors on the finish event", async () => {
+		const overflowError = Object.assign(new Error("Bad Request"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long: 213462 tokens > 200000 maximum",
+					type: "invalid_request_error",
+				},
+			}),
+		});
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "error", error: overflowError }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		});
 	});
 
 	it("surfaces API detail fields from OpenAI-compatible error bodies", async () => {
@@ -822,6 +948,7 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Instructions are required",
+			errorClass: "unknown",
 		});
 	});
 
@@ -2240,11 +2367,8 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(streamTextSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				tools: undefined,
-			}),
-		);
+		const streamTextOptions = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(streamTextOptions).not.toHaveProperty("tools");
 	});
 
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {
@@ -3980,35 +4104,32 @@ describe("sdk-gateway", () => {
 			"qwen-plus-latest",
 			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		],
-	])(
-		"routes %s to the %s regional endpoint when options.apiLine is set",
-		async (providerId, apiLine, modelId, expectedBaseUrl) => {
-			streamTextSpy.mockReturnValue({
-				fullStream: makeStreamParts([
-					{ type: "text-delta", textDelta: "Regional" },
-					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
-				]),
-			});
+	])("routes %s to the %s regional endpoint when options.apiLine is set", async (providerId, apiLine, modelId, expectedBaseUrl) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Regional" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
 
-			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId, apiKey: "test-key", options: { apiLine } },
-				],
-			});
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId, apiKey: "test-key", options: { apiLine } },
+			],
+		});
 
-			await collect(
-				await gateway.stream({
-					providerId,
-					modelId,
-					messages: baseMessages,
-				}),
-			);
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
 
-			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
-				expect.objectContaining({ baseURL: expectedBaseUrl }),
-			);
-		},
-	);
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: expectedBaseUrl }),
+		);
+	});
 
 	it("lets an explicit base URL win over options.apiLine", async () => {
 		streamTextSpy.mockReturnValue({

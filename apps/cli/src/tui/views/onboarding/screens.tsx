@@ -447,7 +447,6 @@ export function OnboardingProviderPickerScreen(props: {
 
 export function OnboardingClineModelScreen(props: {
 	clineEntries: ClineModelPickerEntry[];
-	clineKnownModels: Record<string, unknown> | undefined;
 	clineModelSelected: number;
 	compact: boolean;
 	contentWidth: number;
@@ -472,7 +471,6 @@ export function OnboardingClineModelScreen(props: {
 				entries={props.clineEntries}
 				selected={props.clineModelSelected}
 				loading={props.recommendedLoading}
-				knownModels={props.clineKnownModels}
 			/>
 
 			<text fg="gray" paddingX={1}>

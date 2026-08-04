@@ -167,6 +167,17 @@ export class SdkSessionEventCoordinator {
 			if (agentEvent.error == null) {
 				return undefined
 			}
+			// Only terminal failures are provider failures. `recoverable: true`
+			// error events are in-run notices — the MistakeTracker emits one for
+			// EVERY recorded mistake (with the tool/mistake details as the
+			// message, e.g. "2 tool call(s) failed: [shell] ...") and hook
+			// failures surface the same way. Counting those here misclassified
+			// tool noise as provider API errors and inflated the SDK bundle's
+			// error rate ~9x vs legacy in the A/B rollout dashboards. Genuine
+			// run failures (run-failed) always carry `recoverable: false`.
+			if (agentEvent.recoverable !== false) {
+				return undefined
+			}
 			return {
 				sessionId: event.payload.sessionId,
 				error: agentEvent.error,

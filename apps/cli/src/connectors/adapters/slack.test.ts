@@ -338,6 +338,88 @@ describe("slack binding lookup", () => {
 		expect(calls).toEqual(["get:T123", "token:xoxb-team-token", "work"]);
 	});
 
+	it("strips the leading bot mention from Slack message text", () => {
+		expect(
+			__test__.stripSlackBotMention("@U0B8E8H3U1F hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F> hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F|cline> hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("  @U0B8E8H3U1F: hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention(
+				"@U0B8E8H3U1F @U0B8E8H3U1F hi",
+				"U0B8E8H3U1F",
+			),
+		).toBe("hi");
+	});
+
+	it("keeps Slack text that does not start with the bot mention", () => {
+		expect(
+			__test__.stripSlackBotMention("hi @U0B8E8H3U1F", "U0B8E8H3U1F"),
+		).toBe("hi @U0B8E8H3U1F");
+		expect(__test__.stripSlackBotMention("@U999999 hi", "U0B8E8H3U1F")).toBe(
+			"@U999999 hi",
+		);
+		expect(__test__.stripSlackBotMention("@cline hi", "U0B8E8H3U1F")).toBe(
+			"@cline hi",
+		);
+		expect(__test__.stripSlackBotMention("@U0B8E8H3U1F hi", undefined)).toBe(
+			"@U0B8E8H3U1F hi",
+		);
+	});
+
+	it("keeps mentions of other Slack users whose id starts with the bot id", () => {
+		expect(__test__.stripSlackBotMention("@U1234 help", "U123")).toBe(
+			"@U1234 help",
+		);
+		expect(__test__.stripSlackBotMention("@U123 hi", "U123")).toBe("hi");
+		expect(__test__.stripSlackBotMention("<@U1234> help", "U123")).toBe(
+			"<@U1234> help",
+		);
+		expect(__test__.stripSlackBotMention("<@U1234|other> help", "U123")).toBe(
+			"<@U1234|other> help",
+		);
+		expect(
+			__test__.stripSlackBotMention("@U0B8E8H3U1FX hi", "U0B8E8H3U1F"),
+		).toBe("@U0B8E8H3U1FX hi");
+		expect(
+			__test__.stripSlackBotMention(
+				"@U0B8E8H3U1F @U0B8E8H3U1FX hi",
+				"U0B8E8H3U1F",
+			),
+		).toBe("@U0B8E8H3U1FX hi");
+	});
+
+	it("keeps a bare Slack bot mention so the turn is not dropped", () => {
+		expect(__test__.stripSlackBotMention("@U0B8E8H3U1F", "U0B8E8H3U1F")).toBe(
+			"@U0B8E8H3U1F",
+		);
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F>  ", "U0B8E8H3U1F"),
+		).toBe("<@U0B8E8H3U1F>  ");
+	});
+
+	it("resolves the Slack bot user id from the adapter or event authorizations", () => {
+		expect(__test__.resolveSlackBotUserId({ botUserId: "U0B8E8H3U1F" })).toBe(
+			"U0B8E8H3U1F",
+		);
+		expect(
+			__test__.resolveSlackBotUserId(
+				{ botUserId: undefined },
+				{ authorizations: [{ user_id: "U0B8E8H3U1F" }] },
+			),
+		).toBe("U0B8E8H3U1F");
+		expect(
+			__test__.resolveSlackBotUserId({ botUserId: undefined }, { text: "hi" }),
+		).toBeUndefined();
+	});
+
 	it("detects Slack invalid_thread_ts errors", () => {
 		expect(
 			__test__.isSlackInvalidThreadTsError(
