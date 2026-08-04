@@ -473,7 +473,7 @@ describe("ChatInputBar token ring", () => {
 		).toBeNull();
 	});
 
-	it("fills from input only and sits immediately before the workspace selector", async () => {
+	it("fills from input only and sits immediately after the workspace selector", async () => {
 		const trigger = await renderTokenUsage(
 			{
 				toolCalls: 0,
@@ -490,24 +490,44 @@ describe("ChatInputBar token ring", () => {
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
-		const progressCircle = trigger?.querySelector("circle.stroke-primary");
+		const progressCircle = trigger?.querySelector("circle.stroke-orange-500");
 		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
 		const circumference = 2 * Math.PI * 8.5;
 		expect(
 			Number(progressCircle?.getAttribute("stroke-dashoffset")),
 		).toBeCloseTo(circumference * 0.5);
 
-		const workspaceSelector = container.querySelector("#git-branch-btn");
+		const workspaceSelector = trigger?.parentElement?.querySelector("#git-branch-btn");
 		expect(workspaceSelector).not.toBeNull();
 		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
 		expect(trigger?.parentElement?.contains(workspaceSelector)).toBe(true);
 		expect(
 			Boolean(
 				trigger?.compareDocumentPosition(workspaceSelector as Node) &
-					Node.DOCUMENT_POSITION_FOLLOWING,
+					Node.DOCUMENT_POSITION_PRECEDING,
 			),
 		).toBe(true);
 		expect(container.textContent).not.toContain("1,500 tokens");
+	});
+
+	it("changes the ring from primary to orange at 50% and red at 75%", async () => {
+		const belowWarning = await renderTokenUsage(
+			{ toolCalls: 0, tokensIn: 499, tokensOut: 0 },
+			1000,
+		);
+		expect(belowWarning?.querySelector("circle.stroke-primary")).not.toBeNull();
+
+		const warning = await renderTokenUsage(
+			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
+			1000,
+		);
+		expect(warning?.querySelector("circle.stroke-orange-500")).not.toBeNull();
+
+		const critical = await renderTokenUsage(
+			{ toolCalls: 0, tokensIn: 750, tokensOut: 0 },
+			1000,
+		);
+		expect(critical?.querySelector("circle.stroke-red-500")).not.toBeNull();
 	});
 
 	it("opens only supported usage details on click", async () => {
@@ -526,13 +546,39 @@ describe("ChatInputBar token ring", () => {
 
 		const panel = document.querySelector("#token-usage-panel");
 		expect(panel?.textContent).toContain("Context window500k / 1.0M (50%)");
+		expect(panel?.querySelector(".bg-primary")).not.toBeNull();
 		expect(panel?.textContent).toContain("Output tokens500");
 		expect(panel?.textContent).toContain("Cost$0.014");
 		expect(panel?.textContent).not.toContain("Total");
 		expect(panel?.textContent).not.toContain("usage limit");
 	});
 
-	it("saturates at 100% without switching to a destructive style", async () => {
+	it("changes the popover progress bar to orange above 50% and red above 75%", async () => {
+		const trigger = await renderTokenUsage(
+			{ toolCalls: 0, tokensIn: 501, tokensOut: 0 },
+			1000,
+		);
+		await act(async () => {
+			trigger?.click();
+		});
+		expect(
+			document
+				.querySelector("#token-usage-panel")
+				?.querySelector(".bg-orange-500"),
+		).not.toBeNull();
+
+		await renderTokenUsage(
+			{ toolCalls: 0, tokensIn: 751, tokensOut: 0 },
+			1000,
+		);
+		expect(
+			document
+				.querySelector("#token-usage-panel")
+				?.querySelector(".bg-red-500"),
+		).not.toBeNull();
+	});
+
+	it("saturates at 100% with the critical ring color", async () => {
 		const trigger = await renderTokenUsage(
 			{
 				toolCalls: 0,
@@ -541,8 +587,7 @@ describe("ChatInputBar token ring", () => {
 			},
 			128_000,
 		);
-		const progressCircle = trigger?.querySelector("circle.stroke-primary");
+		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
-		expect(trigger?.querySelector(".stroke-destructive")).toBeNull();
 	});
 });

@@ -1635,6 +1635,18 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 		1,
 	);
 	const percent = Math.round(ratio * 100);
+	const ringColorClass =
+		ratio >= 0.75
+			? "stroke-red-500"
+			: ratio >= 0.5
+				? "stroke-orange-500"
+				: "stroke-primary";
+	const contextBarColorClass =
+		ratio > 0.75
+			? "bg-red-500"
+			: ratio > 0.5
+				? "bg-orange-500"
+				: "bg-primary";
 	const cost = formatCostUsd(usage.totalCost);
 	const contextUsageLabel = `${formatCompactTokens(usage.tokensIn)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
 	const radius = 8.5;
@@ -1645,11 +1657,11 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={`Context window: ${usage.tokensIn.toLocaleString()} of ${contextWindow.toLocaleString()} input tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent"
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
-					variant="ghost"
+					variant="text"
 				>
 					<svg
 						aria-hidden="true"
@@ -1667,7 +1679,10 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className="stroke-primary transition-[stroke-dashoffset] duration-200"
+							className={cn(
+								"transition-[stroke,stroke-dashoffset] duration-200",
+								ringColorClass,
+							)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1697,7 +1712,10 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 					<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full rounded-full bg-primary transition-[width] duration-200"
+							className={cn(
+								"h-full rounded-full transition-[background-color,width] duration-200",
+								contextBarColorClass,
+							)}
 							style={{ width: `${percent}%` }}
 						/>
 					</div>
