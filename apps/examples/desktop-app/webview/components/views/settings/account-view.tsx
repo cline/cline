@@ -409,7 +409,7 @@ export function AccountView() {
 			<button
 				type="button"
 				onClick={onRetry}
-				className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+				className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 			>
 				<RefreshCw className="h-4 w-4" />
 				Retry
@@ -449,7 +449,7 @@ export function AccountView() {
 					<button
 						type="button"
 						onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 					>
 						Create account
 						<ExternalLink className="h-4 w-4" />
@@ -481,7 +481,7 @@ export function AccountView() {
 			onClick={input.onSelect}
 			className={cn(
 				"flex w-full items-center gap-3 rounded-lg border border-border px-4 py-3 text-left transition-colors",
-				input.active ? "cursor-default" : "hover:bg-accent/20",
+				input.active ? "cursor-default" : "hover:bg-surface-hover-lighter",
 				!input.active && switchTargetId !== null && "opacity-60",
 			)}
 		>
@@ -511,13 +511,13 @@ export function AccountView() {
 			<div className="mx-auto max-w-3xl px-8 py-6">
 				{/* Header */}
 				<div className="mb-6 flex items-center justify-between">
-					<h2 className="text-lg font-semibold text-foreground">Account</h2>
+					<h2 className="text-2xl font-semibold text-foreground">Account</h2>
 					{user && (
 						<button
 							type="button"
 							disabled={accountActionPending !== null}
 							onClick={() => void signOut()}
-							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-60"
+							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
 							{accountActionPending === "sign-out" ? (
 								<Loader2 className="h-4 w-4 animate-spin" />
@@ -570,13 +570,13 @@ export function AccountView() {
 								{/* User Profile Card */}
 								<div className="rounded-lg border border-border p-5">
 									<div className="flex items-start gap-4">
-										<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/20 text-2xl font-bold text-primary">
+										<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-(--accent-a3) text-2xl font-bold text-primary">
 											{user.displayName?.charAt(0) ??
 												user.email?.charAt(0) ??
 												"?"}
 										</div>
 										<div className="min-w-0 flex-1">
-											<h3 className="text-base font-semibold text-foreground">
+											<h3 className="text-lg font-semibold text-foreground">
 												{user.displayName || user.email}
 											</h3>
 											<p className="mt-0.5 text-sm text-muted-foreground">
@@ -590,7 +590,7 @@ export function AccountView() {
 											type="button"
 											title="Open dashboard"
 											onClick={() => void openExternalUrl(DASHBOARD_URL)}
-											className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+											className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 										>
 											<ExternalLink className="h-4 w-4" />
 										</button>
@@ -618,7 +618,7 @@ export function AccountView() {
 															: USER_CREDITS_URL,
 													)
 												}
-												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 											>
 												<Plus className="h-3.5 w-3.5" />
 												Credit
@@ -652,7 +652,7 @@ export function AccountView() {
 											onClick={() =>
 												void openExternalUrl(CREATE_ORGANIZATION_URL)
 											}
-											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 										>
 											<Plus className="h-3.5 w-3.5" />
 											Create
@@ -715,7 +715,7 @@ export function AccountView() {
 										{usageTransactions.map((tx) => (
 											<div
 												key={tx.id}
-												className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
+												className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
 											>
 												<div className="min-w-0">
 													<p className="font-medium text-foreground truncate">
@@ -769,7 +769,7 @@ export function AccountView() {
 										{paymentTransactions.map((tx) => (
 											<div
 												key={`${tx.paidAt}-${tx.amountCents}-${tx.credits}`}
-												className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
+												className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
 											>
 												<div className="flex items-center gap-3">
 													<Receipt className="h-4 w-4 text-muted-foreground" />

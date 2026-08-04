@@ -647,10 +647,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === slashSelectedIndex}
 											className={cn(
-												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs ",
 												index === slashSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={cmd.name}
 											id={`slash-command-option-${index}`}
@@ -691,10 +691,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === mentionSelectedIndex}
 											className={cn(
-												"block w-full rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"block w-full rounded-md px-3 py-2 text-left text-xs ",
 												index === mentionSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={filePath}
 											id={`mention-file-option-${index}`}
@@ -848,7 +848,7 @@ export function ChatInputBar({
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										"bg-foreground p-0 text-background hover:bg-primary/80",
 										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
@@ -861,7 +861,7 @@ export function ChatInputBar({
 								<button
 									aria-label="Send message"
 									className={cn(
-										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
 										variant === "welcome"
 											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
 											: "rounded-full bg-primary text-background hover:bg-primary/80",
@@ -886,7 +886,7 @@ export function ChatInputBar({
 								{attachment.isImage ? "image:" : "file:"} {attachment.name}
 								<button
 									aria-label={`Remove ${attachment.name}`}
-									className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+									className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 									onClick={() => onRemoveAttachment(attachment.id)}
 									type="button"
 								>
@@ -899,11 +899,11 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-0 pl-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -925,7 +925,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "plan"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -940,7 +940,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "act"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "act"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -972,7 +972,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							className="h-7 gap-1.5 border-0 bg-muted px-2 text-xs shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
@@ -1336,7 +1336,7 @@ const ModelSelector = memo(function ModelSelector({
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
@@ -1376,9 +1376,9 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28 text-[11px]")}
+				{renderProviderSelect("max-w-28")}
 				<span className="text-muted-foreground/50">/</span>
-				{renderModelSelect("max-w-52 text-[11px]")}
+				{renderModelSelect("max-w-52")}
 			</div>
 		</div>
 	);
@@ -1427,7 +1427,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
