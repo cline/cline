@@ -1563,11 +1563,17 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
-					if (
-						optimisticUserMessageId &&
+					const optimisticPrompt =
 						optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
-					) {
-						optimisticImmediatePromptRef.current.rpcState = "queued";
+							? optimisticImmediatePromptRef.current
+							: null;
+					if (optimisticPrompt?.sawMatchingQueuedStart) {
+						clearOptimisticImmediatePrompt();
+						setMessages((prev) =>
+							prev.filter((message) => message.id !== optimisticPrompt.id),
+						);
+					} else if (optimisticPrompt) {
+						optimisticPrompt.rpcState = "queued";
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");

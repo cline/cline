@@ -930,6 +930,80 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("reconciles an auto-queued prompt when its start event arrives before the response", async () => {
+		let resolveQueuedSend:
+			| ((value: { ok: true; queued: true; promptsInQueue: never[] }) => void)
+			| undefined;
+		const queuedSendResponse = new Promise<{
+			ok: true;
+			queued: true;
+			promptsInQueue: never[];
+		}>((resolve) => {
+			resolveQueuedSend = resolve;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await queuedSendResponse;
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPrompt: Promise<void> | undefined;
+		await act(async () => {
+			sendPrompt = current.sendPrompt("Auto-queued prompt");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "auto-queued-prompt",
+					prompt: "Auto-queued prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toHaveLength(2);
+
+		await act(async () => {
+			resolveQueuedSend?.({ ok: true, queued: true, promptsInQueue: [] });
+			await sendPrompt;
+		});
+
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toEqual([
+			expect.objectContaining({
+				id: "queued_user_auto-queued-prompt",
+				content: "Auto-queued prompt",
+			}),
+		]);
+	});
+
 	it("keeps an identical queued prompt distinct when it starts before the active send resolves", async () => {
 		let resolveImmediateSend:
 			| ((value: {
