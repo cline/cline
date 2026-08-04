@@ -189,11 +189,10 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: apps/examples/desktop-app/src-tauri
-          key: universal-apple-darwin
+      # No Rust build cache here, deliberately. This is the only job that can
+      # read the Apple signing certificate and the Tauri updater key, and a
+      # restored cache archive is attacker-controlled the moment the Actions
+      # cache is poisoned.
 
       - name: Install dependencies
         run: bun install
