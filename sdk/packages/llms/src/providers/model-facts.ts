@@ -259,7 +259,8 @@ export function isDeepSeekFamily(context: GatewayProviderContext): boolean {
 	return (
 		family === "deepseek" ||
 		family === "deepseek-thinking" ||
-		family === "deepseek-flash"
+		family === "deepseek-flash" ||
+		family === "deepseek-flash-free"
 	);
 }
 
