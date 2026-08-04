@@ -7,6 +7,7 @@ import type {
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import { createToolCallDeltaRepairFetch } from "./tool-call-delta-repair";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -115,18 +116,25 @@ export async function createOpenAICompatibleProviderModule(
 	const apiKey = await resolveApiKey(config);
 	const fetch = createAzureApiVersionFetch(config);
 	const onResponseError = readResponseErrorHandler(config);
-	const providerFetch = onResponseError
+	const baseFetch = onResponseError
 		? createResponseErrorFetch({
 				fetch: ensureFetch(fetch),
 				onResponseError,
 			})
 		: fetch;
+	// Repair malformed streaming tool-call deltas (missing `index`, names
+	// that never arrive) before the AI SDK parses them — otherwise the
+	// shared StreamingToolCallTracker fails the whole turn with
+	// `Expected 'function.name' to be a string.` on server behaviors the
+	// classic extension's ToolCallProcessor tolerated. See
+	// `tool-call-delta-repair.ts`.
+	const providerFetch = createToolCallDeltaRepairFetch(ensureFetch(baseFetch));
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
 		...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
 		...(config.headers ? { headers: config.headers } : {}),
-		...(providerFetch ? { fetch: providerFetch } : {}),
+		fetch: providerFetch,
 		includeUsage: true,
 	} as never);
 	return {

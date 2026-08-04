@@ -4485,8 +4485,9 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("does not wrap provider fetch when wire capture is disabled", async () => {
-		const customFetch = vi.fn() as unknown as typeof fetch;
+	it("does not wrap provider fetch for wire capture when it is disabled", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -4505,10 +4506,23 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		// The tool-call delta repair wrapper is always applied, so the
+		// configured fetch is not identical — but with wire capture disabled
+		// the request must reach the configured fetch untouched.
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		const body = JSON.stringify({
+			messages: [{ role: "user", content: "hi" }],
+		});
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(String(init?.body)).toBe(body);
 	});
 
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
@@ -4854,10 +4868,23 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		// No session_id must be injected from conversationId alone; the wire
+		// request body reaches the configured fetch unchanged.
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		const body = JSON.stringify({
+			messages: [{ role: "user", content: "hi" }],
+		});
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(String(init?.body)).toBe(body);
+		expect(JSON.parse(String(init?.body))).not.toHaveProperty("session_id");
 	});
 
 	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
