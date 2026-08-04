@@ -53,6 +53,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineManagedProviderActive: () => boolean
+	isClineAccountAuthenticated: () => boolean
 	emitClineAuthError: (task?: string) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
@@ -94,9 +95,9 @@ export class SdkTaskStartCoordinator {
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
 
-			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
+			if (usesClineAccountAuth(config.providerId) && (!this.options.isClineAccountAuthenticated() || !config.apiKey)) {
 				Logger.warn(
-					`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
+					`[SdkController] ${config.providerId} provider selected but Cline account is not authenticated — emitting auth error`,
 				)
 				// No task/session id exists yet, so this preflight auth UI path is
 				// intentionally not recorded as task-joinable provider error telemetry.
