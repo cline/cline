@@ -3,12 +3,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
@@ -198,6 +199,99 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Shell breadcrumbs
+//
+// When the sidecar cannot spawn or dies unexpectedly, no JS process is alive
+// to report telemetry. The shell appends a small JSON line to a breadcrumb
+// file instead; on the next sidecar boot, sidecar/shell-breadcrumbs.ts reads
+// the file, reports each line as a `desktop.shell_breadcrumb` event, and
+// truncates it. Everything here is best-effort: breadcrumbs must never block
+// or fail startup.
+// ---------------------------------------------------------------------------
+
+const SHELL_BREADCRUMB_MAX_FILE_BYTES: u64 = 64 * 1024;
+const SHELL_BREADCRUMB_MAX_DETAIL_CHARS: usize = 300;
+
+/// Must stay in sync with `resolveShellBreadcrumbPath` in
+/// sidecar/shell-breadcrumbs.ts, which reads and truncates this file.
+fn shell_breadcrumb_path() -> Option<PathBuf> {
+    if let Ok(value) = std::env::var("CLINE_DESKTOP_BREADCRUMB_PATH") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(PathBuf::from(trimmed));
+        }
+    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()?;
+    if home.trim().is_empty() {
+        return None;
+    }
+    Some(
+        PathBuf::from(home)
+            .join(".cline")
+            .join("data")
+            .join("desktop")
+            .join("shell-breadcrumbs.jsonl"),
+    )
+}
+
+fn format_shell_breadcrumb(
+    event: &str,
+    exit_code: Option<i32>,
+    restart_count: u64,
+    detail: Option<&str>,
+    timestamp_ms: u64,
+) -> String {
+    let mut line = serde_json::json!({
+        "ts": timestamp_ms,
+        "event": event,
+        "restart_count": restart_count,
+    });
+    if let Some(code) = exit_code {
+        line["exit_code"] = code.into();
+    }
+    if let Some(detail) = detail {
+        let truncated: String = detail
+            .chars()
+            .take(SHELL_BREADCRUMB_MAX_DETAIL_CHARS)
+            .collect();
+        line["detail"] = truncated.into();
+    }
+    line.to_string()
+}
+
+fn append_shell_breadcrumb(
+    event: &str,
+    exit_code: Option<i32>,
+    restart_count: u64,
+    detail: Option<&str>,
+) {
+    let Some(path) = shell_breadcrumb_path() else {
+        return;
+    };
+    // Size cap: a sidecar stuck in a crash loop must not grow this file
+    // forever. Once the cap is hit, later breadcrumbs are dropped until the
+    // sidecar next boots and truncates the file.
+    if let Ok(metadata) = fs::metadata(&path) {
+        if metadata.len() >= SHELL_BREADCRUMB_MAX_FILE_BYTES {
+            return;
+        }
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0);
+    let line = format_shell_breadcrumb(event, exit_code, restart_count, detail, timestamp_ms);
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
 /// Lock order: `process` may be held while acquiring `ws_endpoint`, never
 /// the reverse. Anything that touches both (including stop()) must either
 /// nest in that order or take them strictly sequentially.
@@ -206,6 +300,7 @@ struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
     shutting_down: Mutex<bool>,
+    restart_count: AtomicU64,
 }
 
 impl DesktopBackendState {
@@ -482,7 +577,16 @@ fn ensure_desktop_backend_started_with(
             // take a few seconds). Spawning again here would orphan it and
             // race on the port.
             Ok(None) => return Ok(()),
-            Ok(Some(_)) | Err(_) => {
+            outcome @ (Ok(Some(_)) | Err(_)) => {
+                // Reaching here means the sidecar died without a shutdown
+                // request — the crash class no JS process can self-report.
+                let restarts = state.restart_count.fetch_add(1, Ordering::SeqCst) + 1;
+                match outcome {
+                    Ok(Some(status)) => {
+                        append_shell_breadcrumb("sidecar_exited", status.code(), restarts, None)
+                    }
+                    _ => append_shell_breadcrumb("sidecar_wait_failed", None, restarts, None),
+                }
                 *process_guard = None;
                 if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
                     *endpoint_guard = None;
@@ -491,7 +595,18 @@ fn ensure_desktop_backend_started_with(
         }
     }
 
-    let mut child = spawn_backend()?;
+    let mut child = match spawn_backend() {
+        Ok(child) => child,
+        Err(message) => {
+            append_shell_breadcrumb(
+                "sidecar_spawn_failed",
+                None,
+                state.restart_count.load(Ordering::SeqCst),
+                Some(&message),
+            );
+            return Err(message);
+        }
+    };
 
     let stdout = child
         .stdout
@@ -949,7 +1064,11 @@ fn main() {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::AtomicUsize;
+
+    /// Serializes tests that set CLINE_DESKTOP_BREADCRUMB_PATH: env vars are
+    /// process-global and cargo runs tests in parallel threads.
+    static BREADCRUMB_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn desktop_menu_actions_are_buffered_in_order_until_drained() {
@@ -1057,7 +1176,105 @@ mod tests {
     }
 
     #[test]
+    fn shell_breadcrumb_lines_serialize_expected_fields() {
+        let line = format_shell_breadcrumb("sidecar_exited", Some(137), 3, None, 1_700_000_000_000);
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("valid json");
+        assert_eq!(parsed["event"], "sidecar_exited");
+        assert_eq!(parsed["exit_code"], 137);
+        assert_eq!(parsed["restart_count"], 3);
+        assert_eq!(parsed["ts"], 1_700_000_000_000u64);
+        assert!(parsed.get("detail").is_none());
+
+        let long_detail = "x".repeat(1_000);
+        let line = format_shell_breadcrumb(
+            "sidecar_spawn_failed",
+            None,
+            0,
+            Some(&long_detail),
+            1_700_000_000_000,
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("valid json");
+        assert!(parsed.get("exit_code").is_none());
+        assert_eq!(
+            parsed["detail"].as_str().map(|value| value.len()),
+            Some(SHELL_BREADCRUMB_MAX_DETAIL_CHARS)
+        );
+    }
+
+    #[test]
+    fn breadcrumbs_are_appended_for_unexpected_sidecar_exits() {
+        let _env_guard = BREADCRUMB_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let breadcrumb_dir =
+            std::env::temp_dir().join(format!("cline-breadcrumb-test-{}", std::process::id()));
+        let breadcrumb_path = breadcrumb_dir.join("shell-breadcrumbs.jsonl");
+        let _ = fs::remove_dir_all(&breadcrumb_dir);
+        std::env::set_var(
+            "CLINE_DESKTOP_BREADCRUMB_PATH",
+            breadcrumb_path.to_string_lossy().to_string(),
+        );
+
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_exiting = || {
+            Command::new("true")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| e.to_string())
+        };
+        ensure_desktop_backend_started_with(&state, spawn_exiting)
+            .expect("startup check should succeed");
+        for _ in 0..100 {
+            let exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if exited {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        // Observing the dead child on the next check appends the breadcrumb.
+        ensure_desktop_backend_started_with(&state, spawn_exiting)
+            .expect("startup check should succeed");
+
+        let contents = fs::read_to_string(&breadcrumb_path).expect("breadcrumb file exists");
+        let line = contents.lines().next().expect("one breadcrumb line");
+        let parsed: serde_json::Value = serde_json::from_str(line).expect("valid json line");
+        assert_eq!(parsed["event"], "sidecar_exited");
+        assert_eq!(parsed["restart_count"], 1);
+        assert_eq!(parsed["exit_code"], 0);
+
+        std::env::remove_var("CLINE_DESKTOP_BREADCRUMB_PATH");
+        let _ = fs::remove_dir_all(&breadcrumb_dir);
+        state.stop();
+    }
+
+    #[test]
     fn exited_child_is_replaced_on_next_startup_check() {
+        // This test also observes a dead child, which appends a breadcrumb;
+        // point it at a throwaway file instead of the real user path.
+        let _env_guard = BREADCRUMB_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let breadcrumb_dir = std::env::temp_dir().join(format!(
+            "cline-breadcrumb-replace-test-{}",
+            std::process::id()
+        ));
+        std::env::set_var(
+            "CLINE_DESKTOP_BREADCRUMB_PATH",
+            breadcrumb_dir
+                .join("shell-breadcrumbs.jsonl")
+                .to_string_lossy()
+                .to_string(),
+        );
         let state = Arc::new(DesktopBackendState::default());
         let spawn_count = AtomicUsize::new(0);
         let spawn_exiting = || {
@@ -1090,6 +1307,8 @@ mod tests {
         ensure_desktop_backend_started_with(&state, || spawn_exiting())
             .expect("startup check should succeed");
         assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
+        std::env::remove_var("CLINE_DESKTOP_BREADCRUMB_PATH");
+        let _ = fs::remove_dir_all(&breadcrumb_dir);
         state.stop();
     }
 }

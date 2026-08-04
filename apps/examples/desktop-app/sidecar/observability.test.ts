@@ -42,6 +42,11 @@ vi.mock("./logging", () => ({
 	}),
 }));
 
+const reportShellBreadcrumbs = vi.hoisted(() => vi.fn(() => 0));
+vi.mock("./shell-breadcrumbs", () => ({
+	reportShellBreadcrumbs,
+}));
+
 describe("desktop observability", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -70,6 +75,11 @@ describe("desktop observability", () => {
 		});
 		expect(mocks.captureExtensionActivated).toHaveBeenCalledWith(telemetry);
 		expect(mocks.setSdkLogger).toHaveBeenCalledWith(logger);
+
+		// Deferred off the boot path, so it must not have run synchronously.
+		expect(reportShellBreadcrumbs).not.toHaveBeenCalled();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(reportShellBreadcrumbs).toHaveBeenCalledWith(telemetry, logger);
 
 		await observability.dispose();
 		await observability.dispose();

@@ -97,3 +97,22 @@ Commands that legitimately block on interaction or long flows are exempt:
 `run_provider_oauth_login` (browser OAuth flow), and
 `chat_session_command` (chat turns are long-running by design). Handler
 *failures* of those commands still report `desktop.command_failed`.
+
+### `desktop.shell_breadcrumb` (component: `desktop.shell`)
+
+Process-death evidence. When the sidecar cannot spawn or dies
+unexpectedly, no JS process is alive to report telemetry — so the Rust
+shell (`src-tauri/src/main.rs`) appends a JSON line to a breadcrumb file
+(`~/.cline/data/desktop/shell-breadcrumbs.jsonl`, capped at 64 KiB). On
+the next sidecar boot, `sidecar/shell-breadcrumbs.ts` reads the file,
+reports each valid line, and truncates it; malformed lines are dropped
+silently and only the newest 50 lines report.
+
+| Property | Description |
+| --- | --- |
+| `component` | `desktop.shell`. |
+| `breadcrumb_event` | `sidecar_exited` (tracked child died without a shutdown request), `sidecar_spawn_failed` (the shell could not start the sidecar), or `sidecar_wait_failed` (the child's state could not be read). |
+| `occurred_at` | When the shell wrote the breadcrumb (ISO timestamp) — the event itself is captured at next launch. |
+| `exit_code` | The sidecar's exit code, when the OS reported one. |
+| `restart_count` | How many unexpected exits this shell process has observed. |
+| `detail` | Spawn-failure message (redacted + truncated). |

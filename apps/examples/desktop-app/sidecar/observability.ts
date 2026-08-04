@@ -13,6 +13,7 @@ import {
 	createDesktopLoggerAdapter,
 	type DesktopLoggerAdapter,
 } from "./logging";
+import { reportShellBreadcrumbs } from "./shell-breadcrumbs";
 
 export interface DesktopObservability {
 	readonly logger: DesktopLoggerAdapter["core"];
@@ -47,6 +48,12 @@ export function createDesktopObservability(): DesktopObservability {
 		});
 	}
 	captureExtensionActivated(telemetry);
+	// Crash evidence the Rust shell wrote while no sidecar was alive to
+	// report it. Deferred off the boot path — breadcrumbs must never delay
+	// or break startup.
+	setTimeout(() => {
+		reportShellBreadcrumbs(telemetry, logger);
+	}, 0);
 
 	let disposed = false;
 	return {
