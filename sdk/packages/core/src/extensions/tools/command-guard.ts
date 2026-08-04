@@ -64,6 +64,13 @@ const BLOCKED_COMMANDS = new Set([
 	"add-content",
 	"clear-content",
 	"out-file",
+	// Unambiguous PowerShell aliases of the cmdlets above
+	"mi",
+	"ri",
+	"cpi",
+	"rni",
+	"ac",
+	"clc",
 ]);
 
 /** Subcommands that mutate state, keyed by the command they belong to. */
@@ -120,6 +127,17 @@ const CARGO_SUBCOMMANDS = new Set([
 	"init",
 	"publish",
 ]);
+const GEM_SUBCOMMANDS = new Set(["install", "uninstall", "update", "cleanup"]);
+const COMPOSER_SUBCOMMANDS = new Set([
+	"install",
+	"require",
+	"remove",
+	"update",
+]);
+const GO_SUBCOMMANDS = new Set(["install", "get"]);
+const DOTNET_SUBCOMMANDS = new Set(["add", "remove"]);
+const WINGET_SUBCOMMANDS = new Set(["install", "uninstall", "upgrade"]);
+const NUGET_SUBCOMMANDS = new Set(["install", "update", "delete", "push"]);
 const SYSTEM_PM_SUBCOMMANDS = new Set([
 	"install",
 	"reinstall",
@@ -149,6 +167,22 @@ const BLOCKED_SUBCOMMANDS: Record<string, Set<string>> = {
 	apk: SYSTEM_PM_SUBCOMMANDS,
 	brew: SYSTEM_PM_SUBCOMMANDS,
 	snap: SYSTEM_PM_SUBCOMMANDS,
+	gem: GEM_SUBCOMMANDS,
+	composer: COMPOSER_SUBCOMMANDS,
+	go: GO_SUBCOMMANDS,
+	dotnet: DOTNET_SUBCOMMANDS,
+	winget: WINGET_SUBCOMMANDS,
+	nuget: NUGET_SUBCOMMANDS,
+};
+
+/**
+ * Read-only forms of otherwise-mutating git subcommands, keyed by
+ * subcommand: `git stash list` inspects, `git stash` mutates.
+ */
+const READ_ONLY_GIT_FORMS: Record<string, Set<string>> = {
+	stash: new Set(["list", "show"]),
+	worktree: new Set(["list"]),
+	submodule: new Set(["status", "summary"]),
 };
 
 /** Prefix commands to skip over to reach the command that actually runs. */
@@ -188,18 +222,28 @@ const RESERVED_WORDS = new Set([
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
 
 /**
- * Redirect targets that never persist data to a file. /tmp is also allowed:
- * the run_commands description tells models to capture long-running output in
- * a tmp file, and that never touches the workspace.
+ * Redirect targets that never persist data to a file. Temp locations are
+ * also allowed: the run_commands description tells models to capture
+ * long-running output in a tmp file, and that never touches the workspace.
+ * `..` segments are rejected so a temp prefix cannot smuggle a path back
+ * into the workspace (`/tmp/../home/user/project/x`).
  */
 function isAllowedRedirectTarget(rawTarget: string): boolean {
 	const target = rawTarget.replace(/["']/g, "");
+	if (/^(\/dev\/(null|stdout|stderr|tty)|nul:?)$/i.test(target)) {
+		return true;
+	}
+	if (target.includes("..")) {
+		return false;
+	}
 	return (
-		/^(\/dev\/(null|stdout|stderr|tty)|nul:?)$/i.test(target) ||
 		target.startsWith("/tmp/") ||
 		target.startsWith("/var/tmp/") ||
 		target.startsWith("$TMPDIR") ||
-		target.startsWith("${TMPDIR")
+		target.startsWith("${TMPDIR") ||
+		// Windows temp locations (cmd and PowerShell forms)
+		/^%te?mp%/i.test(target) ||
+		/^\$env:te?mp/i.test(target)
 	);
 }
 
@@ -238,6 +282,9 @@ function maskNonCommandText(command: string): string {
 	return (
 		kept
 			.join("\n")
+			// Arithmetic expansion ($((3 > 2))) holds comparisons, not
+			// commands or redirections.
+			.replace(/\$\(\([\s\S]*?\)\)/g, "_")
 			// Backslash-escaped characters are literal text.
 			.replace(/\\./g, "_")
 			// Special characters inside quotes are literal text; spaces are
@@ -268,6 +315,7 @@ function checkTokens(tokens: string[]): string | undefined {
 		while (
 			index < tokens.length &&
 			(tokens[index].startsWith("-") ||
+				tokens[index] === "{}" ||
 				ENV_ASSIGNMENT.test(tokens[index]) ||
 				/^\d+[smhd]?$/.test(tokens[index]))
 		) {
@@ -296,6 +344,13 @@ function checkTokens(tokens: string[]): string | undefined {
 
 	const subcommands = BLOCKED_SUBCOMMANDS[name];
 	if (subcommands) {
+		// Help output never mutates (`git switch --help`).
+		if (
+			name === "git" &&
+			args.some((arg) => arg === "--help" || arg === "-h")
+		) {
+			return undefined;
+		}
 		// First non-option arg is the subcommand; `git -c k=v` / `git -C dir`
 		// take a value, so skip that too.
 		let cursor = 0;
@@ -304,23 +359,65 @@ function checkTokens(tokens: string[]): string | undefined {
 		}
 		const subcommand = args[cursor]?.toLowerCase();
 		if (subcommand && subcommands.has(subcommand)) {
+			const next = args[cursor + 1]?.toLowerCase();
+			if (
+				name === "git" &&
+				next !== undefined &&
+				READ_ONLY_GIT_FORMS[subcommand]?.has(next)
+			) {
+				return undefined;
+			}
 			return `\`${name} ${subcommand}\``;
+		}
+		// Classic yarn with no subcommand runs an install.
+		if (name === "yarn" && args.length === 0) {
+			return "`yarn` (install)";
 		}
 		return undefined;
 	}
 
-	// In-place edit flags on otherwise read-only text tools.
+	// `python -m pip install ...` is pip.
+	if (/^python[\d.]*$/.test(name)) {
+		const moduleIndex = args.indexOf("-m");
+		const module =
+			moduleIndex === -1 ? undefined : args[moduleIndex + 1]?.toLowerCase();
+		if (module === "pip" || module === "pip3") {
+			const subcommand = args
+				.slice(moduleIndex + 2)
+				.find((arg) => !arg.startsWith("-"))
+				?.toLowerCase();
+			if (subcommand && PIP_SUBCOMMANDS.has(subcommand)) {
+				return `\`pip ${subcommand}\``;
+			}
+		}
+		return undefined;
+	}
+
+	// In-place edit flags on otherwise read-only text tools. The flag cluster
+	// must end at the lowercase `i` (optionally followed by a `.suffix`), so
+	// value-taking uppercase flags like `perl -Ilib` do not match.
+	const IN_PLACE_FLAG = /^-[A-Za-z]*i(\..*)?$/;
 	if (
 		(name === "sed" || name === "gsed") &&
-		args.some((arg) => /^-[a-z]*i/i.test(arg) || arg.startsWith("--in-place"))
+		args.some((arg) => IN_PLACE_FLAG.test(arg) || arg.startsWith("--in-place"))
 	) {
 		return "`sed -i` (in-place edit)";
 	}
-	if (name === "perl" && args.some((arg) => /^-[a-z]*i/i.test(arg))) {
+	if (name === "perl" && args.some((arg) => IN_PLACE_FLAG.test(arg))) {
 		return "`perl -i` (in-place edit)";
 	}
-	if (/^[gnm]?awk$/.test(name) && args.some((arg) => arg.includes("inplace"))) {
-		return "`awk -i inplace` (in-place edit)";
+	if (/^[gnm]?awk$/.test(name)) {
+		const usesInplace = args.some(
+			(arg, argIndex) =>
+				((arg === "-i" || arg === "--include") &&
+					args[argIndex + 1]?.startsWith("inplace")) ||
+				(arg.startsWith("-i") && arg.slice(2).startsWith("inplace")) ||
+				arg.startsWith("--include=inplace"),
+		);
+		if (usesInplace) {
+			return "`awk -i inplace` (in-place edit)";
+		}
+		return undefined;
 	}
 	if (
 		name === "sort" &&
@@ -328,8 +425,47 @@ function checkTokens(tokens: string[]): string | undefined {
 	) {
 		return "`sort -o` (writes a file)";
 	}
-	if (name === "find" && args.includes("-delete")) {
-		return "`find -delete`";
+	if (name === "curl") {
+		const writesFile = args.some(
+			(arg) =>
+				(!arg.startsWith("--") && /^-[A-Za-z]*[oO]/.test(arg)) ||
+				arg.startsWith("--output") ||
+				arg.startsWith("--remote-name"),
+		);
+		return writesFile ? "`curl -o` (writes a file)" : undefined;
+	}
+	if (name === "wget") {
+		const readOnly = args.some(
+			(arg, argIndex) =>
+				arg === "--spider" ||
+				/^-[A-Za-z]*O-$/.test(arg) ||
+				arg === "--output-document=-" ||
+				(arg === "-O" && args[argIndex + 1] === "-"),
+		);
+		return readOnly ? undefined : "`wget` (downloads files)";
+	}
+	if (name === "find") {
+		if (args.includes("-delete")) {
+			return "`find -delete`";
+		}
+		for (let argIndex = 0; argIndex < args.length; argIndex += 1) {
+			if (!["-exec", "-execdir", "-ok", "-okdir"].includes(args[argIndex])) {
+				continue;
+			}
+			const tail: string[] = [];
+			for (
+				let cursor = argIndex + 1;
+				cursor < args.length && args[cursor] !== ";" && args[cursor] !== "+";
+				cursor += 1
+			) {
+				tail.push(args[cursor]);
+			}
+			const nested = checkTokens(tail);
+			if (nested) {
+				return nested;
+			}
+		}
+		return undefined;
 	}
 
 	return undefined;
@@ -379,7 +515,7 @@ export function formatPlanModeBlockedCommandError(reason: string): string {
 	return (
 		`Command not executed: ${reason} can modify files, and file modifications are blocked in plan mode. ` +
 		"You are in PLAN MODE — explore, analyze, and present a plan; do not make changes. " +
-		"Use read-only commands to inspect the project (redirecting output to /tmp is allowed), " +
+		"Use read-only commands to inspect the project (redirecting output to /tmp, or %TEMP% on Windows, is allowed), " +
 		"and if this change is part of the task, put it in your plan so it can run after the user approves switching to act mode."
 	);
 }

@@ -245,6 +245,105 @@ describe("findFileEditingCommand — evasion via nesting and wrappers", () => {
 	});
 });
 
+describe("findFileEditingCommand — review feedback cases", () => {
+	it("does not flag value-taking uppercase flags as in-place edits", () => {
+		expect(blocks("perl -Ilib script.pl")).toBe(false);
+		expect(blocks("perl -pi -e 's/a/b/' f.txt")).toBe(true);
+		expect(blocks("perl -pi.bak -e 's/a/b/' f.txt")).toBe(true);
+		expect(blocks("sed -Ei 's/a/b/' f.txt")).toBe(true);
+	});
+
+	it("ties awk inplace detection to the -i/--include flag", () => {
+		expect(blocks("awk '{print $1}' inplace-notes.txt")).toBe(false);
+		expect(blocks("gawk -i inplace '{gsub(/a/,\"b\")}1' f.txt")).toBe(true);
+		expect(blocks("gawk --include=inplace '{print}' f.txt")).toBe(true);
+	});
+
+	it("allows read-only forms of mutating git subcommands", () => {
+		expect(blocks("git stash list")).toBe(false);
+		expect(blocks("git stash show -p")).toBe(false);
+		expect(blocks("git worktree list")).toBe(false);
+		expect(blocks("git submodule status")).toBe(false);
+		expect(blocks("git switch --help")).toBe(false);
+		expect(blocks("git stash")).toBe(true);
+		expect(blocks("git stash pop")).toBe(true);
+		expect(blocks("git worktree add ../wt")).toBe(true);
+	});
+
+	it("does not flag arithmetic expansion as redirection", () => {
+		expect(blocks("echo $((3 > 2))")).toBe(false);
+	});
+
+	it("rejects temp paths that escape via ..", () => {
+		expect(blocks("echo x > /tmp/../home/user/project/src/index.ts")).toBe(
+			true,
+		);
+		expect(blocks("ls | tee /tmp/../etc/passwd")).toBe(true);
+	});
+
+	it("allows Windows temp output targets", () => {
+		expect(blocks("echo x > %TEMP%\\out.log")).toBe(false);
+		expect(blocks("echo x > $env:TEMP\\out.log")).toBe(false);
+		expect(blocks("echo x > C:\\project\\out.log")).toBe(true);
+	});
+
+	it("blocks curl/wget file downloads but not plain fetches", () => {
+		expect(findFileEditingCommand("curl -o src/out.ts https://x.test")).toBe(
+			"`curl -o` (writes a file)",
+		);
+		expect(blocks("curl -sSLo /workspace/file https://x.test")).toBe(true);
+		expect(blocks("curl --output out.bin https://x.test")).toBe(true);
+		expect(blocks("curl -s https://x.test/api")).toBe(false);
+		expect(findFileEditingCommand("wget https://x.test/file.zip")).toBe(
+			"`wget` (downloads files)",
+		);
+		expect(blocks("wget --spider https://x.test")).toBe(false);
+		expect(blocks("wget -qO- https://x.test | head")).toBe(false);
+	});
+
+	it("treats python -m pip as pip", () => {
+		expect(findFileEditingCommand("python -m pip install requests")).toBe(
+			"`pip install`",
+		);
+		expect(blocks("python3 -m pip uninstall -y requests")).toBe(true);
+		expect(blocks("python3 -m pip show requests")).toBe(false);
+		expect(blocks("python3 -m json.tool data.json")).toBe(false);
+	});
+
+	it("blocks PowerShell cmdlet aliases and case variants", () => {
+		expect(findFileEditingCommand("mi a.txt b.txt")).toBe("`mi`");
+		expect(blocks("ri -Force file.txt")).toBe(true);
+		expect(blocks("REMOVE-ITEM file.txt")).toBe(true);
+		expect(blocks("Set-Content f.txt 'x'")).toBe(true);
+	});
+
+	it("covers more package managers", () => {
+		expect(blocks("winget install Some.App")).toBe(true);
+		expect(blocks("nuget install Newtonsoft.Json")).toBe(true);
+		expect(blocks("gem install rails")).toBe(true);
+		expect(blocks("composer require vendor/pkg")).toBe(true);
+		expect(blocks("go install ./cmd/tool")).toBe(true);
+		expect(blocks("go get example.com/mod")).toBe(true);
+		expect(blocks("dotnet add package Serilog")).toBe(true);
+		expect(blocks("go build ./...")).toBe(false);
+		expect(blocks("go test ./...")).toBe(false);
+		expect(blocks("dotnet build")).toBe(false);
+		expect(blocks("winget list")).toBe(false);
+	});
+
+	it("blocks bare classic yarn (implicit install)", () => {
+		expect(findFileEditingCommand("yarn")).toBe("`yarn` (install)");
+		expect(blocks("yarn --version")).toBe(false);
+	});
+
+	it("blocks mutating find -exec and xargs placeholder commands", () => {
+		expect(blocks("find . -name '*.tmp' -exec rm {} \\;")).toBe(true);
+		expect(blocks("find . -type f -execdir chmod +x {} +")).toBe(true);
+		expect(blocks("find . -type f -exec grep -l TODO {} +")).toBe(false);
+		expect(blocks("find . -name '*.ts' | xargs -I {} rm {}")).toBe(true);
+	});
+});
+
 describe("findFileEditingCommand — structured commands", () => {
 	it("checks structured command executables and argv", () => {
 		expect(
