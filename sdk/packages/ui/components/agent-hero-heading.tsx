@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 const HERO_VERBS = ["build", "create", "fix", "know"] as const;
-const HERO_CYCLE_MS = 2600;
+const HERO_CYCLE_MS = 5000;
 
 export function AgentHeroHeading() {
 	const [verbIndex, setVerbIndex] = useState(0);
