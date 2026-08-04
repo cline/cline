@@ -83,8 +83,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			remoteLogSpy.resetHistory()
 			localLogSpy.resetHistory()
 
-			remoteService.captureTaskCreated("task-remote", "openai")
-			localService.captureTaskCreated("task-local", "openai")
+			remoteService.captureButtonClick("test-button", "task-remote")
+			localService.captureButtonClick("test-button", "task-local")
 
 			assert.ok(remoteLogSpy.calledOnce, "remote service should emit an event")
 			assert.ok(localLogSpy.calledOnce, "local service should emit an event")
@@ -131,7 +131,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 					service = await TelemetryService.create()
 					logSpy.resetHistory()
-					service.captureTaskCreated("task-123", "openai")
+					service.captureButtonClick("test-button", "task-123")
 
 					assert.ok(logSpy.calledOnce, `service should emit an event (${hostVersion.clineType})`)
 					assert.strictEqual(logSpy.firstCall.args[1]?.host_plugin_version, expectedHostPluginVersion)
@@ -140,29 +140,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 					await service?.dispose()
 				}
 			}
-		})
-
-		it("should include remote workspace metadata on workspace.initialized events", async () => {
-			const noOpProvider = new NoOpTelemetryProvider()
-			const logSpy = sinon.spy(noOpProvider, "log")
-			const telemetryService = new TelemetryService([noOpProvider], {
-				...MOCK_METADATA,
-				is_remote_workspace: true,
-			})
-
-			logSpy.resetHistory()
-			telemetryService.captureWorkspaceInitialized(1, ["Git"], 123, false)
-
-			assert.ok(logSpy.calledOnce, "workspace.initialized should be emitted once")
-			const [eventName, properties] = logSpy.firstCall.args
-			assert.strictEqual(eventName, "workspace.initialized")
-			assert.ok(properties, "workspace.initialized properties should be defined")
-			assert.strictEqual(properties.is_remote_workspace, true)
-			assert.strictEqual(properties.root_count, 1)
-			assert.deepStrictEqual(properties.vcs_types, ["Git"])
-
-			logSpy.restore()
-			await noOpProvider.dispose()
 		})
 
 		it("should include correct metadata with telemetry events", async () => {
@@ -179,21 +156,20 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			logSpy.resetHistory()
 
 			// Test that metadata is included in events
-			telemetryService.captureTaskCreated("task-456", "openai")
+			telemetryService.captureButtonClick("test-button", "task-456")
 
 			// Verify that log was called with correct arguments
 			assert.ok(logSpy.calledOnce, "Log should be called once")
 			const [eventName, properties] = logSpy.firstCall.args
-			assert.strictEqual(eventName, "task.created", "Event name should be task.created")
+			assert.strictEqual(eventName, "ui.button_clicked", "Event name should be ui.button_clicked")
 			assert.deepStrictEqual(
 				properties,
 				{
+					button: "test-button",
 					ulid: "task-456",
-					apiProvider: "openai",
-					openAiCompatibleDomain: undefined,
 					...MOCK_METADATA,
 				},
-				"Task created event should include only the expected metadata properties",
+				"Button clicked event should include only the expected metadata properties",
 			)
 
 			// Test identify includes metadata
@@ -205,9 +181,14 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(metadata, MOCK_METADATA, "Identify user should include only the expected metadata properties")
 
 			// Test org attributes are included in standard attributes (metrics)
-			telemetryService.captureToolUsage("task-456", "write_to_file", "gpt-4", "openai", false, true)
+			telemetryService.captureProviderApiError({
+				ulid: "task-456",
+				model: "gpt-4",
+				errorMessage: "boom",
+				provider: "openai",
+			})
 
-			assert.ok(recordCounterSpy.called, "recordCounter should be called for tool usage")
+			assert.ok(recordCounterSpy.called, "recordCounter should be called for provider API errors")
 			const recordCounterArgs = recordCounterSpy.firstCall.args
 			const recordCounterAttributes = recordCounterArgs[2] as Record<string, unknown>
 			assert.strictEqual(recordCounterAttributes.organization_id, "org-123")
@@ -245,7 +226,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			logSpy2.resetHistory()
 
 			// Test that events are sent to both providers
-			telemetryService.captureTaskCreated("multi-task-123", "anthropic")
+			telemetryService.captureButtonClick("multi-test-button", "multi-task-123")
 
 			// Verify both providers received the event
 			assert.ok(logSpy1.calledOnce, "First provider should receive the event")
@@ -255,13 +236,12 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const [eventName1, properties1] = logSpy1.firstCall.args
 			const [eventName2, properties2] = logSpy2.firstCall.args
 
-			assert.strictEqual(eventName1, "task.created", "First provider should receive correct event name")
-			assert.strictEqual(eventName2, "task.created", "Second provider should receive correct event name")
+			assert.strictEqual(eventName1, "ui.button_clicked", "First provider should receive correct event name")
+			assert.strictEqual(eventName2, "ui.button_clicked", "Second provider should receive correct event name")
 
 			const expectedProperties = {
+				button: "multi-test-button",
 				ulid: "multi-task-123",
-				apiProvider: "anthropic",
-				openAiCompatibleDomain: undefined,
 				...MOCK_METADATA,
 			}
 			assert.deepStrictEqual(properties1, expectedProperties, "First provider should receive correct properties")
@@ -295,10 +275,9 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const posthogTelemetryService = new TelemetryService([posthogProvider], MOCK_METADATA)
 
 			// Test various telemetry methods
-			posthogTelemetryService.captureTaskCreated("task-123", "anthropic")
+			posthogTelemetryService.captureButtonClick("test-button", "task-123")
 			posthogTelemetryService.identifyAccount(MOCK_USER_INFO)
-			posthogTelemetryService.captureTaskCompleted("task-123")
-			posthogTelemetryService.captureModelSelected("claude-3", "anthropic", "task-123")
+			posthogTelemetryService.captureTaskFeedback("task-123", "thumbs_up")
 
 			// Test provider methods directly
 			posthogProvider.log("test_event", { test: "property" })
@@ -323,11 +302,15 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const noOpTelemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
 			// Test various telemetry methods - should all be no-ops
-			noOpTelemetryService.captureTaskCreated("task-789", "google")
+			noOpTelemetryService.captureButtonClick("test-button", "task-789")
 			noOpTelemetryService.identifyAccount(MOCK_USER_INFO)
-			noOpTelemetryService.captureTaskCompleted("task-789")
-			noOpTelemetryService.captureModelSelected("gpt-4", "openai", "task-789")
-			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", "openai", false, true)
+			noOpTelemetryService.captureTaskFeedback("task-789", "thumbs_up")
+			noOpTelemetryService.captureProviderApiError({
+				ulid: "task-789",
+				model: "gpt-4",
+				errorMessage: "boom",
+				provider: "openai",
+			})
 
 			// Test provider methods directly
 			noOpProvider.log("test_event", { test: "property" })
@@ -378,7 +361,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			// Should handle all operations safely
 			const telemetryService = new TelemetryService([unsupportedProvider], MOCK_METADATA)
-			telemetryService.captureTaskCreated("task-456", "test")
+			telemetryService.captureButtonClick("test-button", "task-456")
 			telemetryService.identifyAccount(MOCK_USER_INFO)
 
 			await unsupportedProvider.dispose()
@@ -531,7 +514,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const providers = await TelemetryProviderFactory.createProviders()
 			let telemetryService = new TelemetryService(providers, MOCK_METADATA)
 
-			telemetryService.captureTaskCreated("task-switch-1", "anthropic")
+			telemetryService.captureButtonClick("test-button", "task-switch-1")
 			console.log("Captured event with available providers")
 
 			await Promise.all(providers.map((p) => p.dispose()))
@@ -540,7 +523,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const noOpProvider = new NoOpTelemetryProvider()
 			telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
-			telemetryService.captureTaskCreated("task-switch-2", "openai")
+			telemetryService.captureButtonClick("test-button", "task-switch-2")
 			console.log("Captured event with No-Op provider")
 
 			// Verify different behaviors
@@ -589,46 +572,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			await noOpProvider.dispose()
 		})
 
-		it("should capture subagent execution events correctly", async () => {
-			const noOpProvider = new NoOpTelemetryProvider()
-			const logSpy = sinon.spy(noOpProvider, "log")
-			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
-
-			// Reset spy to ignore constructor events
-			logSpy.resetHistory()
-
-			// Test successful subagent execution
-			telemetryService.captureSubagentExecution("task-123", 1500, 25, true)
-
-			assert.ok(logSpy.calledOnce, "Log should be called once for successful execution")
-			const [eventName1, properties1] = logSpy.firstCall.args
-			assert.ok(properties1, "Properties should be defined")
-			assert.strictEqual(eventName1, "task.subagent_completed", "Event should be subagent_completed when successful")
-			assert.strictEqual(properties1.ulid, "task-123", "Properties should include task ULID")
-			assert.strictEqual(properties1.durationMs, 1500, "Properties should include duration")
-			assert.strictEqual(properties1.outputLines, 25, "Properties should include output line count")
-			assert.strictEqual(properties1.success, true, "Properties should include success status")
-			assert.ok(properties1.timestamp, "Properties should include timestamp")
-
-			// Reset spy for next test
-			logSpy.resetHistory()
-
-			// Test failed subagent execution
-			telemetryService.captureSubagentExecution("task-456", 3200, 150, false)
-
-			assert.ok(logSpy.calledOnce, "Log should be called once for failed execution")
-			const [eventName2, properties2] = logSpy.firstCall.args
-			assert.ok(properties2, "Properties should be defined")
-			assert.strictEqual(eventName2, "task.subagent_started", "Event should be subagent_started when failed")
-			assert.strictEqual(properties2.ulid, "task-456", "Properties should include task ULID")
-			assert.strictEqual(properties2.durationMs, 3200, "Properties should include duration")
-			assert.strictEqual(properties2.outputLines, 150, "Properties should include output line count")
-			assert.strictEqual(properties2.success, false, "Properties should include success status")
-
-			logSpy.restore()
-			await noOpProvider.dispose()
-		})
-
 		it("should respect subagents telemetry category settings", async () => {
 			const noOpProvider = new NoOpTelemetryProvider()
 			const logSpy = sinon.spy(noOpProvider, "log")
@@ -647,48 +590,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Test that events are captured when category is enabled
 			telemetryService.captureSubagentToggle(true)
 			assert.ok(logSpy.calledOnce, "Event should be captured when category is enabled")
-
-			// Reset spy
-			logSpy.resetHistory()
-
-			// Test that events are captured for execution
-			telemetryService.captureSubagentExecution("task-789", 2000, 10, true)
-			assert.ok(logSpy.calledOnce, "Execution event should be captured when category is enabled")
-
-			logSpy.restore()
-			await noOpProvider.dispose()
-		})
-	})
-
-	describe("Skills Telemetry", () => {
-		it("should capture skill used events correctly", async () => {
-			const noOpProvider = new NoOpTelemetryProvider()
-			const logSpy = sinon.spy(noOpProvider, "log")
-			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
-
-			logSpy.resetHistory()
-
-			telemetryService.captureSkillUsed({
-				ulid: "task-123",
-				skillName: "my-skill",
-				skillSource: "global",
-				skillsAvailableGlobal: 2,
-				skillsAvailableProject: 3,
-				provider: "cline",
-				modelId: "anthropic/claude-sonnet-4.5",
-			})
-
-			assert.ok(logSpy.calledOnce, "Log should be called once")
-			const [eventName, properties] = logSpy.firstCall.args
-			assert.strictEqual(eventName, "task.skill_used", "Event name should be task.skill_used")
-			assert.ok(properties, "Properties should be defined")
-			assert.strictEqual(properties.ulid, "task-123", "Properties should include task ULID")
-			assert.strictEqual(properties.skillName, "my-skill", "Properties should include skillName")
-			assert.strictEqual(properties.skillSource, "global", "Properties should include skillSource")
-			assert.strictEqual(properties.skillsAvailableGlobal, 2, "Properties should include global skill count")
-			assert.strictEqual(properties.skillsAvailableProject, 3, "Properties should include project skill count")
-			assert.strictEqual(properties.provider, "cline", "Properties should include provider")
-			assert.strictEqual(properties.modelId, "anthropic/claude-sonnet-4.5", "Properties should include modelId")
 
 			logSpy.restore()
 			await noOpProvider.dispose()
