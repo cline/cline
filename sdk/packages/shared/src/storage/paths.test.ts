@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -200,6 +200,7 @@ describe("storage path resolution", () => {
 		expect(resolveRulesConfigSearchPaths()).toEqual(
 			expect.arrayContaining([
 				resolveGlobalAgentsRulesPath(),
+				join(dirname(dirname(resolveGlobalAgentsRulesPath())), ".clinerules"),
 				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
 			]),
 		);
