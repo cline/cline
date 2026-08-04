@@ -370,8 +370,11 @@ function createUserInstructionServiceProxy(
 			const rawName = match?.[1];
 			if (!rawName) return input;
 			const name = normalizeRuntimeCommandName(rawName);
+			// Normalize the snapshot side too: older clients serve snapshots
+			// with raw configured names (e.g. "Ship"), which would otherwise
+			// never match the normalized typed token.
 			const command = snapshot.runtimeCommands.find(
-				(item) => item.name === name,
+				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
 			return command
 				? `${command.instructions}${input.slice(rawName.length + 1)}`
