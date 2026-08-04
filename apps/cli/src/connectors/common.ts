@@ -6,7 +6,9 @@ import {
 	linkSync,
 	openSync,
 	readFileSync,
+	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -29,6 +31,9 @@ export const CLINE_CONNECTOR_DETACHED_CHILD_ENV =
  * state.
  */
 export const CONNECT_ALREADY_RUNNING_EXIT_CODE = 75;
+
+/** Rotate a detached connector log once it passes this size. */
+const DETACHED_LOG_MAX_BYTES = 8 * 1024 * 1024;
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
@@ -230,12 +235,30 @@ export function resolveConnectorDebugLogPath(
 	);
 }
 
+/**
+ * Connectors are long-lived and restart often, so an append-only log would grow
+ * without bound on a host that runs them for weeks. Keep one previous
+ * generation and start fresh once the current one gets large.
+ */
+function rotateOversizedLog(path: string): void {
+	try {
+		if (statSync(path).size < DETACHED_LOG_MAX_BYTES) {
+			return;
+		}
+		rmSync(`${path}.1`, { force: true });
+		renameSync(path, `${path}.1`);
+	} catch {
+		// No log yet, or it cannot be rotated: appending is still fine.
+	}
+}
+
 function tryOpenDetachedLogFd(path: string | undefined): number | undefined {
 	if (!path?.trim()) {
 		return undefined;
 	}
 	try {
 		ensureParentDir(path);
+		rotateOversizedLog(path);
 		return openSync(path, "a");
 	} catch {
 		return undefined;
@@ -336,6 +359,8 @@ export const __test__ = {
 	buildDetachedConnectorCommand,
 	buildDetachedConnectorEnv,
 	tryReplaceStaleConnectorStateFile,
+	rotateOversizedLog,
+	DETACHED_LOG_MAX_BYTES,
 };
 
 export function readJsonFile<T>(path: string, fallback: T): T {

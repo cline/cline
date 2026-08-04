@@ -8,6 +8,10 @@ import {
 	withConnectorStore,
 } from "@cline/shared/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	type ConnectorSupervisor,
+	setActiveConnectorSupervisor,
+} from "../../../services/connectors/connector-supervisor";
 import { __test__, handleConnectorCommand } from "./connector-handlers";
 import type { HubTransportContext } from "./context";
 
@@ -372,5 +376,196 @@ describe("connector hub handlers", () => {
 				success: false,
 			},
 		});
+	});
+});
+
+describe("supervised connector hub commands", () => {
+	afterEach(() => {
+		setActiveConnectorSupervisor(undefined);
+		vi.clearAllMocks();
+	});
+
+	function createHubContext(): HubTransportContext {
+		return {
+			clients: new Map(),
+			sessionState: new Map(),
+			pendingApprovals: new Map(),
+			pendingCapabilityRequests: new Map(),
+			suppressNextTerminalEventBySession: new Map(),
+			telemetry: { capture: vi.fn() } as never,
+			sessionHost: {} as never,
+			publish: vi.fn(),
+			buildEvent: vi.fn() as never,
+			requestCapability: vi.fn() as never,
+		};
+	}
+
+	function connectorCommand(
+		command: HubCommandEnvelope["command"],
+		payload?: Record<string, unknown>,
+	): HubCommandEnvelope {
+		return {
+			version: "v1",
+			requestId: `req-${command}`,
+			command,
+			payload,
+		};
+	}
+
+	function useSupervisor(): { started: unknown[]; stopped: unknown[] } {
+		const started: unknown[] = [];
+		const stopped: unknown[] = [];
+		const supervisor = {
+			start: async (request: unknown) => {
+				started.push(request);
+				return {
+					started: true,
+					record: {
+						channel: "slack",
+						instanceId: "cline-slack",
+						state: "running",
+						origin: "spawned",
+						restarts: 0,
+					},
+				};
+			},
+			stop: async (request: unknown) => {
+				stopped.push(request);
+				return true;
+			},
+			list: () => [
+				{
+					channel: "slack",
+					instanceId: "cline-slack",
+					state: "running" as const,
+					origin: "spawned" as const,
+					restarts: 2,
+				},
+			],
+		} as unknown as ConnectorSupervisor;
+		setActiveConnectorSupervisor(supervisor);
+		return { started, stopped };
+	}
+
+	it("starts a connector through the supervisor", async () => {
+		const { started } = useSupervisor();
+
+		const reply = await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.start", {
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: ["--bot-token", "xoxb"],
+			}),
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(started).toEqual([
+			{
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: ["--bot-token", "xoxb"],
+				restart: false,
+			},
+		]);
+	});
+
+	it("passes the restart intent through", async () => {
+		const { started } = useSupervisor();
+
+		await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.start", {
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: [],
+				restart: true,
+			}),
+		);
+
+		expect((started[0] as { restart: boolean }).restart).toBe(true);
+	});
+
+	it("stops a connector and disables autostart by default", async () => {
+		const { stopped } = useSupervisor();
+
+		const reply = await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.stop", {
+				channel: "slack",
+				instanceId: "cline-slack",
+			}),
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(stopped).toEqual([
+			{ channel: "slack", instanceId: "cline-slack", disableAutostart: true },
+		]);
+	});
+
+	it("keeps autostart when the caller asks it to", async () => {
+		const { stopped } = useSupervisor();
+
+		await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.stop", {
+				channel: "slack",
+				instanceId: "cline-slack",
+				disableAutostart: false,
+			}),
+		);
+
+		expect((stopped[0] as { disableAutostart: boolean }).disableAutostart).toBe(
+			false,
+		);
+	});
+
+	it("lists supervised connectors", async () => {
+		useSupervisor();
+
+		const reply = await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.supervised"),
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(
+			(reply.payload as { supervised: Array<{ restarts: number }> }).supervised,
+		).toEqual([
+			{
+				channel: "slack",
+				instanceId: "cline-slack",
+				state: "running",
+				origin: "spawned",
+				restarts: 2,
+			},
+		]);
+	});
+
+	it("rejects a start with no instance id", async () => {
+		useSupervisor();
+
+		const reply = await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.start", { channel: "slack" }),
+		);
+
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.message).toContain("instanceId is required");
+	});
+
+	it("reports clearly when the hub has no supervisor", async () => {
+		const reply = await handleConnectorCommand(
+			createHubContext(),
+			connectorCommand("connector.start", {
+				channel: "slack",
+				instanceId: "cline-slack",
+			}),
+		);
+
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.message).toContain(
+			"connector supervision is unavailable",
+		);
 	});
 });

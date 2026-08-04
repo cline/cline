@@ -32,18 +32,42 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 	return undefined;
 };
 
-const main = async () => {
-	const targetTriple = await resolveTargetTriple();
+const sidecarOutfile = (targetTriple: string): string => {
 	const extension = targetTriple.includes("windows") ? ".exe" : "";
-	const outfile = `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
-	const bunTarget = resolveBunCompileTarget(targetTriple);
+	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
+};
 
-	await $`mkdir -p src-tauri/bin`;
+const buildSidecar = async (targetTriple: string): Promise<string> => {
+	const outfile = sidecarOutfile(targetTriple);
+	const bunTarget = resolveBunCompileTarget(targetTriple);
 	if (bunTarget) {
 		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} --outfile ${outfile}`;
 	} else {
 		await $`bun build ./sidecar/index.ts --compile --outfile ${outfile}`;
 	}
+	return outfile;
+};
+
+// Tauri's universal-apple-darwin pseudo-target lipos the Rust binary itself
+// but expects sidecars (externalBin) to already be fat binaries named
+// `<name>-universal-apple-darwin`, so build both slices and merge them here.
+const buildUniversalMacSidecar = async (): Promise<void> => {
+	const arm64 = await buildSidecar("aarch64-apple-darwin");
+	const x64 = await buildSidecar("x86_64-apple-darwin");
+	const outfile = sidecarOutfile("universal-apple-darwin");
+	await $`lipo -create -output ${outfile} ${arm64} ${x64}`;
+	await $`chmod +x ${outfile}`;
+	await $`lipo -info ${outfile}`;
+};
+
+const main = async () => {
+	const targetTriple = await resolveTargetTriple();
+	await $`mkdir -p src-tauri/bin`;
+	if (targetTriple === "universal-apple-darwin") {
+		await buildUniversalMacSidecar();
+		return;
+	}
+	await buildSidecar(targetTriple);
 };
 
 main().catch((error: unknown) => {

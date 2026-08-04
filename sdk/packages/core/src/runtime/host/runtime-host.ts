@@ -51,6 +51,47 @@ export function isSessionNotFoundError(
 	);
 }
 
+function errorMessageOf(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (typeof error === "object" && error !== null && "message" in error) {
+		const message = (error as { message?: unknown }).message;
+		return typeof message === "string" ? message : "";
+	}
+	return typeof error === "string" ? error : "";
+}
+
+/**
+ * A session that cannot serve another turn, whatever the caller does with it.
+ *
+ * Two distinct causes, one remedy: the session is gone (`session_not_found`,
+ * after a hub restart, a deletion, or retention cleanup), or its runtime is stuck
+ * with a run that never drained (`session_run_in_progress`). A caller holding a
+ * long-lived mapping to that session — a connector thread, for instance — has to
+ * replace the session rather than keep retrying against it.
+ *
+ * Errors reaching a connector have crossed the hub's JSON boundary, so the code
+ * may be gone and only the message survives; both are checked, which also keeps
+ * this working when the hub and the CLI are different versions.
+ */
+export function isUnusableSessionError(error: unknown): boolean {
+	if (isSessionNotFoundError(error)) {
+		return true;
+	}
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "session_run_in_progress"
+	) {
+		return true;
+	}
+	return errorMessageOf(error).includes(
+		"shutdown called while a run is in progress",
+	);
+}
+
 type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
 	| "logger"
