@@ -1110,13 +1110,15 @@ describe("translateSessionEvent — inferred turn-final completion", () => {
 		const state = new MessageTranslatorState()
 		endText(state, "Wrapping up now.")
 
-		// e.g. a lifecycle.completesRun tool ends the turn after the tool result
+		// The translator is tool-agnostic: any tool whose lifecycle.completesRun
+		// ends the run after its result (a host extraTool, or yolo's
+		// submit_and_exit) leaves the trailing text as a non-final say.
 		translateSessionEvent(
-			agentEvent({ type: "content_start", contentType: "tool", toolName: "submit_and_exit", input: {} }),
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "completing_extra_tool", input: {} }),
 			state,
 		)
 		translateSessionEvent(
-			agentEvent({ type: "content_end", contentType: "tool", toolName: "submit_and_exit", output: "ok" }),
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "completing_extra_tool", output: "ok" }),
 			state,
 		)
 
