@@ -2,6 +2,8 @@ import type {
 	AgentMessage,
 	AgentModelEvent,
 	AgentModelFinishReason,
+	AgentToolResultPart,
+	BasicLogger,
 	GatewayProviderContext,
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
@@ -80,6 +82,7 @@ function buildCachedAiSdkMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		logger: context.logger,
 	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
@@ -277,13 +280,74 @@ async function ensureGatewayLangfuseTelemetry(
 	}
 }
 
+const FALLBACK_TOOL_RESULT_NAME = "tool";
+
+/**
+ * Build a `toolCallId -> toolName` index from the tool-call parts in the
+ * conversation so tool-result parts can recover their originating tool's
+ * name when it was lost upstream.
+ */
+function collectToolNamesByCallId(
+	messages: readonly AgentMessage[],
+): Map<string, string> {
+	const names = new Map<string, string>();
+	for (const message of messages) {
+		for (const part of message.content) {
+			if (
+				part.type === "tool-call" &&
+				typeof part.toolName === "string" &&
+				part.toolName.length > 0
+			) {
+				names.set(part.toolCallId, part.toolName);
+			}
+		}
+	}
+	return names;
+}
+
+/**
+ * Tool-result parts restored from persisted histories can carry an
+ * empty/missing `toolName` despite the type: tasks imported from the legacy
+ * extension store Anthropic-format `tool_result` blocks (which have no name
+ * field), and SDK sessions persisted before `ToolResultContent.name` existed
+ * deserialize without one. Google's Generative Language API requires
+ * `functionResponse.name` to match the originating `functionCall` name and
+ * rejects the whole request with "Name cannot be empty." otherwise, so
+ * backfill the name from the paired tool call before the AI SDK serializes
+ * it. An orphaned result (no paired call in the transcript) gets a
+ * placeholder so no provider ever sees an empty name.
+ */
+function resolveToolResultName(
+	part: AgentToolResultPart,
+	toolNamesByCallId: ReadonlyMap<string, string>,
+	logger: BasicLogger | undefined,
+): string {
+	if (typeof part.toolName === "string" && part.toolName.length > 0) {
+		return part.toolName;
+	}
+	const paired = toolNamesByCallId.get(part.toolCallId);
+	const resolved = paired ?? FALLBACK_TOOL_RESULT_NAME;
+	logger?.log(
+		paired
+			? "[ai-sdk] backfilled missing tool name on tool-result part from paired tool call"
+			: "[ai-sdk] backfilled missing tool name on tool-result part with placeholder (no paired tool call)",
+		{
+			severity: "warn",
+			toolName: resolved,
+			toolCallId: part.toolCallId,
+		},
+	);
+	return resolved;
+}
+
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; logger?: BasicLogger },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
+	const toolNamesByCallId = collectToolNamesByCallId(messages);
 
 	for (const message of messages) {
 		const content: AiSdkFormatterPart[] = [];
@@ -365,7 +429,11 @@ function toAiSdkMessages(
 				content.push({
 					type: "tool-result",
 					toolCallId: part.toolCallId,
-					toolName: part.toolName,
+					toolName: resolveToolResultName(
+						part,
+						toolNamesByCallId,
+						options?.logger,
+					),
 					output: part.output,
 					isError: part.isError ?? false,
 				});
@@ -1213,6 +1281,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
+							logger: context.logger,
 						});
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
