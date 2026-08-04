@@ -877,6 +877,116 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("keeps an identical queued prompt distinct when it starts before the active send resolves", async () => {
+		let resolveImmediateSend:
+			| ((value: {
+					ok: true;
+					result: { text: string; finishReason: "completed" };
+			  }) => void)
+			| undefined;
+		const immediateSendResponse = new Promise<{
+			ok: true;
+			result: { text: string; finishReason: "completed" };
+		}>((resolve) => {
+			resolveImmediateSend = resolve;
+		});
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "persisted-immediate",
+							sessionId: plannedSessionId,
+							role: "user",
+							content: "Repeat this",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						plannedSessionId = request.config?.sessionId ?? "";
+						return { sessionId: plannedSessionId };
+					}
+					if (request?.action === "send" && request.delivery === "queue") {
+						return { ok: true, queued: true, promptsInQueue: [] };
+					}
+					if (request?.action === "send") {
+						return await immediateSendResponse;
+					}
+				}
+				return [];
+			},
+		);
+
+		let immediateSend: Promise<void> | undefined;
+		await act(async () => {
+			immediateSend = current.sendPrompt("Repeat this");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await act(async () => {
+			await current.sendPrompt("Repeat this");
+		});
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-repeat",
+					prompt: "Repeat this",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toEqual([
+			expect.objectContaining({ content: "Repeat this" }),
+			expect.objectContaining({
+				id: "queued_user_queued-repeat",
+				content: "Repeat this",
+			}),
+		]);
+
+		await act(async () => {
+			resolveImmediateSend?.({
+				ok: true,
+				result: { text: "Done", finishReason: "completed" },
+			});
+			await immediateSend;
+		});
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toEqual([
+			expect.objectContaining({
+				id: "persisted-immediate",
+				content: "Repeat this",
+			}),
+			expect.objectContaining({
+				id: "queued_user_queued-repeat",
+				content: "Repeat this",
+			}),
+		]);
+	});
+
 	it("stays running on chat_done while more prompts wait in the queue", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

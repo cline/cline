@@ -314,6 +314,8 @@ export function useChatSession() {
 		id: string;
 		prompt: string;
 		sessionId: string;
+		rpcState: "pending" | "queued";
+		sawMatchingQueuedStart: boolean;
 	} | null>(null);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -970,22 +972,30 @@ export function useChatSession() {
 				setStatus("running");
 				if (userLabel || userImages.length > 0) {
 					const optimisticPrompt = optimisticImmediatePromptRef.current;
-					const reconciledOptimisticPrompt =
+					const matchesOptimisticPrompt =
 						optimisticPrompt?.sessionId === listeningSessionId &&
-						optimisticPrompt.prompt === userLabel
-							? optimisticPrompt
-							: null;
-					if (reconciledOptimisticPrompt) {
+						optimisticPrompt.prompt === userLabel;
+					const shouldReconcileOptimisticPrompt =
+						matchesOptimisticPrompt && optimisticPrompt.rpcState === "queued";
+					if (shouldReconcileOptimisticPrompt) {
 						optimisticImmediatePromptRef.current = null;
+					} else if (matchesOptimisticPrompt) {
+						optimisticPrompt.sawMatchingQueuedStart = true;
 					}
 					setMessages((prev) => {
 						const userMessageId = promptId
 							? `queued_user_${promptId}`
 							: makeId("user");
-						if (reconciledOptimisticPrompt) {
+						if (shouldReconcileOptimisticPrompt) {
+							if (!promptId) return prev;
+							if (prev.some((message) => message.id === userMessageId)) {
+								return prev.filter(
+									(message) => message.id !== optimisticPrompt.id,
+								);
+							}
 							const reconciled = updateMessageById(
 								prev,
-								reconciledOptimisticPrompt.id,
+								optimisticPrompt.id,
 								(message) => ({ ...message, id: userMessageId }),
 							);
 							if (reconciled !== prev) return reconciled;
@@ -1405,6 +1415,8 @@ export function useChatSession() {
 					id: optimisticUserMessageId,
 					prompt: userLabel,
 					sessionId: plannedSessionId,
+					rpcState: "pending",
+					sawMatchingQueuedStart: false,
 				};
 				addMessage({
 					id: optimisticUserMessageId,
@@ -1557,11 +1569,37 @@ export function useChatSession() {
 				}
 
 				const result = payload.result as ChatApiResult | undefined;
+				const optimisticPrompt =
+					optimisticImmediatePromptRef.current?.id === optimisticUserMessageId
+						? optimisticImmediatePromptRef.current
+						: null;
+				const queuedPromptStartedBeforeResponse =
+					optimisticPrompt?.sawMatchingQueuedStart === true;
+				const applyResponseHistory = (historyMessages: ChatMessage[]) => {
+					setMessages((current) =>
+						queuedPromptStartedBeforeResponse
+							? mergeHydratedMessagesWithLive({
+									hydrated: historyMessages,
+									current,
+									sessionId: activeSessionId,
+									hydrationStartedAt: now,
+								})
+							: historyMessages,
+					);
+				};
 				if (result) {
 					clearOptimisticImmediatePrompt();
+				} else if (optimisticPrompt?.sawMatchingQueuedStart) {
+					clearOptimisticImmediatePrompt();
+					setMessages((prev) =>
+						prev.filter((message) => message.id !== optimisticPrompt.id),
+					);
+				} else if (optimisticPrompt && !abortedRef.current) {
+					optimisticPrompt.rpcState = "queued";
 				}
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
+					clearOptimisticImmediatePrompt();
 					setStatus("cancelled");
 					return;
 				}
@@ -1640,7 +1678,7 @@ export function useChatSession() {
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
 						if (historyMessages.length > 0) {
-							setMessages(historyMessages);
+							applyResponseHistory(historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
@@ -1660,7 +1698,7 @@ export function useChatSession() {
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
 					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+						applyResponseHistory(historyMessages);
 					}
 				} catch {
 					// Keep optimistic state if canonical hydration fails.
