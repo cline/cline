@@ -266,6 +266,55 @@ async function persistTelegramThreadContext(input: {
 	);
 }
 
+type TelegramSlashCommandEvent = {
+	channel: { id: string };
+	command: string;
+	text: string;
+	raw: unknown;
+};
+
+/**
+ * The Telegram chat adapter intercepts any message whose leading entity is a
+ * `bot_command` and delivers it to slash-command handlers instead of the
+ * normal mention/subscribed-message handlers. Without a registered handler
+ * the command is consumed and dropped, so connector commands like /clear
+ * never reach the chat command host. Rebuild the originating chat thread and
+ * forward the original message text (preserving any `@bot` addressing used
+ * in group chats) into the same turn pipeline as regular messages.
+ */
+function createTelegramSlashCommandHandler(input: {
+	bot: Pick<Chat, "thread">;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	handleTurn: (
+		thread: Thread<TelegramThreadState>,
+		text: string,
+	) => Promise<void>;
+}): (event: TelegramSlashCommandEvent) => Promise<void> {
+	return async (event) => {
+		const raw = asRecord(event.raw);
+		const commandText =
+			readString(raw?.text) ??
+			readString(raw?.caption) ??
+			[event.command.trim(), event.text.trim()].filter(Boolean).join(" ");
+		if (!commandText) {
+			return;
+		}
+		const thread = input.bot.thread(
+			event.channel.id,
+		) as Thread<TelegramThreadState>;
+		await thread.subscribe();
+		await persistTelegramThreadContext({
+			thread,
+			bindingsPath: input.bindingsPath,
+			baseStartRequest: input.baseStartRequest,
+			rawMessage: event.raw,
+			errorLabel: "Telegram",
+		});
+		await input.handleTurn(thread, commandText);
+	};
+}
+
 async function deliverScheduledResult(input: {
 	bot: Chat;
 	client: HubSessionClient;
@@ -1007,6 +1056,15 @@ class TelegramConnector extends ConnectorBase<
 			await handleTurn(thread, message.text);
 		});
 
+		bot.onSlashCommand(
+			createTelegramSlashCommandHandler({
+				bot,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				handleTurn,
+			}),
+		);
+
 		await bot.initialize();
 		const stopTaskUpdateStream =
 			startConnectorTaskUpdateRelay<TelegramThreadState>({
@@ -1151,6 +1209,7 @@ export const telegramConnector: ConnectCommandDefinition =
 	new TelegramConnector();
 
 export const __test__ = {
+	createTelegramSlashCommandHandler,
 	fetchTelegramBotUsername,
 	readTelegramBotId,
 	resolveTelegramBotUsername,
