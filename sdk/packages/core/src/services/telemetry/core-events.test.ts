@@ -1,12 +1,12 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 	type ITelemetryService,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -18,8 +18,8 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
-	captureTelemetryOptOut,
 	captureTaskLifecycleEvent,
+	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -237,6 +237,7 @@ describe("captureWorkspaceInitError", () => {
 		expect((props.error_message as string | undefined)?.length).toBe(500);
 		expect(props.fallback_to_single_root).toBe(true);
 		expect(props.workspace_count).toBe(0);
+		expect(props.error_class).toBe("unexpected");
 	});
 
 	test("respects supplied workspace_count", () => {

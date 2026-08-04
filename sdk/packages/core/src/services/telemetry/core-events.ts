@@ -228,6 +228,11 @@ export function captureWorkspaceInitError(
 		error_message: truncateErrorMessage(normalizeErrorMessage(error)),
 		fallback_to_single_root: properties.fallback_to_single_root,
 		workspace_count: properties.workspace_count ?? 0,
+		// Benign git states (git not installed, not a repository, repository
+		// without commits) no longer emit this event at all, so everything
+		// that remains is an unexpected failure. The attribute lets dashboards
+		// separate post-classification events without a schema change.
+		error_class: "unexpected",
 	});
 }
 

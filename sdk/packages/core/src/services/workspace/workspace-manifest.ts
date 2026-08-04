@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { basename, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { WorkspaceInfo } from "@cline/shared";
@@ -91,18 +92,50 @@ export async function generateWorkspaceInfo(
 	return (await generateWorkspaceInfoWithDiagnostics(workspacePath)).info;
 }
 
+type GitProbeResult =
+	| { status: "ok"; stdout: string }
+	| { status: "exit"; exitCode: number }
+	| { status: "spawn_error"; code?: string; message: string };
+
+/** Test seam matching {@link execGit}. */
+export type GitProbe = (args: string[], cwd: string) => Promise<GitProbeResult>;
+
 /**
- * Git failures that reflect a normal repository state — e.g. a freshly
- * initialized repo with no commits, where `git rev-parse HEAD` fails —
- * rather than a broken workspace. These must not be reported as
- * workspace init errors.
+ * Run git and report the outcome structurally (spawn error code / exit
+ * code) instead of throwing. Git localizes its error text (e.g. "not a git
+ * repository" renders in the user's locale), so distinguishing normal
+ * environment states from broken workspaces must never rely on messages.
  */
-function isBenignGitError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	// Deliberately excludes "bad revision": that can also indicate a corrupt
-	// .git/HEAD, which is a genuinely broken workspace worth reporting.
-	return /unknown revision|ambiguous argument|does not have any commits yet/i.test(
-		message,
+function execGit(args: string[], cwd: string): Promise<GitProbeResult> {
+	return new Promise((resolve) => {
+		execFile("git", args, { cwd, windowsHide: true }, (error, stdout) => {
+			if (!error) {
+				resolve({ status: "ok", stdout });
+				return;
+			}
+			const code = (error as NodeJS.ErrnoException).code;
+			if (typeof code === "number") {
+				resolve({ status: "exit", exitCode: code });
+				return;
+			}
+			resolve({
+				status: "spawn_error",
+				code: typeof code === "string" ? code : undefined,
+				message: error.message,
+			});
+		});
+	});
+}
+
+/**
+ * True when git itself could not be spawned because the binary is not on
+ * PATH. Node reports `spawn git ENOENT`; Bun reports `Executable not found
+ * in $PATH` or `uv_spawn`/`posix_spawn` ENOENT — all carry `code: "ENOENT"`.
+ */
+function isMissingGitBinary(result: GitProbeResult): boolean {
+	return (
+		result.status === "spawn_error" &&
+		(result.code === "ENOENT" || result.code === "ENOTFOUND")
 	);
 }
 
@@ -121,6 +154,7 @@ function toWorkspaceInfoError(error: unknown): {
 
 export async function generateWorkspaceInfoWithDiagnostics(
 	workspacePath: string,
+	probeGit: GitProbe = execGit,
 ): Promise<WorkspaceInfoDiagnostics> {
 	const rootPath = normalizeWorkspacePath(workspacePath);
 	const info: WorkspaceInfo = {
@@ -133,9 +167,39 @@ export async function generateWorkspaceInfoWithDiagnostics(
 	let firstError: { errorType: string; message: string } | undefined;
 
 	try {
+		// Throws when the workspace directory does not exist — that stays a
+		// reported error, and it guarantees the probes below never spawn with
+		// a bad cwd (which would be indistinguishable from a missing git
+		// binary: both fail with ENOENT).
 		const git = simpleGit({ baseDir: rootPath });
-		const isRepo = await git.checkIsRepo();
-		if (!isRepo) {
+
+		// Structural repo detection. Replaces checkIsRepo(), whose error
+		// handling matches English-only message text and therefore reported
+		// ordinary non-repo folders as init errors on non-English locales.
+		const workTree = await probeGit(
+			["rev-parse", "--is-inside-work-tree"],
+			rootPath,
+		);
+		if (isMissingGitBinary(workTree)) {
+			// git not installed / not on PATH — a normal environment (typical
+			// for brand-new dev machines), not an init error.
+			return { info, vcsType: "none", gitState };
+		}
+		if (workTree.status === "exit") {
+			// "not a git repository" is a fatal error (exit 128) in any locale.
+			// A plain folder is a normal state, not an init error.
+			return { info, vcsType: "none", gitState };
+		}
+		if (workTree.status === "spawn_error") {
+			return {
+				info,
+				vcsType: "none",
+				gitState,
+				error: { errorType: "GitSpawnError", message: workTree.message },
+			};
+		}
+		if (workTree.stdout.trim() !== "true") {
+			// Inside a .git directory: git runs, but there is no work tree.
 			return { info, vcsType: "none", gitState };
 		}
 
@@ -154,15 +218,28 @@ export async function generateWorkspaceInfoWithDiagnostics(
 			firstError ??= toWorkspaceInfoError(error);
 		}
 
-		try {
-			const latestGitCommitHash = (await git.revparse(["HEAD"])).trim();
+		// Structural HEAD resolution: `--verify --quiet` exits 1 (silently)
+		// when HEAD does not resolve — a repository with no commits yet, a
+		// normal state right after `git init`. Corrupt .git directories never
+		// reach this point: git already refuses to recognize them as
+		// repositories at the work-tree probe above.
+		const head = await probeGit(
+			["rev-parse", "--verify", "--quiet", "HEAD"],
+			rootPath,
+		);
+		if (head.status === "ok") {
+			const latestGitCommitHash = head.stdout.trim();
 			if (latestGitCommitHash.length > 0) {
 				info.latestGitCommitHash = latestGitCommitHash;
 			}
-		} catch (error) {
-			if (!isBenignGitError(error)) {
-				firstError ??= toWorkspaceInfoError(error);
-			}
+		} else if (head.status !== "exit" || head.exitCode !== 1) {
+			firstError ??= {
+				errorType: "GitError",
+				message:
+					head.status === "exit"
+						? `git rev-parse --verify --quiet HEAD exited with code ${head.exitCode}`
+						: head.message,
+			};
 		}
 
 		try {
@@ -172,9 +249,7 @@ export async function generateWorkspaceInfoWithDiagnostics(
 				gitState.branch = latestGitBranchName;
 			}
 		} catch (error) {
-			if (!isBenignGitError(error)) {
-				firstError ??= toWorkspaceInfoError(error);
-			}
+			firstError ??= toWorkspaceInfoError(error);
 		}
 
 		return { info, vcsType: "git", gitState, error: firstError };

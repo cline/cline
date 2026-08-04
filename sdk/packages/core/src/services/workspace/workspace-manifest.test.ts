@@ -150,4 +150,48 @@ describe("generateWorkspaceInfoWithDiagnostics", () => {
 		expect(result.vcsType).toBe("none");
 		expect(result.error).toBeDefined();
 	});
+
+	test("missing git binary is a clean init, not an error", async () => {
+		// Node reports `spawn git ENOENT`, Bun reports `Executable not found
+		// in $PATH` — both carry code ENOENT on the spawn failure.
+		const result = await generateWorkspaceInfoWithDiagnostics(
+			await createTempDir(),
+			async () => ({
+				status: "spawn_error",
+				code: "ENOENT",
+				message: 'Executable not found in $PATH: "git"',
+			}),
+		);
+		expect(result.vcsType).toBe("none");
+		expect(result.error).toBeUndefined();
+	});
+
+	test("not-a-repo is classified by exit code, regardless of locale", async () => {
+		// git localizes "fatal: not a git repository", so classification must
+		// key on the exit code (128), never on the message text.
+		const result = await generateWorkspaceInfoWithDiagnostics(
+			await createTempDir(),
+			async () => ({ status: "exit", exitCode: 128 }),
+		);
+		expect(result.vcsType).toBe("none");
+		expect(result.error).toBeUndefined();
+	});
+
+	test("unexpected git failure still reports an init error", async () => {
+		// Repo detection succeeds, but resolving HEAD fails hard (exit 128 is
+		// not the silent exit-1 of an empty repo) — a genuinely broken
+		// workspace that must keep emitting workspace.init_error.
+		const dir = await createTempDir();
+		await simpleGit({ baseDir: dir }).init();
+		const result = await generateWorkspaceInfoWithDiagnostics(
+			dir,
+			async (args) =>
+				args.includes("--is-inside-work-tree")
+					? { status: "ok", stdout: "true\n" }
+					: { status: "exit", exitCode: 128 },
+		);
+		expect(result.vcsType).toBe("git");
+		expect(result.error).toBeDefined();
+		expect(result.error?.errorType).toBe("GitError");
+	});
 });
