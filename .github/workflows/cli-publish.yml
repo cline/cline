@@ -48,6 +48,8 @@ jobs:
       github.event.inputs.publish_target == 'main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
+    # TODO: Move this job back to ubuntu-latest when Bun ships the fix for
+    # https://github.com/oven-sh/bun/issues/32159 (https://github.com/oven-sh/bun/pull/32162).
     runs-on: macos-latest
 
     steps:
@@ -272,6 +274,8 @@ jobs:
           github.event.inputs.publish_target == 'nightly'
         )
       )
+    # TODO: Move this job back to ubuntu-latest when Bun ships the fix for
+    # https://github.com/oven-sh/bun/issues/32159 (https://github.com/oven-sh/bun/pull/32162).
     runs-on: macos-latest
 
     steps:
