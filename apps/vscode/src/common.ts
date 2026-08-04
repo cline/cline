@@ -16,7 +16,9 @@ import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
+import { disposeSharedOtelClients } from "./services/telemetry/otel-clients"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
+import { disposeTelemetryPolicy } from "./services/telemetry/telemetry-policy"
 import { ClineTempManager } from "./services/temp"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
@@ -169,6 +171,10 @@ export async function tearDown(): Promise<void> {
 		AgentConfigLoader.getInstance()?.dispose()
 		PostHogClientProvider.getInstance().dispose()
 		telemetryService.dispose()
+		// Both telemetry pipelines write through the shared OTel clients; shut
+		// them down (flushing pending batches) after the services stop capturing.
+		await disposeSharedOtelClients()
+		disposeTelemetryPolicy()
 		ErrorService.get().dispose()
 		featureFlagsService.dispose()
 		// Dispose all webview instances

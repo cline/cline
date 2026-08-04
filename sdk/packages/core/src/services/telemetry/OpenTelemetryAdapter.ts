@@ -1,7 +1,5 @@
 import type { Meter } from "@opentelemetry/api";
 import type { Logger as OpenTelemetryLogger } from "@opentelemetry/api-logs";
-import type { LoggerProvider } from "@opentelemetry/sdk-logs";
-import type { MeterProvider } from "@opentelemetry/sdk-metrics";
 import type {
 	ITelemetryAdapter,
 	TelemetryMetadata,
@@ -11,14 +9,40 @@ import type {
 
 type FlatTelemetryAttributes = Record<string, string | number | boolean>;
 
+/**
+ * The subset of an SDK MeterProvider/LoggerProvider this adapter actually
+ * uses. Structural on purpose: hosts may bind the adapter to providers built
+ * by a different @opentelemetry/sdk-* release line than the one @cline/core
+ * compiles against (e.g. the VS Code extension's shared telemetry clients),
+ * and these entry points have been stable across those releases.
+ */
+export interface TelemetryMeterProviderLike {
+	getMeter(name: string, version?: string): Meter;
+	forceFlush?(): Promise<void>;
+	shutdown?(): Promise<void>;
+}
+
+export interface TelemetryLoggerProviderLike {
+	getLogger(name: string, version?: string): OpenTelemetryLogger;
+	forceFlush?(): Promise<void>;
+	shutdown?(): Promise<void>;
+}
+
 export interface OpenTelemetryAdapterOptions {
 	readonly metadata: TelemetryMetadata;
-	readonly meterProvider?: MeterProvider | null;
-	readonly loggerProvider?: LoggerProvider | null;
+	readonly meterProvider?: TelemetryMeterProviderLike | null;
+	readonly loggerProvider?: TelemetryLoggerProviderLike | null;
 	readonly name?: string;
 	readonly enabled?: boolean | (() => boolean);
 	readonly distinctId?: string;
 	readonly commonProperties?: TelemetryProperties;
+	/**
+	 * Whether disposing this adapter shuts down the meter/logger providers.
+	 * Defaults to true. Hosts that bind an adapter to providers shared with
+	 * another pipeline (e.g. the VS Code extension writing through the host
+	 * telemetry stack) pass false so the provider owner controls shutdown.
+	 */
+	readonly ownsProviders?: boolean;
 }
 
 export class OpenTelemetryAdapter implements ITelemetryAdapter {
@@ -40,14 +64,16 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		string,
 		Map<string, { value: number; attributes?: TelemetryProperties }>
 	>();
-	private readonly meterProvider?: MeterProvider | null;
-	private readonly loggerProvider?: LoggerProvider | null;
+	private readonly meterProvider?: TelemetryMeterProviderLike | null;
+	private readonly loggerProvider?: TelemetryLoggerProviderLike | null;
+	private readonly ownsProviders: boolean;
 
 	constructor(options: OpenTelemetryAdapterOptions) {
 		this.name = options.name ?? "OpenTelemetryAdapter";
 		this.metadata = { ...options.metadata };
 		this.meterProvider = options.meterProvider;
 		this.loggerProvider = options.loggerProvider;
+		this.ownsProviders = options.ownsProviders ?? true;
 		this.meter = options.meterProvider?.getMeter("cline") ?? null;
 		this.logger = options.loggerProvider?.getLogger("cline") ?? null;
 		this.enabled = options.enabled ?? true;
@@ -198,6 +224,9 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 	}
 
 	async dispose(): Promise<void> {
+		if (!this.ownsProviders) {
+			return;
+		}
 		await Promise.all([
 			this.meterProvider?.shutdown?.(),
 			this.loggerProvider?.shutdown?.(),
