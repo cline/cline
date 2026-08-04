@@ -13,6 +13,11 @@ export {
 export { AgentAurora } from "./agent-aurora.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
+	AgentPromptQueue,
+	type AgentPromptQueueItem,
+	type AgentPromptQueueProps,
+} from "./agent-prompt-queue.js";
+export {
 	type AgentQuickAction,
 	AgentQuickActions,
 	type AgentQuickActionsProps,

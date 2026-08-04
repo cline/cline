@@ -4,15 +4,7 @@ import {
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
 } from "../../utils/usage-cost-display";
-import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getSuccessColor,
-} from "../palette";
+import { useTheme } from "../hooks/use-theme";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
 export function createContextBar(
@@ -163,13 +155,12 @@ export function StatusBar(props: StatusBarProps) {
 	} = props;
 
 	const { width } = useTerminalDimensions();
-	const terminalBg = useTerminalBackground();
-	const terminalTheme = useTerminalTheme();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const theme = useTheme();
+	const defaultFg = theme.defaultForeground;
 	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
-	const actAccent = getModeAccent("act", terminalTheme);
-	const planAccent = getModeAccent("plan", terminalTheme);
-	const successColor = getSuccessColor(terminalTheme);
+	const actAccent = theme.accents.act;
+	const planAccent = theme.accents.plan;
+	const successColor = theme.accents.success;
 	const hasMaxInputTokens =
 		typeof maxInputTokens === "number" &&
 		Number.isFinite(maxInputTokens) &&

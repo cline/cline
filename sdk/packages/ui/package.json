@@ -44,6 +44,8 @@
 		"components/agent-aurora.tsx",
 		"components/agent-hero-heading.css",
 		"components/agent-hero-heading.tsx",
+		"components/agent-prompt-queue.css",
+		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
 		"components/agent-quick-actions.tsx",
 		"components/markdown.css",
