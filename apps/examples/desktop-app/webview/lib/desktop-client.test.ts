@@ -65,6 +65,8 @@ class FakeWebSocket {
 
 const sockets: FakeWebSocket[] = [];
 const originalWebSocket = globalThis.WebSocket;
+const originalFetch = globalThis.fetch;
+const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
 
 async function connectLatestSocket(options?: {
 	sendError?: Error;
@@ -88,6 +90,8 @@ beforeEach(() => {
 	vi.resetModules();
 	sockets.length = 0;
 	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+	globalThis.fetch = fetchMock as unknown as typeof fetch;
+	fetchMock.mockClear();
 	(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
 		"ws://127.0.0.1:3126/transport";
 });
@@ -96,10 +100,64 @@ afterEach(() => {
 	vi.clearAllTimers();
 	vi.useRealTimers();
 	globalThis.WebSocket = originalWebSocket;
+	globalThis.fetch = originalFetch;
 	delete (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__;
 });
 
 describe("DesktopClient command deadlines", () => {
+	it("reports the same error object only once across local and global handlers", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("native command failed");
+
+		desktopClient.reportError({
+			operation: "webview.native_command",
+			error,
+			command: "get_update_status",
+		});
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+	});
+
+	it("allows the global handler to retry when local error delivery fails", async () => {
+		fetchMock
+			.mockRejectedValueOnce(new Error("sidecar unavailable"))
+			.mockResolvedValueOnce(new Response(null, { status: 202 }));
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("native command failed");
+
+		desktopClient.reportError({
+			operation: "webview.native_command",
+			error,
+			command: "get_update_status",
+		});
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.unhandled_rejection",
+			handled: false,
+		});
+
+		desktopClient.reportError({
+			operation: "webview.unhandled_rejection",
+			error,
+			handled: false,
+		});
+		await Promise.resolve();
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("keeps an explicitly unbounded command pending past the default deadline", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		let settled = false;
@@ -131,6 +189,18 @@ describe("DesktopClient command deadlines", () => {
 
 		await vi.advanceTimersByTimeAsync(120_000);
 		await rejection;
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			"http://127.0.0.1:3126/telemetry/error",
+		);
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.command_timeout",
+			command: "get_process_context",
+			timeoutMs: 120_000,
+			transportState: "connected",
+		});
 	});
 
 	it("rejects an unbounded command when the transport closes", async () => {
@@ -147,6 +217,26 @@ describe("DesktopClient command deadlines", () => {
 
 		socket.close();
 		await rejection;
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.transport_closed",
+		});
+	});
+
+	it("does not report a transport closure with no pending requests", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke<{ ok: boolean }>(
+			"get_process_context",
+		);
+		const socket = await connectLatestSocket();
+		socket.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+
+		socket.close();
+		await Promise.resolve();
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("removes an unbounded request when WebSocket.send throws", async () => {

@@ -9,7 +9,7 @@ Use this skill when the user asks to release the desktop app, publish Cline Code
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases are macOS-only today (signed + notarized DMG for Apple Silicon and Intel) and are built entirely in GitHub Actions — there is no local publish path. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user.
+Desktop releases are macOS-only today (a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel) and are built entirely in GitHub Actions — there is no local publish path. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user.
 
 ## Release contract
 
@@ -17,7 +17,7 @@ Desktop releases are macOS-only today (signed + notarized DMG for Apple Silicon 
 - Release tag: `desktop-vX.Y.Z`, where `X.Y.Z` matches both version files.
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update.
 - Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch, requires the tag to exist, point at the checked-out commit, and be reachable from `origin/main`).
-- The workflow creates the `desktop-vX.Y.Z` GitHub release (DMGs + updater artifacts + `latest.json`) and refreshes the rolling `desktop-latest` release, which is the static auto-update feed every installed app polls. Never delete the `desktop-latest` release or tag.
+- The workflow creates the `desktop-vX.Y.Z` GitHub release (universal DMG + updater artifact + `latest.json`) and refreshes the rolling `desktop-latest` release, which is the static auto-update feed every installed app polls. Never delete the `desktop-latest` release or tag.
 - The changelog's top `## X.Y.Z` section is extracted verbatim into the GitHub release body, the Slack announcement, and the updater manifest notes.
 - Always ask before pushing commits or tags.
 
@@ -101,10 +101,9 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
   -F 'environment_ids[]=19152605990'   # PublishDesktop
 ```
 
-Both matrix legs wait on the same environment, so one approval releases both.
 Nothing after `validate` runs — and no signing key is readable — until then.
 
-The workflow builds both architectures in parallel (aarch64 native, x86_64 cross-compiled), signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs updater artifacts with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
+The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`), verifies every Mach-O in the bundle carries both slices, signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs the updater artifact with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
 
 If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
@@ -114,7 +113,7 @@ If the workflow fails on missing credentials, see "Publish secrets (one-time set
 curl -sL https://github.com/cline/cline/releases/download/desktop-latest/latest.json | head -30
 ```
 
-The `version` field must be the new release and both `darwin-aarch64` and `darwin-x86_64` URLs must point at the new `desktop-vX.Y.Z` assets. Installed apps pick the update up on next launch or within 2 hours.
+The `version` field must be the new release and both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new `desktop-vX.Y.Z` universal `.app.tar.gz` asset (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact). Installed apps — including older per-arch installs — pick the update up on next launch or within 2 hours.
 
 10. Final response.
 

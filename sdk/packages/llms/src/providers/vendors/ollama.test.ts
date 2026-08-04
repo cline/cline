@@ -6,77 +6,55 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createOllamaProviderModule,
 	normalizeOllamaBaseUrl,
-	OLLAMA_DEFAULT_NUM_CTX,
 	OLLAMA_DEFAULT_TIMEOUT_MS,
-	readOllamaNumCtx,
 	readOllamaTimeoutMs,
 	withOllamaResponseTimeout,
 } from "./ollama";
 
 const createOllamaMock = vi.hoisted(() => vi.fn());
 const ollamaModelMock = vi.hoisted(() =>
-	vi.fn((modelId: string, _settings?: unknown) => ({
+	vi.fn((modelId: string) => ({
 		specificationVersion: "v4",
 		provider: "ollama",
 		modelId,
 	})),
 );
 
-vi.mock("ai-sdk-ollama", () => ({
+vi.mock("ollama-ai-provider-v2", () => ({
 	createOllama: createOllamaMock,
 }));
 
 describe("normalizeOllamaBaseUrl", () => {
-	it("passes a bare origin through (the ollama client appends /api itself)", () => {
+	it("appends the native API root to a bare origin", () => {
 		expect(normalizeOllamaBaseUrl("http://localhost:11434")).toBe(
-			"http://localhost:11434",
+			"http://localhost:11434/api",
 		);
 		expect(normalizeOllamaBaseUrl("https://ollama.com")).toBe(
-			"https://ollama.com",
+			"https://ollama.com/api",
 		);
 	});
 
 	it("strips a legacy OpenAI-compat /v1 suffix", () => {
 		expect(normalizeOllamaBaseUrl("http://localhost:11434/v1")).toBe(
-			"http://localhost:11434",
+			"http://localhost:11434/api",
 		);
 	});
 
 	it("strips a native-API /api suffix", () => {
 		expect(normalizeOllamaBaseUrl("http://localhost:11434/api")).toBe(
-			"http://localhost:11434",
+			"http://localhost:11434/api",
 		);
 	});
 
 	it("strips trailing slashes", () => {
 		expect(normalizeOllamaBaseUrl("http://localhost:11434/")).toBe(
-			"http://localhost:11434",
+			"http://localhost:11434/api",
 		);
 	});
 
 	it("returns undefined for empty input", () => {
 		expect(normalizeOllamaBaseUrl(undefined)).toBeUndefined();
 		expect(normalizeOllamaBaseUrl("  ")).toBeUndefined();
-	});
-});
-
-describe("readOllamaNumCtx", () => {
-	it("reads the resolved model's context window", () => {
-		expect(readOllamaNumCtx(context({ contextWindow: 500000 }))).toBe(500000);
-	});
-
-	it("falls back to maxInputTokens when contextWindow is absent", () => {
-		expect(readOllamaNumCtx(context({ maxInputTokens: 128000 }))).toBe(128000);
-	});
-
-	it("falls back to the default for missing or invalid values", () => {
-		expect(readOllamaNumCtx(context({}))).toBe(OLLAMA_DEFAULT_NUM_CTX);
-		expect(readOllamaNumCtx(context({ contextWindow: 0 }))).toBe(
-			OLLAMA_DEFAULT_NUM_CTX,
-		);
-		expect(readOllamaNumCtx(context({ contextWindow: -1 }))).toBe(
-			OLLAMA_DEFAULT_NUM_CTX,
-		);
 	});
 });
 
@@ -166,7 +144,7 @@ describe("withOllamaResponseTimeout", () => {
 describe("createOllamaProviderModule", () => {
 	beforeEach(() => {
 		createOllamaMock.mockReset();
-		createOllamaMock.mockReturnValue(ollamaModelMock);
+		createOllamaMock.mockReturnValue({ chat: ollamaModelMock });
 		ollamaModelMock.mockClear();
 	});
 
@@ -179,43 +157,30 @@ describe("createOllamaProviderModule", () => {
 
 		expect(createOllamaMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				baseURL: "https://ollama.com",
-				apiKey: "ollama-key",
+				baseURL: "https://ollama.com/api",
+				headers: { Authorization: "Bearer ollama-key" },
+				compatibility: "strict",
 			}),
 		);
-		expect(ollamaModelMock).toHaveBeenCalledWith(
-			"minimax-m3:cloud",
-			expect.anything(),
-		);
+		expect(ollamaModelMock).toHaveBeenCalledWith("minimax-m3:cloud");
 	});
 
-	it("requests num_ctx from the resolved model's context window", async () => {
+	it("constructs a native chat model without request-scoped settings", async () => {
 		const provider = await createOllamaProviderModule(
 			config({}),
 			context({ contextWindow: 65536 }),
 		);
 		provider.model("qwen3-coder:30b");
 
-		expect(ollamaModelMock).toHaveBeenCalledWith("qwen3-coder:30b", {
-			options: { num_ctx: 65536 },
-		});
+		expect(ollamaModelMock).toHaveBeenCalledWith("qwen3-coder:30b");
 	});
 
-	it("requests the default num_ctx when the model has no context window", async () => {
-		const provider = await createOllamaProviderModule(config({}), context({}));
-		provider.model("llama3.1");
-
-		expect(ollamaModelMock).toHaveBeenCalledWith("llama3.1", {
-			options: { num_ctx: OLLAMA_DEFAULT_NUM_CTX },
-		});
-	});
-
-	it("omits baseURL and apiKey for a default local server", async () => {
+	it("omits baseURL and authorization headers for a default local server", async () => {
 		await createOllamaProviderModule(config({}), context({}));
 
 		const call = createOllamaMock.mock.calls[0][0];
 		expect(call.baseURL).toBeUndefined();
-		expect(call.apiKey).toBeUndefined();
+		expect(call.headers).toBeUndefined();
 	});
 });
 

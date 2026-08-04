@@ -179,6 +179,27 @@ export function resolveConnectorDataDir(): string {
 	return join(resolveClineDataDir(), "connectors");
 }
 
+/**
+ * Where a connector instance's stdout/stderr is captured. Both the CLI (which
+ * spawns detached connectors directly) and the hub supervisor (which spawns and
+ * reaps them) need to agree on this path, so it lives here rather than in
+ * either one.
+ */
+export function resolveConnectorLogPath(
+	channel: string,
+	instanceKey: string,
+): string {
+	const safeChannel = channel.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	const safeKey = instanceKey.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	return join(
+		resolveClineDataDir(),
+		"logs",
+		"connectors",
+		safeChannel,
+		`${safeKey}.log`,
+	);
+}
+
 export function resolveConnectorSettingsPath(): string {
 	const explicitPath = process.env.CLINE_CONNECTOR_SETTINGS_PATH?.trim();
 	if (explicitPath) {

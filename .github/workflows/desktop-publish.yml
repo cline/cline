@@ -118,7 +118,7 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build macOS (${{ matrix.arch }})
+    name: Build macOS (universal)
     needs: validate
     # The Apple signing/notarization and Tauri updater secrets live in the
     # PublishDesktop environment rather than at repository level, so they are
@@ -130,14 +130,6 @@ jobs:
     environment: PublishDesktop
     runs-on: macos-latest
     timeout-minutes: 90
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            arch: aarch64
-          - target: x86_64-apple-darwin
-            arch: x86_64
     steps:
       # A secret missing here is dangerous rather than merely broken: Tauri skips
       # code signing when APPLE_CERTIFICATE is empty and skips notarization when
@@ -189,10 +181,13 @@ jobs:
         with:
           bun-version: "1.3.13"
 
+      # A universal (fat) macOS bundle needs both architecture slices, so
+      # install both Rust targets; `tauri build --target universal-apple-darwin`
+      # compiles each and lipos the results into one binary.
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       # No Rust build cache here, deliberately. This is the only job that can
       # read the Apple signing certificate and the Tauri updater key, and a
@@ -228,7 +223,7 @@ jobs:
 
       - name: Build, sign, and notarize desktop bundle
         working-directory: apps/examples/desktop-app
-        run: bunx tauri build --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
+        run: bunx tauri build --target universal-apple-darwin --config src-tauri/tauri.release.conf.json
         env:
           # Developer ID signing (Tauri imports the cert into a temp keychain)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -243,14 +238,36 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      # Tauri lipos the main binary itself but sidecars are merged by our own
+      # build-sidecar-bin.ts, so assert every Mach-O in the bundle really
+      # carries both slices before anything is published. A single-arch
+      # sidecar would otherwise ship fine and only crash on the other arch.
+      - name: Verify bundle is a universal binary
+        working-directory: apps/examples/desktop-app
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Cline Code.app"
+          if [ ! -d "$APP" ]; then
+            echo "app bundle not found at $APP"
+            exit 1
+          fi
+          for bin in "$APP/Contents/MacOS/"*; do
+            archs=$(lipo -archs "$bin")
+            echo "$bin: $archs"
+            case "$archs" in
+              *arm64*x86_64*|*x86_64*arm64*) ;;
+              *)
+                echo "$bin is not a universal binary (archs: $archs)"
+                exit 1
+                ;;
+            esac
+          done
+
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
         env:
           VERSION: ${{ needs.validate.outputs.version }}
-          ARCH: ${{ matrix.arch }}
-          TARGET: ${{ matrix.target }}
         run: |
-          BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
+          BUNDLE_DIR="src-tauri/target/universal-apple-darwin/release/bundle"
           OUT="dist/publish"
           mkdir -p "$OUT"
 
@@ -259,22 +276,22 @@ jobs:
             echo "no DMG produced under $BUNDLE_DIR/dmg"
             exit 1
           fi
-          cp "$DMG" "$OUT/Cline-Code_${VERSION}_${ARCH}.dmg"
+          cp "$DMG" "$OUT/Cline-Code_${VERSION}_universal.dmg"
 
           TARBALL=$(find "$BUNDLE_DIR/macos" -name '*.app.tar.gz' -print -quit)
           if [ -z "$TARBALL" ] || [ ! -f "${TARBALL}.sig" ]; then
             echo "updater artifact or signature missing under $BUNDLE_DIR/macos"
             exit 1
           fi
-          cp "$TARBALL" "$OUT/Cline-Code_${VERSION}_${ARCH}.app.tar.gz"
-          cp "${TARBALL}.sig" "$OUT/Cline-Code_${VERSION}_${ARCH}.app.tar.gz.sig"
+          cp "$TARBALL" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz"
+          cp "${TARBALL}.sig" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz.sig"
 
           ls -lh "$OUT"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.arch }}
+          name: desktop-universal
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
 

@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { setHomeDirIfUnset } from "@cline/core";
-import { isHubDaemonProcess } from "@cline/shared";
+import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -103,6 +103,13 @@ async function main() {
 			kind,
 			error,
 		});
+		captureSdkError(observability.telemetry, {
+			component: "desktop",
+			operation: `sidecar.${kind}`,
+			error,
+			handled: false,
+			severity: "fatal",
+		});
 		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
 	};
 	process.on("uncaughtException", (error) => {
@@ -137,7 +144,9 @@ async function main() {
 }
 
 async function runEntrypoint(): Promise<void> {
-	if (isHubDaemonProcess()) {
+	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
+	// from handing it to every process they spawn.
+	if (claimHubDaemonProcess()) {
 		await import("@cline/core/hub/daemon-entry");
 		return;
 	}
@@ -148,6 +157,13 @@ runEntrypoint().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
 	activeObservability?.logger.error?.("Desktop sidecar process failed", {
 		error,
+	});
+	captureSdkError(activeObservability?.telemetry, {
+		component: "desktop",
+		operation: "sidecar.startup",
+		error,
+		handled: false,
+		severity: "fatal",
 	});
 	await activeObservability?.dispose();
 	process.stderr.write(`${message}\n`);
