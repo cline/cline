@@ -39,6 +39,7 @@ import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
+import { resolvePortableReasoning } from "./routing/portable-reasoning";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -65,11 +66,13 @@ export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
 	_context: GatewayProviderContext,
 ): Partial<CallSettings> {
+	const reasoning = resolvePortableReasoning(request);
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
 			: {}),
 		temperature: request.temperature,
+		...(reasoning ? { reasoning } : {}),
 	};
 }
 
@@ -1221,6 +1224,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
 						});
+				const portableReasoning = resolvePortableReasoning(request);
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,
@@ -1238,6 +1242,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						tools,
 						providerOptions,
 						...requestConfig,
+						...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					},
 				});
 				stream = streamText({
@@ -1252,6 +1257,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 					providerOptions,
 					...requestConfig,
+					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {
 						const captured = captureStreamError(streamError);
 						const msg = captured.message;

@@ -197,10 +197,11 @@ async function captureReasoningOptions({
 
 	const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 		| {
+				reasoning?: unknown;
 				providerOptions?: Record<string, { reasoning?: unknown }>;
 		  }
 		| undefined;
-	return call?.providerOptions?.[providerId]?.reasoning;
+	return call?.reasoning ?? call?.providerOptions?.[providerId]?.reasoning;
 }
 
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
@@ -2670,12 +2671,12 @@ describe("sdk-gateway", () => {
 					}),
 					"openai-codex": expect.objectContaining({
 						store: false,
-						reasoningEffort: "high",
 					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -2748,7 +2749,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("passes reasoning effort through to Anthropic provider options", async () => {
+	it("passes reasoning effort through the AI SDK top-level option", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -2786,13 +2787,11 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					anthropic: expect.objectContaining({
-						thinking: expect.objectContaining({ type: "enabled" }),
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(call?.providerOptions?.anthropic).not.toHaveProperty("thinking");
 	});
 
 	it("does not enable adaptive thinking for Anthropic when reasoning is not requested", async () => {
@@ -2888,22 +2887,15 @@ describe("sdk-gateway", () => {
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							enabled: true,
-							max_tokens: expect.any(Number),
-						}),
 					}),
 					openrouter: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							effort: "high",
-						}),
 					}),
 					anthropic: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						thinking: expect.objectContaining({ type: "enabled" }),
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 	});
@@ -3681,18 +3673,7 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoningEffort: "high",
-					}),
-					cline: expect.objectContaining({
-						reasoning: expect.objectContaining({
-							enabled: true,
-							effort: "high",
-						}),
-						reasoningEffort: "high",
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -3746,11 +3727,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					zai: expect.objectContaining({
-						thinking: { type: "enabled" },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
@@ -3883,14 +3860,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoning: { enabled: true },
-					}),
-					openrouter: expect.objectContaining({
-						reasoning: { enabled: true, max_tokens: 19_200 },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
@@ -3992,7 +3962,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "preserves structured enabled while filling an invalid effort",
@@ -4000,7 +3970,7 @@ describe("sdk-gateway", () => {
 				reasoning: { enabled: true, effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a non-finite legacy budget",
@@ -4008,12 +3978,12 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: Number.POSITIVE_INFINITY,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a fractional structured budget",
 			options: { reasoning: { effort: "high", budgetTokens: 0.5 } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a zero legacy budget",
@@ -4021,7 +3991,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: 0,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "validates handle defaults before merging requested reasoning",
@@ -4032,7 +4002,7 @@ describe("sdk-gateway", () => {
 				},
 			} as unknown as GatewayModelHandleOptions,
 			options: { reasoning: { effort: "high" } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 	])("$name", async ({ options, defaults, expected }) => {
 		expect(

@@ -356,34 +356,15 @@ export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ) {
-	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
-	const wantsAnthropicThinking =
-		request.reasoning?.enabled === true ||
-		request.reasoning?.effort !== undefined ||
-		(typeof request.reasoning?.budgetTokens === "number" &&
-			request.reasoning.budgetTokens > 0);
-
-	let thinking: Record<string, unknown> | undefined;
-	if (request.reasoning?.enabled === false && policy.kind !== "none") {
-		thinking = { type: "disabled" };
-	} else if (wantsAnthropicThinking) {
-		if (policy.kind === "anthropic-adaptive") {
-			thinking = { type: "adaptive" };
-		} else if (policy.kind === "anthropic-manual") {
-			const budgetTokens = resolveAnthropicManualBudget(request, context);
-			if (budgetTokens === undefined) {
-				throw new Error(
-					"Anthropic manual thinking requires a positive budget smaller than maxTokens.",
-				);
-			}
-			thinking = { type: "enabled", budgetTokens };
-		}
-	}
+	const explicitBudget = request.reasoning?.budgetTokens;
+	const budgetTokens =
+		typeof explicitBudget === "number"
+			? resolveAnthropicManualBudget(request, context)
+			: undefined;
+	const thinking =
+		budgetTokens === undefined ? undefined : { type: "enabled", budgetTokens };
 
 	return {
-		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
-			? { effort: request.reasoning.effort }
-			: {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
 			? createEphemeralCacheControl()
@@ -482,9 +463,6 @@ export function buildAnthropicCompatibleReasoningOptions(
 	if (request.reasoning?.enabled === true) {
 		reasoning.enabled = true;
 	}
-	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
-		reasoning.effort = request.reasoning.effort;
-	}
 	if (
 		policy.kind === "anthropic-manual" &&
 		typeof budgetTokens === "number" &&
@@ -538,18 +516,12 @@ export function buildGatewayReasoningOptions(
 			: policy.kind === "anthropic-manual"
 				? resolveAnthropicManualBudget(request, context)
 				: request.reasoning?.budgetTokens;
-	const requestedEffort = request.reasoning?.effort;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
 			: request.reasoning?.enabled === false
 				? { enabled: false }
-				: request.reasoning?.effort
-					? { enabled: true }
-					: {}),
-		...(requestedEffort && policy.kind !== "anthropic-manual"
-			? { effort: requestedEffort }
-			: {}),
+				: {}),
 	};
 
 	if (typeof budgetTokens === "number" && budgetTokens >= 0) {
