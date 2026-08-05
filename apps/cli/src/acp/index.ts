@@ -1,8 +1,10 @@
 import { Readable, Writable } from "node:stream";
 import { writeDiagnostic } from "../utils/output";
+import type { AcpReasoningLevel } from "./reasoning";
 
 export interface AcpModeOptions {
 	autoApproveTools?: boolean;
+	reasoningLevel?: AcpReasoningLevel;
 }
 
 export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
@@ -21,6 +23,7 @@ export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
 	const connection = new AgentSideConnection((conn) => {
 		return new AcpAgent(conn, {
 			autoApproveTools: options?.autoApproveTools,
+			reasoningLevel: options?.reasoningLevel,
 		});
 	}, stream);
 

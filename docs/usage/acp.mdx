@@ -93,6 +93,7 @@ Anything that speaks ACP can run Cline the same way — point it at `cline --acp
 - **Sign-in from the client** — if no credentials are found, the client prompts you to sign in with Cline, ClinePass, or a ChatGPT subscription. Credentials saved by `cline auth` are reused automatically.
 - **Plan/Act modes** — switch between [Plan and Act](/core-workflows/plan-and-act) from the client's mode selector.
 - **Model and provider selection** — pick any model from the active provider's catalog, or switch providers, from the client's model picker.
+- **Reasoning level** — control how much model-side thinking to request (off, low, medium, high, or extra high) from the client's session settings; thinking streams to the client as it happens. Preset it by adding `--thinking <level>` to the launch args, e.g. `["--acp", "--thinking", "medium"]`. Off by default.
 - **Permission prompts** — file edits and commands are approved through the client's permission UI. Nothing is auto-approved by default, but you can [auto-approve all tools](#auto-approving-tools) per session or at launch.
 - **Session resume** — conversations are persisted, so clients that support session loading can restore a thread after a restart.
 - **Images** — prompts can include images for vision-capable models.

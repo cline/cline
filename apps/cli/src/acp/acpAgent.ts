@@ -61,6 +61,13 @@ import {
 	usesClineAccount,
 } from "./organizations";
 import { requestAcpToolApproval } from "./permissions";
+import {
+	type AcpReasoningLevel,
+	buildReasoningConfigOption,
+	isAcpReasoningLevel,
+	REASONING_CONFIG_ID,
+	reasoningConnectionUpdate,
+} from "./reasoning";
 import { replaySessionHistory } from "./session-load";
 import {
 	describeAgentError,
@@ -82,6 +89,8 @@ interface SessionState {
 	currentModelId: string;
 	/** When true, all tool calls are approved without asking the client. */
 	autoApproveTools: boolean;
+	/** Current reasoning level — "none" disables model-side thinking. */
+	currentReasoningLevel: AcpReasoningLevel;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -108,16 +117,21 @@ export class AcpAgent implements Agent {
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
 	private readonly defaultAutoApproveTools: boolean;
+	private readonly defaultReasoningLevel: AcpReasoningLevel;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
 	constructor(
 		conn: AgentSideConnection,
-		options?: { autoApproveTools?: boolean },
+		options?: {
+			autoApproveTools?: boolean;
+			reasoningLevel?: AcpReasoningLevel;
+		},
 	) {
 		this.conn = conn;
 		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
+		this.defaultReasoningLevel = options?.reasoningLevel ?? "none";
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -203,6 +217,7 @@ export class AcpAgent implements Agent {
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
 			autoApproveTools: this.defaultAutoApproveTools,
+			currentReasoningLevel: this.defaultReasoningLevel,
 		});
 
 		const availableModels = Object.entries(providerModels).map(
@@ -230,6 +245,7 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+				buildReasoningConfigOption(this.defaultReasoningLevel),
 				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
 				...(organizationOption ? [organizationOption] : []),
 			],
@@ -269,6 +285,7 @@ export class AcpAgent implements Agent {
 						providerModels,
 					),
 					autoApproveTools: this.defaultAutoApproveTools,
+					currentReasoningLevel: this.defaultReasoningLevel,
 				};
 				this.sessions.set(params.sessionId, session);
 			}
@@ -538,6 +555,23 @@ export class AcpAgent implements Agent {
 				break;
 			}
 
+			case REASONING_CONFIG_ID: {
+				if (!isAcpReasoningLevel(value)) {
+					throw RequestError.invalidParams(
+						undefined,
+						`Invalid reasoning level: ${value} (must be "none", "low", "medium", "high", or "xhigh")`,
+					);
+				}
+				session.currentReasoningLevel = value;
+				if (session.sessionManager && session.activeSessionId) {
+					await session.sessionManager.updateSessionConnection?.(
+						session.activeSessionId,
+						reasoningConnectionUpdate(value),
+					);
+				}
+				break;
+			}
+
 			default:
 				throw RequestError.invalidParams(
 					undefined,
@@ -765,7 +799,7 @@ export class AcpAgent implements Agent {
 			execution: undefined,
 			verbose: false,
 			sandbox: false,
-			thinking: false,
+			...reasoningConnectionUpdate(session.currentReasoningLevel),
 			outputMode: "text",
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
@@ -913,6 +947,7 @@ async function buildAllConfigOptions(
 		providerOption,
 		buildModelConfigOption(session.currentModelId, providerModels),
 		buildModeConfigOption(session.currentMode),
+		buildReasoningConfigOption(session.currentReasoningLevel),
 		buildAutoApproveConfigOption(session.autoApproveTools),
 	];
 }
