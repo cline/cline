@@ -319,6 +319,18 @@ export function useChatSession() {
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
+	// The one prompt the composer just rendered optimistically. The runtime
+	// still routes fresh-session prompts through its queue, so the matching
+	// `chat_queued_prompt_start` must not append the same user message twice.
+	const pendingLiveUserPromptRef = useRef<{
+		sessionId: string;
+		content: string;
+	} | null>(null);
+	// Bumped whenever a new turn begins; lets async queue checks detect that
+	// their result is stale because another turn already started.
+	const turnEpochRef = useRef(0);
+	// Last error-level core log per session, used to explain failed turns.
+	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -438,6 +450,46 @@ export function useChatSession() {
 		[],
 	);
 
+	// Surfaces a failed turn in the transcript. Some turns (for example the
+	// first prompt of a fresh session, which the runtime consumes from its
+	// queue) never resolve through the send() RPC, so without this the app
+	// fails silently: the user message sits alone with no response and no
+	// explanation. Skips appending when an error for this turn is already
+	// visible so the RPC path and the chat_done stream never double-report.
+	const appendTurnFailureMessage = useCallback(
+		(sid: string, detail: string) => {
+			const description =
+				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+			const looksCredentialRelated =
+				!description ||
+				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|token/i.test(
+					description,
+				);
+			const content = [
+				description
+					? `The run failed: ${description}`
+					: "The run failed before a response was produced.",
+				looksCredentialRelated
+					? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
+					: "",
+			]
+				.filter(Boolean)
+				.join(" ");
+			setMessages((prev) => {
+				const sessionMessages = prev.filter(
+					(message) => message.sessionId === sid,
+				);
+				const last = sessionMessages[sessionMessages.length - 1];
+				if (last?.role === "error") {
+					return prev;
+				}
+				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
+			});
+			setError(content);
+		},
+		[],
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
@@ -454,6 +506,38 @@ export function useChatSession() {
 			request,
 		);
 	}, []);
+
+	// Confirms a "still running because prompts are queued" status against the
+	// server. The local queue snapshot can be stale when the dequeue
+	// notification races the turn-completion event, which would otherwise
+	// leave the composer stuck on "Agent is working..." forever.
+	const verifyQueueStillBusy = useCallback(
+		(sid: string) => {
+			const epoch = turnEpochRef.current;
+			void postSession({ action: "pending_prompts", sessionId: sid })
+				.then((payload) => {
+					if (
+						activeSessionIdRef.current !== sid ||
+						turnEpochRef.current !== epoch
+					) {
+						return;
+					}
+					const items = Array.isArray(payload.promptsInQueue)
+						? payload.promptsInQueue
+						: [];
+					setPromptsInQueue(items);
+					if (items.length === 0) {
+						setStatus((current) =>
+							current === "running" ? "completed" : current,
+						);
+					}
+				})
+				.catch(() => {
+					// Keep the last known state on transient transport failures.
+				});
+		},
+		[postSession],
+	);
 
 	const refreshPromptsInQueue = useCallback(
 		async (targetSessionId: string | null) => {
@@ -938,6 +1022,7 @@ export function useChatSession() {
 
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
+				turnEpochRef.current += 1;
 				let parsed: {
 					promptId?: string;
 					prompt?: string;
@@ -977,6 +1062,41 @@ export function useChatSession() {
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
+				// The prompt just left the queue: drop it from the local snapshot
+				// immediately. Waiting for the next server snapshot leaves a
+				// window where turn completion still sees a stale busy queue and
+				// keeps the composer on "Agent is working..." forever.
+				setPromptsInQueue((prev) => {
+					if (prev.length === 0) {
+						return prev;
+					}
+					let index = promptId
+						? prev.findIndex((item) => item.id === promptId)
+						: -1;
+					if (index === -1) {
+						index = prev.findIndex(
+							(item) => item.prompt === userLabel || item.prompt === prompt,
+						);
+					}
+					if (index === -1) {
+						return prev;
+					}
+					const next = [...prev.slice(0, index), ...prev.slice(index + 1)];
+					promptsInQueueRef.current = next;
+					return next;
+				});
+				// A live send already appended this exact prompt optimistically
+				// (the runtime routes fresh-session prompts through its queue),
+				// so materializing it again would duplicate the user message.
+				const pendingLivePrompt = pendingLiveUserPromptRef.current;
+				if (
+					pendingLivePrompt &&
+					pendingLivePrompt.sessionId === listeningSessionId &&
+					pendingLivePrompt.content === userLabel
+				) {
+					pendingLiveUserPromptRef.current = null;
+					return;
+				}
 				if (userLabel || userImages.length > 0) {
 					setMessages((prev) => {
 						const userMessageId = promptId
@@ -1005,6 +1125,21 @@ export function useChatSession() {
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
+				// Remember the latest error so a failed turn can explain itself:
+				// the runtime reports the underlying cause (e.g. an auth failure)
+				// here rather than on the turn-completion event.
+				try {
+					const parsed = JSON.parse(payload.chunk) as CoreLogChunk;
+					if (
+						parsed.level?.trim().toLowerCase() === "error" &&
+						parsed.message?.trim()
+					) {
+						lastCoreErrorBySessionRef.current[payload.sessionId] =
+							parsed.message.trim();
+					}
+				} catch {
+					// Unstructured logs carry no level; nothing to remember.
+				}
 				return;
 			}
 
@@ -1039,6 +1174,7 @@ export function useChatSession() {
 
 			if (payload.stream === "chat_done") {
 				clearLiveToolRefs();
+				pendingLiveUserPromptRef.current = null;
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
 				// interactive loop is still starting) never resolve through the
@@ -1046,13 +1182,21 @@ export function useChatSession() {
 				// signal. Without it the composer stays on "Agent is working..."
 				// forever.
 				let doneReason = "";
+				let doneText = "";
 				try {
-					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					const parsed = JSON.parse(payload.chunk) as {
+						reason?: string;
+						text?: string;
+					};
 					doneReason = parsed.reason?.trim() ?? "";
+					doneText = typeof parsed.text === "string" ? parsed.text.trim() : "";
 				} catch {
 					// Missing reason still means the turn ended.
 				}
-				setStatus(
+				if (doneReason === "error") {
+					appendTurnFailureMessage(listeningSessionId, doneText);
+				}
+				const nextStatus: ChatSessionStatus =
 					doneReason === "aborted"
 						? "cancelled"
 						: doneReason === "error"
@@ -1062,8 +1206,11 @@ export function useChatSession() {
 								// busy state until the queue drains.
 								promptsInQueueRef.current.length > 0
 								? "running"
-								: "completed",
-				);
+								: "completed";
+				setStatus(nextStatus);
+				if (nextStatus === "running") {
+					verifyQueueStillBusy(listeningSessionId);
+				}
 				return;
 			}
 
@@ -1140,10 +1287,12 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			appendTurnFailureMessage,
 			clearLiveToolRefs,
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
+			verifyQueueStillBusy,
 		],
 	);
 
@@ -1395,6 +1544,11 @@ export function useChatSession() {
 					content: userLabel,
 					createdAt: now,
 				});
+				turnEpochRef.current += 1;
+				pendingLiveUserPromptRef.current = {
+					sessionId: plannedSessionId,
+					content: userLabel,
+				};
 				activeSessionIdRef.current = plannedSessionId;
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
@@ -1715,13 +1869,7 @@ export function useChatSession() {
 						const toolError = Array.isArray(result?.toolCalls)
 							? result.toolCalls.find((c) => c.error)?.error
 							: undefined;
-						addMessage(
-							makeErrorChatMessage(
-								activeSessionId,
-								toolError?.trim() ||
-									"Runtime turn failed before an assistant response was produced.",
-							),
-						);
+						appendTurnFailureMessage(activeSessionId, toolError?.trim() ?? "");
 					}
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
@@ -1755,6 +1903,7 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			appendTurnFailureMessage,
 			applyPromptsInQueue,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
@@ -1919,6 +2068,7 @@ export function useChatSession() {
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
 		activeAssistantMessageIdRef.current = null;
+		pendingLiveUserPromptRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);

@@ -31,6 +31,7 @@ export function WelcomeScreen({
 	active,
 	body,
 	composer,
+	notice,
 	onStartChat,
 	quickActions,
 	gitBranch,
@@ -40,6 +41,8 @@ export function WelcomeScreen({
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
+	/** Rendered above the composer on the welcome state (e.g. setup notice). */
+	notice?: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: AgentQuickAction[];
 	gitBranch: string;
@@ -110,6 +113,8 @@ export function WelcomeScreen({
 					>
 						{body}
 					</div>
+
+					{active && notice ? notice : null}
 
 					<div
 						className={active ? "mt-4 w-full" : "z-20 shrink-0"}

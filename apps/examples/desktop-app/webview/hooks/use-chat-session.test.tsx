@@ -874,6 +874,10 @@ describe("useChatSession", () => {
 	});
 
 	it("stays running on chat_done while more prompts wait in the queue", async () => {
+		// Server-side queue truth: chat_done double-checks pending prompts
+		// against the server, so the mock must answer consistently with the
+		// snapshots the test pushes below.
+		let serverQueue: Array<{ id: string; prompt: string; steer: boolean }> = [];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -888,6 +892,9 @@ describe("useChatSession", () => {
 					}
 					if (request?.action === "send") {
 						return { ok: true };
+					}
+					if (request?.action === "pending_prompts") {
+						return { ok: true, promptsInQueue: serverQueue };
 					}
 				}
 				return [];
@@ -907,6 +914,7 @@ describe("useChatSession", () => {
 		expect(queueStateHandler).toBeDefined();
 
 		// A second prompt is waiting in the queue when the first turn ends.
+		serverQueue = [{ id: "queued-2", prompt: "Second prompt", steer: false }];
 		await act(async () => {
 			queueStateHandler?.({
 				sessionId: current.sessionId,
@@ -935,6 +943,7 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("running");
 
 		// Once the queue drains, the next chat_done releases the composer.
+		serverQueue = [];
 		await act(async () => {
 			queueStateHandler?.({
 				sessionId: current.sessionId,
@@ -1011,6 +1020,75 @@ describe("useChatSession", () => {
 			});
 		});
 		expect(current.status).toBe("failed");
+		// The failure must be visible in the transcript — queued turns never
+		// resolve through the send RPC, so chat_done is the only error signal.
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("The run failed");
+		// The optimistic user message and the queued materialization of the
+		// same prompt must not duplicate each other.
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.content).toBe("First prompt");
+	});
+
+	it("explains a failed turn with the latest core error log", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Unauthorized: invalid API key",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain("Unauthorized: invalid API key");
+		expect(errorMessage?.content).toContain("Settings");
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {
