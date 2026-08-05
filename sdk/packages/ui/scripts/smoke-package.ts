@@ -19,6 +19,7 @@ import {
 	AgentAurora,
 	AgentHeroHeading,
 	AgentPromptQueue,
+	AgentAttachments,
 	AgentQuickActions,
 	SearchCombobox,
 	SessionStatus,
@@ -43,6 +44,7 @@ if (
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentPromptQueue ||
+	!AgentAttachments ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
 	!SessionStatus ||

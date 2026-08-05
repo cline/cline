@@ -10,6 +10,11 @@ export {
 	type AgentAskQuestionItem,
 	type AgentAskQuestionProps,
 } from "./agent-ask-question.js";
+export {
+	type AgentAttachmentItem,
+	AgentAttachments,
+	type AgentAttachmentsProps,
+} from "./agent-attachments.js";
 export { AgentAurora } from "./agent-aurora.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {

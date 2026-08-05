@@ -24,6 +24,7 @@ The theme provides:
 
 The first component surface provides:
 
+- Image and file attachment presentation with grid and inline variants
 - Sticky agent-conversation structure and a scroll-to-latest affordance
 - User, assistant, system, status, and error message presentation
 - Message actions with accessible labels and focus behavior

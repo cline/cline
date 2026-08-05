@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/schibsted-grotesk";
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
 
 @custom-variant dark (&:is(.dark *));
 

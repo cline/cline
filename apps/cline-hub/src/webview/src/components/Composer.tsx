@@ -1,3 +1,4 @@
+import { type AgentAttachmentItem, AgentAttachments } from "@cline/ui";
 import {
 	CheckIcon,
 	HatGlassesIcon,
@@ -10,12 +11,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-	Attachment,
-	AttachmentPreview,
-	AttachmentRemove,
-	Attachments,
-} from "@/components/ai-elements/attachments";
 import {
 	ModelSelector,
 	ModelSelectorContent,
@@ -74,18 +69,20 @@ function PromptAttachmentsDisplay() {
 	}
 
 	return (
-		<Attachments variant="inline">
-			{attachments.files.map((attachment) => (
-				<Attachment
-					data={attachment}
-					key={attachment.id}
-					onRemove={() => attachments.remove(attachment.id)}
-				>
-					<AttachmentPreview />
-					<AttachmentRemove />
-				</Attachment>
-			))}
-		</Attachments>
+		<div className="cline-ui-theme">
+			<AgentAttachments
+				attachments={attachments.files.map<AgentAttachmentItem>(
+					(attachment) => ({
+						id: attachment.id,
+						label: attachment.filename ?? "Attachment",
+						mediaType: attachment.mediaType,
+						src: attachment.url,
+					}),
+				)}
+				onRemove={attachments.remove}
+				variant="inline"
+			/>
+		</div>
 	);
 }
 
