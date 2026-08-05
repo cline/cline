@@ -457,13 +457,51 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
 ): Record<string, unknown> {
-	if (inputSchema.type === "object") {
-		return inputSchema;
+	const { oneOf, anyOf, allOf, ...schema } = inputSchema;
+	const compositions = [oneOf, anyOf, allOf].filter(
+		(value): value is Record<string, unknown>[] => Array.isArray(value),
+	);
+	if (compositions.length === 0) {
+		return inputSchema.type === "object"
+			? inputSchema
+			: { type: "object", ...inputSchema };
+	}
+
+	const properties: Record<string, unknown> =
+		schema.properties &&
+		typeof schema.properties === "object" &&
+		!Array.isArray(schema.properties)
+			? { ...(schema.properties as Record<string, unknown>) }
+			: {};
+	const required = new Set(
+		Array.isArray(schema.required)
+			? schema.required.filter((key): key is string => typeof key === "string")
+			: [],
+	);
+
+	for (const composition of compositions) {
+		for (const branch of composition) {
+			if (!branch || typeof branch !== "object" || Array.isArray(branch))
+				continue;
+			const normalizedBranch = normalizeAiSdkToolInputSchema(branch);
+			if (
+				normalizedBranch.properties &&
+				typeof normalizedBranch.properties === "object" &&
+				!Array.isArray(normalizedBranch.properties)
+			) {
+				Object.assign(
+					properties,
+					normalizedBranch.properties as Record<string, unknown>,
+				);
+			}
+		}
 	}
 
 	return {
+		...schema,
 		type: "object",
-		...inputSchema,
+		properties,
+		...(required.size > 0 ? { required: [...required] } : {}),
 	};
 }
 

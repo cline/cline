@@ -2748,6 +2748,60 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("flattens top-level tool schema unions for Anthropic-compatible providers", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-sonnet-4.6",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "custom",
+						description: "A tool supplied by an extension",
+						inputSchema: {
+							type: "object",
+							anyOf: [
+								{
+									type: "object",
+									properties: { query: { type: "string" } },
+									required: ["query"],
+								},
+								{
+									type: "object",
+									properties: { id: { type: "string" } },
+									required: ["id"],
+								},
+							],
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.custom.inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				query: { type: "string" },
+				id: { type: "string" },
+			},
+		});
+		expect(JSON.stringify(schema)).not.toMatch(/"(?:oneOf|anyOf|allOf)"/);
+	});
+
 	it("passes reasoning effort through to Anthropic provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
