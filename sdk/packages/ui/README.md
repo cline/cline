@@ -66,6 +66,9 @@ errors, and response transport.
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
 
+`AgentAttachments` renders controlled image and file attachments in grid or
+inline layouts; the host owns file reading, validation, upload, and removal.
+
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
 lets each bundler control font loading and asset emission.

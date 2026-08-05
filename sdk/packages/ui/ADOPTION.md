@@ -505,9 +505,9 @@ Recommended sequence:
 6. Expand clean-consumer fixtures as supported frameworks are proven.
 7. Define the compatibility point at which the API can be treated as stable.
 
-Likely follow-up components should be driven by repeated needs. Approval cards,
-follow-up questions, attachments, and prompt composers are candidates, but their
-current product contracts should be compared before standardizing them.
+Likely follow-up components should be driven by repeated needs. Prompt composers
+and model controls are candidates, but their current product contracts should be
+compared before standardizing them.
 
 ## Useful references
 

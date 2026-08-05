@@ -36,6 +36,7 @@ export function AgentAttachments({
 		>
 			{attachments.map((attachment) => (
 				<li
+					aria-label={variant === "grid" ? attachment.label : undefined}
 					className={[
 						"cline-ui-agent-attachments__item relative overflow-hidden border border-cline-ui-border bg-cline-ui-muted",
 						variant === "grid"
@@ -60,7 +61,10 @@ export function AgentAttachments({
 									: "size-5 rounded-cline-ui-md",
 							].join(" ")}
 							disabled={disabled}
-							onClick={() => onRemove(attachment.id)}
+							onClick={(event) => {
+								event.stopPropagation();
+								onRemove(attachment.id);
+							}}
 							type="button"
 						>
 							<XIcon />
@@ -83,7 +87,7 @@ function AttachmentPreview({
 	if (isImage && attachment.src) {
 		return (
 			<img
-				alt={attachment.label}
+				alt=""
 				className={
 					variant === "grid"
 						? "size-full object-cover"
