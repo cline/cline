@@ -38,7 +38,10 @@ export function normalizeReasoningRequest(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): GatewayStreamRequest {
-	const reasoning = request.reasoning;
+	const reasoning =
+		request.reasoning?.budgetTokens === 0
+			? { enabled: false as const }
+			: request.reasoning;
 	if (!reasoning) {
 		return request;
 	}

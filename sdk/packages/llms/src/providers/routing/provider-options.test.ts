@@ -2283,6 +2283,25 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(withoutEffort).not.toHaveProperty("google");
 	});
 
+	it("treats a zero Gemini reasoning budget as disabled thinking", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoning: { budgetTokens: 0 },
+			}),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoningOptions: [{ type: "budget_tokens", min: 0, max: 24_576 }],
+			}),
+		);
+
+		expect(result.google).toEqual({
+			thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
+		});
+	});
+
 	it("maps unsupported Gemini 3 Pro levels to the nearest supported level", () => {
 		const withMinimal = composeAiSdkProviderOptions(
 			makeRequest({

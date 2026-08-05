@@ -156,6 +156,21 @@ describe("normalizeReasoningRequest", () => {
 		).toBeUndefined();
 	});
 
+	it("treats a zero budget as off only when the model advertises it", () => {
+		expect(
+			normalizeReasoningRequest(
+				makeRequest({ budgetTokens: 0 }),
+				makeContext([{ type: "budget_tokens", min: 0, max: 24_576 }]),
+			).reasoning,
+		).toEqual({ enabled: false });
+		expect(
+			normalizeReasoningRequest(
+				makeRequest({ budgetTokens: 0 }),
+				makeContext([{ type: "budget_tokens", min: 128, max: 32_768 }]),
+			).reasoning,
+		).toBeUndefined();
+	});
+
 	it("ignores Cline Fable's advertised off control because backend reasoning is mandatory", () => {
 		const controls: ModelReasoningOption[] = [
 			{ type: "toggle" },
