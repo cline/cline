@@ -774,7 +774,7 @@ export function CustomizationSectionView({
 	const pluginToolsByPluginKey = useMemo(() => {
 		const grouped = new Map<string, ToolItem[]>();
 		for (const tool of pluginTools) {
-			const key = `${tool.pluginName ?? ""}:${tool.path ?? ""}`;
+			const key = tool.path ?? "";
 			const existing = grouped.get(key) ?? [];
 			existing.push(tool);
 			grouped.set(key, existing);
@@ -937,9 +937,7 @@ export function CustomizationSectionView({
 					{plugin.path}
 				</p>
 				<div className="mt-3 ml-7 flex flex-col gap-2">
-					{(
-						pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
-					).map((tool) => {
+					{(pluginToolsByPluginKey.get(plugin.path) ?? []).map((tool) => {
 						const isToggling = togglingToolIds.has(tool.id);
 						return (
 							<div
@@ -970,8 +968,7 @@ export function CustomizationSectionView({
 							</div>
 						);
 					})}
-					{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)
-						?.length ?? 0) === 0 && (
+					{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) === 0 && (
 						<p className="text-xs text-muted-foreground">
 							No plugin tools found.
 						</p>
@@ -1013,8 +1010,7 @@ export function CustomizationSectionView({
 	);
 
 	const renderPluginMatchedDetails = (plugin: PluginItem) => {
-		const pluginTools =
-			pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? [];
+		const pluginTools = pluginToolsByPluginKey.get(plugin.path) ?? [];
 		if (pluginTools.length === 0) {
 			return null;
 		}
@@ -1151,11 +1147,7 @@ export function CustomizationSectionView({
 							renderMatchedControls: () =>
 								renderPluginMatchedControls(item.plugin),
 							renderMatchedDetails:
-								(
-									pluginToolsByPluginKey.get(
-										`${item.plugin.name}:${item.plugin.path}`,
-									) ?? []
-								).length > 0
+								(pluginToolsByPluginKey.get(item.plugin.path) ?? []).length > 0
 									? () => renderPluginMatchedDetails(item.plugin)
 									: undefined,
 							renderMatchedMeta: () => renderPluginMatchedMeta(item.plugin),
@@ -1504,45 +1496,42 @@ export function CustomizationSectionView({
 										{plugin.path}
 									</p>
 									<div className="mt-3 ml-7 flex flex-col gap-2">
-										{(
-											pluginToolsByPluginKey.get(
-												`${plugin.name}:${plugin.path}`,
-											) ?? []
-										).map((tool) => {
-											const isToggling = togglingToolIds.has(tool.id);
-											return (
-												<div
-													key={tool.id}
-													className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-												>
-													<div className="min-w-0">
-														<p className="text-xs font-medium text-foreground">
-															{tool.name}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															{tool.description?.trim() ||
-																"No description available."}
-														</p>
+										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
+											(tool) => {
+												const isToggling = togglingToolIds.has(tool.id);
+												return (
+													<div
+														key={tool.id}
+														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+													>
+														<div className="min-w-0">
+															<p className="text-xs font-medium text-foreground">
+																{tool.name}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{tool.description?.trim() ||
+																	"No description available."}
+															</p>
+														</div>
+														<div className="flex items-center gap-2">
+															<span className="text-xs text-muted-foreground">
+																{tool.enabled ? "Enabled" : "Disabled"}
+															</span>
+															<Switch
+																checked={tool.enabled}
+																onCheckedChange={() => {
+																	void setToolEnabled(tool);
+																}}
+																disabled={isToggling || !plugin.enabled}
+																aria-label={`Toggle ${tool.name}`}
+															/>
+														</div>
 													</div>
-													<div className="flex items-center gap-2">
-														<span className="text-xs text-muted-foreground">
-															{tool.enabled ? "Enabled" : "Disabled"}
-														</span>
-														<Switch
-															checked={tool.enabled}
-															onCheckedChange={() => {
-																void setToolEnabled(tool);
-															}}
-															disabled={isToggling || !plugin.enabled}
-															aria-label={`Toggle ${tool.name}`}
-														/>
-													</div>
-												</div>
-											);
-										})}
-										{(pluginToolsByPluginKey.get(
-											`${plugin.name}:${plugin.path}`,
-										)?.length ?? 0) === 0 && (
+												);
+											},
+										)}
+										{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) ===
+											0 && (
 											<p className="text-xs text-muted-foreground">
 												No plugin tools found.
 											</p>
@@ -1589,45 +1578,42 @@ export function CustomizationSectionView({
 										{plugin.path}
 									</p>
 									<div className="mt-3 ml-7 flex flex-col gap-2">
-										{(
-											pluginToolsByPluginKey.get(
-												`${plugin.name}:${plugin.path}`,
-											) ?? []
-										).map((tool) => {
-											const isToggling = togglingToolIds.has(tool.id);
-											return (
-												<div
-													key={tool.id}
-													className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-												>
-													<div className="min-w-0">
-														<p className="text-xs font-medium text-foreground">
-															{tool.name}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															{tool.description?.trim() ||
-																"No description available."}
-														</p>
+										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
+											(tool) => {
+												const isToggling = togglingToolIds.has(tool.id);
+												return (
+													<div
+														key={tool.id}
+														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+													>
+														<div className="min-w-0">
+															<p className="text-xs font-medium text-foreground">
+																{tool.name}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{tool.description?.trim() ||
+																	"No description available."}
+															</p>
+														</div>
+														<div className="flex items-center gap-2">
+															<span className="text-xs text-muted-foreground">
+																{tool.enabled ? "Enabled" : "Disabled"}
+															</span>
+															<Switch
+																checked={tool.enabled}
+																onCheckedChange={() => {
+																	void setToolEnabled(tool);
+																}}
+																disabled={isToggling || !plugin.enabled}
+																aria-label={`Toggle ${tool.name}`}
+															/>
+														</div>
 													</div>
-													<div className="flex items-center gap-2">
-														<span className="text-xs text-muted-foreground">
-															{tool.enabled ? "Enabled" : "Disabled"}
-														</span>
-														<Switch
-															checked={tool.enabled}
-															onCheckedChange={() => {
-																void setToolEnabled(tool);
-															}}
-															disabled={isToggling || !plugin.enabled}
-															aria-label={`Toggle ${tool.name}`}
-														/>
-													</div>
-												</div>
-											);
-										})}
-										{(pluginToolsByPluginKey.get(
-											`${plugin.name}:${plugin.path}`,
-										)?.length ?? 0) === 0 && (
+												);
+											},
+										)}
+										{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) ===
+											0 && (
 											<p className="text-xs text-muted-foreground">
 												No plugin tools found.
 											</p>

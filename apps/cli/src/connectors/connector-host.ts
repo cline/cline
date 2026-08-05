@@ -6,7 +6,7 @@ import type {
 	HubSessionClient,
 	UserInstructionConfigService,
 } from "@cline/core";
-import { isSessionNotFoundError } from "@cline/core";
+import { isUnusableSessionError } from "@cline/core";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
@@ -975,10 +975,12 @@ export async function handleConnectorUserTurn<
 				{ timeoutMs: null },
 			);
 		} catch (error) {
-			if (!isSessionNotFoundError(error)) {
+			if (!isUnusableSessionError(error)) {
 				throw error;
 			}
-			// The tracked turn points at a session the hub no longer knows about.
+			// The tracked turn points at a session that can no longer serve it —
+			// the hub does not know it, or its runtime is stuck on a run that never
+			// drained.
 			// Remove only the entry we attempted to steer, then route recovery
 			// through the normal per-thread queue. Concurrent messages that saw
 			// the same stale turn will line up behind this one instead of creating
@@ -1002,11 +1004,10 @@ export async function handleConnectorUserTurn<
 			);
 			return;
 		}
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			"Steering current task.",
-		);
+		// No acknowledgement: the follow-up is handed to the running session and its
+		// effect shows up in the answer. Announcing it added a line to every thread
+		// and overstated what happens, since the prompt is queued for the session
+		// rather than injected into the loop already running.
 		return;
 	}
 
@@ -1104,7 +1105,7 @@ async function runConnectorRuntimeTurnWithRecovery<
 			});
 			break;
 		} catch (error) {
-			if (!allowStaleSessionRetry || !isSessionNotFoundError(error)) {
+			if (!allowStaleSessionRetry || !isUnusableSessionError(error)) {
 				throw error;
 			}
 			allowStaleSessionRetry = false;

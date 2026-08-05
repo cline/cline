@@ -20,7 +20,10 @@ export type HubCapabilityName =
 	| "schedule.create"
 	| "schedule.list"
 	| "settings.get"
-	| "settings.set";
+	| "settings.set"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -34,6 +37,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"schedule.list",
 	"settings.get",
 	"settings.set",
+	"connector.start",
+	"connector.stop",
+	"connector.supervised",
 ];
 
 export interface HubProtocolMetadata {
@@ -455,6 +461,9 @@ export type HubCommandName =
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"

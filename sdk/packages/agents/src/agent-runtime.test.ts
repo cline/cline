@@ -9,14 +9,20 @@ import type {
 } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	resetSdkErrorRateLimiterForTests,
+	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
+
+beforeEach(() => {
+	resetSdkErrorRateLimiterForTests();
+});
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
@@ -366,6 +372,55 @@ describe("AgentRuntime", () => {
 		expect(result.error?.message).toBe("Model returned empty response");
 		expect(result.messages).toHaveLength(1);
 		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("treats a file-only model turn as content, assembling images onto the message", async () => {
+		// A model that answers with only a generated file (e.g. an
+		// image-output model) must not fail as "Model returned empty
+		// response" — the file event is assembled into the assistant message.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "file", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a cat");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "image", image: "aGVsbG8=", mediaType: "image/png" },
+		]);
+	});
+
+	it("preserves non-image generated files as file parts", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Here you go." },
+				{ type: "file", data: "UERGLWRhdGE=", mediaType: "application/pdf" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Make a PDF");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Here you go." },
+			{
+				type: "file",
+				path: "model-generated-file-2",
+				content: "UERGLWRhdGE=",
+			},
+		]);
 	});
 
 	it("executes a tool call and continues the loop", async () => {
@@ -2315,6 +2370,88 @@ describe("AgentRuntime", () => {
 			inputTokens: 200,
 			outputTokens: 40,
 			totalCost: 1.0,
+		});
+	});
+});
+
+describe("AgentRuntime sdk.error reporting", () => {
+	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {
+		return capture.mock.calls
+			.map(([call]) => call as { event: string; properties?: unknown })
+			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
+	}
+
+	it("does not re-report a failure the model layer marked as reported", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Upstream returned HTTP 429",
+					errorReported: true,
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(sdkErrorEvents(capture)).toHaveLength(0);
+		// The structured lifecycle event still records the failure.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "agent.run-failed" }),
+		);
+	});
+
+	it("reports exactly one sdk.error for custom models that do not record their own telemetry", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// A custom `AgentModel` flattens its failure into the finish event and
+		// never calls `captureSdkError`; without `errorReported` the run loop
+		// must own the report.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "backend unavailable",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "backend unavailable",
+		});
+	});
+
+	it("still reports failures that originate in the run loop itself", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// An empty response is a loop-originated failure no model layer saw.
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "Model returned empty response",
 		});
 	});
 });

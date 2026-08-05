@@ -190,6 +190,7 @@ function updateMessageById(
 type SessionUsageSummary = {
 	tokensIn: number;
 	tokensOut: number;
+	cacheReadTokens: number;
 	totalCostUsd: number;
 };
 
@@ -210,6 +211,7 @@ function summarizeSessionUsage(
 ): SessionUsageSummary | undefined {
 	let tokensIn: number | undefined;
 	let tokensOut: number | undefined;
+	let cacheReadTokens: number | undefined;
 	let totalCostUsd = 0;
 	let hasCost = false;
 
@@ -218,10 +220,12 @@ function summarizeSessionUsage(
 		if (!meta) continue;
 		if (
 			typeof meta.inputTokens === "number" ||
-			typeof meta.outputTokens === "number"
+			typeof meta.outputTokens === "number" ||
+			typeof meta.cacheReadTokens === "number"
 		) {
 			tokensIn = meta.inputTokens ?? 0;
 			tokensOut = meta.outputTokens ?? 0;
+			cacheReadTokens = meta.cacheReadTokens ?? 0;
 		}
 		if (typeof meta.totalCost === "number") {
 			totalCostUsd += meta.totalCost;
@@ -235,6 +239,7 @@ function summarizeSessionUsage(
 	return {
 		tokensIn: tokensIn ?? 0,
 		tokensOut: tokensOut ?? 0,
+		cacheReadTokens: cacheReadTokens ?? 0,
 		totalCostUsd,
 	};
 }
@@ -277,6 +282,7 @@ export function useChatSession() {
 	const [toolCalls, setToolCalls] = useState(0);
 	const [tokensIn, setTokensIn] = useState(0);
 	const [tokensOut, setTokensOut] = useState(0);
+	const [cacheReadTokens, setCacheReadTokens] = useState(0);
 	const [totalCostUsd, setTotalCostUsd] = useState(0);
 	const [fileDiffs, setFileDiffs] = useState<SessionFileDiff[]>([]);
 	const [diffSummary, setDiffSummary] =
@@ -297,6 +303,10 @@ export function useChatSession() {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	// Optimistic user bubbles whose prompt is still in flight, by message id.
+	// A chat_queued_prompt_start event may only re-key one of these — never a
+	// same-content message left over from an earlier turn (see the handler).
+	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -329,6 +339,7 @@ export function useChatSession() {
 	);
 	const persistedTokensIn = persistedUsage?.tokensIn;
 	const persistedTokensOut = persistedUsage?.tokensOut;
+	const persistedCacheReadTokens = persistedUsage?.cacheReadTokens;
 	const persistedTotalCostUsd = persistedUsage?.totalCostUsd;
 	// ---- Ref syncs ----
 
@@ -351,6 +362,7 @@ export function useChatSession() {
 		}
 		setTokensIn(persistedTokensIn);
 		setTokensOut(persistedTokensOut);
+		setCacheReadTokens(persistedCacheReadTokens ?? 0);
 		// Move newly persisted spend out of the live ledger. Multiple queued turns
 		// may finish before their message metadata is hydrated, so this ledger is
 		// session-wide rather than tied only to the currently active turn.
@@ -364,7 +376,12 @@ export function useChatSession() {
 		);
 		lastPersistedCostUsdRef.current = persistedTotalCostUsd;
 		setTotalCostUsd(persistedTotalCostUsd + unpersistedCostUsdRef.current);
-	}, [persistedTokensIn, persistedTokensOut, persistedTotalCostUsd]);
+	}, [
+		persistedTokensIn,
+		persistedTokensOut,
+		persistedCacheReadTokens,
+		persistedTotalCostUsd,
+	]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
@@ -408,6 +425,7 @@ export function useChatSession() {
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
+		setCacheReadTokens(0);
 		setTotalCostUsd(0);
 		setFileDiffs([]);
 		setDiffSummary(EMPTY_DIFF_SUMMARY);
@@ -415,6 +433,7 @@ export function useChatSession() {
 
 	const setErrorState = useCallback(
 		(msg: string, sid: string | null = null) => {
+			outstandingOptimisticUserIdsRef.current.clear();
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
@@ -972,6 +991,33 @@ export function useChatSession() {
 							return prev;
 						}
 						const images = toChatMessageImages(userImages, userMessageId);
+						// A prompt dispatched while the session was idle already has
+						// an optimistic bubble from the send path; when the runtime
+						// routes that prompt through its queue, this event describes
+						// the same prompt. Re-key the optimistic bubble instead of
+						// rendering the message a second time. Only bubbles whose
+						// prompt is still in flight are eligible — a same-content
+						// message left over from an earlier (e.g. cancelled) turn
+						// must stay distinct from the new submission.
+						for (let i = prev.length - 1; i >= 0; i--) {
+							const candidate = prev[i];
+							if (candidate.role !== "user") {
+								break;
+							}
+							if (
+								outstandingOptimisticUserIdsRef.current.has(candidate.id) &&
+								candidate.content === userLabel
+							) {
+								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
+								const next = [...prev];
+								next[i] = {
+									...candidate,
+									id: userMessageId,
+									images: images.length > 0 ? images : candidate.images,
+								};
+								return sliceMessages(next);
+							}
+						}
 						return sliceMessages([
 							...prev,
 							{
@@ -1007,6 +1053,9 @@ export function useChatSession() {
 				if (typeof usage.outputTokens === "number") {
 					setTokensOut(usage.outputTokens);
 				}
+				if (typeof usage.cacheReadTokens === "number") {
+					setCacheReadTokens(usage.cacheReadTokens);
+				}
 				const cost = usage.cost;
 				if (typeof cost === "number") {
 					const tracker = activeTurnCostTrackerRef.current ?? {
@@ -1021,6 +1070,10 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				// The turn is over: any optimistic bubble still registered was
+				// consumed by a direct send and must not be re-keyed by a later
+				// queued prompt that happens to repeat the same text.
+				outstandingOptimisticUserIdsRef.current.clear();
 				clearLiveToolRefs();
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
@@ -1371,6 +1424,7 @@ export function useChatSession() {
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (optimisticUserMessageId) {
+				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1634,6 +1688,11 @@ export function useChatSession() {
 				if (typeof outputTokens === "number") {
 					setTokensOut(outputTokens);
 				}
+				const resultCacheReadTokens =
+					result?.usage?.cacheReadTokens ?? result?.cacheReadTokens;
+				if (typeof resultCacheReadTokens === "number") {
+					setCacheReadTokens(resultCacheReadTokens);
+				}
 				const totalCost =
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
@@ -1652,6 +1711,7 @@ export function useChatSession() {
 					assistantMessageId &&
 					(typeof inputTokens === "number" ||
 						typeof outputTokens === "number" ||
+						typeof resultCacheReadTokens === "number" ||
 						typeof totalCost === "number")
 				) {
 					setMessages((prev) =>
@@ -1667,6 +1727,10 @@ export function useChatSession() {
 									typeof outputTokens === "number"
 										? outputTokens
 										: msg.meta?.outputTokens,
+								cacheReadTokens:
+									typeof resultCacheReadTokens === "number"
+										? resultCacheReadTokens
+										: msg.meta?.cacheReadTokens,
 								totalCost:
 									typeof totalCost === "number"
 										? totalCost
@@ -1948,6 +2012,7 @@ export function useChatSession() {
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
 			) => {
+				outstandingOptimisticUserIdsRef.current.clear();
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
@@ -2173,6 +2238,7 @@ export function useChatSession() {
 			toolCalls,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
 			totalCostUsd,
 			additions: diffSummary.additions,
 			deletions: diffSummary.deletions,
@@ -2182,6 +2248,7 @@ export function useChatSession() {
 			diffSummary.deletions,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
 			totalCostUsd,
 			toolCalls,
 		],

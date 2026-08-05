@@ -93,10 +93,34 @@ Anything that speaks ACP can run Cline the same way — point it at `cline --acp
 - **Sign-in from the client** — if no credentials are found, the client prompts you to sign in with Cline, ClinePass, or a ChatGPT subscription. Credentials saved by `cline auth` are reused automatically.
 - **Plan/Act modes** — switch between [Plan and Act](/core-workflows/plan-and-act) from the client's mode selector.
 - **Model and provider selection** — pick any model from the active provider's catalog, or switch providers, from the client's model picker.
-- **Permission prompts** — file edits and commands are approved through the client's permission UI; nothing is auto-approved.
+- **Permission prompts** — file edits and commands are approved through the client's permission UI. Nothing is auto-approved by default, but you can [auto-approve all tools](#auto-approving-tools) per session or at launch.
 - **Session resume** — conversations are persisted, so clients that support session loading can restore a thread after a restart.
 - **Images** — prompts can include images for vision-capable models.
 - **Organization switching** — Cline team accounts can switch between personal and organization billing.
+
+## Auto-approving tools
+
+By default every file edit and command goes through the client's permission UI. To let Cline run tools without asking:
+
+- **Per session** — sessions expose an **Auto-approve tools** toggle in the client's session settings (clients that support ACP config options, like Zed, render it alongside the model and mode pickers). Flipping it takes effect on the next tool call.
+- **At launch** — pass `--auto-approve true` in the client's agent config to start every session with auto-approval on:
+
+```json
+{
+  "agent_servers": {
+    "Cline": {
+      "type": "custom",
+      "command": "cline",
+      "args": ["--acp", "--auto-approve", "true"],
+      "env": {}
+    }
+  }
+}
+```
+
+<Warning>
+With auto-approval on, Cline edits files and runs commands without asking. Only enable it in workspaces where you're comfortable with unattended changes.
+</Warning>
 
 ## Environment variables
 

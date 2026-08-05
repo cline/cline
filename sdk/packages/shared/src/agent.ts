@@ -263,6 +263,18 @@ export type AgentModelEvent =
 			metadata?: unknown;
 	  }
 	| {
+			/**
+			 * A model-generated file (e.g. an image from an image-output
+			 * model). `data` is base64-encoded file data (or a URL for
+			 * URL-referenced files). Runtimes assemble it into the assistant
+			 * message (`AgentImagePart` for `image/*`, `AgentFilePart`
+			 * otherwise) so a file-only turn is not treated as empty.
+			 */
+			type: "file";
+			data: string;
+			mediaType: string;
+	  }
+	| {
 			type: "usage";
 			usage: Partial<AgentUsage>;
 	  }
@@ -271,6 +283,15 @@ export type AgentModelEvent =
 			reason: AgentModelFinishReason;
 			error?: string;
 			errorClass?: ProviderErrorClass;
+			/**
+			 * The model layer already recorded `sdk.error` telemetry for this
+			 * failure at its own error boundary. `error` is a flattened string,
+			 * so this bit carries reporting ownership across the boundary: the
+			 * agent loop skips re-reporting when it is set, and still reports
+			 * failures from model implementations that do not record their own
+			 * telemetry.
+			 */
+			errorReported?: boolean;
 	  };
 
 export interface AgentModel {

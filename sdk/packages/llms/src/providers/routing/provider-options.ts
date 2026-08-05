@@ -2,12 +2,9 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { isAnthropicCompatibleModel, resolveModelFamily } from "../model-facts";
-import {
-	buildAnthropicProviderOptions,
-	resolveAnthropicReasoningRequestPolicy,
-} from "./anthropic-compatible";
+import { buildAnthropicProviderOptions } from "./anthropic-compatible";
 import { buildCompatibleProviderOptions } from "./generic-compatible";
+import { withoutPortableReasoning } from "./portable-reasoning";
 import {
 	buildProviderOptionRulePatches,
 	matchProviderOptionRules,
@@ -66,9 +63,8 @@ function buildBaseProviderOptionsPatch(
  * - Model metadata records stable known-model facts, such as
  *   `reasoningDefaultOn`.
  * - Provider metadata records stable provider policy, such as prompt caching.
- * - Provider-option rules encode abstract request intent into provider wire
- *   formats, such as `reasoning.exclude`, `thinking.type`, or
- *   `reasoningEffort`.
+ * - Provider-option rules encode only non-portable request intent into
+ *   provider wire formats, such as exact budgets and native toggle objects.
  */
 export function composeAiSdkProviderOptions(
 	request: GatewayStreamRequest,
@@ -77,23 +73,16 @@ export function composeAiSdkProviderOptions(
 		request.providerId,
 	),
 ): Record<string, unknown> {
-	const normalizedRequest = normalizeReasoningRequest(request, context);
+	const normalizedRequest = normalizeReasoningRequest(
+		withoutPortableReasoning(request),
+		context,
+	);
 	const providerOptionsKey = toProviderOptionsKey(normalizedRequest.providerId);
-	const family = resolveModelFamily(context);
-	const isAnthropicCompatibleModelId = isAnthropicCompatibleModel({
-		modelId: normalizedRequest.modelId,
-		family,
-	});
-	const anthropicReasoningPolicy = isAnthropicCompatibleModelId
-		? resolveAnthropicReasoningRequestPolicy(normalizedRequest, context)
-		: undefined;
 	const matchInput: ProviderOptionMatchInput = {
 		request: normalizedRequest,
 		context,
 		providerOptionsKey,
 		target,
-		isAnthropicCompatibleModelId,
-		anthropicReasoningPolicyKind: anthropicReasoningPolicy?.kind,
 	};
 	const matchedRules = matchProviderOptionRules(
 		PROVIDER_OPTION_RULES,

@@ -478,6 +478,128 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("re-keys the optimistic bubble when the runtime queues the same prompt", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						// A prompt the runtime consumed from its queue resolves
+						// without a turn result; chat_done ends the turn instead.
+						return { ok: true, result: {} };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("hi there");
+		});
+		expect(
+			current.messages.filter((message) => message.content === "hi there"),
+		).toHaveLength(1);
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		// The runtime queued the prompt during session startup, so the drain
+		// announces it as a queued prompt start for the same content.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "hi there",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user" && message.content === "hi there",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.id).toBe("queued_user_queued-prompt-1");
+	});
+
+	it("keeps a stale same-content bubble distinct from a new queued prompt", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true, result: {} };
+					}
+				}
+				return [];
+			},
+		);
+
+		// A prompt whose turn ended without assistant output (e.g. cancelled)
+		// leaves its optimistic bubble at the transcript tail.
+		await act(async () => {
+			await current.sendPrompt("something");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "aborted" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		// A later submission of the same text, queued while the agent was
+		// busy, has no optimistic bubble: its queued-start event must append
+		// a new message, not swallow the stale one.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "something",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user" && message.content === "something",
+		);
+		expect(userMessages).toHaveLength(2);
+		expect(userMessages[1]?.id).toBe("queued_user_queued-prompt-2");
+	});
+
 	it("keeps live stream timestamps in milliseconds", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -574,6 +696,7 @@ describe("useChatSession", () => {
 				chunk: JSON.stringify({
 					inputTokens: 13_000,
 					outputTokens: 700,
+					cacheReadTokens: 4_000,
 					cost: 0.02,
 				}),
 				ts: Date.now(),
@@ -584,6 +707,7 @@ describe("useChatSession", () => {
 		expect(current.summary).toMatchObject({
 			tokensIn: 13_000,
 			tokensOut: 700,
+			cacheReadTokens: 4_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
@@ -766,6 +890,7 @@ describe("useChatSession", () => {
 							meta: {
 								inputTokens: 24_000,
 								outputTokens: 1_000,
+								cacheReadTokens: 8_000,
 								totalCost: 0.02,
 							},
 						},
@@ -805,6 +930,7 @@ describe("useChatSession", () => {
 		expect(current.summary).toMatchObject({
 			tokensIn: 24_000,
 			tokensOut: 1_000,
+			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});

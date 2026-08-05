@@ -23,6 +23,7 @@ export function useLocalCommandActions(input: {
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
+	openThemePicker: () => void;
 	refocusTextarea: () => void;
 	setAppView: (view: AppView) => void;
 	onClearConversation: () => Promise<void>;
@@ -45,6 +46,7 @@ export function useLocalCommandActions(input: {
 		openMcpManager,
 		openModelSelector,
 		openSkills,
+		openThemePicker,
 		refocusTextarea,
 		setAppView,
 		onClearConversation,
@@ -227,6 +229,7 @@ export function useLocalCommandActions(input: {
 				openMcpManager,
 				openModelSelector,
 				openSkills,
+				openThemePicker,
 				runCompact,
 				runFork,
 				runUndo: onUndo,
@@ -247,6 +250,7 @@ export function useLocalCommandActions(input: {
 			openHistory,
 			openModelSelector,
 			openSkills,
+			openThemePicker,
 			runCompact,
 			runFork,
 			session.isRunning,
