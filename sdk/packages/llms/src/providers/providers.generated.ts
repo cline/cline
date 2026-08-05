@@ -119,7 +119,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "alibaba",
-		defaultModelId: "qwen3.7-plus",
+		defaultModelId: "qwen3.8-max",
 		apiKeyEnv: ["DASHSCOPE_API_KEY"],
 		docsUrl: "https://www.alibabacloud.com/help/en/model-studio/models",
 		defaults: {
@@ -133,7 +133,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "alibaba-cn",
-		defaultModelId: "qwen3.7-flash",
+		defaultModelId: "qwen3.8-max",
 		apiKeyEnv: ["DASHSCOPE_API_KEY"],
 		docsUrl: "https://www.alibabacloud.com/help/en/model-studio/models",
 		defaults: {
@@ -443,7 +443,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cortecs",
-		defaultModelId: "kimi-k3",
+		defaultModelId: "deepseek-v4-flash-0731",
 		apiKeyEnv: ["CORTECS_API_KEY"],
 		docsUrl: "https://api.cortecs.ai/v1/models",
 		defaults: {
@@ -457,7 +457,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crof",
-		defaultModelId: "kimi-k3",
+		defaultModelId: "deepseek-v4-flash-0731",
 		apiKeyEnv: ["CROF_API_KEY"],
 		docsUrl: "https://crof.ai/docs",
 		defaults: {
@@ -471,7 +471,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crossmodel",
-		defaultModelId: "anthropic/claude-opus-5",
+		defaultModelId: "qwen/qwen3.8-max",
 		apiKeyEnv: ["CROSSMODEL_API_KEY"],
 		docsUrl: "https://www.crossmodel.ai/docs",
 		defaults: {
@@ -726,9 +726,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "GreenPT",
 		description: "GreenPT model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "greenpt",
-		defaultModelId: "glm-5.2",
+		defaultModelId: "deepseek-v4-flash-0731",
 		apiKeyEnv: ["GREENPT_API_KEY"],
 		docsUrl: "https://docs.greenpt.ai",
 		defaults: {
@@ -742,7 +742,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "groq",
-		defaultModelId: "openai/gpt-oss-safeguard-20b",
+		defaultModelId: "qwen/qwen3.6-27b",
 		apiKeyEnv: ["GROQ_API_KEY"],
 		docsUrl: "https://console.groq.com/docs/models",
 	},
@@ -898,6 +898,22 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://model.inferx.net/endpoints",
 		defaults: {
 			baseUrl: "https://model.inferx.net/endpoints/v1",
+		},
+	},
+	{
+		id: "infomaniak",
+		name: "Infomaniak",
+		description: "Infomaniak model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		modelsProviderId: "infomaniak",
+		defaultModelId: "swiss-ai/Apertus-v1.5-70B",
+		apiKeyEnv: ["INFOMANIAK_API_KEY", "INFOMANIAK_PRODUCT_ID"],
+		docsUrl:
+			"https://www.infomaniak.com/en/hosting/ai-services/open-source-models",
+		defaults: {
+			baseUrl:
+				"https://api.infomaniak.com/2/ai/${INFOMANIAK_PRODUCT_ID}/openai/v1",
 		},
 	},
 	{
@@ -1384,7 +1400,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "neuralwatt",
-		defaultModelId: "glm-5.2",
+		defaultModelId: "kimi-k3",
 		apiKeyEnv: ["NEURALWATT_API_KEY"],
 		docsUrl: "https://portal.neuralwatt.com/docs",
 		defaults: {
@@ -1662,7 +1678,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "requesty",
-		defaultModelId: "openai/gpt-5.4",
+		defaultModelId: "deepseek-v4-flash-0731",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -1734,6 +1750,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://www.scaleway.com/en/docs/generative-apis/",
 		defaults: {
 			baseUrl: "https://api.scaleway.ai/v1",
+		},
+	},
+	{
+		id: "scx",
+		name: "SCX.ai",
+		description: "SCX.ai model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "scx",
+		defaultModelId: "MiniMax-M2.7",
+		apiKeyEnv: ["SCX_API_KEY"],
+		docsUrl: "https://platform.scx.ai/docs",
+		defaults: {
+			baseUrl: "https://api.scx.ai/v1",
 		},
 	},
 	{
@@ -2003,7 +2033,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "together",
-		defaultModelId: "moonshotai/Kimi-K3",
+		defaultModelId: "deepseek-ai/DeepSeek-V4-Flash-0731",
 		apiKeyEnv: ["TOGETHER_API_KEY"],
 		docsUrl: "https://docs.together.ai/docs/serverless-models",
 	},
@@ -2164,7 +2194,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "wandb",
-		defaultModelId: "moonshotai/Kimi-K3",
+		defaultModelId: "deepseek-ai/DeepSeek-V4-Flash-0731",
 		apiKeyEnv: ["WANDB_API_KEY"],
 		docsUrl: "https://docs.wandb.ai/guides/integrations/inference/",
 		defaults: {
