@@ -2477,6 +2477,12 @@ export class Task {
 				const isClineFreeModelLimitError = clineError.isErrorType(
 					ClineErrorType.ClineFreeModelLimit,
 				);
+				// A retired free model can never answer — its id was removed from
+				// the catalog when the promotion ended — so retrying only delays
+				// the card that routes the user into the model picker.
+				const isClineFreePromotionEndedError = clineError.isErrorType(
+					ClineErrorType.ClineFreePromotionEnded,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2506,6 +2512,7 @@ export class Task {
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
+					!isClineFreePromotionEndedError &&
 					this.taskState.autoRetryAttempts < 3;
 
 				// Mirror the SDK extension's provider-failure reporting: same
@@ -2608,7 +2615,8 @@ export class Task {
 						!isEntitlementError &&
 						!isOrgClinePassRestrictionError &&
 						!isClinePassLimitError &&
-						!isClineFreeModelLimitError;
+						!isClineFreeModelLimitError &&
+						!isClineFreePromotionEndedError;
 					if (showRetry) {
 						await this.say(
 							"error_retry",
@@ -3646,10 +3654,15 @@ export class Task {
 					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
 						ClineErrorType.ClineFreeModelLimit,
 					);
+					// A retired free model (promotion ended) can never answer, so a
+					// retry against it is guaranteed to fail again.
+					const isStreamingClineFreePromotionEndedError =
+						clineError.isErrorType(ClineErrorType.ClineFreePromotionEnded);
 					const isStreamingNonRetriableError =
 						isStreamingSpendLimitError ||
 						isStreamingQuotaExceededError ||
-						isStreamingClineFreeModelLimitError;
+						isStreamingClineFreeModelLimitError ||
+						isStreamingClineFreePromotionEndedError;
 					const willAutoRetryStreamingFailure =
 						!isStreamingNonRetriableError &&
 						this.taskState.autoRetryAttempts < 3;

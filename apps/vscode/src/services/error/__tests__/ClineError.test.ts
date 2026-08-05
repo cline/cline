@@ -6,6 +6,7 @@ import {
 	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	isClineFreeModelLimitMessage,
+	isClineFreePromotionEndedMessage,
 	isClinePassLimitMessage,
 } from "../ClineError";
 
@@ -236,6 +237,87 @@ describe("ClineError", () => {
 			(
 				extractClinePassLimitMessage("some other error") === undefined
 			).should.be.true();
+		});
+	});
+
+	describe("isClineFreePromotionEndedMessage", () => {
+		it("matches model-not-found only for cline-free model ids", () => {
+			isClineFreePromotionEndedMessage(
+				"Error 404: Model not found",
+				"cline-free/glm-5",
+			).should.be.true();
+			isClineFreePromotionEndedMessage(
+				"Error 404: Model not found",
+				"deepseek/deepseek-v4-flash",
+			).should.be.false();
+			isClineFreePromotionEndedMessage(
+				"Error 404: Model not found",
+				undefined,
+			).should.be.false();
+		});
+
+		it("does not match unrelated cline-free errors", () => {
+			isClineFreePromotionEndedMessage(
+				"Network error: socket hang up",
+				"cline-free/glm-5",
+			).should.be.false();
+		});
+	});
+
+	describe("ClineFreePromotionEnded classification", () => {
+		it("classifies model-not-found for a cline-free model as ClineFreePromotionEnded", () => {
+			const err = new ClineError(
+				{ message: "Error 404: Model not found" },
+				"cline-free/glm-5",
+				"cline",
+			);
+
+			ClineError.getErrorType(err)!.should.equal(
+				ClineErrorType.ClineFreePromotionEnded,
+			);
+		});
+
+		it("prefers ClineFreePromotionEnded over Auth for a 404 with a cline-free model", () => {
+			// status 404 falls inside the generic auth-status range; the
+			// promotion-ended classification must win.
+			const err = new ClineError(
+				{ message: "Error 404: Model not found", status: 404 },
+				"cline-free/glm-5",
+				"cline",
+			);
+
+			const result = ClineError.getErrorType(err);
+			result!.should.equal(ClineErrorType.ClineFreePromotionEnded);
+			(result !== ClineErrorType.Auth).should.be.true();
+		});
+
+		it("classifies the nested provider error shape via the serialized modelId", () => {
+			// ErrorRow re-parses the serialized error in the webview; the model id
+			// rides the payload, not the message.
+			const original = new ClineError(
+				{
+					status: 404,
+					error: { message: "Model not found" },
+				},
+				"cline-free/glm-5",
+				"cline-pass",
+			);
+
+			const reparsed = ClineError.parse(original.serialize())!;
+			ClineError.getErrorType(reparsed)!.should.equal(
+				ClineErrorType.ClineFreePromotionEnded,
+			);
+		});
+
+		it("keeps model-not-found for a non-free model on the generic path", () => {
+			const err = new ClineError(
+				{ message: "Error 404: Model not found", status: 404 },
+				"deepseek/deepseek-v4-flash",
+				"cline",
+			);
+
+			const result = ClineError.getErrorType(err);
+			(result !== ClineErrorType.ClineFreePromotionEnded).should.be.true();
 		});
 	});
 });
