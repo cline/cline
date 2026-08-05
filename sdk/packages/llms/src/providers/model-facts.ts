@@ -311,6 +311,22 @@ export function isDeepSeekFamily(context: GatewayProviderContext): boolean {
 	return normalizedFamily(context).includes("deepseek");
 }
 
+/**
+ * Whether the resolved model advertises image input (`"images"` in its
+ * gateway capabilities). Models with no capability data at all (e.g. ids
+ * resolved outside any catalog) fail open: images are kept rather than
+ * hidden from a possibly capable model.
+ */
+export function modelSupportsImageInput(
+	context: GatewayProviderContext,
+): boolean {
+	const capabilities = context.model.capabilities;
+	if (!capabilities) {
+		return true;
+	}
+	return capabilities.includes("images");
+}
+
 export function getReasoningDefaultOnMetadata(
 	context: GatewayProviderContext,
 ): boolean | undefined {

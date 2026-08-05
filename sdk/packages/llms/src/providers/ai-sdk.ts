@@ -29,6 +29,7 @@ import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
 import {
@@ -80,6 +81,7 @@ function buildCachedAiSdkMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: modelSupportsImageInput(context),
 	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
@@ -280,7 +282,7 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -387,6 +389,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages: options?.supportsImages,
 	});
 }
 
@@ -1220,6 +1223,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
+							supportsImages: modelSupportsImageInput(context),
 						});
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
