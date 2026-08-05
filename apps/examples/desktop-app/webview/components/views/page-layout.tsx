@@ -21,7 +21,7 @@ export function PageFrame({
 					className,
 				)}
 			>
-				<div className={cn("max-w-[86rem]", contentClassName)}>{children}</div>
+				<div className={cn("max-w-344", contentClassName)}>{children}</div>
 			</div>
 		</ScrollArea>
 	);
