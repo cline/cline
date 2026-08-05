@@ -173,6 +173,66 @@ export function isClaudeFableModelId(modelId: string | undefined): boolean {
 	return normalizeRoutingValue(modelId)?.includes("claude-fable") ?? false;
 }
 
+// Known pre-adaptive Claude families that only accept the manual
+// `thinking: {type: "enabled", budgetTokens}` wire shape (or no thinking at
+// all): Claude Instant, 2.x, and 3.x version-first ids. Mirrors the legacy
+// guard in @ai-sdk/anthropic's capability lookup.
+const CLAUDE_LEGACY_FAMILY_PATTERN =
+	/claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))/;
+
+// Matches modern name-first Anthropic ids ("claude-sonnet-4-6",
+// "claude-opus-5", "anthropic.claude-opus-4-8-v1:0", "claude-sonnet-4.6").
+// The minor is capped at two digits so date-stamp suffixes
+// ("claude-sonnet-5-20260629") do not parse as versions.
+const CLAUDE_NAME_FIRST_VERSION_PATTERN =
+	/claude-(?:opus|sonnet|haiku)-(\d+)(?:[.-](\d{1,2}))?(?=$|[-.:@])/;
+
+/**
+ * Wire-shape era of a Claude model id, used only as a fallback when catalog
+ * `reasoningOptions` metadata is unavailable (offline baked catalog,
+ * user-typed unlisted ids such as "claude-opus-4-6:1m").
+ *
+ * - "adaptive": 4.6+/5.x models; the Anthropic API rejects the manual
+ *   `thinking: {type: "enabled", budgetTokens}` shape for these.
+ * - "legacy": known pre-4.6 families that require the manual shape.
+ * - "unknown-claude": a Claude id the version parser does not recognize.
+ *   Callers should treat these as NEWER than the known list and prefer
+ *   adaptive — the forward-compatible policy the ecosystem converged on
+ *   (vercel/ai#17804 for @ai-sdk/anthropic's capability lookup; opencode's
+ *   transform.ts after repeated allowlist misses for opus-4.7, sonnet-5,
+ *   and opus-5). New Claude releases reject the manual shape, so an
+ *   allowlist that lags a release turns every reasoning request into a
+ *   hard API error.
+ * - "not-claude": non-Claude ids (including Anthropic-compatible aliases)
+ *   stay conservative for third-party endpoints.
+ */
+export type ClaudeThinkingEra =
+	| "adaptive"
+	| "legacy"
+	| "unknown-claude"
+	| "not-claude";
+
+export function resolveClaudeThinkingEra(
+	modelId: string | undefined,
+): ClaudeThinkingEra {
+	const normalized = normalizeRoutingValue(modelId);
+	if (!normalized || !normalized.includes("claude")) {
+		return "not-claude";
+	}
+	if (CLAUDE_LEGACY_FAMILY_PATTERN.test(normalized)) {
+		return "legacy";
+	}
+
+	const match = CLAUDE_NAME_FIRST_VERSION_PATTERN.exec(normalized);
+	if (match) {
+		const major = Number(match[1]);
+		const minor = match[2] !== undefined ? Number(match[2]) : 0;
+		return major >= 5 || (major === 4 && minor >= 6) ? "adaptive" : "legacy";
+	}
+
+	return "unknown-claude";
+}
+
 export function isQwenModel(options: {
 	modelId?: string;
 	family?: string;

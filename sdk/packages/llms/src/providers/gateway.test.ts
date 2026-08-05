@@ -3044,7 +3044,6 @@ describe("sdk-gateway", () => {
 						cache_control: { type: "ephemeral" },
 						reasoning: expect.objectContaining({
 							enabled: true,
-							max_tokens: expect.any(Number),
 						}),
 					}),
 					openrouter: expect.objectContaining({
@@ -3053,9 +3052,12 @@ describe("sdk-gateway", () => {
 							effort: "high",
 						}),
 					}),
+					// Unknown Claude ids default to adaptive thinking
+					// (forward-compatible: new Claude models reject the
+					// manual budget shape).
 					anthropic: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						thinking: expect.objectContaining({ type: "enabled" }),
+						thinking: expect.objectContaining({ type: "adaptive" }),
 					}),
 				}),
 			}),
