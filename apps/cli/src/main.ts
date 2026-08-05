@@ -798,7 +798,10 @@ export async function runCli(): Promise<void> {
 	// Enters the Agent Client Protocol stdio transport and never falls through.
 	if (args.acpMode) {
 		const { runAcpMode } = await import("./acp/index");
-		await runAcpMode();
+		// Only an explicit `--auto-approve true` (or `--yolo`) enables
+		// auto-approval in ACP mode; We do not respect the default to
+		// avoid accidental auto-approval in ACP mode.
+		await runAcpMode({ autoApproveTools: args.autoApproveOverride === true });
 		return;
 	}
 
