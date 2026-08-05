@@ -178,14 +178,12 @@ export async function listPluginToolsWithDiagnostics(input: {
 	workspacePath: string;
 	cwd?: string;
 	disabledToolNames?: ReadonlyArray<string>;
-	includeDisabledPlugins?: boolean;
 	providerId?: string;
 	modelId?: string;
 }): Promise<ListPluginToolsResult> {
 	const pluginPaths = resolveAgentPluginPaths({
 		workspacePath: input.workspacePath,
 		cwd: input.cwd,
-		includeDisabled: input.includeDisabledPlugins,
 	});
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
 	if (pluginPaths.length === 0) {
@@ -306,7 +304,6 @@ export async function listPluginTools(input: {
 	workspacePath: string;
 	cwd?: string;
 	disabledToolNames?: ReadonlyArray<string>;
-	includeDisabledPlugins?: boolean;
 	providerId?: string;
 	modelId?: string;
 }): Promise<PluginToolSummary[]> {

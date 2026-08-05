@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import {
 	basename,
 	dirname,
@@ -34,6 +34,10 @@ import {
 	setToolDisabledGlobally,
 	toggleDisabledTool,
 } from "../services/global-settings";
+import type {
+	PluginContributionSummary,
+	PluginToolSummary,
+} from "../services/plugin-tools";
 import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import type {
 	CoreSettingsItem,
@@ -150,6 +154,12 @@ type PluginSkillOwner = {
 	source: "global-plugin" | "workspace-plugin";
 };
 
+const observedPluginContributions = new Map<
+	string,
+	PluginContributionSummary
+>();
+const observedPluginTools = new Map<string, PluginToolSummary[]>();
+
 function buildPluginSkillOwners(input: {
 	workspaceRoot: string;
 	cwd?: string;
@@ -185,7 +195,10 @@ function listBundledPluginSkillNames(pluginPath: string): string[] {
 			const entryPath = join(directory, entry.name);
 			if (entry.isDirectory()) {
 				visit(entryPath);
-			} else if (entry.isFile() && extname(entry.name).toLowerCase() === ".md") {
+			} else if (
+				entry.isFile() &&
+				extname(entry.name).toLowerCase() === ".md"
+			) {
 				const fileName = basename(entry.name, extname(entry.name));
 				names.add(
 					fileName.toLowerCase() === "skill"
@@ -196,7 +209,9 @@ function listBundledPluginSkillNames(pluginPath: string): string[] {
 		}
 	};
 
-	for (const directory of resolvePluginSkillDirectoriesFromPaths([pluginPath])) {
+	for (const directory of resolvePluginSkillDirectoriesFromPaths([
+		pluginPath,
+	])) {
 		try {
 			visit(directory);
 		} catch {
@@ -372,11 +387,25 @@ export class CoreSettingsService {
 					const pluginReport = await listPluginToolsWithDiagnostics({
 						workspacePath: workspaceRoot,
 						cwd: input.cwd,
-						includeDisabledPlugins: true,
 						providerId: input.availabilityContext?.providerId,
 						modelId: input.availabilityContext?.modelId,
 					});
-					for (const pluginTool of pluginReport.tools) {
+					for (const contribution of pluginReport.plugins) {
+						observedPluginContributions.set(contribution.path, contribution);
+					}
+					for (const pluginPath of enabledPluginPaths) {
+						observedPluginTools.set(
+							pluginPath,
+							pluginReport.tools.filter((tool) => tool.path === pluginPath),
+						);
+					}
+					const visiblePluginTools = [
+						...pluginReport.tools,
+						...plugins
+							.filter((plugin) => plugin.enabled === false)
+							.flatMap((plugin) => observedPluginTools.get(plugin.path) ?? []),
+					];
+					for (const pluginTool of visiblePluginTools) {
 						tools.push({
 							id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
 							name: pluginTool.name,
@@ -391,11 +420,8 @@ export class CoreSettingsService {
 							pluginPath: pluginTool.path,
 						});
 					}
-					const contributionByPath = new Map(
-						pluginReport.plugins.map((plugin) => [plugin.path, plugin]),
-					);
 					for (const plugin of plugins) {
-						const contribution = contributionByPath.get(plugin.path);
+						const contribution = observedPluginContributions.get(plugin.path);
 						plugin.contributions = {
 							capabilities: contribution?.capabilities ?? [],
 							tools: contribution?.tools ?? [],

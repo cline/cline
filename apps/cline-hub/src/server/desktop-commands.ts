@@ -2,7 +2,6 @@ import {
 	addLocalProvider,
 	type ClineAccountActionRequest,
 	ClineAccountService,
-	createCoreSettingsService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	formatProviderOAuthApiKey,
@@ -61,8 +60,6 @@ const ROUTINE_SCHEDULE_COMMANDS = new Set([
 	"trigger_routine_schedule",
 	"delete_routine_schedule",
 ]);
-
-const coreSettingsService = createCoreSettingsService();
 
 async function resolveHubClineAccountAuthToken(input: {
 	settings?: ProviderSettings;
@@ -297,7 +294,8 @@ export async function handleDesktopCommand(
 	if (command === "toggle_disabled_plugin_tool") {
 		const toolName = String(args?.name ?? "").trim();
 		if (!toolName) throw new Error("tool name is required");
-		await coreSettingsService.toggle({
+		if (!ctx.uiClient) throw new Error("Hub settings client is not connected");
+		await ctx.uiClient.toggleSetting({
 			type: "tools",
 			name: toolName,
 			workspaceRoot,
@@ -312,7 +310,9 @@ export async function handleDesktopCommand(
 			.filter(Boolean);
 		if (toolNames.length === 0) throw new Error("tool name is required");
 		for (const name of toolNames) {
-			await coreSettingsService.toggle({
+			if (!ctx.uiClient)
+				throw new Error("Hub settings client is not connected");
+			await ctx.uiClient.toggleSetting({
 				type: "tools",
 				name,
 				enabled: args?.disabled !== true,
@@ -325,7 +325,8 @@ export async function handleDesktopCommand(
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
 		if (!pluginPath) throw new Error("plugin path is required");
-		await coreSettingsService.toggle({
+		if (!ctx.uiClient) throw new Error("Hub settings client is not connected");
+		await ctx.uiClient.toggleSetting({
 			type: "plugins",
 			path: pluginPath,
 			enabled: args?.disabled !== true,

@@ -879,17 +879,19 @@ export function CustomizationSectionView({
 		const uninstalling = localUninstallingKeys.has(target.key);
 		return (
 			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						aria-label={`More actions for ${target.name ?? "plugin"}`}
-						className="m-0 size-auto shrink-0 p-0 text-muted-foreground"
-						onClick={(event) => event.stopPropagation()}
-						size="icon"
-						type="button"
-						variant="ghost"
-					>
-						<MoreVertical className="size-4" />
-					</Button>
+				<DropdownMenuTrigger
+					render={
+						<Button
+							aria-label={`More actions for ${target.name ?? "plugin"}`}
+							className="m-0 size-auto shrink-0 p-0 text-muted-foreground"
+							onClick={(event) => event.stopPropagation()}
+							size="icon"
+							type="button"
+							variant="ghost"
+						/>
+					}
+				>
+					<MoreVertical className="size-4" />
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					<DropdownMenuItem

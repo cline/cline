@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import type { UserInstructionConfigService } from "../extensions/config";
+import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import { CoreSettingsService } from "./settings-service";
 
 describe("CoreSettingsService", () => {
@@ -201,7 +202,10 @@ Use the browser.`,
 				},
 			}),
 		);
-		await writeFile(pluginPath, "export default {};");
+		await writeFile(
+			pluginPath,
+			'throw new Error("disabled plugin executed"); export default {};',
+		);
 		await writeFile(
 			join(skillDir, "SKILL.md"),
 			`---
@@ -216,6 +220,10 @@ Use the browser.`,
 		);
 
 		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+		const diagnostics = await listPluginToolsWithDiagnostics({
+			workspacePath: tempRoot,
+			cwd: tempRoot,
+		});
 
 		expect(snapshot.skills).not.toEqual(
 			expect.arrayContaining([
@@ -225,6 +233,15 @@ Use the browser.`,
 				}),
 			]),
 		);
+		expect(diagnostics.tools.some((tool) => tool.path === pluginPath)).toBe(
+			false,
+		);
+		expect(
+			diagnostics.plugins.some((plugin) => plugin.path === pluginPath),
+		).toBe(false);
+		expect(
+			diagnostics.failures.some((failure) => failure.pluginPath === pluginPath),
+		).toBe(false);
 	});
 
 	it("lists package plugins by canonical name and toggles them", async () => {
