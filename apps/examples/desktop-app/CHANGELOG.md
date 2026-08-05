@@ -1,5 +1,24 @@
 # Cline Code Desktop Changelog
 
+## 0.0.9
+
+- Cline Code now ships as a single universal macOS download that runs natively on both Apple Silicon and Intel — no more picking the right architecture. Existing per-architecture installs migrate to it automatically on their next update.
+- Session history can now be filtered by where a session came from — Desktop, CLI, extension, or scheduled — from a new filter control in the sidebar.
+- The composer now shows a token usage ring for the active model's context window, with cumulative cost, and it changes color as you approach the limit.
+- Skills now appear in the slash command menu alongside workflows, and commands that share a name are disambiguated instead of shadowing each other.
+- Installed plugins now show their real package names instead of all appearing as "index".
+- The agent header can be dragged to move the window again, including on read-only titles.
+- Chat message actions (copy, fork, edit, restore) no longer collide with the descenders of the message's last line.
+- Application errors are now reported in diagnostics, and the packaged app's telemetry configuration is baked into the sidecar at build time — previously the packaged build shipped with it empty, so no diagnostics were ever sent.
+- Plan mode now hard-blocks file-editing shell commands rather than relying on prompting alone; read-only investigation still works.
+- Running out of context is now recovered from automatically — the run compacts and retries once instead of failing with a raw provider error.
+- Empty model responses are now retried on every provider, not just Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Claude 4.6+ and 5.x models are no longer rejected with "thinking.type.enabled is not supported".
+- Bedrock prompt caching works again — cache reads and writes were always 0 — and Bedrock foundation models now route through geo inference profiles.
+- Reasoning models on OpenAI-compatible endpoints now get the correct token parameter, and models without image support substitute image content instead of failing.
+- Refreshed the bundled provider and model catalog, adding Infomaniak and SCX.ai.
+- Upgraded the model layer to AI SDK 7 and switched Ollama to the native provider.
+
 ## 0.0.8
 
 - Edit any earlier message in a conversation — the app forks the session at that point, rewinds the workspace to that run's checkpoint, and re-runs from your edited prompt. Restores are transactional and workspace-atomic, so a failed restore won't leave you half-rewound.
