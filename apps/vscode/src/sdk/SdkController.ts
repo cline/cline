@@ -104,7 +104,7 @@ import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
-import { resolveWorkspaceRootPath } from "./workspace-root"
+import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
 /**
  * Log a stub warning and return undefined.
@@ -2092,7 +2092,13 @@ export class Controller {
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			const validPaths = (paths ?? []).filter((workspacePath) => workspacePath.trim().length > 0)
+			// When no workspace folder is open, fall back to the active session's
+			// working directory (if known) or the Desktop directory. The legacy
+			// Controller always seeded its manager this way (setupWorkspaceManager
+			// → getCwd(getDesktopDir())), so @-mention file search kept working in
+			// an empty window; returning undefined here instead made searchFiles
+			// emit task.mention_failed (workspace_unavailable) with zero results.
+			const validPaths = resolveWorkspaceManagerPaths(paths, this.lastKnownWorkspaceRoot ?? getDesktopDir())
 			if (validPaths.length === 0) {
 				return undefined
 			}
