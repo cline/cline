@@ -270,37 +270,17 @@ describe("resolveBedrockModelId", () => {
 		).toBe("eu.anthropic.claude-sonnet-4-5-20250929-v1:0");
 		expect(
 			resolveBedrockModelId("anthropic.claude-sonnet-5", {
-				region: "us-gov-west-1",
+				region: "us-east-1",
 			}),
-		).toBe("us-gov.anthropic.claude-sonnet-5");
-		// Tier-first naming is matched generically, so future tiers are covered
-		// without pattern-list updates.
+		).toBe("us.anthropic.claude-sonnet-5");
 		expect(
 			resolveBedrockModelId("anthropic.claude-fable-5", {
 				region: "us-east-1",
 			}),
 		).toBe("us.anthropic.claude-fable-5");
-		expect(
-			resolveBedrockModelId("anthropic.claude-newtier-6", {
-				region: "us-east-1",
-			}),
-		).toBe("us.anthropic.claude-newtier-6");
 	});
 
-	it("prefixes other profile-only foundation models", () => {
-		expect(
-			resolveBedrockModelId("anthropic.claude-3-7-sonnet-20250219-v1:0", {
-				region: "us-east-1",
-			}),
-		).toBe("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
-		expect(
-			resolveBedrockModelId("amazon.nova-pro-v1:0", { region: "us-east-1" }),
-		).toBe("us.amazon.nova-pro-v1:0");
-		expect(
-			resolveBedrockModelId("amazon.nova-2-lite-v1:0", {
-				region: "us-east-1",
-			}),
-		).toBe("us.amazon.nova-2-lite-v1:0");
+	it("prefixes other profile-only foundation models with confirmed variants", () => {
 		expect(
 			resolveBedrockModelId("deepseek.r1-v1:0", { region: "us-west-2" }),
 		).toBe("us.deepseek.r1-v1:0");
@@ -309,6 +289,55 @@ describe("resolveBedrockModelId", () => {
 				region: "us-east-1",
 			}),
 		).toBe("us.meta.llama4-maverick-17b-instruct-v1:0");
+	});
+
+	it("covers future tier-first Claude ids once the catalog carries their variants", () => {
+		// Tier-first naming is matched generically, so a future tier needs no
+		// pattern-list update — only the regenerated catalog entry.
+		const hasCatalogModel = (id: string) =>
+			id === "us.anthropic.claude-newtier-6";
+		expect(
+			resolveBedrockModelId("anthropic.claude-newtier-6", {
+				region: "us-east-1",
+				hasCatalogModel,
+			}),
+		).toBe("us.anthropic.claude-newtier-6");
+	});
+
+	it("preserves the raw id when no catalog variant confirms the geo profile", () => {
+		// Pattern-matched profile-only models without a catalog-confirmed
+		// geographic variant are never prefixed on assumption: AWS documents
+		// profile availability per model and geography, so an unconfirmed id
+		// (e.g. eu.amazon.nova-lite-v1:0 or us-gov.anthropic.claude-sonnet-5)
+		// may not exist.
+		const cases: Array<[string, string | undefined]> = [
+			["amazon.nova-lite-v1:0", "eu-central-1"],
+			["amazon.nova-pro-v1:0", "us-east-1"],
+			["amazon.nova-2-lite-v1:0", "us-east-1"],
+			["anthropic.claude-3-7-sonnet-20250219-v1:0", "us-east-1"],
+			["anthropic.claude-sonnet-5", "us-gov-west-1"],
+			["anthropic.claude-newtier-6", "us-east-1"],
+		];
+		for (const [modelId, region] of cases) {
+			expect(resolveBedrockModelId(modelId, { region })).toBe(modelId);
+			expect(
+				resolveBedrockModelId(modelId, {
+					region,
+					useCrossRegionInference: true,
+				}),
+			).toBe(modelId);
+		}
+	});
+
+	it("uses a catalog-confirmed us-gov. variant in GovCloud regions", () => {
+		const hasCatalogModel = (id: string) =>
+			id === "us-gov.anthropic.claude-sonnet-5";
+		expect(
+			resolveBedrockModelId("anthropic.claude-sonnet-5", {
+				region: "us-gov-west-1",
+				hasCatalogModel,
+			}),
+		).toBe("us-gov.anthropic.claude-sonnet-5");
 	});
 
 	it("never rewrites ids that are already profile-prefixed", () => {
@@ -428,12 +457,12 @@ describe("resolveBedrockModelId", () => {
 		).toBe("us.anthropic.claude-sonnet-4-6");
 		// Models without a known global variant degrade to the geo profile.
 		expect(
-			resolveBedrockModelId("anthropic.claude-3-7-sonnet-20250219-v1:0", {
-				region: "us-east-1",
+			resolveBedrockModelId("deepseek.r1-v1:0", {
+				region: "us-west-2",
 				useCrossRegionInference: true,
 				useGlobalInference: true,
 			}),
-		).toBe("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+		).toBe("us.deepseek.r1-v1:0");
 	});
 
 	it("prefers country profiles over apac. where AWS ships them", () => {
@@ -480,7 +509,8 @@ describe("resolveBedrockModelId", () => {
 		const cases: Array<[string | undefined, string]> = [
 			["us-east-1", "us.anthropic.claude-sonnet-4-6"],
 			["us-west-2", "us.anthropic.claude-sonnet-4-6"],
-			["us-gov-west-1", "us-gov.anthropic.claude-sonnet-4-6"],
+			// No catalog-confirmed us-gov. variant: raw id preserved.
+			["us-gov-west-1", "anthropic.claude-sonnet-4-6"],
 			["eu-central-1", "eu.anthropic.claude-sonnet-4-6"],
 			["eu-west-3", "eu.anthropic.claude-sonnet-4-6"],
 			["ap-northeast-1", "jp.anthropic.claude-sonnet-4-6"],

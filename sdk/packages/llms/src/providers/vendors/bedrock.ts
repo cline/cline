@@ -45,10 +45,12 @@ const BEDROCK_GEO_PROFILE_PREFIX_PATTERN =
 	/^(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\./;
 
 // Documented fallback-heuristic exception (see packages/llms/AGENTS.md):
-// a maintained, intentionally narrow id-pattern list of foundation models
-// that have no on-demand throughput on Bedrock. A match only rewrites ids
-// that AWS would reject outright, so it cannot break a working configuration;
-// models missing from the list keep working through the cross-region
+// a maintained, intentionally narrow id-pattern list of foundation-model
+// families that have no on-demand throughput on Bedrock. A match only makes
+// the model eligible for profile routing without the cross-region setting;
+// the actual prefix is always taken from a catalog-confirmed profile variant,
+// so a match cannot manufacture an id or break a working configuration.
+// Models missing from the list keep working through the cross-region
 // inference setting.
 const BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS: readonly RegExp[] = [
 	// Every Anthropic model since Claude 3.7 launched profile-only, and all of
@@ -75,12 +77,6 @@ const AU_INFERENCE_PROFILE_REGIONS = new Set([
 	"ap-southeast-2",
 	"ap-southeast-4",
 ]);
-
-// Geo prefixes whose inference profiles reliably exist for every profile-only
-// model: AWS launches profile-only foundation models with US/EU coverage
-// (GovCloud uses its own us-gov. namespace). Coverage for apac./jp./au. is
-// per-model, so those are only used when the catalog confirms the variant.
-const RELIABLE_GEO_PREFIXES = new Set(["us.", "us-gov.", "eu."]);
 
 interface BedrockModelIdOptions {
 	region?: string;
@@ -130,26 +126,16 @@ export function resolveBedrockModelId(
 		return `global.${modelId}`;
 	}
 
-	// Prefer a profile variant the catalog confirms exists. This also keeps
-	// custom/provisioned model ids raw on the cross-region path: they are not
-	// catalog models, so no variant matches.
-	const candidates = geoProfileCandidates(options.region);
-	for (const prefix of candidates) {
+	// Use the first profile variant the catalog confirms exists for the
+	// region's candidates. AWS documents inference-profile availability per
+	// model and geography, so an unconfirmed geographic prefix is never
+	// assumed valid; without a confirmed variant the raw id is preserved.
+	// This also keeps custom/provisioned model ids raw on the cross-region
+	// path: they are not catalog models, so no variant matches.
+	for (const prefix of geoProfileCandidates(options.region)) {
 		if (hasCatalogModel(`${prefix}${modelId}`)) {
 			return `${prefix}${modelId}`;
 		}
-	}
-
-	// No catalog-confirmed variant. For profile-only models the bare id can
-	// never work on-demand, so prefixing toward a reliable geo is still the
-	// best option; elsewhere keep the raw id.
-	const primary = candidates[0];
-	if (
-		requiresInferenceProfile &&
-		primary !== undefined &&
-		RELIABLE_GEO_PREFIXES.has(primary)
-	) {
-		return `${primary}${modelId}`;
 	}
 	return modelId;
 }
