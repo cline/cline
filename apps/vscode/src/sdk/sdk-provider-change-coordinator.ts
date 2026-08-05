@@ -1,4 +1,5 @@
 import type { ApiConfiguration } from "@shared/api"
+import type { HistoryItem } from "@shared/HistoryItem"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
@@ -82,11 +83,18 @@ export class SdkProviderChangeCoordinator {
 			// Multichat: buildSessionConfig reads historyItem.multiModelParticipants to decide
 			// whether to append group-chat framing to the system prompt — without this, a
 			// mid-conversation backend switch (which restarts the session right here) would
-			// silently lose that framing on the very turn it first becomes relevant.
-			const taskId = this.options.getTask()?.taskId
-			const historyItem = taskId
-				? this.options.stateManager.getGlobalStateKey("taskHistory")?.find((item) => item.id === taskId)
-				: undefined
+			// silently lose that framing on the very turn it first becomes relevant. This lookup
+			// is best-effort and deliberately isolated from the restart's own try/catch below: a
+			// failure here must only cost the framing, never abort the restart itself.
+			let historyItem: HistoryItem | undefined
+			try {
+				const taskId = this.options.getTask()?.taskId
+				historyItem = taskId
+					? this.options.stateManager.getGlobalStateKey("taskHistory")?.find((item) => item.id === taskId)
+					: undefined
+			} catch (error) {
+				Logger.warn("[SdkController] Failed to look up history item for multichat framing during restart:", error)
+			}
 			const config = await this.options.sessionConfigBuilder.build({ cwd, mode, historyItem })
 			config.sessionId = oldSessionId
 
