@@ -592,6 +592,43 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			reasoning: { enabled: true, max_tokens: expected },
 		});
 	});
+
+	it("does not enable direct Anthropic thinking when disable conflicts with a budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				family: "claude",
+			}),
+		);
+
+		expect(result.anthropic).not.toHaveProperty("thinking");
+	});
+
+	it("drops conflicting Anthropic-compatible budgets after explicit disable", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				family: "claude",
+			}),
+		);
+
+		for (const bucket of ["anthropic", "custom-provider", "openaiCompatible"]) {
+			expect(result[bucket]).not.toHaveProperty("thinking.type", "enabled");
+			expect(result[bucket]).not.toHaveProperty("reasoning.max_tokens");
+		}
+	});
 });
 
 describe("composeAiSdkProviderOptions: family/provider thinking patches", () => {

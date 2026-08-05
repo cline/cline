@@ -356,7 +356,10 @@ export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ) {
-	const explicitBudget = request.reasoning?.budgetTokens;
+	const explicitBudget =
+		request.reasoning?.enabled === false
+			? undefined
+			: request.reasoning?.budgetTokens;
 	const budgetTokens =
 		typeof explicitBudget === "number"
 			? resolveAnthropicManualBudget(request, context)
@@ -458,6 +461,9 @@ export function buildAnthropicCompatibleReasoningOptions(
 	}
 
 	const budgetTokens = resolveAnthropicManualBudget(request, context);
+	if (request.reasoning?.enabled === false) {
+		return { enabled: false };
+	}
 	const reasoning: Record<string, unknown> = {};
 
 	if (request.reasoning?.enabled === true) {

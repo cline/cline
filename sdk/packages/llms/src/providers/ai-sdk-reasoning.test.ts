@@ -1,7 +1,10 @@
 import type { GatewayStreamRequest } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { buildAiSdkStreamConfig } from "./ai-sdk";
-import { resolvePortableReasoning } from "./routing/portable-reasoning";
+import {
+	resolvePortableReasoning,
+	withoutPortableReasoning,
+} from "./routing/portable-reasoning";
 
 function request(
 	reasoning?: GatewayStreamRequest["reasoning"],
@@ -34,6 +37,22 @@ describe("resolvePortableReasoning", () => {
 				request({ enabled: true, effort: "high", budgetTokens: 12_000 }),
 			),
 		).toBeUndefined();
+	});
+
+	it("gives explicit disable precedence over an exact token budget", () => {
+		expect(
+			resolvePortableReasoning(
+				request({ enabled: false, budgetTokens: 12_000 }),
+			),
+		).toBe("none");
+	});
+
+	it("removes conflicting controls from native disable requests", () => {
+		const normalized = withoutPortableReasoning({
+			...request({ enabled: false, effort: "high", budgetTokens: 12_000 }),
+			providerId: "custom-provider",
+		});
+		expect(normalized.reasoning).toEqual({ enabled: false });
 	});
 
 	it("omits reasoning when the caller has no explicit intent", () => {

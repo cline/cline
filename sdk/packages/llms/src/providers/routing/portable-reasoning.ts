@@ -31,12 +31,15 @@ export function resolvePortableReasoning(
 	request: GatewayStreamRequest,
 ): AiSdkReasoning | undefined {
 	const reasoning = request.reasoning;
-	if (!reasoning || typeof reasoning.budgetTokens === "number") {
+	if (!reasoning) {
 		return undefined;
 	}
 	const fullySupported = PORTABLE_REASONING_PROVIDERS.has(request.providerId);
 	if (reasoning.enabled === false) {
 		return fullySupported ? "none" : undefined;
+	}
+	if (typeof reasoning.budgetTokens === "number") {
+		return undefined;
 	}
 	if (reasoning.effort) {
 		if (NON_PORTABLE_REASONING_PROVIDERS.has(request.providerId)) {
@@ -57,7 +60,13 @@ export function resolvePortableReasoning(
 export function withoutPortableReasoning(
 	request: GatewayStreamRequest,
 ): GatewayStreamRequest {
-	return resolvePortableReasoning(request)
-		? { ...request, reasoning: undefined }
-		: request;
+	const normalizedRequest =
+		request.reasoning?.enabled === false &&
+		(request.reasoning.effort !== undefined ||
+			request.reasoning.budgetTokens !== undefined)
+			? { ...request, reasoning: { enabled: false } }
+			: request;
+	return resolvePortableReasoning(normalizedRequest)
+		? { ...normalizedRequest, reasoning: undefined }
+		: normalizedRequest;
 }
