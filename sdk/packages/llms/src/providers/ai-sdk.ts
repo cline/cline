@@ -477,6 +477,32 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
 ): Record<string, unknown> {
+	// Anthropic (and several providers OpenRouter fans out to) rejects any
+	// tool input_schema with oneOf/allOf/anyOf at the top level, failing the
+	// whole request. MCP servers commonly advertise unions of object shapes,
+	// so merge each branch's properties into a single object schema and drop
+	// the union keyword. Tools still validate their real input shapes in
+	// execute().
+	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
+		const branches = inputSchema[key];
+		if (!Array.isArray(branches) || branches.length === 0) {
+			continue;
+		}
+		const { [key]: _union, ...rest } = inputSchema;
+		const properties: Record<string, unknown> = {
+			...(rest.properties as Record<string, unknown> | undefined),
+		};
+		for (const branch of branches) {
+			if (branch && typeof branch === "object") {
+				Object.assign(
+					properties,
+					(branch as Record<string, unknown>).properties,
+				);
+			}
+		}
+		return normalizeAiSdkToolInputSchema({ ...rest, properties });
+	}
+
 	if (inputSchema.type === "object") {
 		return inputSchema;
 	}
