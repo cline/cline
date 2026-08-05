@@ -4,6 +4,7 @@ import type {
 	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
 import {
@@ -290,6 +291,24 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 
 		expect(result.bedrock).not.toHaveProperty("strictJsonSchema");
 		expect(result.openaiCompatible).not.toHaveProperty("strictJsonSchema");
+	});
+
+	it("does not emit anthropic cache_control buckets for bedrock cache-point routing", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+			}),
+			makeContext({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+				metadata: BEDROCK_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.bedrock ?? {}).not.toHaveProperty("cache_control");
+		expect(result.anthropic ?? {}).not.toHaveProperty("cache_control");
+		expect(result.openaiCompatible ?? {}).not.toHaveProperty("cache_control");
 	});
 
 	it("does not emit a separate alias bucket when the alias equals the provider id", () => {
