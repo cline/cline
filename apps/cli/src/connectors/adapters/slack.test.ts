@@ -433,3 +433,53 @@ describe("slack binding lookup", () => {
 		).toBe(false);
 	});
 });
+
+describe("slack legacy connector state", () => {
+	it("stops a live connector recorded by a pre-claim state file (no claimId)", async () => {
+		const { spawn } = await import("node:child_process");
+		const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import(
+			"node:fs"
+		);
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const previousDataDir = process.env.CLINE_DATA_DIR;
+		const dataDir = mkdtempSync(join(tmpdir(), "slack-legacy-state-"));
+		process.env.CLINE_DATA_DIR = dataDir;
+		const child = spawn(
+			process.execPath,
+			["-e", "setInterval(() => {}, 1000)"],
+			{ stdio: "ignore" },
+		);
+		try {
+			const stateDir = join(dataDir, "connectors", "slack");
+			mkdirSync(stateDir, { recursive: true });
+			writeFileSync(
+				join(stateDir, "mybot.json"),
+				JSON.stringify({
+					userName: "mybot",
+					connectionMode: "socket",
+					pid: child.pid,
+					// Unreachable on purpose: session cleanup falls back to
+					// local storage inside the isolated data dir.
+					rpcAddress: "ws://127.0.0.1:1/hub",
+					startedAt: new Date(0).toISOString(),
+				}),
+				"utf8",
+			);
+
+			const io = { writeln: () => {}, writeErr: () => {} };
+			const result = await slackConnector.stopInstance?.("mybot", io);
+
+			expect(result?.stoppedProcesses).toBe(1);
+		} finally {
+			child.kill("SIGKILL");
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR;
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir;
+			}
+			rmSync(dataDir, { recursive: true, force: true });
+		}
+	});
+});

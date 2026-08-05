@@ -22,6 +22,7 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	contextWindow?: number;
 	maxOutputTokens?: number;
 	reasoningOptions?: readonly ModelReasoningOption[];
 	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
@@ -92,6 +93,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			name: modelId,
 			providerId,
 			maxOutputTokens: options?.maxOutputTokens,
+			contextWindow: options?.contextWindow,
 			reasoningOptions: options?.reasoningOptions,
 			capabilities: options?.capabilities,
 			metadata: modelMetadata,
@@ -1773,7 +1775,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// Ollama Qwen3: model behavior fact first, documented dynamic fallback second.
 		{
-			name: "ollama metadata reasoningDefaultOn disabled -> reasoningEffort none",
+			name: "ollama metadata reasoningDefaultOn disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "local-known-reasoner:latest",
@@ -1783,22 +1785,16 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					lacks: ["think", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama qwen3 fallback reasoning disabled -> reasoningEffort none",
+			name: "ollama qwen3 fallback reasoning disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
@@ -1807,52 +1803,58 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					lacks: ["think", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama qwen3 fallback reasoning enabled -> no disable patch",
+			name: "ollama qwen3 fallback reasoning enabled -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 				reasoning: { enabled: true },
 			},
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama qwen3 fallback with unset reasoning -> no disable patch",
+			name: "ollama qwen3 fallback with unset reasoning -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 			},
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama metadata reasoningDefaultOn with unset reasoning -> no disable patch",
+			name: "ollama metadata reasoningDefaultOn with unset reasoning -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "local-known-reasoner:latest",
 			},
 			context: { modelMetadata: { reasoningDefaultOn: true } },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
@@ -1870,24 +1872,17 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 					lacks: ["thinking"],
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
-					lacks: ["thinking"],
+					lacks: ["think", "thinking", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama metadata reasoningDefaultOn false prevents qwen3 fallback",
+			name: "ollama explicit disable overrides metadata reasoningDefaultOn false",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
@@ -1895,20 +1890,60 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: { modelMetadata: { reasoningDefaultOn: false } },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: false, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama non-default reasoning disabled -> no special disable patch",
+			name: "ollama local model explicit reasoning disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "llama3.1:8b",
 				reasoning: { enabled: false },
 			},
+			context: { contextWindow: 65536 },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: false, options: { num_ctx: 65536 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama unregistered deepseek-r1 explicit reasoning enabled -> think true",
+			request: {
+				providerId: "ollama",
+				modelId: "deepseek-r1:latest",
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
+				{ bucket: "openaiCompatible", lacks: ["think", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama unregistered model with unset reasoning omits think",
+			request: {
+				providerId: "ollama",
+				modelId: "local-unknown:latest",
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: { options: { num_ctx: 32768 } },
+					lacks: ["think", "reasoningEffort", "reasoning"],
+				},
+				{ bucket: "openaiCompatible", lacks: ["think", "reasoning"] },
 			],
 		},
 	]);

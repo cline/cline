@@ -28,7 +28,7 @@ import {
 	enqueueThreadTurn,
 	startConnectorWebhookServer,
 } from "../chat-runtime";
-import { isProcessRunning } from "../common";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
 	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
@@ -56,6 +56,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 	writeBindings,
 } from "../thread-bindings";
 import type {
@@ -64,18 +65,12 @@ import type {
 	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
-import {
-	getConnectorFirstContactMessage,
-	getConnectorSystemPrompt,
-	getConnectorSystemRules,
-} from "./prompts";
+import { getConnectorSystemPrompt, getConnectorSystemRules } from "./prompts";
 
 const SLACK_SYSTEM_RULES = getConnectorSystemRules(
 	"Slack",
 	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
 );
-
-const SLACK_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type SlackThreadState = ConnectorThreadState & {
 	teamId?: string;
@@ -501,62 +496,68 @@ class SlackConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Slack bot username label")
-			.option(
-				"--bot-token <token>",
-				"Slack bot token for single-workspace mode",
-			)
-			.option("--signing-secret <secret>", "Slack signing secret")
-			.option("--app-token <token>", "Slack app-level token for socket mode")
-			.option("--client-id <id>", "Slack OAuth client id")
-			.option("--client-secret <secret>", "Slack OAuth client secret")
-			.option(
-				"--encryption-key <key>",
-				"Base64 32-byte key for encrypted installations",
-			)
-			.option(
-				"--installation-key-prefix <prefix>",
-				"Override stored installation key prefix",
-			)
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Slack sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option(
-				"--base-url <url>",
-				"Public base URL for webhooks and OAuth callback",
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  SLACK_BOT_TOKEN             Single-workspace bot token",
-					"  SLACK_SIGNING_SECRET        Slack signing secret",
-					"  SLACK_APP_TOKEN             App-level token for socket mode",
-					"  SLACK_CLIENT_ID             OAuth client id",
-					"  SLACK_CLIENT_SECRET         OAuth client secret",
-					"  SLACK_ENCRYPTION_KEY        Optional installation encryption key",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Slack bot username label")
+				.option(
+					"--bot-token <token>",
+					"Slack bot token for single-workspace mode",
+				)
+				.option("--signing-secret <secret>", "Slack signing secret")
+				.option("--app-token <token>", "Slack app-level token for socket mode")
+				.option("--client-id <id>", "Slack OAuth client id")
+				.option("--client-secret <secret>", "Slack OAuth client secret")
+				.option(
+					"--encryption-key <key>",
+					"Base64 32-byte key for encrypted installations",
+				)
+				.option(
+					"--installation-key-prefix <prefix>",
+					"Override stored installation key prefix",
+				)
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Slack sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option(
+					"--base-url <url>",
+					"Public base URL for webhooks and OAuth callback",
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  SLACK_BOT_TOKEN             Single-workspace bot token",
+						"  SLACK_SIGNING_SECRET        Slack signing secret",
+						"  SLACK_APP_TOKEN             App-level token for socket mode",
+						"  SLACK_CLIENT_ID             OAuth client id",
+						"  SLACK_CLIENT_SECRET         OAuth client secret",
+						"  SLACK_ENCRYPTION_KEY        Optional installation encryption key",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectSlackOptions {
@@ -577,6 +578,7 @@ class SlackConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -643,7 +645,7 @@ class SlackConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -682,6 +684,9 @@ class SlackConnector extends ConnectorBase<
 				Boolean(
 					value &&
 						typeof value === "object" &&
+						// claimId is optional: state files written by older CLI
+						// versions predate claiming and must stay manageable
+						// (already-running detection, status, stop).
 						typeof (value as SlackConnectorState).pid === "number" &&
 						typeof (value as SlackConnectorState).userName === "string",
 				),
@@ -733,6 +738,12 @@ class SlackConnector extends ConnectorBase<
 		);
 	}
 
+	protected override instanceIdFromOptions(
+		options: ConnectSlackOptions,
+	): string | undefined {
+		return options.userName;
+	}
+
 	protected override async runWithOptions(
 		options: ConnectSlackOptions,
 		rawArgs: string[],
@@ -743,14 +754,18 @@ class SlackConnector extends ConnectorBase<
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const stateStorePath = this.resolveStateStorePath(options.userName);
-		const staleState = this.removeStaleState(
-			statePath,
-			(path) => this.readConnectorState(path),
-			(state) => state.pid,
-		);
+		const existingState = this.readConnectorState(statePath);
+		const staleState =
+			existingState && !isProcessRunning(existingState.pid)
+				? existingState
+				: undefined;
 		if (staleState) {
 			clearBindingSessionIds<SlackThreadState>(bindingsPath);
 		}
+		const formatAlreadyRunning = (state: SlackConnectorState) =>
+			state.connectionMode === "socket"
+				? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
+				: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`;
 		const backgroundExitCode = await this.maybeRunInBackground({
 			rawArgs,
 			io,
@@ -759,10 +774,7 @@ class SlackConnector extends ConnectorBase<
 			statePath,
 			readState: (path) => this.readConnectorState(path),
 			isRunning: (state) => isProcessRunning(state.pid),
-			formatAlreadyRunningMessage: (state) =>
-				state.connectionMode === "socket"
-					? `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} mode=socket`
-					: `[slack] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatAlreadyRunningMessage: formatAlreadyRunning,
 			formatBackgroundStartMessage: (pid) =>
 				`[slack] starting background connector pid=${pid} user=${options.userName} mode=${options.connectionMode}`,
 			foregroundHint:
@@ -771,6 +783,34 @@ class SlackConnector extends ConnectorBase<
 		});
 		if (backgroundExitCode !== undefined) {
 			return backgroundExitCode;
+		}
+
+		// Foreground / detached-child path: exclusively claim the instance before
+		// opening Slack socket-mode so a second process cannot share the token.
+		const startedAt = new Date().toISOString();
+		const claim = this.claimConnectorInstance({
+			statePath,
+			createState: (claimId) => ({
+				claimId,
+				userName: options.userName,
+				connectionMode: options.connectionMode,
+				pid: process.pid,
+				rpcAddress: "pending",
+				startedAt,
+				...(options.connectionMode === "webhook"
+					? { port: options.port, baseUrl: options.baseUrl }
+					: {}),
+			}),
+			readState: (path) => this.readConnectorState(path),
+			getPid: (state) => state.pid,
+		});
+		if (!claim.claimed) {
+			io.writeln(
+				claim.running
+					? formatAlreadyRunning(claim.running)
+					: `[slack] connector already running for user=${options.userName}`,
+			);
+			return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -860,6 +900,7 @@ class SlackConnector extends ConnectorBase<
 		});
 		await client.connect();
 		this.writeConnectorState(statePath, {
+			claimId: claim.claimId,
 			userName: options.userName,
 			connectionMode: options.connectionMode,
 			pid: process.pid,
@@ -867,7 +908,7 @@ class SlackConnector extends ConnectorBase<
 			...(options.connectionMode === "webhook"
 				? { port: options.port, baseUrl: options.baseUrl }
 				: {}),
-			startedAt: new Date().toISOString(),
+			startedAt,
 		});
 
 		let stopping = false;
@@ -892,7 +933,7 @@ class SlackConnector extends ConnectorBase<
 				bindingsPath,
 				startRequest,
 			);
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
@@ -919,7 +960,6 @@ class SlackConnector extends ConnectorBase<
 								hookCommand: options.hookCommand,
 								systemRules: SLACK_SYSTEM_RULES,
 								errorLabel: "Slack",
-								firstContactMessage: SLACK_FIRST_CONTACT_MESSAGE,
 								userInstructionService,
 								chatCommandHost,
 								activeTurns,

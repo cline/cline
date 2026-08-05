@@ -38,6 +38,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -1114,7 +1115,7 @@ const ModelSelector = memo(function ModelSelector({
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
 
-		async function loadCatalog() {
+		async function loadCatalogAndActiveModels() {
 			try {
 				const payload = await loadProviderModelCatalog();
 				if (cancelled) {
@@ -1138,41 +1139,24 @@ const ModelSelector = memo(function ModelSelector({
 			} catch {
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [normalizedProvider]);
-
-	useEffect(() => {
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
 				setProviderModels((current) => ({
 					...current,
-					[normalizedProvider]: modelIds,
+					[normalizedProvider]: models.map((entry) => entry.id),
 				}));
 				setProviderReasoningModels((current) => ({
 					...current,
-					[normalizedProvider]: reasoningModelIds,
+					[normalizedProvider]: models
+						.filter((entry) => entry.supportsReasoning)
+						.map((entry) => entry.id),
 				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
@@ -1181,15 +1165,34 @@ const ModelSelector = memo(function ModelSelector({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalogAndActiveModels();
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider, providerModels]);
+	}, [normalizedProvider]);
+
+	useEffect(() => {
+		return subscribeToProviderModels((providerId, models) => {
+			const normalizedId = normalizeProviderId(providerId);
+			setProviderModels((current) => ({
+				...current,
+				[normalizedId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[normalizedId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(normalizedId) ? current : [...current, normalizedId],
+			);
+		});
+	}, []);
 
 	useEffect(() => {
 		setLastSelection((prev) => {

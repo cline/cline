@@ -8,7 +8,15 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import type { PluginManifest } from "..";
 import {
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
@@ -177,6 +185,27 @@ export function resolveConnectorDataDir(): string {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "connectors");
+}
+
+/**
+ * Where a connector instance's stdout/stderr is captured. Both the CLI (which
+ * spawns detached connectors directly) and the hub supervisor (which spawns and
+ * reaps them) need to agree on this path, so it lives here rather than in
+ * either one.
+ */
+export function resolveConnectorLogPath(
+	channel: string,
+	instanceKey: string,
+): string {
+	const safeChannel = channel.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	const safeKey = instanceKey.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	return join(
+		resolveClineDataDir(),
+		"logs",
+		"connectors",
+		safeChannel,
+		`${safeKey}.log`,
+	);
 }
 
 export function resolveConnectorSettingsPath(): string {
@@ -532,6 +561,58 @@ export function resolvePluginModuleEntries(
 	}
 
 	return null;
+}
+
+function readPackageName(packageJsonPath: string): string | undefined {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			name?: unknown;
+		};
+		return typeof packageJson.name === "string" && packageJson.name.trim()
+			? packageJson.name.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+/**
+ * Human-readable name for a plugin module entry. Package-backed plugins
+ * (e.g. `~/.cline/plugins/_installed/<id>/package/index.ts`) are named after
+ * the `name` in the nearest ancestor `package.json` within `searchRoot`, so
+ * every install doesn't surface as "index". Bare module files fall back to
+ * the file basename.
+ */
+export function getPluginDisplayName(
+	filePath: string,
+	searchRoot: string,
+): string {
+	let current = dirname(filePath);
+	const root = resolve(searchRoot);
+	while (isPathWithin(root, current)) {
+		const packageJsonPath = join(current, PLUGIN_PACKAGE_JSON_FILE_NAME);
+		if (existsSync(packageJsonPath)) {
+			const packageName = readPackageName(packageJsonPath);
+			if (packageName) {
+				return packageName;
+			}
+			break;
+		}
+		const parent = resolve(current, "..");
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return basename(filePath, extname(filePath));
 }
 
 export function discoverPluginModulePaths(directoryPath: string): string[] {
