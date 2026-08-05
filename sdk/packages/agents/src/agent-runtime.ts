@@ -705,8 +705,8 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
-			const { message, finishReason } =
-				await this.generateAssistantMessageWithRecovery();
+				const { message, finishReason } =
+					await this.generateAssistantMessageWithRecovery();
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}

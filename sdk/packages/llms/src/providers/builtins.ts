@@ -1154,8 +1154,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {

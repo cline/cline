@@ -171,9 +171,10 @@ describe("resolveStreamStallTimeouts", () => {
 	});
 
 	it("falls back to the provider config timeoutMs", () => {
-		expect(
-			resolveStreamStallTimeouts({}, { timeoutMs: 45_000 }),
-		).toEqual({ firstChunkMs: 45_000, chunkMs: 45_000 });
+		expect(resolveStreamStallTimeouts({}, { timeoutMs: 45_000 })).toEqual({
+			firstChunkMs: 45_000,
+			chunkMs: 45_000,
+		});
 	});
 
 	it("uses vendor fallbacks below config overrides", () => {

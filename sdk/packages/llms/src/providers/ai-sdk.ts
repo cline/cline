@@ -1163,9 +1163,12 @@ async function* emitAiSdkEvents(
 					// surface it as a stream error so the turn fails visibly
 					// (and can be retried) instead of being accepted truncated.
 					if (!request.signal?.aborted) {
+						// The reason is the watchdog's DOMException serialized as
+						// "TimeoutError: Chunk timeout of Nms exceeded" — drop the
+						// error-name prefix, the message already says "timeout".
 						const reason =
 							typeof part.reason === "string" && part.reason.trim().length > 0
-								? part.reason.trim()
+								? part.reason.trim().replace(/^TimeoutError:\s*/, "")
 								: "stream aborted without a reason";
 						const message = `Model stream stalled: ${reason}`;
 						const reported = captureSdkError(context.telemetry, {

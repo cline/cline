@@ -323,7 +323,8 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "Model stream stalled: First chunk timeout of 180000ms exceeded",
+					error:
+						"Model stream stalled: First chunk timeout of 180000ms exceeded",
 					errorClass: "stream_stalled",
 				} as AgentModelEvent,
 			] as const;
