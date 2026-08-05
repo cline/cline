@@ -1417,10 +1417,18 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
+	// Queued prompts are delivered by the runtime without another pass
+	// through handleSend, so expand a leading slash command here too.
+	const expandedPrompt = await expandRuntimeSlashCommand(
+		ctx,
+		readWorkspacePath(ctx.liveSessions.get(sessionId)?.config) ??
+			ctx.workspaceRoot,
+		prompt,
+	);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt,
+		prompt: expandedPrompt,
 	});
 	return {
 		sessionId,

@@ -1359,6 +1359,13 @@ Follow the desktop send skill instructions.`,
 			status: "idle",
 			prompt: undefined as string | undefined,
 		};
+		const updatePendingPrompt = vi.fn(
+			async (input: { promptId: string; prompt?: string }) => ({
+				updated: true,
+				prompt: { id: input.promptId, prompt: input.prompt },
+				prompts: [],
+			}),
+		);
 		const ctx = {
 			workspaceRoot: workspace,
 			liveSessions: new Map([[sessionId, session]]),
@@ -1367,10 +1374,13 @@ Follow the desktop send skill instructions.`,
 			wsClients: new Set(),
 			sessionManager: {
 				send,
-				pendingPrompts: { list: vi.fn(async () => []) },
+				pendingPrompts: {
+					list: vi.fn(async () => []),
+					update: updatePendingPrompt,
+				},
 			},
 		} as unknown as SidecarContext;
-		return { ctx, send, session, sessionId };
+		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
 	it("expands a leading skill command into its instructions", async () => {
@@ -1390,6 +1400,24 @@ Follow the desktop send skill instructions.`,
 		);
 		// The session's display prompt keeps the raw token.
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-1",
+			prompt: "/desktop-send-skill later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-1",
+			prompt: "Follow the desktop send skill instructions. later please",
+		});
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {
