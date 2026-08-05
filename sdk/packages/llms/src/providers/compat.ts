@@ -109,6 +109,7 @@ function toGatewayModelDefinition(
 			pricing: model.pricing,
 			status: model.status,
 			releaseDate: model.releaseDate,
+			supportsTemperature: model.capabilities?.includes("temperature"),
 		},
 	};
 }
