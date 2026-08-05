@@ -44,6 +44,9 @@ import type {
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
+import * as path from "path"
+import { arePathsEqual, getDesktopDir } from "@/utils/path"
+import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
@@ -149,6 +152,8 @@ export class MessageTranslatorState {
 		minter: MessageIdMinter = new MessageIdMinter(),
 		private readonly getActiveProviderId?: () => string | undefined,
 		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
+		private readonly getCwd?: () => string | undefined,
+		private readonly getActiveModelId?: () => string | undefined,
 	) {
 		this.minter = minter
 	}
@@ -156,6 +161,20 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/** Model backing the active turn, if the host can supply it. */
+	activeModelId(): string | undefined {
+		return this.getActiveModelId?.()
+	}
+
+	/**
+	 * The task's working directory, used to relativize the absolute filesystem
+	 * paths in tool inputs before they reach the webview. Undefined when the
+	 * host doesn't supply a cwd source (paths are then displayed as-is).
+	 */
+	currentCwd(): string | undefined {
+		return this.getCwd?.()
 	}
 
 	/**
@@ -503,6 +522,105 @@ export class MessageTranslatorState {
 		this.errorSeen = false
 		this.clearTurnFinalText()
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Display-path relativization
+// ---------------------------------------------------------------------------
+
+/**
+ * Tools whose ClineSayTool.path is a filesystem path. webFetch/webSearch/
+ * useSkill and MCP tools reuse `path` for URLs, queries, and names, so they
+ * are deliberately excluded.
+ */
+const FILESYSTEM_PATH_TOOLS: ReadonlySet<ClineSayTool["tool"]> = new Set([
+	"readFile",
+	"listFilesTopLevel",
+	"listFilesRecursive",
+	"listCodeDefinitionNames",
+	"editedExistingFile",
+	"newFileCreated",
+	"fileDeleted",
+	"searchFiles",
+])
+
+/**
+ * Relativize a ClineSayTool's filesystem paths against the task cwd before it
+ * is shown in the chat view, restoring the classic extension's getReadablePath
+ * display behavior that was lost in the SDK migration (the SDK works with
+ * absolute paths). Display-only — executors receive the raw tool input.
+ */
+function toDisplaySayTool(sayTool: ClineSayTool, cwd: string | undefined): ClineSayTool {
+	if (!cwd || !FILESYSTEM_PATH_TOOLS.has(sayTool.tool)) {
+		return sayTool
+	}
+	if (sayTool.tool === "readFile") {
+		// The webview's readFile card opens `content` in the editor on click, so it
+		// carries the absolute path (classic-extension behavior). Already-absolute
+		// paths pass through untouched — path.resolve would rewrite a drive-less
+		// absolute path onto the current drive on Windows.
+		const openTarget = sayTool.path
+			? path.isAbsolute(sayTool.path)
+				? sayTool.path
+				: path.resolve(cwd, sayTool.path)
+			: sayTool.content
+		return {
+			...sayTool,
+			path: toDisplayPath(sayTool.path, cwd),
+			content: openTarget,
+		}
+	}
+	return {
+		...sayTool,
+		path: toDisplayPath(sayTool.path, cwd),
+		// apply_patch payloads carry "*** Update File: <path>" markers that
+		// DiffEditRow renders as the diff headers, so relativize those too.
+		content: relativizePatchPaths(sayTool.content, cwd),
+		diff: relativizePatchPaths(sayTool.diff, cwd),
+	}
+}
+
+/**
+ * Mirror the classic getReadablePath: paths inside the cwd render relative,
+ * the cwd itself renders as its basename, and anything outside the cwd stays
+ * absolute so the user still sees exactly where the operation happened.
+ */
+function toDisplayPath(rawPath: string | undefined, cwd: string): string | undefined {
+	if (!rawPath || !path.isAbsolute(rawPath)) {
+		return rawPath
+	}
+	// User opened VS Code without a workspace, so the cwd fell back to the
+	// Desktop. Keep full absolute paths so the user stays aware of where
+	// operations occur (classic getReadablePath behavior).
+	if (arePathsEqual(cwd, getDesktopDir())) {
+		return rawPath.replace(/\\/g, "/")
+	}
+	const relative = path.relative(cwd, rawPath)
+	if (relative === "") {
+		return path.basename(rawPath).replace(/\\/g, "/")
+	}
+	// Outside the cwd (or on another drive on Windows) — keep the absolute path.
+	// Match ".." only as a whole segment so an in-cwd entry literally named
+	// "..config" is not misclassified as outside.
+	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+		return rawPath.replace(/\\/g, "/")
+	}
+	return relative.replace(/\\/g, "/")
+}
+
+/** Rewrite the "*** Add/Update/Delete File:" and "*** Move to:" markers inside a patch payload. */
+function relativizePatchPaths(patch: string | undefined, cwd: string): string | undefined {
+	if (!patch) {
+		return patch
+	}
+	const fileMarkers = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE, PATCH_MARKERS.MOVE]
+	return patch
+		.split("\n")
+		.map((line) => {
+			const marker = fileMarkers.find((m) => line.startsWith(m))
+			return marker ? marker + (toDisplayPath(line.substring(marker.length).trim(), cwd) ?? "") : line
+		})
+		.join("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,7 +1135,7 @@ function extractCommandText(input: unknown): string {
  * can render specialized rows (MCP, commands, subagents) instead of a generic
  * tool approval with missing context.
  */
-export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
+export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number, cwd?: string): ClineMessage {
 	const mcpInfo = parseMcpToolName(toolName)
 	if (mcpInfo) {
 		return {
@@ -1057,7 +1175,7 @@ export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts
 		ts,
 		type: "ask",
 		ask: "tool",
-		text: JSON.stringify(sdkToolToClineSayTool(toolName, input)),
+		text: JSON.stringify(toDisplaySayTool(sdkToolToClineSayTool(toolName, input), cwd)),
 		partial: false,
 	}
 }
@@ -1301,7 +1419,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// only at content_end (see below), mirroring read_files. Splitting at
 					// content_start would mint streaming ids that content_end cannot
 					// reproduce for files ≥2, orphaning those partial rows (cline#9904).
-					const sayTool = sdkToolToClineSayTool(toolName, input)
+					const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, input), state.currentCwd())
 					messages.push({
 						ts: state.getStreamingToolTs(),
 						type: "say",
@@ -1569,16 +1687,18 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const parsedInput = parseToolInput(storedInput)
 						const fileReads = extractFileReads(parsedInput)
 						if (fileReads.length > 1) {
+							const cwd = state.currentCwd()
 							fileReads.forEach((fileRead, index) => {
+								const sayTool: ClineSayTool = {
+									tool: "readFile",
+									path: fileRead.path,
+									...readLineRangeFields(fileRead),
+								}
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
 									type: "say",
 									say: "tool",
-									text: JSON.stringify({
-										tool: "readFile",
-										path: fileRead.path,
-										...readLineRangeFields(fileRead),
-									} satisfies ClineSayTool),
+									text: JSON.stringify(toDisplaySayTool(sayTool, cwd)),
 									partial: false,
 								})
 							})
@@ -1594,12 +1714,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const patch = getApplyPatchString(storedInput)
 						const perFileTools = patch ? splitApplyPatchByFile(patch) : []
 						if (perFileTools.length > 1) {
+							const cwd = state.currentCwd()
 							perFileTools.forEach((sayTool, index) => {
 								messages.push({
 									ts: index === 0 ? ts : state.nextTs(),
 									type: "say",
 									say: "tool",
-									text: JSON.stringify(sayTool),
+									text: JSON.stringify(toDisplaySayTool(sayTool, cwd)),
 									partial: false,
 								})
 							})
@@ -1607,7 +1728,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						}
 					}
 
-					const sayTool = sdkToolToClineSayTool(toolName, storedInput)
+					const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, storedInput), state.currentCwd())
 					// If there's an error, include it in the tool message
 					if (event.error) {
 						messages.push({
@@ -1757,6 +1878,23 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "error": {
+			// Recoverable errors are in-run notices, not turn outcomes: the
+			// MistakeTracker emits one for every recorded mistake (e.g.
+			// "1 tool call(s) failed: [run_commands] ..." when a plan-mode
+			// guard-blocked command was the turn's only tool call) and the run
+			// keeps going. Treating them as terminal put turns that afterwards
+			// completed cleanly into the "error" phase (Retry / Start New Task)
+			// and cleared the pending completion retag — which broke the
+			// plan→act toggle's auto-continue on a presented plan. The turn's
+			// outcome is decided by how it actually ends (done/error), so keep
+			// these out of the chat: any tool failure involved is already shown
+			// inline on its tool row, and provider-failure telemetry already
+			// ignores recoverable events for the same reason.
+			if (event.recoverable) {
+				Logger.warn(`[MessageTranslator] Recoverable agent error (run continues): ${event.error?.message ?? event.error}`)
+				break
+			}
+
 			finalizeDanglingCompaction(state, messages, "failed")
 			// An errored turn didn't end on its text response — no completion retag.
 			state.clearTurnFinalText()
@@ -1778,7 +1916,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// `code: "insufficient_credits"`). We try to reshape it into the
 			// ClineError-serialized format the webview expects so that ErrorRow
 			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId())
+			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces
@@ -1877,7 +2015,13 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			if (agentEvent.type === "done") {
 				result.turnComplete = true
 			}
-			if (agentEvent.type === "error" && !state.isSuppressedToolApprovalDenial(agentEvent.error)) {
+			// Recoverable errors don't end the turn — the run continues (see the
+			// translator's "error" case), so they must not resolve the turn phase.
+			if (
+				agentEvent.type === "error" &&
+				!agentEvent.recoverable &&
+				!state.isSuppressedToolApprovalDenial(agentEvent.error)
+			) {
 				result.turnComplete = true
 			}
 
@@ -2123,6 +2267,12 @@ export interface SdkMessagesToClineMessagesOptions {
 	 * green/plan "done" box. Defaults to true.
 	 */
 	finalTurnCompleted?: boolean
+	/**
+	 * The task's working directory (as recorded on the session record), used to
+	 * relativize the absolute filesystem paths in persisted tool inputs for
+	 * display, matching the live streaming path.
+	 */
+	cwd?: string
 }
 
 /**
@@ -2141,7 +2291,12 @@ export function sdkMessagesToClineMessages(
 	let currentMode: "plan" | "act" | "yolo" | undefined
 	// Use the process-wide minter when provided so regenerated history ids are globally unique
 	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
-	const state = new MessageTranslatorState(minter, undefined, () => currentMode)
+	const state = new MessageTranslatorState(
+		minter,
+		undefined,
+		() => currentMode,
+		() => options?.cwd,
+	)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
@@ -2382,13 +2537,34 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
  * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
  * info from the error message when present and falling back to raw text.
  */
-export function reshapeErrorForWebview(error: { message?: string; status?: number; code?: string }, providerId?: string): string {
+export function reshapeErrorForWebview(
+	error: { message?: string; status?: number; code?: string },
+	providerId?: string,
+	modelId?: string,
+): string {
 	// The ClineError-JSON branches below are cline-provider flows (balance,
 	// spend limit), so "cline" stays their fallback id. The missing-credential
 	// message instead gets the raw value: defaulting there would name the wrong
 	// provider when the active provider id is unknown.
 	const clineErrorProviderId = providerId ?? "cline"
 	const rawMessage = error.message ?? "Unknown error"
+
+	// A retired cline-free/ model answers "model not found" once its free
+	// promotion ends and the id is removed from the catalog. Stamp the payload
+	// with a dedicated code so the webview renders the promotion-ended card
+	// instead of the generic model-not-found guidance below.
+	if (isClineFreePromotionEndedMessage(rawMessage, modelId)) {
+		return JSON.stringify({
+			message: rawMessage,
+			code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+			providerId: clineErrorProviderId,
+			modelId,
+			details: {
+				code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+				message: rawMessage,
+			},
+		})
+	}
 
 	// Try to extract structured error info from the error message.
 	// The SDK often wraps API error JSON in the Error.message field.
