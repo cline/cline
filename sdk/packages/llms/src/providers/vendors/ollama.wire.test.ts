@@ -236,8 +236,9 @@ describe("ollama wire contract (real provider package)", () => {
 				.unified,
 		).toBe("error");
 
-		// The empty-response retry middleware must not mask the failure by
-		// re-issuing the request.
+		// The empty-response retry middleware (applied centrally in
+		// `ai-sdk.ts`, outside this vendor module) must not mask the failure
+		// by re-issuing the request; error finishes are never retried.
 		expect(requests).toHaveLength(1);
 	});
 });

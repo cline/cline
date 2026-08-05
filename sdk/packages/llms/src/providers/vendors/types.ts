@@ -3,9 +3,20 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import type { CallSettings } from "ai";
+import type { RetryEmptyResponseOptions } from "../middleware/retry-empty-response";
 
 export interface ProviderFactoryResult {
 	model: (modelId: string) => unknown;
+	/**
+	 * Policy for the gateway-level empty-response retry. Every vendor model
+	 * is wrapped with `createRetryEmptyResponseMiddleware` at the central
+	 * composition point in `ai-sdk.ts` (an all-empty turn — no text, no
+	 * reasoning, no tool call — otherwise hard-fails the task with "Model
+	 * returned empty response"). Set `false` to opt a vendor out, or provide
+	 * options to tune attempts/delay without forking the middleware. Leave
+	 * unset for the defaults.
+	 */
+	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,
