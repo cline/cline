@@ -42,6 +42,11 @@ export interface SdkInteractionCoordinatorOptions {
 	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
 	 */
 	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
+	/**
+	 * The task's working directory, used to relativize the absolute filesystem paths
+	 * shown in tool-approval asks (display only). Optional for tests.
+	 */
+	getCwd?: () => string | undefined
 }
 
 export class SdkInteractionCoordinator {
@@ -101,7 +106,12 @@ export class SdkInteractionCoordinator {
 			Logger.warn(`[SdkController] onToolApprovalAsk failed; showing plain approval ask: ${error}`)
 		}
 
-		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(request.toolName, request.input, this.nextMessageTs())
+		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(
+			request.toolName,
+			request.input,
+			this.nextMessageTs(),
+			this.options.getCwd?.(),
+		)
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
 			type: "status",

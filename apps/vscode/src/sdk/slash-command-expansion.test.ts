@@ -44,6 +44,24 @@ describe("expandSlashCommands", () => {
 		).toBe("/release.md")
 	})
 
+	it("resolves a typed filename to a frontmatter-renamed workflow whose name normalizes", () => {
+		// The SDK normalizes "Ship It" into the token "ship-it", so the typed
+		// filename has to resolve through the record id rather than by
+		// comparing the configured name against the command token.
+		const renamed: AvailableRuntimeCommand[] = [
+			{ id: "ship it", name: "ship-it", instructions: "Ship it carefully.", kind: "workflow" },
+		]
+		const records = [{ id: "ship it", name: "Ship It", filePath: "/repo/.clinerules/workflows/release.md" }]
+		expect(expandSlashCommands("/release.md", renamed, { workflowRecords: records })).toBe("Ship it carefully.")
+		// The renamed command stays governed by its file's toggle.
+		expect(
+			expandSlashCommands("/release.md", renamed, {
+				workflowRecords: records,
+				disabledWorkflowNames: new Set(["Ship It"]),
+			}),
+		).toBe("/release.md")
+	})
+
 	it("expands a command that appears mid-message after whitespace", () => {
 		expect(expandSlashCommands("please run /release.md for v2", commands)).toBe("please run Run the release workflow. for v2")
 	})
@@ -77,6 +95,21 @@ describe("expandSlashCommands", () => {
 		expect(expandSlashCommands("/debug", commands, { disabledWorkflowNames: new Set(["debug"]) })).toBe(
 			"Use the debugging skill.",
 		)
+	})
+
+	it("applies workflow toggles to normalized runtime command names", () => {
+		// The SDK normalizes "Publish UI" into the token "publish-ui", while the
+		// toggle set is keyed by the configured name, so the disabled lookup has
+		// to go through the record id.
+		const normalized = workflow("publish-ui", "Run the publish UI workflow.")
+		normalized.id = "publish ui"
+		const records = [{ id: "publish ui", name: "Publish UI", filePath: "/repo/workflows/publish-ui.md" }]
+		expect(
+			expandSlashCommands("/publish-ui", [normalized], {
+				workflowRecords: records,
+				disabledWorkflowNames: new Set(["Publish UI"]),
+			}),
+		).toBe("/publish-ui")
 	})
 })
 

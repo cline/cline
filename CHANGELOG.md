@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.1.4]
+
+### Added
+
+- Recognize Chutes as a provider.
+- Show skills alongside workflows in the slash command menu, and disambiguate commands that share a name instead of letting one shadow the other.
+
+### Changed
+
+- Remove model-initiated plan-to-act switching. Switching out of plan mode is now driven by you, not by the model deciding mid-turn.
+- Hard-block file-editing shell commands in plan mode instead of relying on prompting alone. Read-only investigation still works, but file manipulation, in-place editors, redirection to files, mutating git subcommands, and package installs are refused.
+
+### Fixed
+
+- Stop treating a turn that completes with a plan as a failed turn when a plan-blocked command was its only tool call. The turn no longer ends in the error state with a Retry footer, and toggling to Act correctly re-runs the presented plan instead of appearing to do nothing.
+- Show tool paths relative to the workspace in the chat view instead of absolute paths.
+- Reset pending attachments when starting a new task, so images from the previous task no longer carry over.
+- Surface a clear error when the selected provider has no API key configured, instead of a generic failure.
+- Refresh MCP tool and resource lists when a server sends a `list_changed` notification, instead of only showing a toast.
+- Show installed plugins under their real package names instead of all appearing as "index".
+- Correct the Linux keybinding label in the Plan/Act mode tooltip.
+- Recover from running out of context instead of failing with a raw provider error — the run compacts and retries once, and the cases that genuinely cannot be recovered explain why.
+- Retry empty model responses on every provider rather than only Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Stop Claude 4.6+ and 5.x models being rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id.
+- Restore Bedrock prompt caching, which reported zero cache reads and writes because the provider sent a cache format Bedrock discards, and route Bedrock foundation models through geo inference profiles.
+- Send `max_completion_tokens` for reasoning models on OpenAI-compatible endpoints, and substitute image content for models without image support instead of failing the request.
+- Inherit the MiniMax default model from models.dev, and refresh the bundled catalog, which adds Infomaniak and SCX.ai.
+- Report the same provider failure once instead of twice in error telemetry, and rate-limit repeated failures from unattended retry loops.
+
 ## [4.1.3]
 
 ### Fixed

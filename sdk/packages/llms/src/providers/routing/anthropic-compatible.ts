@@ -12,6 +12,7 @@ import {
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	modelRouteMatches,
+	resolveClaudeThinkingEra,
 	resolveModelFamily,
 } from "../model-facts";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
@@ -331,25 +332,32 @@ export function resolveAnthropicReasoningRequestPolicy(
 
 	const controls = getModelReasoningControls(context.model.reasoningOptions);
 	if (controls) {
-		if (!controls.effort && !controls.budget && !controls.toggle) {
-			return { kind: "none" };
+		// Models that advertise an effort control are adaptive-era. Their API
+		// rejects the manual wire shape (thinking.type "enabled") even when a
+		// budget_tokens control is also advertised, so a numeric request
+		// budget must not force manual thinking; the budget is ignored in
+		// favor of adaptive.
+		if (controls.effort) {
+			return { kind: "anthropic-adaptive" };
 		}
-		if (
-			typeof request.reasoning?.budgetTokens === "number" &&
-			controls.budget
-		) {
-			return { kind: "anthropic-manual" };
-		}
-		return controls.effort
-			? { kind: "anthropic-adaptive" }
-			: controls.budget || controls.toggle
-				? { kind: "anthropic-manual" }
-				: { kind: "none" };
+		return controls.budget || controls.toggle
+			? { kind: "anthropic-manual" }
+			: { kind: "none" };
 	}
 
-	// Custom/unlisted Claude-compatible models use the older manual-thinking
-	// wire shape instead of guessing adaptive-thinking support from their id.
-	return { kind: "anthropic-manual" };
+	// No catalog reasoning metadata: fall back to the id-based era policy
+	// (see resolveClaudeThinkingEra). 4.6+/5.x Claude ids require adaptive;
+	// unknown Claude ids default to adaptive for forward compatibility,
+	// matching @ai-sdk/anthropic's capability defaults — except when the
+	// request carries an explicit numeric budget, which signals a custom
+	// endpoint that expects the manual shape. Legacy Claude families and
+	// non-Claude Anthropic-compatible ids keep manual, the safe shape for
+	// third-party endpoints.
+	const era = resolveClaudeThinkingEra(request.modelId);
+	const hasExplicitBudget = typeof request.reasoning?.budgetTokens === "number";
+	return era === "adaptive" || (era === "unknown-claude" && !hasExplicitBudget)
+		? { kind: "anthropic-adaptive" }
+		: { kind: "anthropic-manual" };
 }
 
 export function buildAnthropicProviderOptions(
@@ -360,14 +368,29 @@ export function buildAnthropicProviderOptions(
 		request.reasoning?.enabled === false
 			? undefined
 			: request.reasoning?.budgetTokens;
-	const budgetTokens =
-		typeof explicitBudget === "number"
-			? resolveAnthropicManualBudget(request, context)
-			: undefined;
-	const thinking =
-		budgetTokens === undefined ? undefined : { type: "enabled", budgetTokens };
+
+	// Effort-only and enable/disable intent rides the portable top-level
+	// reasoning option, so only explicit-budget requests reach this wire
+	// shape. Adaptive-era models reject the manual shape (thinking.type
+	// "enabled") even for numeric budgets, so the request budget is ignored
+	// in favor of adaptive thinking there.
+	let thinking: Record<string, unknown> | undefined;
+	let effort: string | undefined;
+	if (typeof explicitBudget === "number") {
+		const policy = resolveAnthropicReasoningRequestPolicy(request, context);
+		if (policy.kind === "anthropic-adaptive") {
+			thinking = { type: "adaptive" };
+			effort = request.reasoning?.effort;
+		} else if (policy.kind === "anthropic-manual") {
+			const budgetTokens = resolveAnthropicManualBudget(request, context);
+			if (budgetTokens !== undefined) {
+				thinking = { type: "enabled", budgetTokens };
+			}
+		}
+	}
 
 	return {
+		...(effort ? { effort } : {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
 			? createEphemeralCacheControl()

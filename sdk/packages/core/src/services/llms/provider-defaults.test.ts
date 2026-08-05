@@ -314,8 +314,8 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toBeUndefined();
 	});
@@ -342,8 +342,8 @@ describe("resolveProviderConfig", () => {
 		});
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 	});
 
