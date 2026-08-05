@@ -243,7 +243,10 @@ export type AgentModelFinishReason =
  * runtime's recovery policy and telemetry (`error_class`). Extend with new
  * classes (auth, rate_limit, billing, ...) as consumers need them.
  */
-export type ProviderErrorClass = "context_window_exceeded" | "unknown";
+export type ProviderErrorClass =
+	| "context_window_exceeded"
+	| "stream_stalled"
+	| "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }

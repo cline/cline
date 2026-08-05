@@ -154,5 +154,13 @@ export async function createOllamaProviderModule(
 				model: provider.chat(modelId),
 				middleware: splitToolImagesMiddleware,
 			}),
+		// Local backends legitimately go silent for minutes (model load,
+		// prompt processing on CPU), so widen the central stall watchdog to
+		// the same allowance as the response-start timeout above. Explicit
+		// request/provider `timeoutMs` overrides still win.
+		stallTimeouts: {
+			firstChunkMs: OLLAMA_DEFAULT_TIMEOUT_MS,
+			chunkMs: OLLAMA_DEFAULT_TIMEOUT_MS,
+		},
 	};
 }
