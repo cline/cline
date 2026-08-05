@@ -3,6 +3,7 @@ import type { Message as SdkMessage } from "@cline/llms"
 import type { AgentEvent } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { CLINE_FREE_PROMOTION_ENDED_CODE } from "@/services/error/ClineError"
 import { getDesktopDir } from "@/utils/path"
 import {
 	buildToolApprovalAskMessage,
@@ -1602,6 +1603,84 @@ describe("translateSessionEvent — agent_event error", () => {
 		const failedText = result.messages[1].text!
 		expect(failedText).toBe(rawMessage)
 		expect(failedText).not.toContain("API Configuration settings")
+	})
+
+	it("stamps the free-promotion-ended code when a retired free model 404s", () => {
+		const state = new MessageTranslatorState(
+			undefined,
+			() => "cline",
+			undefined,
+			undefined,
+			() => "cline-free/glm-5.2",
+		)
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Error 404: model not found" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failed = JSON.parse(result.messages[1].text!)
+		expect(failed.code).toBe(CLINE_FREE_PROMOTION_ENDED_CODE)
+		expect(failed.modelId).toBe("cline-free/glm-5.2")
+		expect(failed.providerId).toBe("cline")
+	})
+
+	// A JSON 404 body carries status 404, which ClineError otherwise reads as an
+	// auth failure and renders as a "Retry" that can never succeed.
+	it("stamps the free-promotion-ended code for a structured 404 body", () => {
+		const state = new MessageTranslatorState(
+			undefined,
+			() => "cline-pass",
+			undefined,
+			undefined,
+			() => "cline-free/glm-5.2",
+		)
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: '{"code":"not_found","message":"model not found"}', status: 404 },
+				} as unknown as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failed = JSON.parse(result.messages[1].text!)
+		expect(failed.code).toBe(CLINE_FREE_PROMOTION_ENDED_CODE)
+		expect(failed.providerId).toBe("cline-pass")
+	})
+
+	it("leaves a retired paid model on the generic model-not-found path", () => {
+		const state = new MessageTranslatorState(
+			undefined,
+			() => "cline",
+			undefined,
+			undefined,
+			() => "zai/glm-5.2",
+		)
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Error 404: model not found" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failedText = result.messages[1].text!
+		expect(failedText).not.toContain(CLINE_FREE_PROMOTION_ENDED_CODE)
+		expect(failedText).toContain("API Configuration settings")
 	})
 })
 

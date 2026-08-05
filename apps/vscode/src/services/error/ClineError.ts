@@ -1,6 +1,7 @@
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineFreeModelLimitMessage,
+	isClineFreePromotionEndedMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitMessage,
@@ -18,7 +19,15 @@ export enum ClineErrorType {
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
 	ClineFreeModelLimit = "clineFreeModelLimit",
+	ClineFreePromotionEnded = "clineFreePromotionEnded",
 }
+
+/**
+ * Code stamped on the serialized error when a request targets a free model that
+ * Cline removed at the end of its promotion. The host stamps it because only the
+ * host knows which model the turn ran on; the webview only sees the payload.
+ */
+export const CLINE_FREE_PROMOTION_ENDED_CODE = "CLINE_FREE_PROMOTION_ENDED"
 
 interface ErrorDetails {
 	/**
@@ -164,6 +173,16 @@ export class ClineError extends Error {
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
 			return ClineErrorType.Balance
+		}
+
+		// A removed free model answers 404, which the auth branch below would
+		// otherwise claim, so this runs before every status-based check.
+		if (
+			code === CLINE_FREE_PROMOTION_ENDED_CODE ||
+			details?.code === CLINE_FREE_PROMOTION_ENDED_CODE ||
+			(rawMessage ? isClineFreePromotionEndedMessage(rawMessage, err.modelId) : false)
+		) {
+			return ClineErrorType.ClineFreePromotionEnded
 		}
 
 		// Check spend limit exceeded (org-enforced budget cap, 429 SPEND_LIMIT_EXCEEDED)

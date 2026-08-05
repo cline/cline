@@ -1,6 +1,6 @@
 import { describe, it } from "bun:test"
-import "should"
-import { ClineError, ClineErrorType } from "../ClineError"
+import should from "should"
+import { CLINE_FREE_PROMOTION_ENDED_CODE, ClineError, ClineErrorType } from "../ClineError"
 
 describe("ClineError", () => {
 	describe("getErrorType", () => {
@@ -70,6 +70,28 @@ describe("ClineError", () => {
 			)
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreeModelLimit)
+		})
+
+		it("should classify an ended free promotion from the host-stamped code", () => {
+			const err = new ClineError({
+				message: "Error 404: model not found",
+				code: CLINE_FREE_PROMOTION_ENDED_CODE,
+				status: 404,
+			})
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreePromotionEnded)
+		})
+
+		it("should classify an ended free promotion from a model-not-found error on a free model", () => {
+			const err = new ClineError({ message: "Error 404: model not found" }, "cline-free/glm-5.2", "cline")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreePromotionEnded)
+		})
+
+		it("should leave model-not-found errors for paid models on the generic path", () => {
+			const err = new ClineError({ message: "Error 404: model not found" }, "zai/glm-5.2", "cline")
+
+			should.not.exist(ClineError.getErrorType(err))
 		})
 	})
 })

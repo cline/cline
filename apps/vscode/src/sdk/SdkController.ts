@@ -298,6 +298,7 @@ export class Controller {
 			() => this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
 			() => this.lastKnownWorkspaceRoot,
+			() => this.getActiveModelId(),
 		)
 		// Warm the synchronous workspace-root snapshot used for display-path
 		// relativization (getWorkspaceRoot never rejects — it falls back internally).
@@ -1016,6 +1017,33 @@ export class Controller {
 		}
 		const modelId = activeSession?.startResult?.manifest?.model?.trim() || activeSession?.startConfig?.modelId?.trim()
 		return modelId && modelId !== "unknown" ? modelId : undefined
+	}
+
+	/**
+	 * Model the active turn is running on. Prefers what the session actually
+	 * started with, then the live task handler, and only then the configured
+	 * Cline model — the config fallback covers failures raised before a session
+	 * exists, where Cline-managed providers are the ones with model-specific UI.
+	 */
+	private getActiveModelId(): string | undefined {
+		try {
+			const runningModelId = this.getSessionModelId() ?? this.getTaskModelId()
+			if (runningModelId) {
+				return runningModelId
+			}
+			const provider = this.getActiveProviderId()
+			if (!isClineManagedProvider(provider)) {
+				return undefined
+			}
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+			if (provider === "cline-pass") {
+				return mode === "plan" ? apiConfig.planModeClinePassModelId : apiConfig.actModeClinePassModelId
+			}
+			return mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
+		} catch {
+			return undefined
+		}
 	}
 
 	private beginProviderFailureTelemetryTurn(): void {

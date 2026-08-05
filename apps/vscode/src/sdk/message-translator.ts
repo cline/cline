@@ -28,7 +28,7 @@
 
 import type { CoreSessionEvent } from "@cline/core"
 import { PATCH_MARKERS } from "@cline/core"
-import type { Message as SdkMessage } from "@cline/llms"
+import { isClineFreePromotionEndedMessage, type Message as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
@@ -45,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
+import { CLINE_FREE_PROMOTION_ENDED_CODE } from "@/services/error/ClineError"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
@@ -152,6 +153,7 @@ export class MessageTranslatorState {
 		private readonly getActiveProviderId?: () => string | undefined,
 		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
 		private readonly getCwd?: () => string | undefined,
+		private readonly getActiveModelId?: () => string | undefined,
 	) {
 		this.minter = minter
 	}
@@ -159,6 +161,11 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/** Model backing the active turn, used to explain model-specific failures. */
+	activeModelId(): string | undefined {
+		return this.getActiveModelId?.()
 	}
 
 	/**
@@ -1909,7 +1916,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// `code: "insufficient_credits"`). We try to reshape it into the
 			// ClineError-serialized format the webview expects so that ErrorRow
 			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId())
+			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces
@@ -2530,13 +2537,34 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
  * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
  * info from the error message when present and falling back to raw text.
  */
-export function reshapeErrorForWebview(error: { message?: string; status?: number; code?: string }, providerId?: string): string {
+export function reshapeErrorForWebview(
+	error: { message?: string; status?: number; code?: string },
+	providerId?: string,
+	modelId?: string,
+): string {
 	// The ClineError-JSON branches below are cline-provider flows (balance,
 	// spend limit), so "cline" stays their fallback id. The missing-credential
 	// message instead gets the raw value: defaulting there would name the wrong
 	// provider when the active provider id is unknown.
 	const clineErrorProviderId = providerId ?? "cline"
 	const rawMessage = error.message ?? "Unknown error"
+
+	// A retired free model 404s whether or not the body is JSON, and a bare 404
+	// would otherwise be classified as an auth failure (dead-end "Retry"), so
+	// this runs ahead of the JSON parse below.
+	if (isClineFreePromotionEndedMessage(rawMessage, modelId)) {
+		return JSON.stringify({
+			message: rawMessage,
+			code: CLINE_FREE_PROMOTION_ENDED_CODE,
+			providerId: clineErrorProviderId,
+			modelId,
+			details: {
+				code: CLINE_FREE_PROMOTION_ENDED_CODE,
+				message: rawMessage,
+				modelId,
+			},
+		})
+	}
 
 	// Try to extract structured error info from the error message.
 	// The SDK often wraps API error JSON in the Error.message field.
