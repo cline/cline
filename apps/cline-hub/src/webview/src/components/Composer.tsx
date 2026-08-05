@@ -62,8 +62,10 @@ type ProviderOption = Extract<
 >["providers"][number];
 
 function PromptAttachmentsDisplay({
+	disabled,
 	onRemoveFocusFallback,
 }: {
+	disabled: boolean;
 	onRemoveFocusFallback: () => void;
 }) {
 	const attachments = usePromptInputAttachments();
@@ -83,6 +85,7 @@ function PromptAttachmentsDisplay({
 						src: attachment.url,
 					}),
 				)}
+				disabled={disabled}
 				onRemove={attachments.remove}
 				onRemoveFocusFallback={onRemoveFocusFallback}
 				variant="inline"
@@ -423,6 +426,7 @@ export function Composer({
 			>
 				<PromptInputHeader>
 					<PromptAttachmentsDisplay
+						disabled={disabled || status.includes("Failed")}
 						onRemoveFocusFallback={() => textareaRef.current?.focus()}
 					/>
 				</PromptInputHeader>
