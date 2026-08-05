@@ -298,6 +298,9 @@ export class Controller {
 			() => this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
 			() => this.lastKnownWorkspaceRoot,
+			// Model backing the active turn — lets error reshaping recognize
+			// retired cline-free/ models (the error payload itself never names one).
+			() => this.getSessionModelId() ?? this.getTaskModelId(),
 		)
 		// Warm the synchronous workspace-root snapshot used for display-path
 		// relativization (getWorkspaceRoot never rejects — it falls back internally).
