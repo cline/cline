@@ -12,6 +12,7 @@ export enum ClineErrorType {
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
 	ClineFreeModelLimit = "clineFreeModelLimit",
+	ClineFreePromotionEnded = "clineFreePromotionEnded",
 }
 
 interface ErrorDetails {
@@ -126,6 +127,34 @@ export function extractClineFreeModelLimitResetTime(
 		.slice(resetStart + CLINE_FREE_MODEL_LIMIT_RETRY_MARKER.length)
 		.trim();
 	return resetTime || undefined;
+}
+
+// Once a free promotion ends the cline-free/ model is removed from the catalog
+// and the backend answers "model not found". Matches the shared CLINE_FREE_MODEL_ID_PREFIX
+// (src/shared/cline/free-models.ts), inlined here so the webview-shared error module
+// stays dependency-free.
+const CLINE_FREE_MODEL_PREFIX = "cline-free/";
+const CLINE_MODEL_NOT_FOUND_MARKER = "model not found";
+
+export function isClineModelNotFoundMessage(text: string): boolean {
+	return text.toLowerCase().includes(CLINE_MODEL_NOT_FOUND_MARKER);
+}
+
+/**
+ * Detects that a retired free model was requested: the backend answers
+ * "model not found" once a free promotion ends and the cline-free/ model is
+ * removed from the catalog. The modelId gate keeps regular model-not-found
+ * errors on their generic path. Mirrors the SDK extension (main) and the CLI's
+ * detection in apps/cli/src/utils/cline-pass-errors.ts.
+ */
+export function isClineFreePromotionEndedMessage(
+	message: string,
+	modelId?: string,
+): boolean {
+	if (!modelId?.startsWith(CLINE_FREE_MODEL_PREFIX)) {
+		return false;
+	}
+	return isClineModelNotFoundMessage(message);
 }
 
 export class ClineError extends Error {
@@ -294,6 +323,16 @@ export class ClineError extends Error {
 			isClinePassLimitMessage(message ?? "")
 		) {
 			return ClineErrorType.ClinePassLimit;
+		}
+
+		// Promo-ended must be classified before the auth branch: the backend's
+		// "model not found" answer for a retired cline-free/ model is a 404,
+		// which falls inside the generic 401-428 auth-status range below.
+		if (
+			isClineFreePromotionEndedMessage(detailMessage ?? "", err.modelId) ||
+			isClineFreePromotionEndedMessage(message ?? "", err.modelId)
+		) {
+			return ClineErrorType.ClineFreePromotionEnded;
 		}
 
 		// Check auth errors

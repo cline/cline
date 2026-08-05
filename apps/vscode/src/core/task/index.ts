@@ -2477,6 +2477,11 @@ export class Task {
 				const isClineFreeModelLimitError = clineError.isErrorType(
 					ClineErrorType.ClineFreeModelLimit,
 				);
+				// A retired free model (ended promotion) never comes back —
+				// retrying is pointless; surface the promotion-ended UI instead.
+				const isClineFreePromotionEndedError = clineError.isErrorType(
+					ClineErrorType.ClineFreePromotionEnded,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2506,6 +2511,7 @@ export class Task {
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
+					!isClineFreePromotionEndedError &&
 					this.taskState.autoRetryAttempts < 3;
 
 				// Mirror the SDK extension's provider-failure reporting: same

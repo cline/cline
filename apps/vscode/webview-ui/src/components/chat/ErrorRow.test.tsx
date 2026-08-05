@@ -6,6 +6,7 @@ import ErrorRow from "./ErrorRow";
 
 const mockSetUserOrganization = vi.hoisted(() => vi.fn());
 const mockUpdateApiConfigurationProto = vi.hoisted(() => vi.fn());
+const mockNavigateToSettingsModelPicker = vi.hoisted(() => vi.fn());
 const mockApiConfiguration = vi.hoisted(() => ({
 	planModeApiProvider: "cline-pass",
 	actModeApiProvider: "cline-pass",
@@ -55,6 +56,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		apiConfiguration: mockApiConfiguration,
 		mode: "act",
 		clineModels: mockClineModels,
+		navigateToSettingsModelPicker: mockNavigateToSettingsModelPicker,
 	}),
 }));
 
@@ -80,6 +82,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		OrgClinePassRestriction: "orgClinePassRestriction",
 		ClinePassLimit: "clinePassLimit",
 		ClineFreeModelLimit: "clineFreeModelLimit",
+		ClineFreePromotionEnded: "clineFreePromotionEnded",
 	},
 	extractClinePassLimitMessage: vi.fn((text: string) => text),
 	extractClineFreeModelLimitResetTime: vi.fn((text: string) => {
@@ -423,6 +426,52 @@ describe("ErrorRow", () => {
 			expect(
 				screen.queryByText(/Switch to Usage-Based billing/i),
 			).not.toBeInTheDocument();
+		});
+
+		it("renders the free promotion ended card with a model picker button", async () => {
+			const rawMessage = "Error 404: model not found";
+			const mockClineError = {
+				message: rawMessage,
+				isErrorType: vi.fn((type) => type === "clineFreePromotionEnded"),
+				providerId: "cline",
+				modelId: "cline-free/glm-5.2",
+				_error: { message: rawMessage },
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage={rawMessage}
+					errorType="error"
+					message={mockMessage}
+				/>,
+			);
+
+			expect(
+				screen.getByTestId("cline-free-promotion-ended-error"),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText("Free model promotion ended"),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText(
+					/The free promotion for this model has ended and it is no longer available/,
+				),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText(/Select another model to continue/),
+			).toBeInTheDocument();
+			expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
+
+			fireEvent.click(screen.getByText("Select a Model"));
+
+			expect(mockNavigateToSettingsModelPicker).toHaveBeenCalledWith({
+				targetSection: "api-config",
+			});
 		});
 
 		it("offers the paid twin of the selected free model", async () => {
