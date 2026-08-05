@@ -1871,6 +1871,23 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "error": {
+			// Recoverable errors are in-run notices, not turn outcomes: the
+			// MistakeTracker emits one for every recorded mistake (e.g.
+			// "1 tool call(s) failed: [run_commands] ..." when a plan-mode
+			// guard-blocked command was the turn's only tool call) and the run
+			// keeps going. Treating them as terminal put turns that afterwards
+			// completed cleanly into the "error" phase (Retry / Start New Task)
+			// and cleared the pending completion retag — which broke the
+			// plan→act toggle's auto-continue on a presented plan. The turn's
+			// outcome is decided by how it actually ends (done/error), so keep
+			// these out of the chat: any tool failure involved is already shown
+			// inline on its tool row, and provider-failure telemetry already
+			// ignores recoverable events for the same reason.
+			if (event.recoverable) {
+				Logger.warn(`[MessageTranslator] Recoverable agent error (run continues): ${event.error?.message ?? event.error}`)
+				break
+			}
+
 			finalizeDanglingCompaction(state, messages, "failed")
 			// An errored turn didn't end on its text response — no completion retag.
 			state.clearTurnFinalText()
@@ -1991,7 +2008,13 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			if (agentEvent.type === "done") {
 				result.turnComplete = true
 			}
-			if (agentEvent.type === "error" && !state.isSuppressedToolApprovalDenial(agentEvent.error)) {
+			// Recoverable errors don't end the turn — the run continues (see the
+			// translator's "error" case), so they must not resolve the turn phase.
+			if (
+				agentEvent.type === "error" &&
+				!agentEvent.recoverable &&
+				!state.isSuppressedToolApprovalDenial(agentEvent.error)
+			) {
 				result.turnComplete = true
 			}
 
