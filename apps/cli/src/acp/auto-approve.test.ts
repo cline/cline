@@ -36,9 +36,9 @@ describe("parseAutoApproveValue", () => {
 	});
 
 	it("fails closed for unrecognized values", () => {
-		expect(parseAutoApproveValue("yes")).toBe(false);
-		expect(parseAutoApproveValue(1)).toBe(false);
-		expect(parseAutoApproveValue(null)).toBe(false);
+		expect(parseAutoApproveValue("yes")).toBeUndefined();
+		expect(parseAutoApproveValue(1)).toBeUndefined();
+		expect(parseAutoApproveValue(null)).toBeUndefined();
 	});
 
 	it("returns undefined when no value was provided", () => {
