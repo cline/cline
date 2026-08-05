@@ -54,6 +54,7 @@ test-results
 
 # Smoke test results (generated)
 evals/smoke-tests/results/
+evals/harness-stress/results/
 
 .tui-test
 secrets.json

@@ -3,7 +3,12 @@
 	"version": "2.0.0",
 	"description": "Evaluation framework for Cline: smoke tests, analysis, and benchmarks",
 	"scripts": {
-		"analysis": "cd analysis && npm start --"
+		"analysis": "cd analysis && npm start --",
+		"harness:matrix": "bun harness-stress/src/matrix.ts",
+		"harness:provider-smoke": "bun harness-stress/src/provider-smoke.ts",
+		"harness:serve": "node harness-stress/src/cli.mjs",
+		"harness:smoke": "node harness-stress/src/smoke.mjs",
+		"harness:test": "node --test harness-stress/test/*.test.mjs"
 	},
 	"license": "MIT",
 	"dependencies": {
