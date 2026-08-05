@@ -127,6 +127,10 @@ export function clineEnv(
 		CLINE_DISABLE_CLINE_PASS_NOTICE: "1",
 		NO_UPDATE_NOTIFIER: "1",
 		CLINE_NO_AUTO_UPDATE: "1",
+		// Keep e2e sessions deterministic: don't seed CLI-bundled plugins
+		// (e.g. goal) into the isolated cline dir. Tests that cover bundled
+		// plugins can override via `extra`.
+		CLINE_BUNDLED_PLUGINS: "0",
 		...extra,
 	};
 }
