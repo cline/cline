@@ -288,27 +288,29 @@ describe("RealtimeVoiceOverlay", () => {
 			await Promise.resolve();
 		});
 
-		const hideButton = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Hide realtime voice"]',
-		);
-		await act(async () => hideButton?.click());
-		expect(
-			container.querySelector('[aria-label="Realtime voice transcript"]'),
-		).toBeNull();
-		expect(mocks.disconnect).not.toHaveBeenCalled();
-		expect(onOpenChange).not.toHaveBeenCalled();
-
 		const trigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Stop realtime voice"]',
+			'[aria-label="Realtime voice active"]',
 		);
+		const transcript = container.querySelector(
+			'[aria-label="Realtime voice transcript"]',
+		);
+		const panel = transcript?.parentElement;
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(trigger?.querySelector(".lucide-circle-stop")).toBeNull();
 		await act(async () => {
 			trigger?.parentElement?.dispatchEvent(
 				new MouseEvent("mouseover", { bubbles: true }),
 			);
 		});
-		expect(
-			container.querySelector('[aria-label="Realtime voice transcript"]'),
-		).not.toBeNull();
+		expect(panel?.getAttribute("aria-hidden")).toBe("false");
+
+		const hideButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Hide realtime voice"]',
+		);
+		await act(async () => hideButton?.click());
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(mocks.disconnect).not.toHaveBeenCalled();
+		expect(onOpenChange).not.toHaveBeenCalled();
 	});
 
 	it("starts listening silently when the chat already has history", async () => {
@@ -338,7 +340,8 @@ describe("RealtimeVoiceOverlay", () => {
 		expect(mocks.startAudioCapture).toHaveBeenCalledOnce();
 		expect(container.textContent).not.toContain("Studio Microphone");
 		expect(
-			container.querySelector('[aria-label="Stop realtime voice"]')?.className,
+			container.querySelector('[aria-label="Realtime voice active"]')
+				?.className,
 		).toContain("animate-");
 	});
 
@@ -881,6 +884,50 @@ describe("RealtimeVoiceOverlay", () => {
 		});
 
 		expect(mocks.cancelResponse).toHaveBeenCalledOnce();
+	});
+
+	it("waits for active playback before dispatching the next Cline turn", async () => {
+		const bridge = makeBridge();
+		const props = {
+			bridge,
+			onConfigure: vi.fn(),
+			onOpenChange: vi.fn(),
+			open: true,
+			target: grokFallbackTarget,
+		};
+		await act(async () => {
+			root.render(<RealtimeVoiceOverlay {...props} />);
+			await Promise.resolve();
+		});
+
+		act(() => {
+			mocks.onEvent?.({
+				type: "input-transcription-completed",
+				itemId: "turn-before-playback",
+				transcript: "First request",
+				raw: {},
+			});
+		});
+		await vi.waitFor(() => expect(bridge.sendPrompt).toHaveBeenCalledOnce());
+
+		mocks.realtimeState.isPlaying = true;
+		await act(async () => root.render(<RealtimeVoiceOverlay {...props} />));
+		act(() => {
+			mocks.onEvent?.({
+				type: "input-transcription-completed",
+				itemId: "turn-during-playback",
+				transcript: "Second request",
+				raw: {},
+			});
+		});
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(bridge.sendPrompt).toHaveBeenCalledOnce();
+
+		mocks.realtimeState.isPlaying = false;
+		await act(async () => root.render(<RealtimeVoiceOverlay {...props} />));
+		await vi.waitFor(() =>
+			expect(bridge.sendPrompt).toHaveBeenNthCalledWith(2, "Second request"),
+		);
 	});
 
 	it("consumes transcript-fallback turns after React development effect replay", async () => {

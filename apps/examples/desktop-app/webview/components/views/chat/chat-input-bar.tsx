@@ -3,7 +3,7 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
-	ArrowUp,
+	ArrowRight,
 	CircleStop,
 	Cpu,
 	Paperclip,
@@ -392,7 +392,6 @@ export function ChatInputBar({
 		useState<RealtimeVoiceModelTarget | null>(null);
 	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
 	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
-	const [speechInputActive, setSpeechInputActive] = useState(false);
 	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
@@ -1080,56 +1079,52 @@ export function ChatInputBar({
 							value={promptInput}
 						/>
 						<div className="flex shrink-0 items-center gap-1">
-							<RealtimeVoiceOverlay
-								bridge={realtimeBridge}
-								onConfigure={() => onOpenRealtimeVoiceSettings?.()}
-								onOpenChange={setRealtimeVoiceOpen}
-								open={realtimeVoiceOpen}
-								target={realtimeVoiceTarget}
+							<SpeechInput
+								allowUnavailableClick={!transcriptionTarget}
+								key={
+									transcriptionTarget
+										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
+										: "unconfigured"
+								}
+								onAudioRecorded={handleAudioRecorded}
+								onClick={(event) => {
+									if (!transcriptionTarget) {
+										event.preventDefault();
+										onOpenVoiceInputSettings?.();
+									}
+								}}
+								onError={handleSpeechInputError}
+								onProcessingChange={setSpeechInputProcessing}
+								onStartStreaming={
+									transcriptionTarget?.supportsStreaming
+										? handleStartStreamingTranscription
+										: undefined
+								}
+								onStreamingEnd={handleStreamingTranscriptionEnd}
+								onStreamingStart={handleStreamingTranscriptionStart}
+								onTranscriptionChange={
+									transcriptionTarget?.supportsStreaming
+										? undefined
+										: handleTranscriptionChange
+								}
+								recordingMode={
+									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
+								}
+								title={
+									transcriptionTarget
+										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
+										: "Configure voice input in Settings → Models"
+								}
 							/>
-							{(!hasDraft || speechInputActive) && (
-								<SpeechInput
-									allowUnavailableClick={!transcriptionTarget}
-									key={
-										transcriptionTarget
-											? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
-											: "unconfigured"
-									}
-									onActiveChange={setSpeechInputActive}
-									onAudioRecorded={handleAudioRecorded}
-									onClick={(event) => {
-										if (!transcriptionTarget) {
-											event.preventDefault();
-											onOpenVoiceInputSettings?.();
-										}
-									}}
-									onError={handleSpeechInputError}
-									onProcessingChange={setSpeechInputProcessing}
-									onStartStreaming={
-										transcriptionTarget?.supportsStreaming
-											? handleStartStreamingTranscription
-											: undefined
-									}
-									onStreamingEnd={handleStreamingTranscriptionEnd}
-									onStreamingStart={handleStreamingTranscriptionStart}
-									onTranscriptionChange={
-										transcriptionTarget?.supportsStreaming
-											? undefined
-											: handleTranscriptionChange
-									}
-									recordingMode={
-										transcriptionTarget?.supportsStreaming
-											? "streaming"
-											: "auto"
-									}
-									title={
-										transcriptionTarget
-											? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
-											: "Configure voice input in Settings → Models"
-									}
+							{realtimeVoiceOpen || (!canAbort && !hasDraft) ? (
+								<RealtimeVoiceOverlay
+									bridge={realtimeBridge}
+									onConfigure={() => onOpenRealtimeVoiceSettings?.()}
+									onOpenChange={setRealtimeVoiceOpen}
+									open={realtimeVoiceOpen}
+									target={realtimeVoiceTarget}
 								/>
-							)}
-							{canAbort ? (
+							) : canAbort ? (
 								<button
 									aria-label="Stop agent"
 									className={cn(
@@ -1143,22 +1138,20 @@ export function ChatInputBar({
 								>
 									<CircleStop className="size-2" />
 								</button>
-							) : canSend ? (
+							) : (
 								<button
 									aria-label="Send message"
 									className={cn(
-										"inline-grid size-7 shrink-0 place-items-center p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
+										"inline-grid size-7 shrink-0 place-items-center bg-transparent p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50",
+										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
 									type="button"
 								>
-									<ArrowUp className="size-2" />
+									<ArrowRight className="size-4" />
 								</button>
-							) : null}
+							)}
 						</div>
 					</div>
 				</div>

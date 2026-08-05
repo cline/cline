@@ -45,7 +45,7 @@ describe("desktop tray", () => {
 		mocks.isTauriAvailable = true;
 		let eventHandler: MenuEventHandler | undefined;
 		const pendingBatches: unknown[][] = [
-			["new-session", "unexpected"],
+			["new-session", "open-settings", "unexpected"],
 			["open-settings"],
 		];
 		mocks.listen.mockImplementation(
@@ -72,13 +72,17 @@ describe("desktop tray", () => {
 			),
 		);
 		await vi.waitFor(() =>
-			expect(onAction.mock.calls).toEqual([["new-session"]]),
+			expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]),
 		);
 
 		eventHandler?.({ payload: undefined });
 
 		await vi.waitFor(() =>
-			expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]),
+			expect(onAction.mock.calls).toEqual([
+				["new-session"],
+				["open-settings"],
+				["open-settings"],
+			]),
 		);
 		unsubscribe();
 		expect(mocks.unlisten).toHaveBeenCalledOnce();

@@ -14,12 +14,12 @@ import type {
 import {
 	AudioWaveform,
 	CircleStop,
-	Loader2,
 	Minus,
 	Settings2,
 	Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatedOrb } from "@/components/animated-orb";
 import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -141,7 +141,7 @@ function ConfiguredRealtimeVoiceOverlay({
 		target;
 	const [tokenEndpoint, setTokenEndpoint] = useState("");
 	const [starting, setStarting] = useState(false);
-	const [panelVisible, setPanelVisible] = useState(true);
+	const [panelVisible, setPanelVisible] = useState(false);
 	const [processingTurn, setProcessingTurn] = useState(false);
 	const [queuedTurnCount, setQueuedTurnCount] = useState(0);
 	const [lastError, setLastError] = useState<string | null>(null);
@@ -150,7 +150,10 @@ function ConfiguredRealtimeVoiceOverlay({
 	const [microphone, setMicrophone] = useState<RealtimeMicrophone | null>(null);
 	const [microphoneMuted, setMicrophoneMuted] = useState(false);
 	const [hearingSpeech, setHearingSpeech] = useState(false);
+	const [voiceIntensity, setVoiceIntensity] = useState(0);
 	const streamRef = useRef<MediaStream | null>(null);
+	const voiceMeterContextRef = useRef<AudioContext | null>(null);
+	const voiceMeterFrameRef = useRef<number | null>(null);
 	const captureStartedRef = useRef(false);
 	const microphoneMutedRef = useRef(false);
 	const speechInProgressRef = useRef(false);
@@ -158,6 +161,7 @@ function ConfiguredRealtimeVoiceOverlay({
 	const discardedVoiceItemsRef = useRef(new Set<string>());
 	const voiceActiveRef = useRef(false);
 	const failedRef = useRef(false);
+	const playbackActiveRef = useRef(false);
 	const readyCueRequestedRef = useRef(false);
 	const previousStatusRef = useRef<string | null>(null);
 	const autoStartAttemptedRef = useRef(false);
@@ -216,6 +220,52 @@ function ConfiguredRealtimeVoiceOverlay({
 		viewport.scrollTop = viewport.scrollHeight;
 	}, [latestTranscriptMessage]);
 
+	const stopVoiceMeter = useCallback(() => {
+		if (voiceMeterFrameRef.current !== null) {
+			window.cancelAnimationFrame(voiceMeterFrameRef.current);
+			voiceMeterFrameRef.current = null;
+		}
+		const context = voiceMeterContextRef.current;
+		voiceMeterContextRef.current = null;
+		if (context && context.state !== "closed") void context.close();
+		if (mountedRef.current) setVoiceIntensity(0);
+	}, []);
+
+	const startVoiceMeter = useCallback(
+		(stream: MediaStream) => {
+			stopVoiceMeter();
+			if (!("AudioContext" in window)) return;
+
+			const context = new AudioContext();
+			const analyser = context.createAnalyser();
+			analyser.fftSize = 256;
+			analyser.smoothingTimeConstant = 0.72;
+			context.createMediaStreamSource(stream).connect(analyser);
+			voiceMeterContextRef.current = context;
+			const samples = new Uint8Array(analyser.fftSize);
+			let smoothedIntensity = 0;
+
+			const measure = () => {
+				analyser.getByteTimeDomainData(samples);
+				let sumOfSquares = 0;
+				for (const sample of samples) {
+					const amplitude = (sample - 128) / 128;
+					sumOfSquares += amplitude * amplitude;
+				}
+				const rms = Math.sqrt(sumOfSquares / samples.length);
+				const measuredIntensity = microphoneMutedRef.current
+					? 0
+					: Math.min(1, Math.max(0, (rms - 0.015) * 9));
+				smoothedIntensity += (measuredIntensity - smoothedIntensity) * 0.3;
+				setVoiceIntensity(smoothedIntensity);
+				voiceMeterFrameRef.current = window.requestAnimationFrame(measure);
+			};
+
+			voiceMeterFrameRef.current = window.requestAnimationFrame(measure);
+		},
+		[stopVoiceMeter],
+	);
+
 	const stopMedia = useCallback(() => {
 		captureStartedRef.current = false;
 		microphoneMutedRef.current = false;
@@ -225,6 +275,7 @@ function ConfiguredRealtimeVoiceOverlay({
 		actionsRef.current.stopAudioCapture();
 		actionsRef.current.stopPlayback();
 		actionsRef.current.disconnect();
+		stopVoiceMeter();
 		for (const track of streamRef.current?.getTracks() ?? []) {
 			track.stop();
 		}
@@ -236,7 +287,7 @@ function ConfiguredRealtimeVoiceOverlay({
 				current ? { ...current, state: "ended" } : current,
 			);
 		}
-	}, []);
+	}, [stopVoiceMeter]);
 
 	const handleError = useCallback(
 		(error: Error) => {
@@ -451,6 +502,9 @@ function ConfiguredRealtimeVoiceOverlay({
 			setLastError(null);
 			let currentBridge = bridgeRef.current;
 			try {
+				while (mountedRef.current && playbackActiveRef.current) {
+					await delay(BRIDGE_READY_POLL_MS);
+				}
 				while (
 					mountedRef.current &&
 					currentBridge &&
@@ -573,21 +627,21 @@ function ConfiguredRealtimeVoiceOverlay({
 	const handleEvent = useCallback(
 		(event: Experimental_RealtimeServerEvent) => {
 			if (failedRef.current) return;
-			if (
-				supportsTools &&
-				event.type === "speech-started" &&
-				event.itemId !== realtimeTurnToolStateRef.current.itemId
-			) {
-				realtimeTurnToolStateRef.current = {
-					itemId: event.itemId,
-					toolCallId: null,
-				};
-			}
 			if (event.type === "speech-started") {
-				activeSpeechItemRef.current = event.itemId;
+				const itemId = event.itemId ?? null;
+				if (
+					supportsTools &&
+					itemId !== realtimeTurnToolStateRef.current.itemId
+				) {
+					realtimeTurnToolStateRef.current = {
+						itemId,
+						toolCallId: null,
+					};
+				}
+				activeSpeechItemRef.current = itemId;
 				speechInProgressRef.current = true;
-				if (microphoneMutedRef.current) {
-					discardedVoiceItemsRef.current.add(event.itemId);
+				if (microphoneMutedRef.current && itemId) {
+					discardedVoiceItemsRef.current.add(itemId);
 				}
 				setHearingSpeech(!microphoneMutedRef.current);
 			} else if (
@@ -753,6 +807,7 @@ function ConfiguredRealtimeVoiceOverlay({
 		onEvent: handleEvent,
 		onToolCall: handleRealtimeToolCall,
 	});
+	playbackActiveRef.current = isPlaying;
 	actionsRef.current = {
 		cancelResponse,
 		disconnect,
@@ -812,6 +867,9 @@ function ConfiguredRealtimeVoiceOverlay({
 				setProcessingTurn(true);
 				setLastError(null);
 				let currentBridge = bridgeRef.current;
+				while (mountedRef.current && playbackActiveRef.current) {
+					await delay(BRIDGE_READY_POLL_MS);
+				}
 				while (
 					mountedRef.current &&
 					currentBridge &&
@@ -1010,6 +1068,7 @@ function ConfiguredRealtimeVoiceOverlay({
 				},
 			});
 			streamRef.current = stream;
+			startVoiceMeter(stream);
 			const track = stream.getAudioTracks()[0];
 			if (!track) {
 				throw new Error("No microphone input track was returned.");
@@ -1069,7 +1128,15 @@ function ConfiguredRealtimeVoiceOverlay({
 		} finally {
 			setStarting(false);
 		}
-	}, [connect, handleError, modelId, providerId, starting, tokenEndpoint]);
+	}, [
+		connect,
+		handleError,
+		modelId,
+		providerId,
+		startVoiceMeter,
+		starting,
+		tokenEndpoint,
+	]);
 
 	useEffect(() => {
 		if (
@@ -1161,101 +1228,108 @@ function ConfiguredRealtimeVoiceOverlay({
 			}}
 			onMouseLeave={() => setPanelVisible(false)}
 		>
-			{panelVisible ? (
-				<div
-					aria-live="polite"
-					className="absolute bottom-full right-0 z-[70] mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl"
-				>
-					<div className="flex items-start gap-2 border-b border-border px-3 py-3">
-						<button
-							aria-label="Configure realtime voice"
-							className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							onClick={() => {
-								stop();
-								onOpenChange(false);
-								onConfigure();
-							}}
-							type="button"
-						>
-							<Settings2 className="size-3.5" />
-						</button>
-						<div className="min-w-0 flex-1">
-							<div className="truncate text-sm font-semibold" title={modelName}>
-								{modelName}
-							</div>
-							<div className="mt-0.5 truncate text-xs text-muted-foreground">
-								{providerName}
-							</div>
-						</div>
-						<button
-							aria-label="Hide realtime voice"
-							className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							onClick={() => setPanelVisible(false)}
-							title="Hide realtime voice panel"
-							type="button"
-						>
-							<Minus className="size-3.5" />
-						</button>
-					</div>
-					<div
-						aria-label="Realtime voice transcript"
-						className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
-						onWheel={(event) => event.stopPropagation()}
-						ref={transcriptViewportRef}
-						role="log"
+			<div
+				aria-hidden={!panelVisible}
+				aria-live="polite"
+				className={cn(
+					"absolute bottom-full right-0 z-70 mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl transition-[opacity,visibility] duration-150",
+					panelVisible
+						? "visible opacity-100"
+						: "pointer-events-none invisible opacity-0",
+				)}
+				inert={!panelVisible ? true : undefined}
+			>
+				<div className="flex items-start gap-2 border-b border-border px-3 py-3">
+					<button
+						aria-label="Configure realtime voice"
+						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onClick={() => {
+							stop();
+							onOpenChange(false);
+							onConfigure();
+						}}
+						type="button"
 					>
-						{transcript.length > 0 ? (
-							transcript.map((message) => (
-								<div className="grid gap-0.5" key={message.id}>
-									<span
-										className={cn(
-											"font-medium text-muted-foreground",
-											message.role === "error" && "text-destructive",
-										)}
-									>
-										{message.role === "user"
-											? "You"
-											: message.role === "assistant"
-												? "Cline"
-												: "Error"}
-									</span>
-									<p
-										className={cn(
-											"whitespace-pre-wrap leading-relaxed",
-											message.role === "error" && "text-destructive",
-										)}
-									>
-										{message.text}
-									</p>
-								</div>
-							))
-						) : (
-							<p className="text-muted-foreground">
-								{status === "connected"
-									? "Speak to the same Cline agent as this chat."
-									: "Preparing the secure realtime connection…"}
-							</p>
-						)}
-					</div>
-					<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
-						<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
-							<div
-								className={cn(
-									"size-2 shrink-0 rounded-full",
-									lastError
-										? "bg-destructive"
-										: needsAttention
-											? "animate-pulse bg-amber-500"
-											: isPlaying
-												? "animate-pulse bg-primary"
-												: status === "connected"
-													? "animate-pulse bg-emerald-500"
-													: "animate-pulse bg-amber-500",
-								)}
-							/>
-							{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
-							<span className="truncate">{statusLabel}</span>
+						<Settings2 className="size-3.5" />
+					</button>
+					<div className="min-w-0 flex-1">
+						<div className="truncate text-sm font-semibold" title={modelName}>
+							{modelName}
 						</div>
+						<div className="mt-0.5 truncate text-xs text-muted-foreground">
+							{providerName}
+						</div>
+					</div>
+					<button
+						aria-label="Hide realtime voice"
+						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onClick={() => setPanelVisible(false)}
+						title="Hide realtime voice panel"
+						type="button"
+					>
+						<Minus className="size-3.5" />
+					</button>
+				</div>
+				<div
+					aria-label="Realtime voice transcript"
+					className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
+					onWheel={(event) => event.stopPropagation()}
+					ref={transcriptViewportRef}
+					role="log"
+				>
+					{transcript.length > 0 ? (
+						transcript.map((message) => (
+							<div className="grid gap-0.5" key={message.id}>
+								<span
+									className={cn(
+										"font-medium text-muted-foreground",
+										message.role === "error" && "text-destructive",
+									)}
+								>
+									{message.role === "user"
+										? "You"
+										: message.role === "assistant"
+											? "Cline"
+											: "Error"}
+								</span>
+								<p
+									className={cn(
+										"whitespace-pre-wrap leading-relaxed",
+										message.role === "error" && "text-destructive",
+									)}
+								>
+									{message.text}
+								</p>
+							</div>
+						))
+					) : (
+						<p className="text-muted-foreground">
+							{status === "connected"
+								? "Speak to the same Cline agent as this chat."
+								: "Preparing the secure realtime connection…"}
+						</p>
+					)}
+				</div>
+				<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
+					<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+						<div
+							className={cn(
+								"size-2 shrink-0 rounded-full",
+								lastError
+									? "bg-destructive"
+									: needsAttention
+										? "animate-pulse bg-amber-500"
+										: isPlaying
+											? "animate-pulse bg-primary"
+											: status === "connected"
+												? "animate-pulse bg-emerald-500"
+												: "animate-pulse bg-amber-500",
+							)}
+						/>
+						{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
+						<span className="truncate">{statusLabel}</span>
+					</div>
+					<div className="ml-auto flex items-center gap-1.5">
 						{active && microphone ? (
 							<button
 								aria-label={
@@ -1265,7 +1339,6 @@ function ConfiguredRealtimeVoiceOverlay({
 								}
 								aria-pressed={microphoneMuted}
 								className={cn(
-									"ml-auto",
 									"inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
 									microphoneMuted &&
 										"border-destructive/40 bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
@@ -1279,38 +1352,45 @@ function ConfiguredRealtimeVoiceOverlay({
 								{microphoneMuted ? "Unmute" : "Mute"}
 							</button>
 						) : null}
+						<button
+							aria-label="Stop realtime voice"
+							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 text-xs text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+							onClick={() => {
+								stop();
+								onOpenChange(false);
+							}}
+							type="button"
+						>
+							<CircleStop className="size-3.5" />
+							Stop
+						</button>
 					</div>
 				</div>
-			) : null}
+			</div>
 			<button
-				aria-label={active ? "Stop realtime voice" : "Start realtime voice"}
+				aria-label={active ? "Realtime voice active" : "Start realtime voice"}
 				aria-pressed={active}
 				className={cn(
 					"group relative flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50",
-					active && "bg-primary text-primary-foreground hover:bg-primary/90",
+					active && "hover:bg-transparent",
 					status === "connected" &&
 						!isPlaying &&
 						"animate-[pulse_1.8s_ease-in-out_infinite]",
 				)}
 				disabled={!tokenEndpoint}
 				onClick={() => {
-					if (active) {
-						stop();
-						onOpenChange(false);
-					} else {
-						void start();
-					}
+					if (!active) void start();
 				}}
-				title={active ? "Stop realtime voice" : "Start realtime voice"}
+				onFocus={() => {
+					if (active) setPanelVisible(true);
+				}}
+				title={active ? "Realtime voice active" : "Start realtime voice"}
 				type="button"
 			>
-				{starting || status === "connecting" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : active ? (
-					<>
-						<AudioWaveform className="size-4 group-hover:hidden" />
-						<CircleStop className="hidden size-4 group-hover:block" />
-					</>
+				{active ? (
+					<AnimatedOrb
+						intensity={Math.max(voiceIntensity, hearingSpeech ? 0.35 : 0)}
+					/>
 				) : (
 					<AudioWaveform className="size-4" />
 				)}

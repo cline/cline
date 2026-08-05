@@ -254,6 +254,24 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.className).toContain("overflow-y-auto");
 		expect(promptInput?.style.minHeight).toBe("2.5rem");
 		expect(promptInput?.style.maxHeight).toBe("6.25rem");
+		const emptySpeechTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		const emptyRealtimeTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Configure realtime voice"]',
+		);
+		expect(emptySpeechTrigger).not.toBeNull();
+		expect(emptyRealtimeTrigger).not.toBeNull();
+		expect(promptInput?.parentElement?.contains(emptySpeechTrigger)).toBe(true);
+		expect(promptInput?.parentElement?.contains(emptyRealtimeTrigger)).toBe(
+			true,
+		);
+		expect(
+			emptyRealtimeTrigger?.querySelector(".lucide-audio-waveform"),
+		).not.toBeNull();
+		await act(async () => emptyRealtimeTrigger?.click());
+		expect(onOpenRealtimeVoiceSettings).toHaveBeenCalledOnce();
+		expect(onOpenVoiceInputSettings).not.toHaveBeenCalled();
 
 		await act(async () => {
 			if (!promptInput) return;
@@ -265,6 +283,15 @@ describe("ChatInputBar", () => {
 			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		expect(promptInput?.rows).toBe(2);
+		expect(
+			container.querySelector('[aria-label="Record speech"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Send message"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Configure realtime voice"]'),
+		).toBeNull();
 
 		await render("starting");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
@@ -303,21 +330,17 @@ describe("ChatInputBar", () => {
 		expect(promptControls?.className).toContain("items-end");
 		expect(sendTrigger).toBeNull();
 		expect(promptControls?.contains(stopTrigger ?? null)).toBe(true);
-		expect(promptControls?.contains(realtimeTrigger ?? null)).toBe(true);
-		expect(speechTrigger).toBeNull();
+		expect(realtimeTrigger).toBeNull();
+		expect(promptControls?.contains(speechTrigger ?? null)).toBe(true);
 		expect(stopTrigger?.parentElement?.lastElementChild).toBe(stopTrigger);
 		expect(stopTrigger?.parentElement?.className).toContain("gap-1");
 		expect(stopTrigger?.className).toContain("size-7");
 		expect(stopTrigger?.className).toContain("place-items-center");
 		expect(rightControls?.contains(sendTrigger ?? null)).toBe(false);
-		expect(
-			realtimeTrigger?.querySelector(".lucide-audio-waveform"),
-		).not.toBeNull();
-		expect(realtimeTrigger?.nextElementSibling).toBe(stopTrigger);
+		expect(stopTrigger?.parentElement?.contains(speechTrigger ?? null)).toBe(
+			true,
+		);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
-		await act(async () => realtimeTrigger?.click());
-		expect(onOpenRealtimeVoiceSettings).toHaveBeenCalledOnce();
-		expect(onOpenVoiceInputSettings).not.toHaveBeenCalled();
 	});
 
 	it("selects High with the supported model thinking slider", async () => {

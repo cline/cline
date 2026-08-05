@@ -5,7 +5,9 @@ import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 export const DESKTOP_MENU_ACTION_PENDING_EVENT = "desktop-menu-action-pending";
 const TRAY_STATUS_REFRESH_INTERVAL_MS = 5_000;
 
-export type DesktopMenuAction = "new-session" | "open-settings";
+export type DesktopMenuAction =
+	| "new-session"
+	| "open-settings";
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
@@ -15,7 +17,10 @@ type ProcessContext = {
 };
 
 function isDesktopMenuAction(value: unknown): value is DesktopMenuAction {
-	return value === "new-session" || value === "open-settings";
+	return (
+		value === "new-session" ||
+		value === "open-settings"
+	);
 }
 
 export function subscribeToDesktopMenuActions(
