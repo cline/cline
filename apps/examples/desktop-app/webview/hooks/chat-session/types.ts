@@ -26,6 +26,8 @@ export type ChatUsageEvent = {
 	inputTokens?: number;
 	/** Tokens produced by the latest model request. */
 	outputTokens?: number;
+	/** Input tokens served from the provider's prompt cache. */
+	cacheReadTokens?: number;
 	/** Cost of the latest model request. */
 	cost?: number;
 };

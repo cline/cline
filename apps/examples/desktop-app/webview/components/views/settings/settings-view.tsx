@@ -12,7 +12,10 @@ import {
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
-import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
+import {
+	invalidateProviderCatalogCache,
+	publishProviderModels,
+} from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -276,6 +279,7 @@ export function SettingsView({
 							: provider,
 					),
 				);
+				publishProviderModels(id, payload.models);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setModelsErrorByProvider((prev) => ({ ...prev, [id]: message }));
@@ -284,6 +288,26 @@ export function SettingsView({
 			}
 		},
 		[setProvidersWithCache],
+	);
+
+	const updateProviderModels = useCallback(
+		async (id: string, models: string[]) => {
+			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
+			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
+			try {
+				await desktopClient.invoke("update_provider_models", {
+					provider: id,
+					models,
+				});
+				await loadProviderModels(id);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setModelsErrorByProvider((prev) => ({ ...prev, [id]: message }));
+			} finally {
+				setModelsLoadingByProvider((prev) => ({ ...prev, [id]: false }));
+			}
+		},
+		[loadProviderModels],
 	);
 
 	const selectedProvider = selectedProviderId
@@ -331,17 +355,11 @@ export function SettingsView({
 		if (!selectedProviderId) {
 			return;
 		}
-		const selected = providers.find(
-			(provider) => provider.id === selectedProviderId,
-		);
-		if (!selected || (selected.modelList?.length ?? 0) > 0) {
-			return;
-		}
 		const timeoutId = window.setTimeout(() => {
 			void loadProviderModels(selectedProviderId);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [loadProviderModels, providers, selectedProviderId]);
+	}, [loadProviderModels, selectedProviderId]);
 
 	const backToProviderList = () => {
 		onNavigateSection("Models");
@@ -410,6 +428,9 @@ export function SettingsView({
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
 					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onUpdateModels={(models) =>
+						void updateProviderModels(selectedProvider.id, models)
+					}
 					onOAuthLogin={
 						usesOAuth(selectedProvider)
 							? () => void runOAuthProviderLogin(selectedProvider.id)

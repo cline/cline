@@ -479,6 +479,10 @@ export async function updateLocalProvider(
 	let existingEntry = modelsState.providers[providerId];
 	if (!existingEntry) {
 		const existingSettings = manager.getProviderSettings(providerId);
+		const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
+			providerId
+		] as LlmsModels.ModelCollection | undefined;
+		const registeredProvider = registeredCollection?.provider;
 		if (!existingSettings) {
 			throw new Error(`provider "${providerId}" does not exist`);
 		}
@@ -495,13 +499,21 @@ export async function updateLocalProvider(
 		// Ephemeral seed for the existing update path; final state is computed and written below.
 		existingEntry = {
 			provider: {
-				name: request.name?.trim() || titleCaseFromId(providerId),
+				name:
+					request.name?.trim() ||
+					registeredProvider?.name ||
+					titleCaseFromId(providerId),
 				baseUrl:
-					request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
-				defaultModelId: seedModelId,
-				protocol: existingSettings.protocol,
-				client: existingSettings.client,
-				capabilities: existingSettings.capabilities,
+					request.baseUrl?.trim() ??
+					existingSettings.baseUrl?.trim() ??
+					registeredProvider?.baseUrl?.trim() ??
+					"",
+				defaultModelId: seedModelId ?? registeredProvider?.defaultModelId,
+				protocol: existingSettings.protocol ?? registeredProvider?.protocol,
+				client: existingSettings.client ?? registeredProvider?.client,
+				capabilities:
+					existingSettings.capabilities ?? registeredProvider?.capabilities,
+				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
 			models: seedModelId
 				? buildProviderModels([seedModelId], existingSettings.capabilities)

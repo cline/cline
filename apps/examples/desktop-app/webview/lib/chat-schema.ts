@@ -69,6 +69,7 @@ export const ChatMessageSchema = z.object({
 			reason: z.string().optional(),
 			inputTokens: z.number().int().nonnegative().optional(),
 			outputTokens: z.number().int().nonnegative().optional(),
+			cacheReadTokens: z.number().int().nonnegative().optional(),
 			totalCost: z.number().nonnegative().optional(),
 			providerId: z.string().optional(),
 			modelId: z.string().optional(),

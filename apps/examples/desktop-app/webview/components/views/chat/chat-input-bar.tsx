@@ -1,30 +1,17 @@
 "use client";
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { SearchCombobox } from "@cline/ui";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
-	Check,
 	ChevronDown,
-	ChevronRight,
 	CircleStop,
-	Clock3,
 	Cpu,
 	Paperclip,
-	Pencil,
-	Trash2,
 	X,
 } from "lucide-react";
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -51,6 +38,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -255,6 +243,7 @@ type ChatInputBarProps = {
 		toolCalls: number;
 		tokensIn: number;
 		tokensOut: number;
+		cacheReadTokens?: number;
 		totalCostUsd?: number;
 	};
 };
@@ -391,15 +380,6 @@ export function ChatInputBar({
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 	const slashCommandsLoadedRef = useRef(false);
-	const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<
-		string | null
-	>(null);
-	const [editingQueuedPromptValue, setEditingQueuedPromptValue] = useState("");
-	const [queueActionPendingId, setQueueActionPendingId] = useState<
-		string | null
-	>(null);
-	const [queueExpanded, setQueueExpanded] = useState(false);
-	const queuedPromptsId = useId();
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -453,75 +433,9 @@ export function ChatInputBar({
 		}
 	}, [promptInput, variant]);
 
-	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
-		setEditingQueuedPromptId(item.id);
-		setEditingQueuedPromptValue(item.prompt);
-	}, []);
-
-	const cancelQueuedPromptEdit = useCallback(() => {
-		setEditingQueuedPromptId(null);
-		setEditingQueuedPromptValue("");
-	}, []);
-
-	const submitQueuedPromptEdit = useCallback(
-		async (item: PromptInQueue) => {
-			const nextPrompt = editingQueuedPromptValue.trim();
-			if (!nextPrompt || queueActionPendingId) {
-				return;
-			}
-			setQueueActionPendingId(item.id);
-			try {
-				await onEditPromptInQueue(item.id, nextPrompt);
-				cancelQueuedPromptEdit();
-			} finally {
-				setQueueActionPendingId(null);
-			}
-		},
-		[
-			cancelQueuedPromptEdit,
-			editingQueuedPromptValue,
-			onEditPromptInQueue,
-			queueActionPendingId,
-		],
-	);
-
-	const triggerQueuedPromptAction = useCallback(
-		async (item: PromptInQueue, action: "steer" | "remove") => {
-			if (queueActionPendingId) {
-				return;
-			}
-			setQueueActionPendingId(item.id);
-			try {
-				if (action === "steer") {
-					await onSteerPromptInQueue(item.id);
-				} else {
-					await onRemovePromptInQueue(item.id);
-				}
-			} finally {
-				setQueueActionPendingId(null);
-			}
-		},
-		[onRemovePromptInQueue, onSteerPromptInQueue, queueActionPendingId],
-	);
-
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
 	}, [promptInput.length]);
-
-	useEffect(() => {
-		if (
-			editingQueuedPromptId &&
-			!promptsInQueue.some((item) => item.id === editingQueuedPromptId)
-		) {
-			cancelQueuedPromptEdit();
-		}
-	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
-
-	useEffect(() => {
-		if (promptsInQueue.length === 0) {
-			setQueueExpanded(false);
-		}
-	}, [promptsInQueue.length]);
 
 	useEffect(() => {
 		if (!mentionOpen || !activeMention) {
@@ -708,161 +622,12 @@ export function ChatInputBar({
 		>
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
-				{promptsInQueue.length > 0 && (
-					<div className="mb-2">
-						<button
-							aria-controls={queuedPromptsId}
-							aria-expanded={queueExpanded}
-							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							onClick={() => setQueueExpanded((expanded) => !expanded)}
-							type="button"
-						>
-							{queueExpanded ? (
-								<ChevronDown className="size-3.5 shrink-0" />
-							) : (
-								<ChevronRight className="size-3.5 shrink-0" />
-							)}
-							<span>
-								{promptsInQueue.length} prompt
-								{promptsInQueue.length === 1 ? "" : "s"} queued
-							</span>
-						</button>
-						<div
-							className={cn(
-								"flex flex-col gap-0.5 pb-1 pt-1",
-								!queueExpanded && "hidden",
-							)}
-							hidden={!queueExpanded}
-							id={queuedPromptsId}
-						>
-							{promptsInQueue.map((item) => {
-								const isEditing = editingQueuedPromptId === item.id;
-								const isPending = queueActionPendingId === item.id;
-								const hasAttachments = (item.attachmentCount ?? 0) > 0;
-								return (
-									<div
-										className={cn(
-											"group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent/35",
-											item.steer && "bg-primary/5",
-										)}
-										key={item.id}
-									>
-										{item.steer ? (
-											<ArrowUp className="size-4 shrink-0 text-primary" />
-										) : (
-											<Clock3 className="size-4 shrink-0 text-muted-foreground" />
-										)}
-										<div className="min-w-0 flex-1">
-											{isEditing ? (
-												<textarea
-													aria-label="Edit queued prompt"
-													className="min-h-8 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-													disabled={isPending}
-													onChange={(event) =>
-														setEditingQueuedPromptValue(event.target.value)
-													}
-													onKeyDown={(event) => {
-														if (event.key === "Escape") {
-															event.preventDefault();
-															cancelQueuedPromptEdit();
-														}
-														if (event.key === "Enter" && !event.shiftKey) {
-															event.preventDefault();
-															void submitQueuedPromptEdit(item);
-														}
-													}}
-													rows={1}
-													value={editingQueuedPromptValue}
-												/>
-											) : (
-												<div className="flex min-w-0 items-center gap-2">
-													<span className="truncate text-xs text-foreground">
-														{item.prompt}
-													</span>
-													{hasAttachments ? (
-														<span className="shrink-0 text-[10px] text-muted-foreground">
-															{item.attachmentCount} attachment
-															{item.attachmentCount === 1 ? "" : "s"}
-														</span>
-													) : null}
-													{item.steer ? (
-														<span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-															Next turn
-														</span>
-													) : null}
-												</div>
-											)}
-										</div>
-										<div className="flex shrink-0 items-center gap-0.5">
-											{isEditing ? (
-												<>
-													<button
-														aria-label="Save queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={
-															isPending ||
-															editingQueuedPromptValue.trim().length === 0
-														}
-														onClick={() => void submitQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Check className="size-4" />
-													</button>
-													<button
-														aria-label="Cancel editing queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={cancelQueuedPromptEdit}
-														type="button"
-													>
-														<X className="size-4" />
-													</button>
-												</>
-											) : (
-												<>
-													{!item.steer ? (
-														<button
-															aria-label="Steer queued prompt"
-															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-															disabled={isPending}
-															onClick={() =>
-																void triggerQueuedPromptAction(item, "steer")
-															}
-															title="Steer next"
-															type="button"
-														>
-															<ArrowUp className="size-4" />
-														</button>
-													) : null}
-													<button
-														aria-label="Edit queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={() => startQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Pencil className="size-4" />
-													</button>
-													<button
-														aria-label="Remove queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={() =>
-															void triggerQueuedPromptAction(item, "remove")
-														}
-														type="button"
-													>
-														<Trash2 className="size-4" />
-													</button>
-												</>
-											)}
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					</div>
-				)}
+				<AgentPromptQueue
+					items={promptsInQueue}
+					onEdit={onEditPromptInQueue}
+					onRemove={onRemovePromptInQueue}
+					onSteer={onSteerPromptInQueue}
+				/>
 				<div className="relative">
 					{slashOpen && (
 						<div
@@ -1134,15 +899,15 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
-						<Paperclip className="h-4 w-4" />
+						<Paperclip className="size-3" />
 					</button>
 					<input
 						accept="*/*"
@@ -1251,6 +1016,7 @@ export function ChatInputBar({
 									contextWindow: modelContextWindow,
 									tokensIn: summary.tokensIn,
 									tokensOut: summary.tokensOut,
+									cacheReadTokens: summary.cacheReadTokens ?? 0,
 									totalCost: summary.totalCostUsd,
 								}}
 							/>
@@ -1349,7 +1115,7 @@ const ModelSelector = memo(function ModelSelector({
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
 
-		async function loadCatalog() {
+		async function loadCatalogAndActiveModels() {
 			try {
 				const payload = await loadProviderModelCatalog();
 				if (cancelled) {
@@ -1373,41 +1139,24 @@ const ModelSelector = memo(function ModelSelector({
 			} catch {
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [normalizedProvider]);
-
-	useEffect(() => {
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
 				setProviderModels((current) => ({
 					...current,
-					[normalizedProvider]: modelIds,
+					[normalizedProvider]: models.map((entry) => entry.id),
 				}));
 				setProviderReasoningModels((current) => ({
 					...current,
-					[normalizedProvider]: reasoningModelIds,
+					[normalizedProvider]: models
+						.filter((entry) => entry.supportsReasoning)
+						.map((entry) => entry.id),
 				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
@@ -1416,15 +1165,34 @@ const ModelSelector = memo(function ModelSelector({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalogAndActiveModels();
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider, providerModels]);
+	}, [normalizedProvider]);
+
+	useEffect(() => {
+		return subscribeToProviderModels((providerId, models) => {
+			const normalizedId = normalizeProviderId(providerId);
+			setProviderModels((current) => ({
+				...current,
+				[normalizedId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[normalizedId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(normalizedId) ? current : [...current, normalizedId],
+			);
+		});
+	}, []);
 
 	useEffect(() => {
 		setLastSelection((prev) => {
@@ -1619,24 +1387,38 @@ const ModelSelector = memo(function ModelSelector({
 type TokenUsage = {
 	tokensIn: number;
 	tokensOut: number;
+	cacheReadTokens: number;
 	totalCost?: number;
 	contextWindow?: number;
 };
 
-/** Current input context relative to the selected model's context window. */
+/** Current model context relative to the selected model's context window. */
 function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 	const contextWindow = usage.contextWindow;
-	if (usage.tokensIn <= 0 || !contextWindow || contextWindow <= 0) {
+	const totalTokens = usage.tokensIn + usage.tokensOut;
+	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
 		return null;
 	}
 
 	const ratio = Math.min(
-		Math.max(usage.tokensIn / Math.max(contextWindow, 1), 0),
+		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
 		1,
 	);
 	const percent = Math.round(ratio * 100);
+	const ringColorClass =
+		ratio >= 0.75
+			? "stroke-red-500"
+			: ratio >= 0.5
+				? "stroke-orange-500"
+				: "stroke-primary";
 	const cost = formatCostUsd(usage.totalCost);
-	const contextUsageLabel = `${formatCompactTokens(usage.tokensIn)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
+	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
+	const segmentScale =
+		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
+	const segmentWidth = (tokens: number) =>
+		`${(tokens / contextWindow) * segmentScale * 100}%`;
 	const radius = 8.5;
 	const circumference = 2 * Math.PI * radius;
 
@@ -1644,12 +1426,12 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 		<Popover>
 			<PopoverTrigger asChild>
 				<Button
-					aria-label={`Context window: ${usage.tokensIn.toLocaleString()} of ${contextWindow.toLocaleString()} input tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent"
+					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
-					variant="ghost"
+					variant="text"
 				>
 					<svg
 						aria-hidden="true"
@@ -1667,7 +1449,10 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className="stroke-primary transition-[stroke-dashoffset] duration-200"
+							className={cn(
+								"transition-[stroke,stroke-dashoffset] duration-200",
+								ringColorClass,
+							)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1694,27 +1479,60 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							{contextUsageLabel}
 						</span>
 					</div>
-					<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full rounded-full bg-primary transition-[width] duration-200"
-							style={{ width: `${percent}%` }}
+							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							data-token-kind="uncached-input"
+							style={{ width: segmentWidth(uncachedInputTokens) }}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							data-token-kind="cached-input"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
+								width: segmentWidth(cachedTokens),
+							}}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							data-token-kind="output"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
+								width: segmentWidth(usage.tokensOut),
+							}}
 						/>
 					</div>
-				</div>
-				<div className="border-t border-border/70 px-3 py-2.5 text-xs">
-					<div className="flex items-center justify-between gap-4">
-						<span className="text-muted-foreground">Output tokens</span>
-						<span className="font-mono text-foreground">
-							{usage.tokensOut.toLocaleString()}
-						</span>
-					</div>
-					{cost ? (
-						<div className="mt-2 flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cost</span>
-							<span className="font-mono text-foreground">{cost}</span>
+					<div className="mt-3 space-y-2 text-xs">
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Input tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensIn.toLocaleString()}
+							</span>
 						</div>
-					) : null}
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Output tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensOut.toLocaleString()}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Cached tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.cacheReadTokens.toLocaleString()}
+							</span>
+						</div>
+						{cost ? (
+							<div className="flex items-center justify-between gap-4">
+								<span className="text-muted-foreground">Cost</span>
+								<span className="font-mono text-foreground">{cost}</span>
+							</div>
+						) : null}
+					</div>
 				</div>
 			</PopoverContent>
 		</Popover>
