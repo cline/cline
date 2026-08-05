@@ -115,11 +115,16 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
+	// Once the list loads, an empty free list means every promotion has ended —
+	// the hardcoded fallback only stands in while the list is still unavailable,
+	// otherwise it advertises retired free models that no longer serve requests.
+	const [didLoadClineRecommendedModels, setDidLoadClineRecommendedModels] = useState(false)
 	const freeClineModelIds = useMemo(() => {
-		const freeModelIds =
-			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
+		const freeModelIds = didLoadClineRecommendedModels
+			? clineFreeModels.map((model) => model.id)
+			: FREE_MODELS_FALLBACK.map((model) => model.id)
 		return [...new Set(freeModelIds)]
-	}, [clineFreeModels])
+	}, [clineFreeModels, didLoadClineRecommendedModels])
 	const freeClineModelIdSet = useMemo(
 		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
 		[freeClineModelIds],
@@ -129,7 +134,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
 	)
-	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const freeModels = useMemo(
+		() => (didLoadClineRecommendedModels ? clineFreeModels : FREE_MODELS_FALLBACK),
+		[clineFreeModels, didLoadClineRecommendedModels],
+	)
+	// Nothing is free right now, so the Free tab would open on an empty list.
+	const visibleTab = activeTab === "free" && freeModels.length === 0 ? "recommended" : activeTab
 	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
 	const isFetchingClineRecommendedModelsRef = useRef(false)
 	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
@@ -150,6 +160,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				.filter((model): model is FeaturedModelCardEntry => model !== null)
 			setClineRecommendedModels(recommended)
 			setClineFreeModels(free)
+			setDidLoadClineRecommendedModels(true)
 			return true
 		} catch (error) {
 			console.error("Failed to refresh Cline recommended models:", error)
@@ -430,17 +441,19 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 				{/* Tabs */}
 				<TabsContainer style={{ marginTop: 4 }}>
-					<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
+					<Tab active={visibleTab === "recommended"} onClick={() => setActiveTab("recommended")}>
 						Recommended
 					</Tab>
-					<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-						Free
-					</Tab>
+					{freeModels.length > 0 && (
+						<Tab active={visibleTab === "free"} onClick={() => setActiveTab("free")}>
+							Free
+						</Tab>
+					)}
 				</TabsContainer>
 
 				{/* Model Cards */}
 				<div style={{ marginBottom: "6px" }}>
-					{activeTab === "recommended" &&
+					{visibleTab === "recommended" &&
 						recommendedModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}
@@ -454,7 +467,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 								}}
 							/>
 						))}
-					{activeTab === "free" &&
+					{visibleTab === "free" &&
 						freeModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}

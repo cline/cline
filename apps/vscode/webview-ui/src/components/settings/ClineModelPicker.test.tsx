@@ -133,6 +133,17 @@ describe("ClineModelPicker", () => {
 		expect(screen.getByText("unknown/mystery-model")).toBeInTheDocument()
 	})
 
+	it("drops the bundled free models once the endpoint reports that no promotions are running", async () => {
+		render(<ClineModelPicker currentMode="act" />)
+
+		// The bundled list stands in only while the endpoint has not answered.
+		expect(screen.getByText("Free")).toBeInTheDocument()
+
+		await waitFor(() => expect(screen.queryByText("Free")).not.toBeInTheDocument())
+		fireEvent.click(screen.getByRole("combobox"))
+		expect(screen.queryByText("kwaipilot/kat-coder-pro")).not.toBeInTheDocument()
+	})
+
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {
 		vi.mocked(useExtensionState).mockReturnValue({
 			apiConfiguration: {},

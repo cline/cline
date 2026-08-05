@@ -98,6 +98,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 	const { clineUser } = useClineAuth()
 	const [subscribedModels, setSubscribedModels] = useState<ClineRecommendedModel[]>([])
 	const [freeModels, setFreeModels] = useState<ClineRecommendedModel[]>([])
+	const [didLoadRecommendedModels, setDidLoadRecommendedModels] = useState(false)
 	const [activeTab, setActiveTab] = useState<"subscribed" | "free">("subscribed")
 
 	useEffect(() => {
@@ -115,6 +116,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 				}
 				setSubscribedModels(response.clinePass ?? [])
 				setFreeModels(response.free ?? [])
+				setDidLoadRecommendedModels(true)
 			} catch (err) {
 				console.error("Failed to refresh ClinePass recommended models:", err)
 			}
@@ -137,10 +139,12 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 			.filter((entry): entry is FeaturedTabEntry => entry !== null)
 	}, [subscribedModels, models])
 
+	// Once the list loads, an empty free list means every promotion has ended, so
+	// the bundled list must not keep advertising models that no longer exist.
 	const freeCards = useMemo(() => {
-		const source = freeModels.length > 0 ? freeModels : CLINE_RECOMMENDED_MODELS_FALLBACK.free
+		const source = didLoadRecommendedModels ? freeModels : CLINE_RECOMMENDED_MODELS_FALLBACK.free
 		return source.map(toFreeEntry).filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [freeModels])
+	}, [freeModels, didLoadRecommendedModels])
 
 	// Land on the tab containing the configured model
 	useEffect(() => {
@@ -163,7 +167,9 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 		})
 	}
 
-	const activeCards = activeTab === "free" ? freeCards : subscribedCards
+	// Nothing is free right now, so the Free tab is hidden and its cards unusable.
+	const visibleTab = activeTab === "free" && freeCards.length === 0 ? "subscribed" : activeTab
+	const activeCards = visibleTab === "free" ? freeCards : subscribedCards
 
 	return (
 		<div>
@@ -175,18 +181,18 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 				<>
 					{/* Tabs */}
 					<TabsContainer style={{ marginTop: 4 }}>
-						<Tab active={activeTab === "subscribed"} onClick={() => setActiveTab("subscribed")}>
+						<Tab active={visibleTab === "subscribed"} onClick={() => setActiveTab("subscribed")}>
 							Subscribed
 						</Tab>
 						{freeCards.length > 0 && (
-							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+							<Tab active={visibleTab === "free"} onClick={() => setActiveTab("free")}>
 								Free
 							</Tab>
 						)}
 					</TabsContainer>
 
 					{/* Tab description */}
-					{activeTab === "free" && <TabDescription>{FREE_TAB_DESCRIPTION}</TabDescription>}
+					{visibleTab === "free" && <TabDescription>{FREE_TAB_DESCRIPTION}</TabDescription>}
 
 					{/* Model Cards */}
 					<div style={{ marginBottom: "6px" }}>
