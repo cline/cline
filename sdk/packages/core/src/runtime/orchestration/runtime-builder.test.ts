@@ -10,6 +10,7 @@ import {
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
+import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -206,6 +207,39 @@ Use the review guidance.`,
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("editor");
+	});
+
+	it("registers the plan-mode command-guard hook only in plan mode", async () => {
+		const planRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+			}),
+		});
+		const actRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		const planGuards = (planRuntime.extensions ?? []).filter(
+			(extension) => extension.name === PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME,
+		);
+		expect(planGuards).toHaveLength(1);
+		expect(planGuards[0]?.hooks?.beforeTool).toBeTypeOf("function");
+		expect(
+			(actRuntime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
+	});
+
+	it("does not register the plan-mode command-guard when tools are disabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+				enableTools: false,
+			}),
+		});
+
+		expect(
+			(runtime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
 	});
 
 	it("uses yolo preset only when yolo mode is explicit", async () => {

@@ -7,15 +7,7 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import {
-	basename,
-	dirname,
-	extname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -33,6 +25,7 @@ import {
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -96,45 +89,6 @@ import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
 import { discoverChatSessions } from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
-
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			name?: unknown;
-		};
-		return typeof packageJson.name === "string" && packageJson.name.trim()
-			? packageJson.name.trim()
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function isPathWithin(parentPath: string, childPath: string): boolean {
-	const relativePath = relative(resolve(parentPath), resolve(childPath));
-	return (
-		relativePath === "" ||
-		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
-	);
-}
-
-function getPluginDisplayName(filePath: string, searchRoot: string): string {
-	let current = dirname(filePath);
-	const root = resolve(searchRoot);
-	while (isPathWithin(root, current)) {
-		const packageName = readPackageName(join(current, "package.json"));
-		if (packageName) {
-			return packageName;
-		}
-		const parent = dirname(current);
-		if (parent === current) {
-			break;
-		}
-		current = parent;
-	}
-	return basename(filePath, extname(filePath));
-}
-
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,
@@ -781,33 +735,26 @@ async function listUserInstructionConfigs(
 	workspaceRoot: string,
 ): Promise<JsonRecord> {
 	const warnings: string[] = [];
+	const userInstructionService = createUserInstructionConfigService({
+		skills: { workspacePath: workspaceRoot },
+		rules: { workspacePath: workspaceRoot },
+		workflows: { workspacePath: workspaceRoot },
+	});
 
-	const loadUserInstructionSnapshot = async (
+	const loadUserInstructionSnapshot = (
 		type: "rule" | "skill" | "workflow",
-	): Promise<unknown[]> => {
+	): unknown[] => {
 		const items: unknown[] = [];
-		const service = createUserInstructionConfigService({
-			skills: { workspacePath: workspaceRoot },
-			rules: { workspacePath: workspaceRoot },
-			workflows: { workspacePath: workspaceRoot },
-		});
-		try {
-			await service.start();
-			for (const record of service.listRecords(type)) {
-				const item = record.item as unknown as JsonRecord;
-				if (item.disabled === true) continue;
-				items.push({
-					id: record.id,
-					name: item.name ?? record.id,
-					instructions: item.instructions,
-					path: record.filePath,
-				});
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			warnings.push(`${type}: ${message}`);
-		} finally {
-			service.stop();
+		for (const record of userInstructionService.listRecords(type)) {
+			const item = record.item as unknown as JsonRecord;
+			if (item.disabled === true) continue;
+			items.push({
+				id: record.id,
+				name: item.name ?? record.id,
+				description: item.description,
+				instructions: item.instructions,
+				path: record.filePath,
+			});
 		}
 		return items;
 	};
@@ -891,15 +838,30 @@ async function listUserInstructionConfigs(
 		);
 	};
 
-	const [rules, workflows, skills, pluginTools] = await Promise.all([
-		loadUserInstructionSnapshot("rule"),
-		loadUserInstructionSnapshot("workflow"),
-		loadUserInstructionSnapshot("skill"),
-		listPluginTools({
-			workspacePath: workspaceRoot,
-			cwd: workspaceRoot,
-		}),
-	]);
+	try {
+		await userInstructionService.start();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		warnings.push(`user instructions: ${message}`);
+	}
+	let rules: unknown[];
+	let workflows: unknown[];
+	let skills: unknown[];
+	let runtimeCommands: ReturnType<
+		typeof userInstructionService.listRuntimeCommands
+	>;
+	try {
+		rules = loadUserInstructionSnapshot("rule");
+		workflows = loadUserInstructionSnapshot("workflow");
+		skills = loadUserInstructionSnapshot("skill");
+		runtimeCommands = userInstructionService.listRuntimeCommands();
+	} finally {
+		userInstructionService.stop();
+	}
+	const pluginTools = await listPluginTools({
+		workspacePath: workspaceRoot,
+		cwd: workspaceRoot,
+	});
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
@@ -911,6 +873,7 @@ async function listUserInstructionConfigs(
 		rules,
 		workflows,
 		skills,
+		runtimeCommands,
 		agents: loadAgents(),
 		plugins: loadPlugins(),
 		tools: [

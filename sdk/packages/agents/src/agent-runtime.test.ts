@@ -374,6 +374,55 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]?.role).toBe("user");
 	});
 
+	it("treats a file-only model turn as content, assembling images onto the message", async () => {
+		// A model that answers with only a generated file (e.g. an
+		// image-output model) must not fail as "Model returned empty
+		// response" — the file event is assembled into the assistant message.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "file", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a cat");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "image", image: "aGVsbG8=", mediaType: "image/png" },
+		]);
+	});
+
+	it("preserves non-image generated files as file parts", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Here you go." },
+				{ type: "file", data: "UERGLWRhdGE=", mediaType: "application/pdf" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Make a PDF");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Here you go." },
+			{
+				type: "file",
+				path: "model-generated-file-2",
+				content: "UERGLWRhdGE=",
+			},
+		]);
+	});
+
 	it("executes a tool call and continues the loop", async () => {
 		const model = new ScriptedModel([
 			() => [
