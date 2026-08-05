@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError"
+import ClineFreePromotionEndedError from "@/components/chat/ClineFreePromotionEndedError"
 import ClinePassLimitError from "@/components/chat/ClinePassLimitError"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import EntitlementError from "@/components/chat/EntitlementError"
@@ -9,6 +10,8 @@ import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrict
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getSelectedClineModelId } from "@/utils/clineFreeModels"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 
 const _errorColor = "var(--vscode-errorForeground)"
@@ -22,9 +25,15 @@ interface ErrorRowProps {
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
 	const { clineUser } = useClineAuth()
+	const { apiConfiguration, mode } = useExtensionState()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
 	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
+
+	// The error payload carries no model id (the SDK path reduces it to plain
+	// text), so classification of model-scoped errors reads the selection the
+	// request was made with.
+	const selectedClineModelId = getSelectedClineModelId(apiConfiguration, mode ?? "act")
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -33,7 +42,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				// Handle API request errors with special error parsing
 				if (rawApiError) {
 					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
-					const clineError = ClineError.parse(rawApiError)
+					const clineError = ClineError.parse(rawApiError, selectedClineModelId)
 					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
@@ -87,7 +96,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.ClineFreeModelLimit)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
-						return <ClineFreeModelLimitError message={detailMessage} />
+						return <ClineFreeModelLimitError message={detailMessage} modelId={selectedClineModelId} />
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.ClineFreePromotionEnded)) {
+						return <ClineFreePromotionEndedError modelId={selectedClineModelId} />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {

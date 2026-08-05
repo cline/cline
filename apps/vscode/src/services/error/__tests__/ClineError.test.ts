@@ -71,5 +71,38 @@ describe("ClineError", () => {
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreeModelLimit)
 		})
+
+		it("should classify model-not-found on a free model as an ended promotion", () => {
+			const err = new ClineError("Error 404: model not found", "cline-free/glm-5.2")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreePromotionEnded)
+		})
+
+		it("should classify an ended promotion ahead of the 404 auth status range", () => {
+			const err = new ClineError({ message: "model not found", status: 404 }, "cline-free/glm-5.2")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreePromotionEnded)
+		})
+
+		it("should find the not-found reason nested in the error body", () => {
+			const err = new ClineError(
+				{ message: "Not Found", error: { message: "The model does not exist" } },
+				"cline-free/glm-5.2",
+			)
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.ClineFreePromotionEnded)
+		})
+
+		it("should leave model-not-found on non-free models to the generic path", () => {
+			const err = new ClineError({ message: "model not found", status: 404 }, "z-ai/glm-5.2")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Auth)
+		})
+
+		it("should not treat other free model failures as an ended promotion", () => {
+			const err = new ClineError({ message: "Internal server error", status: 500 }, "cline-free/glm-5.2")
+
+			;(ClineError.getErrorType(err) === undefined).should.be.true()
+		})
 	})
 })

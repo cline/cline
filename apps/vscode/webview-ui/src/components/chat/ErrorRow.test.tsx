@@ -23,6 +23,8 @@ vi.mock("@/context/ClineAuthContext", () => ({
 	handleSignOut: vi.fn(),
 }))
 
+const mockNavigateToSettingsModelPicker = vi.hoisted(() => vi.fn())
+
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: mockApiConfiguration,
@@ -30,6 +32,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		providerModelsByProvider: {},
 		startProviderModelsRequest: vi.fn(),
 		applyProviderModelsResponse: vi.fn(),
+		navigateToSettingsModelPicker: mockNavigateToSettingsModelPicker,
 	}),
 }))
 
@@ -67,6 +70,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		OrgClinePassRestriction: "orgClinePassRestriction",
 		ClinePassLimit: "clinePassLimit",
 		ClineFreeModelLimit: "clineFreeModelLimit",
+		ClineFreePromotionEnded: "clineFreePromotionEnded",
 		QuotaExceeded: "quotaExceeded",
 	},
 }))
@@ -333,6 +337,31 @@ describe("ErrorRow", () => {
 			expect(screen.queryByText(limitMessage)).not.toBeInTheDocument()
 			expect(screen.queryByText(/deepseek-v4-flash/i)).not.toBeInTheDocument()
 			expect(screen.queryByText(/Switch to Usage-Based billing/i)).not.toBeInTheDocument()
+		})
+
+		it("renders an ended free promotion with a way off the retired model", async () => {
+			const notFoundMessage = "Error 404: model not found"
+			const mockClineError = {
+				message: notFoundMessage,
+				isErrorType: vi.fn((type) => type === "clineFreePromotionEnded"),
+				providerId: "cline-pass",
+				_error: { message: notFoundMessage },
+			}
+
+			mockApiConfiguration.actModeClinePassModelId = "cline-free/glm-5.2"
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={notFoundMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("cline-free-promotion-ended-error")).toBeInTheDocument()
+			expect(screen.getByText(/The free promotion for glm-5.2 has ended/)).toBeInTheDocument()
+			expect(screen.queryByText(notFoundMessage)).not.toBeInTheDocument()
+
+			fireEvent.click(screen.getByText("Choose another model"))
+			expect(mockNavigateToSettingsModelPicker).toHaveBeenCalledWith({ targetSection: "api-config" })
+
+			mockApiConfiguration.actModeClinePassModelId = "cline-pass/test-act-model"
 		})
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
