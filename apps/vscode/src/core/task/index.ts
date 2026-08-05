@@ -2477,6 +2477,11 @@ export class Task {
 				const isClineFreeModelLimitError = clineError.isErrorType(
 					ClineErrorType.ClineFreeModelLimit,
 				);
+				// A retired free model never comes back — retrying only delays the
+				// card that tells the user to pick another model.
+				const isClineFreePromotionEndedError = clineError.isErrorType(
+					ClineErrorType.ClineFreePromotionEnded,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2506,6 +2511,7 @@ export class Task {
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
+					!isClineFreePromotionEndedError &&
 					this.taskState.autoRetryAttempts < 3;
 
 				// Mirror the SDK extension's provider-failure reporting: same
@@ -3646,10 +3652,15 @@ export class Task {
 					const isStreamingClineFreeModelLimitError = clineError.isErrorType(
 						ClineErrorType.ClineFreeModelLimit,
 					);
+					// A retired free model never comes back, so retrying only
+					// burns backoff before the actionable card appears.
+					const isStreamingClineFreePromotionEndedError =
+						clineError.isErrorType(ClineErrorType.ClineFreePromotionEnded);
 					const isStreamingNonRetriableError =
 						isStreamingSpendLimitError ||
 						isStreamingQuotaExceededError ||
-						isStreamingClineFreeModelLimitError;
+						isStreamingClineFreeModelLimitError ||
+						isStreamingClineFreePromotionEndedError;
 					const willAutoRetryStreamingFailure =
 						!isStreamingNonRetriableError &&
 						this.taskState.autoRetryAttempts < 3;
