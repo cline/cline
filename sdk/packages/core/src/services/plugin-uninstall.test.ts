@@ -217,4 +217,36 @@ describe("plugin uninstall service", () => {
 			/No plugin found matching "missing-plugin"/,
 		);
 	});
+
+	it("refuses to uninstall bundled plugins by name or path", async () => {
+		const bundledRoot = join(home, ".cline", "plugins", "_bundled", "goal");
+		const entryPath = join(bundledRoot, "index.ts");
+		await mkdir(bundledRoot, { recursive: true });
+		await writeFile(
+			join(bundledRoot, "package.json"),
+			JSON.stringify(
+				{
+					name: "goal",
+					private: true,
+					cline: { plugins: [{ paths: ["./index.ts"] }] },
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		await writeFile(
+			entryPath,
+			"export default { name: 'goal', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		await expect(uninstallPlugin({ name: "goal" })).rejects.toThrow(
+			/bundled with Cline/,
+		);
+		await expect(uninstallPlugin({ path: entryPath })).rejects.toThrow(
+			/bundled with Cline/,
+		);
+		expect(existsSync(entryPath)).toBe(true);
+	});
 });

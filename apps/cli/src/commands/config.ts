@@ -7,6 +7,7 @@ import {
 	discoverPluginModulePaths,
 	getPluginDisplayName,
 	hasMcpSettingsFile,
+	isBundledPluginPath,
 	listHookConfigFiles,
 	listPluginTools,
 	type RuleConfig,
@@ -259,6 +260,7 @@ async function runPluginsConfigCommand(
 		{
 			name: string;
 			path: string;
+			bundled: boolean;
 		}
 	>();
 	const directories = resolvePluginConfigSearchPaths(cwd).filter((directory) =>
@@ -273,6 +275,7 @@ async function runPluginsConfigCommand(
 				pluginsByPath.set(filePath, {
 					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
+					bundled: isBundledPluginPath(filePath),
 				});
 			}
 		} catch {
@@ -293,7 +296,8 @@ async function runPluginsConfigCommand(
 	}
 	io.writeln("Discovered plugins:");
 	for (const plugin of plugins) {
-		io.writeln(`  ${plugin.name} (${plugin.path})`);
+		const bundledSuffix = plugin.bundled ? " [built-in]" : "";
+		io.writeln(`  ${plugin.name}${bundledSuffix} (${plugin.path})`);
 	}
 	return 0;
 }

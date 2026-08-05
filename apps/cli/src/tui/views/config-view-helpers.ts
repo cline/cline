@@ -133,7 +133,8 @@ export function isToggleableConfigItem(item: InteractiveConfigItem): boolean {
 }
 
 export function isDeletableConfigItem(item: InteractiveConfigItem): boolean {
-	return item.kind === "plugin";
+	// Bundled plugins ship with the CLI and can only be disabled, not deleted.
+	return item.kind === "plugin" && item.bundled !== true;
 }
 
 export function resolveConfigItemSelectAction(

@@ -158,6 +158,11 @@ export async function runCli(): Promise<void> {
 	}
 	setHomeDir(homedir());
 
+	// Seed CLI-bundled plugins (e.g. goal) after the cline dir is settled so
+	// plugin discovery in this and any spawned hub process can pick them up.
+	const { ensureBundledPluginsSeeded } = await import("./bundled-plugins/seed");
+	await ensureBundledPluginsSeeded();
+
 	// Capture activation telemetry only after config/home directory selection
 	// has been applied, so the telemetry singleton's persisted distinct-id
 	// (and any other storage it touches) lands under the user-selected

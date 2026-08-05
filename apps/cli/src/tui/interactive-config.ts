@@ -12,6 +12,7 @@ import {
 	discoverPluginModulePaths,
 	getPluginDisplayName,
 	hasMcpSettingsFile,
+	isBundledPluginPath,
 	listHookConfigFiles,
 	listPluginToolsWithDiagnostics,
 	type McpServerRegistration,
@@ -70,6 +71,8 @@ export interface InteractiveConfigItem {
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
 	pluginPath?: string;
+	/** Bundled with the CLI: can be disabled but not uninstalled. */
+	bundled?: boolean;
 	loadError?: string;
 	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
@@ -370,6 +373,7 @@ export async function loadInteractiveConfigData(input: {
 					enabled: !disabledPlugins.has(filePath),
 					kind: "plugin",
 					configKind: "plugin",
+					bundled: isBundledPluginPath(filePath),
 					source: detectPluginSource(filePath, input.workspaceRoot),
 				});
 			}

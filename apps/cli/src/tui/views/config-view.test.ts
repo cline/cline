@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { InteractiveConfigItem } from "../../tui/interactive-config";
 import {
+	canDeleteConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
+	isDeletableConfigItem,
 	isInlineConfigAction,
 	isToggleableConfigItem,
+	resolveConfigItemDeleteAction,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
@@ -163,5 +166,31 @@ describe("config view helpers", () => {
 
 	it("returns item names without decoration", () => {
 		expect(getConfigItemDisplayName("review")).toBe("review");
+	});
+
+	it("keeps installed plugins deletable but protects bundled plugins", () => {
+		const installed = createItem({ kind: "plugin", name: "web-search" });
+		const bundled = createItem({
+			kind: "plugin",
+			name: "goal",
+			bundled: true,
+		});
+
+		expect(isDeletableConfigItem(installed)).toBe(true);
+		expect(isDeletableConfigItem(bundled)).toBe(false);
+		expect(resolveConfigItemDeleteAction(installed)).toEqual({
+			kind: "delete-item",
+			item: installed,
+		});
+		expect(resolveConfigItemDeleteAction(bundled)).toBeUndefined();
+		expect(canDeleteConfigFooterRow({ kind: "ext", item: bundled })).toBe(
+			false,
+		);
+		expect(canDeleteConfigFooterRow({ kind: "ext", item: installed })).toBe(
+			true,
+		);
+
+		// Bundled plugins stay toggleable so users can still disable them.
+		expect(isToggleableConfigItem(bundled)).toBe(true);
 	});
 });

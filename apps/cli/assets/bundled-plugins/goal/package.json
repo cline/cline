@@ -1,0 +1,22 @@
+{
+	"name": "goal",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Cline plugin that nudges active goals until the model marks them complete.",
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"commands",
+					"tools",
+					"hooks",
+					"rules"
+				]
+			}
+		]
+	}
+}

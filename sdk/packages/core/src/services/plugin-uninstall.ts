@@ -20,6 +20,7 @@ import {
 	discoverPluginModulePaths,
 	resolvePluginConfigSearchPaths,
 } from "@cline/shared/storage";
+import { isBundledPluginPath } from "./bundled-plugins";
 import { readGlobalSettings, writeGlobalSettings } from "./global-settings";
 import { removePluginMcpServersFromSettings } from "./plugin-mcp-settings";
 
@@ -400,6 +401,14 @@ export async function uninstallPlugin(
 			);
 		}
 		candidate = matches[0];
+	}
+
+	if (isBundledPluginPath(candidate.installPath)) {
+		const displayName =
+			requestedName || candidate.names[0] || basename(candidate.installPath);
+		throw new Error(
+			`${displayName} is bundled with Cline and can't be uninstalled. You can disable it in settings instead (cline config -> Plugins).`,
+		);
 	}
 
 	const stats = statSync(candidate.installPath, { throwIfNoEntry: false });

@@ -150,7 +150,7 @@ export function createInteractiveConfigDataLoader(input: {
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
 	): Promise<InteractiveConfigData | undefined> => {
-		if (item.kind !== "plugin") {
+		if (item.kind !== "plugin" || item.bundled === true) {
 			return undefined;
 		}
 		await uninstallPlugin({

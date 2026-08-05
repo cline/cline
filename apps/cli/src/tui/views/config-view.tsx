@@ -519,7 +519,8 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 										description: item.description,
 										lastError: item.loadError,
 									})
-								: getPluginLoadErrorLabel(item),
+								: (getPluginLoadErrorLabel(item) ??
+									(item.bundled ? "built-in" : undefined)),
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {

@@ -31,6 +31,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 } from "../extensions/mcp";
+import { isBundledPluginInstalled } from "./bundled-plugins";
 import {
 	type PluginMcpSettingsSyncResult,
 	syncPluginMcpServersToSettings,
@@ -1133,6 +1134,11 @@ export async function installPlugin(
 ): Promise<PluginInstallResult> {
 	const source = options.source.trim();
 	const parsed = parsePluginSource(source, options.sourceType);
+	if (parsed.type === "official" && isBundledPluginInstalled(parsed.slug)) {
+		throw new Error(
+			`${parsed.slug} is bundled with Cline and already available. If it is disabled, re-enable it in settings (cline config -> Plugins).`,
+		);
+	}
 	const explicitCwd = options.cwd?.trim();
 	const cwd = explicitCwd ? resolve(explicitCwd) : process.cwd();
 	const pluginRoot = getPluginRoot(explicitCwd ? cwd : undefined);

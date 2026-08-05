@@ -123,6 +123,17 @@ Dependencies under the `@cline/` scope are provided by the host runtime. The ins
 }
 ```
 
+## Bundled Plugins
+
+Some first-party plugins ship with the Cline CLI and are available out of the box — no install required. The [goal plugin](https://github.com/cline/plugins/tree/main/plugins/goal) is bundled today, so `/goal` works in the interactive TUI on a fresh install.
+
+Bundled plugins behave like regular plugins with two differences:
+
+- They can't be uninstalled — `cline plugin uninstall` refuses, and the CLI re-seeds them on startup. They appear with a `built-in` label in `cline config` (Plugins tab).
+- They can still be disabled: open `cline config`, go to the Plugins tab, and toggle the plugin off. The disabled state persists across CLI updates.
+
+If you previously installed the same plugin yourself (for example `cline plugin install goal`), the CLI keeps your installed copy and skips seeding the bundled one.
+
 ## Plugin Directory Structure
 
 Plugins are stored in the `plugins` directory at two levels:
@@ -130,6 +141,7 @@ Plugins are stored in the `plugins` directory at two levels:
 ```
 ~/.cline/
   plugins/                     # Global plugins
+    _bundled/                  # Bundled plugins seeded by the CLI
     _installed/                # Managed by `cline plugin install`
       npm/                     # npm-sourced plugins
       git/                     # git-sourced plugins

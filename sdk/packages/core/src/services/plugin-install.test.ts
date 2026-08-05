@@ -125,6 +125,20 @@ describe("plugin install service", () => {
 		);
 	});
 
+	it("refuses to install an official slug that is already bundled", async () => {
+		const bundledRoot = join(home, ".cline", "plugins", "_bundled", "goal");
+		await mkdir(bundledRoot, { recursive: true });
+		await writeFile(
+			join(bundledRoot, "index.ts"),
+			"export default { name: 'goal', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		await expect(installPlugin({ source: "goal" })).rejects.toThrow(
+			/bundled with Cline/,
+		);
+	});
+
 	it("installs a local plugin file into the global plugin root", async () => {
 		const source = join(root, "weather.ts");
 		writeFileSync(

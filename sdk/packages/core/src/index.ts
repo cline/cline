@@ -495,6 +495,18 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export type {
+	BundledPluginSpec,
+	BundledPluginSyncResult,
+} from "./services/bundled-plugins";
+export {
+	BUNDLED_PLUGINS_DIRECTORY_NAME,
+	getBundledPluginSlug,
+	isBundledPluginInstalled,
+	isBundledPluginPath,
+	resolveBundledPluginsRoot,
+	syncBundledPlugins,
+} from "./services/bundled-plugins";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
 	disableConnectorAutostart,
@@ -517,9 +529,9 @@ export {
 	RESTART_COUNTER_RESET_MS,
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
-	setActiveConnectorSupervisor,
 	STOP_SIGKILL_TIMEOUT_MS,
 	STOP_SIGTERM_TIMEOUT_MS,
+	setActiveConnectorSupervisor,
 } from "./services/connectors/connector-supervisor";
 export {
 	FeatureFlagsService,

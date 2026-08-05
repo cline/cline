@@ -15,6 +15,7 @@ export {
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isChatWorkspacePath,
 	isPluginModulePath,
+	PLUGINS_DIRECTORY_NAME,
 	type ResolveCronSpecsDirOptions,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentConfigSearchPaths,
