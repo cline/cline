@@ -102,7 +102,6 @@ jobs:
       !endsWith(github.actor, '[bot]')
     needs: quality
     runs-on: ubuntu-latest
-    environment: Publish
     permissions:
       contents: read
       id-token: write

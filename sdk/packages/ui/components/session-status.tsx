@@ -19,7 +19,7 @@ export function SessionStatus({
 	return (
 		<output
 			className={[
-				"cline-ui-session-status",
+				"cline-ui-session-status inline-flex items-center gap-1.5 text-cline-ui-xs leading-none text-cline-ui-muted-foreground",
 				`cline-ui-session-status--${tone}`,
 				className,
 			]
@@ -27,8 +27,11 @@ export function SessionStatus({
 				.join(" ")}
 			{...props}
 		>
-			<span aria-hidden="true" className="cline-ui-session-status__dot" />
-			<span className={showLabel ? undefined : "cline-ui-sr-only"}>
+			<span
+				aria-hidden="true"
+				className="cline-ui-session-status__dot size-2 shrink-0 rounded-full"
+			/>
+			<span className={showLabel ? undefined : "cline-ui-sr-only sr-only"}>
 				{label}
 			</span>
 		</output>
