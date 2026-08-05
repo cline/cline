@@ -104,4 +104,44 @@ describe("AgentAttachments", () => {
 		act(() => container.querySelector("button")?.click());
 		expect(onRemove).not.toHaveBeenCalled();
 	});
+
+	it("moves focus to an adjacent remove button before removal", () => {
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		const attachments = [
+			{ id: "first", label: "first.png" },
+			{ id: "second", label: "second.png" },
+		];
+		act(() => {
+			root?.render(
+				<AgentAttachments
+					attachments={attachments}
+					onRemove={(id) => {
+						root?.render(
+							<AgentAttachments
+								attachments={attachments.filter(
+									(attachment) => attachment.id !== id,
+								)}
+								onRemove={() => undefined}
+							/>,
+						);
+					}}
+				/>,
+			);
+		});
+
+		const first = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Remove first.png"]',
+		);
+		act(() => {
+			first?.focus();
+			first?.click();
+		});
+
+		expect(document.activeElement?.getAttribute("aria-label")).toBe(
+			"Remove second.png",
+		);
+		container.remove();
+	});
 });

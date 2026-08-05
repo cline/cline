@@ -63,6 +63,7 @@ export function AgentAttachments({
 							disabled={disabled}
 							onClick={(event) => {
 								event.stopPropagation();
+								focusAdjacentRemoveButton(event.currentTarget);
 								onRemove(attachment.id);
 							}}
 							type="button"
@@ -74,6 +75,18 @@ export function AgentAttachments({
 			))}
 		</ul>
 	);
+}
+
+function focusAdjacentRemoveButton(current: HTMLButtonElement) {
+	const buttons = Array.from(
+		current
+			.closest("ul")
+			?.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-agent-attachments__remove:not(:disabled)",
+			) ?? [],
+	);
+	const index = buttons.indexOf(current);
+	(buttons[index + 1] ?? buttons[index - 1])?.focus();
 }
 
 function AttachmentPreview({
