@@ -273,6 +273,38 @@ Run the explicitly named foo-skill workflow.`,
 		}
 	});
 
+	it("preserves Unicode letters in command tokens", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "release-cn");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: 发布
+---
+Publish the release.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [join(tempRoot, "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			expect(listAvailableRuntimeCommandsFromWatcher(watcher)[0]?.name).toBe(
+				"发布",
+			);
+			expect(resolveRuntimeSlashCommandFromWatcher("/发布 now", watcher)).toBe(
+				"Publish the release. now",
+			);
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("produces tokens accepted by slash command UIs", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);

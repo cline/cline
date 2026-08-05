@@ -21,11 +21,14 @@ type CommandRecord = {
 };
 
 export function normalizeRuntimeCommandName(name: string): string {
+	// Keep Unicode letters and numbers so configured names like "发布" stay
+	// typeable tokens (and keep resolving as they did before normalization
+	// existed); only whitespace and symbol runs collapse into hyphens.
 	return name
 		.trim()
 		.toLowerCase()
 		.replace(/\s+/g, "-")
-		.replace(/[^a-z0-9_.:@-]+/g, "-")
+		.replace(/[^\p{L}\p{N}_.:@-]+/gu, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-/, "")
 		.replace(/-$/, "");
