@@ -263,6 +263,18 @@ export type AgentModelEvent =
 			metadata?: unknown;
 	  }
 	| {
+			/**
+			 * A model-generated file (e.g. an image from an image-output
+			 * model). `data` is base64-encoded file data (or a URL for
+			 * URL-referenced files). Runtimes assemble it into the assistant
+			 * message (`AgentImagePart` for `image/*`, `AgentFilePart`
+			 * otherwise) so a file-only turn is not treated as empty.
+			 */
+			type: "file";
+			data: string;
+			mediaType: string;
+	  }
+	| {
 			type: "usage";
 			usage: Partial<AgentUsage>;
 	  }
