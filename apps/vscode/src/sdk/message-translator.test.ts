@@ -3,6 +3,7 @@ import type { Message as SdkMessage } from "@cline/llms"
 import type { AgentEvent } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { getDesktopDir } from "@/utils/path"
 import {
 	buildToolApprovalAskMessage,
 	extractToolOutputText,
@@ -3730,6 +3731,34 @@ describe("tool display paths are relativized to the cwd", () => {
 		expect(parseTool(result.messages[0].text).path).toBe("..config/x.ts")
 	})
 
+	it("keeps paths absolute when the cwd is the no-workspace Desktop fallback", () => {
+		// With no workspace open, getWorkspaceRoot() falls back to the Desktop;
+		// classic getReadablePath keeps full absolute paths in that case.
+		const desktop = getDesktopDir()
+		const state = new MessageTranslatorState(undefined, undefined, undefined, () => desktop)
+		const absolutePath = `${desktop}/project/file.ts`
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: absolutePath }), state)
+		expect(parseTool(result.messages[0].text).path).toBe(absolutePath.replace(/\\/g, "/"))
+	})
+
+	it("relativizes '*** Move to:' destinations in apply_patch payloads", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/old.ts`,
+			`*** Move to: ${CWD}/src/new.ts`,
+			"@@",
+			"-old",
+			"+new",
+			"*** End Patch",
+		].join("\n")
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/old.ts")
+		expect(tool.content).toContain("*** Move to: src/new.ts")
+		expect(tool.content).not.toContain(CWD)
+	})
+
 	it("renders the cwd itself as its basename", () => {
 		const state = stateWithCwd()
 		const result = translateSessionEvent(toolEvent("content_start", "list_files", { path: CWD }), state)
@@ -3768,6 +3797,7 @@ describe("tool display paths are relativized to the cwd", () => {
 		const patch = [
 			"*** Begin Patch",
 			`*** Update File: ${CWD}/src/a.ts`,
+			`*** Move to: ${CWD}/src/a-renamed.ts`,
 			"@@",
 			"-old",
 			"+new",
@@ -3783,6 +3813,7 @@ describe("tool display paths are relativized to the cwd", () => {
 		const second = parseTool(result.messages[1].text)
 		expect(first.path).toBe("src/a.ts")
 		expect(first.content).toContain("*** Update File: src/a.ts")
+		expect(first.content).toContain("*** Move to: src/a-renamed.ts")
 		expect(second.path).toBe("src/b.ts")
 		expect(second.content).toContain("*** Add File: src/b.ts")
 	})

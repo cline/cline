@@ -45,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
+import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { MessageIdMinter } from "./message-id-minter"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
@@ -580,6 +581,12 @@ function toDisplayPath(rawPath: string | undefined, cwd: string): string | undef
 	if (!rawPath || !path.isAbsolute(rawPath)) {
 		return rawPath
 	}
+	// User opened VS Code without a workspace, so the cwd fell back to the
+	// Desktop. Keep full absolute paths so the user stays aware of where
+	// operations occur (classic getReadablePath behavior).
+	if (arePathsEqual(cwd, getDesktopDir())) {
+		return rawPath.replace(/\\/g, "/")
+	}
 	const relative = path.relative(cwd, rawPath)
 	if (relative === "") {
 		return path.basename(rawPath).replace(/\\/g, "/")
@@ -593,12 +600,12 @@ function toDisplayPath(rawPath: string | undefined, cwd: string): string | undef
 	return relative.replace(/\\/g, "/")
 }
 
-/** Rewrite the "*** Add/Update/Delete File: <path>" markers inside a patch payload. */
+/** Rewrite the "*** Add/Update/Delete File:" and "*** Move to:" markers inside a patch payload. */
 function relativizePatchPaths(patch: string | undefined, cwd: string): string | undefined {
 	if (!patch) {
 		return patch
 	}
-	const fileMarkers = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE]
+	const fileMarkers = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE, PATCH_MARKERS.MOVE]
 	return patch
 		.split("\n")
 		.map((line) => {
