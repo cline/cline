@@ -5,7 +5,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
-import { ChatInputBar } from "./chat-input-bar";
+import {
+	buildUserInstructionSlashCommands,
+	ChatInputBar,
+} from "./chat-input-bar";
 
 const {
 	loadProviderModelCatalogMock,
@@ -52,6 +55,30 @@ afterEach(async () => {
 });
 
 describe("ChatInputBar", () => {
+	it("builds slash commands from both workflows and skills", () => {
+		expect(
+			buildUserInstructionSlashCommands({
+				runtimeCommands: [
+					{
+						id: "workflow:release",
+						name: "release",
+						description: "Ship it",
+						kind: "workflow",
+					},
+					{
+						id: "skill:publish-ui",
+						name: "publish-ui-skill",
+						kind: "skill",
+					},
+					{ id: "skill:fork", name: "fork", kind: "skill" },
+				],
+			}),
+		).toEqual([
+			{ name: "release", description: "Ship it" },
+			{ name: "publish-ui-skill", description: "Skill command" },
+		]);
+	});
+
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
