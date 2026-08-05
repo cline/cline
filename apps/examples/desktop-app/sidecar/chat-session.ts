@@ -7,6 +7,7 @@ import {
 	type ClineCore,
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
+	createUserInstructionConfigService,
 	projectSessionCompactionState,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
@@ -86,6 +87,50 @@ function workspacePathKey(
 ): string | undefined {
 	const workspacePath = readWorkspacePath(source);
 	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+/**
+ * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
+ * token: the slash menu hides same-named user commands, so expansion must
+ * not hijack them either.
+ */
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+
+/**
+ * Expand a leading `/skill` or `/workflow` token into its configured
+ * instructions before dispatching the prompt, mirroring the CLI's
+ * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
+ * slash command, the token is a built-in, no command matches, or command
+ * discovery fails.
+ */
+async function expandRuntimeSlashCommand(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+): Promise<string> {
+	if (!prompt.startsWith("/") || prompt.length < 2) {
+		return prompt;
+	}
+	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+		return prompt;
+	}
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath },
+		rules: { workspacePath },
+		workflows: { workspacePath },
+	});
+	try {
+		await service.start();
+		return service.resolveRuntimeSlashCommand(prompt);
+	} catch (error) {
+		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
+			error,
+		});
+		return prompt;
+	} finally {
+		service.stop();
+	}
 }
 
 function hasActiveWorkspaceTurn(session: LiveSession): boolean {
@@ -811,6 +856,13 @@ async function handleSend(
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
+	// Dispatch the expanded instructions, but keep the raw `/command` token as
+	// the session's display prompt.
+	const expandedPrompt = await expandRuntimeSlashCommand(
+		ctx,
+		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
+		prompt,
+	);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -877,7 +929,7 @@ async function handleSend(
 			}
 			await manager.send({
 				sessionId,
-				prompt,
+				prompt: expandedPrompt,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -901,7 +953,7 @@ async function handleSend(
 		try {
 			result = await manager.send({
 				sessionId,
-				prompt,
+				prompt: expandedPrompt,
 				delivery,
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -1365,10 +1417,18 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
+	// Queued prompts are delivered by the runtime without another pass
+	// through handleSend, so expand a leading slash command here too.
+	const expandedPrompt = await expandRuntimeSlashCommand(
+		ctx,
+		readWorkspacePath(ctx.liveSessions.get(sessionId)?.config) ??
+			ctx.workspaceRoot,
+		prompt,
+	);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt,
+		prompt: expandedPrompt,
 	});
 	return {
 		sessionId,

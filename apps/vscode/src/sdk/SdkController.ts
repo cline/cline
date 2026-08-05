@@ -849,9 +849,11 @@ export class Controller {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
 			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
-			const workflowRecords = service
-				.listRecords("workflow")
-				.map((record) => ({ name: record.item.name, filePath: record.filePath }))
+			const workflowRecords = service.listRecords("workflow").map((record) => ({
+				id: record.id,
+				name: record.item.name,
+				filePath: record.filePath,
+			}))
 			const disabledWorkflowNames = buildDisabledWorkflowNames({
 				records: workflowRecords,
 				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
