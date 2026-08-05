@@ -467,6 +467,8 @@ export class SdkTaskHistory {
 				// cannot be trusted as a clean ending. A missing record is likewise an unknown
 				// outcome, so it gets no completion styling either.
 				finalTurnCompleted: sdkRecord?.status === "completed",
+				// Relativize the absolute tool paths for display, same as the live path.
+				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
 			},
 		)
 		if (sdkRecord && legacyTask) {

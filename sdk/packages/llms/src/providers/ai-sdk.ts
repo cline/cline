@@ -1,3 +1,4 @@
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	AgentMessage,
 	AgentModelEvent,
@@ -22,13 +23,16 @@ import {
 	NoSuchToolError,
 	streamText,
 	type ToolSet,
+	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
 import {
@@ -39,6 +43,10 @@ import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
+import {
+	applyBedrockCachePointToLastUserMessage,
+	shouldApplyBedrockCachePoint,
+} from "./routing/bedrock-cache-point";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -73,14 +81,25 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
-function buildCachedAiSdkMessages(
+function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: modelSupportsImageInput(context),
 	}) as Array<Record<string, unknown>>;
+
+	if (shouldApplyBedrockCachePoint(request, context)) {
+		applyBedrockCachePointToLastUserMessage(aiMessages);
+		return aiMessages;
+	}
+
+	if (!shouldApplyPromptCache(request, context)) {
+		return aiMessages;
+	}
+
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -280,7 +299,7 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -387,6 +406,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages: options?.supportsImages,
 	});
 }
 
@@ -919,6 +939,12 @@ function extractGoogleThoughtMetadata(
 interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
+	/**
+	 * This layer already recorded `sdk.error` telemetry for the failure.
+	 * Forwarded as `errorReported` on the `finish` event so the agent loop
+	 * does not report the same failure a second time.
+	 */
+	reported?: boolean;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
@@ -966,6 +992,26 @@ async function* emitAiSdkEvents(
 							type: "reasoning-delta",
 							text,
 							metadata: extractGoogleThoughtMetadata(part),
+						};
+					}
+					continue;
+				}
+
+				if (part.type === "file") {
+					// Model-generated file (e.g. image-output models). Convert it
+					// so a file-only turn reaches the assistant message instead of
+					// being dropped and failing as "Model returned empty response"
+					// — the retry middleware counts `file` parts as content on the
+					// same premise (see stream-part-classification.ts).
+					const file = part.file as
+						| { base64?: string; mediaType?: string }
+						| undefined;
+					const data = file?.base64;
+					if (typeof data === "string" && data.length > 0) {
+						yield {
+							type: "file",
+							data,
+							mediaType: file?.mediaType ?? "application/octet-stream",
 						};
 					}
 					continue;
@@ -1102,6 +1148,7 @@ async function* emitAiSdkEvents(
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorReported: streamError?.reported,
 	};
 }
 
@@ -1178,6 +1225,40 @@ async function createProviderModule(
 	}
 }
 
+/**
+ * Wrap a vendor-constructed model with the empty-response retry middleware.
+ *
+ * All-empty turns (no text, no reasoning, no tool call) are a cross-provider
+ * phenomenon: production telemetry shows them on hosted backends (openrouter,
+ * cline, generic OpenAI-compatible endpoints), not just local Ollama. An
+ * empty assistant turn is a hard failure in the agent runtime ("Model
+ * returned empty response"), so a single transient flake kills the task.
+ * Retrying here — the one composition point every AI SDK vendor flows
+ * through — turns those flakes into non-events while leaving the runtime's
+ * loud failure in place for models that are persistently empty.
+ *
+ * Applied as the *outermost* wrap so each retry re-runs the vendor's full
+ * request pipeline, including any vendor-level middleware attached inside
+ * `provider.model(...)`. Vendors opt out or tune attempts through
+ * `ProviderFactoryResult.retryEmptyResponses`.
+ */
+export function withEmptyResponseRetry(
+	model: unknown,
+	retryEmptyResponses: ProviderFactoryResult["retryEmptyResponses"],
+	logger: GatewayProviderContext["logger"],
+): unknown {
+	if (retryEmptyResponses === false) {
+		return model;
+	}
+	return wrapLanguageModel({
+		model: model as LanguageModelV4,
+		middleware: createRetryEmptyResponseMiddleware({
+			...retryEmptyResponses,
+			logger,
+		}),
+	});
+}
+
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
@@ -1209,11 +1290,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
-				const messages = shouldApplyPromptCache(request, context)
-					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
-							includeReasoning: shouldIncludeReasoningHistory(request, context),
-						});
+				const messages = buildAiSdkRequestMessages(
+					request,
+					context,
+					messagesSystemPrompt,
+				);
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,
@@ -1234,7 +1315,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = streamText({
-					model: provider.model(context.model.id) as never,
+					model: withEmptyResponseRetry(
+						provider.model(context.model.id),
+						provider.retryEmptyResponses,
+						context.logger,
+					) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					...(tools ? { tools } : {}),
@@ -1261,7 +1346,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								severity: "error",
 							});
 						}
-						captureSdkError(context.telemetry, {
+						captured.reported = captureSdkError(context.telemetry, {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
@@ -1308,7 +1393,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				captureSdkError(context.telemetry, {
+				const reported = captureSdkError(context.telemetry, {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
@@ -1326,6 +1411,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorReported: reported || captured.reported,
 				};
 			}
 		},

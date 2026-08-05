@@ -36,6 +36,8 @@ export interface SessionRow {
 export interface CreateRootSessionInput {
 	sessionId: string;
 	source: SessionSource;
+	mode?: string;
+	version?: string;
 	pid: number;
 	startedAt: string;
 	interactive: boolean;
@@ -55,6 +57,8 @@ export interface CreateRootSessionInput {
 export interface CreateRootSessionWithArtifactsInput {
 	sessionId: string;
 	source: SessionSource;
+	mode?: string;
+	version?: string;
 	pid: number;
 	interactive: boolean;
 	provider: string;
