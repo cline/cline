@@ -694,6 +694,7 @@ export {
 	captureAgentUnexpectedReasoningTokens,
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	captureCompactionExecuted,

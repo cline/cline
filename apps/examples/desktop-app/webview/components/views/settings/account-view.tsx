@@ -26,6 +26,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAccount } from "@/contexts/account-context";
+import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
@@ -172,6 +173,10 @@ export function AccountView() {
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	// Signed out is an expected state carried by a typed sidecar result (or a
+	// definitive auth error from older sidecars), tracked separately from
+	// failures so it renders the sign-in prompt instead of an error card.
+	const [signedOut, setSignedOut] = useState(false);
 	const [accountActionPending, setAccountActionPending] = useState<
 		"sign-in" | "sign-out" | null
 	>(null);
@@ -215,24 +220,49 @@ export function AccountView() {
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
-			const [userData, balanceData, orgsData] = await Promise.all([
-				fetchAccountUser(),
+			// Resolve the auth state first: when the session is signed out the
+			// remaining account commands would just fail the same way, so they
+			// are never fired.
+			const userData = await fetchAccountUser();
+			if (isClineAccountNotAuthenticatedResult(userData)) {
+				resetAccountData();
+				setSignedOut(true);
+				return;
+			}
+			const [balanceData, orgsData] = await Promise.all([
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
 			]);
+			if (
+				isClineAccountNotAuthenticatedResult(balanceData) ||
+				isClineAccountNotAuthenticatedResult(orgsData)
+			) {
+				resetAccountData();
+				setSignedOut(true);
+				return;
+			}
 			const nextActiveOrganization =
 				orgsData.find((organization) => organization.active) ?? null;
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
+			setSignedOut(false);
 			setUser(userData);
 			setBalance(balanceData);
-			setOrganizationBalance(organizationBalanceData);
+			setOrganizationBalance(
+				isClineAccountNotAuthenticatedResult(organizationBalanceData)
+					? null
+					: organizationBalanceData,
+			);
 			setOrganizations(orgsData);
 		} catch (err) {
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
-			setOverviewError(message);
+			if (isAccountAuthError(message)) {
+				setSignedOut(true);
+			} else {
+				setOverviewError(message);
+			}
 		} finally {
 			setOverviewLoading(false);
 		}
@@ -280,7 +310,8 @@ export function AccountView() {
 			});
 			resetAccountData();
 			setActiveTab("overview");
-			setOverviewError("No Cline account auth token found");
+			setOverviewError(null);
+			setSignedOut(true);
 		} catch (err) {
 			const message = normalizeAccountViewError(err).message;
 			setOverviewError(message);
@@ -321,6 +352,14 @@ export function AccountView() {
 					)
 				: await fetchUsageTransactions();
 			if (usageGenerationRef.current !== generation) return;
+			// The token can expire mid-session: render the sign-in state
+			// instead of an error toast.
+			if (isClineAccountNotAuthenticatedResult(data)) {
+				resetAccountData();
+				setSignedOut(true);
+				setActiveTab("overview");
+				return;
+			}
 			setUsageTransactions(data);
 			setUsageLoaded(true);
 		} catch (err) {
@@ -332,7 +371,7 @@ export function AccountView() {
 				setUsageLoading(false);
 			}
 		}
-	}, [activeOrganization]);
+	}, [activeOrganization, resetAccountData]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: we need to reset usage state when the organization changes
 	useEffect(() => {
@@ -354,6 +393,12 @@ export function AccountView() {
 		setBillingError(null);
 		try {
 			const data = await fetchPaymentTransactions();
+			if (isClineAccountNotAuthenticatedResult(data)) {
+				resetAccountData();
+				setSignedOut(true);
+				setActiveTab("overview");
+				return;
+			}
 			setPaymentTransactions(data);
 			setBillingLoaded(true);
 		} catch (err) {
@@ -362,7 +407,7 @@ export function AccountView() {
 		} finally {
 			setBillingLoading(false);
 		}
-	}, []);
+	}, [resetAccountData]);
 
 	useEffect(() => {
 		if (activeTab === "billing" && !billingLoaded) {
@@ -561,11 +606,9 @@ export function AccountView() {
 				{activeTab === "overview" && (
 					<div className="flex flex-col gap-6">
 						{overviewLoading && renderLoading()}
-						{overviewError &&
-							(isAccountAuthError(overviewError)
-								? renderSignedOut()
-								: renderError(overviewError, loadOverview))}
-						{!overviewLoading && !overviewError && user && (
+						{!overviewLoading && signedOut && renderSignedOut()}
+						{overviewError && renderError(overviewError, loadOverview)}
+						{!overviewLoading && !signedOut && !overviewError && user && (
 							<>
 								{/* User Profile Card */}
 								<div className="rounded-lg border border-border p-5">
