@@ -179,7 +179,7 @@
 	--neutral-1: #121216;
 	--neutral-2: #18191b;
 	--neutral-3: #212225;
-	--neutral-4: #272a2d;
+	--neutral-4: #2F2F37;
 	--neutral-5: #2e3135;
 	--neutral-6: #363a3f;
 	--neutral-7: #43484e;
@@ -361,10 +361,12 @@
 	--font-weight-medium: 560;
 	--font-weight-semibold: 640;
 	--font-weight-bold: 640;
-	--text-xs: 0.75rem;
+	/* 12px at 15px root */
+	--text-xs: 0.8rem;
 	--text-xs--line-height: 1rem;
 	--text-xs--letter-spacing: 0.0025em;
-	--text-sm: 0.875rem;
+	/* 13px at 15px root */
+	--text-sm: 0.86667rem;
 	--text-sm--line-height: 1.25rem;
 	--text-sm--letter-spacing: 0em;
 	--text-base: 1rem;
