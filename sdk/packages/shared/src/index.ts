@@ -195,12 +195,15 @@ export type {
 	ToolResultContent,
 	ToolUseContent,
 	VideoContent,
+	AudioContent,
 } from "./llms/messages";
 export {
 	ApiFormat,
 	ApiFormatSchema,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
+	isAudioGenerationModel,
+	isDedicatedAudioGenerationModel,
 	isImageGenerationModel,
 	isVideoGenerationModel,
 	type ModelCapability,

@@ -183,7 +183,8 @@ export function isChatModel(model: ProviderModel): boolean {
 		(model.outputModalities === undefined ||
 			model.outputModalities.includes("text") ||
 			model.outputModalities.includes("image") ||
-			model.outputModalities.includes("video"))
+			model.outputModalities.includes("video") ||
+			model.outputModalities.includes("audio"))
 	);
 }
 

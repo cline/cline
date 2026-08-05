@@ -40,6 +40,7 @@ import {
 	createContributionRegistry,
 	type ITelemetryService,
 	isImageGenerationModel,
+	isAudioGenerationModel,
 	isLikelyAuthError,
 	isVideoGenerationModel,
 	type LegacyAgentUsage,
@@ -849,7 +850,9 @@ export class SessionRuntime {
 		const modelInfo = tryGetModelInfo(this.config);
 		const imageGeneration = isImageGenerationModel(modelInfo ?? {});
 		const mediaGeneration =
-			imageGeneration || isVideoGenerationModel(modelInfo ?? {});
+			imageGeneration ||
+			isVideoGenerationModel(modelInfo ?? {}) ||
+			isAudioGenerationModel(modelInfo ?? {});
 		const tools = mediaGeneration ? [] : Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is

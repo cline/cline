@@ -49,6 +49,15 @@ export interface AgentVideoPart {
 	path?: string;
 }
 
+export interface AgentAudioPart {
+	type: "audio";
+	mediaType: string;
+	/** Base64 bytes for stateless runtimes; persistent hosts replace this with path. */
+	data?: string;
+	/** Absolute path to a host-persisted generated-audio artifact. */
+	path?: string;
+}
+
 export interface AgentFilePart {
 	type: "file";
 	path: string;
@@ -76,6 +85,7 @@ export type AgentMessagePart =
 	| AgentReasoningPart
 	| AgentImagePart
 	| AgentVideoPart
+	| AgentAudioPart
 	| AgentFilePart
 	| AgentToolCallPart
 	| AgentToolResultPart;
@@ -259,6 +269,7 @@ export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
 	| { type: "image"; data: string; mediaType: string }
 	| { type: "video"; data: string; mediaType: string }
+	| { type: "audio"; data: string; mediaType: string }
 	| {
 			type: "reasoning-delta";
 			text: string;
@@ -488,7 +499,7 @@ export interface AgentRuntimeConfig {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	storeGeneratedArtifact?: (artifact: {
-		kind: "video";
+		kind: "video" | "audio";
 		data: string;
 		mediaType: string;
 	}) => Promise<{ path: string }>;

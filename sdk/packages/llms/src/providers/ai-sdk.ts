@@ -210,6 +210,22 @@ function extractGeneratedVideo(
 	return { data: record.base64, mediaType: record.mediaType };
 }
 
+function extractGeneratedAudio(
+	file: unknown,
+): { data: string; mediaType: string } | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith("audio/") ||
+		typeof record.base64 !== "string" ||
+		!record.base64
+	) {
+		return undefined;
+	}
+	return { data: record.base64, mediaType: record.mediaType };
+}
+
 function isOpenAiImageGenerationToolPart(part: AiSdkStreamPart): boolean {
 	return (
 		part.providerExecuted === true &&
@@ -1225,6 +1241,16 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
+					const audio = extractGeneratedAudio(part.file);
+					if (audio) {
+						yield { type: "audio", ...audio };
+						continue;
+					}
+					const video = extractGeneratedVideo(part.file);
+					if (video) {
+						yield { type: "video", ...video };
+						continue;
+					}
 					// Model-generated file (e.g. image-output models). Convert it
 					// so a file-only turn reaches the assistant message instead of
 					// being dropped and failing as "Model returned empty response"
@@ -1236,11 +1262,11 @@ async function* emitAiSdkEvents(
 					const data = file?.base64;
 					if (typeof data === "string" && data.length > 0) {
 						if (file?.mediaType?.startsWith("image/")) emittedImages += 1;
-						yield {
-							type: "file",
+							yield {
+								type: "file",
 							data,
 							mediaType: file?.mediaType ?? "application/octet-stream",
-						};
+							};
 					}
 					continue;
 				}
@@ -1662,11 +1688,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					messagesSystemPrompt,
 				);
-				const providerOptions = composeAiSdkProviderOptions(
-					request,
-					context,
-					kind,
-				) as never;
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);

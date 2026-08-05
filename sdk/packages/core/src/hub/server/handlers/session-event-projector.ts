@@ -246,6 +246,17 @@ async function projectAgentEvent(
 					);
 				}
 				break;
+			case "audio":
+				if (agentEvent.audio) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.audio",
+							{ audio: agentEvent.audio },
+							sessionId,
+						),
+					);
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

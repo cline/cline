@@ -1,4 +1,5 @@
 import type {
+	AudioContent,
 	AgentMessage,
 	AgentMessagePart,
 	AgentTextPart,
@@ -200,6 +201,8 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			return { type: "image", image: block.data, mediaType: block.mediaType };
 		case "video":
 			return { type: "video", path: block.path, mediaType: block.mediaType };
+		case "audio":
+			return { type: "audio", path: block.path, mediaType: block.mediaType };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
 		case "tool_use":
@@ -271,6 +274,14 @@ function agentPartToContentBlock(
 						path: part.path,
 						mediaType: part.mediaType,
 					} satisfies VideoContent)
+				: undefined;
+		case "audio":
+			return part.path
+				? ({
+						type: "audio",
+						path: part.path,
+						mediaType: part.mediaType,
+					} satisfies AudioContent)
 				: undefined;
 		case "file":
 			return {

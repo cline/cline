@@ -67,6 +67,7 @@ const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
 	"chat_video",
+	"chat_audio",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -984,6 +985,51 @@ export function useChatSession() {
 							role: "assistant",
 							content: "",
 							videos: [generatedVideo],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				return;
+			}
+
+			if (payload.stream === "chat_audio") {
+				let audio: { mediaType?: string; artifactName?: string };
+				try {
+					audio = JSON.parse(payload.chunk) as typeof audio;
+				} catch {
+					return;
+				}
+				if (
+					typeof audio.mediaType !== "string" ||
+					!audio.mediaType.startsWith("audio/") ||
+					typeof audio.artifactName !== "string" ||
+					!audio.artifactName
+				) {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((previous) => {
+					const generatedAudio = {
+						id: `${assistantId}_audio_${audio.artifactName}`,
+						mediaType: audio.mediaType as string,
+						artifactName: audio.artifactName as string,
+					};
+					const updated = updateMessageById(previous, assistantId, (message) => ({
+						...message,
+						audios: [...(message.audios ?? []), generatedAudio],
+					}));
+					if (updated !== previous) return updated;
+					return sliceMessages([
+						...previous,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							audios: [generatedAudio],
 							createdAt: chunkCreatedAt(payload),
 						},
 					]);

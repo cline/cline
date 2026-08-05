@@ -908,6 +908,41 @@ describe("SessionRuntime.run", () => {
 		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
+	it("disables tools and completion-tool policy for audio-output models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "lyria-3-clip-preview";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "audio"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate music");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
 	it("appends the user turn into the conversation store", async () => {
 		const { deps } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

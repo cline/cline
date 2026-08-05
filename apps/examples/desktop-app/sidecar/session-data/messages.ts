@@ -435,6 +435,11 @@ export async function readSessionMessages(
 			mediaType: string;
 			artifactName: string;
 		}> = [];
+		const audios: Array<{
+			id: string;
+			mediaType: string;
+			artifactName: string;
+		}> = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -571,6 +576,19 @@ export async function readSessionMessages(
 				});
 				continue;
 			}
+			if (
+				blockType === "audio" &&
+				typeof record.path === "string" &&
+				typeof record.mediaType === "string" &&
+				record.mediaType.startsWith("audio/")
+			) {
+				audios.push({
+					id: `${messageIdBase}_audio_${blockIdx}`,
+					mediaType: record.mediaType,
+					artifactName: basename(record.path),
+				});
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -610,6 +628,25 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					videos,
+					createdAt,
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
+		if (audios.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.audios = audios;
+			} else {
+				out.push({
+					id: `${messageIdBase}_audios`,
+					sessionId,
+					role,
+					content: "",
+					audios,
 					createdAt,
 					meta: textMeta,
 				});

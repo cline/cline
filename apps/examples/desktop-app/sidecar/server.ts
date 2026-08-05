@@ -47,7 +47,15 @@ const JSON_HEADERS = {
 	"content-type": "application/json",
 };
 
-function videoContentType(filename: string): string {
+function artifactContentType(filename: string): string {
+	const lower = filename.toLowerCase();
+	if (lower.endsWith(".mp3")) return "audio/mpeg";
+	if (lower.endsWith(".wav")) return "audio/wav";
+	if (lower.endsWith(".aac")) return "audio/aac";
+	if (lower.endsWith(".m4a")) return "audio/mp4";
+	if (lower.endsWith(".weba")) return "audio/webm";
+	if (lower.endsWith(".flac")) return "audio/flac";
+	if (lower.endsWith(".ogg")) return "audio/ogg";
 	if (filename.toLowerCase().endsWith(".webm")) return "video/webm";
 	if (filename.toLowerCase().endsWith(".mov")) return "video/quicktime";
 	if (filename.toLowerCase().endsWith(".mpeg")) return "video/mpeg";
@@ -270,7 +278,7 @@ export function createFetchHandler(
 					"accept-ranges": "bytes",
 					"cache-control": "private, max-age=31536000, immutable",
 					"content-length": String(end - start + 1),
-					"content-type": videoContentType(artifactName),
+					"content-type": artifactContentType(artifactName),
 					...(range
 						? { "content-range": `bytes ${start}-${end}/${artifactStat.size}` }
 						: {}),

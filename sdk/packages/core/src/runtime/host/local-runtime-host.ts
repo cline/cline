@@ -141,7 +141,10 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
-function videoArtifactExtension(mediaType: string): string {
+function generatedArtifactExtension(
+	kind: "video" | "audio",
+	mediaType: string,
+): string {
 	switch (mediaType.toLowerCase()) {
 		case "video/webm":
 			return "webm";
@@ -149,18 +152,35 @@ function videoArtifactExtension(mediaType: string): string {
 			return "mov";
 		case "video/mpeg":
 			return "mpeg";
+		case "audio/wav":
+		case "audio/wave":
+		case "audio/x-wav":
+			return "wav";
+		case "audio/aac":
+			return "aac";
+		case "audio/mp4":
+		case "audio/m4a":
+		case "audio/x-m4a":
+			return "m4a";
+		case "audio/webm":
+			return "weba";
+		case "audio/flac":
+			return "flac";
+		case "audio/ogg":
+		case "audio/opus":
+			return "ogg";
 		default:
-			return "mp4";
+			return kind === "audio" ? "mp3" : "mp4";
 	}
 }
 
-async function storeSessionVideoArtifact(
+async function storeSessionGeneratedArtifact(
 	sessionDir: string,
-	artifact: { data: string; mediaType: string },
+	artifact: { kind: "video" | "audio"; data: string; mediaType: string },
 ): Promise<{ path: string }> {
 	const artifactsDir = join(sessionDir, "artifacts");
 	await mkdir(artifactsDir, { recursive: true });
-	const filename = `video-${Date.now()}-${randomUUID()}.${videoArtifactExtension(artifact.mediaType)}`;
+	const filename = `${artifact.kind}-${Date.now()}-${randomUUID()}.${generatedArtifactExtension(artifact.kind, artifact.mediaType)}`;
 	const path = join(artifactsDir, filename);
 	const temporaryPath = `${path}.tmp`;
 	try {
@@ -729,7 +749,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			storeGeneratedArtifact: (artifact) =>
-				storeSessionVideoArtifact(sessionDir, artifact),
+				storeSessionGeneratedArtifact(sessionDir, artifact),
 			toolPolicies: bootstrap.toolPolicies,
 			requestToolApproval: bootstrap.requestToolApproval
 				? async (request) => {
