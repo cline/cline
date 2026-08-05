@@ -1,4 +1,5 @@
 import { isClineProvider } from "@cline/shared";
+import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
 	isDeepSeekFamily,
@@ -52,17 +53,25 @@ function isMiniMaxM3(input: ProviderOptionMatchInput): boolean {
 	return isMiniMaxM3Model(input.request, input.context);
 }
 
-function isOllamaReasoningDefaultOnDisable(
-	input: ProviderOptionMatchInput,
-): boolean {
+function isOllamaThinkingCapable(input: ProviderOptionMatchInput): boolean {
 	return (
-		input.request.providerId === "ollama" &&
-		input.request.reasoning?.enabled === false &&
-		modelReasoningDefaultsOn({
-			request: input.request,
-			context: input.context,
-		})
+		input.target === "ollama" &&
+		(input.context.model.capabilities?.includes("reasoning") === true ||
+			modelReasoningDefaultsOn({
+				request: input.request,
+				context: input.context,
+			}))
 	);
+}
+
+function resolveOllamaThink(
+	input: ProviderOptionMatchInput,
+): boolean | undefined {
+	const explicitlyEnabled = input.request.reasoning?.enabled;
+	if (typeof explicitlyEnabled === "boolean") {
+		return explicitlyEnabled;
+	}
+	return isOllamaThinkingCapable(input) ? true : undefined;
 }
 
 function usesGlmThinkingProviderRouting(
@@ -496,7 +505,7 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	applies: (input) =>
 		input.request.providerId !== "openrouter" &&
 		isDeepSeekModelOrProviderDefault(input) &&
-		!isOllamaReasoningDefaultOnDisable(input),
+		input.target !== "ollama",
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const thinkingType = resolveFamilyThinkingType(input, undefined);
@@ -510,24 +519,31 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	},
 };
 
-const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
-	id: "provider.ollama.reasoning-default-on.disable-none",
+const ollamaNativeOptionsRule: ProviderOptionRule = {
+	id: "provider.ollama.native-options",
 	phase: "provider-reasoning",
 	description:
-		"Ollama models whose reasoning defaults on need reasoningEffort=none when request reasoning is disabled.",
-	applies: isOllamaReasoningDefaultOnDisable,
+		"Ollama receives its context window and supported thinking toggle through native provider options.",
+	applies: (input) => input.target === "ollama",
+	suppresses: { genericThinking: true, genericEffort: true },
 	build: (input) => {
+		const contextWindow =
+			input.context.model.contextWindow ??
+			input.context.model.maxInputTokens ??
+			OLLAMA_DEFAULT_CONTEXT_WINDOW;
+		const numCtx =
+			typeof contextWindow === "number" &&
+			Number.isFinite(contextWindow) &&
+			contextWindow > 0
+				? Math.floor(contextWindow)
+				: OLLAMA_DEFAULT_CONTEXT_WINDOW;
+		const think = resolveOllamaThink(input);
 		const bucketOptions = {
-			reasoningEffort: "none",
-			reasoning: { effort: "none" },
+			options: { num_ctx: numCtx },
+			...(think === undefined ? {} : { think }),
 		};
 		return {
-			...buildProviderAndAliasPatch({
-				providerId: input.request.providerId,
-				providerOptionsKey: input.providerOptionsKey,
-				bucketOptions,
-			}),
-			openaiCompatible: bucketOptions,
+			ollama: bucketOptions,
 		};
 	},
 };
@@ -613,7 +629,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
-	ollamaReasoningDefaultOnDisableRule,
+	ollamaNativeOptionsRule,
 	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	miniMaxThinkingRule,

@@ -5,6 +5,7 @@ import {
 } from "../connectors/common";
 import type { ConnectIo, ConnectRunContext } from "../connectors/types";
 import {
+	runCleanupConnectorInstance,
 	runConnectAdapter,
 	runRestartConnector,
 	runStopAllConnectors,
@@ -12,6 +13,8 @@ import {
 } from "./connect";
 
 const mocks = vi.hoisted(() => ({
+	startConnectorViaHub: vi.fn(),
+	stopConnectorsViaHub: vi.fn(async () => undefined as number | undefined),
 	disableConnectorAutostart: vi.fn(),
 	getPersistedConnectorConnection: vi.fn(),
 	getConnector: vi.fn(),
@@ -34,6 +37,11 @@ vi.mock("@cline/core", () => ({
 vi.mock("../connectors/registry", () => ({
 	getConnector: mocks.getConnector,
 	listConnectors: mocks.listConnectors,
+}));
+
+vi.mock("./connect-via-hub", () => ({
+	startConnectorViaHub: mocks.startConnectorViaHub,
+	stopConnectorsViaHub: mocks.stopConnectorsViaHub,
 }));
 
 describe("runConnectAdapter", () => {
@@ -490,5 +498,197 @@ describe("runConnectAdapter", () => {
 			"[connect] replacement was not started because telegram instance cline_bot is still running",
 		);
 		expect(mocks.persistConnectorConnection).not.toHaveBeenCalled();
+	});
+});
+
+describe("runCleanupConnectorInstance", () => {
+	const io: ConnectIo = {
+		writeln: vi.fn(),
+		writeErr: vi.fn(),
+	};
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("reaps one instance without disabling its autostart", async () => {
+		const stopInstance = vi.fn().mockResolvedValue({
+			stoppedProcesses: 0,
+			failedProcesses: 0,
+			stoppedSessions: 2,
+		});
+		mocks.getConnector.mockResolvedValue({
+			name: "slack",
+			description: "Slack",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance,
+		});
+
+		await expect(
+			runCleanupConnectorInstance("slack", "cline-slack", io),
+		).resolves.toBe(0);
+
+		expect(stopInstance).toHaveBeenCalledWith("cline-slack", io);
+		// The instance crashed; it was not retired. Disabling autostart here would
+		// make every crash silently opt the connector out of supervision.
+		expect(mocks.disableConnectorAutostart).not.toHaveBeenCalled();
+	});
+
+	it("reports a failed reap", async () => {
+		mocks.getConnector.mockResolvedValue({
+			name: "slack",
+			description: "Slack",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			stopInstance: vi.fn().mockResolvedValue({
+				stoppedProcesses: 0,
+				failedProcesses: 1,
+				stoppedSessions: 0,
+			}),
+		});
+
+		await expect(
+			runCleanupConnectorInstance("slack", "cline-slack", io),
+		).resolves.toBe(1);
+	});
+
+	it("rejects an adapter without per-instance stop", async () => {
+		mocks.getConnector.mockResolvedValue({
+			name: "slack",
+			description: "Slack",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+		});
+
+		await expect(
+			runCleanupConnectorInstance("slack", "cline-slack", io),
+		).resolves.toBe(1);
+		expect(io.writeErr).toHaveBeenCalledWith(
+			'connect adapter "slack" does not support per-instance stop',
+		);
+	});
+
+	it("rejects an unknown adapter", async () => {
+		mocks.getConnector.mockResolvedValue(undefined);
+
+		await expect(
+			runCleanupConnectorInstance("nope", "instance", io),
+		).resolves.toBe(1);
+		expect(io.writeErr).toHaveBeenCalledWith('unknown connect adapter "nope"');
+	});
+});
+
+describe("hub-delegated connector starts", () => {
+	const io: ConnectIo = { writeln: vi.fn(), writeErr: vi.fn() };
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.listConnectors.mockReturnValue([]);
+		mocks.listActiveConnectors.mockReturnValue([]);
+		mocks.validate.mockResolvedValue(0);
+		mocks.run.mockResolvedValue(0);
+		mocks.getConnector.mockResolvedValue({
+			name: "slack",
+			description: "Slack",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			resolveInstanceId: () => "cline-slack",
+		});
+		mocks.startConnectorViaHub.mockResolvedValue({
+			delegated: true,
+			exitCode: 0,
+		});
+	});
+
+	afterEach(() => {
+		delete process.env.CLINE_CONNECTOR_SUPERVISED;
+	});
+
+	it("asks the hub to own a background connector and records the intent", async () => {
+		await expect(
+			runConnectAdapter("slack", ["--bot-token", "xoxb"], io),
+		).resolves.toBe(0);
+
+		expect(mocks.startConnectorViaHub).toHaveBeenCalledWith(
+			expect.objectContaining({
+				channel: "slack",
+				instanceId: "cline-slack",
+				args: ["--bot-token", "xoxb"],
+			}),
+		);
+		// The adapter must not also run here: the hub owns the process now.
+		expect(mocks.run).not.toHaveBeenCalled();
+		expect(mocks.persistConnectorConnection).toHaveBeenCalledWith(
+			"slack",
+			"cline-slack",
+			["--bot-token", "xoxb"],
+		);
+	});
+
+	it("runs locally for a foreground connector", async () => {
+		await runConnectAdapter("slack", ["--bot-token", "xoxb", "-i"], io);
+
+		expect(mocks.startConnectorViaHub).not.toHaveBeenCalled();
+		expect(mocks.run).toHaveBeenCalled();
+	});
+
+	it("runs locally inside a supervised process instead of asking the hub again", async () => {
+		process.env.CLINE_CONNECTOR_SUPERVISED = "1";
+
+		await runConnectAdapter("slack", ["--bot-token", "xoxb"], io);
+
+		// Delegating here would send the hub straight back to spawning this same
+		// process.
+		expect(mocks.startConnectorViaHub).not.toHaveBeenCalled();
+		expect(mocks.run).toHaveBeenCalled();
+	});
+
+	it("runs locally when the instance id cannot be known up front", async () => {
+		mocks.getConnector.mockResolvedValue({
+			name: "telegram",
+			description: "Telegram",
+			run: mocks.run,
+			validate: mocks.validate,
+			showHelp: vi.fn(),
+			resolveInstanceId: () => undefined,
+		});
+
+		await runConnectAdapter("telegram", ["-k", "token"], io);
+
+		expect(mocks.startConnectorViaHub).not.toHaveBeenCalled();
+		expect(mocks.run).toHaveBeenCalled();
+	});
+
+	it("falls back to a local start when the hub declines", async () => {
+		mocks.startConnectorViaHub.mockResolvedValue({
+			delegated: false,
+			reason: "hub does not support connector supervision",
+		});
+
+		await runConnectAdapter("slack", ["--bot-token", "xoxb"], io);
+
+		expect(mocks.run).toHaveBeenCalled();
+	});
+
+	it("does not validate or delegate a help invocation", async () => {
+		await runConnectAdapter("slack", ["--help"], io);
+
+		expect(mocks.startConnectorViaHub).not.toHaveBeenCalled();
+		expect(mocks.validate).not.toHaveBeenCalled();
+	});
+
+	it("reports a validation failure without contacting the hub", async () => {
+		mocks.validate.mockResolvedValue(2);
+
+		await expect(
+			runConnectAdapter("slack", ["--bot-token", "bad"], io),
+		).resolves.toBe(2);
+		expect(mocks.startConnectorViaHub).not.toHaveBeenCalled();
+		expect(mocks.run).not.toHaveBeenCalled();
 	});
 });

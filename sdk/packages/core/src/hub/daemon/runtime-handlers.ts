@@ -12,6 +12,7 @@ import type {
 import type { VerifySubmitExecutor } from "../../extensions/tools";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import { CoreSessionService } from "../../session/services/session-service";
 import { SessionSource } from "../../types/common";
 
@@ -89,7 +90,15 @@ export function createLocalHubScheduleRuntimeHandlers(
 		async startSession(request) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
 			const started = await sessionHost.startSession({
-				source: request.source?.trim() || SessionSource.CLI,
+				source: SessionSource.CORE,
+				mode: "automation",
+				// Record the spec-defined trigger source (e.g. "hub-schedule"
+				// or a custom label from spec frontmatter) as provenance; the
+				// top-level `source` is reserved for the client surface.
+				sessionMetadata: withSessionHistoryOriginMetadata(undefined, {
+					mode: "automation",
+					trigger: request.source,
+				}),
 				interactive: false,
 				config: {
 					providerId: normalizeProviderId(request.provider),

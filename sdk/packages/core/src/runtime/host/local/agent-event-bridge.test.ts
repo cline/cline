@@ -1,6 +1,11 @@
+import type { AgentEvent } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import type { CoreSessionConfig } from "../../../types/config";
 import type { ActiveSession } from "../../../types/session";
-import { AgentEventBridge, type AgentEventBridgeDeps } from "./agent-event-bridge";
+import {
+	AgentEventBridge,
+	type AgentEventBridgeDeps,
+} from "./agent-event-bridge";
 
 function createTelemetryStub() {
 	return {
@@ -12,7 +17,9 @@ function createTelemetryStub() {
 	};
 }
 
-function createBridge(telemetry: ReturnType<typeof createTelemetryStub> | undefined) {
+function createBridge(
+	telemetry: ReturnType<typeof createTelemetryStub> | undefined,
+) {
 	const session = telemetry
 		? ({ config: { telemetry } } as unknown as ActiveSession)
 		: undefined;
@@ -21,6 +28,99 @@ function createBridge(telemetry: ReturnType<typeof createTelemetryStub> | undefi
 	} as unknown as AgentEventBridgeDeps;
 	return new AgentEventBridge(deps);
 }
+
+describe("AgentEventBridge.dispatchAgentEvent", () => {
+	function createDispatchFixture() {
+		const telemetry = createTelemetryStub();
+		const config = {
+			telemetry,
+			providerId: "cline",
+			modelId: "model-a",
+			mode: "act",
+		} as unknown as CoreSessionConfig;
+		const session = {
+			config,
+			agent: {
+				getAgentId: () => "agent-1",
+				getConversationId: () => "conv-1",
+			},
+			runtime: {},
+		} as unknown as ActiveSession;
+		const sessions = new Map<string, ActiveSession>([["session-1", session]]);
+		const deps = {
+			getSession: (sessionId: string) => sessions.get(sessionId),
+			usageBySession: new Map(),
+			aggregateUsageBySession: new Map(),
+			emit: vi.fn(),
+			persistMessages: vi.fn(),
+		} as unknown as AgentEventBridgeDeps;
+		return { telemetry, config, sessions, bridge: new AgentEventBridge(deps) };
+	}
+
+	const toolEvent = {
+		type: "content_end",
+		contentType: "tool",
+		toolName: "run_commands",
+	} as unknown as AgentEvent;
+
+	function toolUsedProperties(
+		telemetry: ReturnType<typeof createTelemetryStub>,
+	) {
+		const call = telemetry.capture.mock.calls.find(
+			([arg]) => arg.event === "task.tool_used",
+		);
+		expect(call).toBeDefined();
+		return call?.[0].properties as Record<string, unknown>;
+	}
+
+	it("stamps root agent identity on tool events while the session is registered", () => {
+		const { telemetry, config, bridge } = createDispatchFixture();
+
+		bridge.dispatchAgentEvent("session-1", config, toolEvent);
+
+		expect(toolUsedProperties(telemetry)).toMatchObject({
+			ulid: "session-1",
+			tool: "run_commands",
+			agentId: "agent-1",
+			agentKind: "root",
+			isSubagent: false,
+			conversationId: "conv-1",
+		});
+	});
+
+	it("keeps the last known identity for events dispatched after the session was deregistered", () => {
+		const { telemetry, config, sessions, bridge } = createDispatchFixture();
+
+		// A live event records the identity snapshot...
+		bridge.dispatchAgentEvent("session-1", config, toolEvent);
+		telemetry.capture.mockClear();
+
+		// ...then teardown removes the session from the map while the agent's
+		// run is still draining (sessions.delete precedes shutdown completion).
+		sessions.delete("session-1");
+		bridge.dispatchAgentEvent("session-1", config, toolEvent);
+
+		expect(toolUsedProperties(telemetry)).toMatchObject({
+			ulid: "session-1",
+			tool: "run_commands",
+			agentId: "agent-1",
+			agentKind: "root",
+			isSubagent: false,
+			conversationId: "conv-1",
+		});
+	});
+
+	it("emits without identity when a session was never registered (no snapshot to reuse)", () => {
+		const { telemetry, config, bridge } = createDispatchFixture();
+
+		bridge.dispatchAgentEvent("session-unknown", config, toolEvent);
+
+		const properties = toolUsedProperties(telemetry);
+		expect(properties.ulid).toBe("session-unknown");
+		expect(properties.agentId).toBeUndefined();
+		expect(properties.agentKind).toBeUndefined();
+	});
+});
 
 describe("AgentEventBridge.handlePluginTelemetry", () => {
 	it("routes plugin capture calls into the session telemetry service", () => {

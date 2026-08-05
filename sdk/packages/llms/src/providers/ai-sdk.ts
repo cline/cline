@@ -29,6 +29,7 @@ import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
 import {
@@ -39,6 +40,10 @@ import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
+import {
+	applyBedrockCachePointToLastUserMessage,
+	shouldApplyBedrockCachePoint,
+} from "./routing/bedrock-cache-point";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -73,14 +78,25 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
-function buildCachedAiSdkMessages(
+function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: modelSupportsImageInput(context),
 	}) as Array<Record<string, unknown>>;
+
+	if (shouldApplyBedrockCachePoint(request, context)) {
+		applyBedrockCachePointToLastUserMessage(aiMessages);
+		return aiMessages;
+	}
+
+	if (!shouldApplyPromptCache(request, context)) {
+		return aiMessages;
+	}
+
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -280,7 +296,7 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -387,6 +403,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages: options?.supportsImages,
 	});
 }
 
@@ -919,6 +936,12 @@ function extractGoogleThoughtMetadata(
 interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
+	/**
+	 * This layer already recorded `sdk.error` telemetry for the failure.
+	 * Forwarded as `errorReported` on the `finish` event so the agent loop
+	 * does not report the same failure a second time.
+	 */
+	reported?: boolean;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
@@ -1102,6 +1125,7 @@ async function* emitAiSdkEvents(
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorReported: streamError?.reported,
 	};
 }
 
@@ -1209,11 +1233,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
-				const messages = shouldApplyPromptCache(request, context)
-					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
-							includeReasoning: shouldIncludeReasoningHistory(request, context),
-						});
+				const messages = buildAiSdkRequestMessages(
+					request,
+					context,
+					messagesSystemPrompt,
+				);
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,
@@ -1261,7 +1285,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								severity: "error",
 							});
 						}
-						captureSdkError(context.telemetry, {
+						captured.reported = captureSdkError(context.telemetry, {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
@@ -1308,7 +1332,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				captureSdkError(context.telemetry, {
+				const reported = captureSdkError(context.telemetry, {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
@@ -1326,6 +1350,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorReported: reported || captured.reported,
 				};
 			}
 		},

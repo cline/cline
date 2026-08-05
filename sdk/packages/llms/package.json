@@ -67,15 +67,15 @@
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^7",
-		"ai-sdk-ollama": "^4",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",
 		"dify-ai-provider": "^1.1.0",
 		"nanoid": "^5.1.7",
+		"ollama-ai-provider-v2": "^4",
 		"zod": "^4.3.6"
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-bedrock-runtime": "^3.0.0",
-		"ai-sdk-provider-claude-code": "^3.4.3",
+		"ai-sdk-provider-claude-code": "^4",
 		"ai-sdk-provider-codex-cli": "^2"
 	},
 	"devDependencies": {
