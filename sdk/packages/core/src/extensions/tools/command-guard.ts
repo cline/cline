@@ -534,6 +534,16 @@ export function formatPlanModeBlockedCommandError(reason: string): string {
  * the run continues and the model is expected to plan instead — so
  * consumers use this to avoid treating the rejection as a model mistake
  * or a failed turn.
+ *
+ * FIXME: this is brittle string matching — the guard's `beforeTool` skip
+ * reason is flattened into the tool-result error text, so recognizing it
+ * afterwards means sniffing for the marker sentence. Replace with a typed
+ * skip channel: carry a structured `skipSource`/`skipCode` on the
+ * tool-finished runtime event (@cline/shared + @cline/agents) so the
+ * orchestrator can treat policy/hook/approval skips as "tool never ran"
+ * instead of pattern-matching error strings. The VS Code extension's
+ * approval-denial suppression (isDeniedToolApprovalMistake) has the same
+ * problem and should ride the same typed channel.
  */
 export function isPlanModeBlockedCommandError(errorText: unknown): boolean {
 	return (
