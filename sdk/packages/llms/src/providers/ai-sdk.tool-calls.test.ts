@@ -262,3 +262,152 @@ describe("repairMalformedToolCall", () => {
 		expect(repaired).toBeNull();
 	});
 });
+
+describe("ai-sdk adapter tool schema normalization", () => {
+	// Drives the real adapter with a capturing fetch and returns the tool
+	// parameters exactly as they would be serialized onto the wire.
+	async function captureNormalizedToolParameters(
+		inputSchema: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
+		let capturedBody: Record<string, unknown> | undefined;
+		const config = {
+			providerId: "openai-compatible",
+			apiKey: "test-key",
+			baseUrl: "http://fake.local/v1",
+			fetch: (async (_input: unknown, init?: { body?: unknown }) => {
+				capturedBody = JSON.parse(String(init?.body ?? "{}"));
+				return new Response("data: [DONE]\n\n", {
+					status: 200,
+					headers: { "content-type": "text/event-stream" },
+				});
+			}) as unknown as typeof fetch,
+		};
+		const provider = await createOpenAICompatibleProvider(config);
+		const model = {
+			id: "test-model",
+			providerId: "openai-compatible",
+			name: "test-model",
+		};
+		const context = {
+			provider: {
+				id: "openai-compatible",
+				name: "OpenAI Compatible",
+				defaultModelId: "test-model",
+				models: [model],
+			},
+			model,
+			config,
+		} as unknown as GatewayProviderContext;
+		const unionTool: AgentToolDefinition = {
+			name: "lookup_entity",
+			description: "Look up an entity by id or by name.",
+			inputSchema,
+		};
+		const request = {
+			providerId: "openai-compatible",
+			modelId: "test-model",
+			messages: [
+				{
+					id: "msg_user",
+					role: "user",
+					content: [{ type: "text", text: "do the thing" }],
+					createdAt: new Date(),
+				},
+			],
+			tools: [unionTool],
+		} as unknown as GatewayStreamRequest;
+
+		for await (const _event of await provider.stream(request, context)) {
+			// Drain the stream so the request is fully issued.
+		}
+
+		const requestTools = capturedBody?.tools as Array<{
+			function: { name: string; parameters: Record<string, unknown> };
+		}>;
+		return requestTools[0].function.parameters;
+	}
+
+	it("flattens top-level anyOf unions before sending tools to the provider", async () => {
+		// MCP servers commonly advertise tools whose input schema is a union of
+		// object shapes. Anthropic — and several providers OpenRouter fans out
+		// to — reject any input_schema with oneOf/allOf/anyOf at the top level,
+		// failing the whole request with "tools.N.custom.input_schema:
+		// input_schema does not support oneOf, allOf, or anyOf at the top
+		// level". Branch-required fields disagree here, so none survive.
+		const parameters = await captureNormalizedToolParameters({
+			anyOf: [
+				{
+					type: "object",
+					properties: { id: { type: "string" } },
+					required: ["id"],
+				},
+				{
+					type: "object",
+					properties: { name: { type: "string" } },
+					required: ["name"],
+				},
+			],
+		});
+		expect(parameters).toEqual({
+			type: "object",
+			properties: {
+				id: { type: "string" },
+				name: { type: "string" },
+			},
+		});
+	});
+
+	it("keeps properties required by every anyOf branch as required", async () => {
+		// The input matches ONE branch, so a property is only truly required
+		// when all branches require it.
+		const parameters = await captureNormalizedToolParameters({
+			anyOf: [
+				{
+					type: "object",
+					properties: { id: { type: "string" }, scope: { type: "string" } },
+					required: ["id", "scope"],
+				},
+				{
+					type: "object",
+					properties: { name: { type: "string" }, scope: { type: "string" } },
+					required: ["name", "scope"],
+				},
+			],
+		});
+		expect(parameters).toEqual({
+			type: "object",
+			properties: {
+				id: { type: "string" },
+				scope: { type: "string" },
+				name: { type: "string" },
+			},
+			required: ["scope"],
+		});
+	});
+
+	it("merges required constraints from all allOf branches", async () => {
+		// allOf branches ALL apply, so requirements placed in a separate
+		// branch from the properties must still be advertised as required.
+		const parameters = await captureNormalizedToolParameters({
+			allOf: [
+				{
+					type: "object",
+					properties: {
+						query: { type: "string" },
+						limit: { type: "number" },
+					},
+				},
+				{ required: ["query"] },
+				{ required: ["limit"] },
+			],
+		});
+		expect(parameters).toEqual({
+			type: "object",
+			properties: {
+				query: { type: "string" },
+				limit: { type: "number" },
+			},
+			required: ["query", "limit"],
+		});
+	});
+});
