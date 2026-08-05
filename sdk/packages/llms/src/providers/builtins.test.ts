@@ -2,11 +2,13 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	CLINE_ENVIRONMENT_ENV,
 	CLINE_ENVIRONMENTS,
+	type GatewayProviderContext,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
+import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -66,13 +68,79 @@ describe("cline builtin models", () => {
 		expect(models["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 		expect(models["zai/glm-5.1"]).toMatchObject({
 			id: "zai/glm-5.1",
 		});
 		expect(models["z-ai/glm-5.2"]).toBeUndefined();
+	});
+});
+
+describe("baked anthropic catalog reasoning options", () => {
+	// Regression guard for the offline fallback: when the live models.dev
+	// fetch fails, models resolve from the baked catalog. If that catalog
+	// drops reasoningOptions, adaptive-era Claude models fall back to the
+	// manual thinking wire shape and every reasoning request is rejected by
+	// the Anthropic API.
+	it("carries effort options that resolve to adaptive thinking for adaptive-era Claude models", async () => {
+		const models = await getModelsForProvider("anthropic");
+		const adaptiveEraModelIds = [
+			"claude-sonnet-5",
+			"claude-fable-5",
+			"claude-opus-5",
+			"claude-opus-4-8",
+			"claude-opus-4-7",
+			"claude-opus-4-6",
+			"claude-sonnet-4-6",
+		];
+
+		for (const modelId of adaptiveEraModelIds) {
+			const model = models[modelId];
+			expect(model, modelId).toBeDefined();
+			expect(
+				model.reasoningOptions?.some((option) => option.type === "effort"),
+				modelId,
+			).toBe(true);
+
+			const context: GatewayProviderContext = {
+				provider: {
+					id: "anthropic",
+					name: "Anthropic",
+					defaultModelId: modelId,
+					models: [],
+					metadata: {
+						routing: {
+							reasoning: {
+								format: "anthropic-thinking",
+								routes: [{ matcher: "anthropic-compatible" }],
+							},
+						},
+					},
+				},
+				model: {
+					id: modelId,
+					name: model.name,
+					providerId: "anthropic",
+					reasoningOptions: model.reasoningOptions,
+					metadata: model.family ? { family: model.family } : undefined,
+				},
+				config: { providerId: "anthropic" },
+			};
+			expect(
+				resolveAnthropicReasoningRequestPolicy(
+					{
+						providerId: "anthropic",
+						modelId,
+						messages: [],
+						reasoning: { enabled: true },
+					},
+					context,
+				),
+				modelId,
+			).toEqual({ kind: "anthropic-adaptive" });
+		}
 	});
 });
 

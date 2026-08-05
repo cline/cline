@@ -411,7 +411,10 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "Sonnet 4.6 explicit budget selects manual thinking despite adaptive effort support",
+			// Adaptive-era models reject the manual wire shape even though they
+			// also advertise a budget_tokens control, so an explicit numeric
+			// budget cannot force manual thinking; the budget is ignored.
+			name: "Sonnet 4.6 explicit budget still selects adaptive thinking when effort is advertised",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -427,19 +430,73 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			expect: [
 				{
 					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
+			name: "budget-only models keep manual thinking for explicit budgets",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 4096 },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024, 64_000),
+			},
+			expect: [
+				{
+					bucket: "anthropic",
 					has: { thinking: { type: "enabled", budgetTokens: 4096 } },
 					lacks: ["effort"],
 				},
 			],
 		},
 		{
-			name: "unknown future Claude aliases fall back without inferred adaptive effort",
+			// Adaptive-era ids (4.6+ / 5.x) reject thinking.type "enabled", so
+			// the missing-reasoningOptions fallback must infer adaptive.
+			// Unlisted ids still get only broadly supported effort values, so
+			// xhigh is downgraded to high.
+			name: "unknown future Claude aliases without catalog options infer adaptive thinking",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-haiku-5",
 				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-haiku" },
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+				},
+			],
+		},
+		{
+			name: "unlisted adaptive-era suffix variant without catalog options infers adaptive thinking",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-opus-4-6:1m",
+				reasoning: { enabled: true },
+			},
+			context: { family: "claude-opus" },
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
+			name: "pre-adaptive Claude ids without catalog options keep manual thinking",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				reasoning: { enabled: true },
+			},
+			context: { family: "claude-sonnet" },
 			expect: [
 				{
 					bucket: "anthropic",
