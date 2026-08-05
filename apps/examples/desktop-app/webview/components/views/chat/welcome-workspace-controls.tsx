@@ -174,8 +174,8 @@ function WorkspacePicker({
 				title={workspaceLabel}
 				type="button"
 			>
-				<Folder className="size-4 shrink-0 text-muted-foreground" />
-				<span className="max-w-44 truncate">{workspaceLabel}</span>
+				<Folder className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="max-w-44 truncate text-sm">{workspaceLabel}</span>
 			</button>
 
 			{open && (
@@ -316,8 +316,8 @@ function BranchPicker({
 				title={branchLabel}
 				type="button"
 			>
-				<GitBranch className="size-4 shrink-0 text-muted-foreground" />
-				<span className="min-w-0 truncate">{branchLabel}</span>
+				<GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="min-w-0 truncate text-sm">{branchLabel}</span>
 			</button>
 
 			{open && (

@@ -5,7 +5,6 @@ import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
-	ChevronDown,
 	CircleStop,
 	Cpu,
 	Paperclip,
@@ -657,7 +656,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{filteredSlashCommands.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
 										: "No matching commands"}
@@ -668,7 +667,7 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === slashSelectedIndex}
 											className={cn(
-												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs ",
+												"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ",
 												index === slashSelectedIndex
 													? "bg-surface-hover text-foreground"
 													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -703,7 +702,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{mentionFiles.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{mentionLoading ? "Searching files..." : "No matching files"}
 								</div>
 							) : (
@@ -712,7 +711,7 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === mentionSelectedIndex}
 											className={cn(
-												"block w-full rounded-md px-3 py-2 text-left text-xs ",
+												"block w-full rounded-md px-3 py-2 text-left text-sm ",
 												index === mentionSelectedIndex
 													? "bg-surface-hover text-foreground"
 													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
@@ -901,7 +900,7 @@ export function ChatInputBar({
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
 							<span
-								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-xs text-foreground"
+								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
 								key={attachment.id}
 							>
 								{attachment.isImage ? "image:" : "file:"} {attachment.name}
@@ -920,11 +919,11 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-0 pl-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -993,7 +992,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 gap-1.5 border-0 bg-muted px-2 text-xs shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
@@ -1352,7 +1351,7 @@ const ModelSelector = memo(function ModelSelector({
 	);
 
 	return (
-		<div className="relative min-w-0 shrink-0 text-[11px]">
+		<div className="relative min-w-0 shrink-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
@@ -1376,19 +1375,19 @@ const ModelSelector = memo(function ModelSelector({
 					/>
 					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 								true,
 							)}
 						</div>
@@ -1398,7 +1397,7 @@ const ModelSelector = memo(function ModelSelector({
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{renderProviderSelect("max-w-28")}
-				<span className="text-muted-foreground/50">/</span>
+				<div className="bg-border-2 h-4 w-[0.1rem]"/>
 				{renderModelSelect("max-w-52")}
 			</div>
 		</div>
@@ -1496,7 +1495,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 				<div className="px-3 py-3">
 					<div className="flex items-center justify-between gap-4 text-sm">
 						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-xs text-foreground">
+						<span className="font-mono text-sm text-foreground">
 							{contextUsageLabel}
 						</span>
 					</div>
@@ -1528,7 +1527,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							}}
 						/>
 					</div>
-					<div className="mt-3 space-y-2 text-xs">
+					<div className="mt-3 space-y-2 text-sm">
 						<div className="flex items-center justify-between gap-4">
 							<span className="text-muted-foreground">Input tokens</span>
 							<span className="font-mono text-foreground">
