@@ -53,8 +53,18 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: sessionId, task: "hello @file", modelId: "model" }),
 		)
+		// Attachments must be on the authoritative task message so the webview's
+		// optimistic pending copy (which carries them) gets confirmed and cleared.
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
+			[
+				expect.objectContaining({
+					type: "say",
+					say: "task",
+					text: "hello @file",
+					images: ["image.png"],
+					files: ["a.ts"],
+				}),
+			],
 			{ type: "status", payload: { sessionId, status: "running" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
@@ -74,6 +84,17 @@ describe("SdkTaskStartCoordinator", () => {
 			["image.png"],
 			["a.ts"],
 		)
+	})
+
+	it("omits images/files from the task message when the task has no attachments", async () => {
+		const { coordinator, options } = makeCoordinator()
+
+		await coordinator.initTask("plain text task")
+
+		const [emitted] = options.messages.appendAndEmit.mock.calls[0][0] as [Record<string, unknown>]
+		expect(emitted).toMatchObject({ type: "say", say: "task", text: "plain text task" })
+		expect(emitted).not.toHaveProperty("images")
+		expect(emitted).not.toHaveProperty("files")
 	})
 
 	it("emits a Cline auth error instead of starting when the cline provider has no token", async () => {
