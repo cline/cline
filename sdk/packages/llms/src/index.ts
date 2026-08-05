@@ -113,6 +113,7 @@ export {
 	createRealtimeVoiceSession,
 	type RealtimeProviderTransport,
 	type RealtimeVoiceSession,
+	type RealtimeVoiceSessionConfig,
 	type RealtimeVoiceSessionRequest,
 	resolveRealtimeProviderTransport,
 	resolveVercelAIGatewayBaseUrl,

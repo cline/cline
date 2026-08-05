@@ -61,6 +61,7 @@ export type SpeechInputProps = Omit<
 	onStreamingStart?: () => void;
 	onStreamingEnd?: (completed: boolean) => void;
 	onActiveChange?: (active: boolean) => void;
+	onProcessingChange?: (processing: boolean) => void;
 	onError?: (error: unknown) => void;
 	lang?: string;
 	recordingMode?: "auto" | "media-recorder" | "streaming";
@@ -105,6 +106,7 @@ export function SpeechInput({
 	lang = "en-US",
 	onAudioRecorded,
 	onActiveChange,
+	onProcessingChange,
 	onClick,
 	onError,
 	onStartStreaming,
@@ -143,6 +145,10 @@ export function SpeechInput({
 	useEffect(() => {
 		onActiveChange?.(isListening || isProcessing);
 	}, [isListening, isProcessing, onActiveChange]);
+
+	useEffect(() => {
+		onProcessingChange?.(isProcessing);
+	}, [isProcessing, onProcessingChange]);
 
 	useEffect(() => {
 		if (mode !== "speech-recognition") return;

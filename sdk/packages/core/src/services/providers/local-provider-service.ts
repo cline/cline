@@ -8,6 +8,7 @@ import type {
 	ProviderListItem,
 	ProviderMode,
 	ProviderModel,
+	ProviderModeSession,
 	ProviderModeSessionMap,
 	ProviderModeSettingsMap,
 	ProviderModesSettings,
@@ -105,6 +106,7 @@ export interface CreateConfiguredModeSessionRequest<
 > {
 	mode: Mode;
 	expiresAfterSeconds?: number;
+	realtimeSessionConfig?: Partial<LlmsModels.RealtimeVoiceSessionConfig>;
 }
 
 export interface SynthesizeLocalSpeechRequest {
@@ -1005,7 +1007,7 @@ export async function transcribeConfiguredVoiceInput(
 async function createStreamingVoiceInputSession(
 	manager: ProviderSettingsManager,
 	modeSettingsStore: ProviderModeSettingsStore,
-	expiresAfterSeconds: number | undefined,
+	request: CreateConfiguredModeSessionRequest<"voiceInput">,
 ): Promise<ProviderModeSessionMap["voiceInput"]> {
 	const selection = modeSettingsStore.getModeSettings("voiceInput");
 	if (!selection) {
@@ -1033,7 +1035,7 @@ async function createStreamingVoiceInputSession(
 	const session = await LlmsModels.createStreamingAudioTranscriptionSession({
 		providerConfig: config,
 		modelId: selection.modelId,
-		expiresAfterSeconds,
+		expiresAfterSeconds: request.expiresAfterSeconds,
 	});
 	return {
 		kind: "streaming-transcription",
@@ -1046,7 +1048,7 @@ async function createStreamingVoiceInputSession(
 async function createRealtimeVoiceModeSession(
 	manager: ProviderSettingsManager,
 	modeSettingsStore: ProviderModeSettingsStore,
-	expiresAfterSeconds: number | undefined,
+	request: CreateConfiguredModeSessionRequest<"realtimeVoice">,
 ): Promise<ProviderModeSessionMap["realtimeVoice"]> {
 	const selection = modeSettingsStore.getModeSettings("realtimeVoice");
 	if (!selection) {
@@ -1073,7 +1075,10 @@ async function createRealtimeVoiceModeSession(
 		providerConfig: config,
 		modelId: selection.modelId,
 		voice: selection.voice,
-		expiresAfterSeconds,
+		expiresAfterSeconds: request.expiresAfterSeconds,
+		...(model.supportsTools === true && request.realtimeSessionConfig
+			? { sessionConfig: request.realtimeSessionConfig }
+			: {}),
 	});
 	return {
 		kind: "realtime",
@@ -1084,30 +1089,38 @@ async function createRealtimeVoiceModeSession(
 	};
 }
 
-type ModeSessionCreator<Mode extends ProviderSessionMode> = (
+export function createConfiguredModeSession(
 	manager: ProviderSettingsManager,
-	modeSettingsStore: ProviderModeSettingsStore,
-	expiresAfterSeconds: number | undefined,
-) => Promise<ProviderModeSessionMap[Mode]>;
-
-const MODE_SESSION_CREATORS = {
-	voiceInput: createStreamingVoiceInputSession,
-	realtimeVoice: createRealtimeVoiceModeSession,
-} satisfies {
-	[Mode in ProviderSessionMode]: ModeSessionCreator<Mode>;
-};
-
-export async function createConfiguredModeSession<
-	Mode extends ProviderSessionMode,
->(
+	request: CreateConfiguredModeSessionRequest<"voiceInput">,
+	modeSettingsStore?: ProviderModeSettingsStore,
+): Promise<ProviderModeSessionMap["voiceInput"]>;
+export function createConfiguredModeSession(
 	manager: ProviderSettingsManager,
-	request: CreateConfiguredModeSessionRequest<Mode>,
+	request: CreateConfiguredModeSessionRequest<"realtimeVoice">,
+	modeSettingsStore?: ProviderModeSettingsStore,
+): Promise<ProviderModeSessionMap["realtimeVoice"]>;
+export function createConfiguredModeSession(
+	manager: ProviderSettingsManager,
+	request:
+		| CreateConfiguredModeSessionRequest<"voiceInput">
+		| CreateConfiguredModeSessionRequest<"realtimeVoice">,
+	modeSettingsStore?: ProviderModeSettingsStore,
+): Promise<ProviderModeSession>;
+export async function createConfiguredModeSession(
+	manager: ProviderSettingsManager,
+	request:
+		| CreateConfiguredModeSessionRequest<"voiceInput">
+		| CreateConfiguredModeSessionRequest<"realtimeVoice">,
 	modeSettingsStore: ProviderModeSettingsStore = manager,
-): Promise<ProviderModeSessionMap[Mode]> {
-	const creator = MODE_SESSION_CREATORS[
-		request.mode
-	] as ModeSessionCreator<Mode>;
-	return creator(manager, modeSettingsStore, request.expiresAfterSeconds);
+): Promise<ProviderModeSession> {
+	if (request.mode === "voiceInput") {
+		return createStreamingVoiceInputSession(
+			manager,
+			modeSettingsStore,
+			request,
+		);
+	}
+	return createRealtimeVoiceModeSession(manager, modeSettingsStore, request);
 }
 
 export async function synthesizeLocalSpeech(

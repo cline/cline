@@ -1,4 +1,8 @@
-import { captureSdkError, type RealtimeVoiceModeSession } from "@cline/shared";
+import {
+	captureSdkError,
+	REALTIME_CLINE_TOOLS,
+	type RealtimeVoiceModeSession,
+} from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
@@ -37,27 +41,6 @@ const TRUSTED_BROWSER_ORIGINS = new Set([
 const JSON_HEADERS = {
 	"content-type": "application/json",
 };
-
-const REALTIME_CLINE_TOOLS = [
-	{
-		type: "function",
-		name: "run_cline",
-		description:
-			"Send the user's complete request to the active Cline agent. You must call this exactly once for every user utterance. Cline owns conversation history, workspace context, tools, MCP, approvals, and persistence. After the tool returns, speak its response faithfully.",
-		parameters: {
-			type: "object",
-			properties: {
-				request: {
-					type: "string",
-					description:
-						"The user's complete request, preserving all relevant detail.",
-				},
-			},
-			required: ["request"],
-			additionalProperties: false,
-		},
-	},
-] as const;
 
 function readOrigin(req: Request): string | undefined {
 	const origin = req.headers.get("origin")?.trim();

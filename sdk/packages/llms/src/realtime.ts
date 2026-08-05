@@ -24,7 +24,10 @@ export interface RealtimeVoiceSessionRequest {
 	modelId: string;
 	voice?: string;
 	expiresAfterSeconds?: number;
+	sessionConfig?: Partial<Experimental_RealtimeSessionConfig>;
 }
+
+export type RealtimeVoiceSessionConfig = Experimental_RealtimeSessionConfig;
 
 export interface RealtimeVoiceSession {
 	token: string;
@@ -70,6 +73,7 @@ export function resolveRealtimeProviderTransport(
 
 function createSessionConfig(
 	voice: string | undefined,
+	overrides: Partial<Experimental_RealtimeSessionConfig> | undefined,
 ): Experimental_RealtimeSessionConfig {
 	const normalizedVoice = voice?.trim();
 	return {
@@ -83,6 +87,10 @@ function createSessionConfig(
 			prefixPaddingMs: 300,
 			silenceDurationMs: 650,
 		},
+		...overrides,
+		// The saved voice selection remains authoritative over callers that add
+		// instructions or tools to the provider-bound session configuration.
+		...(normalizedVoice ? { voice: normalizedVoice } : {}),
 	};
 }
 
@@ -117,7 +125,10 @@ export async function createRealtimeVoiceSession(
 		);
 	}
 
-	const sessionConfig = createSessionConfig(request.voice);
+	const sessionConfig = createSessionConfig(
+		request.voice,
+		request.sessionConfig,
+	);
 	const transport = resolveRealtimeProviderTransport(request.providerConfig);
 	const commonOptions = {
 		apiKey,

@@ -4,6 +4,7 @@ import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { experimental_useRealtime as useRealtime } from "@ai-sdk/react";
+import { REALTIME_CLINE_AGENT_INSTRUCTIONS } from "@cline/shared/browser";
 import type {
 	Experimental_RealtimeClientEvent,
 	Experimental_RealtimeModel,
@@ -14,9 +15,9 @@ import {
 	AudioWaveform,
 	CircleStop,
 	Loader2,
+	Minus,
 	Settings2,
 	Volume2,
-	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
@@ -34,15 +35,6 @@ const REALTIME_VOICE_TRANSPORT_INSTRUCTIONS = [
 	"User speech is transcribed and sent to Cline, which owns conversation context, tools, approvals, and persistence.",
 	"Only speak when response instructions explicitly provide a completed Cline response to read aloud.",
 	"Read that supplied response faithfully without adding analysis, answers, or claims of your own.",
-].join(" ");
-
-const REALTIME_CLINE_AGENT_INSTRUCTIONS = [
-	"You are Cline's realtime voice interface.",
-	"For every user utterance, you must call the run_cline tool exactly once with the user's complete request.",
-	"Do not answer, summarize, or speak before run_cline returns.",
-	"Cline owns conversation history, workspace context, tools, MCP servers, approvals, and persistence.",
-	"After run_cline returns, speak its response faithfully without adding or removing information.",
-	"If run_cline returns ok false, report that exact Cline agent error and do not answer the original request yourself or call run_cline again.",
 ].join(" ");
 
 const BUSY_STATUSES = new Set(["starting", "running", "stopping"]);
@@ -149,6 +141,7 @@ function ConfiguredRealtimeVoiceOverlay({
 		target;
 	const [tokenEndpoint, setTokenEndpoint] = useState("");
 	const [starting, setStarting] = useState(false);
+	const [panelVisible, setPanelVisible] = useState(true);
 	const [processingTurn, setProcessingTurn] = useState(false);
 	const [queuedTurnCount, setQueuedTurnCount] = useState(0);
 	const [lastError, setLastError] = useState<string | null>(null);
@@ -1161,126 +1154,134 @@ function ConfiguredRealtimeVoiceOverlay({
 											: "Ready";
 
 	return (
-		<div className="relative flex shrink-0 items-center gap-1">
-			<div
-				aria-live="polite"
-				className="absolute bottom-full right-0 z-[70] mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl"
-			>
-				<div className="flex items-start gap-2 border-b border-border px-3 py-3">
-					<button
-						aria-label="Configure realtime voice"
-						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => {
-							stop();
-							onOpenChange(false);
-							onConfigure();
-						}}
-						type="button"
-					>
-						<Settings2 className="size-3.5" />
-					</button>
-					<div className="min-w-0 flex-1">
-						<div className="truncate text-sm font-semibold" title={modelName}>
-							{modelName}
-						</div>
-						<div className="mt-0.5 truncate text-xs text-muted-foreground">
-							{providerName}
-						</div>
-					</div>
-					<button
-						aria-label="Close realtime voice"
-						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => {
-							stop();
-							onOpenChange(false);
-						}}
-						type="button"
-					>
-						<X className="size-3.5" />
-					</button>
-				</div>
+		<fieldset
+			className="relative m-0 flex shrink-0 items-center gap-1 border-0 p-0"
+			onMouseEnter={() => {
+				if (active) setPanelVisible(true);
+			}}
+			onMouseLeave={() => setPanelVisible(false)}
+		>
+			{panelVisible ? (
 				<div
-					aria-label="Realtime voice transcript"
-					className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
-					onWheel={(event) => event.stopPropagation()}
-					ref={transcriptViewportRef}
-					role="log"
+					aria-live="polite"
+					className="absolute bottom-full right-0 z-[70] mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl"
 				>
-					{transcript.length > 0 ? (
-						transcript.map((message) => (
-							<div className="grid gap-0.5" key={message.id}>
-								<span
-									className={cn(
-										"font-medium text-muted-foreground",
-										message.role === "error" && "text-destructive",
-									)}
-								>
-									{message.role === "user"
-										? "You"
-										: message.role === "assistant"
-											? "Cline"
-											: "Error"}
-								</span>
-								<p
-									className={cn(
-										"whitespace-pre-wrap leading-relaxed",
-										message.role === "error" && "text-destructive",
-									)}
-								>
-									{message.text}
-								</p>
-							</div>
-						))
-					) : (
-						<p className="text-muted-foreground">
-							{status === "connected"
-								? "Speak to the same Cline agent as this chat."
-								: "Preparing the secure realtime connection…"}
-						</p>
-					)}
-				</div>
-				<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
-					<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
-						<div
-							className={cn(
-								"size-2 shrink-0 rounded-full",
-								lastError
-									? "bg-destructive"
-									: needsAttention
-										? "animate-pulse bg-amber-500"
-										: isPlaying
-											? "animate-pulse bg-primary"
-											: status === "connected"
-												? "animate-pulse bg-emerald-500"
-												: "animate-pulse bg-amber-500",
-							)}
-						/>
-						{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
-						<span className="truncate">{statusLabel}</span>
-					</div>
-					{active && microphone ? (
+					<div className="flex items-start gap-2 border-b border-border px-3 py-3">
 						<button
-							aria-label={
-								microphoneMuted
-									? "Unmute realtime microphone"
-									: "Mute realtime microphone"
-							}
-							aria-pressed={microphoneMuted}
-							className={cn(
-								"ml-auto",
-								"inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-								microphoneMuted &&
-									"border-destructive/40 bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
-							)}
-							onClick={toggleMicrophoneMute}
-							title={microphoneMuted ? "Unmute microphone" : "Mute microphone"}
+							aria-label="Configure realtime voice"
+							className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onClick={() => {
+								stop();
+								onOpenChange(false);
+								onConfigure();
+							}}
 							type="button"
 						>
-							{microphoneMuted ? "Unmute" : "Mute"}
+							<Settings2 className="size-3.5" />
 						</button>
-					) : null}
+						<div className="min-w-0 flex-1">
+							<div className="truncate text-sm font-semibold" title={modelName}>
+								{modelName}
+							</div>
+							<div className="mt-0.5 truncate text-xs text-muted-foreground">
+								{providerName}
+							</div>
+						</div>
+						<button
+							aria-label="Hide realtime voice"
+							className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onClick={() => setPanelVisible(false)}
+							title="Hide realtime voice panel"
+							type="button"
+						>
+							<Minus className="size-3.5" />
+						</button>
+					</div>
+					<div
+						aria-label="Realtime voice transcript"
+						className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
+						onWheel={(event) => event.stopPropagation()}
+						ref={transcriptViewportRef}
+						role="log"
+					>
+						{transcript.length > 0 ? (
+							transcript.map((message) => (
+								<div className="grid gap-0.5" key={message.id}>
+									<span
+										className={cn(
+											"font-medium text-muted-foreground",
+											message.role === "error" && "text-destructive",
+										)}
+									>
+										{message.role === "user"
+											? "You"
+											: message.role === "assistant"
+												? "Cline"
+												: "Error"}
+									</span>
+									<p
+										className={cn(
+											"whitespace-pre-wrap leading-relaxed",
+											message.role === "error" && "text-destructive",
+										)}
+									>
+										{message.text}
+									</p>
+								</div>
+							))
+						) : (
+							<p className="text-muted-foreground">
+								{status === "connected"
+									? "Speak to the same Cline agent as this chat."
+									: "Preparing the secure realtime connection…"}
+							</p>
+						)}
+					</div>
+					<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
+						<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+							<div
+								className={cn(
+									"size-2 shrink-0 rounded-full",
+									lastError
+										? "bg-destructive"
+										: needsAttention
+											? "animate-pulse bg-amber-500"
+											: isPlaying
+												? "animate-pulse bg-primary"
+												: status === "connected"
+													? "animate-pulse bg-emerald-500"
+													: "animate-pulse bg-amber-500",
+								)}
+							/>
+							{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
+							<span className="truncate">{statusLabel}</span>
+						</div>
+						{active && microphone ? (
+							<button
+								aria-label={
+									microphoneMuted
+										? "Unmute realtime microphone"
+										: "Mute realtime microphone"
+								}
+								aria-pressed={microphoneMuted}
+								className={cn(
+									"ml-auto",
+									"inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+									microphoneMuted &&
+										"border-destructive/40 bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+								)}
+								onClick={toggleMicrophoneMute}
+								title={
+									microphoneMuted ? "Unmute microphone" : "Mute microphone"
+								}
+								type="button"
+							>
+								{microphoneMuted ? "Unmute" : "Mute"}
+							</button>
+						) : null}
+					</div>
 				</div>
-			</div>
+			) : null}
 			<button
 				aria-label={active ? "Stop realtime voice" : "Start realtime voice"}
 				aria-pressed={active}
@@ -1317,7 +1318,7 @@ function ConfiguredRealtimeVoiceOverlay({
 					<span className="absolute -right-0.5 -top-0.5 size-2.5 animate-pulse rounded-full border-2 border-background bg-primary" />
 				) : null}
 			</button>
-		</div>
+		</fieldset>
 	);
 }
 

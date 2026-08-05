@@ -1230,11 +1230,15 @@ export function useChatSession() {
 	const startSession = useCallback(
 		async (
 			validatedConfig: ChatSessionConfig,
-			options: { preserveStatus?: boolean } = {},
+			options: {
+				preserveStatus?: boolean;
+				source?: "realtime";
+			} = {},
 		): Promise<string> => {
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
+				...(options.source ? { source: options.source } : {}),
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
@@ -1315,6 +1319,7 @@ export function useChatSession() {
 		async (
 			prompt: string,
 			attachedFiles: File[] = [],
+			options: { source?: "realtime" } = {},
 		): Promise<ChatPromptCompletion | undefined> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return;
@@ -1461,7 +1466,7 @@ export function useChatSession() {
 							...parsed,
 							sessionId: plannedSessionId,
 						},
-						{ preserveStatus: true },
+						{ preserveStatus: true, source: options.source },
 					);
 					sessionStartPromiseRef.current = startPromise;
 					try {

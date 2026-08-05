@@ -180,6 +180,38 @@ describe("pathless session starts", () => {
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
 	});
+
+	it("marks sessions initiated by realtime voice with the realtime source", async () => {
+		const start = vi.fn(async () => ({
+			sessionId: "session-realtime",
+			manifest: {
+				cwd: "/workspace/project",
+				workspace_root: "/workspace/project",
+			},
+			manifestPath: "/tmp/session-realtime.json",
+			messagesPath: "/tmp/session-realtime.messages.json",
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			source: "realtime",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace/project",
+				workspaceRoot: "/workspace/project",
+			},
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ source: "realtime" }),
+		);
+	});
 });
 
 describe("session forks", () => {

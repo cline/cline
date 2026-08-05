@@ -908,7 +908,7 @@ function ChatThreadPane({
 	const handleRealtimeSend = useCallback(
 		async (prompt: string) => {
 			onThreadStarted?.(threadId);
-			return sendPrompt(prompt);
+			return sendPrompt(prompt, [], { source: "realtime" });
 		},
 		[onThreadStarted, sendPrompt, threadId],
 	);

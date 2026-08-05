@@ -619,7 +619,10 @@ async function handleStart(
 	});
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
-		source: SessionSource.DESKTOP,
+		source:
+			request.source === SessionSource.REALTIME
+				? SessionSource.REALTIME
+				: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages
 			? { initialMessages: initialMessages as Message[] }

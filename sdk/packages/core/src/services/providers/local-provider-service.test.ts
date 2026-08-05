@@ -1069,8 +1069,21 @@ describe("audio transcription", () => {
 				},
 			});
 
+		const realtimeSessionConfig = {
+			instructions: "Always call run_cline.",
+			tools: [
+				{
+					type: "function" as const,
+					name: "run_cline",
+					parameters: { type: "object", properties: {} },
+				},
+			],
+		};
 		await expect(
-			createConfiguredModeSession(manager, { mode: "realtimeVoice" }),
+			createConfiguredModeSession(manager, {
+				mode: "realtimeVoice",
+				realtimeSessionConfig,
+			}),
 		).resolves.toMatchObject({
 			kind: "realtime",
 			providerId: "vercel-ai-gateway",
@@ -1087,6 +1100,7 @@ describe("audio transcription", () => {
 					providerId: "vercel-ai-gateway",
 					apiKey: "gateway-key",
 				}),
+				sessionConfig: realtimeSessionConfig,
 			}),
 		);
 	});

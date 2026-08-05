@@ -32,11 +32,20 @@ class FakeMediaRecorder extends EventTarget {
 }
 
 class FakeSpeechRecognition extends EventTarget {
+	static instances: FakeSpeechRecognition[] = [];
+
 	continuous = false;
 	interimResults = false;
 	lang = "";
 
-	start(): void {}
+	constructor() {
+		super();
+		FakeSpeechRecognition.instances.push(this);
+	}
+
+	start(): void {
+		this.dispatchEvent(new Event("start"));
+	}
 	stop(): void {}
 }
 
@@ -47,6 +56,7 @@ let stopTrack: ReturnType<typeof vi.fn>;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	FakeMediaRecorder.instances = [];
+	FakeSpeechRecognition.instances = [];
 	stopTrack = vi.fn();
 	Object.defineProperty(window, "MediaRecorder", {
 		configurable: true,
@@ -90,9 +100,52 @@ afterEach(async () => {
 });
 
 describe("SpeechInput", () => {
+	it("shows finalized speech recognition text without stopping the microphone", async () => {
+		const onTranscriptionChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<SpeechInput
+					onAudioRecorded={vi.fn(async () => "fallback transcript")}
+					onTranscriptionChange={onTranscriptionChange}
+					recordingMode="auto"
+				/>,
+			);
+		});
+
+		const button = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		await act(async () => button?.click());
+
+		const recognition = FakeSpeechRecognition.instances[0];
+		expect(recognition?.continuous).toBe(true);
+		expect(recognition?.interimResults).toBe(true);
+		const resultEvent = new Event("result");
+		Object.defineProperties(resultEvent, {
+			resultIndex: { value: 0 },
+			results: {
+				value: Object.assign(
+					[
+						Object.assign([{ transcript: "live transcript", confidence: 1 }], {
+							isFinal: true,
+						}),
+					],
+					{ length: 1 },
+				),
+			},
+		});
+		await act(async () => recognition?.dispatchEvent(resultEvent));
+
+		expect(onTranscriptionChange).toHaveBeenCalledWith("live transcript");
+		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
+		expect(FakeMediaRecorder.instances).toHaveLength(0);
+	});
+
 	it("records audio and forwards the provider transcript", async () => {
 		const onAudioRecorded = vi.fn(async () => "transcribed prompt");
 		const onActiveChange = vi.fn();
+		const onProcessingChange = vi.fn();
 		const onTranscriptionChange = vi.fn();
 
 		await act(async () => {
@@ -100,6 +153,7 @@ describe("SpeechInput", () => {
 				<SpeechInput
 					onActiveChange={onActiveChange}
 					onAudioRecorded={onAudioRecorded}
+					onProcessingChange={onProcessingChange}
 					onTranscriptionChange={onTranscriptionChange}
 					recordingMode="media-recorder"
 				/>,
@@ -142,6 +196,8 @@ describe("SpeechInput", () => {
 		);
 		expect(onTranscriptionChange).toHaveBeenCalledWith("transcribed prompt");
 		expect(onActiveChange).toHaveBeenLastCalledWith(false);
+		expect(onProcessingChange).toHaveBeenCalledWith(true);
+		expect(onProcessingChange).toHaveBeenLastCalledWith(false);
 		expect(stopTrack).toHaveBeenCalledOnce();
 	});
 

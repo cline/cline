@@ -309,6 +309,10 @@ export {
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
+	REALTIME_CLINE_AGENT_INSTRUCTIONS,
+	REALTIME_CLINE_TOOLS,
+} from "./realtime-voice";
+export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearRemoteConfigSessionBlobUpload,
 	createRemoteConfigSessionMessagesArtifactUploader,

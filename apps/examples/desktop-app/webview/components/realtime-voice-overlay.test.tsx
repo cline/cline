@@ -264,11 +264,51 @@ describe("RealtimeVoiceOverlay", () => {
 			container.querySelector('[aria-label="Configure realtime voice"]'),
 		).not.toBeNull();
 		expect(
-			container.querySelector('[aria-label="Close realtime voice"]'),
+			container.querySelector('[aria-label="Hide realtime voice"]'),
 		).not.toBeNull();
 		expect(
 			container.querySelector('[aria-label="Stop realtime voice session"]'),
 		).toBeNull();
+	});
+
+	it("hides the realtime panel without stopping and restores it on hover", async () => {
+		const onOpenChange = vi.fn();
+		mocks.realtimeState.status = "connected";
+		mocks.realtimeState.isCapturing = true;
+		await act(async () => {
+			root.render(
+				<RealtimeVoiceOverlay
+					bridge={makeBridge()}
+					onConfigure={vi.fn()}
+					onOpenChange={onOpenChange}
+					open
+					target={target}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const hideButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Hide realtime voice"]',
+		);
+		await act(async () => hideButton?.click());
+		expect(
+			container.querySelector('[aria-label="Realtime voice transcript"]'),
+		).toBeNull();
+		expect(mocks.disconnect).not.toHaveBeenCalled();
+		expect(onOpenChange).not.toHaveBeenCalled();
+
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop realtime voice"]',
+		);
+		await act(async () => {
+			trigger?.parentElement?.dispatchEvent(
+				new MouseEvent("mouseover", { bubbles: true }),
+			);
+		});
+		expect(
+			container.querySelector('[aria-label="Realtime voice transcript"]'),
+		).not.toBeNull();
 	});
 
 	it("starts listening silently when the chat already has history", async () => {

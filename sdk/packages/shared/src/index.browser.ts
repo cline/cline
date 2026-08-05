@@ -281,6 +281,7 @@ export {
 } from "./prompt/format";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
+export { REALTIME_CLINE_AGENT_INSTRUCTIONS } from "./realtime-voice";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
 	AnthropicModel,

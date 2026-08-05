@@ -115,6 +115,46 @@ describe("realtime voice sessions", () => {
 		expect(JSON.stringify(session)).not.toContain("gateway-secret");
 	});
 
+	it("binds realtime tools and instructions into a Google ephemeral token", async () => {
+		const tools = [
+			{
+				type: "function" as const,
+				name: "run_cline",
+				description: "Delegate to Cline",
+				parameters: {
+					type: "object",
+					properties: { request: { type: "string" } },
+					required: ["request"],
+				},
+			},
+		];
+		await createRealtimeVoiceSession({
+			providerConfig: {
+				providerId: "gemini",
+				modelId: "gemini-3.1-flash-live-preview",
+				apiKey: "google-secret",
+			},
+			modelId: "gemini-3.1-flash-live-preview",
+			sessionConfig: {
+				instructions: "Always call run_cline.",
+				tools,
+			},
+		});
+
+		expect(mocks.googleFactory).toHaveBeenCalledWith(
+			expect.objectContaining({ apiKey: "google-secret" }),
+		);
+		expect(mocks.getToken).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: "gemini-3.1-flash-live-preview",
+				sessionConfig: expect.objectContaining({
+					instructions: "Always call run_cline.",
+					tools,
+				}),
+			}),
+		);
+	});
+
 	it("rejects missing credentials and overlong browser sessions", async () => {
 		await expect(
 			createRealtimeVoiceSession({

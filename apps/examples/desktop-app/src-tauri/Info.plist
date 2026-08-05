@@ -4,5 +4,7 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Cline Code uses the microphone to transcribe speech into chat input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Cline Code uses speech recognition to show your dictated text while you speak.</string>
 </dict>
 </plist>

@@ -94,7 +94,9 @@ describe("useChatSession", () => {
 
 		let completion: Awaited<ReturnType<typeof current.sendPrompt>> | undefined;
 		await act(async () => {
-			completion = await current.sendPrompt("Start the task");
+			completion = await current.sendPrompt("Start the task", [], {
+				source: "realtime",
+			});
 		});
 
 		expect(current.error).toBeNull();
@@ -114,6 +116,7 @@ describe("useChatSession", () => {
 			request: expect.objectContaining({
 				action: "start",
 				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
+				source: "realtime",
 			}),
 		});
 		expect(invokeMock).toHaveBeenCalledWith(

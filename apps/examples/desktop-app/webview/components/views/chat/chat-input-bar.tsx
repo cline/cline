@@ -24,6 +24,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
@@ -392,6 +393,7 @@ export function ChatInputBar({
 	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
 	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
 	const [speechInputActive, setSpeechInputActive] = useState(false);
+	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
@@ -944,6 +946,15 @@ export function ChatInputBar({
 								"rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
+						{speechInputProcessing && (
+							<output
+								aria-live="polite"
+								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
+							>
+								<Spinner className="size-3.5" />
+								<span className="sr-only">Transcribing voice input</span>
+							</output>
+						)}
 						<textarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
@@ -1051,11 +1062,13 @@ export function ChatInputBar({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: variant === "welcome"
+										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+										: isBusy
+											? "Agent is working... submit to queue another message"
+											: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
 							role="combobox"
@@ -1077,6 +1090,11 @@ export function ChatInputBar({
 							{(!hasDraft || speechInputActive) && (
 								<SpeechInput
 									allowUnavailableClick={!transcriptionTarget}
+									key={
+										transcriptionTarget
+											? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
+											: "unconfigured"
+									}
 									onActiveChange={setSpeechInputActive}
 									onAudioRecorded={handleAudioRecorded}
 									onClick={(event) => {
@@ -1086,6 +1104,7 @@ export function ChatInputBar({
 										}
 									}}
 									onError={handleSpeechInputError}
+									onProcessingChange={setSpeechInputProcessing}
 									onStartStreaming={
 										transcriptionTarget?.supportsStreaming
 											? handleStartStreamingTranscription
@@ -1101,7 +1120,7 @@ export function ChatInputBar({
 									recordingMode={
 										transcriptionTarget?.supportsStreaming
 											? "streaming"
-											: "media-recorder"
+											: "auto"
 									}
 									title={
 										transcriptionTarget

@@ -66,6 +66,8 @@ import {
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	ProviderModeSchema,
 	ProviderSessionModeSchema,
+	REALTIME_CLINE_AGENT_INSTRUCTIONS,
+	REALTIME_CLINE_TOOLS,
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
@@ -1609,14 +1611,25 @@ export async function handleCommand(
 		);
 		const startedAt = Date.now();
 		try {
-			const session = await createConfiguredModeSession(
-				manager,
-				{
-					mode,
-					expiresAfterSeconds: 300,
-				},
-				desktopClientSettingsManager,
-			);
+			const session =
+				mode === "realtimeVoice"
+					? await createConfiguredModeSession(
+							manager,
+							{
+								mode,
+								expiresAfterSeconds: 300,
+								realtimeSessionConfig: {
+									instructions: REALTIME_CLINE_AGENT_INSTRUCTIONS,
+									tools: [...REALTIME_CLINE_TOOLS],
+								},
+							},
+							desktopClientSettingsManager,
+						)
+					: await createConfiguredModeSession(
+							manager,
+							{ mode, expiresAfterSeconds: 300 },
+							desktopClientSettingsManager,
+						);
 			emitDesktopDebugLog(
 				ctx,
 				mode === "voiceInput" ? "voice-input" : "realtime-voice",
