@@ -242,6 +242,11 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
+	// Synchronous snapshot of getWorkspaceRoot()'s latest result, for the message
+	// translator (which runs synchronously and relativizes the tool paths shown in
+	// the chat view). Warmed in the constructor and refreshed on every call.
+	private lastKnownWorkspaceRoot?: string
+
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
 	}
@@ -292,7 +297,11 @@ export class Controller {
 			undefined,
 			() => this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+			() => this.lastKnownWorkspaceRoot,
 		)
+		// Warm the synchronous workspace-root snapshot used for display-path
+		// relativization (getWorkspaceRoot never rejects — it falls back internally).
+		void this.getWorkspaceRoot()
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
@@ -332,6 +341,7 @@ export class Controller {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
@@ -938,10 +948,12 @@ export class Controller {
 		const noWorkspaceFallback = getDesktopDir()
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			return resolveWorkspaceRootPath(paths, noWorkspaceFallback)
+			this.lastKnownWorkspaceRoot = resolveWorkspaceRootPath(paths, noWorkspaceFallback)
+			return this.lastKnownWorkspaceRoot
 		} catch (error) {
 			Logger.warn("[SdkController] Failed to get workspace paths, falling back to Desktop:", error)
 		}
+		this.lastKnownWorkspaceRoot = noWorkspaceFallback
 		return noWorkspaceFallback
 	}
 
