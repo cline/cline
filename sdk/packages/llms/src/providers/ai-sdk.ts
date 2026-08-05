@@ -28,6 +28,10 @@ import {
 import { nanoid } from "nanoid";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import {
+	type KimiMarkerEvent,
+	KimiToolMarkerTranslator,
+} from "./kimi-tool-markers";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
@@ -970,6 +974,37 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	// Kimi (Together / Moonshot / openai-compatible) may put tool requests in
+	// plain content markers instead of delta.tool_calls. Translate those into
+	// tool-call-delta and never forward the raw markers as chat text.
+	const kimiMarkers = new KimiToolMarkerTranslator();
+
+	const emitKimiMarkerEvents = function* (
+		events: Iterable<KimiMarkerEvent>,
+	): Generator<AgentModelEvent> {
+		for (const event of events) {
+			if (event.type === "text") {
+				if (event.text) {
+					yield { type: "text-delta", text: event.text };
+				}
+				continue;
+			}
+			sawToolCalls = true;
+			emittedToolCallIds.add(event.toolCallId);
+			yield {
+				type: "tool-call-delta",
+				toolCallId: event.toolCallId,
+				toolName: event.toolName,
+				input: event.input,
+				inputText: event.inputText,
+				metadata: buildToolCallMetadata({
+					metadata: { toolSourceDialect: "kimi-markers" },
+					request,
+					context,
+				}),
+			};
+		}
+	};
 
 	try {
 		if (stream.fullStream) {
@@ -980,7 +1015,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.delta as string | undefined);
 					if (text) {
-						yield { type: "text-delta", text };
+						yield* emitKimiMarkerEvents(kimiMarkers.push(text));
 					}
 					continue;
 				}
@@ -1106,10 +1141,12 @@ async function* emitAiSdkEvents(
 					break;
 				}
 			}
+			yield* emitKimiMarkerEvents(kimiMarkers.flush());
 		} else if (stream.textStream) {
 			for await (const text of stream.textStream) {
-				yield { type: "text-delta", text };
+				yield* emitKimiMarkerEvents(kimiMarkers.push(text));
 			}
+			yield* emitKimiMarkerEvents(kimiMarkers.flush());
 		}
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
