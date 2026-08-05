@@ -1320,12 +1320,8 @@ function ChatThreadPane({
 			}
 			onPromptInputChange={handlePromptInputChange}
 			onReasoningChange={handleReasoningChange}
-			onSteerPromptInQueue={(promptId) => {
-				void steerPromptInQueue(promptId);
-			}}
-			onEditPromptInQueue={(promptId, prompt) => {
-				void updatePromptInQueue(promptId, prompt);
-			}}
+			onSteerPromptInQueue={steerPromptInQueue}
+			onEditPromptInQueue={updatePromptInQueue}
 			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={(nextProvider) =>
 				setConfig((prev) => {

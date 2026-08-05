@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useTerminalTheme } from "../hooks/use-terminal-background";
-import { diffPalettes, palette, type TerminalTheme } from "../palette";
+import { useTheme } from "../hooks/use-theme";
+import type { ResolvedTheme } from "../themes";
 import { makeUnifiedDiff } from "../utils/diff";
 import { getSyntaxStyle } from "../utils/syntax-style";
 import { getToolErrorPresentation } from "../utils/tool-errors";
@@ -45,7 +45,7 @@ function isEditTool(toolName: string): boolean {
 	);
 }
 
-function BashOutput(props: { fullText: string; theme: TerminalTheme }) {
+function BashOutput(props: { fullText: string; theme: ResolvedTheme }) {
 	const [expanded, setExpanded] = useState(false);
 	const { fullText } = props;
 	const trimmed = fullText.trimEnd();
@@ -115,18 +115,19 @@ function DiffStats(props: {
 	added: number;
 	removed: number;
 	language?: string;
+	theme: ResolvedTheme;
 }) {
-	const { added, removed, language } = props;
+	const { added, removed, language, theme } = props;
 	return (
 		<text fg="gray">
 			{RESULT}{" "}
 			{removed > 0 ? (
 				<>
-					<span fg={palette.success}>+{added}</span>{" "}
-					<span fg="red">-{removed}</span> lines
+					<span fg={theme.accents.success}>+{added}</span>{" "}
+					<span fg={theme.accents.error}>-{removed}</span> lines
 				</>
 			) : (
-				<span fg={palette.success}>+{added} lines (new)</span>
+				<span fg={theme.accents.success}>+{added} lines (new)</span>
 			)}
 			{language ? ` | ${language}` : ""}
 		</text>
@@ -136,7 +137,7 @@ function DiffStats(props: {
 function EditOutput(props: {
 	rawInput?: unknown;
 	outputSummary: string;
-	theme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const [expanded, setExpanded] = useState(true);
 	const editorInfo = parseEditorInput(props.rawInput);
@@ -156,7 +157,7 @@ function EditOutput(props: {
 	const language = detectLanguage(editorInfo.path);
 	const addedLines = newText.split("\n").length;
 	const removedLines = oldText ? oldText.split("\n").length : 0;
-	const diffPalette = diffPalettes[props.theme];
+	const diffPalette = props.theme.diff;
 
 	return (
 		<box
@@ -168,6 +169,7 @@ function EditOutput(props: {
 				added={addedLines}
 				removed={removedLines}
 				language={language}
+				theme={props.theme}
 			/>
 			{expanded && (
 				<box marginLeft={2} marginTop={1} marginBottom={1}>
@@ -194,7 +196,7 @@ function EditOutput(props: {
 function ApplyPatchOutput(props: {
 	rawInput?: unknown;
 	outputSummary: string;
-	theme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const [expanded, setExpanded] = useState(true);
 	const info = parseApplyPatchInput(props.rawInput);
@@ -211,7 +213,7 @@ function ApplyPatchOutput(props: {
 
 	const fileLabel = info.files.map((f) => shortenPath(f, 40)).join(", ");
 	const language = detectLanguage(info.files[0] ?? "");
-	const diffPalette = diffPalettes[props.theme];
+	const diffPalette = props.theme.diff;
 
 	return (
 		<box
@@ -223,6 +225,7 @@ function ApplyPatchOutput(props: {
 				added={info.additions}
 				removed={info.deletions}
 				language={fileLabel}
+				theme={props.theme}
 			/>
 			{expanded && (
 				<box marginLeft={2} marginTop={1} marginBottom={1}>
@@ -292,7 +295,7 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 
 export function ToolOutput(props: ToolOutputProps) {
 	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
-	const terminalTheme = useTerminalTheme();
+	const terminalTheme = useTheme();
 	const [errorExpanded, setErrorExpanded] = useState(false);
 
 	if (error) {

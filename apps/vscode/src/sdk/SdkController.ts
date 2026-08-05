@@ -304,10 +304,6 @@ export class Controller {
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
-			onSwitchToActMode: () => {
-				this.mode.queueSwitchToActMode()
-			},
-			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
@@ -678,15 +674,6 @@ export class Controller {
 	}
 
 	private handleSessionBecameIdle(): void {
-		if (this.mode?.hasPendingModeChange()) {
-			// The mode rebuild reads the latest provider and tool configuration, so
-			// it supersedes any passive rebuild that was queued for the old mode.
-			this.sessionRebuilds.cancel("provider")
-			this.mode.applyPendingModeChange().catch((error) => {
-				Logger.error("[SdkController] Failed to apply deferred mode change:", error)
-			})
-			return
-		}
 		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
