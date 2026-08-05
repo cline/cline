@@ -879,12 +879,18 @@ export class SubagentRunner {
 		const isOrgClinePassRestrictionError = parsedError.isErrorType(
 			ClineErrorType.OrgClinePassRestriction,
 		);
+		// A retired free model (promotion ended) can never answer, so a retry
+		// against it is guaranteed to fail again.
+		const isClineFreePromotionEndedError = parsedError.isErrorType(
+			ClineErrorType.ClineFreePromotionEnded,
+		);
 
 		if (
 			isAuthError ||
 			isBalanceError ||
 			isEntitlementError ||
-			isOrgClinePassRestrictionError
+			isOrgClinePassRestrictionError ||
+			isClineFreePromotionEndedError
 		) {
 			return false;
 		}

@@ -12,6 +12,7 @@ export enum ClineErrorType {
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
 	ClineFreeModelLimit = "clineFreeModelLimit",
+	ClineFreePromotionEnded = "clineFreePromotionEnded",
 }
 
 interface ErrorDetails {
@@ -72,6 +73,14 @@ const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
 const CLINE_FREE_MODEL_LIMIT_MARKER = "free limit reached on model";
 const CLINE_FREE_MODEL_LIMIT_RETRY_MARKER = "try again in ";
 
+// Once a free promotion ends, the cline-free/ model is removed from the catalog
+// and the backend answers "model not found" to requests against it. The prefix
+// gate keeps ordinary model-not-found errors on their generic path. Kept local
+// (rather than importing shared/cline/free-models) so this file stays free of
+// import cycles — it is loaded by both the extension host and the webview.
+const CLINE_FREE_MODEL_ID_PREFIX = "cline-free/";
+const CLINE_MODEL_NOT_FOUND_MARKER = "model not found";
+
 function findClinePassLimitMessageBounds(
 	text: string,
 ): { start: number; end: number } | undefined {
@@ -107,6 +116,25 @@ export function extractClinePassLimitMessage(
 
 export function isClineFreeModelLimitMessage(text: string): boolean {
 	return text.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_MARKER);
+}
+
+export function isClineModelNotFoundMessage(text: string): boolean {
+	return text.toLowerCase().includes(CLINE_MODEL_NOT_FOUND_MARKER);
+}
+
+/**
+ * Detects a request against a retired free model: once a promotion ends the
+ * cline-free/ model is removed from the catalog and the backend answers "model
+ * not found". Mirrors the CLI's detection in apps/cli (cline-pass-errors.ts).
+ */
+export function isClineFreePromotionEndedMessage(
+	text: string,
+	modelId?: string,
+): boolean {
+	if (!modelId?.toLowerCase().startsWith(CLINE_FREE_MODEL_ID_PREFIX)) {
+		return false;
+	}
+	return isClineModelNotFoundMessage(text);
 }
 
 /**
@@ -294,6 +322,20 @@ export class ClineError extends Error {
 			isClinePassLimitMessage(message ?? "")
 		) {
 			return ClineErrorType.ClinePassLimit;
+		}
+
+		// Retired free models must be classified before the auth branch: the
+		// backend's model-not-found answer is a 404, which falls inside the
+		// generic 401-428 auth-status range below.
+		const promotionEndedModelId = err.modelId ?? err._error?.modelId;
+		if (
+			isClineFreePromotionEndedMessage(
+				detailMessage ?? "",
+				promotionEndedModelId,
+			) ||
+			isClineFreePromotionEndedMessage(message ?? "", promotionEndedModelId)
+		) {
+			return ClineErrorType.ClineFreePromotionEnded;
 		}
 
 		// Check auth errors
