@@ -1,6 +1,5 @@
 "use client";
 
-import type { SpeechResult } from "ai";
 import {
 	MediaControlBar,
 	MediaController,
@@ -9,9 +8,10 @@ import {
 	MediaTimeRange,
 } from "media-chrome/react";
 import type { ComponentProps } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
-import { cn } from "@/lib/utils";
+
+function classes(...values: Array<string | undefined>): string {
+	return values.filter(Boolean).join(" ");
+}
 
 export type AudioPlayerProps = Omit<
 	ComponentProps<typeof MediaController>,
@@ -26,7 +26,7 @@ export function AudioPlayer({
 	return (
 		<MediaController
 			audio
-			className={cn("cline-audio-player", className)}
+			className={classes("cline-ui-audio-player", className)}
 			data-slot="audio-player"
 			{...props}
 		>
@@ -35,8 +35,13 @@ export function AudioPlayer({
 	);
 }
 
+export interface AudioPlayerData {
+	base64: string;
+	mediaType: string;
+}
+
 export type AudioPlayerElementProps = Omit<ComponentProps<"audio">, "src"> &
-	({ data: SpeechResult["audio"] } | { src: string });
+	({ data: AudioPlayerData } | { src: string });
 
 export function AudioPlayerElement(props: AudioPlayerElementProps) {
 	if ("src" in props) {
@@ -58,13 +63,16 @@ export type AudioPlayerControlBarProps = ComponentProps<typeof MediaControlBar>;
 
 export function AudioPlayerControlBar({
 	children,
+	className,
 	...props
 }: AudioPlayerControlBarProps) {
 	return (
-		<MediaControlBar data-slot="audio-player-control-bar" {...props}>
-			<ButtonGroup className="w-full" orientation="horizontal">
-				{children}
-			</ButtonGroup>
+		<MediaControlBar
+			className={classes("cline-ui-audio-player__controls", className)}
+			data-slot="audio-player-control-bar"
+			{...props}
+		>
+			{children}
 		</MediaControlBar>
 	);
 }
@@ -76,21 +84,11 @@ export function AudioPlayerPlayButton({
 	...props
 }: AudioPlayerPlayButtonProps) {
 	return (
-		<Button
-			asChild
-			className="size-8 border border-input bg-transparent hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent"
-			size="icon-lg"
-			variant="ghost"
-		>
-			<MediaPlayButton
-				className={cn(
-					"size-2 bg-transparent [--media-button-icon-height:0.8rem] [--media-button-icon-width:1rem]",
-					className,
-				)}
-				data-slot="audio-player-play-button"
-				{...props}
-			/>
-		</Button>
+		<MediaPlayButton
+			className={classes("cline-ui-audio-player__play", className)}
+			data-slot="audio-player-play-button"
+			{...props}
+		/>
 	);
 }
 
@@ -103,13 +101,11 @@ export function AudioPlayerTimeDisplay({
 	...props
 }: AudioPlayerTimeDisplayProps) {
 	return (
-		<ButtonGroupText asChild className="h-8 bg-transparent px-2">
-			<MediaTimeDisplay
-				className={cn("tabular-nums", className)}
-				data-slot="audio-player-time-display"
-				{...props}
-			/>
-		</ButtonGroupText>
+		<MediaTimeDisplay
+			className={classes("cline-ui-audio-player__time", className)}
+			data-slot="audio-player-time-display"
+			{...props}
+		/>
 	);
 }
 
@@ -120,15 +116,10 @@ export function AudioPlayerTimeRange({
 	...props
 }: AudioPlayerTimeRangeProps) {
 	return (
-		<ButtonGroupText
-			asChild
-			className="h-8 min-w-20 flex-1 bg-transparent px-2"
-		>
-			<MediaTimeRange
-				className={cn("w-full", className)}
-				data-slot="audio-player-time-range"
-				{...props}
-			/>
-		</ButtonGroupText>
+		<MediaTimeRange
+			className={classes("cline-ui-audio-player__range", className)}
+			data-slot="audio-player-time-range"
+			{...props}
+		/>
 	);
 }

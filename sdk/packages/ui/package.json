@@ -36,6 +36,8 @@
 		"components.css",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
+		"components/audio-player.css",
+		"components/audio-player.tsx",
 		"components/agent-approval-card.css",
 		"components/agent-approval-card.tsx",
 		"components/agent-ask-question.css",
@@ -73,6 +75,9 @@
 		"agent-chat"
 	],
 	"license": "Apache-2.0",
+	"dependencies": {
+		"media-chrome": "^4.18.1"
+	},
 	"scripts": {
 		"build": "bun run check:theme-generated && bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
 		"check:theme-generated": "bun scripts/generate-theme.ts --check",

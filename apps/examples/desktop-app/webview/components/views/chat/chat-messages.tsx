@@ -1,6 +1,15 @@
 "use client";
 
-import { AgentApprovalCard, AgentAskQuestion } from "@cline/ui";
+import {
+	AgentApprovalCard,
+	AgentAskQuestion,
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -62,14 +71,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-	AudioPlayer,
-	AudioPlayerControlBar,
-	AudioPlayerElement,
-	AudioPlayerPlayButton,
-	AudioPlayerTimeDisplay,
-	AudioPlayerTimeRange,
-} from "@/components/ui/audio-player";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
