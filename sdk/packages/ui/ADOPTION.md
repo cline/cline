@@ -63,7 +63,7 @@ pass once their runtime and Markdown adapters are mapped explicitly.
 | Goal | Import | Tailwind required | React required |
 | --- | --- | --- | --- |
 | Use only light/dark CSS variables | `@cline/ui/theme/tokens.css` | No | No |
-| Render shared approval, welcome, search, or status UI | `@cline/ui/theme/tokens.css`, `@cline/ui/components.css`, and `@cline/ui` | No | React 18.3 or 19 |
+| Render shared root React primitives without host resets | `scoped-tokens.css`, `components.css`, and `@cline/ui` | Tailwind v4 | React 18.3 or 19 |
 | Use tokens through Tailwind utilities | `tokens.css` then `theme.css` | Tailwind v4 | No |
 | Use the complete theme and shared base behavior | `@cline/ui/theme/index.css` | Tailwind v4 | No |
 | Compose shared agent-chat presentation | `@cline/ui/components/agent-chat` plus its CSS | No, if tokens are mapped in plain CSS | React 18.3 or 19 |
@@ -166,8 +166,31 @@ owns document, Markdown, scrollbar, or cursor behavior:
 @import "@cline/ui/theme/theme.css";
 ```
 
-If the application later opts into shared base behavior, import
-`@cline/ui/theme/base.css` after `theme.css`.
+For an existing Tailwind v4 surface that must preserve its host shell, keep
+Tailwind setup host-owned and add the scoped Cline imports:
+
+```css
+@import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
+```
+
+Render shared components inside `.cline-ui-theme`. Dark values activate when
+`.dark` is on that wrapper or an ancestor. `components.css` registers only
+package-namespaced Tailwind mappings, so generic host utilities such as
+`bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
+meaning outside the wrapper.
+
+Do not import `theme.css` for this scoped setup. That entry point deliberately
+registers the complete, generic Cline utility vocabulary and is intended only
+for applications that want Cline to own those utility names globally.
+
+The root primitives use package-owned semantic color, typography, radius, and
+dark-variant names. Structural utilities still use Tailwind's standard spacing,
+shadow, and breakpoint scales; hosts that customize those scales may change
+component metrics while their own utility names and token values remain intact.
+
+If the application later opts into Cline's global utility vocabulary and base
+behavior, switch to the complete theme setup in Option 1.
 
 ## Option 3: framework-neutral tokens
 

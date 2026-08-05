@@ -44,6 +44,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
 	type SessionCompactionState,
@@ -159,6 +160,32 @@ function buildCommandSessionConfig(
 		sessionConfig.headers = headers;
 	}
 	return sessionConfig;
+}
+
+function buildSessionHistoryMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return withSessionHistoryOriginMetadata(input.sessionMetadata, {
+		mode: input.mode,
+		version: input.localRuntime?.extensionContext?.client?.version,
+	});
+}
+
+function buildCommandSessionMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return {
+		...buildSessionHistoryMetadata(input),
+		source: input.source ?? SessionSource.CORE,
+		provider: input.config.providerId,
+		model: input.config.modelId,
+		enableTools: input.config.enableTools,
+		enableSpawn: input.config.enableSpawnAgent,
+		enableTeams: input.config.enableAgentTeams,
+		teamName: input.config.teamName,
+		prompt: input.prompt,
+		interactive: input.interactive === true,
+	};
 }
 
 function parseToolContext(value: unknown): AgentToolContext {
@@ -691,10 +718,7 @@ function buildManifest(
 		enable_spawn: input.config.enableSpawnAgent,
 		enable_teams: input.config.enableAgentTeams,
 		prompt: input.prompt?.trim() || undefined,
-		metadata:
-			input.sessionMetadata && Object.keys(input.sessionMetadata).length > 0
-				? input.sessionMetadata
-				: undefined,
+		metadata: buildSessionHistoryMetadata(input),
 	});
 }
 
@@ -844,18 +868,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				sessionConfig: toJsonRecord(
 					buildCommandSessionConfig(input, plannedSessionId),
 				),
-				metadata: {
-					...(input.sessionMetadata ?? {}),
-					source: input.source ?? SessionSource.CORE,
-					provider: input.config.providerId,
-					model: input.config.modelId,
-					enableTools: input.config.enableTools,
-					enableSpawn: input.config.enableSpawnAgent,
-					enableTeams: input.config.enableAgentTeams,
-					teamName: input.config.teamName,
-					prompt: input.prompt,
-					interactive: input.interactive === true,
-				},
+				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
@@ -991,18 +1004,7 @@ export class HubRuntimeHost implements RuntimeHost {
 									startConfig.config.cwd,
 								cwd: startConfig.config.cwd ?? input.cwd,
 								sessionConfig: toJsonRecord(startSessionConfig),
-								metadata: {
-									...(startConfig.sessionMetadata ?? {}),
-									source: startConfig.source ?? SessionSource.CORE,
-									provider: startConfig.config.providerId,
-									model: startConfig.config.modelId,
-									enableTools: startConfig.config.enableTools,
-									enableSpawn: startConfig.config.enableSpawnAgent,
-									enableTeams: startConfig.config.enableAgentTeams,
-									teamName: startConfig.config.teamName,
-									prompt: startConfig.prompt,
-									interactive: startConfig.interactive === true,
-								},
+								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }

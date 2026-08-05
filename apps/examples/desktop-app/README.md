@@ -42,8 +42,10 @@ desktop integration notes.
 ## Releases & Auto-Updates
 
 Releases are built, signed, notarized, and published by the `desktop-publish`
-GitHub workflow. The step-by-step flow (version bumps, changelog, tag, repo
-secrets) lives in the `publish-desktop` skill
+GitHub workflow as a single universal macOS DMG — one download that runs
+natively on both Apple Silicon and Intel (macOS picks the matching slice at
+launch, so users never choose an architecture). The step-by-step flow (version
+bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
 (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling

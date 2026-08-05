@@ -14,7 +14,7 @@ describe("api configuration provider conversion", () => {
 	})
 
 	it("round-trips SDK provider ids added after the legacy enum list", () => {
-		const providers: ApiProvider[] = ["poolside", "v0", "xiaomi", "tencent-tokenhub", "zai-coding-plan"]
+		const providers: ApiProvider[] = ["poolside", "v0", "xiaomi", "tencent-tokenhub", "chutes", "zai-coding-plan"]
 
 		for (const provider of providers) {
 			const proto = convertApiConfigurationToProto({

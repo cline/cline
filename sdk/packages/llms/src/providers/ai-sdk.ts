@@ -1,3 +1,4 @@
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	AgentMessage,
 	AgentModelEvent,
@@ -6,6 +7,7 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
+	ProviderErrorClass,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
@@ -15,12 +17,22 @@ import {
 	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
+import {
+	type CallSettings,
+	jsonSchema,
+	NoSuchToolError,
+	streamText,
+	type ToolSet,
+	wrapLanguageModel,
+} from "ai";
 import { nanoid } from "nanoid";
+import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
 import {
@@ -31,6 +43,10 @@ import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
+import {
+	applyBedrockCachePointToLastUserMessage,
+	shouldApplyBedrockCachePoint,
+} from "./routing/bedrock-cache-point";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -65,14 +81,25 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
-function buildCachedAiSdkMessages(
+function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: modelSupportsImageInput(context),
 	}) as Array<Record<string, unknown>>;
+
+	if (shouldApplyBedrockCachePoint(request, context)) {
+		applyBedrockCachePointToLastUserMessage(aiMessages);
+		return aiMessages;
+	}
+
+	if (!shouldApplyPromptCache(request, context)) {
+		return aiMessages;
+	}
+
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -272,7 +299,7 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -379,12 +406,11 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages: options?.supportsImages,
 	});
 }
 
-function toAiSdkTools(
-	request: GatewayStreamRequest,
-): Record<string, unknown> | undefined {
+function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 	if (!request.tools?.length) {
 		return undefined;
 	}
@@ -394,17 +420,16 @@ function toAiSdkTools(
 	// accept common weak-model shapes like a bare string for a string[]
 	// property). Rejecting here would return an error to the model without
 	// the tool's own input handling ever seeing the call.
-	return Object.fromEntries(
-		request.tools.map((definition) => [
-			definition.name,
-			{
-				description: definition.description,
-				inputSchema: jsonSchema(
-					normalizeAiSdkToolInputSchema(definition.inputSchema),
-				) as never,
-			} as unknown,
-		]),
-	);
+	const tools: ToolSet = {};
+	for (const definition of request.tools) {
+		tools[definition.name] = {
+			description: definition.description,
+			inputSchema: jsonSchema(
+				normalizeAiSdkToolInputSchema(definition.inputSchema),
+			),
+		};
+	}
+	return tools;
 }
 
 interface RepairableToolCall {
@@ -905,17 +930,41 @@ function extractGoogleThoughtMetadata(
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
+/**
+ * A stream error captured while the raw provider error object is still in
+ * hand: the flattened display message plus its classification. Both are
+ * derived here because the structure needed to classify does not survive
+ * `extractErrorMessage`.
+ */
+interface CapturedStreamError {
+	message: string;
+	errorClass: ProviderErrorClass;
+	/**
+	 * This layer already recorded `sdk.error` telemetry for the failure.
+	 * Forwarded as `errorReported` on the `finish` event so the agent loop
+	 * does not report the same failure a second time.
+	 */
+	reported?: boolean;
+}
+
+function captureStreamError(error: unknown): CapturedStreamError {
+	return {
+		message: extractErrorMessage(error),
+		errorClass: classifyProviderError(error),
+	};
+}
+
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
-	capturedError?: { current: string | undefined },
+	capturedError?: { current: CapturedStreamError | undefined },
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
-	let streamError: string | undefined;
+	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 
@@ -943,6 +992,26 @@ async function* emitAiSdkEvents(
 							type: "reasoning-delta",
 							text,
 							metadata: extractGoogleThoughtMetadata(part),
+						};
+					}
+					continue;
+				}
+
+				if (part.type === "file") {
+					// Model-generated file (e.g. image-output models). Convert it
+					// so a file-only turn reaches the assistant message instead of
+					// being dropped and failing as "Model returned empty response"
+					// — the retry middleware counts `file` parts as content on the
+					// same premise (see stream-part-classification.ts).
+					const file = part.file as
+						| { base64?: string; mediaType?: string }
+						| undefined;
+					const data = file?.base64;
+					if (typeof data === "string" && data.length > 0) {
+						yield {
+							type: "file",
+							data,
+							mediaType: file?.mediaType ?? "application/octet-stream",
 						};
 					}
 					continue;
@@ -1025,7 +1094,7 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? extractErrorMessage(part.error);
+						capturedError?.current ?? captureStreamError(part.error);
 					break;
 				}
 
@@ -1042,7 +1111,7 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? extractErrorMessage(error);
+		streamError = capturedError?.current ?? captureStreamError(error);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -1057,7 +1126,7 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? extractErrorMessage(error);
+				streamError = capturedError?.current ?? captureStreamError(error);
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -1077,7 +1146,9 @@ async function* emitAiSdkEvents(
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
-		error: streamError,
+		error: streamError?.message,
+		errorClass: streamError?.errorClass,
+		errorReported: streamError?.reported,
 	};
 }
 
@@ -1154,12 +1225,46 @@ async function createProviderModule(
 	}
 }
 
+/**
+ * Wrap a vendor-constructed model with the empty-response retry middleware.
+ *
+ * All-empty turns (no text, no reasoning, no tool call) are a cross-provider
+ * phenomenon: production telemetry shows them on hosted backends (openrouter,
+ * cline, generic OpenAI-compatible endpoints), not just local Ollama. An
+ * empty assistant turn is a hard failure in the agent runtime ("Model
+ * returned empty response"), so a single transient flake kills the task.
+ * Retrying here — the one composition point every AI SDK vendor flows
+ * through — turns those flakes into non-events while leaving the runtime's
+ * loud failure in place for models that are persistently empty.
+ *
+ * Applied as the *outermost* wrap so each retry re-runs the vendor's full
+ * request pipeline, including any vendor-level middleware attached inside
+ * `provider.model(...)`. Vendors opt out or tune attempts through
+ * `ProviderFactoryResult.retryEmptyResponses`.
+ */
+export function withEmptyResponseRetry(
+	model: unknown,
+	retryEmptyResponses: ProviderFactoryResult["retryEmptyResponses"],
+	logger: GatewayProviderContext["logger"],
+): unknown {
+	if (retryEmptyResponses === false) {
+		return model;
+	}
+	return wrapLanguageModel({
+		model: model as LanguageModelV4,
+		middleware: createRetryEmptyResponseMiddleware({
+			...retryEmptyResponses,
+			logger,
+		}),
+	});
+}
+
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
-			const capturedError: { current: string | undefined } = {
+			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
 			try {
@@ -1185,11 +1290,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
-				const messages = shouldApplyPromptCache(request, context)
-					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
-							includeReasoning: shouldIncludeReasoningHistory(request, context),
-						});
+				const messages = buildAiSdkRequestMessages(
+					request,
+					context,
+					messagesSystemPrompt,
+				);
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,
@@ -1210,10 +1315,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = streamText({
-					model: provider.model(context.model.id) as never,
+					model: withEmptyResponseRetry(
+						provider.model(context.model.id),
+						provider.retryEmptyResponses,
+						context.logger,
+					) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
-					tools: tools as never,
+					...(tools ? { tools } : {}),
 					abortSignal: request.signal,
 					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
@@ -1222,8 +1331,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					providerOptions,
 					...requestConfig,
 					onError: ({ error: streamError }) => {
-						const msg = extractErrorMessage(streamError);
-						capturedError.current = msg;
+						const captured = captureStreamError(streamError);
+						const msg = captured.message;
+						capturedError.current = captured;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
@@ -1236,7 +1346,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								severity: "error",
 							});
 						}
-						captureSdkError(context.telemetry, {
+						captured.reported = captureSdkError(context.telemetry, {
 							component: "llms",
 							operation: "provider.stream",
 							error: streamError,
@@ -1269,7 +1379,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const msg = capturedError.current ?? extractErrorMessage(error);
+				const captured = capturedError.current ?? captureStreamError(error);
+				const msg = captured.message;
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -1282,7 +1393,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				captureSdkError(context.telemetry, {
+				const reported = captureSdkError(context.telemetry, {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
@@ -1299,6 +1410,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					type: "finish",
 					reason: "error",
 					error: msg,
+					errorClass: captured.errorClass,
+					errorReported: reported || captured.reported,
 				};
 			}
 		},

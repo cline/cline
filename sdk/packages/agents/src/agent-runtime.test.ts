@@ -9,14 +9,20 @@ import type {
 } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	resetSdkErrorRateLimiterForTests,
+	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
+
+beforeEach(() => {
+	resetSdkErrorRateLimiterForTests();
+});
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
@@ -166,6 +172,194 @@ describe("AgentRuntime", () => {
 		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
 	});
 
+	it("recovers from a context-window overflow with a forced compaction and one retry", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const overflowEvent: AgentModelEvent = {
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		};
+		const model = new ScriptedModel([
+			() => [overflowEvent],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model, prepareTurn });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(prepareTurn.mock.calls[0]?.[0].overflowRecovery).toBeUndefined();
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+		// The retried request uses the compacted transcript.
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				message: "context window exceeded — compacting and retrying",
+				metadata: expect.objectContaining({
+					kind: "context_overflow_recovery",
+				}),
+			}),
+		);
+	});
+
+	it("recovers from an unclassified overflow by classifying the finish message", async () => {
+		// Models that do not classify at their own error boundary (custom
+		// AgentModel implementations, adapters carrying only a flattened
+		// message) must still reach recovery.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`Please review ${"lots of context ".repeat(50)}`,
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+	});
+
+	it("does not treat an unrelated stream failure as an overflow", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "fetch failed: socket closed",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("fetch failed: socket closed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "input is too long for requested model",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"no conversation history to compact",
+		);
+		expect(result.error?.message).toContain(
+			"input is too long for requested model",
+		);
+		// The doomed request is not re-sent.
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with guidance when overflow occurs and no prepare-turn pipeline exists", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry a second consecutive overflow in the same run", async () => {
+		const overflow = (): AgentModelEvent[] => [
+			{
+				type: "finish",
+				reason: "error",
+				error: "prompt is too long",
+				errorClass: "context_window_exceeded",
+			},
+		];
+		const model = new ScriptedModel([overflow, overflow]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "x" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`A long request ${"with plenty of transcript ".repeat(30)}`,
+		);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"still exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(2);
+	});
+
 	it("does not complete or persist history when the model returns no content", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "stop" }],
@@ -178,6 +372,55 @@ describe("AgentRuntime", () => {
 		expect(result.error?.message).toBe("Model returned empty response");
 		expect(result.messages).toHaveLength(1);
 		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("treats a file-only model turn as content, assembling images onto the message", async () => {
+		// A model that answers with only a generated file (e.g. an
+		// image-output model) must not fail as "Model returned empty
+		// response" — the file event is assembled into the assistant message.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "file", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a cat");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "image", image: "aGVsbG8=", mediaType: "image/png" },
+		]);
+	});
+
+	it("preserves non-image generated files as file parts", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Here you go." },
+				{ type: "file", data: "UERGLWRhdGE=", mediaType: "application/pdf" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Make a PDF");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Here you go." },
+			{
+				type: "file",
+				path: "model-generated-file-2",
+				content: "UERGLWRhdGE=",
+			},
+		]);
 	});
 
 	it("executes a tool call and continues the loop", async () => {
@@ -2127,6 +2370,88 @@ describe("AgentRuntime", () => {
 			inputTokens: 200,
 			outputTokens: 40,
 			totalCost: 1.0,
+		});
+	});
+});
+
+describe("AgentRuntime sdk.error reporting", () => {
+	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {
+		return capture.mock.calls
+			.map(([call]) => call as { event: string; properties?: unknown })
+			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
+	}
+
+	it("does not re-report a failure the model layer marked as reported", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Upstream returned HTTP 429",
+					errorReported: true,
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(sdkErrorEvents(capture)).toHaveLength(0);
+		// The structured lifecycle event still records the failure.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "agent.run-failed" }),
+		);
+	});
+
+	it("reports exactly one sdk.error for custom models that do not record their own telemetry", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// A custom `AgentModel` flattens its failure into the finish event and
+		// never calls `captureSdkError`; without `errorReported` the run loop
+		// must own the report.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "backend unavailable",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "backend unavailable",
+		});
+	});
+
+	it("still reports failures that originate in the run loop itself", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// An empty response is a loop-originated failure no model layer saw.
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "Model returned empty response",
 		});
 	});
 });

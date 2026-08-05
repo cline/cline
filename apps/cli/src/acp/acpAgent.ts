@@ -47,6 +47,11 @@ import {
 	isAcpAuthMethodId,
 } from "./auth";
 import {
+	AUTO_APPROVE_CONFIG_ID,
+	buildAutoApproveConfigOption,
+	parseAutoApproveValue,
+} from "./auto-approve";
+import {
 	buildOrganizationConfigOption,
 	fetchClineOrganizations,
 	getAcpOrgSubscriptionMessage,
@@ -75,6 +80,8 @@ interface SessionState {
 	currentProviderId: string;
 	/** Current model id for the session. */
 	currentModelId: string;
+	/** When true, all tool calls are approved without asking the client. */
+	autoApproveTools: boolean;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -100,12 +107,17 @@ export class AcpAgent implements Agent {
 	private sessions = new Map<string, SessionState>();
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly defaultAutoApproveTools: boolean;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
-	constructor(conn: AgentSideConnection) {
+	constructor(
+		conn: AgentSideConnection,
+		options?: { autoApproveTools?: boolean },
+	) {
 		this.conn = conn;
+		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -190,6 +202,7 @@ export class AcpAgent implements Agent {
 			currentMode: defaultMode,
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
+			autoApproveTools: this.defaultAutoApproveTools,
 		});
 
 		const availableModels = Object.entries(providerModels).map(
@@ -217,6 +230,7 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
 				...(organizationOption ? [organizationOption] : []),
 			],
 		};
@@ -254,6 +268,7 @@ export class AcpAgent implements Agent {
 						process.env.CLINE_MODEL,
 						providerModels,
 					),
+					autoApproveTools: this.defaultAutoApproveTools,
 				};
 				this.sessions.set(params.sessionId, session);
 			}
@@ -511,6 +526,18 @@ export class AcpAgent implements Agent {
 				break;
 			}
 
+			case AUTO_APPROVE_CONFIG_ID: {
+				const autoApprove = parseAutoApproveValue(params.value);
+				if (autoApprove === undefined) {
+					throw RequestError.invalidParams(
+						undefined,
+						`Invalid auto-approve value: ${String(params.value)} (must be a boolean)`,
+					);
+				}
+				session.autoApproveTools = autoApprove;
+				break;
+			}
+
 			default:
 				throw RequestError.invalidParams(
 					undefined,
@@ -660,7 +687,9 @@ export class AcpAgent implements Agent {
 			toolPolicies: config.toolPolicies,
 			capabilities: {
 				requestToolApproval: (request) =>
-					requestAcpToolApproval(this.conn, acpSessionId, request),
+					session.autoApproveTools
+						? Promise.resolve({ approved: true })
+						: requestAcpToolApproval(this.conn, acpSessionId, request),
 			},
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
@@ -884,6 +913,7 @@ async function buildAllConfigOptions(
 		providerOption,
 		buildModelConfigOption(session.currentModelId, providerModels),
 		buildModeConfigOption(session.currentMode),
+		buildAutoApproveConfigOption(session.autoApproveTools),
 	];
 }
 

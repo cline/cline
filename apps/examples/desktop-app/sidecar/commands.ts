@@ -25,6 +25,7 @@ import {
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -43,6 +44,7 @@ import {
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
+	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import {
@@ -733,33 +735,26 @@ async function listUserInstructionConfigs(
 	workspaceRoot: string,
 ): Promise<JsonRecord> {
 	const warnings: string[] = [];
+	const userInstructionService = createUserInstructionConfigService({
+		skills: { workspacePath: workspaceRoot },
+		rules: { workspacePath: workspaceRoot },
+		workflows: { workspacePath: workspaceRoot },
+	});
 
-	const loadUserInstructionSnapshot = async (
+	const loadUserInstructionSnapshot = (
 		type: "rule" | "skill" | "workflow",
-	): Promise<unknown[]> => {
+	): unknown[] => {
 		const items: unknown[] = [];
-		const service = createUserInstructionConfigService({
-			skills: { workspacePath: workspaceRoot },
-			rules: { workspacePath: workspaceRoot },
-			workflows: { workspacePath: workspaceRoot },
-		});
-		try {
-			await service.start();
-			for (const record of service.listRecords(type)) {
-				const item = record.item as unknown as JsonRecord;
-				if (item.disabled === true) continue;
-				items.push({
-					id: record.id,
-					name: item.name ?? record.id,
-					instructions: item.instructions,
-					path: record.filePath,
-				});
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			warnings.push(`${type}: ${message}`);
-		} finally {
-			service.stop();
+		for (const record of userInstructionService.listRecords(type)) {
+			const item = record.item as unknown as JsonRecord;
+			if (item.disabled === true) continue;
+			items.push({
+				id: record.id,
+				name: item.name ?? record.id,
+				description: item.description,
+				instructions: item.instructions,
+				path: record.filePath,
+			});
 		}
 		return items;
 	};
@@ -829,7 +824,7 @@ async function listUserInstructionConfigs(
 						continue;
 					}
 					pluginsByPath.set(filePath, {
-						name: basename(filePath, extname(filePath)),
+						name: getPluginDisplayName(filePath, directory),
 						path: filePath,
 						enabled: !disabledPlugins.has(filePath),
 					});
@@ -843,15 +838,30 @@ async function listUserInstructionConfigs(
 		);
 	};
 
-	const [rules, workflows, skills, pluginTools] = await Promise.all([
-		loadUserInstructionSnapshot("rule"),
-		loadUserInstructionSnapshot("workflow"),
-		loadUserInstructionSnapshot("skill"),
-		listPluginTools({
-			workspacePath: workspaceRoot,
-			cwd: workspaceRoot,
-		}),
-	]);
+	try {
+		await userInstructionService.start();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		warnings.push(`user instructions: ${message}`);
+	}
+	let rules: unknown[];
+	let workflows: unknown[];
+	let skills: unknown[];
+	let runtimeCommands: ReturnType<
+		typeof userInstructionService.listRuntimeCommands
+	>;
+	try {
+		rules = loadUserInstructionSnapshot("rule");
+		workflows = loadUserInstructionSnapshot("workflow");
+		skills = loadUserInstructionSnapshot("skill");
+		runtimeCommands = userInstructionService.listRuntimeCommands();
+	} finally {
+		userInstructionService.stop();
+	}
+	const pluginTools = await listPluginTools({
+		workspacePath: workspaceRoot,
+		cwd: workspaceRoot,
+	});
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
@@ -863,6 +873,7 @@ async function listUserInstructionConfigs(
 		rules,
 		workflows,
 		skills,
+		runtimeCommands,
 		agents: loadAgents(),
 		plugins: loadPlugins(),
 		tools: [
@@ -1519,6 +1530,17 @@ export async function handleCommand(
 					: undefined,
 			capabilities: Array.isArray(args?.capabilities)
 				? (args.capabilities as ProviderCapability[])
+				: undefined,
+		});
+	}
+	if (command === "update_provider_models") {
+		const providerId = String(args?.provider ?? "").trim();
+		const manager = new ProviderSettingsManager();
+		await ensureCustomProvidersLoaded(manager);
+		return await updateLocalProvider(manager, {
+			providerId,
+			models: Array.isArray(args?.models)
+				? (args.models as string[])
 				: undefined,
 		});
 	}
