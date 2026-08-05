@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.1.5]
+
+### Added
+
+- Explain when a free model promotion ends. Requests to a retired free model now show a dedicated notice with a button to pick another model, instead of a generic error with nothing but a Retry prompt.
+
+### Changed
+
+- Map reasoning settings onto a shared path across AI SDK providers, so effort levels and enable/disable toggles behave consistently (including on Ollama) instead of relying on per-provider overrides.
+
 ## [4.1.4]
 
 ### Added
