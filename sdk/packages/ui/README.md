@@ -27,8 +27,8 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent approval-card, Aurora, hero-heading, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 |
-| `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
+| `@cline/ui` | Agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
@@ -45,6 +45,10 @@ for a host-specific status palette.
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
 
+Import `components.css` after Tailwind and either token entry point. It
+registers package-namespaced mappings and the packaged component sources so
+their utilities are emitted without changing generic host utility names.
+
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
@@ -56,14 +60,21 @@ welcome heading and respects reduced-motion preferences.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
+`AgentAskQuestion` is controlled presentation; the host owns pending answers,
+errors, and response transport.
+
+`AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
+actions to the host.
+
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`tokens.css` is the canonical token source; `scoped-tokens.css` is generated
-from it. Contributors change `tokens.css` and run `bun run generate:theme`;
-tests and CI reject drift in the scoped output. Consumers may import either
-public entry point.
+`tokens.css` is the canonical token source; `scoped-tokens.css` and the internal
+component Tailwind mapping are generated from it and `theme.css`. Contributors
+change the source theme files and run `bun run generate:theme`; tests and CI
+reject drift in either generated output. Consumers may import either public
+token entry point.
 
 ## Theme usage
 
@@ -86,6 +97,7 @@ For an embedded surface, import scoped tokens and optional Markdown styles:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
 @import "@cline/ui/components/markdown.css";
 ```
 
@@ -96,6 +108,9 @@ For an embedded surface, import scoped tokens and optional Markdown styles:
 ```
 
 Dark values activate when `.dark` is on the wrapper or an ancestor.
+
+Embedded hosts should not import `@cline/ui/theme/theme.css`; it intentionally
+maps generic Tailwind names such as `bg-background` for Cline-owned surfaces.
 
 The theme follows the standard shadcn semantic contract (`--background`,
 `--foreground`, `--card`, `--primary`, `--border`, `--ring`, charts, and

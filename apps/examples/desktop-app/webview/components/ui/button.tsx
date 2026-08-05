@@ -25,6 +25,7 @@ const buttonVariants = cva(
 					"!h-auto w-full justify-start text-left gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
 				sidebarText:
 					"!h-auto justify-start gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground",
+				text: "bg-transparent text-sm font-medium text-muted-foreground hover:text-accent-foreground",
 			},
 			size: {
 				default: "h-9 px-4 py-2 has-[>svg]:px-3",
