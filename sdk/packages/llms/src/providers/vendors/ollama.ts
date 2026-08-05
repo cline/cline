@@ -25,7 +25,6 @@ import { wrapLanguageModel } from "ai";
 // drop the patch once an upstream release covers them.
 import { createOllama } from "ollama-ai-provider-v2";
 import { ensureFetch, resolveApiKey } from "../http";
-import { createRetryEmptyResponseMiddleware } from "../middleware/retry-empty-response";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -121,7 +120,7 @@ export function withOllamaResponseTimeout(
 
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
-	context: GatewayProviderContext,
+	_context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	// An API key is only needed for Ollama Cloud (ollama.com); local servers
 	// accept unauthenticated requests, so a missing key is not an error.
@@ -142,19 +141,18 @@ export async function createOllamaProviderModule(
 			readOllamaTimeoutMs(config),
 		),
 	});
-	// Retry empty responses (a common local-backend glitch that otherwise
-	// hard-fails the task). Outermost so each retry re-runs the whole request.
-	// `splitToolImagesMiddleware` is inner, for the same reason as the
-	// OpenAI-compatible vendor: the downstream converter stringifies
-	// multimodal tool-result content, losing image bytes.
-	const retryEmptyResponseMiddleware = createRetryEmptyResponseMiddleware({
-		logger: context.logger,
-	});
+	// Empty-response retries (a common local-backend glitch that otherwise
+	// hard-fails the task) are applied centrally in `ai-sdk.ts` for every
+	// vendor (see `withEmptyResponseRetry`), wrapped outside this model so
+	// each retry re-runs the whole request. `splitToolImagesMiddleware` is
+	// attached here, for the same reason as the OpenAI-compatible vendor:
+	// the downstream converter stringifies multimodal tool-result content,
+	// losing image bytes.
 	return {
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider.chat(modelId),
-				middleware: [retryEmptyResponseMiddleware, splitToolImagesMiddleware],
+				middleware: splitToolImagesMiddleware,
 			}),
 	};
 }

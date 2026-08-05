@@ -58,8 +58,10 @@ import {
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -83,7 +85,13 @@ import type {
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
 import { desktopClient } from "@/lib/desktop-client";
-import { SCHEDULED_SESSION_SOURCE } from "@/lib/session-history";
+import {
+	ALL_SESSION_SOURCES,
+	filterSessionsBySource,
+	getSessionSourceLabel,
+	getSessionSources,
+	SCHEDULED_SESSION_SOURCE,
+} from "@/lib/session-history";
 import {
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
@@ -250,6 +258,7 @@ export function AgentSidebar({
 	} = sessionHistory;
 	const activeThread = activeSessionId ?? "";
 	const [filter, setFilter] = useState<FilterOption>("All");
+	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
@@ -314,8 +323,9 @@ export function AgentSidebar({
 		}
 	}, [isCollapsed, searchOpen]);
 
+	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
 	const filteredThreads = useMemo(() => {
-		let filtered = threads;
+		let filtered = filterSessionsBySource(threads, sourceFilter);
 		if (searchQuery) {
 			const q = searchQuery.toLowerCase();
 			filtered = filtered.filter(
@@ -335,7 +345,7 @@ export function AgentSidebar({
 			default:
 				return filtered;
 		}
-	}, [filter, searchQuery, threads]);
+	}, [filter, searchQuery, sourceFilter, threads]);
 	const closeMobileSidebar = useCallback(() => {
 		if (isMobile) setOpenMobile(false);
 	}, [isMobile, setOpenMobile]);
@@ -477,6 +487,7 @@ export function AgentSidebar({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-36">
+				<DropdownMenuLabel>Session type</DropdownMenuLabel>
 				<DropdownMenuRadioGroup
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
@@ -491,6 +502,29 @@ export function AgentSidebar({
 						</DropdownMenuRadioItem>
 					))}
 				</DropdownMenuRadioGroup>
+				{sourceOptions.length > 0 ? (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuLabel>Source</DropdownMenuLabel>
+						<DropdownMenuRadioGroup
+							onValueChange={(value) => {
+								setSourceFilter(value);
+								setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+								setProjectVisibleCounts({});
+							}}
+							value={sourceFilter}
+						>
+							<DropdownMenuRadioItem value={ALL_SESSION_SOURCES}>
+								All sources
+							</DropdownMenuRadioItem>
+							{sourceOptions.map((source) => (
+								<DropdownMenuRadioItem key={source} value={source}>
+									{getSessionSourceLabel(source)}
+								</DropdownMenuRadioItem>
+							))}
+						</DropdownMenuRadioGroup>
+					</>
+				) : null}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
