@@ -1,84 +1,17 @@
-import { openRouterDefaultModelInfo } from "@shared/api"
-import { findPaidClineModelId } from "@shared/cline/free-models"
-import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useMemo, useState } from "react"
-import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
-import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useSwitchToPaidClineModel } from "@/hooks/useSwitchToPaidClineModel"
 import { extractClineFreeModelLimitResetTime } from "../../../../src/services/error/ClineError"
 
 interface ClineFreeModelLimitErrorProps {
 	message: string
+	/** The cline-free/<slug> model selected for the current mode. */
+	modelId?: string
 }
 
-const CLINE_PROVIDER_ID = "cline"
-
-const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) => {
-	const { apiConfiguration, mode, clineModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const [isSwitching, setIsSwitching] = useState(false)
-	const [didSwitch, setDidSwitch] = useState(false)
-	const [switchError, setSwitchError] = useState<string | undefined>()
+const ClineFreeModelLimitError = ({ message, modelId }: ClineFreeModelLimitErrorProps) => {
+	const { paidModelId, isSwitching, didSwitch, switchError, switchToPaidModel } = useSwitchToPaidClineModel(modelId)
 
 	const resetTime = extractClineFreeModelLimitResetTime(message)
-	const currentMode: Mode = mode ?? "act"
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	// Free models are selectable on both the cline and cline-pass providers, so
-	// read the model id from whichever provider is currently selected.
-	const selectedFreeModelId =
-		modeFields.apiProvider === "cline-pass"
-			? modeFields.clinePassModelId
-			: modeFields.apiProvider === CLINE_PROVIDER_ID
-				? modeFields.clineModelId
-				: undefined
-	const paidModelId = useMemo(
-		() => findPaidClineModelId(selectedFreeModelId, Object.keys(clineModels ?? {})),
-		[selectedFreeModelId, clineModels],
-	)
-
-	const handleSwitchToPaidModel = async () => {
-		if (!paidModelId) {
-			return
-		}
-		setIsSwitching(true)
-		setSwitchError(undefined)
-		try {
-			const modelInfo = clineModels?.[paidModelId] ?? {
-				...openRouterDefaultModelInfo,
-				name: paidModelId,
-			}
-
-			await handleModeFieldsChange(
-				{
-					apiProvider: {
-						plan: "planModeApiProvider",
-						act: "actModeApiProvider",
-					},
-					clineModelId: {
-						plan: "planModeClineModelId",
-						act: "actModeClineModelId",
-					},
-					clineModelInfo: {
-						plan: "planModeClineModelInfo",
-						act: "actModeClineModelInfo",
-					},
-				},
-				{
-					apiProvider: CLINE_PROVIDER_ID,
-					clineModelId: paidModelId,
-					clineModelInfo: modelInfo,
-				},
-				currentMode,
-			)
-			setDidSwitch(true)
-		} catch (error) {
-			console.error("Failed to switch to the paid model:", error)
-			setSwitchError(`Failed to switch model. Select ${paidModelId} in API Configuration settings.`)
-		} finally {
-			setIsSwitching(false)
-		}
-	}
 
 	return (
 		<div
@@ -100,7 +33,7 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 						appearance="primary"
 						className="w-full mt-3"
 						disabled={isSwitching || didSwitch}
-						onClick={handleSwitchToPaidModel}>
+						onClick={switchToPaidModel}>
 						{isSwitching ? "Switching..." : didSwitch ? "Switched to Usage-Based billing" : "Switch to Usage-Based billing"}
 					</VSCodeButton>
 					{didSwitch && (

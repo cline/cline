@@ -1,5 +1,6 @@
 import { serializeError } from "serialize-error";
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount";
+import { isClineFreeModelId } from "../../shared/cline/free-models";
 
 export enum ClineErrorType {
 	Auth = "auth",
@@ -12,6 +13,7 @@ export enum ClineErrorType {
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
 	ClineFreeModelLimit = "clineFreeModelLimit",
+	ClineFreePromotionEnded = "clineFreePromotionEnded",
 }
 
 interface ErrorDetails {
@@ -107,6 +109,41 @@ export function extractClinePassLimitMessage(
 
 export function isClineFreeModelLimitMessage(text: string): boolean {
 	return text.toLowerCase().includes(CLINE_FREE_MODEL_LIMIT_MARKER);
+}
+
+// A retired free model reports model-not-found: once a promotion ends the
+// `cline-free/` id is dropped from the recommended-models payload while the
+// user's stored selection still points at it. Matching is text based because
+// the reason can arrive without a usable status code, and the model-id gate
+// keeps ordinary model-not-found errors on their generic path.
+const MODEL_NOT_FOUND_PATTERN =
+	/\bmodel\b[^.,;:]*\b(not[ _]?found|does not exist|no such model|unknown model)\b/i;
+
+export function isModelNotFoundMessage(text: string): boolean {
+	return MODEL_NOT_FOUND_PATTERN.test(text);
+}
+
+// Providers nest the reason at different depths ("model not found" can arrive as
+// the message, as details.message, or only inside the raw response body), so the
+// retired-model check scans the whole serialized error too.
+function stringifyErrorDetails(details: unknown): string | undefined {
+	try {
+		return JSON.stringify(details);
+	} catch {
+		return undefined;
+	}
+}
+
+function isRetiredFreeModelError(
+	modelId: string | undefined,
+	...messages: (string | undefined)[]
+): boolean {
+	if (!isClineFreeModelId(modelId)) {
+		return false;
+	}
+	return messages.some((message) =>
+		message ? isModelNotFoundMessage(message) : false,
+	);
 }
 
 /**
@@ -287,6 +324,20 @@ export class ClineError extends Error {
 			isClineFreeModelLimitMessage(message ?? "")
 		) {
 			return ClineErrorType.ClineFreeModelLimit;
+		}
+
+		// Must precede the auth check below: the API answers 404 for a retired
+		// free model, which the status range would otherwise read as an auth
+		// failure and render as a useless "click Retry" prompt.
+		if (
+			isRetiredFreeModelError(
+				err.modelId,
+				detailMessage,
+				message,
+				stringifyErrorDetails(err._error),
+			)
+		) {
+			return ClineErrorType.ClineFreePromotionEnded;
 		}
 
 		if (

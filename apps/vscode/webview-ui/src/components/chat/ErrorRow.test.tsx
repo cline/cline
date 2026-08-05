@@ -50,11 +50,14 @@ vi.mock("@/components/chat/EntitlementError", () => ({
 	),
 }));
 
+const mockNavigateToSettingsModelPicker = vi.hoisted(() => vi.fn());
+
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: mockApiConfiguration,
 		mode: "act",
 		clineModels: mockClineModels,
+		navigateToSettingsModelPicker: mockNavigateToSettingsModelPicker,
 	}),
 }));
 
@@ -80,6 +83,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		OrgClinePassRestriction: "orgClinePassRestriction",
 		ClinePassLimit: "clinePassLimit",
 		ClineFreeModelLimit: "clineFreeModelLimit",
+		ClineFreePromotionEnded: "clineFreePromotionEnded",
 	},
 	extractClinePassLimitMessage: vi.fn((text: string) => text),
 	extractClineFreeModelLimitResetTime: vi.fn((text: string) => {
@@ -469,6 +473,57 @@ describe("ErrorRow", () => {
 				expect(request.apiConfiguration.actModeClineModelId).toBe(
 					"deepseek/deepseek-v4-flash",
 				);
+			} finally {
+				mockApiConfiguration.actModeApiProvider = "cline-pass";
+				delete (mockApiConfiguration as Record<string, unknown>)
+					.actModeClineModelId;
+			}
+		});
+
+		it("renders an ended free promotion with a way off the retired model", async () => {
+			const notFoundMessage = "Error 404: model not found";
+			const mockClineError = {
+				message: notFoundMessage,
+				isErrorType: vi.fn((type) => type === "clineFreePromotionEnded"),
+				providerId: "cline",
+				_error: { message: notFoundMessage },
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+			mockApiConfiguration.actModeApiProvider = "cline";
+			(mockApiConfiguration as Record<string, unknown>).actModeClineModelId =
+				"cline-free/deepseek-v4-flash";
+
+			try {
+				render(
+					<ErrorRow
+						apiRequestFailedMessage={notFoundMessage}
+						errorType="error"
+						message={mockMessage}
+					/>,
+				);
+
+				expect(
+					screen.getByTestId("cline-free-promotion-ended-error"),
+				).toBeInTheDocument();
+				expect(
+					screen.getByText(
+						/The free promotion for deepseek-v4-flash has ended/,
+					),
+				).toBeInTheDocument();
+				expect(screen.queryByText(notFoundMessage)).not.toBeInTheDocument();
+				// The retired model still has a paid twin to fall back to
+				expect(
+					screen.getByText(/deepseek\/deepseek-v4-flash/),
+				).toBeInTheDocument();
+
+				fireEvent.click(screen.getByText("Choose another model"));
+				expect(mockNavigateToSettingsModelPicker).toHaveBeenCalledWith({
+					targetSection: "api-config",
+				});
 			} finally {
 				mockApiConfiguration.actModeApiProvider = "cline-pass";
 				delete (mockApiConfiguration as Record<string, unknown>)

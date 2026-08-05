@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage";
 import { isClineProvider } from "@shared/utils/cline";
 import { memo } from "react";
 import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError";
+import ClineFreePromotionEndedError from "@/components/chat/ClineFreePromotionEndedError";
 import ClinePassLimitError from "@/components/chat/ClinePassLimitError";
 import CreditLimitError from "@/components/chat/CreditLimitError";
 import EntitlementError from "@/components/chat/EntitlementError";
@@ -9,6 +10,8 @@ import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrict
 import SpendLimitError from "@/components/chat/SpendLimitError";
 import { Button } from "@/components/ui/button";
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { getSelectedClineModelId } from "@/utils/clineFreeModels";
 import {
 	ClineError,
 	ClineErrorType,
@@ -36,9 +39,17 @@ const ErrorRow = memo(
 		apiReqStreamingFailedMessage,
 	}: ErrorRowProps) => {
 		const { clineUser } = useClineAuth();
+		const { apiConfiguration, mode } = useExtensionState();
 		const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage;
 
 		const { isLoginLoading, handleSignIn } = useClineSignIn();
+
+		// The error payload carries no model id, so classification of
+		// model-scoped errors reads the selection the request was made with.
+		const selectedClineModelId = getSelectedClineModelId(
+			apiConfiguration,
+			mode ?? "act",
+		);
 
 		const renderErrorContent = () => {
 			switch (errorType) {
@@ -47,7 +58,10 @@ const ErrorRow = memo(
 					// Handle API request errors with special error parsing
 					if (rawApiError) {
 						// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
-						const clineError = ClineError.parse(rawApiError);
+						const clineError = ClineError.parse(
+							rawApiError,
+							selectedClineModelId,
+						);
 						const errorMessage =
 							clineError?._error?.message || clineError?.message || rawApiError;
 						const requestId = clineError?._error?.request_id;
@@ -112,7 +126,24 @@ const ErrorRow = memo(
 						if (clineError?.isErrorType(ClineErrorType.ClineFreeModelLimit)) {
 							const detailMessage =
 								clineError?._error?.details?.message || errorMessage;
-							return <ClineFreeModelLimitError message={detailMessage} />;
+							return (
+								<ClineFreeModelLimitError
+									message={detailMessage}
+									modelId={selectedClineModelId}
+								/>
+							);
+						}
+
+						// A retired free model is gone for good, so its card only
+						// offers ways off the model instead of a reset window.
+						if (
+							clineError?.isErrorType(ClineErrorType.ClineFreePromotionEnded)
+						) {
+							return (
+								<ClineFreePromotionEndedError
+									modelId={selectedClineModelId}
+								/>
+							);
 						}
 
 						if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
