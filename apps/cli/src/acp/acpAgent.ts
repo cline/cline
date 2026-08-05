@@ -67,6 +67,7 @@ import {
 	isAcpReasoningLevel,
 	REASONING_CONFIG_ID,
 	reasoningConnectionUpdate,
+	supportsReasoning,
 } from "./reasoning";
 import { replaySessionHistory } from "./session-load";
 import {
@@ -208,6 +209,12 @@ export class AcpAgent implements Agent {
 			process.env.CLINE_MODEL,
 			providerModels,
 		);
+		const modelSupportsReasoning = supportsReasoning(
+			providerModels[defaultModelId],
+		);
+		const reasoningLevel = modelSupportsReasoning
+			? this.defaultReasoningLevel
+			: "none";
 
 		this.sessions.set(sessionId, {
 			id: sessionId,
@@ -217,7 +224,7 @@ export class AcpAgent implements Agent {
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
 			autoApproveTools: this.defaultAutoApproveTools,
-			currentReasoningLevel: this.defaultReasoningLevel,
+			currentReasoningLevel: reasoningLevel,
 		});
 
 		const availableModels = Object.entries(providerModels).map(
@@ -245,7 +252,9 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
-				buildReasoningConfigOption(this.defaultReasoningLevel),
+				...(modelSupportsReasoning
+					? [buildReasoningConfigOption(reasoningLevel)]
+					: []),
 				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
 				...(organizationOption ? [organizationOption] : []),
 			],
@@ -273,19 +282,22 @@ export class AcpAgent implements Agent {
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 				const providerModels = await Llms.getModelsForProvider(providerId);
+				const modelId = await resolveDefaultModelId(
+					providerId,
+					process.env.CLINE_MODEL,
+					providerModels,
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
 					mcpServers: params.mcpServers,
 					currentMode: "act",
 					currentProviderId: providerId,
-					currentModelId: await resolveDefaultModelId(
-						providerId,
-						process.env.CLINE_MODEL,
-						providerModels,
-					),
+					currentModelId: modelId,
 					autoApproveTools: this.defaultAutoApproveTools,
-					currentReasoningLevel: this.defaultReasoningLevel,
+					currentReasoningLevel: supportsReasoning(providerModels[modelId])
+						? this.defaultReasoningLevel
+						: "none",
 				};
 				this.sessions.set(params.sessionId, session);
 			}
@@ -452,7 +464,29 @@ export class AcpAgent implements Agent {
 				params.modelId,
 			);
 		}
+		await this.clearReasoningForUnsupportedModel(session);
 		return {};
+	}
+
+	private async clearReasoningForUnsupportedModel(
+		session: SessionState,
+	): Promise<void> {
+		if (session.currentReasoningLevel === "none") {
+			return;
+		}
+		const providerModels = await Llms.getModelsForProvider(
+			session.currentProviderId,
+		);
+		if (supportsReasoning(providerModels[session.currentModelId])) {
+			return;
+		}
+		session.currentReasoningLevel = "none";
+		if (session.sessionManager && session.activeSessionId) {
+			await session.sessionManager.updateSessionConnection?.(
+				session.activeSessionId,
+				reasoningConnectionUpdate("none"),
+			);
+		}
 	}
 
 	async setSessionConfigOption(
@@ -496,6 +530,7 @@ export class AcpAgent implements Agent {
 					session.currentModelId,
 					providerModels,
 				);
+				await this.clearReasoningForUnsupportedModel(session);
 				break;
 			}
 
@@ -528,6 +563,7 @@ export class AcpAgent implements Agent {
 						value,
 					);
 				}
+				await this.clearReasoningForUnsupportedModel(session);
 				break;
 			}
 
@@ -560,6 +596,15 @@ export class AcpAgent implements Agent {
 					throw RequestError.invalidParams(
 						undefined,
 						`Invalid reasoning level: ${value} (must be "none", "low", "medium", "high", or "xhigh")`,
+					);
+				}
+				const providerModels = await Llms.getModelsForProvider(
+					session.currentProviderId,
+				);
+				if (!supportsReasoning(providerModels[session.currentModelId])) {
+					throw RequestError.invalidParams(
+						undefined,
+						`Model ${session.currentModelId} does not support reasoning`,
 					);
 				}
 				session.currentReasoningLevel = value;
@@ -947,7 +992,9 @@ async function buildAllConfigOptions(
 		providerOption,
 		buildModelConfigOption(session.currentModelId, providerModels),
 		buildModeConfigOption(session.currentMode),
-		buildReasoningConfigOption(session.currentReasoningLevel),
+		...(supportsReasoning(providerModels[session.currentModelId])
+			? [buildReasoningConfigOption(session.currentReasoningLevel)]
+			: []),
 		buildAutoApproveConfigOption(session.autoApproveTools),
 	];
 }

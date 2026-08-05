@@ -12,13 +12,20 @@ export const ACP_REASONING_LEVELS = [
 
 export type AcpReasoningLevel = (typeof ACP_REASONING_LEVELS)[number];
 
-const LEVEL_NAMES: Record<AcpReasoningLevel, string> = {
-	none: "Off",
-	low: "Low",
-	medium: "Medium",
-	high: "High",
-	xhigh: "Extra High",
-};
+const LEVELS: Record<AcpReasoningLevel, { name: string; description: string }> =
+	{
+		none: { name: "Off", description: "No extended thinking" },
+		low: { name: "Low", description: "Minimal reasoning" },
+		medium: { name: "Medium", description: "Balanced reasoning" },
+		high: { name: "High", description: "Deep reasoning" },
+		xhigh: { name: "Extra High", description: "Maximum reasoning" },
+	};
+
+export function supportsReasoning(info?: {
+	capabilities?: readonly string[];
+}): boolean {
+	return info?.capabilities?.includes("reasoning") ?? false;
+}
 
 export function isAcpReasoningLevel(
 	value: unknown,
@@ -41,7 +48,8 @@ export function buildReasoningConfigOption(
 		currentValue,
 		options: ACP_REASONING_LEVELS.map((level) => ({
 			value: level,
-			name: LEVEL_NAMES[level],
+			name: LEVELS[level].name,
+			description: LEVELS[level].description,
 		})),
 	};
 }

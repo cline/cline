@@ -5,6 +5,7 @@ import {
 	isAcpReasoningLevel,
 	REASONING_CONFIG_ID,
 	reasoningConnectionUpdate,
+	supportsReasoning,
 } from "./reasoning";
 
 describe("buildReasoningConfigOption", () => {
@@ -28,6 +29,17 @@ describe("buildReasoningConfigOption", () => {
 		expect(option.options.map((o) => ("value" in o ? o.value : o))).toEqual([
 			...ACP_REASONING_LEVELS,
 		]);
+	});
+});
+
+describe("supportsReasoning", () => {
+	it("matches the TUI's capability check", () => {
+		expect(supportsReasoning({ capabilities: ["tools", "reasoning"] })).toBe(
+			true,
+		);
+		expect(supportsReasoning({ capabilities: ["tools"] })).toBe(false);
+		expect(supportsReasoning({})).toBe(false);
+		expect(supportsReasoning(undefined)).toBe(false);
 	});
 });
 
