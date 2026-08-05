@@ -300,7 +300,13 @@ export class Controller {
 			() => this.lastKnownWorkspaceRoot,
 			// Model backing the active turn — lets error reshaping recognize
 			// retired cline-free/ models (the error payload itself never names one).
-			() => this.getSessionModelId() ?? this.getTaskModelId(),
+			// The task shim is preferred over session-start metadata: a mid-task
+			// model-only switch updates the running session's model in place
+			// (updateActiveSessionModel) and refreshes the shim, but never touches
+			// startConfig/manifest, which would otherwise report the stale model.
+			// The shim starts as "unknown" (filtered out by getTaskModelId), so
+			// fresh sessions still resolve through their start metadata.
+			() => this.getTaskModelId() ?? this.getSessionModelId(),
 		)
 		// Warm the synchronous workspace-root snapshot used for display-path
 		// relativization (getWorkspaceRoot never rejects — it falls back internally).
