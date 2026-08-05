@@ -183,17 +183,17 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
-	it("clears an LM Studio API key from state and providers.json", async () => {
+	it("clears an LM Studio API key only from providers.json", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setProviderSettings({ lmstudio: { provider: "lmstudio", apiKey: "provider-key" } })
-		mocks.setApiConfiguration({ lmStudioApiKey: "state-key" })
+		mocks.setApiConfiguration({ apiKey: "unrelated-anthropic-key" })
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("lmstudio")
 
 		store.write(providerId, { apiKey: "" })
 
 		expect(mocks.getSavedProviderSettings("lmstudio")).toEqual({ provider: "lmstudio" })
-		expect(mocks.getApiConfiguration().lmStudioApiKey).toBeUndefined()
+		expect(mocks.getApiConfiguration().apiKey).toBe("unrelated-anthropic-key")
 		expect(store.read(providerId).apiKey).toBeUndefined()
 	})
 

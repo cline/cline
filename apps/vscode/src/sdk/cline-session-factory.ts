@@ -44,6 +44,7 @@ import { fetch } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { resolveLmStudioApiKey } from "./lm-studio-api-key"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
 import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-catalog/model-values"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -323,7 +324,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
-	lmstudio: "lmStudioApiKey",
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	fireworks: "fireworksApiKey",
@@ -479,6 +479,9 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		}
 	} catch {
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} API key from providers.json`)
+	}
+	if (providerId === "lmstudio") {
+		return resolveLmStudioApiKey()
 	}
 
 	return undefined

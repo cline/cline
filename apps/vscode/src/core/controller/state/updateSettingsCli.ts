@@ -10,7 +10,6 @@ import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
-import { writeLmStudioApiKey } from "../models/writeLmStudioApiKey"
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
 
 /**
@@ -199,15 +198,8 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 	// Handle secrets updates
 	if (request.secrets) {
 		const filteredSecrets = Object.fromEntries(Object.entries(request.secrets).filter(([_, value]) => value !== undefined))
-		const { lmStudioApiKey, ...legacySecrets } = filteredSecrets
 
-		if ("lmStudioApiKey" in filteredSecrets) {
-			writeLmStudioApiKey(controller, lmStudioApiKey)
-		}
-
-		if (Object.keys(legacySecrets).length > 0) {
-			controller.stateManager.setSecretsBatch(legacySecrets)
-		}
+		controller.stateManager.setSecretsBatch(filteredSecrets)
 	}
 
 	// Post updated state to webview

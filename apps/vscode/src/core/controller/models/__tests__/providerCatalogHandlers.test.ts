@@ -5,20 +5,15 @@ import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } fr
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { fetch } from "@/shared/net"
-import {
-	ApiFormat,
-	ModelOverrides,
-	UpdateApiConfigurationPartialRequest,
-	UpdateApiConfigurationRequest,
-	UpdateApiConfigurationRequestNew,
-} from "@/shared/proto/cline/models"
-import { UpdateSettingsRequest, UpdateSettingsRequestCli } from "@/shared/proto/cline/state"
+import { ApiFormat, ModelOverrides } from "@/shared/proto/cline/models"
 import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
 vi.mock("@/shared/net", () => ({
 	fetch: vi.fn(),
 }))
+
+const previousLmStudioApiKey = process.env.LMSTUDIO_API_KEY
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
@@ -27,11 +22,15 @@ type TestStateManager = {
 }
 
 function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
+	let currentConfig = { ...config }
 	return {
-		read: vi.fn(() => config),
+		read: vi.fn(() => ({ ...currentConfig })),
 		readSelection: vi.fn(() => undefined),
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
-		write: vi.fn(() => config),
+		write: vi.fn((providerId, patch) => {
+			currentConfig = { ...currentConfig, ...patch, providerId }
+			return { ...currentConfig }
+		}),
 		commitSelection: vi.fn(),
 	}
 }
@@ -60,46 +59,14 @@ function makeController(
 	}
 }
 
-function makeApiConfigurationUpdateController() {
-	const providerId = parseProviderId("lmstudio")
-	const store = makeStore({ providerId })
-	const stateManager = {
-		setSecretsBatch: vi.fn(),
-	}
-	const controller = {
-		getProviderConfigStore: () => store,
-		stateManager,
-		postStateToWebview: vi.fn(async () => undefined),
-		task: undefined,
-	} as unknown as Controller
-
-	return { controller, stateManager, store }
-}
-
-function makeLegacyApiConfigurationUpdateController() {
-	const providerId = parseProviderId("lmstudio")
-	const store = makeStore({ providerId })
-	const stateManager = {
-		getApiConfiguration: vi.fn(() => ({})),
-		setApiConfiguration: vi.fn(),
-		getGlobalSettingsKey: vi.fn(),
-	}
-	const handleApiConfigurationChanged = vi.fn()
-	const controller = {
-		getProviderConfigStore: () => store,
-		stateManager,
-		handleApiConfigurationChanged,
-		postStateToWebview: vi.fn(async () => undefined),
-		task: undefined,
-	} as unknown as Controller
-
-	return { controller, handleApiConfigurationChanged, stateManager, store }
-}
-
 describe("provider model catalog handlers", () => {
 	afterEach(() => {
 		vi.clearAllMocks()
-		vi.unstubAllEnvs()
+		if (previousLmStudioApiKey === undefined) {
+			delete process.env.LMSTUDIO_API_KEY
+		} else {
+			process.env.LMSTUDIO_API_KEY = previousLmStudioApiKey
+		}
 	})
 
 	it("listProviders returns provider listings from the catalog singleton", async () => {
@@ -296,9 +263,10 @@ describe("provider model catalog handlers", () => {
 	it("getLmStudioModels uses the effective provider API key", async () => {
 		const { getLmStudioModels } = await import("../getLmStudioModels")
 		const providerId = parseProviderId("lmstudio")
-		const store = makeStore({ providerId, apiKey: "provider-settings-key" })
+		const store = makeStore({ providerId })
 		const controller = makeController(store, makeCatalog()) as unknown as Controller
-		vi.stubEnv("LMSTUDIO_API_KEY", "environment-key")
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+		store.write(providerId, { apiKey: "provider-settings-key" })
 		vi.mocked(fetch).mockResolvedValue({
 			json: async () => ({ data: [{ id: "model-1" }] }),
 		} as Response)
@@ -316,7 +284,7 @@ describe("provider model catalog handlers", () => {
 		const providerId = parseProviderId("lmstudio")
 		const store = makeStore({ providerId })
 		const controller = makeController(store, makeCatalog()) as unknown as Controller
-		vi.stubEnv("LMSTUDIO_API_KEY", "")
+		process.env.LMSTUDIO_API_KEY = ""
 		vi.mocked(fetch).mockResolvedValue({
 			json: async () => ({ data: [] }),
 		} as Response)
@@ -329,9 +297,10 @@ describe("provider model catalog handlers", () => {
 	it("getLmStudioModels falls back to LMSTUDIO_API_KEY", async () => {
 		const { getLmStudioModels } = await import("../getLmStudioModels")
 		const providerId = parseProviderId("lmstudio")
-		const store = makeStore({ providerId })
+		const store = makeStore({ providerId, apiKey: "provider-settings-key" })
 		const controller = makeController(store, makeCatalog()) as unknown as Controller
-		vi.stubEnv("LMSTUDIO_API_KEY", "environment-key")
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+		store.write(providerId, { apiKey: "" })
 		vi.mocked(fetch).mockResolvedValue({
 			json: async () => ({ data: [] }),
 		} as Response)
@@ -341,86 +310,6 @@ describe("provider model catalog handlers", () => {
 		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models", {
 			headers: { Authorization: "Bearer environment-key" },
 		})
-	})
-
-	it("updateApiConfiguration routes LM Studio API keys through ProviderConfigStore", async () => {
-		const { updateApiConfiguration } = await import("../updateApiConfiguration")
-		const { controller, stateManager, store } = makeApiConfigurationUpdateController()
-		const request = UpdateApiConfigurationRequestNew.create({
-			updates: { secrets: { lmStudioApiKey: "new-key" } },
-			updateMask: ["secrets.lmStudioApiKey"],
-		})
-
-		await updateApiConfiguration(controller, request)
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "new-key" })
-		expect(stateManager.setSecretsBatch).not.toHaveBeenCalled()
-		expect(controller.postStateToWebview).toHaveBeenCalledTimes(1)
-	})
-
-	it("updateApiConfiguration keeps non-provider secrets in the legacy batch", async () => {
-		const { updateApiConfiguration } = await import("../updateApiConfiguration")
-		const { controller, stateManager, store } = makeApiConfigurationUpdateController()
-		const request = UpdateApiConfigurationRequestNew.create({
-			updates: { secrets: { lmStudioApiKey: "", openRouterApiKey: "open-router-key" } },
-			updateMask: ["secrets.lmStudioApiKey", "secrets.openRouterApiKey"],
-		})
-
-		await updateApiConfiguration(controller, request)
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "" })
-		expect(stateManager.setSecretsBatch).toHaveBeenCalledWith({ openRouterApiKey: "open-router-key" })
-	})
-
-	it("updateApiConfigurationProto routes LM Studio API keys through ProviderConfigStore", async () => {
-		const { updateApiConfigurationProto } = await import("../updateApiConfigurationProto")
-		const { controller, store } = makeLegacyApiConfigurationUpdateController()
-
-		await updateApiConfigurationProto(
-			controller,
-			UpdateApiConfigurationRequest.create({ apiConfiguration: { lmStudioApiKey: "legacy-key" } }),
-		)
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "legacy-key" })
-	})
-
-	it("updateApiConfigurationPartial routes masked LM Studio API keys through ProviderConfigStore", async () => {
-		const { updateApiConfigurationPartial } = await import("../updateApiConfigurationPartial")
-		const { controller, store } = makeLegacyApiConfigurationUpdateController()
-
-		await updateApiConfigurationPartial(
-			controller,
-			UpdateApiConfigurationPartialRequest.create({
-				apiConfiguration: { lmStudioApiKey: "partial-key" },
-				updateMask: ["lmStudioApiKey"],
-			}),
-		)
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "partial-key" })
-	})
-
-	it("updateSettings routes LM Studio API keys through ProviderConfigStore", async () => {
-		const { updateSettings } = await import("../../state/updateSettings")
-		const { controller, store } = makeLegacyApiConfigurationUpdateController()
-
-		await updateSettings(controller, UpdateSettingsRequest.create({ apiConfiguration: { lmStudioApiKey: "settings-key" } }))
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "settings-key" })
-	})
-
-	it("updateSettingsCli routes LM Studio API keys through ProviderConfigStore", async () => {
-		const { updateSettingsCli } = await import("../../state/updateSettingsCli")
-		const { controller, stateManager, store } = makeApiConfigurationUpdateController()
-
-		await updateSettingsCli(
-			controller,
-			UpdateSettingsRequestCli.create({
-				secrets: { lmStudioApiKey: "cli-key", openRouterApiKey: "open-router-key" },
-			}),
-		)
-
-		expect(store.write).toHaveBeenCalledWith(parseProviderId("lmstudio"), { apiKey: "cli-key" })
-		expect(stateManager.setSecretsBatch).toHaveBeenCalledWith({ openRouterApiKey: "open-router-key" })
 	})
 
 	it("commitModelSelection validates mode and commits model settings", async () => {

@@ -15,7 +15,6 @@ import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
-import { writeLmStudioApiKey } from "../models/writeLmStudioApiKey"
 
 /**
  * Updates multiple extension settings in a single request
@@ -52,9 +51,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				previousApiConfiguration,
 				convertedApiConfigurationFromProto,
 			)
-			if (protoApiConfiguration.lmStudioApiKey !== undefined) {
-				writeLmStudioApiKey(controller, normalizedApiConfiguration.lmStudioApiKey)
-			}
 
 			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 

@@ -8,7 +8,6 @@ import type { Controller } from "../index"
 import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
-import { writeLmStudioApiKey } from "./writeLmStudioApiKey"
 
 /**
  * Parses field mask paths into separate sets for options and secrets
@@ -134,16 +133,9 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 		}
 
-		// Provider-owned fields must flow through ProviderConfigStore so SDK
-		// sessions observe the change and rebuild with the new credentials.
-		const { lmStudioApiKey, ...legacySecrets } = secrets
-		if ("lmStudioApiKey" in secrets) {
-			writeLmStudioApiKey(controller, lmStudioApiKey)
-		}
-
-		// Update remaining storage using batch methods
-		if (Object.keys(legacySecrets).length > 0) {
-			controller.stateManager.setSecretsBatch(legacySecrets)
+		// Update storage using batch methods
+		if (Object.keys(secrets).length > 0) {
+			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
 			controller.stateManager.setGlobalStateBatch(

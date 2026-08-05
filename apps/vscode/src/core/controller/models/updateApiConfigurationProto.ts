@@ -13,7 +13,6 @@ import type { Controller } from "../index"
 import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
-import { writeLmStudioApiKey } from "./writeLmStudioApiKey"
 
 /**
  * Updates API configuration
@@ -139,9 +138,6 @@ export async function updateApiConfigurationProto(
 			previousApiConfiguration,
 			convertedApiConfigurationFromProto,
 		)
-		if (protoApiConfiguration.lmStudioApiKey !== undefined) {
-			writeLmStudioApiKey(controller, normalizedApiConfiguration.lmStudioApiKey)
-		}
 
 		// Update the API configuration in storage
 		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)

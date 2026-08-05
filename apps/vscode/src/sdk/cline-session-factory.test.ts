@@ -82,6 +82,7 @@ vi.mock("@shared/services/Logger", () => ({
 let tempDir: string
 const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 const previousDataDir = process.env.CLINE_DATA_DIR
+const previousLmStudioApiKey = process.env.LMSTUDIO_API_KEY
 
 beforeEach(() => {
 	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-session-factory-"))
@@ -108,6 +109,11 @@ beforeEach(() => {
 afterEach(() => {
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath
 	process.env.CLINE_DATA_DIR = previousDataDir
+	if (previousLmStudioApiKey === undefined) {
+		delete process.env.LMSTUDIO_API_KEY
+	} else {
+		process.env.LMSTUDIO_API_KEY = previousLmStudioApiKey
+	}
 	fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
@@ -416,13 +422,57 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
 	})
 
-	it("resolves LM Studio API keys from the provider-specific state field", () => {
-		expect(
-			resolveApiKey("lmstudio", {
-				apiKey: "anthropic-key-should-not-be-used",
-				lmStudioApiKey: "lmstudio-key",
-			} as any),
-		).toBe("lmstudio-key")
+	it("resolves LM Studio API keys from provider settings before the environment", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "lmstudio",
+			apiKey: "provider-lmstudio-key",
+		} as any)
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+
+		expect(resolveApiKey("lmstudio", { apiKey: "anthropic-key-should-not-be-used" } as any)).toBe("provider-lmstudio-key")
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("lmstudio")
+	})
+
+	it("falls back to LMSTUDIO_API_KEY for LM Studio inference", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+
+		expect(resolveApiKey("lmstudio", {} as any)).toBe("environment-key")
+	})
+
+	it("uses ProviderConfigStore writes and clears in real LM Studio session configs", async () => {
+		let providerSettings: Record<string, unknown> = { provider: "lmstudio" }
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) =>
+			providerId === "lmstudio" ? (providerSettings as any) : undefined,
+		)
+		mocks.providerSettingsManager.saveProviderSettings.mockImplementation((settings: Record<string, unknown>) => {
+			providerSettings = { ...settings }
+			return { version: 1, providers: {} } as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeLmStudioModelId: "local-model",
+		} as any)
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("lmstudio")
+
+		store.write(providerId, { apiKey: "provider-lmstudio-key" })
+		const storedConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(storedConfig.apiKey).toBe("provider-lmstudio-key")
+		expect(storedConfig.providerConfig).toMatchObject({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "provider-lmstudio-key",
+		})
+
+		store.write(providerId, { apiKey: "" })
+		const fallbackConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(providerSettings).toEqual({ provider: "lmstudio" })
+		expect(fallbackConfig.apiKey).toBe("environment-key")
+		expect(fallbackConfig.providerConfig).toMatchObject({ apiKey: "environment-key" })
 	})
 
 	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
