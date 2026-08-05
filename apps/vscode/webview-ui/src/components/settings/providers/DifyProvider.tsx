@@ -1,9 +1,9 @@
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
@@ -27,7 +27,7 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 	)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("dify", apiConfiguration, currentMode)
 
 	return (
 		<div>

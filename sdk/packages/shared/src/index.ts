@@ -18,6 +18,36 @@ export {
 } from "./connectors/events";
 export type * from "./connectors/options";
 export type {
+	ActiveConnectorRecord,
+	ConfiguredConnectorRecord,
+	ConnectorCatalogEntry,
+	ConnectorChannel,
+	ConnectorChannelsResponse,
+	ConnectorFieldCondition,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	ConnectorSecurityDef,
+	ConnectorSecurityFieldDef,
+} from "./connectors/platforms";
+export {
+	buildConnectorConnectArgs,
+	CONNECTOR_CATALOG,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	mergeConnectorConnectArgs,
+	shouldIncludeConnectorField,
+} from "./connectors/platforms";
+export type {
+	ConnectorStartRequest,
+	ConnectorStartResult,
+	ConnectorStopRequest,
+	ConnectorStopResultPayload,
+	SupervisedConnectorOrigin,
+	SupervisedConnectorRecord,
+	SupervisedConnectorState,
+} from "./connectors/supervision";
+export type {
 	AutomationEventEnvelope,
 	CronEventSpec,
 	CronOneOffSpec,
@@ -123,7 +153,7 @@ export {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
-export type * from "./llms/gateway";
+export * from "./llms/gateway";
 export {
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_BASE64_BYTES,
@@ -131,6 +161,7 @@ export {
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
 	IMAGE_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
 	type ImageMediaValidationFailure,
 	type ImageMediaValidationResult,
@@ -188,8 +219,22 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
-export { estimateTokens } from "./llms/tokens";
+export {
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
+export { serializeAbortReason } from "./llms/requests";
+export {
+	CHARS_PER_TOKEN,
+	estimateRequestInputTokens,
+	estimateTokens,
+	type TokenEstimatedRequest,
+} from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -202,31 +247,60 @@ export {
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
+export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
+	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
-export { getDefaultShell, getShellArgs } from "./parse/shell";
+export { decodeJwtPayload } from "./parse/jwt";
+export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export {
+	getDefaultShell,
+	getShellArgs,
+	getShellInvocation,
+	getShellKind,
+	type ShellInvocation,
+	type ShellKind,
+} from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
+	stripUtf8Bom,
+	trimNonEmpty,
 	truncateSplit,
 	truncateStr,
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
-export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
+	buildClineSystemPrompt,
+	MODE_TAG_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
+	processWorkspaceInfo,
+} from "./prompt/cline";
+export type {
+	ModeSwitchNotice,
+	ModeSwitchNoticeTracker,
+} from "./prompt/format";
+export {
+	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	parseUserInputMode,
+	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
@@ -378,12 +452,28 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export type {
+	ConnectorCliLaunchSpec,
+	ConnectorInstanceRef,
+} from "./runtime/hub-daemon-env";
 export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
+	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
+	CLINE_CONNECTOR_SUPERVISED_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	claimHubDaemonProcess,
+	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
+	isSupervisedConnectorProcess,
+	readConnectorCliLaunchSpec,
+	readStartingConnectorInstance,
+	setConnectorCliLaunchSpec,
+	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
+	CaptureTaskLifecycleEventInput,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -396,10 +486,19 @@ export type {
 	TelemetryValue,
 } from "./services/telemetry";
 export {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureTaskLifecycleEvent,
 	normalizeSdkError,
+	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {
@@ -438,6 +537,11 @@ export {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";

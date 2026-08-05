@@ -110,6 +110,55 @@ describe("handleCapabilityProgress", () => {
 });
 
 describe("hub client runtime capabilities", () => {
+	it("proxies JSON-serializable tool contexts to hub clients", async () => {
+		const request: ClientContributionRequest = vi.fn(
+			async (_sessionId, _capabilityName, payload) => {
+				expect(() => JSON.stringify(payload)).not.toThrow();
+				return { result: "ok" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+				{
+					kind: "tool",
+					name: "switch_to_act_mode",
+					description: "Switch to act mode.",
+					inputSchema: { type: "object" },
+					capabilityName: "custom_tool.switch_to_act_mode",
+				},
+			],
+			requestCapability: request,
+		});
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+			metadata: {
+				modelSupportsImages: true,
+			},
+		};
+
+		await runtime.toolExecutors?.askQuestion?.("Continue?", ["Yes"], context);
+		await runtime.localRuntime.extraTools?.[0]?.execute({}, context);
+
+		expect(request).toHaveBeenCalledTimes(2);
+		for (const [, , payload] of vi.mocked(request).mock.calls) {
+			expect(payload.context).toEqual({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { modelSupportsImages: true },
+			});
+		}
+	});
+
 	it("proxies lifecycle hooks through capability requests", async () => {
 		const request = vi.fn(async () => ({
 			control: { context: "extra context" },
@@ -184,6 +233,14 @@ describe("hub client runtime capabilities", () => {
 						instructions: "Ship it carefully.",
 						kind: "workflow",
 					},
+					// Older clients serve raw configured names; the proxy must
+					// still match them against normalized typed tokens.
+					{
+						id: "workflow-ship-it",
+						name: "Ship It",
+						instructions: "Ship it with style.",
+						kind: "workflow",
+					},
 				],
 			},
 		}));
@@ -204,6 +261,12 @@ describe("hub client runtime capabilities", () => {
 
 		expect(service?.resolveRuntimeSlashCommand("/ship now")).toBe(
 			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/SHIP now")).toBe(
+			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/ship-it now")).toBe(
+			"Ship it with style. now",
 		);
 		expect(request).toHaveBeenCalledWith(
 			"session-1",

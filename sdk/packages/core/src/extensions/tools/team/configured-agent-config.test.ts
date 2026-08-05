@@ -23,6 +23,23 @@ You are a code reviewer.`);
 		});
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
+	// from being recognized.
+	it("parses frontmatter when the content starts with a UTF-8 BOM", () => {
+		const config = parseConfiguredAgentConfig(`\uFEFF---
+name: code-reviewer
+description: Reviews code
+---
+You are a code reviewer.`);
+
+		expect(config).toMatchObject({
+			name: "code-reviewer",
+			description: "Reviews code",
+			systemPrompt: "You are a code reviewer.",
+		});
+	});
+
 	it("does not treat delimiter lines in the body as frontmatter delimiters", () => {
 		const config = parseConfiguredAgentConfig(`---
 name: code-reviewer

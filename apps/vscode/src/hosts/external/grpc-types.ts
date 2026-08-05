@@ -36,7 +36,7 @@ export type GrpcStreamingResponseHandlerWrapper = <TRequest, TResponse>(
 	controller: Controller,
 ) => grpc.handleServerStreamingCall<TRequest, TResponse>
 
-export type StreamingResponseWriter<TResponse> = (response: TResponse, isLast?: boolean, sequenceNumber?: number) => Promise<void>
+type StreamingResponseWriter<TResponse> = (response: TResponse, isLast?: boolean, sequenceNumber?: number) => Promise<void>
 
 /**
  * Abstract base class for type-safe gRPC client implementations.

@@ -57,6 +57,17 @@ describe("MCP wizard settings", () => {
 		expect(Object.keys(parsed.mcpServers ?? {})).toEqual(["added"]);
 	});
 
+	it("creates the settings file when adding a server to a missing path", async () => {
+		const settingsPath = await useTempSettingsPath();
+
+		addServer("added", { type: "stdio", command: "npx", args: ["server"] });
+
+		const parsed = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, unknown>;
+		};
+		expect(Object.keys(parsed.mcpServers ?? {})).toEqual(["added"]);
+	});
+
 	it("parses quoted stdio command arguments", () => {
 		expect(
 			parseStdioCommand('npx -y "@scope/server name" --root "my dir"'),

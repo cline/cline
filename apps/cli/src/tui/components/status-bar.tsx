@@ -1,26 +1,16 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getSuccessColor,
-} from "../palette";
+	shouldShowCliUsageCost,
+	shouldShowCliUsageCoveredBySubscription,
+} from "../../utils/usage-cost-display";
+import { useTheme } from "../hooks/use-theme";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
-import {
-	type KnownModels,
-	resolveModelDisplayName as resolveKnownModelDisplayName,
-	resolveKnownModelInfo,
-} from "./model-selector/model-display-name";
 
 export function createContextBar(
 	used: number,
 	total?: number,
-	width = 8,
+	width = 6,
 ): { filled: string; empty: string } {
 	const normalizedWidth = Math.max(0, Math.floor(width));
 	const ratio = total && total > 0 ? Math.min(used / total, 1) : 0;
@@ -47,38 +37,81 @@ export function resolveContextBarFilledForeground(
 }
 
 function formatCost(cost: number): string {
-	if (cost < 0.01) return `$${cost.toFixed(4)}`;
 	return `$${cost.toFixed(2)}`;
+}
+
+function formatCostText(providerId: string, totalCost: number): string {
+	// Subscription providers (ClinePass) have no per-use cost worth surfacing.
+	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
+		return "";
+	}
+
+	if (!shouldShowCliUsageCost(providerId)) {
+		return "";
+	}
+
+	return formatCost(totalCost);
 }
 
 export function formatStatusBarUsageText(input: {
 	totalTokens: number;
 	totalCost: number;
-	showCost: boolean;
+	providerId: string;
 }): string {
 	const tokens = `(${input.totalTokens.toLocaleString()})`;
-	if (!input.showCost) return tokens;
-	return `${tokens} ${formatCost(input.totalCost)}`;
+	const costText = formatCostText(input.providerId, input.totalCost);
+
+	if (!costText) {
+		return tokens;
+	}
+
+	return `${tokens} ${costText}`;
+}
+
+// knownModels keys are bare IDs ("claude-sonnet-4-6") but config.modelId
+// may include a provider prefix ("anthropic/claude-sonnet-4-6"), so we
+// try the full ID first, then strip the prefix and retry.
+function lookupModelInfo(
+	modelId: string,
+	knownModels?: Record<string, unknown>,
+): { name?: string } | undefined {
+	if (!knownModels) return undefined;
+	const candidates = [modelId, modelId.split("/").pop()];
+	for (const key of candidates) {
+		if (!key) continue;
+		const hit = knownModels[key] as { name?: string } | undefined;
+		if (hit) return hit;
+	}
+	return undefined;
 }
 
 export function resolveModelDisplayName(config: {
+	providerId?: string;
 	modelId: string;
-	knownModels?: KnownModels;
+	knownModels?: Record<string, unknown>;
 	thinking?: boolean;
 	reasoningEffort?: string;
 }): string {
-	const name = resolveKnownModelDisplayName(config.modelId, config.knownModels);
+	const info = lookupModelInfo(config.modelId, config.knownModels);
+	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
+	let displayName = info?.name ?? modelIdTail;
 	if (config.thinking && config.reasoningEffort) {
-		return `${name} (${config.reasoningEffort})`;
+		displayName = `${displayName} (${config.reasoningEffort})`;
 	}
-	return name;
+	if (config.providerId === "cline-pass") {
+		displayName = `ClinePass: ${displayName}`;
+	}
+	return displayName;
 }
 
 export function resolveModelMaxInputTokens(config: {
 	modelId: string;
-	knownModels?: KnownModels;
+	knownModels?: Record<string, unknown>;
 }): number | undefined {
-	const info = resolveKnownModelInfo(config.modelId, config.knownModels) ?? {};
+	const info = (lookupModelInfo(config.modelId, config.knownModels) ?? {}) as {
+		maxInputTokens?: number;
+		contextWindow?: number;
+	};
 	if (typeof info.maxInputTokens === "number" && info.maxInputTokens > 0) {
 		return info.maxInputTokens;
 	}
@@ -122,13 +155,12 @@ export function StatusBar(props: StatusBarProps) {
 	} = props;
 
 	const { width } = useTerminalDimensions();
-	const terminalBg = useTerminalBackground();
-	const terminalTheme = useTerminalTheme();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const theme = useTheme();
+	const defaultFg = theme.defaultForeground;
 	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
-	const actAccent = getModeAccent("act", terminalTheme);
-	const planAccent = getModeAccent("plan", terminalTheme);
-	const successColor = getSuccessColor(terminalTheme);
+	const actAccent = theme.accents.act;
+	const planAccent = theme.accents.plan;
+	const successColor = theme.accents.success;
 	const hasMaxInputTokens =
 		typeof maxInputTokens === "number" &&
 		Number.isFinite(maxInputTokens) &&
@@ -136,7 +168,6 @@ export function StatusBar(props: StatusBarProps) {
 	const bar = hasMaxInputTokens
 		? createContextBar(totalTokens, maxInputTokens)
 		: undefined;
-	const showUsageCost = shouldShowCliUsageCost(props.providerId);
 
 	// Available content width after accounting for padding.
 	// Home view: parent box is capped at 60 wide, status bar adds paddingX=1 (-2).
@@ -153,7 +184,7 @@ export function StatusBar(props: StatusBarProps) {
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
-		showCost: showUsageCost,
+		providerId: props.providerId,
 	});
 	const contextText = bar
 		? ` ${bar.filled}${bar.empty} ${usageText}`

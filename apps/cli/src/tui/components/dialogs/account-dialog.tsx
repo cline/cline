@@ -424,7 +424,7 @@ export function AccountDialogContent(
 	if (state.status === "loading") {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="cyan">Cline Account</text>
+				<text fg={palette.act}>Cline Account</text>
 				<text fg="gray">{state.message}</text>
 				<text fg="gray">Esc to close</text>
 			</box>
@@ -434,7 +434,7 @@ export function AccountDialogContent(
 	if (state.status === "error") {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="cyan">Cline Account</text>
+				<text fg={palette.act}>Cline Account</text>
 				<text fg="red">{state.message}</text>
 				<text fg="gray">Esc to close</text>
 			</box>
@@ -444,7 +444,7 @@ export function AccountDialogContent(
 	if (state.status === "unauthenticated") {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="cyan">Cline Account</text>
+				<text fg={palette.act}>Cline Account</text>
 				<text>Sign in or create a Cline account.</text>
 				<text fg="gray">
 					Get access to the latest models with regular free promos and
@@ -473,7 +473,7 @@ export function AccountDialogContent(
 	if (view === "organizations") {
 		return (
 			<box flexDirection="column" paddingX={1}>
-				<text fg="cyan">Change Account</text>
+				<text fg={palette.act}>Change Account</text>
 				<box flexDirection="column" gap={0}>
 					{orgRows.map((row, index) => (
 						<OrganizationRow
@@ -503,7 +503,7 @@ export function AccountDialogContent(
 
 	return (
 		<box flexDirection="column" paddingX={1} gap={1}>
-			<text fg="cyan">Cline Account</text>
+			<text fg={palette.act}>Cline Account</text>
 
 			<box flexDirection="row" gap={2}>
 				<box
@@ -514,7 +514,7 @@ export function AccountDialogContent(
 					border
 					borderColor="gray"
 				>
-					<text fg="cyan">{userInitial(loaded)}</text>
+					<text fg={palette.act}>{userInitial(loaded)}</text>
 				</box>
 				<box flexDirection="column" flexGrow={1}>
 					<text selectable>{displayName}</text>

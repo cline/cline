@@ -1,5 +1,4 @@
 import type {
-	AgentMessage,
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
@@ -11,15 +10,89 @@ import type {
 	GatewayProviderRegistration,
 	GatewayStreamRequest,
 	ITelemetryService,
+	ReasoningEffort,
 } from "@cline/shared";
-import { estimateTokens } from "@cline/shared";
+import {
+	estimateRequestInputTokens,
+	ReasoningEffortSchema,
+} from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";
+import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
 
+export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
+
+function mergeRequestMetadata(
+	defaults: Record<string, unknown> | undefined,
+	request: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (!defaults && !request) {
+		return undefined;
+	}
+	return {
+		...(defaults ?? {}),
+		...(request ?? {}),
+	};
+}
+
+function normalizeReasoningBudgetTokens(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isInteger(value) && value > 0
+		? value
+		: undefined;
+}
+
+function normalizeRequestedReasoning(
+	value: unknown,
+): GatewayStreamRequest["reasoning"] {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const input = value as Record<string, unknown>;
+	const parsedEffort = ReasoningEffortSchema.safeParse(input.effort);
+	const normalized = {
+		enabled: typeof input.enabled === "boolean" ? input.enabled : undefined,
+		effort: parsedEffort.success ? parsedEffort.data : undefined,
+		budgetTokens: normalizeReasoningBudgetTokens(input.budgetTokens),
+	};
+
+	return normalized.enabled !== undefined ||
+		normalized.effort !== undefined ||
+		normalized.budgetTokens !== undefined
+		? normalized
+		: undefined;
+}
+
+function mergeReasoningOptions(
+	defaults: GatewayStreamRequest["reasoning"],
+	legacy: GatewayStreamRequest["reasoning"],
+	requested: GatewayStreamRequest["reasoning"],
+): GatewayStreamRequest["reasoning"] {
+	if (legacy?.enabled === false || requested?.enabled === false) {
+		return { enabled: false };
+	}
+
+	const merged = {
+		enabled: requested?.enabled ?? legacy?.enabled ?? defaults?.enabled,
+		effort: requested?.effort ?? legacy?.effort ?? defaults?.effort,
+		budgetTokens:
+			requested?.budgetTokens ?? legacy?.budgetTokens ?? defaults?.budgetTokens,
+	};
+	if (
+		merged.enabled === false &&
+		(merged.effort !== undefined || merged.budgetTokens !== undefined)
+	) {
+		merged.enabled = undefined;
+	}
+
+	return Object.values(merged).some((value) => value !== undefined)
+		? merged
+		: undefined;
+}
 
 export interface Gateway {
 	registerProvider(registration: GatewayProviderRegistration): this;
@@ -45,39 +118,35 @@ class GatewayModelAdapter implements AgentModel {
 	) {}
 
 	stream(request: AgentModelRequest): Promise<AsyncIterable<AgentModelEvent>> {
-		const requestedReasoning = request.options?.reasoning as
-			| {
-					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
-					budgetTokens?: number;
-			  }
-			| undefined;
+		const defaultReasoning = normalizeRequestedReasoning(
+			this.defaults?.reasoning,
+		);
+		const requestedReasoning = normalizeRequestedReasoning(
+			request.options?.reasoning,
+		);
 		const thinking = request.options?.thinking;
 		const reasoningEffort = request.options?.reasoningEffort;
 		const thinkingBudgetTokens = request.options?.thinkingBudgetTokens;
-		const legacyEffort =
-			reasoningEffort === "low" ||
-			reasoningEffort === "medium" ||
-			reasoningEffort === "high"
-				? reasoningEffort
-				: undefined;
+		const parsedLegacyEffort = ReasoningEffortSchema.safeParse(reasoningEffort);
+		const legacyEffort: ReasoningEffort | undefined = parsedLegacyEffort.success
+			? parsedLegacyEffort.data
+			: undefined;
+		const legacyBudgetTokens =
+			normalizeReasoningBudgetTokens(thinkingBudgetTokens);
 		const legacyReasoning:
 			| {
 					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
+					effort?: ReasoningEffort;
 					budgetTokens?: number;
 			  }
 			| undefined =
 			typeof thinking === "boolean" ||
 			legacyEffort !== undefined ||
-			typeof thinkingBudgetTokens === "number"
+			legacyBudgetTokens !== undefined
 				? {
 						enabled: typeof thinking === "boolean" ? thinking : undefined,
 						effort: legacyEffort,
-						budgetTokens:
-							typeof thinkingBudgetTokens === "number"
-								? thinkingBudgetTokens
-								: undefined,
+						budgetTokens: legacyBudgetTokens,
 					}
 				: undefined;
 		return this.gateway.stream({
@@ -92,81 +161,55 @@ class GatewayModelAdapter implements AgentModel {
 			maxTokens:
 				(request.options?.maxTokens as number | undefined) ??
 				this.defaults?.maxTokens,
-			metadata:
-				(request.options?.metadata as Record<string, unknown> | undefined) ??
+			metadata: mergeRequestMetadata(
 				this.defaults?.metadata,
-			reasoning:
-				requestedReasoning ?? legacyReasoning ?? this.defaults?.reasoning,
+				request.options?.metadata as Record<string, unknown> | undefined,
+			),
+			reasoning: mergeReasoningOptions(
+				defaultReasoning,
+				legacyReasoning,
+				requestedReasoning,
+			),
 			signal: request.signal ?? this.defaults?.signal,
 		});
 	}
-}
-
-function isPositiveFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function safeStringify(value: unknown): string {
-	const seen = new WeakSet<object>();
-	try {
-		return (
-			JSON.stringify(value, (_key, nestedValue: unknown) => {
-				if (typeof nestedValue === "bigint") {
-					return nestedValue.toString();
-				}
-				if (typeof nestedValue !== "object" || nestedValue === null) {
-					return nestedValue;
-				}
-				if (seen.has(nestedValue)) {
-					return "[Circular]";
-				}
-				seen.add(nestedValue);
-				return nestedValue;
-			}) ?? ""
-		);
-	} catch {
-		return String(value ?? "");
-	}
-}
-
-export function estimateRequestInputTokens(
-	request: Pick<GatewayStreamRequest, "systemPrompt" | "messages" | "tools">,
-): number {
-	let serialized: string;
-	try {
-		serialized = JSON.stringify({
-			systemPrompt: request.systemPrompt,
-			messages: request.messages,
-			tools: request.tools,
-		});
-	} catch {
-		serialized = [
-			safeStringify(request.systemPrompt),
-			safeStringify(request.messages as readonly AgentMessage[]),
-			safeStringify(request.tools),
-		].join("\n");
-	}
-	// This deliberately over-estimates a little so the context cap leaves room
-	// for provider formatting, tool schema overhead, and tokenizer drift.
-	return estimateTokens(serialized.length);
 }
 
 export function resolveGatewayRequestMaxTokens(input: {
 	requestedMaxTokens?: number;
 	model: Pick<GatewayModelDefinition, "contextWindow" | "maxOutputTokens">;
 	estimatedInputTokens: number;
+	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
+	reasoningBudgetTokens?: number;
 	onContextOverflow?: (details: {
 		contextWindow: number;
 		estimatedInputTokens: number;
 		reserveTokens: number;
 	}) => void;
 }): number | undefined {
-	if (!isPositiveFiniteNumber(input.requestedMaxTokens)) {
-		return undefined;
+	const caps: number[] = [];
+	if (isPositiveFiniteNumber(input.requestedMaxTokens)) {
+		caps.push(Math.floor(input.requestedMaxTokens));
+	} else {
+		// Providers like Anthropic require max_tokens to exceed the thinking
+		// budget, so an explicit reasoning budget lifts the synthesized default
+		// (still clamped by model max output and remaining context below).
+		const reasoningFloor = isPositiveFiniteNumber(input.reasoningBudgetTokens)
+			? Math.floor(input.reasoningBudgetTokens) +
+				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
+			: 0;
+		const defaultMaxOutputTokens = Math.max(
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+			reasoningFloor,
+		);
+		if (
+			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
+			isPositiveFiniteNumber(input.model.contextWindow)
+		) {
+			caps.push(defaultMaxOutputTokens);
+		}
 	}
-
-	const caps: number[] = [Math.floor(input.requestedMaxTokens)];
 
 	if (isPositiveFiniteNumber(input.model.maxOutputTokens)) {
 		caps.push(Math.floor(input.model.maxOutputTokens));
@@ -266,30 +309,31 @@ export class DefaultGateway implements Gateway {
 			request.providerId,
 		);
 		const provider = await providerRecord.createProvider(providerRecord.config);
-		const maxTokens = isPositiveFiniteNumber(request.maxTokens)
-			? resolveGatewayRequestMaxTokens({
-					requestedMaxTokens: request.maxTokens,
-					model: resolved.model,
-					estimatedInputTokens: estimateRequestInputTokens(request),
-					onContextOverflow: (details) => {
-						this.logger?.log(
-							"Estimated prompt tokens exceed model context window",
-							{
-								severity: "warn",
-								providerId: resolved.provider.id,
-								modelId: resolved.model.id,
-								...details,
-							},
-						);
+		const maxTokens = resolveGatewayRequestMaxTokens({
+			requestedMaxTokens: request.maxTokens,
+			model: resolved.model,
+			estimatedInputTokens: estimateRequestInputTokens(request),
+			reasoningBudgetTokens: request.reasoning?.budgetTokens,
+			onContextOverflow: (details) => {
+				this.logger?.log(
+					"Estimated prompt tokens exceed model context window",
+					{
+						severity: "warn",
+						providerId: resolved.provider.id,
+						modelId: resolved.model.id,
+						...details,
 					},
-				})
-			: undefined;
+				);
+			},
+		});
 		const stream = await provider.stream(
 			{
 				...request,
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
 				maxTokens,
+				defaultedMaxTokens:
+					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
 			},
 			{
 				provider: resolved.provider,

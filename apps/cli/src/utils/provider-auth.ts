@@ -42,11 +42,12 @@ export function getPersistedProviderApiKey(
  * or endpoint config for the provider. Used by the picker to decide whether
  * to offer "Use existing configuration?" before opening the configure dialog.
  *
- * Treats OAuth providers as configured when an access token is present; for
- * everything else, any persisted API key, base URL, or model id counts. We
- * don't enforce required fields here — the runtime no longer pre-flights
- * credentials, so a missing key only matters when the API call actually
- * runs and the provider's own auth error is surfaced.
+ * Treats OAuth providers as configured when an access token or a manually
+ * saved API key is present (the /settings escape hatch for when OAuth isn't
+ * working); for everything else, any persisted API key, base URL, or model id
+ * counts. We don't enforce required fields here — the runtime no longer
+ * pre-flights credentials, so a missing key only matters when the API call
+ * actually runs and the provider's own auth error is surfaced.
  */
 export function isProviderConfigured(
 	providerId: string,
@@ -54,7 +55,8 @@ export function isProviderConfigured(
 ): boolean {
 	if (!settings) return false;
 	if (isOAuthProvider(providerId)) {
-		return Boolean(settings.auth?.accessToken?.trim());
+		// getPersistedProviderApiKey covers both auth.accessToken and apiKey.
+		return Boolean(getPersistedProviderApiKey(providerId, settings));
 	}
 	if (getPersistedProviderApiKey(providerId, settings)) return true;
 	if (settings.baseUrl?.trim()) return true;

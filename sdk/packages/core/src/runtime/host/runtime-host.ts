@@ -7,15 +7,20 @@ import type {
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
+import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
-import type { CoreSessionConfig } from "../../types/config";
+import type {
+	ClineCoreStartConfig,
+	CoreSessionConfig,
+} from "../../types/config";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
+import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
@@ -46,6 +51,47 @@ export function isSessionNotFoundError(
 	);
 }
 
+function errorMessageOf(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (typeof error === "object" && error !== null && "message" in error) {
+		const message = (error as { message?: unknown }).message;
+		return typeof message === "string" ? message : "";
+	}
+	return typeof error === "string" ? error : "";
+}
+
+/**
+ * A session that cannot serve another turn, whatever the caller does with it.
+ *
+ * Two distinct causes, one remedy: the session is gone (`session_not_found`,
+ * after a hub restart, a deletion, or retention cleanup), or its runtime is stuck
+ * with a run that never drained (`session_run_in_progress`). A caller holding a
+ * long-lived mapping to that session — a connector thread, for instance — has to
+ * replace the session rather than keep retrying against it.
+ *
+ * Errors reaching a connector have crossed the hub's JSON boundary, so the code
+ * may be gone and only the message survives; both are checked, which also keeps
+ * this working when the hub and the CLI are different versions.
+ */
+export function isUnusableSessionError(error: unknown): boolean {
+	if (isSessionNotFoundError(error)) {
+		return true;
+	}
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "session_run_in_progress"
+	) {
+		return true;
+	}
+	return errorMessageOf(error).includes(
+		"shutdown called while a run is in progress",
+	);
+}
+
 type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
 	| "logger"
@@ -65,6 +111,11 @@ export type RuntimeSessionConfig = Omit<
 		"createCheckpoint"
 	>;
 	compaction?: Omit<NonNullable<CoreSessionConfig["compaction"]>, "compact">;
+};
+
+/** Workspace paths may be omitted only at the session-start boundary. */
+export type StartSessionConfig = Omit<RuntimeSessionConfig, "cwd"> & {
+	cwd?: string;
 };
 
 export type LocalRuntimeBootstrapConfig = Pick<
@@ -98,12 +149,16 @@ export interface LocalRuntimeStartOptions {
 }
 
 export interface StartSessionInput {
-	config: RuntimeSessionConfig;
+	config: StartSessionConfig;
+	/** The process/client that starts the session. E.g., "vscode", "cli". */
 	source?: SessionSource;
+	/** How the session was initiated, such as user, automation, or subagent. */
+	mode?: string;
 	prompt?: string;
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.Message[];
+	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
 	/**
@@ -116,8 +171,14 @@ export interface StartSessionInput {
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
 }
 
-export function splitCoreSessionConfig(config: CoreSessionConfig): {
+/** Session input after the execution host has resolved a concrete workspace. */
+export interface ResolvedStartSessionInput
+	extends Omit<StartSessionInput, "config"> {
 	config: RuntimeSessionConfig;
+}
+
+export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
+	config: StartSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
 } {
 	const {
@@ -168,10 +229,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 						compaction: {
 							enabled: compaction.enabled,
 							strategy: compaction.strategy,
-							thresholdRatio: compaction.thresholdRatio,
-							reserveTokens: compaction.reserveTokens,
 							preserveRecentTokens: compaction.preserveRecentTokens,
-							maxInputTokens: compaction.maxInputTokens,
 							summarizer: compaction.summarizer,
 						},
 					}
@@ -257,8 +315,17 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
+export type SessionConnectionUpdate = ConnectionUpdate;
+
 export interface SessionModelRuntimeService {
 	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
+}
+
+export interface SessionConnectionRuntimeService {
+	updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {
@@ -308,7 +375,24 @@ export interface RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }>;
+	updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }>;
+	readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	/**
+	 * Like {@link readSessionMessages}, but prefers the resident session's
+	 * in-memory conversation over the persisted transcript. Disk persistence
+	 * happens at assistant-message/turn boundaries (and abort() does not
+	 * flush), so this is the accurate read for callers that need the
+	 * conversation of an in-flight or just-aborted turn — e.g. rebuilding a
+	 * session for a mode switch. Optional: hosts without live-session access
+	 * (e.g. hub clients) fall back to the persisted transcript.
+	 */
+	readLiveSessionMessages?(sessionId: string): Promise<LlmsProviders.Message[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

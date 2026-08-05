@@ -5,7 +5,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	type AgentPlugin,
@@ -13,6 +13,8 @@ import {
 	type AgentToolContext,
 	ClineCore,
 	createTool,
+	type ITelemetryService,
+	stripUtf8Bom,
 } from "@cline/core";
 import YAML from "yaml";
 import { z } from "zod";
@@ -90,6 +92,8 @@ const GLOBAL_SKILLS_DIR = join(resolveClineDataDirPath(), "settings", "skills");
 
 /** Safe identifier pattern for conversation IDs used in filesystem paths. */
 const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/;
+const HANDOFF_PATH_ALLOWED_RE = /^[A-Za-z0-9._/-]+$/;
+const HANDOFF_PATH_MAX_LENGTH = 240;
 
 const envOr = (key: string, fallback: string): string =>
 	process.env[key]?.trim() || fallback;
@@ -177,6 +181,9 @@ function parseFrontmatter(md: string): {
 	data: Record<string, unknown>;
 	body: string;
 } {
+	// stripUtf8Bom keeps the frontmatter match below working for files saved with a leading
+	// UTF-8 BOM (see cline/cline#12151).
+	md = stripUtf8Bom(md);
 	const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
 	if (!m) return { data: {}, body: md.trim() };
 	try {
@@ -298,12 +305,43 @@ function resolveHandoffPath(
 	ctx: AgentToolContext,
 	relativePath: string,
 ): string {
+	const handoffPath = validateHandoffRelativePath(relativePath);
 	const dir = handoffsDir(ctx);
-	const resolved = resolve(dir, relativePath);
-	if (!resolved.startsWith(`${dir}/`)) {
+	const resolved = resolve(dir, handoffPath);
+	const pathFromHandoffsDir = relative(dir, resolved);
+	if (
+		!pathFromHandoffsDir ||
+		pathFromHandoffsDir === ".." ||
+		pathFromHandoffsDir.startsWith(`..${sep}`) ||
+		isAbsolute(pathFromHandoffsDir)
+	) {
 		throw new Error(`Handoff path escapes directory: ${relativePath}`);
 	}
 	return resolved;
+}
+
+function validateHandoffRelativePath(relativePath: string): string {
+	const trimmed = relativePath.trim();
+	if (!trimmed) {
+		throw new Error("Handoff path must not be empty");
+	}
+	if (trimmed.length > HANDOFF_PATH_MAX_LENGTH) {
+		throw new Error(
+			`Handoff path must be ${HANDOFF_PATH_MAX_LENGTH} characters or fewer`,
+		);
+	}
+	if (trimmed.startsWith("/")) {
+		throw new Error(`Handoff path must be relative: ${relativePath}`);
+	}
+	if (!HANDOFF_PATH_ALLOWED_RE.test(trimmed)) {
+		throw new Error(
+			"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
+		);
+	}
+	if (trimmed.split("/").includes("..")) {
+		throw new Error(`Handoff path must not contain '..': ${relativePath}`);
+	}
+	return trimmed;
 }
 
 function emitSteer(sessionId: string | undefined, prompt: string): void {
@@ -370,6 +408,16 @@ function steerPrompt(subagent: RunningSubagent): string {
 		.join("\n\n");
 }
 
+/**
+ * Host telemetry captured in setup(). Module-level so background work like
+ * runSubagentTurn can report outcomes. Always optional: feature-detect with
+ * `?.` — it is undefined when the host has no telemetry service. Only pass
+ * plain JSON data as properties; in sandboxed plugins the calls are bridged
+ * to the host over IPC, which namespaces them under `plugin.` and stamps
+ * `plugin_name`.
+ */
+let pluginTelemetry: ITelemetryService | undefined;
+
 async function runSubagentTurn(
 	subagent: RunningSubagent,
 	message: string,
@@ -393,6 +441,21 @@ async function runSubagentTurn(
 		subagent.error = err instanceof Error ? err.message : String(err);
 		subagent.completedAt = Date.now();
 	}
+	// Outcome telemetry: status as an event, wall-clock as a histogram. Keep
+	// properties low-cardinality (status, preset) — never task text or output.
+	pluginTelemetry?.capture({
+		event: "subagent_turn_completed",
+		properties: {
+			status: subagent.status,
+			preset: subagent.agent,
+			finish_reason: subagent.finishReason,
+		},
+	});
+	pluginTelemetry?.recordHistogram(
+		"subagents.turn_duration_ms",
+		(subagent.completedAt ?? Date.now()) - subagent.startedAt,
+		{ status: subagent.status },
+	);
 	if (steer) emitSteer(subagent.parentSessionId, steerPrompt(subagent));
 }
 
@@ -407,9 +470,8 @@ const HandoffPathInput = z
 	.trim()
 	.min(1)
 	.max(240)
-	.regex(
-		/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+$/,
-		"Use a relative file path with letters, numbers, '.', '_', '-', or '/'.",
+	.describe(
+		"Relative file path using letters, numbers, '.', '_', '-', or '/'. Must not be absolute or contain '..' segments.",
 	);
 
 const StartSubagentInput = z
@@ -514,6 +576,15 @@ const plugin: AgentPlugin = {
 			backendMode: DEFAULT_BACKEND_MODE,
 			workspaceRoot: ctx.workspaceInfo?.rootPath,
 		});
+		// See the telemetry.ts example for the full ctx.telemetry contract.
+		pluginTelemetry = ctx.telemetry;
+		pluginTelemetry?.capture({
+			event: "subagents_setup",
+			properties: {
+				default_preset: DEFAULT_AGENT_PRESET,
+				backend_mode: DEFAULT_BACKEND_MODE,
+			},
+		});
 
 		// -- start_subagent: Start a new subagent session --
 		api.registerTool(
@@ -586,6 +657,10 @@ const plugin: AgentPlugin = {
 							preset: def?.name ?? input.preset,
 							providerId,
 							modelId,
+						});
+						pluginTelemetry?.recordCounter("subagents.started", 1, {
+							preset: def?.name ?? input.preset ?? "custom",
+							provider_id: providerId,
 						});
 						void runSubagentTurn(
 							subagent,

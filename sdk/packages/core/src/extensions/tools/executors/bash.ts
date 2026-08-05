@@ -9,11 +9,14 @@ import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	getDefaultShell,
-	getShellArgs,
+	getShellInvocation,
 } from "@cline/shared";
 import { TimeoutError } from "../helpers";
-import type { BashExecutor } from "../types";
-import { MAX_COMMAND_OUTPUT_CHARS } from "./output-limits";
+import type { ShellExecutor } from "../types";
+import {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "./output-limits";
 
 export class CommandExitError extends Error {
 	constructor(
@@ -26,9 +29,9 @@ export class CommandExitError extends Error {
 }
 
 /**
- * Options for the bash executor
+ * Options for the shell executor
  */
-export interface BashExecutorOptions {
+export interface ShellExecutorOptions {
 	/**
 	 * Shell to use for execution
 	 * @default "/bin/bash" on Unix, "powershell" on Windows
@@ -74,6 +77,7 @@ interface SpawnConfig {
 	args: string[];
 	cwd: string;
 	env: Record<string, string>;
+	input?: string;
 }
 
 /**
@@ -120,21 +124,6 @@ function createRollingCollector(maxChars: number) {
 	};
 }
 
-function truncateMiddle(
-	text: string,
-	maxChars: number,
-	totalChars: number,
-): string {
-	const headLimit = Math.ceil(maxChars / 2);
-	const tailLimit = Math.max(1, maxChars - headLimit);
-	return (
-		`${text.slice(0, headLimit)}\n` +
-		`[... output truncated: ${totalChars} chars total. ` +
-		"Refine the command (grep, head, tail) to view the elided middle ...]\n" +
-		text.slice(-tailLimit)
-	);
-}
-
 function spawnAndCollect(
 	config: SpawnConfig,
 	context: AgentToolContext,
@@ -142,6 +131,9 @@ function spawnAndCollect(
 	maxOutputChars: number,
 	combineOutput: boolean,
 ): Promise<string> {
+	if (context.signal?.aborted) {
+		return Promise.reject(new Error("Command was aborted"));
+	}
 	return new Promise((resolve, reject) => {
 		const isWindows = process.platform === "win32";
 
@@ -168,15 +160,43 @@ function spawnAndCollect(
 			fn();
 		};
 
-		const killProcessTree = () => {
+		const killProcessTree = async (): Promise<void> => {
 			if (!childPid) return;
 			if (isWindows) {
-				const killer = spawn(
-					"taskkill",
-					["/pid", String(childPid), "/T", "/F"],
-					{ stdio: "ignore", shell: true, windowsHide: true },
-				);
-				killer.unref();
+				await new Promise<void>((done) => {
+					let finished = false;
+					let killer: ReturnType<typeof spawn>;
+					const finish = () => {
+						if (finished) return;
+						finished = true;
+						clearTimeout(watchdog);
+						done();
+					};
+					try {
+						killer = spawn(
+							"taskkill.exe",
+							["/PID", String(childPid), "/T", "/F"],
+							{ stdio: "ignore", shell: false, windowsHide: true },
+						);
+					} catch {
+						child.kill();
+						done();
+						return;
+					}
+					const watchdog = setTimeout(() => {
+						killer.kill();
+						child.kill();
+						finish();
+					}, 5_000);
+					killer.once("error", () => {
+						child.kill();
+						finish();
+					});
+					killer.once("close", (code) => {
+						if (code !== 0) child.kill();
+						finish();
+					});
+				});
 				return;
 			}
 			try {
@@ -186,13 +206,20 @@ function spawnAndCollect(
 			}
 		};
 
+		let timeout: NodeJS.Timeout;
+		const abortHandler = () => killAndReject(new Error("Command was aborted"));
+		const cleanup = () => {
+			clearTimeout(timeout);
+			context.signal?.removeEventListener("abort", abortHandler);
+		};
 		const killAndReject = (error: Error) => {
+			if (killed || settled) return;
 			killed = true;
-			killProcessTree();
-			settle(() => reject(error));
+			cleanup();
+			void killProcessTree().finally(() => settle(() => reject(error)));
 		};
 
-		const timeout = setTimeout(
+		timeout = setTimeout(
 			() =>
 				killAndReject(
 					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
@@ -200,16 +227,10 @@ function spawnAndCollect(
 			timeoutMs,
 		);
 
-		const abortHandler = () => killAndReject(new Error("Command was aborted"));
-
 		if (context.signal) {
-			context.signal.addEventListener("abort", abortHandler);
+			context.signal.addEventListener("abort", abortHandler, { once: true });
+			if (context.signal.aborted) abortHandler();
 		}
-
-		const cleanup = () => {
-			clearTimeout(timeout);
-			context.signal?.removeEventListener("abort", abortHandler);
-		};
 
 		child.stdout?.on("data", (data: Buffer) => {
 			stdout.append(data);
@@ -236,11 +257,10 @@ function spawnAndCollect(
 					? out.totalChars + err.totalChars
 					: out.totalChars;
 				if (dropped || failureOutput.length > maxOutputChars) {
-					failureOutput = truncateMiddle(
-						failureOutput,
-						maxOutputChars,
+					failureOutput = truncateCommandOutput(failureOutput, {
+						maxChars: maxOutputChars,
 						totalChars,
-					);
+					});
 				}
 				const result =
 					failureOutput.length > 0
@@ -256,7 +276,10 @@ function spawnAndCollect(
 					const totalChars = combineOutput
 						? out.totalChars + err.totalChars
 						: out.totalChars;
-					output = truncateMiddle(output, maxOutputChars, totalChars);
+					output = truncateCommandOutput(output, {
+						maxChars: maxOutputChars,
+						totalChars,
+					});
 				}
 				settle(() => resolve(output));
 			}
@@ -264,29 +287,38 @@ function spawnAndCollect(
 
 		child.on("error", (error) => {
 			cleanup();
+			if (killed) return;
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
 		});
+
+		child.stdin?.on("error", (error) => {
+			if (killed || settled) return;
+			killAndReject(
+				new Error(`Failed to write command input: ${error.message}`),
+			);
+		});
+		child.stdin?.end(config.input, "utf8");
 	});
 }
 
 /**
- * Create a bash executor using Node.js spawn
+ * Create a shell executor using Node.js spawn
  *
  * @example
  * ```typescript
- * const bash = createBashExecutor({
+ * const shell = createShellExecutor({
  *   timeoutMs: 60000, // 1 minute timeout
  *   shell: "/bin/zsh",
  * })
  *
- * const output = await bash("ls -la", "/path/to/project", context)
+ * const output = await shell("ls -la", "/path/to/project", context)
  * ```
  */
-export function createBashExecutor(
-	options: BashExecutorOptions = {},
-): BashExecutor {
+export function createShellExecutor(
+	options: ShellExecutorOptions = {},
+): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,
@@ -300,14 +332,16 @@ export function createBashExecutor(
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
+		const invocation = isStructured
+			? { args: command.args ?? [] }
+			: getShellInvocation(shell, command);
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
-				args: isStructured
-					? (command.args ?? [])
-					: getShellArgs(shell, command),
+				args: invocation.args,
 				cwd,
 				env,
+				input: invocation.input,
 			},
 			context,
 			timeoutMs,

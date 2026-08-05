@@ -5,6 +5,7 @@ import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
+import { registerHistoryCommand } from "./commands/history-command";
 import {
 	CommanderError,
 	commanderToParsedArgs,
@@ -15,12 +16,13 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import type { TuiStartupTarget } from "./tui/types";
+import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
 import {
-	getCliFeatureFlagsService,
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,
 } from "./utils/feature-flags";
@@ -42,10 +44,17 @@ import {
 	isOAuthProvider,
 	normalizeProviderId,
 } from "./utils/provider-auth";
+import { resolveCliReasoning } from "./utils/reasoning";
+import {
+	resolveStartupCompactionMode,
+	resolveStartupMode,
+	resolveStartupToolAutoApprove,
+} from "./utils/startup-settings";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
+	identifyTelemetryAccount,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
@@ -112,11 +121,36 @@ export function resolveConfigDirArg(argv: string[]): string | undefined {
 	return undefined;
 }
 
+function collectOption(value: string, previous: string[] = []): string[] {
+	return [...previous, value];
+}
+
+// Shells strip quote characters before argv reaches us, so a prompt that was
+// typed in quotes is only observable when it remains one argv token with spaces.
+function promptArgLooksQuoted(arg: string | undefined): boolean {
+	return !!arg && /\s/.test(arg);
+}
+
+function writePromptArgError(args: string[]): void {
+	const renderedArgs = args.join(" ");
+	writeErr(
+		`Unknown command or unquoted prompt: ${renderedArgs}\nPrompt text must be passed as a single quoted argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
+	);
+}
+
+function startupTargetTakesPrecedenceOverMigrationNotice(
+	target: TuiStartupTarget | undefined,
+): boolean {
+	return target === "config" || target === "history";
+}
+
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 
 	const cliArgs = process.argv.slice(2);
+	const isFullTTY =
+		process.stdin.isTTY === true && process.stdout.isTTY === true;
 	const configDir = resolveConfigDirArg(cliArgs);
 	const { setClineDir, setHomeDir } = await import("@cline/shared/storage");
 	if (configDir) {
@@ -130,11 +164,13 @@ export async function runCli(): Promise<void> {
 	// `--config <dir>` rather than the default home/config location.
 	captureCliExtensionActivated();
 
-	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 
 	// Subcommand routing via Commander
-	const ctx: { exitCode?: number; resumeSessionId?: string } = {};
+	const ctx: {
+		exitCode?: number;
+		startupTarget?: TuiStartupTarget;
+	} = {};
 	const io = { writeln, writeErr };
 	const program = createProgram();
 	// Re-enable built-in help/version output for the routing program
@@ -225,7 +261,7 @@ export async function runCli(): Promise<void> {
 				ctx.exitCode = code;
 			},
 			() => {
-				launchConfigView = true;
+				ctx.startupTarget = "config";
 			},
 		);
 		return configCmd;
@@ -343,6 +379,15 @@ export async function runCli(): Promise<void> {
 		.description("Connect to an external channel")
 		.argument("[channel]", "Channel to connect Cline CLI to")
 		.option("--stop", "Kill all current channel connections")
+		.option("--restart", "Restart a channel connection")
+		.option(
+			"--restart-instance <id>",
+			"Restart one connector instance (used by daemon recovery)",
+		)
+		.option(
+			"--cleanup-instance <id>",
+			"Reap one dead connector instance, preserving autostart (used by hub supervision)",
+		)
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
@@ -352,16 +397,51 @@ export async function runCli(): Promise<void> {
 		.action(async (adapter: string | undefined) => {
 			const {
 				formatAdapterList,
+				runCleanupConnectorInstance,
 				runConnectAdapter,
+				runRestartConnector,
 				runStopAllConnectors,
 				runStopConnector,
 			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
-			if (opts.stop) {
+			const exclusiveModes = [
+				opts.stop,
+				opts.restart || opts.restartInstance,
+				opts.cleanupInstance,
+			].filter(Boolean).length;
+			if (exclusiveModes > 1) {
+				io.writeErr(
+					"connect accepts only one of --stop, --restart or --cleanup-instance",
+				);
+				ctx.exitCode = 1;
+			} else if (opts.cleanupInstance) {
+				if (!adapter) {
+					io.writeErr("connect --cleanup-instance requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runCleanupConnectorInstance(
+						adapter,
+						opts.cleanupInstance,
+						io,
+					);
+				}
+			} else if (opts.stop) {
 				if (adapter) {
 					ctx.exitCode = await runStopConnector(adapter, io);
 				} else {
 					ctx.exitCode = await runStopAllConnectors(io);
+				}
+			} else if (opts.restart || opts.restartInstance) {
+				if (!adapter) {
+					io.writeErr("connect --restart requires a channel");
+					ctx.exitCode = 1;
+				} else {
+					ctx.exitCode = await runRestartConnector(
+						adapter,
+						connectCmd.args.slice(1),
+						io,
+						opts.restartInstance,
+					);
 				}
 			} else if (adapter) {
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
@@ -371,7 +451,7 @@ export async function runCli(): Promise<void> {
 					connectCmd.args.slice(1),
 					io,
 				);
-			} else if (process.stdin.isTTY && process.stdout.isTTY) {
+			} else if (isFullTTY) {
 				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
@@ -383,7 +463,7 @@ export async function runCli(): Promise<void> {
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
-			if (process.stdin.isTTY && process.stdout.isTTY) {
+			if (isFullTTY) {
 				ctx.exitCode = await runMcpWizard();
 			} else {
 				writeln(
@@ -404,15 +484,24 @@ export async function runCli(): Promise<void> {
 			"--transport <transport>",
 			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
 		)
+		.option("--header <header>", "Remote MCP request header", collectOption, [])
+		.option("--yes", "Install noninteractively without opening the wizard")
+		.option("--json", "Output as JSON")
 		.action(async (name: string, targetArgs: string[]) => {
 			const opts = mcpInstallCmd.opts<{
+				header?: string[];
+				json?: boolean;
 				transport?: string;
+				yes?: boolean;
 			}>();
 			const { runMcpInstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
+				headers: opts.header,
 				targetArgs,
 				transport: opts.transport,
+				json: opts.json === true || program.opts().json === true,
+				yes: opts.yes === true,
 				io,
 			});
 		});
@@ -439,107 +528,17 @@ export async function runCli(): Promise<void> {
 			await doctorCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
-	const historyCmd = program
-		.command("history")
-		.alias("h")
-		.description("List session history or manage saved sessions")
-		.option("--json", "Output as JSON")
-		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		.option("--page <number>", "Page number for paginated results")
-		.option("--config <dir>", "configuration directory")
-		.action(async () => {
-			const opts = historyCmd.opts();
-			const limit = Number.parseInt(opts.limit, 10);
-			const outputMode =
-				program.opts().json || opts.json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryList } = await import("./commands/history");
-			const result = await runHistoryList({
-				limit,
-				outputMode,
-				io,
-			});
-			if (typeof result === "string") {
-				ctx.resumeSessionId = result;
-				// JSON listing should never return a session id; if it does, still exit here so
-				// we never fall through to agent bootstrap (which can block on stdin in CI).
-				if (outputMode === "json") {
-					ctx.exitCode = 0;
-				}
-			} else {
-				// Always set exit code for numeric results so `ctx.exitCode` is never left
-				// undefined (that would fall through and load the full CLI runtime).
-				ctx.exitCode = result ?? 0;
-			}
-		});
-
-	const historyDeleteCmd = historyCmd
-		.command("delete")
-		.description("Delete a session from history")
-		.option("--session-id <id>", "Session ID to delete")
-		.action(async () => {
-			const opts = historyDeleteCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history delete requires --session-id <id>");
-				ctx.exitCode = 0;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryDelete } = await import("./commands/history");
-			ctx.exitCode = await runHistoryDelete(opts.sessionId, outputMode, io);
-		});
-
-	const historyUpdateCmd = historyCmd
-		.command("update")
-		.description("Update a session in history")
-		.option("--metadata <json>", "Metadata as JSON string")
-		.option("--prompt <text>", "New prompt text")
-		.option("--session-id <id>", "Session ID to update")
-		.option("--title <text>", "New title")
-		.action(async () => {
-			const opts = historyUpdateCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history update requires --session-id <id>");
-				ctx.exitCode = 1;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryUpdate } = await import("./commands/history");
-			ctx.exitCode = await runHistoryUpdate(
-				opts.sessionId,
-				opts.prompt,
-				opts.title,
-				opts.metadata,
-				outputMode,
-				io,
-			);
-		});
-
-	const historyExportCmd = historyCmd
-		.command("export <sessionId>")
-		.description("Export a session as a standalone HTML file")
-		.option("-o, --output <path>", "Output HTML file path")
-		.action(async (sessionId: string) => {
-			const opts = historyExportCmd.opts();
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryExport } = await import("./commands/history");
-			ctx.exitCode = await runHistoryExport(
-				sessionId,
-				opts.output,
-				outputMode,
-				io,
-			);
-		});
+	registerHistoryCommand({
+		program,
+		io,
+		setExitCode: (code) => {
+			ctx.exitCode = code;
+		},
+		setStartupTarget: (target) => {
+			ctx.startupTarget = target;
+		},
+		isInteractiveTTY: () => isFullTTY,
+	});
 
 	program
 		.command("hook")
@@ -571,11 +570,7 @@ export async function runCli(): Promise<void> {
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
-			if (
-				cmd.args.length === 0 &&
-				process.stdin.isTTY &&
-				process.stdout.isTTY
-			) {
+			if (cmd.args.length === 0 && isFullTTY) {
 				ctx.exitCode = await runScheduleWizard();
 				return;
 			}
@@ -722,38 +717,9 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
-	if (program.args.length > 1) {
-		writeErr(
-			`Unknown command or extra arguments: ${program.args.join(" ")}\nPrompt text with spaces must be quoted as a single argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
-		);
-		process.exitCode = 1;
-		return;
-	}
 
-	let resumeSessionId: string | undefined = ctx.resumeSessionId;
-	if (resumeSessionId) {
-		// The history picker already created (and tore down) an OpenTUI renderer
-		// in this process; starting the interactive TUI here would create a
-		// second one, which can crash natively during teardown. Resume in a
-		// fresh `cline --id <session-id>` child process instead.
-		const { spawnHistoryResume } = await import("./utils/history-resume");
-		const childExitCode = await spawnHistoryResume({
-			sessionId: resumeSessionId,
-			normalizedArgs,
-			remainingArgs: program.args,
-			configDir,
-		});
-		if (childExitCode !== undefined) {
-			process.exitCode = childExitCode;
-			return;
-		}
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
-	}
-
+	let startupTarget = ctx.startupTarget;
+	let resumeSessionId: string | undefined;
 	if (args.id !== undefined) {
 		const sessionId = args.id.trim();
 		if (!sessionId) {
@@ -762,16 +728,12 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		resumeSessionId = sessionId;
+		startupTarget = "chat";
 		process.env.CLINE_HOOK_AGENT_RESUME = "1";
-		args = {
-			...args,
-			interactive: true,
-			prompt: undefined,
-		};
 	} else {
 		delete process.env.CLINE_HOOK_AGENT_RESUME;
 	}
-	if (launchConfigView) {
+	if (startupTarget) {
 		args = {
 			...args,
 			interactive: true,
@@ -815,15 +777,14 @@ export async function runCli(): Promise<void> {
 	if (args.hooksDir?.trim()) {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
 	}
+	if (args.prompt && !args.interactive) {
+		if (program.args.length > 1 || !promptArgLooksQuoted(program.args[0])) {
+			writePromptArgError(program.args);
+			process.exitCode = 1;
+			return;
+		}
+	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = true;
-	const effectiveToolAutoApprove =
-		args.autoApproveOverride ?? defaultToolAutoApprove;
-	const toolPolicies: Record<string, ToolPolicy> = {
-		"*": {
-			autoApprove: effectiveToolAutoApprove,
-		},
-	};
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
 		writeErr(
@@ -837,7 +798,10 @@ export async function runCli(): Promise<void> {
 	// Enters the Agent Client Protocol stdio transport and never falls through.
 	if (args.acpMode) {
 		const { runAcpMode } = await import("./acp/index");
-		await runAcpMode();
+		// Only an explicit `--auto-approve true` (or `--yolo`) enables
+		// auto-approval in ACP mode; We do not respect the default to
+		// avoid accidental auto-approval in ACP mode.
+		await runAcpMode({ autoApproveTools: args.autoApproveOverride === true });
 		return;
 	}
 
@@ -846,7 +810,7 @@ export async function runCli(): Promise<void> {
 			!args.prompt &&
 			!resumeSessionId &&
 			!stdinHasPipedInput() &&
-			(!process.stdin.isTTY || !process.stdout.isTTY)
+			!isFullTTY
 		) {
 			writeErr("--worktree without a prompt requires an interactive terminal.");
 			process.exitCode = 1;
@@ -900,6 +864,38 @@ export async function runCli(): Promise<void> {
 		runAgent,
 	} = await loadCliRuntimeModules();
 
+	// General settings toggled in the TUI /settings panel persist to the
+	// global settings file; explicit CLI flags take precedence over the
+	// persisted values, which in turn override the built-in defaults.
+	const persistedGlobalSettings = coreServer.readGlobalSettings();
+	const defaultToolAutoApprove = true;
+	const effectiveToolAutoApprove = resolveStartupToolAutoApprove(
+		args,
+		persistedGlobalSettings,
+		defaultToolAutoApprove,
+	);
+	const toolPolicies: Record<string, ToolPolicy> = {
+		"*": {
+			autoApprove: effectiveToolAutoApprove,
+		},
+	};
+	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	const effectiveCompactionMode = resolveStartupCompactionMode(
+		args,
+		persistedGlobalSettings,
+	);
+
+	// Register the SDK early logger as early as possible — before any
+	// provider settings reads — so the full startup sequence is captured.
+	// These components operate before/outside ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	const { createCliLoggerAdapter } = await import("./logging/adapter");
+	const loggerAdapter = createCliLoggerAdapter({
+		runtime: "cli",
+		component: "main",
+	});
+	coreServer.setSdkLogger(loggerAdapter.core);
+
 	const userInstructionService = createUserInstructionConfigService({
 		skills: {
 			workspacePath: workspaceRoot,
@@ -929,14 +925,32 @@ export async function runCli(): Promise<void> {
 		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+
+		// Apply locally persisted Cline account identity so subsequent events
+		// (task.*, workspace.initialized) carry user_id when available.
+		// Note: user.extension_activated fires anonymously earlier in startup
+		// and cannot be retroactively updated; this is by design for
+		// lightweight subcommand and pre-auth CLI flows. See CLINE-2406.
+		if (provider === "cline") {
+			const savedAuth = selectedProviderSettings?.auth;
+			if (savedAuth?.accountId) {
+				identifyTelemetryAccount({
+					id: savedAuth.accountId,
+					provider: "cline",
+					organizationId: savedAuth.organizationId,
+					organizationName: savedAuth.organizationName,
+					memberId: savedAuth.memberId,
+				});
+			}
+		}
+
 		const persistedApiKey = getPersistedProviderApiKey(
 			provider,
 			selectedProviderSettings,
@@ -998,19 +1012,13 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
-		const persistedReasoning = selectedProviderSettings?.reasoning;
-		const persistedReasoningEffort = persistedReasoning?.effort;
-		const reasoningEffortFromSettings =
-			persistedReasoning?.enabled === false
-				? "none"
-				: persistedReasoningEffort && persistedReasoningEffort !== "none"
-					? persistedReasoningEffort
-					: persistedReasoning?.enabled === true
-						? "medium"
-						: "none";
-		const effectiveReasoningEffort = args.thinkingExplicitlySet
-			? (args.reasoningEffort ?? "none")
-			: (args.reasoningEffort ?? reasoningEffortFromSettings);
+		const resolvedReasoning = resolveCliReasoning({
+			thinking: args.thinking,
+			thinkingExplicitlySet: args.thinkingExplicitlySet,
+			reasoningEffort: args.reasoningEffort,
+			persistedReasoning: selectedProviderSettings?.reasoning,
+		});
+		const cliBuildInfo = getCliBuildInfo();
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1035,24 +1043,21 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? "act",
+				mode: effectiveMode,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(args.compactionMode),
+			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
 			verbose: args.verbose,
-			thinking: effectiveReasoningEffort !== "none",
-			reasoningEffort:
-				effectiveReasoningEffort === "none"
-					? undefined
-					: effectiveReasoningEffort,
+			thinking: resolvedReasoning.thinking,
+			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
+			mode: effectiveMode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			telemetry: getCliTelemetryService(loggerAdapter.core),
@@ -1064,7 +1069,13 @@ export async function runCli(): Promise<void> {
 			cwd,
 			workspaceRoot,
 			extensionContext: {
-				client: { name: "cline-cli" },
+				client: {
+					name: "cline-cli",
+					version: cliBuildInfo.version,
+					platform: "cli",
+					platformVersion: cliBuildInfo.version,
+					isMultiRoot: false,
+				},
 				workspace: {
 					rootPath: workspaceRoot,
 					cwd,
@@ -1146,12 +1157,6 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			const runInteractive = await loadInteractiveRuntimeModule();
-			let initialView: "chat" | "config" | undefined;
-			if (launchConfigView) {
-				initialView = "config";
-			} else if (resumeSessionId) {
-				initialView = "chat";
-			}
 			const initialClineProviderSettings =
 				provider === "cline" ? selectedProviderSettings : undefined;
 			let initialNotice:
@@ -1162,10 +1167,15 @@ export async function runCli(): Promise<void> {
 						notice: import("./kanban-migration/notice").CliMigrationNotice,
 				  ) => void)
 				| undefined;
-			if (!launchConfigView && process.stdin.isTTY && process.stdout.isTTY) {
+			if (
+				!startupTargetTakesPrecedenceOverMigrationNotice(startupTarget) &&
+				isFullTTY
+			) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
-				initialNotice = getClineCliMigrationNotice();
+				initialNotice = getClineCliMigrationNotice(undefined, process.env, {
+					activeProviderId: provider,
+				});
 				if (initialNotice) {
 					markInitialNoticeShown = () => {
 						markClineCliMigrationNoticeShown();
@@ -1176,7 +1186,7 @@ export async function runCli(): Promise<void> {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
 				clineProviderSettings: initialClineProviderSettings,
-				initialView,
+				startupTarget,
 				initialNotice,
 				onInitialNoticeShown: markInitialNoticeShown,
 			});

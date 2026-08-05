@@ -1,5 +1,193 @@
 # Changelog
 
+## [4.1.3]
+
+### Fixed
+
+- Stop the two bundles of the combined rollout package from invalidating each other's Cline account session. A still-open legacy window that refreshed its token after the machine was promoted to the new extension would consume the shared refresh token, producing spurious "Unauthorized" / re-authenticate prompts and unexpected sign-outs. Promoted legacy windows now keep working on their current session and offer a one-time Reload Window prompt instead.
+- Fall back to the default Cline model when migrating a setup that references a model id the new extension doesn't recognize, instead of leaving the provider unconfigured.
+- Restore reliable checkpoints: checkpoints are created consistently, and restoring one now rewinds the whole workspace rather than a subset of files.
+- Keep settings edits that are made before the provider config finishes loading — base URLs, API keys, and the Qwen/Moonshot API line are no longer silently discarded.
+- Stop losing keystrokes in custom base URL fields, and keep the custom URL checkbox state after a failed clear.
+- Use the AskSage custom API URL at inference time instead of ignoring it.
+- Settle a pending tool approval when an edited message replaces the session, so the task no longer hangs waiting on a prompt that is gone.
+- Drop attachments from messages that have been edited.
+- Complete terminal commands when the shell execution ends, so tasks no longer stall on commands that already finished.
+- Include untracked files when generating commit messages.
+- Run Windows Store PowerShell profiles correctly.
+- Surface the upstream provider error when a gateway-forwarded stream fails, instead of a generic failure.
+- Retry empty Ollama responses at the model boundary, and raise the response-start timeout to 5 minutes so cold model loads no longer error out.
+- Show proper display names for Cline free models and recommended models in the model picker.
+- Preserve video input capability for models that support it.
+- Keep the plan/act input border in sync with the actual textarea focus.
+
+## [4.1.2]
+
+### Added
+
+- Show which extension variant is active — "Legacy" or "Next" — next to the version in the settings About page, in both bundles of the combined rollout package.
+
+## [4.1.1]
+
+### Changed
+
+- Remove vestigial MCP server-key machinery from McpHub — native MCP tool calls now route by server name instead of a random in-memory uid, so routing survives restarts and server list changes.
+
+## [4.1.0]
+
+### Changed
+
+- Convert the stable extension to a combined A/B package: one VSIX containing both the current (legacy) extension and the new SDK-based extension, plus a loader that activates exactly one per window via a staged remote rollout. For nearly all users nothing changes — the loader activates the same extension as 4.0.12; a small percentage (starting at 1%) is gradually opted into the SDK-based extension. If the new extension fails to activate, the loader falls back to the current one in the same window. Settings and credentials are shared between the two.
+
+## [4.0.12]
+
+### Added
+
+- Add support for free Cline models, shown as "(free)" in the model picker, with a dedicated error card that includes the reset time when the free limit is reached.
+
+### Fixed
+
+- Keep Claude Code responses that were already streamed when the CLI exits with a max-turns error, instead of discarding a valid response.
+
+## [4.0.11]
+
+### Added
+
+- Add Claude Opus 5 across the Anthropic, Claude Code, Bedrock, Vertex, Cline, and OpenRouter providers, including 1M context window variants.
+- Add Moonshot Kimi K3 support.
+- Include the host plugin version in telemetry events.
+
+### Fixed
+
+- Correct pricing for the Claude Opus 1M context variants, which overstated costs for requests above 200k tokens.
+- Enable native tool calling for Kimi K3 models, fixing empty responses.
+
+## [4.0.10]
+
+### Added
+
+- Add telemetry to track when Cline reaches the consecutive mistake limit.
+
+## [4.0.9]
+
+### Added
+
+- Add GPT-5.6 ChatGPT subscription models.
+
+### Changed
+
+- Soften and shorten the message shown when Cline hits the consecutive mistake limit.
+
+### Fixed
+
+- Handle cumulative usage snapshots from OpenAI-compatible providers so token counts are no longer over-reported.
+- Load skills from files saved as UTF-8 with a byte-order mark (BOM).
+
+## [4.0.8]
+
+### Added
+
+- Add more models to the GCP Vertex provider, plus a free-form entry option in the model dropdown for specifying custom Vertex models.
+
+## [4.0.7]
+
+### Added
+
+- Add a ClinePass limit-reached error with a one-click option to switch to Cline usage-based billing.
+- Allow selecting Cline free models on the ClinePass provider, organized into Subscribed and Free tabs with model descriptions.
+
+### Changed
+
+- Refine ClinePass onboarding and provider settings copy, and open the "learn more" link via the in-app URL handler.
+- Remove the Cline model picker recommendation copy.
+
+### Removed
+
+- Remove all references to GLM 5.1.
+
+## [4.0.6]
+
+### Fixed
+
+- Generalize the model capability warning so it applies more broadly.
+
+## [4.0.5]
+
+### Added
+
+- Add support for Claude Sonnet 5 across the Anthropic, Bedrock, Vertex, Claude Code, SAP AI Core, OpenRouter, and Vercel AI Gateway providers, including model picker and recommended-model updates.
+
+## [4.0.4]
+
+### Changed
+
+- Fully remove the ClinePass feature flag so ClinePass is available everywhere in the UI — onboarding, settings, the welcome promo banner, and the credit-limit "Switch to ClinePass" action.
+
+## [4.0.3]
+
+### Changed
+
+- Enable the ClinePass provider for all users by removing the feature-flag gate that previously fell back to the standard Cline provider.
+
+## [4.0.2]
+
+### Added
+
+- Add reasoning effort support (including `xhigh`) for DeepSeek thinking models.
+- Improve the ClinePass provider experience with clearer reasoning controls and model selection.
+
+### Fixed
+
+- Show reasoning effort controls for ClinePass models and align ClinePass model resolution with the rest of the provider.
+- Prefer canonical Cline Z.ai model ids and polish ClinePass and Z.ai model metadata.
+- Fix environment variable replacement in the webview.
+- Default focus chain settings in webview state so the toggle reflects the correct value on load.
+
+## [4.0.1]
+
+### Changed
+
+- Roll the stable VS Code extension back to the pre-SDK-migration codebase to resolve regressions reported in 4.0.0. This release ships the 3.89.2 extension code under a higher version number so existing 4.0.0 users receive the update. SDK-migration work continues separately on `main`.
+
+## [4.0.0]
+
+### Added
+
+- Add the SDK-backed VS Code extension runtime. Cline now runs tasks through the shared Cline SDK session layer for agent turns, tools, Plan/Act mode coordination, MCP, checkpoints, telemetry, provider changes, compaction, mistake limits, and task history.
+- Add ClinePass to the VS Code extension, including onboarding, provider selection, signup and subscription handoff, live model lists, entitlement and organization error states, out-of-credit prompts, and clearer ClinePass auth/error handling.
+- Add the Customize marketplace for discovering and managing Skills, MCP servers, and Plugins from the extension, including installed/marketplace tabs, search and filtering, install/uninstall flows, enable/disable controls, and support for plugin-bundled skills.
+- Cline Plugins: Plugins let you extend Cline with custom tools, workflows, skills, and MCP-powered capabilities tailored to your team or project. Install them from the new Customize marketplace to add specialized behavior, connect external services, and package reusable automations—so Cline can do more than code: it can adapt to the way you work.
+- Add queued prompts in chat. Messages submitted while Cline is already working are now queued, shown while the current turn streams, and can be cancelled before they run.
+- Add edit-and-regenerate support for previous user messages, with clearer Reset Chat and Reset Code actions.
+- Add generic SDK provider settings and model-catalog support so more providers can share the same model picker, reasoning controls, dynamic model IDs, provider config persistence, and custom model handling.
+- Add additional SDK-backed provider exposure and model/provider updates, including ClinePass models, refreshed Cline catalog data, Fireworks GLM 5.2, Kimi K2.6 Fast, Kimi K2.7 Code, Qwen 3.7 Plus, MiniMax M3 updates, SAP AI Core wiring, LiteLLM model fetching, Codex OAuth credentials, and OpenAI-compatible model settings.
+- Add MCP support for plugins and shared marketplace install/uninstall plumbing used by the VS Code extension.
+
+### Changed
+
+- Migrate the VS Code extension from the legacy task implementation to the shared Cline SDK and move the extension build/package workflow to Bun.
+- Rework Plan/Act mode handling through SDK coordinators, including closer CLI parity and automatic continuation when switching from Plan to Act.
+- Rework provider and model configuration around `providers.json`, the model catalog, and SDK session config so settings are preserved consistently across provider switches and active sessions can restart when the selected provider changes.
+- Simplify provider settings UI by replacing many provider-specific views with shared generic settings components and consistent reasoning selectors.
+- Simplify terminal execution through the SDK run-commands path, including clearer non-interactive command guidance and safer structured command formatting.
+- Migrate legacy MCP files and formats into the shared settings file and protect MCP settings writes with safer locking/atomic updates.
+- Refresh the MCP hub automatically after marketplace installs so newly installed servers are available without a manual restart.
+- Reorganize MCP/Skills/Plugins entry points under Customize, hide workflows from the Customize menu, wrap Customize tabs on narrow screens, and allow the MCP Marketplace tab to be disabled remotely while installed MCP servers remain accessible.
+- Simplify auto-approval settings. Command auto-approval is now disabled by default for safer new and reset configurations, and the auto-approval UI has been streamlined.
+- Update task history handling for the SDK migration, including legacy task history visibility, metadata preservation on resume, and corrected deletion behavior.
+- Route compacting and mistake-limit behavior through the SDK so the Compact button and mistake tracking affect the active SDK session.
+- Remove the legacy Explain Changes feature as part of the SDK migration cleanup.
+- Temporarily disable subagents in the VS Code extension while the SDK-backed experience is stabilized.
+
+### Fixed
+
+- Fix marketplace edge cases, including refreshing MCP servers after marketplace installs, disabling the MCP Marketplace tab from remote config, hiding workflows from Customize, surfacing plugin-bundled skills, and uninstalling shared marketplace entries.
+- Fix chat submission during active turns by queuing user messages instead of dropping or racing them, showing pending/queued states promptly, rendering direct user messages immediately, and removing delayed send behavior.
+- Fix editing previous user messages so Escape cancels editing locally and reset action labels are clearer.
+- Fix terminal reliability, including standalone Windows output capture, hardened PowerShell command handling, running-state display for in-progress commands, raw structured command preservation, single-quote handling, cwd setup timeouts, failing-command stdout capture, heredoc coalescing, and removal of duplicated command echoes in tool results.
+- Fix SDK tool-result and provider-message budgeting by truncating large tool outputs by default, capping assistant text, limiting bash/file-read/search output ingestion, bounding media budgets, batching outdated-read rewrites to preserve provider prefix caches, and normalizing JSON-like tool inputs by schema.
+- Fix login and feature-flag resolution by using the correct user/account identity on startup and simplifying the login UX.
+
 ## [3.89.2]
 
 ### Fixed

@@ -1,5 +1,5 @@
 import "opentui-spinner/react";
-import type { AgentMode } from "@cline/core";
+import type { AgentMode, ClineSubscriptionPlan } from "@cline/core";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import {
 	forwardRef,
@@ -9,8 +9,8 @@ import {
 	useRef,
 } from "react";
 import type { TranscriptCommand } from "../hooks/transcript-keybinds";
-import { useTerminalTheme } from "../hooks/use-terminal-background";
-import { getModeAccent } from "../palette";
+import { useTheme } from "../hooks/use-theme";
+import { getThemeModeAccent } from "../themes";
 import type { ChatEntry } from "../types";
 import { ChatEntryView } from "./chat-entry";
 
@@ -21,6 +21,7 @@ export interface TranscriptScrollHandle {
 interface ChatMessageListProps {
 	entries: ChatEntry[];
 	isStreaming?: boolean;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	uiMode?: AgentMode;
 }
 
@@ -30,8 +31,8 @@ export const ChatMessageList = forwardRef<
 >(function ChatMessageList(props, ref) {
 	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null);
 	const lastEntry = props.entries.at(-1);
-	const terminalTheme = useTerminalTheme();
-	const accent = getModeAccent(props.uiMode ?? "act", terminalTheme);
+	const theme = useTheme();
+	const accent = getThemeModeAccent(theme, props.uiMode ?? "act");
 	const userSubmissionScrollKey =
 		lastEntry?.kind === "user_submitted" ? props.entries.length : 0;
 
@@ -95,12 +96,19 @@ export const ChatMessageList = forwardRef<
 			<box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
 				{props.entries.map((entry, i) => {
 					const key = `${i}:${entry.kind}`;
+					// Single source of truth for the entry's mode: the glyph accent
+					// and the markdown accent must never diverge.
+					const entryMode = entry.mode ?? props.uiMode ?? "act";
 					return (
 						<ChatEntryView
 							key={key}
 							entry={entry}
-							accent={accent}
-							terminalTheme={terminalTheme}
+							accent={getThemeModeAccent(theme, entryMode)}
+							mode={entryMode === "plan" ? "plan" : "act"}
+							loadIndividualSubscriptionPlans={
+								props.loadIndividualSubscriptionPlans
+							}
+							theme={theme}
 						/>
 					);
 				})}

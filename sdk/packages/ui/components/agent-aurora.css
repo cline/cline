@@ -1,0 +1,228 @@
+.cline-ui-agent-aurora {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.cline-ui-agent-aurora__horizon,
+.cline-ui-agent-aurora__current,
+.cline-ui-agent-aurora__blob,
+.cline-ui-agent-aurora__star {
+	position: absolute;
+}
+
+/* Avoid filter: blur; it forced full-surface repaints below 10fps. */
+.cline-ui-agent-aurora__soft-band {
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 32%,
+		black 68%,
+		transparent
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 32%,
+		black 68%,
+		transparent
+	);
+}
+
+.cline-ui-agent-aurora__horizon {
+	right: -8%;
+	bottom: -3%;
+	left: -8%;
+	height: 40%;
+	background: linear-gradient(
+		90deg,
+		color-mix(in oklab, var(--brand-lilac) 58%, transparent),
+		color-mix(in oklab, var(--brand-magenta) 62%, transparent) 42%,
+		color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 78%,
+		color-mix(in oklab, var(--brand-cyan) 58%, transparent)
+	);
+	opacity: 0.6;
+	animation: cline-ui-agent-aurora-horizon 8s ease-in-out -3s infinite alternate;
+	transform-origin: center bottom;
+	will-change: opacity, transform;
+}
+
+.cline-ui-agent-aurora__current {
+	animation-name: cline-ui-agent-aurora-current;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+	will-change: opacity, transform;
+}
+
+.cline-ui-agent-aurora__current--left {
+	bottom: 3%;
+	left: -45%;
+	width: 125%;
+	height: 30%;
+	background: linear-gradient(
+		105deg,
+		transparent 12%,
+		color-mix(in oklab, var(--brand-magenta) 66%, transparent) 38%,
+		color-mix(in oklab, var(--brand-periwinkle) 72%, transparent) 58%,
+		transparent 82%
+	);
+	opacity: 0.5;
+	animation-duration: 9s;
+	animation-delay: -2s;
+}
+
+.cline-ui-agent-aurora__current--right {
+	right: -42%;
+	bottom: -5%;
+	width: 120%;
+	height: 34%;
+	background: linear-gradient(
+		75deg,
+		transparent 10%,
+		color-mix(in oklab, var(--brand-cyan) 62%, transparent) 42%,
+		color-mix(in oklab, var(--brand-violet) 70%, transparent) 64%,
+		transparent 88%
+	);
+	opacity: 0.45;
+	animation-duration: 12s;
+	animation-delay: -6s;
+	animation-direction: alternate-reverse;
+}
+
+.cline-ui-agent-aurora__blob {
+	animation-name: cline-ui-agent-aurora-drift;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+	will-change: opacity, transform;
+}
+
+.cline-ui-agent-aurora__blob--left {
+	bottom: -40%;
+	left: -20%;
+	width: 70%;
+	height: 80%;
+}
+
+.cline-ui-agent-aurora__blob--right {
+	right: -15%;
+	bottom: -40%;
+	width: 65%;
+	height: 85%;
+	animation-name: cline-ui-agent-aurora-drift-reverse;
+}
+
+.cline-ui-agent-aurora__star {
+	border-radius: 1px;
+	animation-name: cline-ui-agent-aurora-twinkle;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-agent-aurora__blob,
+	.cline-ui-agent-aurora__current,
+	.cline-ui-agent-aurora__horizon,
+	.cline-ui-agent-aurora__star {
+		/* biome-ignore lint/complexity/noImportantStyles: overrides inline timing */
+		animation: none !important;
+	}
+
+	.cline-ui-agent-aurora__horizon {
+		opacity: 0.68;
+		transform: translate3d(0, -1%, 0) scale(1.05);
+	}
+
+	.cline-ui-agent-aurora__blob,
+	.cline-ui-agent-aurora__current {
+		opacity: 0.58;
+		transform: none;
+	}
+
+	.cline-ui-agent-aurora__blob,
+	.cline-ui-agent-aurora__current,
+	.cline-ui-agent-aurora__horizon {
+		will-change: auto;
+	}
+}
+
+@keyframes cline-ui-agent-aurora-drift {
+	0% {
+		opacity: 0.55;
+		transform: translate3d(-8%, 5%, 0) scale(0.94);
+	}
+
+	50% {
+		opacity: 0.92;
+		transform: translate3d(13%, -10%, 0) scale(1.11);
+	}
+
+	100% {
+		opacity: 0.62;
+		transform: translate3d(-5%, -2%, 0) scale(1.02);
+	}
+}
+
+@keyframes cline-ui-agent-aurora-drift-reverse {
+	0% {
+		opacity: 0.62;
+		transform: translate3d(10%, -6%, 0) scale(1.08);
+	}
+
+	50% {
+		opacity: 0.9;
+		transform: translate3d(-12%, -12%, 0) scale(0.96);
+	}
+
+	100% {
+		opacity: 0.58;
+		transform: translate3d(6%, 2%, 0) scale(1.04);
+	}
+}
+
+@keyframes cline-ui-agent-aurora-horizon {
+	0% {
+		opacity: 0.48;
+		transform: translate3d(-3%, 9%, 0) scale(0.96, 0.84);
+	}
+
+	50% {
+		opacity: 0.88;
+		transform: translate3d(3%, -5%, 0) scale(1.08, 1.16);
+	}
+
+	100% {
+		opacity: 0.58;
+		transform: translate3d(-1%, 2%, 0) scale(1.02, 0.96);
+	}
+}
+
+@keyframes cline-ui-agent-aurora-current {
+	0% {
+		opacity: 0.28;
+		transform: translate3d(-16%, 8%, 0) scaleX(0.84);
+	}
+
+	50% {
+		opacity: 0.72;
+		transform: translate3d(17%, -8%, 0) scaleX(1.08);
+	}
+
+	100% {
+		opacity: 0.38;
+		transform: translate3d(28%, 4%, 0) scaleX(0.94);
+	}
+}
+
+@keyframes cline-ui-agent-aurora-twinkle {
+	0%,
+	100% {
+		opacity: 0.15;
+	}
+
+	50% {
+		opacity: 0.78;
+	}
+}

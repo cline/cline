@@ -1,3 +1,4 @@
+import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
 	AgentEvent,
 	AgentFinishReason,
@@ -23,6 +24,7 @@ import {
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isHubToolExecutorName,
 } from "@cline/shared";
+import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -35,12 +37,18 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	parseSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
@@ -115,6 +123,69 @@ function serializeSettingsInput(
 	const { userInstructionService: _userInstructionService, ...serializable } =
 		input;
 	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
+}
+
+function buildCommandSessionConfig(
+	input: StartSessionInput,
+	sessionId: string,
+): Record<string, unknown> {
+	const sessionConfig: Record<string, unknown> = {
+		...(input.config as Record<string, unknown>),
+		sessionId,
+	};
+	const headers = resolveProviderRequestHeaders({
+		providerId: input.config.providerId,
+		sessionId,
+		source: input.source,
+		defaultSource: SessionSource.CORE,
+		client: {
+			name: input.localRuntime?.extensionContext?.client?.name,
+			version: input.localRuntime?.extensionContext?.client?.version,
+			versionHeaderFallback: input.config.headers?.["X-CLIENT-VERSION"],
+			platform: input.localRuntime?.extensionContext?.client?.platform,
+			platformVersion:
+				input.localRuntime?.extensionContext?.client?.platformVersion,
+			isMultiRoot: input.localRuntime?.extensionContext?.client?.isMultiRoot,
+		},
+		coreVersion: corePackageVersion,
+		openAiCodex: {
+			accessToken: input.config.apiKey,
+			userAgentVersion: process.env.npm_package_version,
+		},
+		headers: {
+			config: input.config.headers,
+		},
+	});
+	if (headers) {
+		sessionConfig.headers = headers;
+	}
+	return sessionConfig;
+}
+
+function buildSessionHistoryMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return withSessionHistoryOriginMetadata(input.sessionMetadata, {
+		mode: input.mode,
+		version: input.localRuntime?.extensionContext?.client?.version,
+	});
+}
+
+function buildCommandSessionMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return {
+		...buildSessionHistoryMetadata(input),
+		source: input.source ?? SessionSource.CORE,
+		provider: input.config.providerId,
+		model: input.config.modelId,
+		enableTools: input.config.enableTools,
+		enableSpawn: input.config.enableSpawnAgent,
+		enableTeams: input.config.enableAgentTeams,
+		teamName: input.config.teamName,
+		prompt: input.prompt,
+		interactive: input.interactive === true,
+	};
 }
 
 function parseToolContext(value: unknown): AgentToolContext {
@@ -624,8 +695,12 @@ function buildManifest(
 ): SessionManifest {
 	const workspaceRoot =
 		session?.workspaceRoot?.trim() ||
-		input.config.workspaceRoot ||
-		input.config.cwd;
+		input.config.workspaceRoot?.trim() ||
+		input.config.cwd?.trim();
+	if (!workspaceRoot) {
+		throw new Error("Hub runtime did not return a resolved workspace path.");
+	}
+	const cwd = session?.cwd?.trim() || input.config.cwd?.trim() || workspaceRoot;
 	return SessionManifestSchema.parse({
 		version: 1,
 		session_id: sessionId,
@@ -636,17 +711,14 @@ function buildManifest(
 		interactive: input.interactive === true,
 		provider: input.config.providerId,
 		model: input.config.modelId,
-		cwd: session?.cwd?.trim() || input.config.cwd,
+		cwd,
 		workspace_root: workspaceRoot,
 		team_name: input.config.teamName,
 		enable_tools: input.config.enableTools,
 		enable_spawn: input.config.enableSpawnAgent,
 		enable_teams: input.config.enableAgentTeams,
 		prompt: input.prompt?.trim() || undefined,
-		metadata:
-			input.sessionMetadata && Object.keys(input.sessionMetadata).length > 0
-				? input.sessionMetadata
-				: undefined,
+		metadata: buildSessionHistoryMetadata(input),
 	});
 }
 
@@ -793,22 +865,10 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.client.command("session.create", {
 				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
 				cwd: input.config.cwd,
-				sessionConfig: toJsonRecord({
-					...(input.config as Record<string, unknown>),
-					sessionId: plannedSessionId,
-				}),
-				metadata: {
-					...(input.sessionMetadata ?? {}),
-					source: input.source ?? SessionSource.CORE,
-					provider: input.config.providerId,
-					model: input.config.modelId,
-					enableTools: input.config.enableTools,
-					enableSpawn: input.config.enableSpawnAgent,
-					enableTeams: input.config.enableAgentTeams,
-					teamName: input.config.teamName,
-					prompt: input.prompt,
-					interactive: input.interactive === true,
-				},
+				sessionConfig: toJsonRecord(
+					buildCommandSessionConfig(input, plannedSessionId),
+				),
+				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
@@ -821,6 +881,9 @@ export class HubRuntimeHost implements RuntimeHost {
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
 				initialMessages: input.initialMessages,
+				...(input.initialCompactionState
+					? { initialCompactionState: input.initialCompactionState }
+					: {}),
 			});
 		this.registerPlannedSession(
 			plannedSessionId,
@@ -855,6 +918,15 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.cleanupPlannedSession(plannedSessionId);
 			throw new Error("Hub runtime did not return a session id.");
 		}
+		let manifest: SessionManifest;
+		try {
+			manifest = snapshot
+				? buildManifestFromSnapshot(snapshot, input)
+				: buildManifest(sessionId, input, session);
+		} catch (error) {
+			this.cleanupPlannedSession(plannedSessionId);
+			throw error;
+		}
 		if (sessionId !== plannedSessionId) {
 			this.cleanupPlannedSession(plannedSessionId);
 			this.registerPlannedSession(
@@ -866,9 +938,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 		return {
 			sessionId,
-			manifest: snapshot
-				? buildManifestFromSnapshot(snapshot, input)
-				: buildManifest(sessionId, input, session),
+			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
@@ -899,9 +969,16 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
-		const plannedSessionId = startConfig
-			? startConfig.config.sessionId?.trim() || createSessionId()
-			: undefined;
+		let plannedSessionId: string | undefined;
+		let startSessionConfig: Record<string, unknown> | undefined;
+		if (startConfig) {
+			plannedSessionId =
+				startConfig.config.sessionId?.trim() || createSessionId();
+			startSessionConfig = buildCommandSessionConfig(
+				startConfig,
+				plannedSessionId,
+			);
+		}
 		if (plannedSessionId && capabilities) {
 			this.sessionCapabilities.set(plannedSessionId, capabilities);
 		}
@@ -926,22 +1003,8 @@ export class HubRuntimeHost implements RuntimeHost {
 									startConfig.config.workspaceRoot?.trim() ||
 									startConfig.config.cwd,
 								cwd: startConfig.config.cwd ?? input.cwd,
-								sessionConfig: toJsonRecord({
-									...(startConfig.config as Record<string, unknown>),
-									sessionId: plannedSessionId,
-								}),
-								metadata: {
-									...(startConfig.sessionMetadata ?? {}),
-									source: startConfig.source ?? SessionSource.CORE,
-									provider: startConfig.config.providerId,
-									model: startConfig.config.modelId,
-									enableTools: startConfig.config.enableTools,
-									enableSpawn: startConfig.config.enableSpawnAgent,
-									enableTeams: startConfig.config.enableAgentTeams,
-									teamName: startConfig.config.teamName,
-									prompt: startConfig.prompt,
-									interactive: startConfig.interactive === true,
-								},
+								sessionConfig: toJsonRecord(startSessionConfig),
+								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }
@@ -958,6 +1021,12 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.initialCompactionState
+									? {
+											initialCompactionState:
+												startConfig.initialCompactionState,
+										}
+									: {}),
 							}
 						: {}),
 				},
@@ -1018,31 +1087,45 @@ export class HubRuntimeHost implements RuntimeHost {
 			| RestoreSessionResult["checkpoint"]
 			| undefined;
 		if (!checkpoint) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
 			throw new Error("Hub checkpoint restore returned no checkpoint");
 		}
-		return {
-			sessionId: newSessionId,
-			startResult: newSessionId
-				? {
-						sessionId: newSessionId,
-						manifest: snapshot
-							? buildManifestFromSnapshot(
-									snapshot,
-									startConfig ?? ({} as StartSessionInput),
-								)
-							: buildManifest(
-									newSessionId,
-									startConfig ?? ({} as StartSessionInput),
-									session,
-								),
-						manifestPath: "",
-						messagesPath: "",
-						result: undefined,
-					}
-				: undefined,
-			messages,
-			checkpoint,
-		};
+		try {
+			return {
+				sessionId: newSessionId,
+				startResult: newSessionId
+					? {
+							sessionId: newSessionId,
+							manifest: snapshot
+								? buildManifestFromSnapshot(
+										snapshot,
+										startConfig ?? ({} as StartSessionInput),
+									)
+								: buildManifest(
+										newSessionId,
+										startConfig ?? ({} as StartSessionInput),
+										session,
+									),
+							manifestPath: "",
+							messagesPath: "",
+							result: undefined,
+						}
+					: undefined,
+				messages,
+				checkpoint,
+			};
+		} catch (error) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
+			throw error;
+		}
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
@@ -1277,6 +1360,75 @@ export class HubRuntimeHost implements RuntimeHost {
 		return { updated: reply.ok };
 	}
 
+	async updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void> {
+		const target = sessionId.trim();
+		if (!target) {
+			return;
+		}
+		const reply = await this.client.command(
+			"session.update_connection",
+			{
+				sessionId: target,
+				updates,
+			},
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.update_connection"));
+		}
+	}
+
+	async updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }> {
+		const target = sessionId.trim();
+		if (!target) return { updated: false };
+		const reply = await this.client.command(
+			"session.compaction.update",
+			{ sessionId: target, state },
+			target,
+		);
+		if (!reply.ok) {
+			captureSdkError(this.telemetry, {
+				component: "core",
+				operation: "hub.runtime_host.update_session_compaction_state",
+				error: new Error(
+					hubReplyErrorMessage(reply, "session.compaction.update"),
+				),
+				severity: "warn",
+				handled: true,
+				context: {
+					command: "session.compaction.update",
+					sessionId: target,
+					errorCode: reply.error?.code,
+				},
+			});
+		}
+		return {
+			updated: reply.ok && reply.payload?.updated === true,
+		};
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const reply = await this.client.command(
+			"session.compaction.get",
+			{ sessionId: target },
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.compaction.get"));
+		}
+		return parseSessionCompactionState(reply.payload?.state);
+	}
+
 	async readSessionMessages(
 		sessionId: string,
 	): Promise<import("@cline/llms").Message[]> {
@@ -1486,6 +1638,62 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "session.notice": {
+				const noticeType = event.payload?.noticeType;
+				const displayRole = event.payload?.displayRole;
+				const reason = event.payload?.reason;
+				const agent =
+					event.payload?.agent && typeof event.payload.agent === "object"
+						? (event.payload.agent as Record<string, unknown>)
+						: undefined;
+				const teamRole =
+					agent?.teamRole === "lead" || agent?.teamRole === "teammate"
+						? agent.teamRole
+						: undefined;
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						...(teamRole ? { teamRole } : {}),
+						...(typeof agent?.teamAgentId === "string"
+							? { teamAgentId: agent.teamAgentId }
+							: {}),
+						event: {
+							type: "notice",
+							...(typeof agent?.agentId === "string"
+								? { agentId: agent.agentId }
+								: {}),
+							...(typeof agent?.conversationId === "string"
+								? { conversationId: agent.conversationId }
+								: {}),
+							...(typeof agent?.parentAgentId === "string"
+								? { parentAgentId: agent.parentAgentId }
+								: {}),
+							noticeType:
+								noticeType === "recovery" || noticeType === "stop"
+									? noticeType
+									: "status",
+							message:
+								typeof event.payload?.message === "string"
+									? event.payload.message
+									: "",
+							...(displayRole === "system" || displayRole === "status"
+								? { displayRole }
+								: {}),
+							...(typeof reason === "string"
+								? { reason: reason as never }
+								: {}),
+							...(event.payload?.metadata &&
+							typeof event.payload.metadata === "object"
+								? {
+										metadata: event.payload.metadata as Record<string, unknown>,
+									}
+								: {}),
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.delta": {
 				const text =
 					typeof event.payload?.text === "string" ? event.payload.text : "";
@@ -1677,6 +1885,8 @@ export class HubRuntimeHost implements RuntimeHost {
 						prompt: prompt.prompt,
 						delivery: prompt.delivery,
 						attachmentCount: prompt.attachmentCount,
+						userImages: prompt.userImages,
+						userFiles: prompt.userFiles,
 					},
 				});
 				return;

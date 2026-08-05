@@ -1,5 +1,7 @@
 import "opentui-spinner/react";
+import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
@@ -8,7 +10,6 @@ import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
 } from "../../components/model-selector/cline-model-picker";
-import type { KnownModels } from "../../components/model-selector/model-display-name";
 import {
 	type SearchableItem,
 	SearchableList,
@@ -18,16 +19,41 @@ import {
 	TrackedRobot,
 	type useMouseTracker,
 } from "../../components/tracked-robot";
-import { useTerminalBackground } from "../../hooks/use-terminal-background";
-import { getDefaultForeground, palette } from "../../palette";
+import { useTheme } from "../../hooks/use-theme";
+import { getInputRuleColor, getUserMessageBackground } from "../../palette";
 import { FIELD_ORDER } from "./fields";
-import { type MenuOption, THINKING_LEVELS } from "./model";
+import {
+	type ClinePassSubscriptionOption,
+	type ClinePassSubscriptionStatus,
+	type MenuOption,
+	THINKING_LEVELS,
+} from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
 
 function useDefaultFg(): string | undefined {
-	const terminalBg = useTerminalBackground();
-	return getDefaultForeground(terminalBg);
+	return useTheme().defaultForeground;
+}
+
+/**
+ * Theme-derived colors for the onboarding surface. The subtle border/detail
+ * tones used to be fixed dark grays (#333333 / #555555), which disappear on
+ * light or tinted theme backgrounds; they now lift from the theme background.
+ */
+function useOnboardingColors() {
+	const theme = useTheme();
+	return {
+		accent: theme.accents.act,
+		success: theme.accents.success,
+		selection: theme.selection,
+		textOnSelection: theme.textOnSelection,
+		subtleBorder: getUserMessageBackground(theme.background),
+		mutedDetail: getInputRuleColor(theme.background),
+	};
+}
+
+function getClinePassSubscriptionOptionId(index: number): string {
+	return `cline-pass-subscription-option-${index}`;
 }
 
 interface OnboardingFrameProps {
@@ -68,6 +94,7 @@ function OnboardingFrame({
 }
 
 export function OnboardingDoneScreen(props: { mouse: MouseTrackerState }) {
+	const colors = useOnboardingColors();
 	return (
 		<box
 			flexDirection="column"
@@ -77,7 +104,7 @@ export function OnboardingDoneScreen(props: { mouse: MouseTrackerState }) {
 			alignItems="center"
 			onMouseMove={props.mouse.onMouseMove}
 		>
-			<text fg={palette.success}>{"\u2714"} You're all set!</text>
+			<text fg={colors.success}>{"\u2714"} You're all set!</text>
 		</box>
 	);
 }
@@ -93,6 +120,7 @@ export function OnboardingOAuthPendingScreen(props: {
 	oauthProvider: string;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -104,7 +132,7 @@ export function OnboardingOAuthPendingScreen(props: {
 
 				{!props.authError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={palette.act} />
+						<spinner name="dots" color={colors.accent} />
 						<text fg="gray">{props.authStatus}</text>
 					</box>
 				)}
@@ -121,13 +149,13 @@ export function OnboardingOAuthPendingScreen(props: {
 						flexDirection="column"
 						border
 						borderStyle="rounded"
-						borderColor="#333333"
+						borderColor={colors.subtleBorder}
 						paddingX={2}
 						paddingY={1}
 						width={props.contentWidth}
 					>
 						<text fg="gray">If the browser didn't open:</text>
-						<text fg={palette.act} marginTop={1} selectable>
+						<text fg={colors.accent} marginTop={1} selectable>
 							<a href={props.authUrl}>{props.authUrl}</a>
 						</text>
 					</box>
@@ -152,6 +180,7 @@ export function OnboardingDeviceCodeScreen(props: {
 	mouse: MouseTrackerState;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -163,7 +192,7 @@ export function OnboardingDeviceCodeScreen(props: {
 
 				{!props.deviceUserCode && !props.deviceError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={palette.act} />
+						<spinner name="dots" color={colors.accent} />
 						<text fg="gray">{props.deviceStatus}</text>
 					</box>
 				)}
@@ -180,7 +209,7 @@ export function OnboardingDeviceCodeScreen(props: {
 						flexDirection="column"
 						border
 						borderStyle="rounded"
-						borderColor={palette.act}
+						borderColor={colors.accent}
 						paddingX={2}
 						paddingY={1}
 						width={props.contentWidth}
@@ -194,7 +223,7 @@ export function OnboardingDeviceCodeScreen(props: {
 						<text fg="gray" marginTop={1}>
 							Visit this URL and enter the code above:
 						</text>
-						<text fg={palette.act} selectable>
+						<text fg={colors.accent} selectable>
 							<a href={props.deviceVerifyUrl}>{props.deviceVerifyUrl}</a>
 						</text>
 					</box>
@@ -202,7 +231,7 @@ export function OnboardingDeviceCodeScreen(props: {
 
 				{props.deviceUserCode && !props.deviceError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={palette.act} />
+						<spinner name="dots" color={colors.accent} />
 						<text fg="gray">Waiting for sign-in...</text>
 					</box>
 				)}
@@ -263,6 +292,7 @@ export function OnboardingProviderConfigScreen(props: {
 	onSubmit: () => void;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	const visibleFields = FIELD_ORDER.filter(
 		(key) => props.fields[key] !== undefined,
 	);
@@ -301,7 +331,7 @@ export function OnboardingProviderConfigScreen(props: {
 							<box
 								border
 								borderStyle="rounded"
-								borderColor={isFocused ? palette.act : "gray"}
+								borderColor={isFocused ? colors.accent : "gray"}
 								paddingX={1}
 							>
 								<input
@@ -341,6 +371,7 @@ export function OnboardingCodexCliScreen(props: {
 	status?: CodexCliStatus;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	const installedStatus =
 		props.status?.installed === true ? props.status : undefined;
 	return (
@@ -361,7 +392,7 @@ export function OnboardingCodexCliScreen(props: {
 
 				{installedStatus && (
 					<box flexDirection="column" gap={1} alignItems="center">
-						<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+						<text fg={colors.success}>{"\u25cf"} Codex CLI installed</text>
 						<text fg="gray">{installedStatus.version}</text>
 					</box>
 				)}
@@ -371,7 +402,7 @@ export function OnboardingCodexCliScreen(props: {
 						<text fg="yellow">Codex CLI was not found</text>
 						<text fg="gray">{props.status.reason}</text>
 						<text fg="gray">Install Codex CLI from:</text>
-						<text fg="cyan" selectable>
+						<text fg={colors.accent} selectable>
 							{CODEX_CLI_INSTALL_URL}
 						</text>
 					</box>
@@ -434,7 +465,6 @@ export function OnboardingProviderPickerScreen(props: {
 
 export function OnboardingClineModelScreen(props: {
 	clineEntries: ClineModelPickerEntry[];
-	clineKnownModels: KnownModels | undefined;
 	clineModelSelected: number;
 	compact: boolean;
 	contentWidth: number;
@@ -459,8 +489,199 @@ export function OnboardingClineModelScreen(props: {
 				entries={props.clineEntries}
 				selected={props.clineModelSelected}
 				loading={props.recommendedLoading}
-				knownModels={props.clineKnownModels}
 			/>
+
+			<text fg="gray" paddingX={1}>
+				<em>↑/↓ navigate, Enter to select, Esc to go back, Ctrl+C to exit</em>
+			</text>
+		</OnboardingFrame>
+	);
+}
+
+export function OnboardingClinePassSubscriptionScreen(props: {
+	compact: boolean;
+	contentWidth: number;
+	currentPlanName: string;
+	error: string;
+	mouse: MouseTrackerState;
+	openStatus: string;
+	options: ClinePassSubscriptionOption[];
+	planFeatures: string[];
+	selected: number;
+	status: ClinePassSubscriptionStatus;
+	subscriptionUrl: string;
+}) {
+	const defaultFg = useDefaultFg();
+	const planAccent = useTheme().accents.plan;
+	const colors = useOnboardingColors();
+	const scrollRef = useRef<ScrollBoxRenderable | null>(null);
+	const isLoading = props.status === "loading";
+	const isSubscribed = props.status === "subscribed";
+	const isError = props.status === "error";
+	const bodyHeight = props.compact ? 17 : 19;
+
+	useEffect(() => {
+		if (isSubscribed) {
+			return;
+		}
+		const scrollSelectedOptionIntoView = () => {
+			scrollRef.current?.scrollChildIntoView(
+				getClinePassSubscriptionOptionId(props.selected),
+			);
+		};
+		scrollSelectedOptionIntoView();
+		queueMicrotask(scrollSelectedOptionIntoView);
+		const timeout = setTimeout(scrollSelectedOptionIntoView, 0);
+		return () => clearTimeout(timeout);
+	}, [isSubscribed, props.selected]);
+
+	return (
+		<OnboardingFrame
+			compact={props.compact}
+			contentWidth={props.contentWidth}
+			mouse={props.mouse}
+		>
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor={isSubscribed ? colors.success : planAccent}
+				paddingX={1}
+				paddingY={1}
+				height={bodyHeight}
+				overflow="hidden"
+			>
+				<scrollbox
+					ref={scrollRef}
+					width="100%"
+					height="100%"
+					scrollY
+					scrollX={false}
+					viewportOptions={{ overflow: "hidden" }}
+					contentOptions={{ flexDirection: "column" }}
+				>
+					<box flexDirection="column" width="100%" flexShrink={0}>
+						<text
+							fg={isSubscribed ? colors.success : planAccent}
+							flexShrink={0}
+						>
+							{isSubscribed
+								? "ClinePass subscription active"
+								: "ClinePass subscription required"}
+						</text>
+
+						{isLoading ? (
+							<box flexDirection="row" gap={1} flexShrink={0}>
+								<spinner name="dots" color="gray" />
+								<text fg="gray">Checking your ClinePass subscription...</text>
+							</box>
+						) : isSubscribed ? (
+							<text fg={defaultFg} selectable flexShrink={0}>
+								Current plan: {props.currentPlanName || "ClinePass"}
+							</text>
+						) : isError ? (
+							<text
+								fg={defaultFg}
+								selectable
+								flexShrink={0}
+								content="Could not verify your ClinePass subscription. Re-check before choosing a ClinePass model."
+							/>
+						) : (
+							<text
+								fg={defaultFg}
+								selectable
+								flexShrink={0}
+								content="No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan."
+							/>
+						)}
+
+						{props.status === "error" &&
+							props.error &&
+							props.error !== "no plan found for user" && (
+								<text fg="red" selectable flexShrink={0}>
+									{props.error}
+								</text>
+							)}
+
+						{!isSubscribed && props.planFeatures.length > 0 && (
+							<box flexDirection="column" marginTop={1} flexShrink={0}>
+								{props.planFeatures.map((feature) => {
+									if (
+										feature === "Low cost subscription pricing" ||
+										feature === "Generous limits and reliable access" ||
+										feature === "Built for as many programmers as possible"
+									) {
+										return null;
+									}
+
+									return (
+										<text
+											key={feature}
+											fg={defaultFg}
+											selectable
+											flexShrink={0}
+										>
+											<span fg="green">✓ </span>
+											<span>{feature}</span>
+										</text>
+									);
+								})}
+							</box>
+						)}
+
+						{!isSubscribed && (
+							<box flexDirection="column" marginTop={1} flexShrink={0}>
+								{props.options.map((option, i) => {
+									const isSel = i === props.selected;
+									return (
+										<box
+											id={getClinePassSubscriptionOptionId(i)}
+											key={option.value}
+											paddingX={1}
+											flexDirection="row"
+											gap={1}
+											backgroundColor={isSel ? colors.selection : undefined}
+											height={1}
+											flexShrink={0}
+											overflow="hidden"
+										>
+											<text
+												fg={isSel ? colors.textOnSelection : "gray"}
+												flexShrink={0}
+											>
+												{isSel ? "\u276f" : " "}
+											</text>
+											<text
+												fg={isSel ? colors.textOnSelection : defaultFg}
+												flexShrink={0}
+											>
+												{option.label}
+											</text>
+										</box>
+									);
+								})}
+							</box>
+						)}
+
+						{props.openStatus && (
+							<text fg="gray" selectable flexShrink={0}>
+								{props.openStatus}
+							</text>
+						)}
+
+						{!isSubscribed && (
+							<box flexDirection="column" marginTop={1} flexShrink={0}>
+								<text fg="gray" flexShrink={0}>
+									If the browser button does not work:
+								</text>
+								<text fg={colors.accent} selectable flexShrink={0}>
+									<a href={props.subscriptionUrl}>{props.subscriptionUrl}</a>
+								</text>
+							</box>
+						)}
+					</box>
+				</scrollbox>
+			</box>
 
 			<text fg="gray" paddingX={1}>
 				<em>↑/↓ navigate, Enter to select, Esc to go back, Ctrl+C to exit</em>
@@ -583,6 +804,7 @@ export function OnboardingThinkingLevelScreen(props: {
 	thinkingSelected: number;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -605,19 +827,16 @@ export function OnboardingThinkingLevelScreen(props: {
 							paddingX={1}
 							flexDirection="row"
 							gap={1}
-							backgroundColor={isSel ? palette.selection : undefined}
+							backgroundColor={isSel ? colors.selection : undefined}
 							height={1}
 						>
-							<text
-								fg={isSel ? palette.textOnSelection : "gray"}
-								flexShrink={0}
-							>
+							<text fg={isSel ? colors.textOnSelection : "gray"} flexShrink={0}>
 								{isSel ? "\u276f" : " "}
 							</text>
-							<text fg={isSel ? palette.textOnSelection : defaultFg}>
+							<text fg={isSel ? colors.textOnSelection : defaultFg}>
 								{level.label}
 							</text>
-							<text fg={isSel ? palette.textOnSelection : "gray"}>
+							<text fg={isSel ? colors.textOnSelection : "gray"}>
 								{level.desc}
 							</text>
 						</box>
@@ -639,6 +858,7 @@ export function OnboardingMainMenuScreen(props: {
 	mouse: MouseTrackerState;
 }) {
 	const defaultFg = useDefaultFg();
+	const colors = useOnboardingColors();
 	return (
 		<box
 			flexDirection="column"
@@ -681,20 +901,25 @@ export function OnboardingMainMenuScreen(props: {
 							flexDirection="row"
 							border
 							borderStyle="rounded"
-							borderColor={isSel ? palette.act : "#333333"}
+							borderColor={isSel ? colors.accent : colors.subtleBorder}
 							paddingX={1}
 							gap={1}
 							alignItems="center"
 						>
-							<text fg={isSel ? palette.act : "#555555"} flexShrink={0}>
+							<text
+								fg={isSel ? colors.accent : colors.mutedDetail}
+								flexShrink={0}
+							>
 								{option.icon}
 							</text>
 							<box flexDirection="column" flexGrow={1}>
 								<text fg={isSel ? defaultFg : "gray"}>{option.label}</text>
-								<text fg={isSel ? "gray" : "#555555"}>{option.detail}</text>
+								<text fg={isSel ? "gray" : colors.mutedDetail}>
+									{option.detail}
+								</text>
 							</box>
 							{isSel && (
-								<text fg={palette.act} flexShrink={0}>
+								<text fg={colors.accent} flexShrink={0}>
 									{"\u2192"}
 								</text>
 							)}

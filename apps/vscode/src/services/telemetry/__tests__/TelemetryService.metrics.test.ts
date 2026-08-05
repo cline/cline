@@ -1,6 +1,8 @@
-import { ApiFormat } from "@shared/proto/cline/models"
+import { describe, it } from "bun:test"
 import * as assert from "assert"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
+import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -79,202 +81,152 @@ function createTelemetryService(provider: FakeProvider, overrides: Partial<Telem
 }
 
 describe("TelemetryService metrics", () => {
-	it("captureTokenUsage emits token counters and histograms", () => {
+	it("includes rollout metadata on traditional events and metrics", () => {
 		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a")
-
-		assert.deepStrictEqual(
-			provider.counters.map((entry) => entry.name),
-			[TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL],
-		)
-		assert.deepStrictEqual(
-			provider.histograms.map((entry) => entry.name),
-			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
-		)
-		;[...provider.counters, ...provider.histograms].forEach((entry) => {
-			assert.strictEqual(entry.attributes.ulid, "task-1")
-			assert.strictEqual(entry.attributes.provider, "anthropic")
-			assert.strictEqual(entry.attributes.model, "model-a")
-			assert.strictEqual(entry.attributes.extension_version, "test")
-		})
-	})
-
-	it("captureTokenUsage emits cache and cost metrics when options provided", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
-			cacheWriteTokens: 50,
-			cacheReadTokens: 30,
-			totalCost: 0.42,
+		const service = createTelemetryService(provider, {
+			extension_variant: "next",
 		})
 
-		assert.deepStrictEqual(
-			provider.counters.map((entry) => entry.name),
-			[
-				TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL,
-				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL,
-				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
-				TelemetryService.METRICS.CACHE.READ_TOTAL,
-				TelemetryService.METRICS.TASK.COST_TOTAL,
-			],
-		)
-		assert.deepStrictEqual(
-			provider.histograms.map((entry) => entry.name),
-			[
-				TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE,
-				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE,
-				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
-				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
-				TelemetryService.METRICS.TASK.COST_PER_EVENT,
-			],
-		)
-		const cacheWriteCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_TOTAL)
-		assert.ok(cacheWriteCounter)
-		assert.strictEqual(cacheWriteCounter?.value, 50)
-		assert.strictEqual(cacheWriteCounter?.attributes.ulid, "task-1")
-		assert.strictEqual(cacheWriteCounter?.attributes.model, "model-a")
-
-		const cacheReadCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_TOTAL)
-		assert.ok(cacheReadCounter)
-		assert.strictEqual(cacheReadCounter?.value, 30)
-
-		const costCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_TOTAL)
-		assert.ok(costCounter)
-		assert.strictEqual(costCounter?.value, 0.42)
-		assert.strictEqual(costCounter?.attributes.ulid, "task-1")
-		assert.strictEqual(costCounter?.attributes.model, "model-a")
-		assert.strictEqual(costCounter?.attributes.currency, "USD")
-
-		const cacheWriteHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_PER_EVENT)
-		assert.ok(cacheWriteHist)
-		assert.strictEqual(cacheWriteHist?.value, 50)
-
-		const cacheReadHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_PER_EVENT)
-		assert.ok(cacheReadHist)
-		assert.strictEqual(cacheReadHist?.value, 30)
-
-		const costHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_PER_EVENT)
-		assert.ok(costHist)
-		assert.strictEqual(costHist?.value, 0.42)
-	})
-
-	it("captureTokenUsage skips cache/cost metrics when options fields are undefined", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {})
-
-		assert.deepStrictEqual(
-			provider.counters.map((entry) => entry.name),
-			[TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL],
-		)
-		assert.deepStrictEqual(
-			provider.histograms.map((entry) => entry.name),
-			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
-		)
-	})
-
-	it("captureTokenUsage includes options in event properties", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
-			cacheWriteTokens: 50,
-			cacheReadTokens: 30,
-			totalCost: 0.42,
+		service.captureProviderApiError({
+			ulid: "task-rollout",
+			model: "model-a",
+			errorMessage: "boom",
+			provider: "anthropic",
 		})
 
-		const tokenEvent = provider.logs.find((entry) => entry.event === "task.tokens")
-		assert.ok(tokenEvent)
-		assert.strictEqual(tokenEvent?.properties?.provider, "anthropic")
-		assert.strictEqual(tokenEvent?.properties?.model, "model-a")
-		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
-		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
-		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)
+		const errorEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
+		assert.strictEqual(errorEvent?.properties?.extension_variant, "next")
+		assert.ok(provider.counters.length > 0)
+		assert.ok(provider.histograms.length > 0)
+		for (const entry of [...provider.counters, ...provider.histograms]) {
+			assert.strictEqual(entry.attributes.extension_variant, "next")
+		}
+	})
+
+	it("captures one bounded rollout fallback event for rollout builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, {
+			extension_variant: "legacy",
+		})
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "next",
+			actualBundle: "legacy",
+			fallback: true,
+			error: new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20)),
+		})
+
+		const events = provider.logs.filter((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT)
+		assert.strictEqual(events.length, 1)
+		assert.strictEqual(events[0].properties?.attempted_bundle, "next")
+		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
+		assert.strictEqual(events[0].properties?.fallback, true)
+		assert.strictEqual(events[0].properties?.error_type, "TypeError")
+		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
+		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+	})
+
+	it("does not capture rollout activation events for ordinary builds", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureRolloutBundleActivated({
+			attemptedBundle: "legacy",
+			actualBundle: "legacy",
+			fallback: false,
+		})
+
+		assert.strictEqual(
+			provider.logs.some((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT),
+			false,
+		)
 	})
 
 	it("metrics include is_remote_workspace in standard attributes", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider, { is_remote_workspace: true })
 
-		service.captureTokenUsage("task-remote", 120, 80, "anthropic", "model-a")
+		service.captureProviderApiError({
+			ulid: "task-remote",
+			model: "model-a",
+			errorMessage: "boom",
+			provider: "anthropic",
+		})
 
 		assert.ok(provider.counters.length > 0)
 		assert.strictEqual(provider.counters[0].attributes.is_remote_workspace, true)
 		assert.strictEqual(provider.histograms[0].attributes.is_remote_workspace, true)
 	})
 
-	it("captureConversationTurnEvent emits counters with cache and cost", () => {
+	it("captureLegacyTaskMigrationBacklog records pending and migrated gauges", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
-		service.identifyAccount({ id: "user-1" } as any)
 
-		service.captureConversationTurnEvent("task-2", "openai", "gpt-4", "assistant", "plan", {
-			tokensIn: 150,
-			tokensOut: 200,
-			cacheWriteTokens: 40,
-			cacheReadTokens: 20,
-			totalCost: 1.23,
+		service.captureLegacyTaskMigrationBacklog({
+			pendingLegacyTaskCount: 4,
+			migratedSdkTaskCount: 7,
+			visibleSdkTaskCount: 9,
+			visibleTaskCount: 13,
 		})
+
+		const pendingSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT)
+		assert.ok(pendingSeries)
+		const [pendingEntry] = Array.from(pendingSeries.values())
+		assert.strictEqual(pendingEntry.value, 4)
+		assert.strictEqual(pendingEntry.attributes.migration_type, "legacy_task_to_sdk_session")
+
+		const migratedSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_MIGRATED_COUNT)
+		assert.ok(migratedSeries)
+		const [migratedEntry] = Array.from(migratedSeries.values())
+		assert.strictEqual(migratedEntry.value, 7)
+
+		const backlogEvent = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
+		assert.ok(backlogEvent)
+		assert.strictEqual(backlogEvent?.properties?.outcome, "backlog")
+		assert.strictEqual(backlogEvent?.properties?.pendingLegacyTaskCount, 4)
+	})
+
+	it("captureLegacyTaskMigration emits event and migration metrics", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureLegacyTaskMigration({
+			taskId: "legacy-task",
+			outcome: "success",
+			reason: "migrated",
+			durationMs: 250,
+			legacyApiHistoryLength: 3,
+			convertedMessageCount: 2,
+			hasFavorite: true,
+			hasCost: true,
+			hasTokenUsage: true,
+			hasCwd: true,
+		})
+
+		const event = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
+		assert.ok(event)
+		assert.strictEqual(event?.properties?.ulid, "legacy-task")
+		assert.strictEqual(event?.properties?.outcome, "success")
+		assert.strictEqual(event?.properties?.legacyApiHistoryLength, 3)
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
 			[
-				TelemetryService.METRICS.TASK.TURNS_TOTAL,
-				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
-				TelemetryService.METRICS.CACHE.READ_TOTAL,
-				TelemetryService.METRICS.TASK.COST_TOTAL,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_ATTEMPTS_TOTAL,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
 			],
 		)
-		const costEntry = provider.counters.find((entry) => entry.name === "cline.cost.total")
-		assert.ok(costEntry)
-		assert.strictEqual(costEntry?.attributes.ulid, "task-2")
-		assert.strictEqual(costEntry?.attributes.provider, "openai")
-		assert.strictEqual(costEntry?.attributes.model, "gpt-4")
-		assert.strictEqual(costEntry?.attributes.mode, "plan")
-		assert.strictEqual(costEntry?.attributes.currency, "USD")
 		assert.deepStrictEqual(
 			provider.histograms.map((entry) => entry.name),
 			[
-				TelemetryService.METRICS.TASK.TURNS_PER_TASK,
-				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
-				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
-				TelemetryService.METRICS.TASK.COST_PER_EVENT,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_DURATION_SECONDS,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_LEGACY_MESSAGES_COUNT,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_CONVERTED_MESSAGES_COUNT,
 			],
 		)
-		const turnEntry = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.TASK.TURNS_PER_TASK)
-		assert.ok(turnEntry)
-		assert.strictEqual(turnEntry?.value, 1)
-		assert.strictEqual(turnEntry?.attributes.ulid, "task-2")
-		assert.strictEqual(turnEntry?.attributes.provider, "openai")
-		assert.strictEqual(turnEntry?.attributes.model, "gpt-4")
-		assert.strictEqual(turnEntry?.attributes.source, "assistant")
-		assert.strictEqual(turnEntry?.attributes.mode, "plan")
-	})
-
-	it("captureWorkspaceInitialized emits gauge and retires previous series", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureWorkspaceInitialized(3, ["Git"], 500)
-		const initialSeries = provider.gauges.get("cline.workspace.active_roots")
-		assert.ok(initialSeries)
-		assert.strictEqual(initialSeries.size, 1)
-		const [initialEntry] = Array.from(initialSeries.values())
-		assert.strictEqual(initialEntry.value, 3)
-		assert.strictEqual(initialEntry.attributes.is_multi_root, true)
-		assert.strictEqual(initialEntry.attributes.extension_version, "test")
-
-		service.captureWorkspaceInitialized(1, ["Git"], 200)
-		const updatedSeries = provider.gauges.get("cline.workspace.active_roots")
-		assert.ok(updatedSeries)
-		assert.strictEqual(updatedSeries.size, 1)
-		const [updatedEntry] = Array.from(updatedSeries.values())
-		assert.strictEqual(updatedEntry.value, 1)
-		assert.strictEqual(updatedEntry.attributes.is_multi_root, false)
+		assert.strictEqual(provider.histograms[0].value, 0.25)
+		assert.strictEqual(provider.histograms[0].attributes.migration_type, "legacy_task_to_sdk_session")
+		assert.strictEqual(provider.histograms[0].attributes.reason, "migrated")
 	})
 
 	it("captureProviderApiError increments error counter", () => {
@@ -287,6 +239,8 @@ describe("TelemetryService metrics", () => {
 			errorMessage: "boom",
 			provider: "anthropic",
 			errorStatus: 500,
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
 
 		assert.strictEqual(provider.counters.length, 1)
@@ -297,6 +251,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(entry.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(entry.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
 		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
@@ -305,44 +261,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
-	})
-
-	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureTaskCompleted("task-4", {
-			provider: "openai-native",
-			modelId: "gpt-5",
-			apiFormat: ApiFormat.OPENAI_RESPONSES,
-			timeToFirstTokenMs: 350,
-			durationMs: 2100,
-			mode: "act",
-		})
-
-		const completionEvent = provider.logs.find((entry) => entry.event === "task.completed")
-		assert.ok(completionEvent)
-		assert.ok(completionEvent?.properties)
-		assert.strictEqual(completionEvent?.properties?.ulid, "task-4")
-		assert.strictEqual(completionEvent?.properties?.provider, "openai-native")
-		assert.strictEqual(completionEvent?.properties?.modelId, "gpt-5")
-		assert.strictEqual(completionEvent?.properties?.apiFormat, ApiFormat.OPENAI_RESPONSES)
-		assert.strictEqual(completionEvent?.properties?.apiFormatName, "OPENAI_RESPONSES")
-		assert.strictEqual(completionEvent?.properties?.timeToFirstTokenMs, 350)
-		assert.strictEqual(completionEvent?.properties?.durationMs, 2100)
-
-		const ttftMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.TTFT_SECONDS)
-		assert.ok(ttftMetric)
-		assert.strictEqual(ttftMetric?.value, 0.35)
-		assert.strictEqual(ttftMetric?.attributes.ulid, "task-4")
-		assert.strictEqual(ttftMetric?.attributes.provider, "openai-native")
-		assert.strictEqual(ttftMetric?.attributes.model, "gpt-5")
-		assert.strictEqual(ttftMetric?.attributes.apiFormat, "OPENAI_RESPONSES")
-
-		const durationMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.DURATION_SECONDS)
-		assert.ok(durationMetric)
-		assert.strictEqual(durationMetric?.value, 2.1)
-		assert.strictEqual(durationMetric?.attributes.scope, "task")
+		assert.strictEqual(errorHistogram.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(errorHistogram.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 	})
 
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {

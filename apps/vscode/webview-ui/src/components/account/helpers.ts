@@ -33,7 +33,7 @@ export const getClineUris = (base: string, type: "dashboard" | "credits", route?
  * Converts a protobuf UsageTransaction to a ClineAccount UsageTransaction
  * by adding the missing id and metadata fields
  */
-export function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): ClineAccountUsageTransaction {
+function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): ClineAccountUsageTransaction {
 	return {
 		...protoTransaction,
 		id: protoTransaction.generationId, // Use generationId as the id

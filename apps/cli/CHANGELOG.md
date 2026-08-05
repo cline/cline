@@ -1,5 +1,198 @@
 # Cline CLI Changelog
 
+## 3.0.49
+
+- `/undo` works again once the agent has used tools — the checkpoint picker counted tool results as user turns, so restore aborted with "Could not find user message for run N"
+- Checkpoints are actually created again; a run-boundary regression meant none were ever recorded in the CLI (from SDK v0.0.69)
+- Checkpoint restore is now a full workspace rewind: files Cline created during the task come back at their checkpoint-time content and files created after the checkpoint are removed, while `.gitignore`d paths (build output, `node_modules`, `.env`) are left alone (from SDK v0.0.69)
+- After a restore, the rewound message is prefilled as plain text instead of the raw `<user_input mode="act">` envelope
+- Ollama's response-start timeout is now 5 minutes instead of 30 seconds, so cold-loading a large local model no longer errors out mid-load (from SDK v0.0.69)
+- Empty Ollama responses are now retried instead of failing the task with "Model returned empty response" (from SDK v0.0.69)
+- Migrated users whose stored Cline model id isn't in the catalog now fall back to the default model instead of sending an unknown model id on every request (from SDK v0.0.69)
+- The ClinePass promo dialog can be dismissed with any key (Enter still opens the subscription page), and it is marked as shown when it appears, so force-quitting no longer replays it on every launch
+- Opening a URL no longer crashes the CLI on hosts without an opener binary (headless Linux without `xdg-open`); WSL2 containers now use `xdg-open`, Windows tries the absolute PowerShell path first, and `cline doctor log` converts Linux paths to `\\wsl$` UNC paths
+- The hub now restarts through the installed wrapper after a Unix self-update, so npm cannot reuse a deleted cached executable
+- ACP: ClinePass is selectable as a provider, organizations can be selected, session resolution and text rendering on session restart are fixed, and agent errors now describe the actual failure
+- Provider errors forwarded through the Vercel AI Gateway now surface the real upstream message instead of a raw Zod dump or `[object Object]` (from SDK v0.0.68)
+- Cline free models and recommended models now show their real display names in the model picker (from SDK v0.0.68)
+- Sessions rooted at the filesystem root (`/`) no longer fail every command (from SDK v0.0.68)
+- On Windows, PowerShell commands now travel over UTF-8 stdin, so non-ASCII commands survive the active code page and long commands are not capped by the command-line limit (from SDK v0.0.68)
+- The live model catalog no longer drops the video input capability (from SDK v0.0.68)
+- Removed the CLI promo code flow
+
+## 3.0.48
+
+- `cline history` now opens inside the existing TUI, with resume and delete actions, instead of rendering a second view in the same process
+- Connector threads (Slack, Discord, Telegram, Linear, Google Chat, WhatsApp) now recover when the session they were bound to is gone — the stale binding is dropped and the turn replays against a new session, instead of failing with "session not found" until `threads.json` is edited by hand
+- `cline --help` now reports the real default `--config` and `--data-dir` paths
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored for `initialize`, `tools/list`, and `tools/call`, so slow MCP servers no longer fail against a hardcoded 5s limit (from SDK v0.0.67)
+- Reasoning controls are now routed from the models.dev catalog across providers, with clamped budgets and correct per-provider encoding (from SDK v0.0.67)
+- OpenRouter now defaults to `anthropic/claude-sonnet-5` (from SDK v0.0.67)
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI (from SDK v0.0.67)
+- Legacy API keys are now migrated for every secret-backed provider (from SDK v0.0.67)
+- Legacy OpenAI Compatible model-info overrides now survive into the seeded `models.json` (from SDK v0.0.67)
+- Fixed auto-compaction state being rejected as stale, which added a redundant summarizer call on every turn past the compaction trigger (from SDK v0.0.67)
+- Fixed checkpoint restores across session resumes (from SDK v0.0.67)
+- Tool calls that pass line numbers as strings (`insert_line`, `read_files` bounds) are now accepted instead of erroring (from SDK v0.0.67)
+- A legacy single-file `.clinerules` no longer aborts the config scan (from SDK v0.0.67)
+- Plugins can now emit telemetry through `ctx.telemetry` (from SDK v0.0.67)
+
+## 3.0.47
+
+- Free Cline models are now supported end to end: free models show as "(free)", and hitting the free limit renders a dedicated card with the reset time (from SDK v0.0.66)
+- `/settings` general toggles (plan/act mode, tool auto-approve, compaction mode) now persist across restarts
+- Upgraded the TUI stack from opentui 0.1.102 to 0.4.3
+- Fixed a grey panel left behind on screen after closing a dialog (model picker, help, command palette) — a leftover from the opentui upgrade
+- Fixed a React duplicate-key warning when `read_files` listed the same path more than once
+- Aborting a task no longer risks killing the shared hub daemon
+- Connector status delivery failures are no longer fatal to the turn
+- Agentic compaction is now the default context-compaction strategy, with fixes for it silently falling back to basic compaction and for tool-heavy transcripts that could never find a cut point (from SDK v0.0.66)
+- Editor edits preserve a file's existing line endings, fixing failed exact-match edits on CRLF files (from SDK v0.0.66)
+- Broader built-in provider coverage, now generated from models.dev (from SDK v0.0.66)
+- Updated the bundled model catalog (from SDK v0.0.66)
+
+## 3.0.46
+
+- Fixed out-of-credits detection so the CLI reliably recognizes the Cline API's real `insufficient_credits` (402) error and shows the "add credits" card instead of a generic error
+
+## 3.0.45
+
+- Smaller install: the Claude Code and Codex providers are now optional and loaded on demand, cutting `npm i -g cline` from ~640MB to ~285MB (from SDK v0.0.65)
+- Kimi K3 is now available as a ClinePass model (from SDK v0.0.65)
+- Runs now retry once after refreshing expired OAuth credentials (from SDK v0.0.65)
+- Team runs: the spawn tool is no longer exposed to teammates, and errored teammate runs now report as failed instead of completed (from SDK v0.0.65)
+- Hub status output now includes version numbers
+- Updated the bundled model catalog (from SDK v0.0.65)
+
+## 3.0.44
+
+- Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models) (from SDK v0.0.64)
+- Frontmatter and configuration files that start with a UTF-8 byte order mark (e.g. saved by Windows editors) now parse correctly (from SDK v0.0.64)
+
+## 3.0.43
+
+- The CLI now automatically trusts your operating system's certificate store, so it works behind corporate proxies and TLS-inspecting firewalls without manually setting `NODE_EXTRA_CA_CERTS` (fixes "unable to get local issuer certificate" errors, including Windows intermediate CA stores)
+
+## 3.0.42
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+
+## 3.0.41
+
+- Compaction now shows progress status in the TUI
+- Model IDs are now suggested from OpenAI-compatible endpoints when configuring a provider
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Compaction no longer runs during an active turn
+- Fixed a crash when the terminal title was updated during TUI teardown
+- The API key fallback hint is now highlighted for better visibility
+- Benign git states are no longer reported as workspace initialization errors
+
+## 3.0.40
+
+- Added a manual API key escape hatch for Cline OAuth providers, so you can enter a key by hand from settings
+- Fixed provider config not reloading when switching models
+- Fixed auto-update failing to detect Bun global installs after symlink resolution
+- Fixed unexpected logouts caused by transient network or server errors during token refresh
+- The ClinePass usage-limit error is now surfaced clearly when you hit the limit
+- Session id is now preserved when continuing within the same session
+- Hardened context compaction budget handling
+
+## 3.0.39
+
+- You can now select Cline free models on the ClinePass provider in the model picker
+- Removed the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- `str_replace` edits now report accurate diffs
+- Fixed context compaction so canonical session history is preserved
+- The detached hub daemon now emits telemetry, and telemetry identity now includes `user_id`
+- Cline provider requests now send versioned client-identity headers
+
+## 3.0.38
+
+- New plan/act accent palette: act mode is now blue (`#79b8ff`) and plan mode amber, replacing the old cyan/yellow — applied across dialogs, the model selector, config, onboarding, markdown, and syntax highlighting, with light-theme variants tuned for contrast
+- Restyled chat input: a minimal frame with full-width horizontal rules and a bold accent prompt glyph instead of the tinted background, plus slimmer user-message bubbles
+- Assistant markdown accents are now tinted by the mode (plan/act) they were produced in
+- Polished the status bar usage display and ClinePass model name
+- Harmonized the success/diff green and dark syntax-highlighting colors with the new brand palette
+- The thinking-level picker now defaults its cursor to Medium instead of Off
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected (from SDK v0.0.58)
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit, so under-specified models get a usable context budget (from SDK v0.0.57)
+
+## 3.0.37
+
+- Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out
+- Plan/act mode switches are now visible to the model, so it knows when you change modes mid-session
+- Fixed plan/act mode notices being dropped from prompts sent to the model
+- Fixed a race where switching modes in an empty session could trigger an unexpected restart
+
+## 3.0.36
+
+- Fixed plan mode's `switch_to_act_mode` tool not taking effect until the end of the turn: the model would keep running with plan-mode tools (no file editor) and fall back to editing files through shell commands. Switching to act mode now ends the plan-mode run and automatically continues with the approved plan using the full act-mode toolset. A Tab mode toggle racing a completing turn can no longer auto-start plan execution you didn't approve.
+
+## 3.0.35
+
+- ClinePass is now enabled for all CLI users
+- Recover missing interactive sessions when reading messages
+- Format structured commands in history export
+- Add the subscription promo code when linking to the dashboard subscription page
+- Add Tencent TokenHub as a provider (from SDK v0.0.55)
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3) that could immediately auto-compact and cut the initial task down to just the input wrapper (from SDK v0.0.55)
+- Use a curated default when migrating legacy provider settings (from SDK v0.0.55)
+- Advertise run commands as shell strings (from SDK v0.0.55)
+- Refresh the bundled model catalog with the latest provider models (from SDK v0.0.55)
+
+## 3.0.34
+
+- Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.
+- Improved the wording of the ClinePass onboarding step.
+- Streamlined the Cline provider picker by merging the subscription and usage/billing options into one and removing the credits link.
+
+## 3.0.33
+
+- Show a ClinePass subscription URL as a fallback during onboarding so you can still subscribe if the subscription screen can't open automatically
+- Hide the ClinePass promo for users who already have a ClinePass subscription
+- Use an adaptive plan accent color for ClinePass prompts so they fit the active theme
+
+## 3.0.32
+
+- Improved the ClinePass onboarding experience
+- Added an intermediate step before going to ClinePass model selection
+- Made the ClinePass subscription screen selectable
+- Promoted ClinePass in the startup notice
+- Used "ClinePass" as one word consistently and refined the provider UI copy
+- More accurate context compaction and clearer error messages (from SDK v0.0.54)
+
+## 3.0.31
+
+- Show when request cost is covered by your Cline subscription
+- Prompt to switch to ClinePass when you run out of credits, and list ClinePass features in the not-subscribed message
+- Added an option to open the subscription page from the ClinePass options
+- Added marketplace uninstall support and surfaced plugin-bundled skills
+- Require quoted prompts for one-shot mode
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 3.0.30
+
+- Added a token count to the status bar, shown alongside cost
+- Added organization-specific error messages
+- Added SAP AI Core provider support
+- Refreshed the model catalog with the latest provider models
+- Preserved OpenRouter reasoning-disable behavior and improved OpenRouter prompt caching
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from appearing in the LiteLLM model list
+- Updated ClinePass models live, restored ClinePass models in onboarding, and improved ClinePass error messages
+- Threaded proxy/CA-aware networking into the inference path
+- Persisted Bedrock settings to providers.json
+- Normalized JSON-like tool inputs by schema for more reliable tool calls
+- Fixed an "ERROR: EMPTY CONTENT" message that could appear when an error occurred
+- Fixed a packaging issue (createRequire) that could break the CLI at runtime
+
+## 3.0.29
+
+- Costs are now hidden for Cline free models
+- Fixed Z.ai model metadata resolution for Z.ai models accessed through the Cline provider
+- Reverted the model-name-only display change from v3.0.28; the model picker, selector, and status bar return to their previous display behavior
+
 ## 3.0.28
 
 - Added a ClinePass onboarding flow with selectable ClinePass models, plus improved ClinePass error handling

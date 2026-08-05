@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { openAiModelInfoSafeDefaults, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -9,18 +9,13 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
-import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import {
-	filterOpenRouterModelIds,
-	getModeSpecificFields,
-	normalizeApiConfiguration,
-	supportsReasoningEffortForModelId,
-} from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -44,7 +39,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
-export interface OpenRouterModelPickerProps {
+interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean
@@ -52,6 +47,7 @@ export interface OpenRouterModelPickerProps {
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { commitSelection, write } = useProviderConfig("openrouter")
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -66,6 +62,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 		setSearchTerm(newModelId)
 
+		const modelInfo = openRouterModels[newModelId] ?? { ...openAiModelInfoSafeDefaults, name: newModelId }
+
 		handleModeFieldsChange(
 			{
 				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
@@ -73,16 +71,35 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				openRouterModelInfo: modelInfo,
 			},
 			currentMode,
 		)
+
+		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId }).catch((err) =>
+			console.error("Failed to commit OpenRouter model selection:", err),
+		)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		return selected
-	}, [apiConfiguration, currentMode])
+	// The mode-specific fields are the primary source, but they can be empty
+	// even when a model is committed — e.g. right after the SDK provider
+	// migration, which records the model in providers.json but not in the
+	// openRouterModelId/Info state this picker reads. In that case fall back to
+	// the authoritative resolver (which reads the committed providers.json
+	// selection) instead of the hardcoded openRouterDefaultModelId, so the
+	// picker shows the model that will actually run. Committed-field users are
+	// unaffected: their field wins and the resolver is never consulted for id.
+	const { selectedModelId: resolvedModelId, selectedModelInfo: resolvedModelInfo } = useNormalizedApiConfiguration(currentMode)
+	const selectedModelId = modeFields.openRouterModelId || resolvedModelId || openRouterDefaultModelId
+	// The resolver substitutes its provider default for ids it cannot resolve,
+	// so its info is only trustworthy when it answered for the id actually
+	// shown. Prefer the live catalog entry for the displayed id (synchronous
+	// once fetched), then the matching resolver answer; never render another
+	// model's metadata under the displayed model's name.
+	const selectedModelInfo =
+		modeFields.openRouterModelInfo ??
+		openRouterModels[selectedModelId] ??
+		(resolvedModelId === selectedModelId ? resolvedModelInfo : openRouterDefaultModelInfo)
 
 	useMount(() => {
 		refreshOpenRouterModels()
@@ -90,9 +107,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		const currentModelId = modeFields.openRouterModelId || resolvedModelId || openRouterDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.openRouterModelId])
+	}, [modeFields.openRouterModelId, resolvedModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -202,37 +219,26 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
 	const adaptiveThinkingDefaultEffort = useMemo(
 		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
-	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
-		[selectedModelId, showAdaptiveThinkingEffort],
-	)
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
-		)
-	}, [openRouterModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
+	// Reasoning support comes from the SDK catalog (models.dev), not model-id
+	// heuristics: any reasoning-capable model gets the effort selector. Prefer
+	// the live catalog entry over the committed legacy snapshot — the snapshot
+	// can be cleared by provider-config writes (fallback-source resolutions).
+	// Read the raw snapshot field (not the hook's default-info fallback) so an
+	// id that is absent from the catalog never inherits reasoning support from
+	// placeholder metadata.
+	const showReasoningEffort =
+		showAdaptiveThinkingEffort ||
+		(openRouterModels[selectedModelId] ?? modeFields.openRouterModelInfo)?.supportsReasoning === true
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update OpenRouter reasoning effort:", err))
+	}
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -322,80 +328,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownList>
 					)}
 				</DropdownWrapper>
-
-				{/* Context window switcher for Claude Fable 5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-fable-5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-fable-5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.8 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.8"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.7 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.7"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
 			</div>
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
-							allowedEfforts={
-								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
-							}
 							currentMode={currentMode}
-							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
+							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "none"}
 							description={
 								showAdaptiveThinkingEffort
 									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-									: undefined
+									: "Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							onEffortChange={handleReasoningEffortChange}
 						/>
 					)}
 
@@ -419,12 +366,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
 						OpenRouter.
 					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
-					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.6")}
-						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.6.
-					</VSCodeLink>
+					If you're unsure which model to choose, compare available models by context window, pricing, and capabilities.
 					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
@@ -464,8 +406,10 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 	white-space: normal;
 
 	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+	color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionForeground, inherit)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+		color: var(--vscode-list-activeSelectionForeground, inherit);
 	}
 `

@@ -1,6 +1,7 @@
 export interface ProviderModel {
 	id: string;
 	name: string;
+	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
@@ -46,6 +47,7 @@ export interface Provider {
 	docUrl?: string;
 	docLabel?: string;
 	defaultModelId?: string;
+	capabilities?: string[];
 	authDescription?: string;
 	baseUrlDescription?: string;
 	configFields?: ProviderConfigField[];

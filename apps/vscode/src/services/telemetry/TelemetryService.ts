@@ -1,6 +1,5 @@
 import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import { ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
@@ -9,8 +8,15 @@ import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import { setDistinctId } from "../logging/distinctId"
+import { getDeviceId, setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
+import {
+	getRolloutErrorProperties,
+	getRolloutTelemetryMetadata,
+	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
+	type RolloutBundleActivation,
+	type RolloutTelemetryMetadata,
+} from "./rollout-metadata"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -26,9 +32,28 @@ type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents"
 export type TerminalType = "vscode" | "standalone"
 
 /**
- * VSCode-specific output capture methods
+ * VSCode-specific output capture methods.
+ *
+ * "shell_integration" means the OSC 633 C/D markers were seen and trusted —
+ * output and exit code are as reliable as VS Code's shell integration gets.
+ * "markerless_heuristic" means completion was inferred from an idle timeout
+ * and/or prompt-pattern guess because markers never arrived (e.g. commands
+ * run inside an ssh session); this must not be folded into
+ * "shell_integration" successes, since it's the exact metric evaluating
+ * whether shell integration is working.
  */
-export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+export type VscodeOutputMethod = "shell_integration" | "markerless_heuristic" | "clipboard" | "none" | "child_process"
+
+/**
+ * Why a markerless command (OSC 633 CommandExecuted marker never arrived) was
+ * considered complete:
+ * - "prompt_quiet": output went idle on a line that strongly resembles a shell
+ *   prompt (bash dollar, root hash, PowerShell/CMD path, Python REPL, starship).
+ * - "max_quiet_time": output arrived but then went quiet for the full
+ *   MARKERLESS_MAX_QUIET_TIME without a confident prompt match.
+ * - "no_data": no output ever arrived and the full quiet time elapsed.
+ */
+export type MarkerlessCompletionCause = "prompt_quiet" | "max_quiet_time" | "no_data"
 
 /**
  * Standalone-specific output capture methods
@@ -46,7 +71,8 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
 	NO_SHELL_INTEGRATION = "no_shell_integration",
-	CLIPBOARD_FAILED = "clipboard_failed",
+	/** The terminal was closed while the command was still running. */
+	TERMINAL_CLOSED = "terminal_closed",
 }
 
 /**
@@ -54,7 +80,6 @@ export enum TerminalOutputFailureReason {
  */
 export enum TerminalUserInterventionAction {
 	PROCESS_WHILE_RUNNING = "process_while_running",
-	MANUAL_PASTE = "manual_paste",
 	CANCELLED = "cancelled",
 }
 
@@ -64,7 +89,6 @@ export enum TerminalUserInterventionAction {
 export enum TerminalHangStage {
 	WAITING_FOR_COMPLETION = "waiting_for_completion",
 	BUFFER_STUCK = "buffer_stuck",
-	STREAM_TIMEOUT = "stream_timeout",
 }
 
 export type TelemetryMetadata = {
@@ -80,6 +104,12 @@ export type TelemetryMetadata = {
 	 * all use the same extension or plugin.
 	 */
 	cline_type: string
+	/**
+	 * The version of the host-side Cline distribution package: the JetBrains plugin version
+	 * (e.g. 1.1.61) on JetBrains, the extension version on VSCode (where it matches
+	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
+	 */
+	host_plugin_version?: string
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -93,18 +123,8 @@ export type TelemetryMetadata = {
 	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
-}
-
-/**
- * Token usage data shared across telemetry capture methods.
- * Used by both `captureTokenUsage` and `captureConversationTurnEvent`.
- */
-export interface TokenUsage {
-	tokensIn?: number
-	tokensOut?: number
-	cacheWriteTokens?: number
-	cacheReadTokens?: number
-	totalCost?: number
+	/** Present only in bundles built by the combined legacy/next rollout workflow. */
+	extension_variant?: RolloutTelemetryMetadata["extension_variant"]
 }
 
 /**
@@ -134,8 +154,6 @@ export class TelemetryService {
 		organization_name: string
 		member_id: string
 	} | null = null
-	private taskTurnCounts = new Map<string, number>()
-	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
 	public static readonly METRICS = {
 		TASK: {
@@ -193,75 +211,63 @@ export class TelemetryService {
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
+		MIGRATION: {
+			// Fires whenever Cline checks an old pre-SDK task and decides whether/how to migrate it.
+			LEGACY_TASK_ATTEMPTS_TOTAL: "cline.migration.legacy_task.attempts.total",
+			// Fires when the user opens an old task and Cline successfully copies it into SDK session storage.
+			LEGACY_TASK_SUCCESS_TOTAL: "cline.migration.legacy_task.success.total",
+			// Fires when Cline tried to migrate an old task but failed while building or writing the SDK session.
+			LEGACY_TASK_FAILURES_TOTAL: "cline.migration.legacy_task.failures.total",
+			// Fires when no migration happens because it is unnecessary or impossible, e.g. already migrated or missing old messages.
+			LEGACY_TASK_SKIPPED_TOTAL: "cline.migration.legacy_task.skipped.total",
+			// Fires for every migration decision; measures how long the check/migration took.
+			LEGACY_TASK_DURATION_SECONDS: "cline.migration.legacy_task.duration.seconds",
+			// Fires when Cline finds old conversation messages; records how many old messages were found.
+			LEGACY_TASK_LEGACY_MESSAGES_COUNT: "cline.migration.legacy_task.legacy_messages.count",
+			// Fires after conversion; records how many messages made it into SDK-compatible form.
+			LEGACY_TASK_CONVERTED_MESSAGES_COUNT: "cline.migration.legacy_task.converted_messages.count",
+			// Fires when history is listed; counts old pre-SDK tasks still waiting to be migrated.
+			LEGACY_TASK_PENDING_COUNT: "cline.migration.legacy_task.pending.count",
+			// Fires when history is listed; counts old tasks that already made it safely into SDK session storage.
+			LEGACY_TASK_MIGRATED_COUNT: "cline.migration.legacy_task.migrated.count",
+		},
 	}
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
 
 		USER: {
-			OPT_OUT: "user.opt_out",
 			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
-			AUTH_STARTED: "user.auth_started",
-			AUTH_SUCCEEDED: "user.auth_succeeded",
-			AUTH_FAILED: "user.auth_failed",
 			AUTH_LOGGED_OUT: "user.auth_logged_out",
 			ONBOARDING_PROGRESS: "user.onboarding_progress",
 		},
 		// Workspace-related events for multi-root support
 		WORKSPACE: {
-			// Track workspace initialization
-			INITIALIZED: "workspace.initialized",
-			// Track initialization errors
-			INIT_ERROR: "workspace.init_error",
-			// Track VCS detection
-			VCS_DETECTED: "workspace.vcs_detected",
 			// Track multi-root checkpoint operations
 			MULTI_ROOT_CHECKPOINT: "workspace.multi_root_checkpoint",
-			// Track workspace resolution
-			PATH_RESOLVED: "workspace.path_resolved",
 		},
 		TASK: {
-			// Tracks when a new task/conversation is started
-			CREATED: "task.created",
-			// Tracks when a task is reopened
-			RESTARTED: "task.restarted",
-			// Tracks when a task is finished, with acceptance or rejection status
-			COMPLETED: "task.completed",
 			// Tracks user feedback on completed tasks
 			FEEDBACK: "task.feedback",
-			// Tracks when a message is sent in a conversation
-			CONVERSATION_TURN: "task.conversation_turn",
-			// Tracks token consumption for cost and usage analysis
-			TOKEN_USAGE: "task.tokens",
-			// Tracks switches between plan and act modes
-			MODE_SWITCH: "task.mode",
 			// Tracks when users select an option from AI-generated followup questions
 			OPTION_SELECTED: "task.option_selected",
 			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
 			OPTIONS_IGNORED: "task.options_ignored",
-			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
+			// Tracks checkpoint lifecycle actions.
 			CHECKPOINT_USED: "task.checkpoint_used",
-			// Tracks when tools (like file operations, commands) are used
-			TOOL_USED: "task.tool_used",
 			// Tracks when MCP tools are used
 			MCP_TOOL_CALLED: "task.mcp_tool_called",
-			// Tracks when a historical task is loaded from storage
-			HISTORICAL_LOADED: "task.historical_loaded",
-			// Tracks when the retry button is clicked for failed operations
-			RETRY_CLICKED: "task.retry_clicked",
-			// Tracks when a diff edit (replace_in_file) operation fails
-			DIFF_EDIT_FAILED: "task.diff_edit_failed",
+			// Tracks legacy VS Code task history migration into SDK sessions
+			LEGACY_TASK_MIGRATION: "task.legacy_task_migration",
 			// Tracks when the browser tool is started
 			BROWSER_TOOL_START: "task.browser_tool_start",
 			// Tracks when the browser tool is completed
 			BROWSER_TOOL_END: "task.browser_tool_end",
 			// Tracks when browser errors occur
 			BROWSER_ERROR: "task.browser_error",
-			// Tracks Gemini API specific performance metrics
-			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
 			// Tracks when users enable the focus chain feature
@@ -278,8 +284,6 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
-			// Tracks when the context window is auto-condensed with the summarize_task tool call
-			AUTO_COMPACT: "task.summarize_task",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
 			// Tracks when a feature is toggled on/off
@@ -290,8 +294,6 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
-			// Tracks when Cline web tools setting is toggled on/off
-			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -308,32 +310,22 @@ export class TelemetryService {
 			// CLI Subagents telemetry events
 			SUBAGENT_ENABLED: "task.subagent_enabled",
 			SUBAGENT_DISABLED: "task.subagent_disabled",
-			SUBAGENT_STARTED: "task.subagent_started",
-			SUBAGENT_COMPLETED: "task.subagent_completed",
-			// Skills telemetry events
-			SKILL_USED: "task.skill_used",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
-			// Tracks when a different model is selected
-			MODEL_SELECTED: "ui.model_selected",
 			// Tracks when users use the "favorite" button in the model picker
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
-			// Tracks when the rules menu button is clicked
-			RULES_MENU_OPENED: "ui.rules_menu_opened",
+			// Tracks when the Cline panel becomes visible
+			PANEL_OPENED: "ui.panel_opened",
+			// Tracks when the user explicitly starts a new task flow
+			NEW_TASK_CLICKED: "ui.new_task_clicked",
+			// Tracks when the user submits chat composer content
+			PROMPT_SUBMITTED: "ui.prompt_submitted",
 		},
 		// Hooks-related events for tracking hook execution
 		HOOKS: {
-			// Tracks when hooks feature is enabled
-			ENABLED: "hooks.enabled",
-			// Tracks when hooks feature is disabled
-			DISABLED: "hooks.disabled",
-			// Tracks when a hook requests task cancellation
-			CANCEL_REQUESTED: "hooks.cancel_requested",
-			// Tracks when a hook modifies context
-			CONTEXT_MODIFIED: "hooks.context_modified",
 			// Tracks when hook discovery completes
 			DISCOVERY_COMPLETED: "hooks.discovery_completed",
 		},
@@ -346,10 +338,6 @@ export class TelemetryService {
 			// Tracks when a worktree merge is attempted
 			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
-		HOST: {
-			// Tracks events detected from the host environment
-			DETECTED: "host.detected",
-		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -357,6 +345,7 @@ export class TelemetryService {
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
+			...(hostVersion.clineVersion ? { host_plugin_version: hostVersion.clineVersion } : {}),
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
 			cline_type: hostVersion.clineType || "unknown",
@@ -365,6 +354,7 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
+			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
 	}
@@ -423,13 +413,21 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Captures when a user explicitly opts out of telemetry.
-	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
-	 * Should only be called on explicit user action, not on init/sync.
+	 * NOTE — SDK-line telemetry parity gap. This method and several others in
+	 * this file have no caller on this line but are called on
+	 * `legacy-extension`. They are kept, not deleted: the signals they emit
+	 * originate in this bundle (webview UI, VS Code storage, host terminal,
+	 * checkpoints, focus chain, legacy-task migration), so @cline/core cannot
+	 * emit them and the missing piece is a call site here. Tracked in
+	 * https://linear.app/cline-bot/issue/ENG-2401
+	 *
+	 * Anything whose event @cline/core already emits was deleted instead: a
+	 * second capture path for a core-owned event is how the
+	 * task.provider_api_error double-emission happened (cline/cline#12820).
+	 *
+	 * So: do not "clean up" an uncalled capture method here as dead code
+	 * without checking `legacy-extension` for callers first.
 	 */
-	public captureUserOptOut(): void {
-		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
-	}
 
 	/**
 	 * Captures when a user explicitly opts back into telemetry.
@@ -447,6 +445,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(event.properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event.event, propertiesWithMetadata, false)
 	}
@@ -460,6 +459,7 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(properties || {}),
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 		}
 		this.captureToProviders(event, propertiesWithMetadata, true)
 	}
@@ -487,10 +487,16 @@ export class TelemetryService {
 	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
 		return {
 			...this.telemetryMetadata,
+			...this.getDeviceIdProperty(),
 			...(this.userId ? { userId: this.userId } : {}),
 			...this.activeOrg,
 			...(extra ?? {}),
 		}
+	}
+
+	private getDeviceIdProperty(): TelemetryProperties {
+		const deviceId = getDeviceId()
+		return deviceId ? { device_id: deviceId } : {}
 	}
 
 	private recordCounter(
@@ -555,14 +561,28 @@ export class TelemetryService {
 	}
 
 	private resetTaskAggregates(ulid: string): void {
-		this.taskTurnCounts.delete(ulid)
-		this.taskToolCallCounts.delete(ulid)
 		this.taskErrorCounts.delete(ulid)
 	}
 
 	public captureExtensionActivated() {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
+	}
+
+	public captureRolloutBundleActivated(input: RolloutBundleActivation): void {
+		if (!this.telemetryMetadata.extension_variant) {
+			return
+		}
+
+		this.capture({
+			event: ROLLOUT_BUNDLE_ACTIVATED_EVENT,
+			properties: {
+				attempted_bundle: input.attemptedBundle,
+				actual_bundle: input.actualBundle,
+				fallback: input.fallback,
+				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
+			},
 		})
 	}
 
@@ -576,45 +596,6 @@ export class TelemetryService {
 						? errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
 						: errorMessage,
 				eventName,
-			},
-		})
-	}
-
-	/**
-	 * Records when authentication flow is started
-	 * @param provider The authentication provider being used
-	 */
-	public captureAuthStarted(provider?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.USER.AUTH_STARTED,
-			properties: {
-				provider,
-			},
-		})
-	}
-
-	/**
-	 * Records when authentication flow succeeds
-	 * @param provider The authentication provider that was used
-	 */
-	public captureAuthSucceeded(provider?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.USER.AUTH_SUCCEEDED,
-			properties: {
-				provider,
-			},
-		})
-	}
-
-	/**
-	 * Records when authentication flow fails
-	 * @param provider The authentication provider that was used
-	 */
-	public captureAuthFailed(provider?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.USER.AUTH_FAILED,
-			properties: {
-				provider,
 			},
 		})
 	}
@@ -670,276 +651,6 @@ export class TelemetryService {
 
 	// Task events
 	/**
-	 * Records when a new task/conversation is started
-	 * @param ulid Unique identifier for the new task
-	 * @param apiProvider Optional API provider
-	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
-	 */
-	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
-		this.resetTaskAggregates(ulid)
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { ulid, apiProvider, openAiCompatibleDomain },
-		})
-	}
-
-	/**
-	 * Records when a task/conversation is restarted
-	 * @param ulid Unique identifier for the new task
-	 * @param apiProvider Optional API provider
-	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
-	 */
-	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
-		this.resetTaskAggregates(ulid)
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { ulid, apiProvider, openAiCompatibleDomain },
-		})
-	}
-
-	/**
-	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
-	 * @param ulid Unique identifier for the task
-	 */
-	public captureTaskCompleted(
-		ulid: string,
-		args?: {
-			provider?: string
-			modelId?: string
-			apiFormat?: ApiFormat
-			timeToFirstTokenMs?: number
-			durationMs?: number
-			mode: Mode
-		},
-	) {
-		const apiFormatName = args?.apiFormat !== undefined ? apiFormatToJSON(args.apiFormat) : undefined
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: {
-				ulid,
-				provider: args?.provider,
-				modelId: args?.modelId,
-				apiFormat: args?.apiFormat,
-				apiFormatName,
-				timeToFirstTokenMs: args?.timeToFirstTokenMs,
-				durationMs: args?.durationMs,
-				mode: args?.mode,
-			},
-		})
-
-		if (Number.isFinite(args?.timeToFirstTokenMs)) {
-			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, (args?.timeToFirstTokenMs ?? 0) / 1000, {
-				ulid,
-				provider: args?.provider,
-				model: args?.modelId,
-				apiFormat: apiFormatName,
-				mode: args?.mode,
-			})
-		}
-
-		if (Number.isFinite(args?.durationMs)) {
-			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, (args?.durationMs ?? 0) / 1000, {
-				ulid,
-				provider: args?.provider,
-				model: args?.modelId,
-				apiFormat: apiFormatName,
-				scope: "task",
-				mode: args?.mode,
-			})
-		}
-
-		this.resetTaskAggregates(ulid)
-	}
-
-	/**
-	 * Captures that a message was sent, and includes the API provider and model used
-	 * @param ulid Unique identifier for the task
-	 * @param provider The API provider (e.g., OpenAI, Anthropic)
-	 * @param model The specific model used (e.g., GPT-4, Claude)
-	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
-	 * @param mode The mode in which the conversation turn occurred ("plan" or "act")
-	 * @param tokenUsage Optional token usage data
-	 */
-	public captureConversationTurnEvent(
-		ulid: string,
-		provider = "unknown",
-		model = "unknown",
-		source: "user" | "assistant",
-		mode: Mode,
-		tokenUsage: TokenUsage = {},
-		isNativeToolCall?: boolean,
-	) {
-		// Ensure required parameters are provided
-		if (!ulid || !provider || !model || !source) {
-			Logger.warn("TelemetryService: Missing required parameters for message capture")
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
-			properties: {
-				ulid,
-				provider,
-				model,
-				source,
-				mode,
-				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
-				...tokenUsage,
-				isNativeToolCall,
-			},
-		})
-
-		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid)
-
-		const turnAttributes = { ulid, provider, model, source, mode }
-		this.recordCounter(TelemetryService.METRICS.TASK.TURNS_TOTAL, 1, turnAttributes)
-		this.recordHistogram(TelemetryService.METRICS.TASK.TURNS_PER_TASK, turnCount, turnAttributes)
-
-		if (Number.isFinite(tokenUsage.cacheWriteTokens)) {
-			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-		}
-
-		if (Number.isFinite(tokenUsage.cacheReadTokens)) {
-			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-		}
-
-		if (Number.isFinite(tokenUsage.totalCost)) {
-			const totalCost = tokenUsage.totalCost ?? 0
-			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
-			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
-		}
-	}
-
-	/**
-	 * Records token usage metrics for cost tracking and usage analysis
-	 * @param ulid Unique identifier for the task
-	 * @param tokensIn Number of input tokens consumed
-	 * @param tokensOut Number of output tokens generated
-	 * @param provider The API provider identifier (e.g. "anthropic", "openai", "cline")
-	 * @param model The model used for token calculation
-	 */
-	public captureTokenUsage(
-		ulid: string,
-		tokensIn: number,
-		tokensOut: number,
-		provider: string,
-		model: string,
-		options?: TokenUsage,
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
-			properties: {
-				ulid,
-				tokensIn,
-				tokensOut,
-				provider,
-				model,
-				...options,
-			},
-		})
-
-		const attributes = { ulid, provider, model }
-
-		if (Number.isFinite(tokensIn)) {
-			const value = tokensIn ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, attributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, attributes)
-		}
-
-		if (Number.isFinite(tokensOut)) {
-			const value = tokensOut ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, attributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, attributes)
-		}
-
-		if (Number.isFinite(options?.cacheWriteTokens)) {
-			const cacheWriteTokens = options!.cacheWriteTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, attributes)
-			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, attributes)
-		}
-
-		if (Number.isFinite(options?.cacheReadTokens)) {
-			const cacheReadTokens = options!.cacheReadTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, attributes)
-			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, attributes)
-		}
-
-		if (Number.isFinite(options?.totalCost)) {
-			const totalCost = options!.totalCost ?? 0
-			const costAttributes = { ...attributes, currency: "USD" }
-			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
-		}
-	}
-
-	/**
-	 * Records when a task switches between plan and act modes
-	 * @param ulid Unique identifier for the task
-	 * @param mode The mode being switched to (plan or act)
-	 */
-	public captureModeSwitch(ulid: string, mode: Mode) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
-			properties: {
-				ulid,
-				mode,
-			},
-		})
-	}
-
-	/**
-	 * Records when context summarization is triggered due to context window pressure
-	 * @param ulid Unique identifier for the task
-	 * @param modelId The model that triggered summarization
-	 * @param provider The API provider being used
-	 * @param currentTokens Total tokens in context window when summarization was triggered
-	 * @param maxContextWindow Maximum context window size for the model
-	 */
-	public captureSummarizeTask(
-		ulid: string,
-		modelId: string,
-		provider: string,
-		currentTokens: number,
-		maxContextWindow: number,
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
-			properties: {
-				ulid,
-				modelId,
-				provider,
-				currentTokens,
-				maxContextWindow,
-			},
-		})
-	}
-
-	/**
 	 * Records user feedback on completed tasks
 	 * @param ulid Unique identifier for the task
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
@@ -960,99 +671,6 @@ export class TelemetryService {
 	}
 
 	// Tool events
-	/**
-	 * Records when a tool is used during task execution
-	 * @param ulid Unique identifier for the task
-	 * @param tool Name of the tool being used
-	 * @param modelId The model ID being used
-	 * @param provider The API provider being used
-	 * @param autoApproved Whether the tool was auto-approved based on settings
-	 * @param success Whether the tool execution was successful
-	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
-	 */
-	public captureToolUsage(
-		ulid: string,
-		tool: string,
-		modelId: string,
-		provider: string,
-		autoApproved: boolean,
-		success: boolean,
-		workspaceContext?: {
-			isMultiRootEnabled: boolean
-			usedWorkspaceHint: boolean
-			resolvedToNonPrimary: boolean
-			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
-		},
-		isNativeToolCall = false,
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TOOL_USED,
-			properties: {
-				ulid,
-				tool,
-				autoApproved,
-				success,
-				modelId,
-				provider,
-				// Workspace context (optional)
-				...(workspaceContext && {
-					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
-					workspace_hint_used: workspaceContext.usedWorkspaceHint,
-					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
-					workspace_resolution_method: workspaceContext.resolutionMethod,
-				}),
-				isNativeToolCall,
-			},
-		})
-
-		const toolAttributes = {
-			ulid,
-			tool,
-			model: modelId,
-			success,
-			autoApproved,
-		}
-		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
-		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
-		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
-	}
-
-	public captureSkillUsed(args: {
-		ulid: string
-		skillName: string
-		skillSource: "global" | "project"
-		skillsAvailableGlobal: number
-		skillsAvailableProject: number
-		provider?: string
-		modelId?: string
-	}): void {
-		if (!this.isCategoryEnabled("skills")) {
-			return
-		}
-
-		if (!args.ulid || !args.skillName) {
-			return
-		}
-
-		const skillsAvailableGlobal = Math.max(0, args.skillsAvailableGlobal)
-		const skillsAvailableProject = Math.max(0, args.skillsAvailableProject)
-
-		const properties = {
-			ulid: args.ulid,
-			skillName: args.skillName,
-			skillSource: args.skillSource,
-			skillsAvailableGlobal,
-			skillsAvailableProject,
-			provider: args.provider,
-			modelId: args.modelId,
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.SKILL_USED,
-			properties,
-		})
-	}
-
 	/**
 	 * Records when an MCP tool is called.
 	 * This telemetry event is designed to monitor the usage and performance of MCP tools
@@ -1090,16 +708,12 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records interactions with the git-based checkpoint system
+	 * Records checkpoint interactions.
 	 * @param ulid Unique identifier for the task
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(
-		ulid: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
-		durationMs?: number,
-	) {
+	public captureCheckpointUsage(ulid: string, action: "created" | "restored", durationMs?: number) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
@@ -1110,44 +724,6 @@ export class TelemetryService {
 				ulid,
 				action,
 				durationMs,
-			},
-		})
-	}
-
-	/**
-	 * Records when a diff edit (replace_in_file) operation fails
-	 * @param ulid Unique identifier for the task
-	 * @param modelId The model ID being used
-	 * @param provider The API provider being used
-	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
-	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
-	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
-			properties: {
-				ulid,
-				errorType,
-				modelId,
-				provider,
-				isNativeToolCall,
-			},
-		})
-	}
-
-	/**
-	 * Records when a different model is selected for use
-	 * @param model Name of the selected model
-	 * @param provider Provider of the selected model
-	 * @param ulid Optional task identifier if model was selected during a task
-	 */
-	public captureModelSelected(model: string, provider: string, ulid?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
-			properties: {
-				model,
-				provider,
-				ulid,
 			},
 		})
 	}
@@ -1273,66 +849,6 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Captures Gemini API performance metrics.
-	 * @param ulid Unique identifier for the task
-	 * @param modelId Specific Gemini model ID
-	 * @param data Performance data including TTFT, durations, token counts, cache stats, and API success status
-	 */
-	public captureGeminiApiPerformance(
-		ulid: string,
-		modelId: string,
-		data: {
-			ttftSec?: number
-			totalDurationSec?: number
-			promptTokens: number
-			outputTokens: number
-			cacheReadTokens: number
-			cacheHit: boolean
-			cacheHitPercentage?: number
-			apiSuccess: boolean
-			apiError?: string
-			throughputTokensPerSec?: number
-		},
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
-			properties: {
-				ulid,
-				modelId,
-				...data,
-			},
-		})
-
-		if (typeof data.ttftSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, data.ttftSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
-		}
-
-		if (typeof data.totalDurationSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, data.totalDurationSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
-		}
-
-		if (typeof data.throughputTokensPerSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.THROUGHPUT_TOKENS_PER_SECOND, data.throughputTokensPerSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
-		}
-
-		if (data.cacheHit) {
-			this.recordCounter(TelemetryService.METRICS.CACHE.HITS_TOTAL, 1, { ulid, model: modelId, provider: "gemini" })
-		}
-	}
-
-	/**
 	 * Records when the user uses the model favorite button in the model picker
 	 * @param model The name of the model the user has interacted with
 	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
@@ -1357,6 +873,34 @@ export class TelemetryService {
 		})
 	}
 
+	public capturePanelOpened(source?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PANEL_OPENED,
+			properties: { source },
+		})
+	}
+
+	public captureNewTaskClicked(source?: string, hasActiveTask?: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.NEW_TASK_CLICKED,
+			properties: { source, hasActiveTask },
+		})
+	}
+
+	public capturePromptSubmitted(args: {
+		source?: string
+		hasText?: boolean
+		hasImages?: boolean
+		hasFiles?: boolean
+		hasActiveTask?: boolean
+		textLength?: number
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PROMPT_SUBMITTED,
+			properties: args,
+		})
+	}
+
 	/**
 	 * Records telemetry when an API provider returns an error
 	 * @param ulid Unique identifier for the task
@@ -1373,6 +917,8 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		errorType?: string | undefined
+		failurePhase?: string | undefined
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
@@ -1389,12 +935,16 @@ export class TelemetryService {
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
@@ -1618,21 +1168,6 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records when Cline web tools are enabled/disabled by the user
-	 * @param ulid Unique identifier for the task
-	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
-	 */
-	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
-			properties: {
-				ulid,
-				enabled,
-			},
-		})
-	}
-
-	/**
 	 * Records task initialization timing and metadata
 	 * @param ulid Unique identifier for the task
 	 * @param taskId Task ID (timestamp in milliseconds when task was created)
@@ -1651,16 +1186,6 @@ export class TelemetryService {
 		})
 	}
 
-	/**
-	 * Records when the rules menu button is clicked to open the rules/workflows modal
-	 */
-	public captureRulesMenuOpened() {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
-			properties: {},
-		})
-	}
-
 	// Terminal telemetry methods
 
 	/**
@@ -1668,20 +1193,39 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("vscode")
 	 * @param method The VSCode-specific method used to capture output
+	 * @param details Optional dimensions:
+	 *   exitCode — the process exit code, when captured (via
+	 *   onDidEndTerminalShellExecution, the OSC 633;D marker, or child_process);
+	 *   terminalExecutionMode — foreground ("vscodeTerminal") or background
+	 *   ("backgroundExec");
+	 *   markerlessCause — for method "markerless_heuristic", why the command was
+	 *   considered complete;
+	 *   terminalClosed — the terminal was closed while the command was running
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "vscode",
+		method: VscodeOutputMethod,
+		details?: {
+			exitCode?: number | null
+			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+			markerlessCause?: MarkerlessCompletionCause
+			terminalClosed?: boolean
+		},
+	): void
 	/**
 	 * Records terminal command execution outcomes for standalone terminal
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("standalone")
 	 * @param method The standalone-specific method used to capture output
-	 * @param exitCode The process exit code (useful for diagnosing failure types: 1=error, 127=not found, 126=permission denied)
+	 * @param details Optional dimensions: exitCode — the process exit code (useful for
+	 * diagnosing failure types: 1=error, 127=not found, 126=permission denied)
 	 */
 	public captureTerminalExecution(
 		success: boolean,
 		terminalType: "standalone",
 		method: StandaloneOutputMethod,
-		exitCode?: number | null,
+		details?: { exitCode?: number | null },
 	): void
 	/**
 	 * Implementation of captureTerminalExecution
@@ -1690,16 +1234,25 @@ export class TelemetryService {
 		success: boolean,
 		terminalType: TerminalType,
 		method: TerminalOutputMethod,
-		exitCode?: number | null,
+		details?: {
+			exitCode?: number | null
+			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+			markerlessCause?: MarkerlessCompletionCause
+			terminalClosed?: boolean
+		},
 	): void {
+		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed } = details ?? {}
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				terminalType,
 				method,
-				// Only include exitCode for standalone terminals when it's a meaningful value
-				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
+				// Only include exitCode when it's a meaningful value.
+				...(exitCode !== undefined && exitCode !== null && { exitCode }),
+				...(terminalExecutionMode !== undefined && { terminalExecutionMode }),
+				...(markerlessCause !== undefined && { markerlessCause }),
+				...(terminalClosed !== undefined && { terminalClosed }),
 			},
 		})
 	}
@@ -1752,60 +1305,6 @@ export class TelemetryService {
 	// Workspace telemetry methods
 
 	/**
-	 * Records when workspace is initialized
-	 * @param rootCount Number of workspace roots
-	 * @param vcsTypes Array of VCS types detected
-	 * @param initDurationMs Time taken to initialize in milliseconds
-	 * @param featureFlagEnabled Whether multi-root feature flag is enabled
-	 */
-	public captureWorkspaceInitialized(
-		rootCount: number,
-		vcsTypes: string[],
-		initDurationMs?: number,
-		featureFlagEnabled?: boolean,
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.INITIALIZED,
-			properties: {
-				root_count: rootCount,
-				vcs_types: vcsTypes,
-				is_multi_root: rootCount > 1,
-				has_git: vcsTypes.includes("Git"),
-				has_mercurial: vcsTypes.includes("Mercurial"),
-				init_duration_ms: initDurationMs,
-				feature_flag_enabled: featureFlagEnabled,
-			},
-		})
-
-		const isMultiRoot = rootCount > 1
-		this.recordGauge("cline.workspace.active_roots", rootCount, {
-			is_multi_root: isMultiRoot,
-		})
-		// Retire the previous series to avoid leaking gauge entries when the flag flips.
-		this.recordGauge("cline.workspace.active_roots", null, {
-			is_multi_root: !isMultiRoot,
-		})
-	}
-
-	/**
-	 * Records workspace initialization errors
-	 * @param error The error that occurred
-	 * @param fallbackMode Whether system fell back to single-root mode
-	 * @param workspaceCount Number of workspace folders detected
-	 */
-	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
-			properties: {
-				error_type: error.constructor.name,
-				error_message: error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH),
-				fallback_to_single_root: fallbackMode,
-				workspace_count: workspaceCount ?? 0,
-			},
-		})
-	}
-
-	/**
 	 * Records multi-root checkpoint operations
 	 * @param ulid Task identifier
 	 * @param action Type of checkpoint action
@@ -1832,39 +1331,6 @@ export class TelemetryService {
 				failure_count: failureCount,
 				success_rate: rootCount > 0 ? successCount / rootCount : 0,
 				duration_ms: durationMs,
-			},
-		})
-	}
-
-	/**
-	 * Records workspace path resolution events
-	 * @param ulid Unique identifier for the task
-	 * @param context The component/handler where resolution occurred
-	 * @param resolutionType Type of resolution performed
-	 * @param hintType Type of workspace hint provided (if any)
-	 * @param resolutionSuccess Whether the resolution was successful
-	 * @param targetWorkspaceIndex Index of the resolved workspace (0=primary, 1=secondary, etc.)
-	 * @param isMultiRootEnabled Whether multi-root mode is enabled
-	 */
-	public captureWorkspacePathResolved(
-		ulid: string,
-		context: string,
-		resolutionType: "hint_provided" | "fallback_to_primary" | "cross_workspace_search",
-		hintType?: "workspace_name" | "workspace_path" | "invalid",
-		resolutionSuccess?: boolean,
-		targetWorkspaceIndex?: number,
-		isMultiRootEnabled?: boolean,
-	) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.PATH_RESOLVED,
-			properties: {
-				ulid,
-				context,
-				resolution_type: resolutionType,
-				hint_type: hintType,
-				resolution_success: resolutionSuccess,
-				target_workspace_index: targetWorkspaceIndex,
-				is_multi_root_enabled: isMultiRootEnabled,
 			},
 		})
 	}
@@ -2093,31 +1559,17 @@ export class TelemetryService {
 		})
 	}
 
-	/**
-	 * Records when a CLI subagent is executed
-	 * @param ulid Unique identifier for the task
-	 * @param durationMs Duration of the subagent execution in milliseconds
-	 * @param outputLines Number of lines of output produced by the subagent
-	 * @param success Whether the subagent execution was successful
-	 */
-	public captureSubagentExecution(ulid: string, durationMs: number, outputLines: number, success: boolean) {
-		if (!this.isCategoryEnabled("subagents")) {
-			return
-		}
-
-		this.capture({
-			event: success ? TelemetryService.EVENTS.TASK.SUBAGENT_COMPLETED : TelemetryService.EVENTS.TASK.SUBAGENT_STARTED,
-			properties: {
-				ulid,
-				durationMs,
-				outputLines,
-				success,
-				timestamp: new Date().toISOString(),
-			},
-		})
-	}
-
-	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+	public captureOnboardingProgress(args: {
+		step: number
+		action?: string
+		page?: string
+		pageVariant?: string
+		userType?: string
+		selectedModelId?: string
+		destinationStep?: number
+		destinationPage?: string
+		completed?: boolean
+	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
 			properties: {
@@ -2358,16 +1810,6 @@ export class TelemetryService {
 		}
 	}
 
-	public captureHostEvent(name: string, content: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.HOST.DETECTED,
-			properties: {
-				name,
-				content,
-			},
-		})
-	}
-
 	/**
 	 * Records the size of a gRPC response message for observability.
 	 *
@@ -2376,6 +1818,129 @@ export class TelemetryService {
 	 * @param method The gRPC method name
 	 * @param requestId Optional request ID for correlation
 	 */
+	public captureLegacyTaskMigration(args: {
+		taskId: string
+		outcome: "success" | "skipped" | "error"
+		reason: string
+		durationMs: number
+		legacyApiHistoryLength?: number
+		convertedMessageCount?: number
+		sdkLookupFailed?: boolean
+		hasFavorite?: boolean
+		hasCost?: boolean
+		hasTokenUsage?: boolean
+		hasCwd?: boolean
+	}): void {
+		const migrationType = "legacy_task_to_sdk_session"
+		const metricAttributes = {
+			migration_type: migrationType,
+			outcome: args.outcome,
+			reason: args.reason,
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LEGACY_TASK_MIGRATION,
+			properties: {
+				ulid: args.taskId,
+				migration_type: migrationType,
+				outcome: args.outcome,
+				reason: args.reason,
+				durationMs: args.durationMs,
+				legacyApiHistoryLength: args.legacyApiHistoryLength,
+				convertedMessageCount: args.convertedMessageCount,
+				sdkLookupFailed: args.sdkLookupFailed,
+				hasFavorite: args.hasFavorite,
+				hasCost: args.hasCost,
+				hasTokenUsage: args.hasTokenUsage,
+				hasCwd: args.hasCwd,
+			},
+		})
+
+		this.recordCounter(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_ATTEMPTS_TOTAL,
+			1,
+			metricAttributes,
+			"Legacy VS Code task migration decisions",
+		)
+		if (args.outcome === "success") {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code tasks successfully copied into SDK session storage",
+			)
+		} else if (args.outcome === "error") {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_FAILURES_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code task migrations that failed while building or writing the SDK session",
+			)
+		} else {
+			this.recordCounter(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SKIPPED_TOTAL,
+				1,
+				metricAttributes,
+				"Legacy VS Code task migration checks that did not need or could not perform a migration",
+			)
+		}
+
+		this.recordHistogram(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_DURATION_SECONDS,
+			args.durationMs / 1000,
+			metricAttributes,
+			"Time spent checking or migrating a legacy VS Code task into SDK session storage",
+		)
+		if (args.legacyApiHistoryLength !== undefined) {
+			this.recordHistogram(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_LEGACY_MESSAGES_COUNT,
+				args.legacyApiHistoryLength,
+				metricAttributes,
+				"Number of raw legacy API history messages found while migrating a legacy VS Code task",
+			)
+		}
+		if (args.convertedMessageCount !== undefined) {
+			this.recordHistogram(
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_CONVERTED_MESSAGES_COUNT,
+				args.convertedMessageCount,
+				metricAttributes,
+				"Number of SDK-compatible messages produced from a legacy VS Code task migration",
+			)
+		}
+	}
+
+	public captureLegacyTaskMigrationBacklog(args: {
+		pendingLegacyTaskCount: number
+		migratedSdkTaskCount: number
+		visibleSdkTaskCount: number
+		visibleTaskCount: number
+	}): void {
+		const attributes = { migration_type: "legacy_task_to_sdk_session" }
+		this.recordGauge(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT,
+			args.pendingLegacyTaskCount,
+			attributes,
+			"Legacy VS Code tasks visible in history but not yet migrated to SDK sessions",
+		)
+		this.recordGauge(
+			TelemetryService.METRICS.MIGRATION.LEGACY_TASK_MIGRATED_COUNT,
+			args.migratedSdkTaskCount,
+			attributes,
+			"SDK sessions marked as migrated from legacy VS Code task history",
+		)
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LEGACY_TASK_MIGRATION,
+			properties: {
+				migration_type: "legacy_task_to_sdk_session",
+				outcome: "backlog",
+				pendingLegacyTaskCount: args.pendingLegacyTaskCount,
+				migratedSdkTaskCount: args.migratedSdkTaskCount,
+				visibleSdkTaskCount: args.visibleSdkTaskCount,
+				visibleTaskCount: args.visibleTaskCount,
+			},
+		})
+	}
+
 	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
 		this.recordHistogram(
 			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,

@@ -9,6 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as cliVersion } from "../../package.json";
 import { getCliBuildInfo } from "../utils/common";
 
 const {
@@ -21,7 +22,9 @@ const {
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
 	mockEnsureFileExists,
+	mockListActiveConnectors,
 	mockStopAllConnectors,
+	mockListSupervisedConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
@@ -49,11 +52,14 @@ const {
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 	mockEnsureFileExists: vi.fn(),
+	mockListActiveConnectors: vi.fn(() => []),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
+		failedProcesses: 0,
 		stoppedSessions: 0,
 		executed: 0,
 	})),
+	mockListSupervisedConnectors: vi.fn(async () => undefined as unknown),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -69,6 +75,7 @@ vi.mock("@cline/core", () => ({
 	readHubDiscovery: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
+	listActiveConnectors: mockListActiveConnectors,
 }));
 
 vi.mock("../connectors/common", () => ({
@@ -79,7 +86,11 @@ vi.mock("./connect", () => ({
 	stopAllConnectors: mockStopAllConnectors,
 }));
 
-import { createDoctorCommand, runDoctorCommand } from "./doctor";
+vi.mock("./connect-via-hub", () => ({
+	listSupervisedConnectorsViaHub: mockListSupervisedConnectors,
+}));
+
+import { __test__, createDoctorCommand, runDoctorCommand } from "./doctor";
 
 describe("runDoctorCommand", () => {
 	const tempDirs: string[] = [];
@@ -99,6 +110,7 @@ describe("runDoctorCommand", () => {
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
+			failedProcesses: 0,
 			stoppedSessions: 0,
 			executed: 0,
 		});
@@ -172,6 +184,40 @@ describe("runDoctorCommand", () => {
 						staleSidecarPids: [],
 					},
 		);
+	});
+
+	it("reports CLI and running hub Core versions", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.63",
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+			coreVersion: "0.0.64",
+		});
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			cliVersion,
+			coreVersion: "0.0.64",
+		});
 	});
 
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {
@@ -248,6 +294,7 @@ describe("runDoctorCommand", () => {
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 2,
+			failedProcesses: 0,
 			stoppedSessions: 5,
 			executed: 3,
 		});
@@ -407,5 +454,173 @@ describe("createDoctorCommand log subcommand", () => {
 		expect(exitCode).toBe(1);
 		expect(errors[0]).toContain("failed to open log file");
 		expect(errors[0]).toContain("open failed");
+	});
+});
+
+describe("container-aware process filtering", () => {
+	const { decideForeignContainer, CONTAINER_CGROUP_PATTERN } = __test__;
+
+	it("treats a process in a different pid namespace as foreign", () => {
+		expect(
+			decideForeignContainer({
+				platform: "linux",
+				namespacePairs: [
+					["pid:[4026531836]", "pid:[4026532500]"],
+					[undefined, undefined],
+				],
+				ownContainerId: undefined,
+				otherContainerId: undefined,
+			}),
+		).toBe(true);
+	});
+
+	it("keeps a sibling process in our own namespaces", () => {
+		expect(
+			decideForeignContainer({
+				platform: "linux",
+				namespacePairs: [
+					["pid:[4026531836]", "pid:[4026531836]"],
+					["mnt:[4026531840]", "mnt:[4026531840]"],
+				],
+				ownContainerId: undefined,
+				otherContainerId: undefined,
+			}),
+		).toBe(false);
+	});
+
+	it("falls back to cgroup container ids when namespaces are unreadable", () => {
+		expect(
+			decideForeignContainer({
+				platform: "linux",
+				namespacePairs: [[undefined, undefined]],
+				ownContainerId: undefined,
+				otherContainerId: "7c6ffadc42f0bc0bc7c6ca47de4cd702",
+			}),
+		).toBe(true);
+		// Same container: our own sibling process, not something to retire.
+		expect(
+			decideForeignContainer({
+				platform: "linux",
+				namespacePairs: [[undefined, undefined]],
+				ownContainerId: "7c6ffadc42f0bc0bc7c6ca47de4cd702",
+				otherContainerId: "7c6ffadc42f0bc0bc7c6ca47de4cd702",
+			}),
+		).toBe(false);
+	});
+
+	it("never filters off Linux, where containers cannot share our pid space", () => {
+		expect(
+			decideForeignContainer({
+				platform: "darwin",
+				namespacePairs: [["pid:[1]", "pid:[2]"]],
+				ownContainerId: undefined,
+				otherContainerId: "abcdef123456",
+			}),
+		).toBe(false);
+	});
+
+	it("extracts container ids from real cgroup paths", () => {
+		const docker =
+			"0::/system.slice/docker-7c6ffadc42f0bc0bc7c6ca47de4cd702206e79b4068d172d8c2a2350063913ad.scope";
+		expect(docker.match(CONTAINER_CGROUP_PATTERN)?.[1]).toBe(
+			"7c6ffadc42f0bc0bc7c6ca47de4cd702206e79b4068d172d8c2a2350063913ad",
+		);
+		// A plain host session must not look like a container.
+		expect(
+			"0::/user.slice/user-1001.slice/session-121.scope".match(
+				CONTAINER_CGROUP_PATTERN,
+			),
+		).toBeNull();
+	});
+});
+
+describe("doctor supervision reporting", () => {
+	const { formatSupervisedConnector } = __test__;
+
+	afterEach(() => {
+		vi.clearAllMocks();
+		mockListSupervisedConnectors.mockResolvedValue(undefined);
+	});
+
+	async function runDoctorJson(): Promise<Record<string, unknown>> {
+		const output: string[] = [];
+		await runDoctorCommand(
+			{ cwd: "/workspace", json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+		return JSON.parse(output[0] || "{}") as Record<string, unknown>;
+	}
+
+	it("reports what the hub is supervising", async () => {
+		mockListSupervisedConnectors.mockResolvedValue([
+			{
+				channel: "slack",
+				instanceId: "cline-slack",
+				state: "backoff",
+				origin: "spawned",
+				restarts: 3,
+			},
+		]);
+
+		await expect(runDoctorJson()).resolves.toMatchObject({
+			supervisedConnectors: [
+				{ channel: "slack", instanceId: "cline-slack", state: "backoff" },
+			],
+		});
+	});
+
+	it("omits supervision when the hub cannot report it", async () => {
+		mockListSupervisedConnectors.mockResolvedValue(undefined);
+
+		const status = await runDoctorJson();
+
+		expect(status.supervisedConnectors).toBeUndefined();
+	});
+
+	it("stays usable when the supervision query fails", async () => {
+		mockListSupervisedConnectors.mockRejectedValue(new Error("hub gone"));
+
+		// Diagnostics must degrade quietly rather than fail.
+		const status = await runDoctorJson();
+
+		expect(status.supervisedConnectors).toBeUndefined();
+		expect(status).toHaveProperty("hubHealthy");
+	});
+
+	it("formats restart and failure state so a crash loop is visible", () => {
+		expect(
+			formatSupervisedConnector({
+				channel: "slack",
+				instanceId: "cline-slack",
+				state: "failed",
+				origin: "adopted",
+				pid: 42,
+				restarts: 5,
+				lastExitCode: 1,
+				lastError: "invalid token",
+			}),
+		).toBe(
+			"slack | instance=cline-slack | state=failed | origin=adopted | pid=42 | restarts=5 | lastExit=1 | error=invalid token",
+		);
+	});
+
+	it("leaves out fields that do not apply to a healthy connector", () => {
+		expect(
+			formatSupervisedConnector({
+				channel: "telegram",
+				instanceId: "cline_bot",
+				state: "running",
+				origin: "spawned",
+				pid: 7,
+				restarts: 0,
+			}),
+		).toBe(
+			"telegram | instance=cline_bot | state=running | origin=spawned | pid=7",
+		);
 	});
 });

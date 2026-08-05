@@ -1,5 +1,185 @@
 # Cline SDK Changelog
 
+## 0.0.69
+
+- Ollama's response-start timeout now defaults to 5 minutes instead of 30 seconds, so large models that cold-load no longer fail before they finish loading — unreachable servers still fail immediately, requests are still cancelable, and an explicit `requestTimeoutMs` is still honored
+- Ollama turns that come back completely empty (no text, reasoning, or tool call) are now retried at the model boundary instead of failing the task with "Model returned empty response"; non-empty turns stream through with no added latency, and turns that error or hit the token limit pass through unchanged
+- Checkpoints are created again in VS Code and the CLI — run-boundary detection assumed the run's prompt arrives as run input, but both hosts seed it into the initial messages, so no checkpoints were ever recorded. Detection now also survives process restarts and compaction
+- Checkpoint restore is now a true workspace rewind: files Cline created during a task are captured in the snapshot and restored to their checkpoint-time content, and files created after the checkpoint are removed. `.gitignore`d paths (build output, `node_modules`, `.env`) are left untouched, and a pre-restore recovery snapshot can roll the whole operation back. Checkpoints taken before this change keep the old conservative behavior of never touching untracked files
+- Migrated users whose stored Cline model id isn't in the runtime catalog now fall back to the default Cline model instead of carrying an unknown id into every inference request
+- Tool-use mistake notices are no longer reported as provider API errors, provider errors are no longer double-counted, and provider error details are preserved
+
+## 0.0.68
+
+- Provider errors forwarded through the Vercel AI Gateway now surface the real upstream message (e.g. "This model's maximum context length is 40960 tokens...") instead of a raw Zod issue dump, and opaque object errors no longer render as `[object Object]`
+- `fetchClineRecommendedModels` now returns display-ready model names, resolved through the model catalog (including Vercel and OpenRouter id aliases) under a single shared timeout budget, so hosts no longer have to map ids to names themselves
+- Cline free models now resolve their OpenRouter display names in the catalog
+- The live catalog no longer drops the video input capability
+- On Windows, PowerShell commands now travel over UTF-8 stdin instead of the command line, so non-ASCII commands survive the active code page and long commands are not capped by the Windows command-line limit — `getShellInvocation()` replaces the now-deprecated `getShellArgs()`, and a stdin write failure surfaces as a command error instead of hanging
+- Fixed sessions rooted at the filesystem root (`/`) failing to run any command: `basename("/")` produced an empty workspace hint that schema validation rejected, so every command threw
+- Exported the finish-reason and auth-error helpers used to describe agent errors
+
+## 0.0.67
+
+- Reasoning controls (effort, budget, on/off) are now driven by the models.dev catalog and normalized once before provider encoding, so requests match what each provider actually advertises; Anthropic's mandatory and impossible thinking modes are handled explicitly, and out-of-range budgets are clamped
+- OpenRouter now defaults to `anthropic/claude-sonnet-5`
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored by the SDK's MCP clients for `initialize`, `tools/list`, and `tools/call` instead of hardcoded 1.5s and 5s limits — it defaults to 60 seconds and is clamped to 1–3600 seconds
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI
+- Legacy API keys are now migrated for every secret-backed provider instead of a subset
+- Legacy OpenAI Compatible model-info overrides are now carried into the seeded `models.json` instead of being dropped
+- Removed the "Enable R1 messages format" option from the OpenAI Compatible provider
+- Fixed checkpoint restores across session resumes
+- Added session forking and user-run message APIs so a host can edit an earlier prompt: fork the session before a selected user run, trim checkpoint history, and restore the prior messages
+- Fixed auto-compaction state being rejected as stale on every save, which forced a full re-compaction — an extra summarizer call — on every turn past the trigger, and could leave a dead sidecar permanently blocking replacements after a resume
+- Added `ClineCore.readLiveMessages` for reading a resident session's in-memory transcript, so a plan/act rebuild during an in-flight turn no longer starts from an empty history
+- `insert_line` and the `read_files` line bounds now accept numbers emitted as JSON strings instead of failing the whole tool call
+- Plugins can now emit telemetry through `ctx.telemetry`, from both the subprocess sandbox and in-process execution
+- A legacy single-file `.clinerules` no longer aborts the config scan
+- Telemetry events now carry `device_id`
+- A malformed OTEL header entry no longer discards the valid ones
+
+## 0.0.66
+
+- Support for free Cline models (`cline-free`): free models are labeled "(free)", priced at zero, and hitting the free tier now raises a dedicated limit error that includes the reset time
+- Agentic compaction is now the default context-compaction strategy
+- Fixed agentic compaction silently falling back to basic compaction on OpenAI Compatible providers (the summarizer built its handler without a base URL and hit api.openai.com), and manual compaction budgeting against a 64k fallback instead of the model's real context window
+- Fixed agentic compaction never finding a cut point in tool-heavy transcripts, which produced endless "auto-compaction skipped" while context kept growing — assistant messages are now valid cut boundaries
+- Connector sessions now persist and automatically reconnect after a daemon or hub restart
+- Plan/act mode, tool auto-approve, and compaction mode are now persisted in global settings, with cross-process-safe writes so two hosts no longer clobber each other's changes
+- The built-in provider list is now generated from models.dev, broadening out-of-the-box provider coverage
+- The editor tool preserves a file's existing line endings — CRLF files no longer end up with mixed endings and failing exact-match edits
+- SAP AI Core now sets the metering header and uses the fetch adapter
+- Headless scheduled routines default to auto-approve and no longer ask questions no one can answer
+- Telemetry: task lifecycle events, auth event metadata and request IDs, and correct host identity (`host_plugin_version`, platform) on SDK-pipeline events
+- Removed the never-invoked `onRetryAttempt` callback from `ApiHandlerOptions` and provider config
+- `@cline/ui`: host-safe theme contract and Markdown exports
+- Updated the bundled model catalog
+
+## 0.0.65
+
+- Claude Code and Codex provider SDKs are now optional peer dependencies loaded on demand, dramatically cutting install size
+- Added Kimi K3 to the bundled ClinePass model fallback
+- Runs now retry once after refreshing expired OAuth credentials
+- Team runs: the spawn tool is no longer exposed to teammate agents
+- Team runs: errored teammate runs now report as failed instead of completed
+- Improved shell-command parsing to fix a Windows shell mismatch
+- New `@cline/ui` agent chat components with Storybook and npm packaging
+- Updated the bundled model catalog
+
+## 0.0.64
+
+- Improved max output token handling across providers (gateway routing, OpenAI vendor, and reasoning models)
+- Frontmatter and user-instruction files that start with a UTF-8 byte order mark (e.g. saved by Windows editors) now parse correctly
+
+## 0.0.63
+
+- The session runtime now emits `task.mistake_limit_reached` telemetry when the consecutive-mistake limit is hit, so every host (CLI, VS Code extension, hub daemon) captures it — including auto-stops when no host prompt is configured
+
+## 0.0.62
+
+- Fixed Ollama native API routing so context window and timeout settings work again
+- Telemetry is no longer attached to hub tool contexts
+
+## 0.0.61
+
+- Context compaction now reports progress status while it runs
+- Workspace git info (branch/remote) is now persisted and refreshed across sessions
+- Fixed benign git states being reported as workspace initialization errors
+- Plan/Act mode guidance added to the system prompt, with nudges when switching modes
+- Editor diff view restored for SDK edit tools
+- Model IDs are now suggested from OpenAI-compatible endpoints
+- VS Code terminal reliability improvements (OSC 633 parsing, exit codes, timeout handling)
+- Provider-specific request headers are now centralized in the LLM layer
+- Telemetry now attaches organization context when identifying with cached credentials
+- Added a shared `@cline/ui` theme package
+
+## 0.0.60
+
+- Fixed an issue where a transient network or server error during token refresh could log you out — transient failures no longer clear your credentials
+- Added the ClinePass usage-limit error so limit-reached responses are surfaced clearly
+- Session id is now preserved when continuing within the same session
+- Fixed infinite loading when initializing a task with an image
+- Hardened compaction budget handling
+- Added telemetry for auth-refresh outcomes and Cline credential lifecycle debug logging
+
+## 0.0.59
+
+- You can now select Cline free models on the ClinePass provider
+- The SDK now recognizes ClinePass rate-limit responses and surfaces them as a typed `ClinePassLimitError` (with `isClinePassLimitMessage` / `extractClinePassLimitMessage` helpers)
+- Removed references to the retired ClinePass GLM 5.1 model
+- Fixed OpenAI Codex model metadata under the GPT Subscription provider
+- The detached hub daemon process now emits telemetry
+- SDK/CLI telemetry identity attributes now include `user_id`
+- Cline provider requests now send versioned Cline client-identity headers
+- Fixed context compaction so canonical session history is preserved
+- `str_replace` edits now report accurate diffs
+- Fixed a performance issue where listing sessions could hang the extension host
+
+## 0.0.58
+
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected
+
+## 0.0.57
+
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit (up from 4,096), so under-specified models get a usable context budget
+- The default max input-token budget used for context compaction is now 128K
+- Added a shared prompt-format helper in `@cline/shared` and simplified runtime host support
+
+## 0.0.56
+
+- Tool calls from weaker models that use slightly-off argument shapes (e.g. a bare string where an array is expected) or malformed/truncated JSON are now coerced or repaired and executed, instead of being rejected before the tools can handle them
+- Fixed plan/act mode notices being stripped from outbound prompts
+- Added support for surfacing plan/act mode switches to the model
+
+## 0.0.55
+
+- Add Tencent TokenHub as a provider
+- Add a compaction strategy setting so you can choose how context compaction works
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3), where a shallow session could auto-compact immediately and reduce the initial task to just the input wrapper
+- Use a curated default when migrating legacy provider settings
+- Advertise run commands as shell strings
+- Refresh the bundled model catalog with the latest provider models
+
+## 0.0.54
+
+- Improve basic compaction token budgeting so context compaction is more accurate
+- Preserve error detail and fetch error cause information so failures surface clearer messages
+- Preserve failed run error messages instead of dropping them
+- Derive model info in the provider/model runtime path for more reliable provider/model handling
+- Add ClinePass subscription support to the account service
+
+## 0.0.53
+
+- Show when request cost is covered by the user's Cline subscription
+- List ClinePass features in the not-subscribed message
+- Added shared marketplace uninstall support
+- Shared marketplace install logic through core
+- Surfaced plugin-bundled skills
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 0.0.52
+
+- Added checkpoints support to the agent runtime
+- Added SAP AI Core provider support: stabilized provider setup, bundled provider auth, forwarded provider options to the gateway, aligned provider config, kept model filtering in clients, and added OCA legacy reasoning-effort handling
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from being injected into the LiteLLM model list
+- Preserved OpenRouter reasoning-disable semantics and included the session id for OpenRouter prompt caching
+- Updated the ClinePass model list live, restored ClinePass models in onboarding, fixed ClinePass error mapping, and scoped the ClinePass URL to the CLI
+- Threaded proxy/CA-aware fetch into the SDK inference path
+- Persisted Bedrock settings to providers.json
+- Repaired exposed provider auth routing and restored provider-request capture wiring lost in the SDK migration
+- Added a connector configure path and moved the shared connector catalog into the shared package
+- Normalized JSON-like tool inputs by schema and avoided a nullable editor `old_text` schema
+- Batched outdated-read rewrites in `MessageBuilder` to preserve provider prefix caches
+- Prevented an "ERROR: EMPTY CONTENT" message from appearing when an error occurs
+- Added non-interactive command guidance to the agent
+- Published SDK sourcemaps
+- Refreshed the generated model catalog
+
+## 0.0.51
+
+- Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved
+
 ## 0.0.50
 
 - Truncate every tool result by default (including MCP and custom tool output), with tightened `MessageBuilder` limits and tunable `CLINE_MESSAGE_BUILDER_*` env overrides, to keep provider requests within budget

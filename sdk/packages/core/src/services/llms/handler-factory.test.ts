@@ -92,6 +92,39 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards a host-provided fetch into the gateway (top-level and per-provider)", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const hostFetch = vi.fn() as unknown as typeof fetch;
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "mock-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "mock-model",
+					fetch: hostFetch,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				fetch: hostFetch,
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "openai-compatible",
+						fetch: hostFetch,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
@@ -165,6 +198,32 @@ describe("createAgentModelFromConfig", () => {
 				releaseDate: "2026-04-02",
 			},
 		});
+	});
+
+	it("uses explicit per-turn max tokens and temperature for gateway request limits", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				maxTokensPerTurn: 4_096,
+				temperature: 0,
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "custom-model" },
+			{ maxTokens: 4_096, temperature: 0 },
+		);
 	});
 
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {
@@ -241,6 +300,228 @@ describe("createAgentModelFromConfig", () => {
 				],
 			}),
 		);
+	});
+
+	it("forwards a caller-supplied timeout to the gateway provider config", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "minimax-m3:cloud",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "minimax-m3:cloud",
+					timeoutMs: 180000,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						timeoutMs: 180000,
+					}),
+				],
+			}),
+		);
+	});
+
+	it("projects providers.json contextWindow (maxInputTokens) onto the selected gateway model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "llama3.1",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "llama3.1",
+					// Where ProviderSettings.contextWindow lands via toProviderConfig.
+					maxInputTokens: 8192,
+					knownModels: {
+						"llama3.1": {
+							id: "llama3.1",
+							name: "llama3.1",
+							contextWindow: 131072,
+						},
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: [
+							expect.objectContaining({
+								id: "llama3.1",
+								contextWindow: 8192,
+								maxInputTokens: 8192,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it("surfaces a caller-supplied modelInfo for the selected model as a gateway model definition", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "minimax-m3:cloud",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "minimax-m3:cloud",
+					modelInfo: {
+						id: "minimax-m3:cloud",
+						name: "minimax-m3:cloud",
+						contextWindow: 500000,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: [
+							expect.objectContaining({
+								id: "minimax-m3:cloud",
+								contextWindow: 500000,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it("ignores a caller-supplied modelInfo for a different model id", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "llama3.1",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "llama3.1",
+					modelInfo: {
+						id: "some-other-model",
+						contextWindow: 500000,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: undefined,
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards SAP AI Core settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "sapaicore",
+				modelId: "anthropic--claude-4.6-sonnet",
+				baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "sapaicore",
+					modelId: "anthropic--claude-4.6-sonnet",
+					sap: {
+						clientId: "sap-client",
+						clientSecret: "sap-secret",
+						tokenUrl: "https://auth.example",
+						resourceGroup: "default",
+						deploymentId: "deployment-id",
+						useOrchestrationMode: false,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "sapaicore",
+						baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+						options: expect.objectContaining({
+							clientId: "sap-client",
+							clientSecret: "sap-secret",
+							tokenUrl: "https://auth.example",
+							resourceGroup: "default",
+							deploymentId: "deployment-id",
+							useOrchestrationMode: false,
+						}),
+					}),
+				],
+			}),
+		);
+
+		const gatewayConfig = (
+			gatewayMock.createGateway.mock.calls as unknown as Array<
+				[
+					{
+						providerConfigs: Array<Record<string, unknown>>;
+					},
+				]
+			>
+		).at(-1)?.[0];
+		const { createSapAiCoreProviderModule } = await import(
+			// biome-ignore lint/style/noRestrictedImports: test asserts internal SAP provider module behavior not exposed via @cline/llms entrypoint
+			"../../../../llms/src/providers/vendors/community"
+		);
+		const provider = await createSapAiCoreProviderModule(
+			gatewayConfig?.providerConfigs[0] as never,
+		);
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				destination?: Record<string, unknown>;
+				deploymentConfig?: Record<string, unknown>;
+				providerApi?: string;
+			};
+		};
+
+		expect(model.config?.destination).toBeUndefined();
+		expect(model.config?.deploymentConfig).toMatchObject({
+			deploymentId: "deployment-id",
+		});
+		expect(model.config?.providerApi).toBe("foundation-models");
 	});
 
 	it("forwards Azure settings as OpenAI-compatible gateway provider options", async () => {

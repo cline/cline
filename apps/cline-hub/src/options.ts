@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 export interface ClineHubServerOptions {
 	host: string;
 	port: number;
@@ -47,6 +49,9 @@ function normalizePublicUrl(
 			`PUBLIC_URL must use http: or https:, got ${parsed.protocol}`,
 		);
 	}
+	if (shouldAddDashboardPortToPublicUrl(parsed, port)) {
+		parsed.port = String(port);
+	}
 	parsed.hash = "";
 	return parsed.toString().replace(/\/$/, "");
 }
@@ -85,12 +90,26 @@ export function resolveClineHubServerOptions(
 	};
 }
 
+function isDefaultProtocolPort(url: URL, port: number): boolean {
+	return (
+		(url.protocol === "http:" && port === 80) ||
+		(url.protocol === "https:" && port === 443)
+	);
+}
+
+function shouldAddDashboardPortToPublicUrl(url: URL, port: number): boolean {
+	if (url.port || isDefaultProtocolPort(url, port)) return false;
+	const hostname = url.hostname.replace(/^\[|\]$/g, "");
+	return hostname === "localhost" || isIP(hostname) !== 0;
+}
+
 export function buildInviteUrl(
 	publicUrl: string,
 	roomSecret: string | undefined,
 ): string {
-	if (!roomSecret) return publicUrl;
 	const url = new URL(publicUrl);
-	url.searchParams.set("roomSecret", roomSecret);
+	if (roomSecret) {
+		url.searchParams.set("roomSecret", roomSecret);
+	}
 	return url.toString();
 }

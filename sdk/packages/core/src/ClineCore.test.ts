@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -70,9 +71,85 @@ function createAgentResult(text: string): AgentResult {
 	};
 }
 
+function git(cwd: string, args: string[]): string {
+	return execFileSync("git", ["-C", cwd, ...args], {
+		encoding: "utf8",
+	}).trim();
+}
+
 describe("ClineCore", () => {
 	beforeEach(() => {
 		createRuntimeHostMock.mockReset();
+	});
+
+	it("compares a checkpoint to the current workspace through the public SDK API", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-core-compare-"));
+		let core: ClineCore | undefined;
+		try {
+			git(dir, ["init", "-b", "main"]);
+			git(dir, ["config", "user.email", "test@example.com"]);
+			git(dir, ["config", "user.name", "Test User"]);
+			writeFileSync(join(dir, "tracked.txt"), "before\n", "utf8");
+			git(dir, ["add", "."]);
+			git(dir, ["commit", "-m", "initial"]);
+			const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+			writeFileSync(join(dir, "tracked.txt"), "after\n", "utf8");
+
+			const host = {
+				runtimeAddress: undefined,
+				startSession: vi.fn(),
+				runTurn: vi.fn(),
+				restoreSession: vi.fn(),
+				getAccumulatedUsage: vi.fn(),
+				abort: vi.fn(),
+				stopSession: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn(async () => ({
+					sessionId: "session-1",
+					cwd: dir,
+					workspaceRoot: dir,
+					metadata: {
+						checkpoint: {
+							history: [
+								{
+									ref: checkpointRef,
+									runCount: 1,
+									createdAt: 1,
+									kind: "commit",
+								},
+							],
+						},
+					},
+				})),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				readSessionMessages: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				subscribe: vi.fn(() => () => {}),
+				updateSessionModel: vi.fn(),
+			};
+			createRuntimeHostMock.mockResolvedValue(host);
+
+			core = await ClineCore.create();
+			const result = await core.compareCheckpoint({
+				sessionId: "session-1",
+				checkpointRunCount: 1,
+			});
+
+			expect(host.getSession).toHaveBeenCalledWith("session-1");
+			expect(result.checkpoint.ref).toBe(checkpointRef);
+			expect(result.diffs).toEqual([
+				{
+					filePath: join(dir, "tracked.txt"),
+					leftContent: "before\n",
+					rightContent: "after\n",
+				},
+			]);
+		} finally {
+			await core?.dispose();
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("applies start-session bootstraps before delegating to the host", async () => {
@@ -136,6 +213,46 @@ describe("ClineCore", () => {
 		expect(host.startSession).toHaveBeenCalledTimes(1);
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(listeners).toHaveLength(1);
+	});
+
+	it("preserves an omitted workspace until the execution host resolves it", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-pathless"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		await core.start({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "test",
+				systemPrompt: "You are concise.",
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+		});
+
+		expect(host.startSession).toHaveBeenCalledTimes(1);
+		const forwarded = host.startSession.mock.calls[0]?.[0];
+		expect(forwarded?.config).not.toHaveProperty("cwd");
+		expect(forwarded?.config).not.toHaveProperty("workspaceRoot");
 	});
 
 	it("disposes active session bootstraps when the session ends", async () => {
@@ -285,6 +402,61 @@ describe("ClineCore", () => {
 		expect(startInput.capabilities?.requestToolApproval).toBe(
 			requestToolApproval,
 		);
+	});
+
+	it("normalizes config extension context into local runtime before delegating to the host", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-extension-context"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const onTeamRestored = vi.fn();
+		const clientContext = {
+			name: "VSCode Extension",
+			version: "3.27.0",
+			platform: "Visual Studio Code",
+			platformVersion: "1.102.3",
+			isMultiRoot: true,
+		};
+		const core = await ClineCore.create();
+
+		await core.start({
+			...createStartInput(),
+			config: {
+				...createStartInput().config,
+				extensionContext: {
+					client: clientContext,
+				},
+			},
+			localRuntime: {
+				onTeamRestored,
+			},
+		});
+
+		const startInput = vi.mocked(host.startSession).mock.calls.at(-1)?.[0] as
+			| StartSessionInput
+			| undefined;
+		expect(startInput).toBeDefined();
+		if (!startInput) throw new Error("Expected host.startSession to be called");
+		expect(startInput.config).not.toHaveProperty("extensionContext");
+		expect(startInput.localRuntime?.extensionContext?.client).toEqual(
+			clientContext,
+		);
+		expect(startInput.localRuntime?.onTeamRestored).toBe(onTeamRestored);
 	});
 
 	it("prefers the per-session telemetry service over the ClineCore one", async () => {

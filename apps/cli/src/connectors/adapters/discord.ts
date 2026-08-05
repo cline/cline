@@ -2,6 +2,7 @@ import {
 	createDiscordAdapter,
 	type DiscordAdapter,
 } from "@chat-adapter/discord";
+// TODO: Remove the root Undici 6 override when discord.js no longer requires Undici ^6.27.0.
 import type { ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
@@ -55,10 +56,12 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -728,60 +731,69 @@ class DiscordConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Discord bot username label")
-			.option("--application-id <id>", "Discord application id")
-			.option("--app-id <id>", "Alias for --application-id")
-			.option("--bot-token <token>", "Discord bot token")
-			.option("--token <token>", "Alias for --bot-token")
-			.option("--public-key <key>", "Discord application public key")
-			.option(
-				"--owner-user-id <id>",
-				"Discord user id that should be marked as connector owner",
-			)
-			.option("--ignore-bot-authors", "Ignore messages from other Discord bots")
-			.option(
-				"--mention-role-ids <ids>",
-				"Comma-separated role IDs that should trigger mention handlers",
-			)
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Discord sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option(
-				"--base-url <url>",
-				"Public base URL for Discord interactions webhook",
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  DISCORD_APPLICATION_ID      Discord application id",
-					"  DISCORD_BOT_TOKEN           Discord bot token",
-					"  DISCORD_PUBLIC_KEY          Discord application public key",
-					"  DISCORD_OWNER_USER_ID       Optional connector owner user id",
-					"  DISCORD_IGNORE_BOT_AUTHORS  Set to 1 to ignore messages from other bots",
-					"  DISCORD_MENTION_ROLE_IDS    Optional comma-separated role ids",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Discord bot username label")
+				.option("--application-id <id>", "Discord application id")
+				.option("--app-id <id>", "Alias for --application-id")
+				.option("--bot-token <token>", "Discord bot token")
+				.option("--token <token>", "Alias for --bot-token")
+				.option("--public-key <key>", "Discord application public key")
+				.option(
+					"--owner-user-id <id>",
+					"Discord user id that should be marked as connector owner",
+				)
+				.option(
+					"--ignore-bot-authors",
+					"Ignore messages from other Discord bots",
+				)
+				.option(
+					"--mention-role-ids <ids>",
+					"Comma-separated role IDs that should trigger mention handlers",
+				)
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Discord sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option(
+					"--base-url <url>",
+					"Public base URL for Discord interactions webhook",
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  DISCORD_APPLICATION_ID      Discord application id",
+						"  DISCORD_BOT_TOKEN           Discord bot token",
+						"  DISCORD_PUBLIC_KEY          Discord application public key",
+						"  DISCORD_OWNER_USER_ID       Optional connector owner user id",
+						"  DISCORD_IGNORE_BOT_AUTHORS  Set to 1 to ignore messages from other bots",
+						"  DISCORD_MENTION_ROLE_IDS    Optional comma-separated role ids",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectDiscordOptions {
@@ -803,6 +815,7 @@ class DiscordConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -855,7 +868,7 @@ class DiscordConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -937,9 +950,18 @@ class DiscordConnector extends ConnectorBase<
 		);
 	}
 
-	protected override async runWithOptions(
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopDiscordConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
 		options: ConnectDiscordOptions,
-		rawArgs: string[],
 		io: ConnectIo,
 	): Promise<number> {
 		if (!options.applicationId) {
@@ -960,7 +982,22 @@ class DiscordConnector extends ConnectorBase<
 			);
 			return 1;
 		}
+		return 0;
+	}
 
+	protected override instanceIdFromOptions(
+		options: ConnectDiscordOptions,
+	): string | undefined {
+		return options.applicationId;
+	}
+
+	protected override async runWithOptions(
+		options: ConnectDiscordOptions,
+		rawArgs: string[],
+		io: ConnectIo,
+		context: ConnectRunContext,
+	): Promise<number> {
+		context.setPersistenceInstanceId(options.applicationId);
 		const statePath = this.resolveConnectorStatePath(options.applicationId);
 		const bindingsPath = this.resolveBindingsPath(options.applicationId);
 		const staleState = this.removeStaleState(
@@ -971,26 +1008,24 @@ class DiscordConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<DiscordThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_DISCORD_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[discord] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[discord] starting background connector pid=${pid} application=${options.applicationId}`,
-				foregroundHint:
-					"[discord] use `cline connect discord -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Discord connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_DISCORD_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[discord] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[discord] starting background connector pid=${pid} application=${options.applicationId}`,
+			foregroundHint:
+				"[discord] use `cline connect discord -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Discord connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -1102,7 +1137,9 @@ class DiscordConnector extends ConnectorBase<
 				isSubscribedThreadMessage?: boolean;
 			},
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -1135,6 +1172,7 @@ class DiscordConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
 						createEmptyRuntimeReplyResolver:
@@ -1274,9 +1312,7 @@ class DiscordConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

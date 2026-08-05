@@ -7,6 +7,7 @@
 import type {
 	AgentToolContext,
 	ImageContent,
+	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
 import type {
@@ -76,7 +77,7 @@ export type SearchExecutor = (
  * @param context - Tool execution context
  * @returns Command output (stdout)
  */
-export type BashExecutor = (
+export type ShellExecutor = (
 	command: string | StructuredCommandInput,
 	cwd: string,
 	context: AgentToolContext,
@@ -201,7 +202,7 @@ export interface ToolExecutors {
 	/** Codebase search implementation */
 	search?: SearchExecutor;
 	/** Shell command execution implementation */
-	bash?: BashExecutor;
+	bash?: ShellExecutor;
 	/** Web content fetching implementation */
 	webFetch?: WebFetchExecutor;
 	/** Filesystem editor implementation */
@@ -238,6 +239,14 @@ export type DefaultToolName =
  * Configuration for enabling/disabling default tools
  */
 export interface DefaultToolsConfig {
+	/**
+	 * Host telemetry service, injected at tool construction time. Tools that
+	 * emit operational telemetry (e.g. run_commands timeouts) close over this
+	 * service. It is a live host object and must never travel on the per-call
+	 * AgentToolContext, which crosses process boundaries over JSON IPC.
+	 */
+	telemetry?: ITelemetryService;
+
 	/**
 	 * Enable the read_files tool
 	 * @default true
@@ -296,6 +305,14 @@ export interface DefaultToolsConfig {
 	 * Current working directory for tools that need it
 	 */
 	cwd?: string;
+
+	/**
+	 * Shell executable (name or full path) the run_commands executor will use.
+	 * The tool description tells the model which shell syntax to write, so this
+	 * must match the shell configured on the executor.
+	 * @default getDefaultShell(process.platform) — "/bin/bash" on Unix, "powershell" on Windows
+	 */
+	shell?: string;
 
 	/**
 	 * Timeout for file read operations in milliseconds

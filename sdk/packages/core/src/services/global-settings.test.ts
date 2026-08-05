@@ -5,11 +5,21 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	readCompactionModeGlobally,
+	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
+	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	readTuiThemeGlobally,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
+	setTuiThemeGlobally,
 	writeGlobalSettings,
 } from "./global-settings";
 
@@ -44,11 +54,13 @@ describe("global-settings", () => {
 		});
 		expect(
 			GlobalSettingsSchema.parse({
+				compactionStrategy: "agentic",
 				disabledTools: ["read_files"],
 				extra: true,
 			}),
 		).toEqual({
 			autoUpdateEnabled: true,
+			compactionStrategy: "agentic",
 			disabledTools: ["read_files"],
 			telemetryOptOut: false,
 		});
@@ -193,6 +205,142 @@ describe("global-settings", () => {
 				autoUpdateEnabled: false,
 				disabledTools: ["editor"],
 				telemetryOptOut: true,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the compaction strategy globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCompactionStrategyGlobally()).toBe("agentic");
+			setCompactionStrategyGlobally("agentic");
+			expect(readCompactionStrategyGlobally()).toBe("agentic");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("normalizes the persisted general settings fields", () => {
+		expect(
+			GlobalSettingsSchema.parse({
+				compactionEnabled: false,
+				planActMode: "plan",
+				toolAutoApprove: false,
+			}),
+		).toEqual({
+			autoUpdateEnabled: true,
+			compactionEnabled: false,
+			planActMode: "plan",
+			telemetryOptOut: false,
+			toolAutoApprove: false,
+		});
+		// Invalid values fall back to unset instead of failing the whole parse.
+		expect(
+			GlobalSettingsSchema.parse({
+				compactionEnabled: "yes",
+				planActMode: "chaos",
+				toolAutoApprove: 42,
+			}),
+		).toEqual({
+			autoUpdateEnabled: true,
+			telemetryOptOut: false,
+		});
+	});
+
+	it("reads and writes the plan/act mode globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readPlanActModeGlobally()).toBeUndefined();
+			setPlanActModeGlobally("plan");
+			expect(readPlanActModeGlobally()).toBe("plan");
+			setPlanActModeGlobally("act");
+			expect(readPlanActModeGlobally()).toBe("act");
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				planActMode: "act",
+				telemetryOptOut: false,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the tool auto-approve setting globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readToolAutoApproveGlobally()).toBeUndefined();
+			setToolAutoApproveGlobally(false);
+			expect(readToolAutoApproveGlobally()).toBe(false);
+			setToolAutoApproveGlobally(true);
+			expect(readToolAutoApproveGlobally()).toBe(true);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the TUI theme globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readTuiThemeGlobally()).toBeUndefined();
+			setTuiThemeGlobally("tokyo-night");
+			expect(readTuiThemeGlobally()).toBe("tokyo-night");
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				tuiTheme: "tokyo-night",
+			});
+
+			// Blank values normalize to unset instead of persisting whitespace.
+			writeGlobalSettings({ tuiTheme: "  " });
+			expect(readTuiThemeGlobally()).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("round-trips the compaction mode including the off state", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCompactionModeGlobally()).toBeUndefined();
+
+			setCompactionModeGlobally("basic");
+			expect(readCompactionModeGlobally()).toBe("basic");
+
+			// Turning compaction off retains the previous strategy on disk so
+			// re-enabling restores it.
+			setCompactionModeGlobally("off");
+			expect(readCompactionModeGlobally()).toBe("off");
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				compactionEnabled: false,
+				compactionStrategy: "basic",
+				telemetryOptOut: false,
+			});
+
+			setCompactionModeGlobally("agentic");
+			expect(readCompactionModeGlobally()).toBe("agentic");
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				compactionEnabled: true,
+				compactionStrategy: "agentic",
+				telemetryOptOut: false,
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });

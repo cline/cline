@@ -251,6 +251,32 @@ function readWebSocketAuthToken(
 	return null;
 }
 
+/** @internal Exported for websocket auth tests. */
+export function isLocalHubHostName(value: string): boolean {
+	const normalized = value.trim().toLowerCase();
+	return (
+		normalized === "localhost" ||
+		normalized === "127.0.0.1" ||
+		normalized === "::1" ||
+		normalized === "[::1]"
+	);
+}
+
+/** @internal Exported for websocket auth tests. */
+export function isLocalHubOrigin(
+	value: string | string[] | undefined,
+): boolean {
+	const raw = parseHeaderValue(value).trim();
+	if (!raw) {
+		return false;
+	}
+	try {
+		return isLocalHubHostName(new URL(raw).hostname);
+	} catch {
+		return false;
+	}
+}
+
 export async function startHubWebSocketServer(
 	options: HubWebSocketServerOptions,
 ): Promise<HubWebSocketServer> {
@@ -433,12 +459,13 @@ export async function startHubWebSocketServer(
 			socket.destroy();
 			return;
 		}
-		if (
-			!isValidHubAuthToken(
+		const isAuthorized =
+			isValidHubAuthToken(
 				readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
 				authToken,
-			)
-		) {
+			) ||
+			(isLocalHubHostName(host) && isLocalHubOrigin(request.headers.origin));
+		if (!isAuthorized) {
 			rejectUnauthorizedUpgradeSocket(socket);
 			return;
 		}

@@ -24,6 +24,7 @@ import type {
 	ProviderProtocol,
 	ProviderSettings,
 } from "../../services/llms/provider-settings";
+import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -123,18 +124,27 @@ async function resolveProviderModelMap(
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
-	if (!config) {
+	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
+	if (!config && !isClinePass) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
+			loadLatestOnInit: isClinePass,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
 		config,
 	);
+
+	if (providerId === "litellm" && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+	if (isClinePass && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
 
 	return resolved?.knownModels
 		? {
@@ -469,6 +479,10 @@ export async function updateLocalProvider(
 	let existingEntry = modelsState.providers[providerId];
 	if (!existingEntry) {
 		const existingSettings = manager.getProviderSettings(providerId);
+		const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
+			providerId
+		] as LlmsModels.ModelCollection | undefined;
+		const registeredProvider = registeredCollection?.provider;
 		if (!existingSettings) {
 			throw new Error(`provider "${providerId}" does not exist`);
 		}
@@ -485,13 +499,21 @@ export async function updateLocalProvider(
 		// Ephemeral seed for the existing update path; final state is computed and written below.
 		existingEntry = {
 			provider: {
-				name: request.name?.trim() || titleCaseFromId(providerId),
+				name:
+					request.name?.trim() ||
+					registeredProvider?.name ||
+					titleCaseFromId(providerId),
 				baseUrl:
-					request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
-				defaultModelId: seedModelId,
-				protocol: existingSettings.protocol,
-				client: existingSettings.client,
-				capabilities: existingSettings.capabilities,
+					request.baseUrl?.trim() ??
+					existingSettings.baseUrl?.trim() ??
+					registeredProvider?.baseUrl?.trim() ??
+					"",
+				defaultModelId: seedModelId ?? registeredProvider?.defaultModelId,
+				protocol: existingSettings.protocol ?? registeredProvider?.protocol,
+				client: existingSettings.client ?? registeredProvider?.client,
+				capabilities:
+					existingSettings.capabilities ?? registeredProvider?.capabilities,
+				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
 			models: seedModelId
 				? buildProviderModels([seedModelId], existingSettings.capabilities)
@@ -643,6 +665,26 @@ export async function deleteLocalProvider(
 	};
 }
 
+export function markLocalProviderEnabled(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	options: { tokenSource?: ProviderTokenSource } = {},
+): { providerId: string; enabled: true; settingsPath: string } {
+	const id = providerId.trim();
+	if (!id) throw new Error("providerId is required");
+
+	const directSettings = manager.read().providers[id]?.settings;
+	manager.saveProviderSettings(
+		{
+			...(directSettings ?? {}),
+			provider: id,
+		},
+		{ setLastUsed: false, tokenSource: options.tokenSource },
+	);
+
+	return { providerId: id, enabled: true, settingsPath: manager.getFilePath() };
+}
+
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
 	options: ListLocalProvidersOptions = {},
@@ -658,7 +700,8 @@ export async function listLocalProviders(
 					LlmsModels.getModelsForProvider(id),
 				]);
 				const modelList = toSortedProviderModels(registeredModels);
-				const persistedSettings = state.providers[id]?.settings;
+				const directSettings = state.providers[id]?.settings;
+				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
 					info?.capabilities,
@@ -674,7 +717,7 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(persistedSettings),
+						enabled: Boolean(directSettings),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,

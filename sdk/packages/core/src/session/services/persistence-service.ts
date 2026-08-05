@@ -30,6 +30,8 @@ import type {
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "../../types/session";
+import { withSessionHistoryOriginMetadata } from "../history-origin";
+import type { SessionCompactionState } from "../models/session-compaction";
 import type { SessionRow } from "../models/session-row";
 import { SessionManifestStore } from "../stores/session-manifest-store";
 import { TeamChildSessionManager } from "../team";
@@ -109,10 +111,15 @@ export class UnifiedSessionPersistenceService {
 			providedId.length > 0 ? providedId : `${Date.now()}_${nanoid(5)}`;
 		const messagesPath =
 			this.manifestStore.artifacts.sessionMessagesPath(sessionId);
+		const compactionPath =
+			this.manifestStore.artifacts.sessionCompactionPath(sessionId);
 		const manifestPath =
 			this.manifestStore.artifacts.sessionManifestPath(sessionId);
 		const metadata = resolveMetadataWithTitle({
-			metadata: input.metadata,
+			metadata: withSessionHistoryOriginMetadata(input.metadata, {
+				mode: input.mode,
+				version: input.version,
+			}),
 			prompt: input.prompt,
 		});
 		const manifest = {
@@ -136,7 +143,7 @@ export class UnifiedSessionPersistenceService {
 			messages_path: messagesPath,
 		};
 
-		await this.adapter.upsertSession({
+		const row: SessionRow = {
 			sessionId,
 			source: input.source,
 			pid: input.pid,
@@ -164,15 +171,12 @@ export class UnifiedSessionPersistenceService {
 			hookPath: "",
 			messagesPath,
 			updatedAt: nowIso(),
-		});
+		};
+		await this.adapter.upsertSession(row);
 
-		this.manifestStore.initializeMessagesFile(
-			sessionId,
-			messagesPath,
-			startedAt,
-		);
+		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
 		this.manifestStore.writeSessionManifest(manifestPath, manifest);
-		return { manifestPath, messagesPath, manifest };
+		return { manifestPath, messagesPath, compactionPath, manifest };
 	}
 
 	async updateSessionStatus(
@@ -318,6 +322,23 @@ export class UnifiedSessionPersistenceService {
 			normalizedMessages,
 			systemPrompt,
 		);
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		return await this.manifestStore.readSessionCompactionState(sessionId);
+	}
+
+	async persistSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<void> {
+		await this.manifestStore.persistSessionCompactionState(sessionId, state);
+	}
+
+	async deleteSessionCompactionState(sessionId: string): Promise<void> {
+		await this.manifestStore.deleteSessionCompactionState(sessionId);
 	}
 
 	applySubagentStatus(
@@ -492,15 +513,21 @@ export class UnifiedSessionPersistenceService {
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
 		await this.reconcileDeadSessions(scanLimit);
 
-		const rows = await this.adapter.listSessions({ limit: scanLimit });
-		return rows.slice(0, requestedLimit).map((row) => {
+		const rows = (await this.adapter.listSessions({ limit: scanLimit })).slice(
+			0,
+			requestedLimit,
+		);
+		// Resolve manifest titles concurrently and off-thread. Each row only needs
+		// the manifest's `metadata.title`, so read just that asynchronously instead
+		// of synchronously reading + Zod-parsing the entire manifest per row.
+		const manifestTitles = await Promise.all(
+			rows.map((row) =>
+				this.manifestStore.readSessionManifestTitle(row.sessionId),
+			),
+		);
+		return rows.map((row, index) => {
 			const meta = sanitizeMetadata(row.metadata ?? undefined);
-			const manifest = this.manifestStore.readSessionManifest(row.sessionId);
-			const manifestTitle = normalizeTitle(
-				typeof manifest?.metadata?.title === "string"
-					? (manifest.metadata.title as string)
-					: undefined,
-			);
+			const manifestTitle = normalizeTitle(manifestTitles[index]);
 			const resolved = manifestTitle
 				? { ...(meta ?? {}), title: manifestTitle }
 				: meta;
@@ -547,6 +574,7 @@ export class UnifiedSessionPersistenceService {
 				children.map(async (child) => {
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
 					unlinkIfExists(child.messagesPath);
+					await this.deleteSessionCompactionStateIfExists(child.sessionId);
 					unlinkIfExists(
 						this.manifestStore.artifacts.sessionManifestPath(
 							child.sessionId,
@@ -561,6 +589,7 @@ export class UnifiedSessionPersistenceService {
 		await deleteCheckpointRefs(row.cwd, id);
 
 		unlinkIfExists(row.messagesPath);
+		await this.deleteSessionCompactionStateIfExists(id);
 		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
 			this.manifestStore.artifacts.removeSessionDirIfEmpty(id);
@@ -578,5 +607,13 @@ export class UnifiedSessionPersistenceService {
 			}
 		}
 		return { deleted: true };
+	}
+
+	private async deleteSessionCompactionStateIfExists(
+		sessionId: string,
+	): Promise<void> {
+		try {
+			await this.manifestStore.deleteSessionCompactionState(sessionId);
+		} catch {}
 	}
 }

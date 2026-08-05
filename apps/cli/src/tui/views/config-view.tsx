@@ -16,7 +16,9 @@ import {
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
-import { getModeAccent, palette } from "../palette";
+import { useThemeController } from "../hooks/use-theme";
+import { palette } from "../palette";
+import { getDialogAccents, getThemeDefinition } from "../themes";
 import {
 	type ConfigAction,
 	canDeleteConfigFooterRow,
@@ -406,6 +408,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 	const [toggleError, setToggleError] = useState<string | undefined>();
 	const [navPos, setNavPos] = useState(0);
+	const themeController = useThemeController();
+	const dialogAccents = getDialogAccents(themeController.theme);
+	const currentThemeLabel =
+		getThemeDefinition(themeController.selectedThemeId)?.label ?? "Auto";
 
 	const displayName = resolveModelDisplayName(config);
 
@@ -459,6 +465,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			r.push({ kind: "provider" });
 			r.push({ kind: "model" });
 			r.push({ kind: "toggle", id: "mode", label: "Mode" });
+			r.push({ kind: "toggle", id: "theme", label: "Theme" });
 			r.push({ kind: "toggle", id: "compaction", label: "Compaction" });
 			r.push({
 				kind: "toggle",
@@ -601,6 +608,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						setMode(mode === "plan" ? "act" : "plan");
 						props.onToggleMode();
 						break;
+					case "theme":
+						resolve({ kind: "open-theme" });
+						break;
 					case "auto-approve":
 						setAutoApprove(!autoApprove);
 						props.onToggleAutoApprove();
@@ -721,7 +731,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>Settings</strong>
 			</text>
 
@@ -793,7 +803,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>{pfx}Provider</text>
+								<text fg={isSel ? palette.act : undefined}>{pfx}Provider</text>
 								<text fg="white">{props.providerDisplayName}</text>
 							</box>
 						);
@@ -804,7 +814,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>{pfx}Model</text>
+								<text fg={isSel ? palette.act : undefined}>{pfx}Model</text>
 								<text fg="white">{displayName}</text>
 							</box>
 						);
@@ -813,7 +823,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						let valueColor: string;
 						if (row.id === "mode") {
 							value = mode === "plan" ? "Plan" : "Act";
-							valueColor = getModeAccent(mode);
+							valueColor =
+								mode === "plan" ? dialogAccents.plan : dialogAccents.act;
+						} else if (row.id === "theme") {
+							value = currentThemeLabel;
+							valueColor = dialogAccents.act;
 						} else if (row.id === "auto-approve") {
 							value = autoApprove ? "● on" : "○ off";
 							valueColor = autoApprove ? palette.success : "gray";
@@ -833,7 +847,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>
+								<text fg={isSel ? palette.act : undefined}>
 									{pfx}
 									{row.label}
 								</text>
@@ -866,7 +880,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								: enabledState === "partial"
 									? "yellow"
 									: isSel
-										? "cyan"
+										? palette.act
 										: "gray";
 						return (
 							<box
@@ -886,7 +900,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					}
 					case "mcp-manager":
 						return (
-							<text key={absIdx} fg={isSel ? "cyan" : "gray"}>
+							<text key={absIdx} fg={isSel ? palette.act : "gray"}>
 								{pfx}Manage MCP Servers...
 							</text>
 						);

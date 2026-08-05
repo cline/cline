@@ -1,6 +1,11 @@
 {
-	"root": false,
+	"root": true,
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"defaultBranch": "main"
+	},
 	"assist": {
 		"enabled": true,
 		"actions": {
@@ -124,14 +129,18 @@
 			"!!**/playwright",
 			"!!**/.vscode-test",
 			"!!**/test-results",
+			"!!**/coverage",
 			"!!**/node_modules",
 			"!!**/webview-ui/build",
 			"!!**/generated",
 			"!!**/proto",
-			"!!**/tests/specs"
+			"!!**/tests/specs",
+			"!!assets/icons/*.svg"
 		]
 	},
-	"plugins": ["src/dev/grit/process-env.grit"],
+	"plugins": [
+		"src/dev/grit/process-env.grit"
+	],
 	"overrides": [
 		{
 			"includes": [
@@ -146,11 +155,15 @@
 				"!!src/integrations/terminal/**",
 				"!!src/core/controller/ui/openWalkthrough.ts"
 			],
-			"plugins": ["src/dev/grit/vscode-api.grit"]
+			"plugins": [
+				"src/dev/grit/vscode-api.grit"
+			]
 		},
 		{
 			// Do not use console logging directly, use the Logger service instead.
-			"plugins": ["src/dev/grit/console-log.grit"],
+			"plugins": [
+				"src/dev/grit/console-log.grit"
+			],
 			"includes": [
 				"**",
 				"!!**/esbuild.*",
@@ -183,7 +196,9 @@
 				"!!src/core/storage/utils/state-helpers.ts",
 				"!!src/extension.ts"
 			],
-			"plugins": ["src/dev/grit/use-cache-service.grit"]
+			"plugins": [
+				"src/dev/grit/use-cache-service.grit"
+			]
 		}
 	]
 }

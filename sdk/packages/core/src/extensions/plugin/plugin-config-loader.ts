@@ -17,6 +17,8 @@ import { loadAgentPluginsFromPathsWithDiagnostics } from "./plugin-loader";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
+export { getPluginDisplayName } from "@cline/shared/storage";
+
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 
 const PACKAGE_JSON_FILE_NAME = "package.json";
@@ -294,6 +296,7 @@ export async function resolveAndLoadAgentPlugins(
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
 		onEvent: options.onEvent,
+		telemetryAvailable: Boolean(options.telemetry),
 		providerId: options.providerId,
 		modelId: options.modelId,
 		cwd: options.cwd,

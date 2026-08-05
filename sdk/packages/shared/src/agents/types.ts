@@ -11,7 +11,11 @@
  */
 
 import { z } from "zod";
-import type { AgentRuntimeHooks, AgentTool } from "../agent";
+import type {
+	AgentRuntimeHooks,
+	AgentTool,
+	ProviderErrorClass,
+} from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -25,6 +29,19 @@ import type { HookControl } from "../hooks/contracts";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
+import {
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+} from "../llms/reasoning-options";
+
+export {
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "../llms/reasoning-options";
+
 import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -162,7 +179,9 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 		| "completion_without_submit"
 		| "tool_execution_failed"
 		| "mistake_limit"
-		| "auto_compaction";
+		| "auto_compaction"
+		| "manual_compaction"
+		| "compaction_budget_emergency";
 	metadata?: Record<string, unknown>;
 }
 
@@ -182,6 +201,8 @@ export interface AgentErrorEvent extends AgentEventMetadata {
 	type: "error";
 	/** The error that occurred */
 	error: Error;
+	/** Classification of the provider error, when known. */
+	errorClass?: ProviderErrorClass;
 	/** Whether the error is recoverable */
 	recoverable: boolean;
 	/** Current iteration when error occurred */
@@ -579,6 +600,12 @@ export interface AgentPrepareTurnContext {
 		provider: string;
 		info?: ModelInfo;
 	};
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -646,13 +673,6 @@ export const AgentResultSchema = z.object({
 // =============================================================================
 
 /**
- * Reasoning effort level for capable models
- */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-
-export const ReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
-
-/**
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
@@ -679,6 +699,14 @@ export interface AgentConfig {
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/**
+	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
+	 * access token that expired mid-run). Hosts refresh credentials and push
+	 * the new key into the runtime via `updateConnection`; returning `true`
+	 * makes the runtime retry the failed run once with the refreshed
+	 * connection.
+	 */
+	onAuthError?: () => Promise<boolean>;
 	/** Optional provider model catalog overrides */
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */
@@ -711,6 +739,10 @@ export interface AgentConfig {
 	 * Maximum output tokens per API call
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Sampling temperature per API call
+	 */
+	temperature?: number;
 	/**
 	 * Timeout for each API call in milliseconds
 	 * @default 180000 (3 minutes)
@@ -800,8 +832,14 @@ export interface AgentConfig {
 	 */
 	logger?: BasicLogger;
 	/**
-	 * Optional callback that can rewrite the turn input before each model call.
-	 * This is the primary seam for host-owned context pipelines.
+	 * Optional request projection hook invoked before each model call.
+	 *
+	 * Returned messages affect only the provider request for the current call.
+	 * They do not replace the canonical runtime transcript, are not persisted as
+	 * session history, and are not reflected in AgentRunResult.messages.
+	 *
+	 * Hosts that need durable redaction or normalization must apply it before a
+	 * message enters the canonical transcript.
 	 */
 	prepareTurn?: (
 		context: AgentPrepareTurnContext,
@@ -880,6 +918,7 @@ export const AgentConfigSchema = z.object({
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
+	temperature: z.number().nonnegative().optional(),
 	apiTimeoutMs: z.number().positive().default(180000),
 	userFileContentLoader: z
 		.function()
