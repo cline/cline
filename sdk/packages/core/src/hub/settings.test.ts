@@ -1,9 +1,94 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CoreSettingsService } from "../settings";
+import {
+	type CorePluginSettingsSource,
+	CoreSettingsService,
+} from "../settings";
 import { createLocalHubScheduleRuntimeHandlers } from "./daemon/runtime-handlers";
 import { HubServerTransport } from "./server";
 
 describe("hub settings commands", () => {
+	it("uses an injected host plugin source across list and toggle commands", async () => {
+		let enabled = true;
+		const pluginSource: CorePluginSettingsSource = {
+			async list() {
+				return {
+					plugins: [
+						{
+							id: "host:memory-plugin",
+							name: "memory-plugin",
+							path: "host:memory-plugin",
+							kind: "plugin",
+							source: "workspace-plugin",
+							enabled,
+							toggleable: true,
+							contributions: {
+								inspectionStatus: "available",
+								capabilities: ["tools"],
+								tools: ["memory_tool"],
+								skills: [],
+								rules: [],
+								hooks: [],
+								commands: [],
+								mcpServers: [],
+								providers: [],
+							},
+						},
+					],
+					tools: [
+						{
+							id: "memory-plugin:memory_tool",
+							name: "memory_tool",
+							path: "host:memory-plugin",
+							kind: "tool",
+							source: "workspace-plugin",
+							enabled,
+							pluginName: "memory-plugin",
+							pluginPath: "host:memory-plugin",
+						},
+					],
+				};
+			},
+			async setEnabled(input) {
+				enabled = input.enabled;
+			},
+		};
+		const transport = new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			settingsService: new CoreSettingsService({ pluginSource }),
+		});
+
+		try {
+			const listed = await transport.handleCommand({
+				version: "v1",
+				command: "settings.list",
+				requestId: "host-list",
+				clientId: "host-client",
+				payload: {},
+			});
+			expect(listed.payload?.snapshot).toMatchObject({
+				plugins: [{ path: "host:memory-plugin", enabled: true }],
+			});
+
+			const toggled = await transport.handleCommand({
+				version: "v1",
+				command: "settings.toggle",
+				requestId: "host-toggle",
+				clientId: "host-client",
+				payload: {
+					type: "plugins",
+					path: "host:memory-plugin",
+					enabled: false,
+				},
+			});
+			expect(toggled.payload?.snapshot).toMatchObject({
+				plugins: [{ path: "host:memory-plugin", enabled: false }],
+			});
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("returns an updated snapshot and publishes settings.changed after toggle", async () => {
 		const snapshot = {
 			workflows: [],

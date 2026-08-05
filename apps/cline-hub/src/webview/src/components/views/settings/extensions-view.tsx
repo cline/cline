@@ -108,6 +108,7 @@ type PluginItem = {
 };
 
 type PluginContributions = {
+	inspectionStatus?: "available" | "disabled" | "failed";
 	capabilities: string[];
 	tools: string[];
 	skills: string[];
@@ -1020,6 +1021,11 @@ export function CustomizationSectionView({
 					})}
 				</summary>
 				<div className="mt-3">
+					{plugin.contributions?.inspectionStatus === "disabled" ? (
+						<p className="mb-2 text-xs text-muted-foreground">
+							Enable this plugin to inspect its dynamic contributions.
+						</p>
+					) : null}
 					{contributionGroups.length > 0 ? (
 						<div>
 							<div className="flex flex-wrap items-center gap-2 py-2 text-xs font-medium text-foreground">

@@ -34,15 +34,13 @@ import {
 	setToolDisabledGlobally,
 	toggleDisabledTool,
 } from "../services/global-settings";
-import type {
-	PluginContributionSummary,
-	PluginToolSummary,
-} from "../services/plugin-tools";
 import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import type {
+	CorePluginSettingsSource,
 	CoreSettingsItem,
 	CoreSettingsListInput,
 	CoreSettingsMutationResult,
+	CoreSettingsServiceOptions,
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 } from "./types";
@@ -153,12 +151,6 @@ type PluginSkillOwner = {
 	pluginPath: string;
 	source: "global-plugin" | "workspace-plugin";
 };
-
-const observedPluginContributions = new Map<
-	string,
-	PluginContributionSummary
->();
-const observedPluginTools = new Map<string, PluginToolSummary[]>();
 
 function buildPluginSkillOwners(input: {
 	workspaceRoot: string;
@@ -313,6 +305,12 @@ function findSkillRecord(
 }
 
 export class CoreSettingsService {
+	private readonly pluginSource: CorePluginSettingsSource | undefined;
+
+	constructor(options: CoreSettingsServiceOptions = {}) {
+		this.pluginSource = options.pluginSource;
+	}
+
 	async list(input: CoreSettingsListInput = {}): Promise<CoreSettingsSnapshot> {
 		return await withUserInstructionService(input, async (service) => {
 			const workspaceRoot = resolveWorkspaceRoot(input);
@@ -323,14 +321,21 @@ export class CoreSettingsService {
 			const workflows: CoreSettingsItem[] = [];
 			const rules: CoreSettingsItem[] = [];
 			const skills: CoreSettingsItem[] = [];
-			const plugins = listPluginSettings({ workspaceRoot });
+			const plugins = this.pluginSource
+				? []
+				: listPluginSettings({ workspaceRoot });
+			const tools: CoreSettingsItem[] = [];
+			const mcp: CoreSettingsItem[] = [];
+			if (this.pluginSource) {
+				const supplied = await this.pluginSource.list(input);
+				plugins.push(...supplied.plugins);
+				tools.push(...supplied.tools);
+			}
 			const enabledPluginPaths = new Set(
 				plugins
 					.filter((plugin) => plugin.enabled !== false)
 					.map((plugin) => plugin.path),
 			);
-			const tools: CoreSettingsItem[] = [];
-			const mcp: CoreSettingsItem[] = [];
 
 			if (service) {
 				for (const record of service.listRecords<WorkflowConfig>("workflow")) {
@@ -382,7 +387,7 @@ export class CoreSettingsService {
 				}
 			}
 
-			if (workspaceRoot) {
+			if (workspaceRoot && !this.pluginSource) {
 				try {
 					const pluginReport = await listPluginToolsWithDiagnostics({
 						workspacePath: workspaceRoot,
@@ -390,22 +395,7 @@ export class CoreSettingsService {
 						providerId: input.availabilityContext?.providerId,
 						modelId: input.availabilityContext?.modelId,
 					});
-					for (const contribution of pluginReport.plugins) {
-						observedPluginContributions.set(contribution.path, contribution);
-					}
-					for (const pluginPath of enabledPluginPaths) {
-						observedPluginTools.set(
-							pluginPath,
-							pluginReport.tools.filter((tool) => tool.path === pluginPath),
-						);
-					}
-					const visiblePluginTools = [
-						...pluginReport.tools,
-						...plugins
-							.filter((plugin) => plugin.enabled === false)
-							.flatMap((plugin) => observedPluginTools.get(plugin.path) ?? []),
-					];
-					for (const pluginTool of visiblePluginTools) {
+					for (const pluginTool of pluginReport.tools) {
 						tools.push({
 							id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
 							name: pluginTool.name,
@@ -420,9 +410,18 @@ export class CoreSettingsService {
 							pluginPath: pluginTool.path,
 						});
 					}
+					const contributionByPath = new Map(
+						pluginReport.plugins.map((plugin) => [plugin.path, plugin]),
+					);
 					for (const plugin of plugins) {
-						const contribution = observedPluginContributions.get(plugin.path);
+						const contribution = contributionByPath.get(plugin.path);
 						plugin.contributions = {
+							inspectionStatus:
+								plugin.enabled === false
+									? "disabled"
+									: contribution
+										? "available"
+										: "failed",
 							capabilities: contribution?.capabilities ?? [],
 							tools: contribution?.tools ?? [],
 							skills: [
@@ -538,15 +537,28 @@ export class CoreSettingsService {
 			}
 			let enabled = input.enabled;
 			if (enabled === undefined) {
-				const plugin = listPluginSettings({
-					workspaceRoot: resolveWorkspaceRoot(input),
-				}).find((item) => item.path === pluginPath);
+				const plugin = this.pluginSource
+					? (await this.pluginSource.list(input)).plugins.find(
+							(item) => item.path === pluginPath,
+						)
+					: listPluginSettings({
+							workspaceRoot: resolveWorkspaceRoot(input),
+						}).find((item) => item.path === pluginPath);
 				if (!plugin) {
 					throw new Error(`Unknown plugin: ${pluginPath}`);
 				}
 				enabled = !plugin.enabled;
 			}
-			setDisabledPlugin(pluginPath, !enabled);
+			if (this.pluginSource) {
+				await this.pluginSource.setEnabled({
+					path: pluginPath,
+					enabled,
+					cwd: input.cwd,
+					workspaceRoot: input.workspaceRoot,
+				});
+			} else {
+				setDisabledPlugin(pluginPath, !enabled);
+			}
 			return {
 				snapshot: await this.list(input),
 				changedTypes: ["plugins"],
@@ -584,6 +596,8 @@ export class CoreSettingsService {
 	}
 }
 
-export function createCoreSettingsService(): CoreSettingsService {
-	return new CoreSettingsService();
+export function createCoreSettingsService(
+	options: CoreSettingsServiceOptions = {},
+): CoreSettingsService {
+	return new CoreSettingsService(options);
 }

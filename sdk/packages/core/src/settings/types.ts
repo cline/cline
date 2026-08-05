@@ -39,6 +39,7 @@ export interface CoreSettingsItem {
 }
 
 export interface CorePluginContributions {
+	inspectionStatus: "available" | "disabled" | "failed";
 	capabilities: string[];
 	tools: string[];
 	skills: string[];
@@ -47,6 +48,23 @@ export interface CorePluginContributions {
 	commands: string[];
 	mcpServers: string[];
 	providers: string[];
+}
+
+export interface CorePluginSettingsSource {
+	list(input: CoreSettingsListInput): Promise<{
+		plugins: CoreSettingsItem[];
+		tools: CoreSettingsItem[];
+	}>;
+	setEnabled(input: {
+		path: string;
+		enabled: boolean;
+		cwd?: string;
+		workspaceRoot?: string;
+	}): Promise<void>;
+}
+
+export interface CoreSettingsServiceOptions {
+	pluginSource?: CorePluginSettingsSource;
 }
 
 export interface CoreSettingsSnapshot {

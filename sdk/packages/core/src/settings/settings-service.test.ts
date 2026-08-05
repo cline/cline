@@ -343,9 +343,16 @@ Use the browser.`,
 				?.enabled,
 		).toBe(false);
 		expect(
-			disabled.snapshot.tools.find((tool) => tool.pluginPath === pluginPath)
-				?.enabled,
-		).toBe(false);
+			disabled.snapshot.tools.find((tool) => tool.pluginPath === pluginPath),
+		).toBeUndefined();
+		expect(
+			disabled.snapshot.plugins.find((plugin) => plugin.path === pluginPath)
+				?.contributions,
+		).toMatchObject({
+			inspectionStatus: "disabled",
+			skills: ["code-review"],
+			tools: [],
+		});
 		expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
 			disabledPlugins: [pluginPath],
 		});
