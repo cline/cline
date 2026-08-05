@@ -14,6 +14,11 @@ const CLINE_FREE_MODEL_LIMIT_MARKER = "free limit reached on model";
 const CLINE_FREE_MODEL_LIMIT_RETRY_MARKER = "try again in ";
 const CLINE_MODEL_NOT_FOUND_MARKER = "model not found";
 
+/** Model-id prefix Cline gives models that are only served during a free promotion. */
+export const CLINE_FREE_MODEL_ID_PREFIX = "cline-free/";
+/** Header every host uses for the "this model was free and no longer exists" notice. */
+export const CLINE_FREE_PROMOTION_ENDED_HEADER = "Free model promotion ended";
+
 function findClinePassLimitMessageBounds(
 	text: string,
 ): { start: number; end: number } | undefined {
@@ -146,6 +151,28 @@ export function isClineFreeModelLimitMessage(text: string): boolean {
 
 export function isClineModelNotFoundMessage(text: string): boolean {
 	return text.toLowerCase().includes(CLINE_MODEL_NOT_FOUND_MARKER);
+}
+
+export function isClineFreeModelId(modelId: string | undefined): boolean {
+	return (
+		modelId?.trim().toLowerCase().startsWith(CLINE_FREE_MODEL_ID_PREFIX) ??
+		false
+	);
+}
+
+// Detects that a deleted free model was requested: the backend answers "model
+// not found" once a free promotion ends and the cline-free/ model is removed.
+// The modelId gate keeps regular model-not-found errors on their generic path,
+// which is what tells a user their paid model is retired rather than free.
+export function isClineFreePromotionEndedMessage(
+	text: string,
+	modelId?: string,
+): boolean {
+	const normalized = text.toLowerCase();
+	if (normalized.includes(CLINE_FREE_PROMOTION_ENDED_HEADER.toLowerCase())) {
+		return true;
+	}
+	return isClineFreeModelId(modelId) && isClineModelNotFoundMessage(text);
 }
 
 export function extractClineFreeModelLimitResetTime(

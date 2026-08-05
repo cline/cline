@@ -1,4 +1,6 @@
 export {
+	CLINE_FREE_MODEL_ID_PREFIX,
+	CLINE_FREE_PROMOTION_ENDED_HEADER,
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
@@ -8,8 +10,10 @@ export {
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelId,
 	isClineFreeModelLimitError,
 	isClineFreeModelLimitMessage,
+	isClineFreePromotionEndedMessage,
 	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,

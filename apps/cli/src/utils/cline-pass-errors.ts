@@ -1,11 +1,12 @@
 import {
+	CLINE_FREE_PROMOTION_ENDED_HEADER,
 	type ClineSubscriptionPlan,
 	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineFreeModelLimitError,
 	isClineFreeModelLimitMessage,
-	isClineModelNotFoundMessage,
+	isClineFreePromotionEndedMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
@@ -21,11 +22,11 @@ export { getClineOrgIndividualInferenceSubscriptionMessage };
 export const CLI_PROMO_CODE = "";
 
 export function getCliSubscriptionUrl(): string {
-	if(!CLI_PROMO_CODE) {
+	if (!CLI_PROMO_CODE) {
 		return new URL(
 			`/dashboard/subscription?personal=true`,
 			getClineEnvironmentConfig().appBaseUrl,
-		).toString()
+		).toString();
 	}
 
 	return `${new URL(
@@ -50,8 +51,6 @@ export function getCliClinePassLimitMessage(message: string): string {
 	return lines.filter((line) => line.trim().length > 0).join("\n");
 }
 
-const CLINE_FREE_MODEL_PREFIX = "cline-free/";
-const CLINE_FREE_PROMOTION_ENDED_HEADER = "Free model promotion ended";
 const CLINE_FREE_MODEL_LIMIT_HEADER = "Daily free model limit reached";
 
 export function getCliClineFreePromotionEndedMessage(): string {
@@ -150,9 +149,6 @@ export function isClinePassLimitErrorMessage(error: unknown): boolean {
 	return typeof error === "string" && isClinePassLimitMessage(error);
 }
 
-// Detects that a deleted free model was requested: the backend answers "model
-// not found" once a free promotion ends and the cline-free/ model is removed.
-// The modelId gate keeps regular model-not-found errors on their generic path.
 export function isClineFreePromotionEndedErrorMessage(
 	error: unknown,
 	modelId?: string,
@@ -163,17 +159,7 @@ export function isClineFreePromotionEndedErrorMessage(
 			: typeof error === "string"
 				? error
 				: "";
-	if (
-		message
-			.toLowerCase()
-			.includes(CLINE_FREE_PROMOTION_ENDED_HEADER.toLowerCase())
-	) {
-		return true;
-	}
-	if (!modelId?.startsWith(CLINE_FREE_MODEL_PREFIX)) {
-		return false;
-	}
-	return isClineModelNotFoundMessage(message);
+	return isClineFreePromotionEndedMessage(message, modelId);
 }
 
 export function isClineFreeModelLimitErrorMessage(error: unknown): boolean {

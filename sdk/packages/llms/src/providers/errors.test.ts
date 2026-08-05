@@ -3,7 +3,9 @@ import { isClinePassLimitMessage } from "../index.browser";
 import {
 	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
+	isClineFreeModelId,
 	isClineFreeModelLimitMessage,
+	isClineFreePromotionEndedMessage,
 } from "./errors";
 
 describe("isClinePassLimitMessage", () => {
@@ -66,6 +68,53 @@ describe("Cline free model limit messages", () => {
 		expect(
 			isClineFreeModelLimitMessage(
 				"Your daily spend limit has been reached. Try again in 23h 59m",
+			),
+		).toBe(false);
+	});
+});
+
+describe("isClineFreeModelId", () => {
+	it("matches promotional free model ids", () => {
+		expect(isClineFreeModelId("cline-free/glm-5.2")).toBe(true);
+		expect(isClineFreeModelId(" Cline-Free/GLM-5.2 ")).toBe(true);
+	});
+
+	it("does not match paid catalog ids", () => {
+		expect(isClineFreeModelId("zai/glm-5.2")).toBe(false);
+		expect(isClineFreeModelId("cline-pass/glm-5.2")).toBe(false);
+		expect(isClineFreeModelId(undefined)).toBe(false);
+	});
+});
+
+describe("isClineFreePromotionEndedMessage", () => {
+	const modelNotFound = "Error 404: model not found";
+
+	it("detects a removed free model", () => {
+		expect(
+			isClineFreePromotionEndedMessage(modelNotFound, "cline-free/glm-5.2"),
+		).toBe(true);
+	});
+
+	it("leaves model-not-found errors for paid models on the generic path", () => {
+		expect(isClineFreePromotionEndedMessage(modelNotFound, "zai/glm-5.2")).toBe(
+			false,
+		);
+		expect(isClineFreePromotionEndedMessage(modelNotFound)).toBe(false);
+	});
+
+	it("recognizes an already formatted notice without a model id", () => {
+		expect(
+			isClineFreePromotionEndedMessage(
+				"Free model promotion ended\nSelect another model to continue.",
+			),
+		).toBe(true);
+	});
+
+	it("does not match other failures for a free model", () => {
+		expect(
+			isClineFreePromotionEndedMessage(
+				"Error 429: Daily free limit reached on model cline-free/glm-5.2. Try again in 23h",
+				"cline-free/glm-5.2",
 			),
 		).toBe(false);
 	});
