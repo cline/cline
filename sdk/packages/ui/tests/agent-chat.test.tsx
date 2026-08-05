@@ -127,7 +127,10 @@ describe("@cline/ui agent chat primitives", () => {
 	it("hides the disclosure chevron on request while keeping the row clickable", async () => {
 		await render(
 			<ToolActivity>
-				<ToolActivityTrigger label="Edited 2 files" showDisclosureIcon={false} />
+				<ToolActivityTrigger
+					label="Edited 2 files"
+					showDisclosureIcon={false}
+				/>
 				<ToolActivityContent>theme.css</ToolActivityContent>
 			</ToolActivity>,
 		);

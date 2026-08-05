@@ -33,6 +33,7 @@ import {
 	FilesIcon,
 	LibraryIcon,
 	Loader2,
+	Maximize2,
 	type LucideIcon,
 	MessageCircleQuestionMarkIcon,
 	PanelsTopLeftIcon,
@@ -66,9 +67,14 @@ import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	resolveDesktopBackendHttpEndpoint,
+	writeDesktopDebugLog,
+} from "@/lib/desktop-client";
 import {
 	loadProviderModelCatalog,
 	MODE_SETTINGS_CHANGED_EVENT,
@@ -257,6 +263,87 @@ function MessageImages({
 	);
 }
 
+function GeneratedVideo({
+	sessionId,
+	video,
+	onExpandVideo,
+}: {
+	sessionId: string;
+	video: ChatMessageVideo;
+	onExpandVideo?: (video: ChatMessageVideo) => void;
+}) {
+	const [source, setSource] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void resolveDesktopBackendHttpEndpoint().then((endpoint) => {
+			if (cancelled) return;
+			setSource(
+				`${endpoint}/api/session-artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(video.artifactName)}`,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [sessionId, video.artifactName]);
+
+	return (
+		<div className="relative w-fit max-w-2xl overflow-hidden rounded-lg border border-border bg-black">
+			{source ? (
+				<>
+					{/* biome-ignore lint/a11y/useMediaCaption: Generated videos do not include a separate caption track. */}
+					<video
+						aria-label="Generated video"
+						className="max-h-96 max-w-full"
+						controls
+						playsInline
+						preload="metadata"
+						src={source}
+					/>
+					<Button
+						aria-label="Expand generated video"
+						className="absolute right-2 top-2 rounded-full bg-background/85 shadow-md backdrop-blur-sm"
+						onClick={() => onExpandVideo?.(video)}
+						size="icon"
+						type="button"
+						variant="secondary"
+					>
+						<Maximize2 className="h-4 w-4" />
+					</Button>
+				</>
+			) : (
+				<div className="flex h-40 w-72 items-center justify-center text-sm text-muted-foreground">
+					<Loader2 className="mr-2 size-4 animate-spin" />
+					Loading video…
+				</div>
+			)}
+		</div>
+	);
+}
+
+function MessageVideos({
+	sessionId,
+	videos,
+	onExpandVideo,
+}: {
+	sessionId: string;
+	videos: ChatMessageVideo[];
+	onExpandVideo?: (video: ChatMessageVideo) => void;
+}) {
+	return (
+		<div className="grid max-w-2xl gap-2">
+			{videos.map((video) => (
+				<GeneratedVideo
+					key={video.id}
+					onExpandVideo={onExpandVideo}
+					sessionId={sessionId}
+					video={video}
+				/>
+			))}
+		</div>
+	);
+}
+
 function hasMessageReasoning(message: ChatMessage): boolean {
 	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
 }
@@ -266,7 +353,8 @@ function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
 		message.role === "assistant" &&
 		hasMessageReasoning(message) &&
 		!message.content.trim() &&
-		!message.images?.length
+		!message.images?.length &&
+		!message.videos?.length
 	);
 }
 
@@ -500,12 +588,19 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const [expandedVideo, setExpandedVideo] = useState<{
+		sessionId: string;
+		video: ChatMessageVideo;
+		source: string;
+	} | null>(null);
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
 		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
+	const visibleExpandedVideo =
+		expandedVideo?.sessionId === sessionId ? expandedVideo : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
@@ -681,17 +776,18 @@ function ChatMessagesImpl({
 	}, [sessionId]);
 
 	useEffect(() => {
-		if (!visibleExpandedImage) {
+		if (!visibleExpandedImage && !visibleExpandedVideo) {
 			return;
 		}
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				setExpandedImage(null);
+				setExpandedVideo(null);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [visibleExpandedImage]);
+	}, [visibleExpandedImage, visibleExpandedVideo]);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
@@ -882,6 +978,19 @@ function ChatMessagesImpl({
 		},
 		[sessionId],
 	);
+	const handleExpandVideo = useCallback(
+		(video: ChatMessageVideo) => {
+			if (!sessionId) return;
+			void resolveDesktopBackendHttpEndpoint().then((endpoint) => {
+				setExpandedVideo({
+					sessionId,
+					video,
+					source: `${endpoint}/api/session-artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(video.artifactName)}`,
+				});
+			});
+		},
+		[sessionId],
+	);
 
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
@@ -1004,6 +1113,7 @@ function ChatMessagesImpl({
 										message={message}
 										runCount={userRunCountByMessage.get(message)}
 										onExpandImage={handleExpandImage}
+										onExpandVideo={handleExpandVideo}
 										onCopyMessage={handleCopyMessage}
 										onEditMessage={
 											onEditMessage ? requestEditMessage : undefined
@@ -1157,6 +1267,42 @@ function ChatMessagesImpl({
 							aria-label="Close image viewer"
 							className="pointer-events-auto absolute right-0 top-0 rounded-full"
 							onClick={() => setExpandedImage(null)}
+							size="icon"
+							type="button"
+							variant="secondary"
+						>
+							<X className="h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+			) : null}
+			{visibleExpandedVideo ? (
+				<div
+					aria-label="Expanded generated video"
+					aria-modal="true"
+					className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm"
+					role="dialog"
+				>
+					<button
+						aria-label="Close expanded video"
+						className="absolute inset-0 cursor-zoom-out"
+						onClick={() => setExpandedVideo(null)}
+						type="button"
+					/>
+					<div className="relative z-10 flex h-full w-full items-center justify-center">
+						{/* biome-ignore lint/a11y/useMediaCaption: Generated videos do not include a separate caption track. */}
+						<video
+							aria-label="Expanded generated video player"
+							className="max-h-full max-w-full rounded-lg bg-black shadow-2xl"
+							controls
+							autoPlay
+							playsInline
+							src={visibleExpandedVideo.source}
+						/>
+						<Button
+							aria-label="Close video viewer"
+							className="absolute right-0 top-0 rounded-full"
+							onClick={() => setExpandedVideo(null)}
 							size="icon"
 							type="button"
 							variant="secondary"
@@ -1341,6 +1487,7 @@ const MessageBubble = memo(function MessageBubble({
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onExpandVideo,
 	onEditMessage,
 	editDisabled = false,
 	editPending = false,
@@ -1370,6 +1517,7 @@ const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandVideo?: (video: ChatMessageVideo) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -1474,6 +1622,14 @@ const MessageBubble = memo(function MessageBubble({
 						images={message.images}
 						isUser={isUser}
 						onExpandImage={onExpandImage}
+					/>
+				) : null}
+
+				{message.videos?.length && message.sessionId ? (
+					<MessageVideos
+						sessionId={message.sessionId}
+						videos={message.videos}
+						onExpandVideo={onExpandVideo}
 					/>
 				) : null}
 

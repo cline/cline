@@ -105,6 +105,22 @@ export function isDedicatedImageGenerationModel(
 	return isImageGenerationModel(model) && output?.includes("text") !== true;
 }
 
+export function isVideoGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("video")
+	);
+}
+
+export function isDedicatedVideoGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isVideoGenerationModel(model) && output?.includes("text") !== true;
+}
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),

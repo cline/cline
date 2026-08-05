@@ -11,17 +11,20 @@ const {
 	audioPlayMock,
 	invokeMock,
 	loadProviderModelCatalogMock,
+	resolveDesktopBackendHttpEndpointMock,
 	writeDesktopDebugLogMock,
 } = vi.hoisted(() => ({
 	audioPauseMock: vi.fn(),
 	audioPlayMock: vi.fn(async () => undefined),
 	invokeMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
+	resolveDesktopBackendHttpEndpointMock: vi.fn(),
 	writeDesktopDebugLogMock: vi.fn(),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: invokeMock },
+	resolveDesktopBackendHttpEndpoint: resolveDesktopBackendHttpEndpointMock,
 	writeDesktopDebugLog: writeDesktopDebugLogMock,
 }));
 
@@ -70,6 +73,9 @@ beforeEach(() => {
 			},
 		},
 	});
+	resolveDesktopBackendHttpEndpointMock
+		.mockReset()
+		.mockResolvedValue("http://127.0.0.1:3126");
 	writeDesktopDebugLogMock.mockClear();
 	HTMLElement.prototype.scrollTo = vi.fn();
 	container = document.createElement("div");
@@ -1082,6 +1088,55 @@ describe("ChatMessages image attachments", () => {
 			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 		});
 		expect(container.querySelector('[role="dialog"]')).toBeNull();
+	});
+});
+
+describe("ChatMessages generated videos", () => {
+	it("renders an artifact-backed video player", async () => {
+		await renderMessages([
+			{
+				id: "assistant-video",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				videos: [
+					{
+						id: "generated-video-1",
+						mediaType: "video/mp4",
+						artifactName: "video result.mp4",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		await vi.waitFor(() => {
+			const video = container.querySelector<HTMLVideoElement>(
+				'video[aria-label="Generated video"]',
+			);
+			expect(video?.src).toBe(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/video%20result.mp4",
+			);
+			expect(video?.controls).toBe(true);
+		});
+
+		const expand = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Expand generated video"]',
+		);
+		await act(async () => expand?.click());
+
+		await vi.waitFor(() => {
+			const dialog = container.querySelector(
+				'[role="dialog"][aria-label="Expanded generated video"]',
+			);
+			const player = dialog?.querySelector<HTMLVideoElement>(
+				'video[aria-label="Expanded generated video player"]',
+			);
+			expect(player?.controls).toBe(true);
+			expect(player?.src).toBe(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/video%20result.mp4",
+			);
+		});
 	});
 });
 

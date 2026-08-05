@@ -849,9 +849,9 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	// The live telemetry service is a host object with cyclic internals; it
 	// must never ride on toolContextMetadata, which crosses process
 	// boundaries over JSON IPC (plugin sandbox, hub clients).
-	expect(
-		Object.values(runtimeConfig.toolContextMetadata ?? {}),
-	).not.toContain(telemetry);
+	expect(Object.values(runtimeConfig.toolContextMetadata ?? {})).not.toContain(
+		telemetry,
+	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 

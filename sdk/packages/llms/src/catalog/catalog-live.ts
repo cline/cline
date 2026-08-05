@@ -269,7 +269,8 @@ function toModalities(
 	if (
 		!input.includes("audio") &&
 		!output.includes("audio") &&
-		!output.includes("image")
+		!output.includes("image") &&
+		!output.includes("video")
 	) {
 		return undefined;
 	}
@@ -280,7 +281,8 @@ function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("audio") === true ||
 		model.modalities?.output?.includes("audio") === true ||
-		model.modalities?.output?.includes("image") === true
+		model.modalities?.output?.includes("image") === true ||
+		model.modalities?.output?.includes("video") === true
 	);
 }
 

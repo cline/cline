@@ -152,21 +152,7 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toBe(expected);
 	});
 
-	it.each([
-		{
-			finishReason: "completed",
-			expected:
-				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
-		},
-		{
-			finishReason: "error",
-			expected:
-				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
-		},
-	])("handles schema-like assistant text for $finishReason responses", async ({
-		finishReason,
-		expected,
-	}) => {
+	it("preserves schema-like assistant text for successful responses", async () => {
 		const schemaLikeText =
 			'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]';
 		invokeMock.mockImplementation(
@@ -191,7 +177,7 @@ describe("useChatSession", () => {
 					if (request?.action === "send") {
 						return {
 							ok: true,
-							result: { text: schemaLikeText, finishReason },
+							result: { text: schemaLikeText, finishReason: "completed" },
 						};
 					}
 				}
@@ -204,7 +190,42 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.findLast((message) => message.role === "assistant")
 				?.content,
-		).toBe(expected);
+		).toBe(schemaLikeText);
+	});
+
+	it("renders an RPC failure result as an error message", async () => {
+		const providerError = "The selected model does not support generateContent";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-test",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: providerError, finishReason: "error" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Generate a video"));
+
+		expect(current.status).toBe("failed");
+		expect(
+			current.messages.findLast((message) => message.role === "error")?.content,
+		).toBe(providerError);
 	});
 
 	it("publishes the first user message before cold session startup resolves", async () => {
@@ -1017,12 +1038,18 @@ describe("useChatSession", () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
 				stream: "chat_done",
-				chunk: JSON.stringify({ reason: "error" }),
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Video generation failed",
+				}),
 				ts: Date.now(),
 				index: 2,
 			});
 		});
 		expect(current.status).toBe("failed");
+		expect(
+			current.messages.findLast((message) => message.role === "error")?.content,
+		).toBe("Video generation failed");
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {

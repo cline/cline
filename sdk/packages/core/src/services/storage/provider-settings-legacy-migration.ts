@@ -475,7 +475,8 @@ function resolveKnownClineModel(
 	if (!modelId || providerId !== "cline") {
 		return modelId;
 	}
-	const catalogModels = LlmsModels.getProviderCollectionSync(providerId)?.models;
+	const catalogModels =
+		LlmsModels.getProviderCollectionSync(providerId)?.models;
 	if (!catalogModels) {
 		return modelId;
 	}

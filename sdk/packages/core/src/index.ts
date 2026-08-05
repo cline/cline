@@ -517,9 +517,9 @@ export {
 	RESTART_COUNTER_RESET_MS,
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
-	setActiveConnectorSupervisor,
 	STOP_SIGKILL_TIMEOUT_MS,
 	STOP_SIGTERM_TIMEOUT_MS,
+	setActiveConnectorSupervisor,
 } from "./services/connectors/connector-supervisor";
 export {
 	FeatureFlagsService,
@@ -853,6 +853,7 @@ export {
 export type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
@@ -862,6 +863,7 @@ export {
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
+	ChatMessageVideoSchema,
 	ChatSessionConfigSchema,
 	ChatSessionStatusSchema,
 	ChatSummarySchema,

@@ -273,7 +273,8 @@ export function isChatProviderModel(
 			model.inputModalities.includes("text")) &&
 		(model.outputModalities === undefined ||
 			model.outputModalities.includes("text") ||
-			model.outputModalities.includes("image"))
+			model.outputModalities.includes("image") ||
+			model.outputModalities.includes("video"))
 	);
 }
 

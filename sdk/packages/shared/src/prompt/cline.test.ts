@@ -53,9 +53,7 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(prompt).not.toContain("switch_to_act_mode");
 		// The read-only run_commands contract is shared by both variants.
 		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("run_commands");
-		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain(
-			"Plan/Act toggle",
-		);
+		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("Plan/Act toggle");
 	});
 
 	it("emits mode instructions for both mode: undefined and yolo", () => {

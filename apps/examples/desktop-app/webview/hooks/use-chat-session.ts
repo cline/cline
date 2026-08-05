@@ -66,6 +66,7 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
+	"chat_video",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -99,6 +100,18 @@ function makeErrorChatMessage(
 		content,
 		createdAt: Date.now(),
 	};
+}
+
+function appendUniqueErrorMessage(
+	messages: ChatMessage[],
+	sid: string | null,
+	content: string,
+): ChatMessage[] {
+	const lastMessage = messages.at(-1);
+	if (lastMessage?.role === "error" && lastMessage.content === content) {
+		return messages;
+	}
+	return sliceMessages([...messages, makeErrorChatMessage(sid, content)]);
 }
 
 function validateConfig(
@@ -933,6 +946,51 @@ export function useChatSession() {
 				return;
 			}
 
+			if (payload.stream === "chat_video") {
+				let video: { mediaType?: string; artifactName?: string };
+				try {
+					video = JSON.parse(payload.chunk) as typeof video;
+				} catch {
+					return;
+				}
+				if (
+					typeof video.mediaType !== "string" ||
+					!video.mediaType.startsWith("video/") ||
+					typeof video.artifactName !== "string" ||
+					!video.artifactName
+				) {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((prev) => {
+					const generatedVideo = {
+						id: `${assistantId}_video_${video.artifactName}`,
+						mediaType: video.mediaType as string,
+						artifactName: video.artifactName as string,
+					};
+					const updated = updateMessageById(prev, assistantId, (message) => ({
+						...message,
+						videos: [...(message.videos ?? []), generatedVideo],
+					}));
+					if (updated !== prev) return updated;
+					return sliceMessages([
+						...prev,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							videos: [generatedVideo],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				return;
+			}
+
 			// Any non-delta event (tool calls, prompt starts, done markers) must
 			// observe fully applied text, so drain the buffers first.
 			flushPendingStream();
@@ -1047,11 +1105,21 @@ export function useChatSession() {
 				// signal. Without it the composer stays on "Agent is working..."
 				// forever.
 				let doneReason = "";
+				let doneError = "";
 				try {
-					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					const parsed = JSON.parse(payload.chunk) as {
+						reason?: string;
+						text?: string;
+					};
 					doneReason = parsed.reason?.trim() ?? "";
+					doneError = parsed.text?.trim() ?? "";
 				} catch {
 					// Missing reason still means the turn ended.
+				}
+				if (doneReason === "error" && doneError) {
+					setMessages((previous) =>
+						appendUniqueErrorMessage(previous, listeningSessionId, doneError),
+					);
 				}
 				setStatus(
 					doneReason === "aborted"
@@ -1552,7 +1620,8 @@ export function useChatSession() {
 					setStatus("cancelled");
 					return;
 				}
-				const assistantText = (result?.text ?? "").trim();
+				const assistantText =
+					result?.finishReason === "error" ? "" : (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -1727,11 +1796,15 @@ export function useChatSession() {
 						const toolError = Array.isArray(result?.toolCalls)
 							? result.toolCalls.find((c) => c.error)?.error
 							: undefined;
-						addMessage(
-							makeErrorChatMessage(
+						const failureMessage =
+							result.text?.trim() ||
+							toolError?.trim() ||
+							"Runtime turn failed before an assistant response was produced.";
+						setMessages((previous) =>
+							appendUniqueErrorMessage(
+								previous,
 								activeSessionId,
-								toolError?.trim() ||
-									"Runtime turn failed before an assistant response was produced.",
+								failureMessage,
 							),
 						);
 					}

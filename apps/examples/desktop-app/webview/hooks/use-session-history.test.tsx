@@ -211,7 +211,8 @@ describe("useSessionHistory persisted usage", () => {
 		expect(
 			invokeMock.mock.calls.some(
 				([command]) =>
-					command === "read_session_messages" || command === "read_session_hooks",
+					command === "read_session_messages" ||
+					command === "read_session_hooks",
 			),
 		).toBe(false);
 	});

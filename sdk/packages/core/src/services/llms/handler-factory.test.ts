@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const generatedModelsByProvider: Record<string, Record<string, unknown>> = {};
 	return {
 		createAgentModel,
+		generatedModelsByProvider,
 		createGateway: vi.fn(() => ({ createAgentModel })),
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
@@ -19,6 +21,9 @@ vi.mock("@cline/llms", () => ({
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
+	resolveProviderModelCatalogKeys: (id: string) => [id],
+	getGeneratedModelsForProvider: (id: string) =>
+		gatewayMock.generatedModelsByProvider[id] ?? {},
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -31,6 +36,49 @@ describe("createAgentModelFromConfig", () => {
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
 		gatewayMock.createHandlerAsync.mockReset();
+		for (const providerId of Object.keys(
+			gatewayMock.generatedModelsByProvider,
+		)) {
+			delete gatewayMock.generatedModelsByProvider[providerId];
+		}
+	});
+
+	it("uses generated catalog metadata when the host does not pass knownModels", async () => {
+		gatewayMock.generatedModelsByProvider.gemini = {
+			"veo-test": {
+				id: "veo-test",
+				name: "Veo Test",
+				modalities: { input: ["text"], output: ["video"] },
+				capabilities: [],
+			},
+		};
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "gemini",
+				modelId: "veo-test",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						models: [
+							expect.objectContaining({
+								id: "veo-test",
+								modalities: { input: ["text"], output: ["video"] },
+							}),
+						],
+					}),
+				],
+			}),
+		);
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {

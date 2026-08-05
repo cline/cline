@@ -54,6 +54,11 @@ export type AiSdkFormatterPart =
 			content: string;
 	  }
 	| {
+			type: "video";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
 			type: "tool-call";
 			toolCallId: string;
 			toolName: string;
@@ -694,6 +699,12 @@ export function formatMessagesForAiSdk(
 					} else {
 						messageParts.push(toUserImagePart(part, mediaState));
 					}
+					break;
+				case "video":
+					messageParts.push({
+						type: "text",
+						text: `[Generated video artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
+					});
 					break;
 				case "file":
 					messageParts.push({
