@@ -56,8 +56,9 @@ when updating.
 
 Desktop is the first production-shaped consumer of both the theme and shared
 chat primitives. Storybook is the reference catalog for isolated component
-states. Hub and other agent interfaces are candidates for the next adoption
-pass once their runtime and Markdown adapters are mapped explicitly.
+states. Cline Hub uses the shared attachment presentation; the VS Code webview
+and example attachment renderers remain host-local follow-ups until their
+runtime adapters are mapped explicitly.
 
 ## Choose an adoption level
 
