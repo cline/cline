@@ -233,6 +233,7 @@ export type {
 } from "./extensions";
 export {
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	loadAgentPluginFromPath,
 	loadAgentPluginsFromPaths,
 	loadAgentPluginsFromPathsWithDiagnostics,

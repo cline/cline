@@ -7,15 +7,7 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import {
-	basename,
-	dirname,
-	extname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -91,7 +83,6 @@ import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
 import { discoverChatSessions } from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
-
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,

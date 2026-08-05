@@ -335,8 +335,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}),
 		).catch((error) => console.error("Failed to track new task click:", error))
 		setActiveQuote(null)
+		// Drop any unconfirmed optimistic message: if it lingered past an explicit
+		// New Task, withPendingUserMessage would re-inject the old task (and its
+		// attachments) into the freshly cleared transcript, leaving the chat stuck
+		// on the previous task (#12924).
+		setPendingUserMessage(undefined)
+		setPendingResponse(undefined)
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [messages.length, setActiveQuote])
+	}, [messages.length, setActiveQuote, setPendingUserMessage, setPendingResponse])
 
 	// Clear input state helper
 	const clearInputState = useCallback(() => {
