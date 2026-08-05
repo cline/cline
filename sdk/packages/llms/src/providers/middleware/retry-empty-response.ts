@@ -1,25 +1,45 @@
-// LanguageModelV4 middleware that retries an Ollama stream when the model
-// returns an *empty* turn — no text, no reasoning, and no tool call.
+// LanguageModelV4 middleware that retries a stream when the model returns an
+// *empty* turn — no converted content and no unsupported output (see
+// `stream-part-classification.ts` for the authoritative taxonomy).
 //
-// Background: local backends (Ollama especially) intermittently return a
-// response that finishes normally but carries no content at all. In Cline's
-// runtime an empty assistant turn is a hard failure ("Model returned empty
-// response"), so a single flaky generation kills the whole task. The
-// `ai-sdk-ollama` provider ships a "reliability" layer for this, but it lives
-// in `doGenerate` and *owns the tool loop* (it executes tools itself and
-// force-synthesizes a final text answer). That is fundamentally incompatible
-// with Cline, which streams via `doStream` and runs its own tool loop — a
-// tool-call-only turn is the correct, desired outcome here, not something to
-// "complete". So instead of adopting that layer, this middleware adds the one
-// piece that is safe for a streaming, self-looping host: retry only when a
-// turn produced genuinely nothing.
+// Background: providers intermittently return a response that finishes
+// normally but carries no content at all. This was first observed on local
+// backends (Ollama especially), but production telemetry shows hosted
+// backends (openrouter, cline, generic OpenAI-compatible endpoints) do the
+// same. In Cline's runtime an empty assistant turn is a hard failure ("Model
+// returned empty response"), so a single flaky generation kills the whole
+// task. The `ai-sdk-ollama` provider ships a "reliability" layer for this,
+// but it lives in `doGenerate` and *owns the tool loop* (it executes tools
+// itself and force-synthesizes a final text answer). That is fundamentally
+// incompatible with Cline, which streams via `doStream` and runs its own tool
+// loop — a tool-call-only turn is the correct, desired outcome here, not
+// something to "complete". So instead of adopting that layer, this middleware
+// adds the one piece that is safe for a streaming, self-looping host: retry
+// only when a turn produced genuinely nothing.
+//
+// It is applied to every AI SDK vendor at the central composition point in
+// `ai-sdk.ts` (see `withEmptyResponseRetry`); vendors can opt out or tune
+// attempts via `ProviderFactoryResult.retryEmptyResponses`.
+//
+// Stream mechanics: each attempt is BUFFERED until it proves itself — the
+// first output part (converted content, unsupported output, or an error)
+// accepts the attempt, at which point the buffer is flushed and the rest of
+// the attempt streams through live. Rejected (empty) attempts are discarded
+// wholesale, so no structural parts, response metadata, or empty block
+// markers from discarded requests ever leak into the logical stream — one
+// retried request produces one clean stream. Because empty attempts still
+// bill real tokens on hosted providers, their `finish.usage` is aggregated
+// into the final finish part, so a turn that took three requests reports
+// three requests' worth of usage.
 //
 // Safety properties:
 //   * A tool-call-only turn counts as content, so it is never retried.
-//   * Non-empty turns stream through live, chunk by chunk, with zero added
-//     latency — the retry logic only ever engages after an empty turn ends,
-//     at which point nothing has been surfaced to the consumer yet, so
-//     swapping in a fresh attempt is seamless.
+//   * Unsupported-but-real output (custom parts, reasoning files, sources,
+//     provider-executed tool results) is never retried either — the model
+//     responded; re-billing the request would not help.
+//   * Non-empty turns stream through live: buffering only lasts until the
+//     first output part, which for a non-empty turn is the moment it starts
+//     producing anything.
 //   * Turns that finish with an error or hit the token limit are passed
 //     through unchanged (retrying wouldn't help and could mask the cause).
 
@@ -27,7 +47,9 @@ import type {
 	LanguageModelV4Middleware,
 	LanguageModelV4StreamPart,
 	LanguageModelV4StreamResult,
+	LanguageModelV4Usage,
 } from "@ai-sdk/provider";
+import { classifyModelStreamPart } from "./stream-part-classification";
 
 /** Minimal logger surface (a subset of `BasicLogger`). */
 interface RetryLogger {
@@ -55,30 +77,64 @@ export const DEFAULT_EMPTY_RESPONSE_RETRY_DELAY_MS = 250;
  */
 const RETRYABLE_FINISH_REASONS = new Set(["stop", "other", "unknown"]);
 
-/**
- * A stream part counts as real model output. Notably a `tool-call` (or its
- * streaming `tool-input-*` parts) counts, so a tool-call-only turn — the
- * normal shape when the model wants to act — is never treated as empty.
- * Structural markers (`text-start`/`-end`, `stream-start`, `response-metadata`,
- * `finish`, `raw`) do not count.
- */
-function isContentPart(part: LanguageModelV4StreamPart): boolean {
-	switch (part.type) {
-		case "text-delta":
-		case "reasoning-delta":
-			return part.delta.length > 0;
-		case "tool-call":
-		case "tool-input-start":
-		case "tool-input-delta":
-		case "tool-input-end":
-		case "tool-result":
-		case "tool-approval-request":
-		case "file":
-		case "source":
-			return true;
-		default:
-			return false;
+type FinishPart = Extract<LanguageModelV4StreamPart, { type: "finish" }>;
+
+function addCounts(
+	a: number | undefined,
+	b: number | undefined,
+): number | undefined {
+	if (a === undefined && b === undefined) {
+		return undefined;
 	}
+	return (a ?? 0) + (b ?? 0);
+}
+
+/** Sum two standardized v4 usage records field by field. */
+export function addUsage(
+	a: LanguageModelV4Usage,
+	b: LanguageModelV4Usage,
+): LanguageModelV4Usage {
+	return {
+		inputTokens: {
+			total: addCounts(a.inputTokens?.total, b.inputTokens?.total),
+			noCache: addCounts(a.inputTokens?.noCache, b.inputTokens?.noCache),
+			cacheRead: addCounts(a.inputTokens?.cacheRead, b.inputTokens?.cacheRead),
+			cacheWrite: addCounts(
+				a.inputTokens?.cacheWrite,
+				b.inputTokens?.cacheWrite,
+			),
+		},
+		outputTokens: {
+			total: addCounts(a.outputTokens?.total, b.outputTokens?.total),
+			text: addCounts(a.outputTokens?.text, b.outputTokens?.text),
+			reasoning: addCounts(
+				a.outputTokens?.reasoning,
+				b.outputTokens?.reasoning,
+			),
+		},
+		// `raw` is provider-specific and cannot be summed generically; the
+		// emitted finish keeps the final attempt's raw payload.
+		...(b.raw !== undefined ? { raw: b.raw } : {}),
+	};
+}
+
+/**
+ * Fold the usage of discarded attempts into the finish part that is actually
+ * emitted, so hosted-provider billing reflects every request the turn made
+ * (including cache and reasoning detail), not just the accepted one.
+ */
+function withAggregatedUsage(
+	finish: FinishPart,
+	discardedUsage: readonly LanguageModelV4Usage[],
+): FinishPart {
+	if (discardedUsage.length === 0) {
+		return finish;
+	}
+	let usage = finish.usage;
+	for (const discarded of discardedUsage) {
+		usage = addUsage(discarded, usage);
+	}
+	return { ...finish, usage };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -86,7 +142,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Create a middleware that retries empty Ollama responses. Apply it as the
+ * Create a middleware that retries empty model responses. Apply it as the
  * outermost middleware (first in the `wrapLanguageModel` array) so each retry
  * re-runs the full request.
  */
@@ -112,16 +168,14 @@ export function createRetryEmptyResponseMiddleware(
 			const stream = new ReadableStream<LanguageModelV4StreamPart>({
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
-					let streamStartForwarded = false;
+					const discardedUsage: LanguageModelV4Usage[] = [];
 
 					for (let attempt = 1; ; attempt++) {
 						const reader = result.stream.getReader();
-						let hadContent = false;
-						let sawError = false;
-						let pendingFinish: Extract<
-							LanguageModelV4StreamPart,
-							{ type: "finish" }
-						> | null = null;
+						// Parts held back until this attempt proves non-empty.
+						const buffered: LanguageModelV4StreamPart[] = [];
+						let accepted = false;
+						let pendingFinish: FinishPart | null = null;
 
 						try {
 							while (true) {
@@ -129,24 +183,34 @@ export function createRetryEmptyResponseMiddleware(
 								if (done) {
 									break;
 								}
-								if (value.type === "stream-start") {
-									// Forward warnings exactly once across all attempts.
-									if (!streamStartForwarded) {
-										controller.enqueue(value);
-										streamStartForwarded = true;
-									}
-									continue;
-								}
 								if (value.type === "finish") {
+									// Held back so the emitted finish can carry
+									// aggregated usage; it is always last anyway.
 									pendingFinish = value;
 									continue;
 								}
-								if (value.type === "error") {
-									sawError = true;
-								} else if (isContentPart(value)) {
-									hadContent = true;
+								if (!accepted) {
+									const kind = classifyModelStreamPart(value);
+									if (
+										kind === "converted-content" ||
+										kind === "unsupported-output" ||
+										kind === "error"
+									) {
+										// The model produced output (or a real
+										// error): accept this attempt, flush what
+										// was buffered, and go live.
+										accepted = true;
+										for (const part of buffered) {
+											controller.enqueue(part);
+										}
+										buffered.length = 0;
+									}
 								}
-								controller.enqueue(value);
+								if (accepted) {
+									controller.enqueue(value);
+								} else {
+									buffered.push(value);
+								}
 							}
 						} catch (error) {
 							controller.error(error);
@@ -155,24 +219,46 @@ export function createRetryEmptyResponseMiddleware(
 							reader.releaseLock();
 						}
 
-						const finishReason =
-							pendingFinish?.finishReason.unified ?? "unknown";
-						const canRetry =
-							!hadContent &&
-							!sawError &&
-							attempt < maxAttempts &&
-							RETRYABLE_FINISH_REASONS.has(finishReason);
-
-						if (!canRetry) {
+						if (accepted) {
 							if (pendingFinish) {
-								controller.enqueue(pendingFinish);
+								controller.enqueue(
+									withAggregatedUsage(pendingFinish, discardedUsage),
+								);
 							}
 							controller.close();
 							return;
 						}
 
-						logger?.log?.("Ollama returned an empty response; retrying", {
+						const finishReason =
+							pendingFinish?.finishReason.unified ?? "unknown";
+						const canRetry =
+							attempt < maxAttempts &&
+							RETRYABLE_FINISH_REASONS.has(finishReason);
+
+						if (!canRetry) {
+							// Out of retries (or a non-retryable finish): surface
+							// the final attempt as-is — its structural parts plus a
+							// finish carrying every attempt's usage — so the
+							// downstream failure is honest about what happened.
+							for (const part of buffered) {
+								controller.enqueue(part);
+							}
+							if (pendingFinish) {
+								controller.enqueue(
+									withAggregatedUsage(pendingFinish, discardedUsage),
+								);
+							}
+							controller.close();
+							return;
+						}
+
+						if (pendingFinish) {
+							discardedUsage.push(pendingFinish.usage);
+						}
+
+						logger?.log?.("Model returned an empty response; retrying", {
 							severity: "warn",
+							provider: model.provider,
 							modelId: model.modelId,
 							attempt,
 							maxAttempts,
