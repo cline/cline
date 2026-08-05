@@ -15,6 +15,7 @@ import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { ensureLoginShellPath } from "./shell-path";
+import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -150,28 +151,15 @@ async function main() {
  * Prints whether the telemetry configuration that was inlined at build time
  * (see scripts/telemetry-define-args.ts) actually made it into this binary,
  * then exits. CI runs this against the packaged sidecar and fails the
- * publish when a release-grade build reports `"enabled":false`, so a
- * regression in the build-time inlining can never ship silently again.
+ * publish when a release-grade build reports `"enabled":false` or an
+ * unusable OTLP endpoint, so a regression in the build-time inlining can
+ * never ship silently again.
  */
 function runTelemetrySelfcheck(): void {
-	const config = createClineTelemetryServiceConfig();
-	let otlpEndpointHost = "";
-	if (config.otlpEndpoint) {
-		try {
-			otlpEndpointHost = new URL(config.otlpEndpoint).host;
-		} catch {
-			otlpEndpointHost = "invalid-endpoint-url";
-		}
-	}
-	process.stdout.write(
-		`${JSON.stringify({
-			telemetry_selfcheck: true,
-			enabled: config.enabled === true,
-			otlp_endpoint_host: otlpEndpointHost,
-			logs_exporter: config.logsExporter ?? "",
-			metrics_exporter: config.metricsExporter ?? "",
-		})}\n`,
+	const report = buildTelemetrySelfcheckReport(
+		createClineTelemetryServiceConfig(),
 	);
+	process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 
 async function runEntrypoint(): Promise<void> {

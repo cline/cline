@@ -280,9 +280,10 @@ jobs:
       # compiled sidecar. Missing env on the build step (or a regression in
       # the --define inlining) would otherwise ship a release with telemetry
       # silently disabled — exactly what happened for every release before
-      # this check existed. Being enabled is not enough on its own: an empty
-      # or malformed OTLP endpoint would still drop every event, so the
-      # endpoint host must be present and parseable too.
+      # this check existed. Being enabled is not enough on its own: an empty,
+      # malformed, or non-http(s) OTLP endpoint would still drop every event
+      # at runtime (the SDK exporters speak OTLP http/json only), so the
+      # selfcheck must also report a usable endpoint host.
       - name: Verify sidecar telemetry config was inlined
         working-directory: apps/examples/desktop-app
         run: |
@@ -297,8 +298,9 @@ jobs:
           fi
           if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
             echo "Packaged sidecar reports telemetry enabled but its OTLP"
-            echo "endpoint is missing or unparseable, so every event would be"
-            echo "dropped. Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+            echo "endpoint is missing, unparseable, or not an http(s) URL, so"
+            echo "every event would be dropped at runtime. Check the"
+            echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
             exit 1
           fi
 
