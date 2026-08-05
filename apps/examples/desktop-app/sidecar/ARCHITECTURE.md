@@ -141,6 +141,10 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `save_mode_settings` | validates and persists settings for the selected mode (`voiceInput`, `voiceOutput`, `realtimeVoice`, and future registered modes) |
+| `create_mode_session` | mints a short-lived browser session for modes such as streaming transcription and realtime voice without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
+| `synthesize_speech` | configured voice output selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
@@ -154,6 +158,13 @@ Supported commands:
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
 | `get_git_branch` | async `execFile("git", ...)` |
+
+Realtime mode sessions expose only one browser-callable tool, `run_cline`, when
+the selected realtime model supports tool calling. The webview implements that
+tool by sending the request through the active Cline chat session and returning
+its persisted result to the realtime provider for playback. Cline remains the
+owner of workspace context, agent tools, MCP, approvals, and session history;
+provider credentials remain in the sidecar.
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `search_workspace_files` | `getFileIndex` |

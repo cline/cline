@@ -8,6 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
+import type { ProviderMode, ProviderModeSettingsMap } from "@cline/shared";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
 import { getLiveModelsCatalog } from "../..";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
@@ -18,6 +19,7 @@ import {
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 	type ProviderTokenSource,
+	parseProviderModeSettings,
 	type StoredProviderSettings,
 	StoredProviderSettingsSchema,
 	type ToProviderConfigOptions,
@@ -212,6 +214,26 @@ export class ProviderSettingsManager {
 	getProviderSettings(providerId: string): ProviderSettings | undefined {
 		const state = this.read();
 		return this.resolveProviderSettings(state, providerId);
+	}
+
+	getModeSettings<Mode extends ProviderMode>(
+		mode: Mode,
+	): ProviderModeSettingsMap[Mode] | undefined {
+		return this.read().modes[mode];
+	}
+
+	setModeSettings<Mode extends ProviderMode>(
+		mode: Mode,
+		settings: ProviderModeSettingsMap[Mode] | undefined,
+	): StoredProviderSettings {
+		const state = this.read();
+		if (settings) {
+			state.modes[mode] = parseProviderModeSettings(mode, settings);
+		} else {
+			delete state.modes[mode];
+		}
+		this.write(state);
+		return state;
 	}
 
 	private resolveLastUsedProviderId(

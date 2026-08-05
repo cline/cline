@@ -1,3 +1,14 @@
+import type {
+	ProviderMode,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
+} from "@cline/shared/browser";
+
 export interface ProviderModel {
 	id: string;
 	name: string;
@@ -5,7 +16,13 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	supportsTools?: boolean;
+	supportsStreamingTranscription?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
+
+export type ModelModality = "text" | "image" | "audio" | "video" | "pdf";
 
 export type ProviderConfigFieldType =
 	| "text"
@@ -64,9 +81,21 @@ export interface ProviderSettingsUpdate {
 export interface ProviderCatalogResponse {
 	providers: Provider[];
 	settingsPath: string;
+	modes: ProviderModesSettings;
 }
 
 export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
+
+export type {
+	ProviderMode,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
+};

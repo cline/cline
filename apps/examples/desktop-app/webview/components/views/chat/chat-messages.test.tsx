@@ -6,11 +6,71 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { ChatMessages } from "./chat-messages";
 
+const {
+	audioPauseMock,
+	audioPlayMock,
+	invokeMock,
+	loadProviderModelCatalogMock,
+	writeDesktopDebugLogMock,
+} = vi.hoisted(() => ({
+	audioPauseMock: vi.fn(),
+	audioPlayMock: vi.fn(async () => undefined),
+	invokeMock: vi.fn(),
+	loadProviderModelCatalogMock: vi.fn(),
+	writeDesktopDebugLogMock: vi.fn(),
+}));
+
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke: invokeMock },
+	writeDesktopDebugLog: writeDesktopDebugLogMock,
+}));
+
+vi.mock("@/lib/provider-model-catalog", () => ({
+	loadProviderModelCatalog: loadProviderModelCatalogMock,
+	MODE_SETTINGS_CHANGED_EVENT: "cline:test-mode-settings-changed",
+}));
+
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	class MockAudio {
+		constructor(public src: string) {}
+
+		addEventListener() {}
+		pause = audioPauseMock;
+		play = audioPlayMock;
+		removeAttribute() {}
+	}
+	vi.stubGlobal("Audio", MockAudio);
+	Object.defineProperty(URL, "createObjectURL", {
+		configurable: true,
+		value: vi.fn(() => "blob:assistant-speech"),
+	});
+	Object.defineProperty(URL, "revokeObjectURL", {
+		configurable: true,
+		value: vi.fn(),
+	});
+	audioPauseMock.mockClear();
+	audioPlayMock.mockClear();
+	invokeMock.mockReset().mockResolvedValue({
+		audioBase64: "aGVsbG8=",
+		mediaType: "audio/mpeg",
+	});
+	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
+		modes: {
+			voiceInput: null,
+			voiceOutput: {
+				providerId: "elevenlabs",
+				providerName: "ElevenLabs",
+				modelId: "elevenlabs-v2.5-turbo",
+				modelName: "ElevenLabs v2.5 Turbo",
+				voice: "voice-1",
+			},
+		},
+	});
+	writeDesktopDebugLogMock.mockClear();
 	HTMLElement.prototype.scrollTo = vi.fn();
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -21,6 +81,7 @@ afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 async function renderMessages(
@@ -43,6 +104,7 @@ async function renderMessages(
 				{...overrides}
 			/>,
 		);
+		await Promise.resolve();
 	});
 }
 
@@ -439,7 +501,7 @@ describe("ChatMessages tool disclosures", () => {
 			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
 				[]),
 		];
-		expect(assistantActionButtons).toHaveLength(2);
+		expect(assistantActionButtons).toHaveLength(3);
 		expect(
 			assistantActionButtons.every(
 				(action) =>
@@ -665,6 +727,191 @@ describe("ChatMessages tool disclosures", () => {
 	});
 });
 
+describe("ChatMessages copy actions", () => {
+	it("copies displayed user text without the internal user_input envelope", async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: { writeText },
+		});
+
+		await renderMessages([
+			{
+				id: "wrapped-user",
+				sessionId: "session-1",
+				role: "user",
+				content: '<user_input mode="act">\nPlease fix the tests\n</user_input>',
+				createdAt: 1,
+			},
+		]);
+
+		const copy = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Copy user message"]',
+		);
+		await act(async () => copy?.click());
+
+		expect(writeText).toHaveBeenCalledWith("Please fix the tests");
+	});
+});
+
+describe("ChatMessages voice output actions", () => {
+	it("synthesizes and plays the selected assistant message on click", async () => {
+		await renderMessages([
+			{
+				id: "assistant-to-speak",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "This is the assistant response.",
+				createdAt: 1,
+			},
+		]);
+
+		const speak = await vi.waitFor(() => {
+			const button = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Speak assistant message"]',
+			);
+			expect(button?.disabled).toBe(false);
+			return button as HTMLButtonElement;
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
+
+		await act(async () => {
+			speak.click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(invokeMock).toHaveBeenCalledWith("synthesize_speech", {
+			text: "This is the assistant response.",
+		});
+		expect(audioPlayMock).toHaveBeenCalledOnce();
+		expect(
+			container.querySelector(
+				'button[aria-label="Stop speaking assistant message"]',
+			),
+		).not.toBeNull();
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'button[aria-label="Stop speaking assistant message"]',
+				)
+				?.click();
+		});
+		expect(audioPauseMock).toHaveBeenCalledOnce();
+		expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:assistant-speech");
+		expect(
+			container.querySelector('button[aria-label="Speak assistant message"]'),
+		).not.toBeNull();
+	});
+
+	it("cancels a pending synthesis response from the same action", async () => {
+		let resolveSynthesis:
+			| ((value: { audioBase64: string; mediaType: string }) => void)
+			| undefined;
+		invokeMock.mockReturnValue(
+			new Promise<{ audioBase64: string; mediaType: string }>((resolve) => {
+				resolveSynthesis = resolve;
+			}),
+		);
+		await renderMessages([
+			{
+				id: "assistant-pending-speech",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Cancel this request.",
+				createdAt: 1,
+			},
+		]);
+
+		const speak = await vi.waitFor(() => {
+			const button = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Speak assistant message"]',
+			);
+			expect(button?.disabled).toBe(false);
+			return button as HTMLButtonElement;
+		});
+		await act(async () => speak.click());
+
+		const cancel = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Cancel speech generation"]',
+		);
+		expect(cancel?.disabled).toBe(false);
+		await act(async () => cancel?.click());
+		await act(async () => {
+			resolveSynthesis?.({
+				audioBase64: "aGVsbG8=",
+				mediaType: "audio/mpeg",
+			});
+			await Promise.resolve();
+		});
+
+		expect(audioPlayMock).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('button[aria-label="Speak assistant message"]'),
+		).not.toBeNull();
+	});
+
+	it("opens model settings when voice output is not configured", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			modes: { voiceInput: null, voiceOutput: null },
+		});
+		const onOpenVoiceOutputSettings = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "assistant-without-voice-output",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Configure speech first.",
+					createdAt: 1,
+				},
+			],
+			{ onOpenVoiceOutputSettings },
+		);
+
+		const configure = await vi.waitFor(() => {
+			const button = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Configure voice output"]',
+			);
+			expect(button?.disabled).toBe(false);
+			return button as HTMLButtonElement;
+		});
+		await act(async () => configure.click());
+
+		expect(onOpenVoiceOutputSettings).toHaveBeenCalledOnce();
+		expect(invokeMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("ChatMessages errors", () => {
+	it("caps persisted error messages in a scrollable block", async () => {
+		await renderMessages([
+			{
+				id: "error-1",
+				sessionId: "session-1",
+				role: "error",
+				content: "Invalid prompt\n".repeat(100),
+				createdAt: 1,
+			},
+		]);
+
+		const alert = container.querySelector<HTMLElement>('[role="alert"]');
+		expect(alert?.className).toContain("max-h-44");
+		expect(alert?.className).toContain("overflow-y-auto");
+	});
+
+	it("caps transient error banners in a scrollable block", async () => {
+		await renderMessages([], {
+			error: "Request failed\n".repeat(100),
+		});
+
+		const alert = container.querySelector<HTMLElement>('[role="alert"]');
+		expect(alert?.className).toContain("max-h-44");
+		expect(alert?.className).toContain("overflow-y-auto");
+	});
+});
+
 describe("ChatMessages follow-up questions", () => {
 	it("forwards answers from the shared question panel", async () => {
 		const onAnswerAskQuestion = vi.fn();
@@ -722,6 +969,83 @@ describe("ChatMessages image attachments", () => {
 		expect(image?.className).toContain("max-h-56.25");
 		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
+	});
+
+	it("renders an image-only assistant response", async () => {
+		await renderMessages([
+			{
+				id: "assistant-image",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/webp",
+						data: "aGVsbG8=",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/webp;base64,aGVsbG8=");
+	});
+
+	it("shows one generated image at a time and navigates the result set", async () => {
+		await renderMessages([
+			{
+				id: "assistant-images",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/png",
+						data: "Zmlyc3Q=",
+					},
+					{
+						id: "generated-image-2",
+						mediaType: "image/png",
+						data: "c2Vjb25k",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const previous = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Previous generated image"]',
+		);
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		expect(previous?.disabled).toBe(true);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+		expect(next?.disabled).toBe(true);
+
+		await act(async () => previous?.click());
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
 	});
 
 	it("expands an attachment within the conversation and closes it", async () => {

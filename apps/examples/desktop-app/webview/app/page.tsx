@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -373,6 +374,15 @@ export default function Home() {
 									onOpenSession={handleOpenSession}
 									onOpenSessionById={handleOpenSessionById}
 									parentSession={activeParentSession}
+									onOpenVoiceInputSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
+									onOpenVoiceOutputSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
+									onOpenRealtimeVoiceSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -410,6 +420,9 @@ function ChatThreadPane({
 	onOpenSession,
 	onOpenSessionById,
 	parentSession,
+	onOpenVoiceInputSettings,
+	onOpenVoiceOutputSettings,
+	onOpenRealtimeVoiceSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -429,6 +442,9 @@ function ChatThreadPane({
 	) => void;
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
+	onOpenVoiceOutputSettings?: () => void;
+	onOpenRealtimeVoiceSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -889,6 +905,38 @@ function ChatThreadPane({
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
+	const handleRealtimeSend = useCallback(
+		async (prompt: string) => {
+			onThreadStarted?.(threadId);
+			return sendPrompt(prompt);
+		},
+		[onThreadStarted, sendPrompt, threadId],
+	);
+
+	const realtimeBridge = useMemo<RealtimeChatBridge>(
+		() => ({
+			threadId,
+			sessionId,
+			providerId: config.provider,
+			modelId: config.model,
+			status,
+			hasChatHistory: messages.length > 0,
+			pendingToolApprovals,
+			pendingQuestionCount: pendingAskQuestions.length,
+			sendPrompt: handleRealtimeSend,
+		}),
+		[
+			config.model,
+			config.provider,
+			handleRealtimeSend,
+			messages.length,
+			pendingAskQuestions.length,
+			pendingToolApprovals,
+			sessionId,
+			status,
+			threadId,
+		],
+	);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -1160,9 +1208,12 @@ function ChatThreadPane({
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
+	const isAwaitingInitialHydration = Boolean(
+		historySession && hydratedSessionRef.current !== historySession.sessionId,
+	);
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
-		: isHydratingSession;
+		: isHydratingSession || isAwaitingInitialHydration;
 	const isWelcomeState =
 		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
 	const isSessionActive =
@@ -1297,7 +1348,6 @@ function ChatThreadPane({
 			attachments={attachmentList}
 			onAbort={() => void abort()}
 			onAttachFiles={handleAttachFiles}
-			onListGitBranches={listGitBranches}
 			onRemoveAttachment={(id) => {
 				setPendingAttachments((prev) =>
 					prev.filter((file, index) => {
@@ -1306,7 +1356,6 @@ function ChatThreadPane({
 					}),
 				);
 			}}
-			onSwitchGitBranch={switchGitBranch}
 			onModelChange={(nextModel) =>
 				setConfig((prev) =>
 					prev.model === nextModel ? prev : { ...prev, model: nextModel },
@@ -1319,6 +1368,8 @@ function ChatThreadPane({
 				}))
 			}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenRealtimeVoiceSettings={onOpenRealtimeVoiceSettings}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1338,7 +1389,6 @@ function ChatThreadPane({
 				})
 			}
 			onSend={(prompt) => void handleSend(prompt)}
-			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
@@ -1346,6 +1396,7 @@ function ChatThreadPane({
 			promptDraft={promptDraft}
 			provider={config.provider}
 			reasoningEffort={config.reasoningEffort}
+			realtimeBridge={realtimeBridge}
 			status={status}
 			summary={summary}
 			thinking={config.thinking}
@@ -1407,6 +1458,16 @@ function ChatThreadPane({
 							renamingTitle={renamingSession}
 							status={status}
 							title={threadTitle}
+							workspace={{
+								currentBranch: gitBranch,
+								onListGitBranches: listGitBranches,
+								onPickWorkspaceDirectory: pickWorkspaceDirectory,
+								onRefreshWorkspaces: refreshWorkspaces,
+								onSwitchGitBranch: switchGitBranch,
+								onSwitchWorkspace: switchWorkspace,
+								workspaces,
+								workspaceRoot: resolvedWorkspaceRoot,
+							}}
 						/>
 					</div>
 				) : null}
@@ -1430,6 +1491,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onOpenVoiceOutputSettings={onOpenVoiceOutputSettings}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

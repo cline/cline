@@ -155,6 +155,14 @@ Logging can be configured with the same environment variables as the CLI:
 - `CLINE_LOG_PATH` overrides the log destination.
 - `CLINE_LOG_NAME` overrides the logger name.
 
+In a development webview, sidecar audio diagnostics are also streamed to the
+webview console as `[desktop:voice-input]` and `[desktop:realtime-voice]`
+entries. Production builds can enable the same console stream with
+`NEXT_PUBLIC_CLINE_DEBUG_LOGS=1` at build time, or at runtime from DevTools with
+`localStorage.setItem("cline.debugLogs", "1")` followed by a reload. Diagnostic
+events include the selected provider/model and sanitized endpoint, but never
+credentials, request headers, recorded audio, or transcript contents.
+
 ## Troubleshooting
 
 - If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
@@ -165,3 +173,37 @@ Logging can be configured with the same environment variables as the CLI:
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
+- Speech input requires an enabled provider whose models.dev metadata identifies
+  a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with
+  its Scribe v2 model. Choose the voice input provider and model explicitly under
+  **Settings → Models → Voice input**. Mode-specific provider settings are stored
+  separately from the chat model under the `modes` map in
+  `~/.cline/data/settings/clients/desktop/settings.json`. Provider credentials remain in
+  `~/.cline/data/settings/providers.json`, shared with other clients; provider secrets
+  stay in their existing provider entry and never enter the webview. All modes use the single
+  `save_mode_settings` sidecar command with a typed mode discriminator rather
+  than adding a save command per mode. ElevenLabs uses its native
+  `/v1/speech-to-text` API. Text-to-speech models with `output: ["audio"]` are
+  configured independently under `modes.voiceOutput` and are not used for
+  microphone transcription.
+- Streaming transcription models, such as Vercel AI Gateway's
+  `openai/gpt-realtime-whisper`, update the composer while the user speaks.
+  The sidecar mints a short-lived transcription token; the long-lived gateway
+  credential is never sent to the webview. Batch models such as
+  `openai/whisper-1` continue to transcribe after recording stops.
+- Realtime voice is configured independently under `modes.realtimeVoice`.
+  Eligible models accept and return audio and expose a supported AI SDK
+  realtime transport through OpenAI, Google Gemini, or Vercel AI Gateway. The
+  sidecar binds a short-lived browser token to the saved provider/model/voice;
+  the webview then streams microphone and playback audio directly over the
+  provider's realtime WebSocket without receiving the provider API key. Start
+  it from the Audio Live button beside speech input in the chat composer; its
+  status panel opens directly above the composer. Tool-capable realtime models
+  receive the live audio turn and
+  delegate it through the session-scoped `run_cline` tool. That tool sends the
+  request through the active Cline chat session, then returns Cline's completed
+  response to the realtime model for spoken playback. Models without realtime
+  tool calling use a transcript bridge instead. Both paths use the same
+  persisted history, chat model, workspace context, tools, MCP servers, and
+  approval flow as typed turns. Tool approvals and questions remain visible in
+  the canonical chat UI and are reflected in the composer status panel.

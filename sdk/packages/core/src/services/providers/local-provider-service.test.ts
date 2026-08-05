@@ -15,14 +15,24 @@ import {
 } from "./local-provider-registry";
 import {
 	addLocalProvider,
+	createConfiguredModeSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	isChatProviderModel,
+	isDedicatedTranscriptionModel,
+	isRealtimeVoiceModel,
+	isSpeechGenerationModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
+	saveModeSettings,
+	synthesizeConfiguredVoiceOutput,
+	synthesizeLocalSpeech,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	updateLocalProvider,
 } from "./local-provider-service";
 
@@ -872,6 +882,358 @@ describe("addLocalProvider – capabilities", () => {
 	});
 });
 
+describe("audio transcription", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "audio-provider",
+			name: "Audio Provider",
+			baseUrl: "https://audio.example.invalid/v1",
+			apiKey: "audio-key",
+			models: ["whisper-large-v3"],
+		});
+		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+			id: "whisper-large-v3",
+			name: "Whisper Large v3",
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("recognizes only dedicated audio-to-text models", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(true);
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["text"],
+				outputModalities: ["audio"],
+			}),
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["text", "audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
+	});
+
+	it("transcribes with the configured provider and requested model", async () => {
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "transcribed text" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "transcribed text" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+					apiKey: "audio-key",
+				}),
+			}),
+		);
+	});
+
+	it("persists and uses the configured voice input model", async () => {
+		await expect(
+			saveModeSettings(manager, {
+				mode: "voiceInput",
+				settings: {
+					providerId: "audio-provider",
+					modelId: "whisper-large-v3",
+				},
+			}),
+		).resolves.toMatchObject({
+			modes: {
+				voiceInput: {
+					providerId: "audio-provider",
+					modelId: "whisper-large-v3",
+				},
+			},
+		});
+
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "configured transcript" });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, {
+				audio: new Uint8Array([4, 5, 6]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "configured transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("creates a streaming session only for a streaming transcription model", async () => {
+		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
+			id: "realtime-whisper",
+			name: "Realtime Whisper",
+			capabilities: ["transcription-streaming"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveModeSettings(manager, {
+			mode: "voiceInput",
+			settings: {
+				providerId: "audio-provider",
+				modelId: "realtime-whisper",
+			},
+		});
+		const createSessionSpy = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				token: "short-lived-token",
+				url: "wss://audio.example.invalid/transcription",
+			});
+
+		await expect(
+			createConfiguredModeSession(manager, { mode: "voiceInput" }),
+		).resolves.toMatchObject({
+			kind: "streaming-transcription",
+			token: "short-lived-token",
+		});
+		expect(createSessionSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "realtime-whisper",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("persists a realtime audio model and creates a short-lived mode session", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "vercel-ai-gateway",
+				model: "openai/gpt-realtime",
+				apiKey: "gateway-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("vercel-ai-gateway", "openai/gpt-realtime", {
+			id: "openai/gpt-realtime",
+			name: "GPT Realtime",
+			capabilities: ["tools"],
+			modalities: { input: ["text", "audio"], output: ["text", "audio"] },
+		});
+		expect(
+			isRealtimeVoiceModel({
+				id: "openai/gpt-realtime",
+				name: "GPT Realtime",
+				inputModalities: ["text", "audio"],
+				outputModalities: ["text", "audio"],
+			}),
+		).toBe(true);
+
+		await saveModeSettings(manager, {
+			mode: "realtimeVoice",
+			settings: {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/gpt-realtime",
+				voice: "alloy",
+			},
+		});
+		const createSessionSpy = vi
+			.spyOn(LlmsModels, "createRealtimeVoiceSession")
+			.mockResolvedValue({
+				token: "ephemeral-token",
+				url: "wss://realtime.example.test/session",
+				transport: "vercel-ai-gateway",
+				sessionConfig: {
+					outputModalities: ["audio"],
+					voice: "alloy",
+				},
+			});
+
+		await expect(
+			createConfiguredModeSession(manager, { mode: "realtimeVoice" }),
+		).resolves.toMatchObject({
+			kind: "realtime",
+			providerId: "vercel-ai-gateway",
+			modelId: "openai/gpt-realtime",
+			supportsTools: true,
+			token: "ephemeral-token",
+			transport: "vercel-ai-gateway",
+		});
+		expect(createSessionSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "openai/gpt-realtime",
+				voice: "alloy",
+				providerConfig: expect.objectContaining({
+					providerId: "vercel-ai-gateway",
+					apiKey: "gateway-key",
+				}),
+			}),
+		);
+	});
+
+	it("rejects a voice input selection that is not an audio-to-text model", async () => {
+		await expect(
+			saveModeSettings(manager, {
+				mode: "voiceInput",
+				settings: {
+					providerId: "audio-provider",
+					modelId: "missing-model",
+				},
+			}),
+		).rejects.toThrow(
+			'Model "missing-model" is not a dedicated audio-to-text transcription model',
+		);
+		expect(manager.getModeSettings("voiceInput")).toBeUndefined();
+	});
+
+	it("resolves the built-in ElevenLabs endpoint from providers.json", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "elevenlabs",
+				model: "scribe_v2",
+				apiKey: "eleven-key",
+			},
+			{ setLastUsed: false },
+		);
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "ElevenLabs transcript" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "elevenlabs",
+				modelId: "scribe_v2",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "ElevenLabs transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "scribe_v2",
+				providerConfig: expect.objectContaining({
+					providerId: "elevenlabs",
+					apiKey: "eleven-key",
+					baseUrl: "https://api.elevenlabs.io/v1",
+				}),
+			}),
+		);
+	});
+});
+
+describe("speech generation", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "speech-provider",
+			name: "Speech Provider",
+			baseUrl: "https://speech.example.invalid/v1",
+			apiKey: "speech-key",
+			models: ["tts-model"],
+		});
+		LlmsModels.registerModel("speech-provider", "tts-model", {
+			id: "tts-model",
+			name: "TTS Model",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("recognizes only dedicated text-to-audio models", () => {
+		expect(
+			isSpeechGenerationModel({
+				inputModalities: ["text"],
+				outputModalities: ["audio"],
+			}),
+		).toBe(true);
+		expect(
+			isSpeechGenerationModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
+		expect(
+			isSpeechGenerationModel({
+				inputModalities: ["text", "audio"],
+				outputModalities: ["audio", "text"],
+			}),
+		).toBe(false);
+	});
+
+	it("synthesizes with the configured provider, model, and voice", async () => {
+		await saveModeSettings(manager, {
+			mode: "voiceOutput",
+			settings: {
+				providerId: "speech-provider",
+				modelId: "tts-model",
+				voice: "voice-123",
+			},
+		});
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateSpeechAudio")
+			.mockResolvedValue({
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/mpeg",
+			});
+
+		await expect(
+			synthesizeConfiguredVoiceOutput(manager, { text: "Hello" }),
+		).resolves.toEqual({
+			audio: new Uint8Array([1, 2, 3]),
+			mediaType: "audio/mpeg",
+		});
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "tts-model",
+				text: "Hello",
+				voice: "voice-123",
+				providerConfig: expect.objectContaining({
+					providerId: "speech-provider",
+					apiKey: "speech-key",
+				}),
+			}),
+		);
+	});
+
+	it("rejects non-speech models and missing voice output settings", async () => {
+		await expect(
+			synthesizeLocalSpeech(manager, {
+				providerId: "speech-provider",
+				modelId: "missing",
+				text: "Hello",
+			}),
+		).rejects.toThrow(
+			'Model "missing" is not a dedicated text-to-audio speech model',
+		);
+		await expect(
+			synthesizeConfiguredVoiceOutput(manager, { text: "Hello" }),
+		).rejects.toThrow("Configure a voice output provider and model");
+	});
+});
+
 // ===========================================================================
 // models.json – built-in provider model overlays
 // ===========================================================================
@@ -954,6 +1316,14 @@ describe("saveLocalProviderSettings", () => {
 	afterEach(() => cleanup());
 
 	it("disabling a provider removes it from settings", () => {
+		manager.setModeSettings("voiceInput", {
+			providerId: "test-provider",
+			modelId: "m1",
+		});
+		manager.setModeSettings("voiceOutput", {
+			providerId: "test-provider",
+			modelId: "m1",
+		});
 		const result = saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
@@ -961,6 +1331,8 @@ describe("saveLocalProviderSettings", () => {
 
 		expect(result.enabled).toBe(false);
 		expect(manager.getProviderSettings("test-provider")).toBeUndefined();
+		expect(manager.getModeSettings("voiceInput")).toBeUndefined();
+		expect(manager.getModeSettings("voiceOutput")).toBeUndefined();
 	});
 
 	it("updates apiKey", () => {
@@ -1299,6 +1671,21 @@ describe("listLocalProviders", () => {
 
 	afterEach(() => cleanup());
 
+	it("includes text-to-image models in the chat model set", () => {
+		expect(
+			isChatProviderModel({
+				inputModalities: ["text"],
+				outputModalities: ["image"],
+			}),
+		).toBe(true);
+		expect(
+			isChatProviderModel({
+				inputModalities: ["audio"],
+				outputModalities: ["image"],
+			}),
+		).toBe(false);
+	});
+
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {
 			providerId: "list-provider-a",
@@ -1346,6 +1733,62 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("returns the configured voice input selection", async () => {
+		await addLocalProvider(manager, {
+			providerId: "voice-list-provider",
+			name: "Voice List Provider",
+			baseUrl: "https://example.invalid/v1",
+			models: ["whisper"],
+		});
+		LlmsModels.registerModel("voice-list-provider", "whisper", {
+			id: "whisper",
+			name: "Whisper",
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveModeSettings(manager, {
+			mode: "voiceInput",
+			settings: {
+				providerId: "voice-list-provider",
+				modelId: "whisper",
+			},
+		});
+
+		const catalog = await listLocalProviders(manager);
+		expect(catalog.modes.voiceInput).toEqual({
+			providerId: "voice-list-provider",
+			modelId: "whisper",
+		});
+	});
+
+	it("returns the configured voice output selection", async () => {
+		await addLocalProvider(manager, {
+			providerId: "speech-list-provider",
+			name: "Speech List Provider",
+			baseUrl: "https://example.invalid/v1",
+			models: ["tts"],
+		});
+		LlmsModels.registerModel("speech-list-provider", "tts", {
+			id: "tts",
+			name: "TTS",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+		await saveModeSettings(manager, {
+			mode: "voiceOutput",
+			settings: {
+				providerId: "speech-list-provider",
+				modelId: "tts",
+				voice: "voice-123",
+			},
+		});
+
+		const catalog = await listLocalProviders(manager);
+		expect(catalog.modes.voiceOutput).toEqual({
+			providerId: "speech-list-provider",
+			modelId: "tts",
+			voice: "voice-123",
+		});
 	});
 
 	it("marks alias providers enabled without copying shared OAuth credentials", async () => {

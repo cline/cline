@@ -208,6 +208,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.text_delta",
 				payload,
 			};
+		case "assistant.image":
+			return {
+				sessionId,
+				eventType: "runtime.chat.image",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,

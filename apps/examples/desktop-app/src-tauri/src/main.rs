@@ -444,6 +444,14 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         ));
     };
 
+    // The debug shell launches a compiled Bun sidecar, so it does not inherit
+    // Bun's `--conditions=development` signal. Mark it explicitly; otherwise
+    // the sidecar discovers the production hub and can execute sessions with
+    // an installed SDK instead of the sources in this checkout.
+    if cfg!(debug_assertions) && std::env::var_os("CLINE_BUILD_ENV").is_none() {
+        command.env("CLINE_BUILD_ENV", "development");
+    }
+
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

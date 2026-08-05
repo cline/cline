@@ -1,10 +1,16 @@
+import type { ProviderModesSettings } from "@cline/shared/browser";
+
 export interface ProviderModel {
 	id: string;
 	name: string;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
+
+export type ModelModality = "text" | "image" | "audio" | "video" | "pdf";
 
 export type ProviderConfigFieldType =
 	| "text"
@@ -63,6 +69,7 @@ export interface ProviderSettingsUpdate {
 export interface ProviderCatalogResponse {
 	providers: Provider[];
 	settingsPath: string;
+	modes: ProviderModesSettings;
 }
 
 export interface ProviderModelsResponse {

@@ -18,6 +18,7 @@ import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
 	ChatApiResult,
+	ChatPromptCompletion,
 	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
@@ -1311,7 +1312,10 @@ export function useChatSession() {
 	);
 
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (
+			prompt: string,
+			attachedFiles: File[] = [],
+		): Promise<ChatPromptCompletion | undefined> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return;
 
@@ -1531,7 +1535,10 @@ export function useChatSession() {
 				if (payload.ok && payload.queued) {
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
-					return;
+					return {
+						sessionId: activeSessionId,
+						queued: true,
+					};
 				}
 
 				const result = payload.result as ChatApiResult | undefined;
@@ -1732,6 +1739,12 @@ export function useChatSession() {
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
+				return {
+					sessionId: activeSessionId,
+					queued: false,
+					text: resolvedAssistantText,
+					result,
+				};
 			} catch (err) {
 				if (abortedRef.current) {
 					setStatus("cancelled");

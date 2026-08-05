@@ -92,10 +92,19 @@ describe("useChatSession", () => {
 			},
 		);
 
-		await act(async () => current.sendPrompt("Start the task"));
+		let completion: Awaited<ReturnType<typeof current.sendPrompt>> | undefined;
+		await act(async () => {
+			completion = await current.sendPrompt("Start the task");
+		});
 
 		expect(current.error).toBeNull();
 		expect(startedSessionId).toMatch(/^session_/);
+		expect(completion).toMatchObject({
+			sessionId: startedSessionId,
+			queued: false,
+			text: "done",
+			result: { finishReason: "completed" },
+		});
 		const expectedWorkspacePath = "/home/host/.cline/data/workspaces/chat";
 		expect(current.config).toMatchObject({
 			cwd: expectedWorkspacePath,
@@ -244,7 +253,7 @@ describe("useChatSession", () => {
 				reasoningEffort: "high",
 			}));
 		});
-		let sendPromise: Promise<void> | undefined;
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt("Start the task");
 			await Promise.resolve();
@@ -322,7 +331,7 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let sendPromise: Promise<void> | undefined;
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt("Read this", [attachment]);
 			await Promise.resolve();
@@ -1058,8 +1067,8 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let firstSend: Promise<void> | undefined;
-		let secondSend: Promise<void> | undefined;
+		let firstSend: ReturnType<typeof current.sendPrompt> | undefined;
+		let secondSend: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			firstSend = current.sendPrompt("First prompt");
 			await Promise.resolve();
@@ -1142,8 +1151,8 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let firstSend: Promise<void> | undefined;
-		let secondSend: Promise<void> | undefined;
+		let firstSend: ReturnType<typeof current.sendPrompt> | undefined;
+		let secondSend: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			firstSend = current.sendPrompt("First prompt", [attachment]);
 			await Promise.resolve();

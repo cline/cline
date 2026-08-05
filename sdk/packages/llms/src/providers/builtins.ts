@@ -399,6 +399,56 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
+function buildElevenLabsModels(): Record<string, ModelInfo> {
+	const speechModel = (
+		id: string,
+		name: string,
+		description: string,
+	): ModelInfo => ({
+		id,
+		name,
+		description,
+		family: "elevenlabs",
+		modalities: {
+			input: ["text"],
+			output: ["audio"],
+		},
+	});
+	return {
+		scribe_v2: {
+			id: "scribe_v2",
+			name: "Scribe v2",
+			description:
+				"ElevenLabs speech recognition model for accurate multilingual transcription",
+			family: "elevenlabs",
+			modalities: {
+				input: ["audio"],
+				output: ["text"],
+			},
+		},
+		eleven_v3: speechModel(
+			"eleven_v3",
+			"Eleven v3",
+			"Expressive multilingual text-to-speech model",
+		),
+		eleven_multilingual_v2: speechModel(
+			"eleven_multilingual_v2",
+			"Eleven Multilingual v2",
+			"High-quality multilingual text-to-speech model",
+		),
+		eleven_flash_v2_5: speechModel(
+			"eleven_flash_v2_5",
+			"Eleven Flash v2.5",
+			"Low-latency multilingual text-to-speech model",
+		),
+		eleven_turbo_v2_5: speechModel(
+			"eleven_turbo_v2_5",
+			"Eleven Turbo v2.5",
+			"Fast, high-quality multilingual text-to-speech model",
+		),
+	};
+}
+
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
 	// can return Vercel-style ids. Include those exact ids so runtime metadata
@@ -485,6 +535,7 @@ function modelInfoToGateway(
 		contextWindow: info.contextWindow,
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
+		modalities: info.modalities,
 		capabilities: [...capabilities],
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
@@ -570,6 +621,8 @@ function createClineLikeSpec(
 		},
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			imageTransport: "openrouter",
+			responseEnvelope: "success-data",
 			...input.metadata,
 		},
 	};
@@ -898,6 +951,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 			...OPENROUTER_STICKY_SESSION_METADATA,
+			imageTransport: "openrouter",
 		},
 	},
 	{
@@ -997,6 +1051,18 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		configFields: [],
 		metadata: { usageCostDisplay: "subscription" },
+	},
+	{
+		id: "elevenlabs",
+		name: "ElevenLabs",
+		description: "ElevenLabs speech-to-text and audio services",
+		family: "openai-compatible",
+		client: "fetch",
+		defaultModelId: "scribe_v2",
+		apiKeyEnv: ["ELEVENLABS_API_KEY"],
+		modelsFactory: buildElevenLabsModels,
+		docsUrl: "https://elevenlabs.io/docs/overview",
+		defaults: { baseUrl: "https://api.elevenlabs.io/v1" },
 	},
 	{
 		id: "anthropic",

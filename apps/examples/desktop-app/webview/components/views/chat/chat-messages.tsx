@@ -26,6 +26,8 @@ import {
 	BoxIcon,
 	BrainIcon,
 	Check,
+	ChevronLeft,
+	ChevronRight,
 	Clock3,
 	Copy,
 	FilesIcon,
@@ -38,15 +40,17 @@ import {
 	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
+	Square,
 	SquareArrowRightIcon,
 	TerminalIcon,
 	UndoIcon,
 	UserIcon,
 	UsersIcon,
+	Volume2,
 	WrenchIcon,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -64,6 +68,12 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
+import {
+	loadProviderModelCatalog,
+	MODE_SETTINGS_CHANGED_EVENT,
+	type SpeechGenerationModelTarget,
+} from "@/lib/provider-model-catalog";
 import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
@@ -96,6 +106,7 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onOpenVoiceOutputSettings?: () => void;
 };
 
 type ToolApprovalRequestItem = {
@@ -130,6 +141,121 @@ type ChatRenderItem =
 			reasoningMessages: ChatMessage[];
 	  }
 	| { type: "tools"; messages: ChatMessage[] };
+
+type AssistantSpeechState = {
+	messageId: string;
+	phase: "generating" | "playing";
+};
+
+function base64ToAudioBlob(audioBase64: string, mediaType: string): Blob {
+	const binary = window.atob(audioBase64);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index += 1) {
+		bytes[index] = binary.charCodeAt(index);
+	}
+	return new Blob([bytes.buffer], { type: mediaType });
+}
+
+function AssistantImageCarousel({
+	images,
+	onExpandImage,
+}: {
+	images: ChatMessageImage[];
+	onExpandImage?: (image: ChatMessageImage) => void;
+}) {
+	const [activeIndex, setActiveIndex] = useState(0);
+	const lastIndex = images.length - 1;
+	const safeIndex = Math.min(activeIndex, lastIndex);
+	const image = images[safeIndex];
+
+	useEffect(() => {
+		setActiveIndex((index) => Math.min(index, lastIndex));
+	}, [lastIndex]);
+
+	if (!image) return null;
+
+	return (
+		<div className="relative w-fit max-w-2xl">
+			<button
+				aria-label={`Expand generated image ${safeIndex + 1}`}
+				className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				onClick={() => onExpandImage?.(image)}
+				type="button"
+			>
+				{/* biome-ignore lint/performance/noImgElement: In-memory data URLs cannot use Next's optimizer. */}
+				<img
+					alt={`Generated result ${safeIndex + 1}`}
+					className="max-h-56.25 max-w-56.25 object-contain"
+					src={`data:${image.mediaType};base64,${image.data}`}
+				/>
+			</button>
+			{images.length > 1 ? (
+				<>
+					<button
+						aria-label="Previous generated image"
+						className="absolute left-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
+						disabled={safeIndex === 0}
+						onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}
+						type="button"
+					>
+						<ChevronLeft className="size-4" />
+					</button>
+					<button
+						aria-label="Next generated image"
+						className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
+						disabled={safeIndex === lastIndex}
+						onClick={() =>
+							setActiveIndex((index) => Math.min(lastIndex, index + 1))
+						}
+						type="button"
+					>
+						<ChevronRight className="size-4" />
+					</button>
+					<div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-2 py-0.5 text-[11px] text-foreground shadow-sm backdrop-blur-sm">
+						{safeIndex + 1} / {images.length}
+					</div>
+				</>
+			) : null}
+		</div>
+	);
+}
+
+function MessageImages({
+	images,
+	isUser,
+	onExpandImage,
+}: {
+	images: ChatMessageImage[];
+	isUser: boolean;
+	onExpandImage?: (image: ChatMessageImage) => void;
+}) {
+	if (!isUser) {
+		return (
+			<AssistantImageCarousel images={images} onExpandImage={onExpandImage} />
+		);
+	}
+
+	return (
+		<div className="grid max-w-2xl gap-2">
+			{images.map((image, index) => (
+				<button
+					aria-label={`Expand attachment ${index + 1}`}
+					className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					key={image.id}
+					onClick={() => onExpandImage?.(image)}
+					type="button"
+				>
+					{/* biome-ignore lint/performance/noImgElement: In-memory data URLs cannot use Next's optimizer. */}
+					<img
+						alt={`Attachment ${index + 1}`}
+						className="max-h-56.25 max-w-56.25 object-contain"
+						src={`data:${image.mediaType};base64,${image.data}`}
+					/>
+				</button>
+			))}
+		</div>
+	);
+}
 
 function hasMessageReasoning(message: ChatMessage): boolean {
 	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
@@ -308,6 +434,7 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onOpenVoiceOutputSettings,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
@@ -360,6 +487,15 @@ function ChatMessagesImpl({
 	const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
+	const [speechGenerationTarget, setSpeechGenerationTarget] =
+		useState<SpeechGenerationModelTarget | null>(null);
+	const [speechSettingsLoaded, setSpeechSettingsLoaded] = useState(false);
+	const [assistantSpeech, setAssistantSpeech] =
+		useState<AssistantSpeechState | null>(null);
+	const activeSpeechAudioRef = useRef<HTMLAudioElement | null>(null);
+	const activeSpeechAudioUrlRef = useRef<string | null>(null);
+	const speechRequestIdRef = useRef(0);
+	const speechSessionIdRef = useRef(sessionId);
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
 		image: ChatMessageImage;
@@ -380,6 +516,162 @@ function ChatMessagesImpl({
 	const userRunCountByMessage = useMemo(
 		() => buildUserRunCountMap(messages),
 		[messages],
+	);
+
+	useEffect(() => {
+		let cancelled = false;
+		let loadId = 0;
+		const loadVoiceOutput = () => {
+			const currentLoadId = ++loadId;
+			setSpeechSettingsLoaded(false);
+			loadProviderModelCatalog()
+				.then((catalog) => {
+					if (!cancelled && currentLoadId === loadId) {
+						setSpeechGenerationTarget(catalog.modes.voiceOutput);
+						setSpeechSettingsLoaded(true);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && currentLoadId === loadId) {
+						setSpeechGenerationTarget(null);
+						setSpeechSettingsLoaded(true);
+					}
+				});
+		};
+		const handleModeSettingsChanged = (event: Event) => {
+			const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+			if (!mode || mode === "voiceOutput") loadVoiceOutput();
+		};
+		loadVoiceOutput();
+		window.addEventListener(
+			MODE_SETTINGS_CHANGED_EVENT,
+			handleModeSettingsChanged,
+		);
+		return () => {
+			cancelled = true;
+			loadId += 1;
+			window.removeEventListener(
+				MODE_SETTINGS_CHANGED_EVENT,
+				handleModeSettingsChanged,
+			);
+		};
+	}, []);
+
+	const stopSpeechPlayback = useCallback(() => {
+		speechRequestIdRef.current += 1;
+		const audio = activeSpeechAudioRef.current;
+		if (audio) {
+			audio.pause();
+			audio.removeAttribute("src");
+			activeSpeechAudioRef.current = null;
+		}
+		const audioUrl = activeSpeechAudioUrlRef.current;
+		if (audioUrl) {
+			URL.revokeObjectURL(audioUrl);
+			activeSpeechAudioUrlRef.current = null;
+		}
+		setAssistantSpeech(null);
+	}, []);
+
+	useEffect(() => {
+		if (speechSessionIdRef.current !== sessionId) {
+			speechSessionIdRef.current = sessionId;
+			stopSpeechPlayback();
+		}
+	}, [sessionId, stopSpeechPlayback]);
+
+	useEffect(() => stopSpeechPlayback, [stopSpeechPlayback]);
+
+	const handleSpeakMessage = useCallback(
+		async (messageId: string, content: string) => {
+			if (assistantSpeech?.messageId === messageId) {
+				stopSpeechPlayback();
+				return;
+			}
+			if (!speechGenerationTarget) {
+				onOpenVoiceOutputSettings?.();
+				return;
+			}
+			const text = content.trim();
+			if (!text) return;
+
+			stopSpeechPlayback();
+			const requestId = speechRequestIdRef.current;
+			setAssistantSpeech({ messageId, phase: "generating" });
+			writeDesktopDebugLog({
+				scope: "voice-output",
+				level: "debug",
+				message: "Assistant message requested generated speech",
+				timestamp: new Date().toISOString(),
+				metadata: {
+					messageId,
+					providerId: speechGenerationTarget.providerId,
+					modelId: speechGenerationTarget.modelId,
+					textCharacters: text.length,
+				},
+			});
+
+			try {
+				const result = await desktopClient.invoke<{
+					audioBase64?: string;
+					mediaType?: string;
+				}>("synthesize_speech", { text });
+				if (speechRequestIdRef.current !== requestId) return;
+				if (!result.audioBase64) {
+					throw new Error("The speech provider returned no audio");
+				}
+
+				const mediaType = result.mediaType?.trim() || "audio/mpeg";
+				const audioBlob = base64ToAudioBlob(result.audioBase64, mediaType);
+				const audioUrl = URL.createObjectURL(audioBlob);
+				const audio = new Audio(audioUrl);
+				activeSpeechAudioRef.current = audio;
+				activeSpeechAudioUrlRef.current = audioUrl;
+				let released = false;
+				const release = () => {
+					if (released) return;
+					released = true;
+					if (activeSpeechAudioRef.current === audio) {
+						activeSpeechAudioRef.current = null;
+					}
+					if (activeSpeechAudioUrlRef.current === audioUrl) {
+						URL.revokeObjectURL(audioUrl);
+						activeSpeechAudioUrlRef.current = null;
+					}
+					if (speechRequestIdRef.current === requestId) {
+						setAssistantSpeech((current) =>
+							current?.messageId === messageId ? null : current,
+						);
+					}
+				};
+				audio.addEventListener("ended", release, { once: true });
+				audio.addEventListener("error", release, { once: true });
+				setAssistantSpeech({ messageId, phase: "playing" });
+				await audio.play();
+			} catch (error) {
+				if (speechRequestIdRef.current !== requestId) return;
+				stopSpeechPlayback();
+				const message = error instanceof Error ? error.message : String(error);
+				writeDesktopDebugLog({
+					scope: "voice-output",
+					level: "error",
+					message: "Assistant message voice playback failed in the webview",
+					timestamp: new Date().toISOString(),
+					metadata: { failure: message, messageId },
+				});
+				toast({
+					variant: "destructive",
+					title: "Voice playback failed",
+					description: message,
+				});
+			}
+		},
+		[
+			assistantSpeech?.messageId,
+			onOpenVoiceOutputSettings,
+			speechGenerationTarget,
+			stopSpeechPlayback,
+		],
 	);
 
 	useEffect(() => {
@@ -758,6 +1050,19 @@ function ChatMessagesImpl({
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
+										onSpeakMessage={handleSpeakMessage}
+										speechAvailable={Boolean(speechGenerationTarget)}
+										speechSettingsLoaded={speechSettingsLoaded}
+										speechState={
+											assistantSpeech?.messageId === message.id
+												? assistantSpeech.phase
+												: undefined
+										}
+										speechTargetLabel={
+											speechGenerationTarget
+												? `${speechGenerationTarget.providerName} / ${speechGenerationTarget.modelName}`
+												: undefined
+										}
 										reasoningContent={reasoningContent}
 										reasoningRedacted={reasoningMessages.some(
 											(reasoningMessage) =>
@@ -818,7 +1123,10 @@ function ChatMessagesImpl({
 						</div>
 					) : null}
 					{shouldShowErrorBanner ? (
-						<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+						<div
+							className="mt-4 max-h-44 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+							role="alert"
+						>
 							{error}
 						</div>
 					) : null}
@@ -1046,6 +1354,11 @@ const MessageBubble = memo(function MessageBubble({
 	forkDisabled = false,
 	forkPending = false,
 	forkError,
+	onSpeakMessage,
+	speechAvailable = false,
+	speechSettingsLoaded = false,
+	speechState,
+	speechTargetLabel,
 	isLastAssistantMessage = false,
 	reasoningContent,
 	reasoningRedacted,
@@ -1077,6 +1390,11 @@ const MessageBubble = memo(function MessageBubble({
 	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
+	onSpeakMessage?: (messageId: string, content: string) => void | Promise<void>;
+	speechAvailable?: boolean;
+	speechSettingsLoaded?: boolean;
+	speechState?: AssistantSpeechState["phase"];
+	speechTargetLabel?: string;
 	isLastAssistantMessage?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
@@ -1094,7 +1412,7 @@ const MessageBubble = memo(function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyMessage || onForkSession);
+		Boolean(onCopyMessage || onForkSession || onSpeakMessage);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
@@ -1108,7 +1426,10 @@ const MessageBubble = memo(function MessageBubble({
 		Boolean(restoreError) ||
 		Boolean(editError);
 	const keepAssistantActionsVisible =
-		isLastAssistantMessage || forkPending || Boolean(forkError);
+		isLastAssistantMessage ||
+		forkPending ||
+		Boolean(forkError) ||
+		Boolean(speechState);
 
 	const messageDate = new Date(message.createdAt);
 	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
@@ -1132,7 +1453,13 @@ const MessageBubble = memo(function MessageBubble({
 	// and this content column's `gap-2`; blocks must not add their own margins.
 	return (
 		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
-			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
+			<MessageContent
+				className={cn(
+					"flex min-w-0 flex-col gap-2 wrap-break-word",
+					isError && "max-h-44 overflow-y-auto",
+				)}
+				role={isError ? "alert" : undefined}
+			>
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
@@ -1143,24 +1470,11 @@ const MessageBubble = memo(function MessageBubble({
 				) : null}
 
 				{message.images?.length ? (
-					<div className="grid max-w-2xl gap-2">
-						{message.images.map((image, index) => (
-							<button
-								aria-label={`Expand attachment ${index + 1}`}
-								className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								key={image.id}
-								onClick={() => onExpandImage?.(image)}
-								type="button"
-							>
-								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
-								<img
-									alt={`Attachment ${index + 1}`}
-									className="max-h-56.25 max-w-56.25 object-contain"
-									src={`data:${image.mediaType};base64,${image.data}`}
-								/>
-							</button>
-						))}
-					</div>
+					<MessageImages
+						images={message.images}
+						isUser={isUser}
+						onExpandImage={onExpandImage}
+					/>
 				) : null}
 
 				{displayContent ? (
@@ -1183,7 +1497,7 @@ const MessageBubble = memo(function MessageBubble({
 							<MessageAction
 								className="min-w-0 p-0"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
-								onClick={() => void onCopyMessage(message.id, message.content)}
+								onClick={() => void onCopyMessage(message.id, displayContent)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
@@ -1262,6 +1576,41 @@ const MessageBubble = memo(function MessageBubble({
 								<Check className="h-3 w-3" />
 							) : (
 								<Copy className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{onSpeakMessage ? (
+						<MessageAction
+							className="min-w-0 p-0"
+							disabled={!speechSettingsLoaded}
+							label={
+								speechState === "generating"
+									? "Cancel speech generation"
+									: speechState === "playing"
+										? "Stop speaking assistant message"
+										: speechAvailable
+											? "Speak assistant message"
+											: "Configure voice output"
+							}
+							onClick={() => void onSpeakMessage(message.id, displayContent)}
+							title={
+								!speechSettingsLoaded
+									? "Loading voice output settings"
+									: speechState === "generating"
+										? "Cancel speech generation"
+										: speechState === "playing"
+											? "Stop speaking"
+											: speechTargetLabel
+												? `Speak with ${speechTargetLabel}`
+												: "Configure voice output in Settings → Models"
+							}
+						>
+							{speechState === "generating" ? (
+								<Square className="h-3 w-3 animate-pulse" />
+							) : speechState === "playing" ? (
+								<Square className="h-3 w-3" />
+							) : (
+								<Volume2 className="h-3 w-3" />
 							)}
 						</MessageAction>
 					) : null}

@@ -873,6 +873,41 @@ describe("SessionRuntime.run", () => {
 		expect(typeof result.durationMs).toBe("number");
 	});
 
+	it("disables tools and completion-tool policy for image-output models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text", "image"],
+							output: ["image", "text"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
 	it("appends the user turn into the conversation store", async () => {
 		const { deps } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

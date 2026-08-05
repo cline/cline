@@ -1,4 +1,4 @@
-import { captureSdkError } from "@cline/shared";
+import { captureSdkError, type RealtimeVoiceModeSession } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
@@ -37,6 +37,27 @@ const TRUSTED_BROWSER_ORIGINS = new Set([
 const JSON_HEADERS = {
 	"content-type": "application/json",
 };
+
+const REALTIME_CLINE_TOOLS = [
+	{
+		type: "function",
+		name: "run_cline",
+		description:
+			"Send the user's complete request to the active Cline agent. You must call this exactly once for every user utterance. Cline owns conversation history, workspace context, tools, MCP, approvals, and persistence. After the tool returns, speak its response faithfully.",
+		parameters: {
+			type: "object",
+			properties: {
+				request: {
+					type: "string",
+					description:
+						"The user's complete request, preserving all relevant detail.",
+				},
+			},
+			required: ["request"],
+			additionalProperties: false,
+		},
+	},
+] as const;
 
 function readOrigin(req: Request): string | undefined {
 	const origin = req.headers.get("origin")?.trim();
@@ -201,6 +222,46 @@ export function createFetchHandler(
 			server.upgrade(req)
 		) {
 			return undefined;
+		}
+
+		if (
+			url.pathname === "/api/modes/realtime/session" &&
+			req.method === "POST"
+		) {
+			if (!isTrustedRequestOrigin(req)) {
+				return createJsonResponse(
+					req,
+					{ error: "Untrusted request origin" },
+					403,
+				);
+			}
+			try {
+				const session = (await handleCommand(ctx, "create_mode_session", {
+					mode: "realtimeVoice",
+				})) as RealtimeVoiceModeSession;
+				if (session.kind !== "realtime") {
+					throw new Error("Realtime mode returned an unexpected session");
+				}
+				return createJsonResponse(req, {
+					token: session.token,
+					url: session.url,
+					...(session.expiresAt === undefined
+						? {}
+						: { expiresAt: session.expiresAt }),
+					tools: session.supportsTools ? REALTIME_CLINE_TOOLS : [],
+				});
+			} catch (error) {
+				return createJsonResponse(
+					req,
+					{
+						error:
+							error instanceof Error
+								? error.message
+								: "Failed to create realtime session",
+					},
+					400,
+				);
+			}
 		}
 
 		if (url.pathname === "/api/marketplace/catalog") {

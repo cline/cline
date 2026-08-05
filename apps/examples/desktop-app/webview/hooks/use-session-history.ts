@@ -72,6 +72,7 @@ type SessionDeletedEvent = CustomEvent<{
 type SidecarSessionStateEvent = {
 	sessionId?: string;
 	status?: string;
+	reason?: string;
 };
 
 type SidecarChatEvent = {
@@ -927,7 +928,20 @@ export function useSessionHistory({
 				const known = sessionsRef.current.some(
 					(session) => session.sessionId === sessionId,
 				);
-				const status = normalizeDiscoveredStatus(record.status);
+				const status = normalizeDiscoveredStatus(
+					record.status,
+					"active session",
+				);
+				setThreads((current) =>
+					updateThreadById(current, sessionId, (thread) =>
+						thread.status === status ? thread : { ...thread, status },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, sessionId, (session) =>
+						session.status === status ? session : { ...session, status },
+					),
+				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				} else if (isTerminalHistoryStatus(status)) {
@@ -951,11 +965,24 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarSessionStateEvent;
-				if (record.sessionId?.trim()) {
+				const sessionId = record.sessionId?.trim();
+				if (sessionId) {
+					const status = normalizeDiscoveredStatus(
+						record.reason ?? "completed",
+					);
+					setThreads((current) =>
+						updateThreadById(current, sessionId, (thread) =>
+							thread.status === status ? thread : { ...thread, status },
+						),
+					);
+					setSessions((current) =>
+						updateSessionById(current, sessionId, (session) =>
+							session.status === status ? session : { ...session, status },
+						),
+					);
 					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
 						force: true,
 					});
-					const sessionId = record.sessionId.trim();
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
 							const next = new Set(current);

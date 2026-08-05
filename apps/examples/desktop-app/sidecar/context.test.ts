@@ -222,6 +222,43 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
+	it("leaves attached-session content projection to the Core event stream", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		for (const event of [
+			"assistant.delta",
+			"assistant.image",
+			"reasoning.delta",
+			"tool.started",
+			"tool.finished",
+		]) {
+			handleHubLiveEvent(ctx, {
+				event,
+				sessionId: "session-image",
+				payload: {
+					text: "one canonical copy",
+					toolCallId: "tool-1",
+					toolName: "run_commands",
+				},
+			});
+		}
+
+		expect(readEvents(ctx)).toEqual([]);
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

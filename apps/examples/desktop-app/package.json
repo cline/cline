@@ -26,6 +26,10 @@
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
+		"@ai-sdk/gateway": "4.0.31",
+		"@ai-sdk/google": "4.0.27",
+		"@ai-sdk/openai": "4.0.23",
+		"@ai-sdk/react": "4.0.44",
 		"@base-ui/react": "^1.2.0",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
@@ -66,6 +70,7 @@
 		"@streamdown/cjk": "^1.0.3",
 		"@tauri-apps/api": "^2.0.0",
 		"@vercel/analytics": "1.6.1",
+		"ai": "7.0.41",
 		"autoprefixer": "^10.4.20",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",

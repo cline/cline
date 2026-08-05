@@ -17,22 +17,28 @@ import {
 	type ProviderClient,
 	type ProviderProtocol,
 	type ProviderSettings,
+	parseProviderModeSettings,
 	readGlobalSettings,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	saveModeSettings,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import { getClineEnvironmentConfig, ProviderModeSchema } from "@cline/shared";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
 } from "./connectors";
-import { providerSettingsManager, workspaceRoot } from "./deps";
+import {
+	desktopClientSettingsManager,
+	providerSettingsManager,
+	workspaceRoot,
+} from "./deps";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -106,6 +112,7 @@ export async function handleDesktopCommand(
 		await ensureCustomProvidersLoaded(providerSettingsManager);
 		return await listLocalProviders(providerSettingsManager, {
 			isClinePassEnabled: true,
+			modeSettings: desktopClientSettingsManager.read().modes,
 		});
 	}
 	if (command === "list_provider_models") {
@@ -113,6 +120,18 @@ export async function handleDesktopCommand(
 		return await getLocalProviderModels(
 			provider,
 			providerSettingsManager.getProviderConfig(provider),
+		);
+	}
+	if (command === "save_mode_settings") {
+		const mode = ProviderModeSchema.parse(args?.mode);
+		const settings =
+			args?.settings == null
+				? undefined
+				: parseProviderModeSettings(mode, args.settings);
+		return await saveModeSettings(
+			providerSettingsManager,
+			{ mode, settings },
+			desktopClientSettingsManager,
 		);
 	}
 	if (command === "save_provider_settings") {

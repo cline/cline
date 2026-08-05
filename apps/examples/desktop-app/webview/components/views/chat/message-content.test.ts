@@ -6,7 +6,7 @@ describe("formatChatMessageContent", () => {
 		expect(
 			formatChatMessageContent(
 				"user",
-				"  <user_input>\nPlease fix the tests\n</user_input>  ",
+				'  <user_input mode="act">\nPlease fix the tests\n</user_input>  ',
 			),
 		).toBe("Please fix the tests");
 	});

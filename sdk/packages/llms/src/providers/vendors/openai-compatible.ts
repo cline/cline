@@ -1,9 +1,12 @@
+import { createGateway } from "@ai-sdk/gateway";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import { isImageGenerationModel } from "@cline/shared";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
@@ -76,6 +79,27 @@ function createAzureApiVersionFetch(
 
 type ResponseErrorHandler = (response: Response) => Promise<void> | void;
 
+function resolveVercelGatewayImageBaseUrl(
+	baseUrl: string | undefined,
+): string | undefined {
+	if (!baseUrl) return undefined;
+	try {
+		const url = new URL(baseUrl);
+		if (
+			url.hostname === "ai-gateway.vercel.sh" &&
+			url.pathname.replace(/\/+$/, "") === "/v1"
+		) {
+			// The provider's generic OpenAI-compatible endpoint is not the AI SDK
+			// Gateway endpoint. Let @ai-sdk/gateway select its current versioned
+			// `/ai` base instead of producing `/v1/image-model`.
+			return undefined;
+		}
+		return url.toString().replace(/\/+$/, "");
+	} catch {
+		return baseUrl;
+	}
+}
+
 function readResponseErrorHandler(
 	config: GatewayResolvedProviderConfig,
 ): ResponseErrorHandler | undefined {
@@ -134,6 +158,100 @@ export function withMaxCompletionTokensForReasoningModels(
 	};
 }
 
+function createSuccessDataResponseFetch(baseFetch: typeof fetch): typeof fetch {
+	const responseEnvelopeFetch = (async (requestInput, init) => {
+		const response = await baseFetch(requestInput, init);
+		if (!response.ok) return response;
+
+		const text = await response.text();
+		let unwrapped = text;
+		let responseContentType = response.headers.get("content-type");
+		try {
+			let payload = JSON.parse(text) as unknown;
+			if (
+				payload &&
+				typeof payload === "object" &&
+				!Array.isArray(payload) &&
+				"success" in payload &&
+				payload.success === true &&
+				"data" in payload
+			) {
+				payload = payload.data;
+				unwrapped = JSON.stringify(payload);
+			}
+
+			// Cline's OpenRouter transport can return a completed chat response
+			// even when the AI SDK requested a stream. Project that response onto
+			// the standard OpenAI-compatible event stream so the v4 provider
+			// emits text, files, tools, usage, and finish metadata normally.
+			const completionCandidate =
+				payload && typeof payload === "object" && !Array.isArray(payload)
+					? (payload as Record<string, unknown>)
+					: undefined;
+			const completionChoices = completionCandidate?.choices;
+			if (
+				completionCandidate &&
+				Array.isArray(completionChoices) &&
+				completionChoices.some(
+					(choice: unknown) =>
+						choice !== null &&
+						typeof choice === "object" &&
+						!Array.isArray(choice) &&
+						"message" in choice,
+				)
+			) {
+				const completion = completionCandidate;
+				const choices = (completion.choices as unknown[]).map((choice) => {
+					if (
+						choice === null ||
+						typeof choice !== "object" ||
+						Array.isArray(choice)
+					) {
+						return choice;
+					}
+					const { message, ...rest } = choice as Record<string, unknown>;
+					return {
+						...rest,
+						delta:
+							message !== null &&
+							typeof message === "object" &&
+							!Array.isArray(message)
+								? message
+								: {},
+					};
+				});
+				unwrapped = `data: ${JSON.stringify({
+					...completion,
+					choices,
+				})}\n\ndata: [DONE]\n\n`;
+				responseContentType = "text/event-stream";
+			}
+		} catch {
+			// Recreate the original response below so consuming it for envelope
+			// detection never changes provider behavior.
+		}
+
+		const headers = new Headers(response.headers);
+		if (responseContentType) {
+			headers.set("content-type", responseContentType);
+		}
+		headers.delete("content-encoding");
+		headers.delete("content-length");
+		return new Response(unwrapped, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	}) as typeof fetch;
+
+	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	(responseEnvelopeFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof baseFetchWithPreconnect.preconnect === "function"
+			? baseFetchWithPreconnect.preconnect.bind(baseFetch)
+			: () => undefined;
+	return responseEnvelopeFetch;
+}
+
 export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -160,6 +278,32 @@ export async function createOpenAICompatibleProviderModule(
 		includeUsage: true,
 		transformRequestBody: withMaxCompletionTokensForReasoningModels,
 	} as never);
+	const useOpenRouterImageTransport =
+		context.provider.metadata?.imageTransport === "openrouter" &&
+		isImageGenerationModel(context.model);
+	const openRouterFetch =
+		context.provider.metadata?.responseEnvelope === "success-data"
+			? createSuccessDataResponseFetch(ensureFetch(providerFetch))
+			: providerFetch;
+	const openRouterImageProvider = useOpenRouterImageTransport
+		? createOpenRouter({
+				apiKey,
+				baseURL: config.baseUrl,
+				headers: config.headers,
+				fetch: openRouterFetch,
+				compatibility:
+					context.provider.id === "openrouter" ? "strict" : "compatible",
+			})
+		: undefined;
+	const vercelGateway =
+		context.provider.id === "vercel-ai-gateway"
+			? createGateway({
+					apiKey,
+					baseURL: resolveVercelGatewayImageBaseUrl(config.baseUrl),
+					headers: config.headers,
+					fetch: providerFetch,
+				})
+			: undefined;
 	return {
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
@@ -176,8 +320,15 @@ export async function createOpenAICompatibleProviderModule(
 		// on origin/main).
 		model: (modelId) =>
 			wrapLanguageModel({
-				model: provider(modelId) as LanguageModelV4,
+				model: (openRouterImageProvider?.chat(modelId) ??
+					provider(modelId)) as LanguageModelV4,
 				middleware: splitToolImagesMiddleware,
 			}),
+		imageModel: (modelId) =>
+			vercelGateway
+				? vercelGateway.imageModel(modelId)
+				: openRouterImageProvider
+					? openRouterImageProvider.imageModel(modelId)
+					: provider.imageModel(modelId),
 	};
 }

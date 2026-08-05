@@ -638,19 +638,36 @@ export {
 } from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
+	type CreateConfiguredModeSessionRequest,
+	createConfiguredModeSession,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
+	isChatProviderModel,
+	isDedicatedTranscriptionModel,
+	isRealtimeVoiceModel,
+	isSpeechGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
+	type ProviderModeSettingsStore,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
+	type SaveModeSettingsRequest,
+	type SynthesizeConfiguredVoiceOutputRequest,
+	type SynthesizeLocalSpeechRequest,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	saveModeSettings,
+	synthesizeConfiguredVoiceOutput,
+	synthesizeLocalSpeech,
+	type TranscribeConfiguredVoiceInputRequest,
+	type TranscribeLocalAudioRequest,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
@@ -660,6 +677,11 @@ export {
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
+export {
+	ClientSettingsManager,
+	type ClientSettingsManagerOptions,
+	type StoredClientSettings,
+} from "./services/storage/client-settings-manager";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
@@ -1022,13 +1044,19 @@ export type {
 } from "./types/events";
 export type {
 	ProviderTokenSource,
+	StoredProviderModes,
 	StoredProviderSettings,
 	StoredProviderSettingsEntry,
 } from "./types/provider-settings";
 export {
 	emptyStoredProviderSettings,
+	ProviderModeSettingsSchemas,
+	parseProviderModeSettings,
+	StoredProviderModesSchema,
 	StoredProviderSettingsEntrySchema,
 	StoredProviderSettingsSchema,
+	VoiceInputModeSettingsSchema,
+	VoiceOutputModeSettingsSchema,
 } from "./types/provider-settings";
 export type {
 	SessionHistoryMetadata,
