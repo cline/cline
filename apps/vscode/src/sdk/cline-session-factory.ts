@@ -144,7 +144,7 @@ type ProviderReasoningSettings = NonNullable<ProviderSettings["reasoning"]>
 type SessionReasoningConfig = Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
 
 function isReasoningEffort(value: unknown): value is ReasoningEffort {
-	return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+	return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max"
 }
 
 function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | undefined): boolean {

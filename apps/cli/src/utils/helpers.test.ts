@@ -171,6 +171,13 @@ describe("parseArgs", () => {
 		expect(parsed.reasoningEffort).toBe("high");
 	});
 
+	it("parses --thinking max", () => {
+		const parsed = parseArgs(["--thinking", "max"]);
+		expect(parsed.thinking).toBe(true);
+		expect(parsed.reasoningEffort).toBe("max");
+		expect(parsed.invalidThinkingLevel).toBeUndefined();
+	});
+
 	it("parses --thinking none as disabled", () => {
 		const parsed = parseArgs(["--thinking", "none"]);
 		expect(parsed.thinking).toBe(false);
