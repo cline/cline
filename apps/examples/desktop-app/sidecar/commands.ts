@@ -7,15 +7,7 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import {
-	basename,
-	dirname,
-	extname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -33,6 +25,7 @@ import {
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -96,45 +89,6 @@ import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
 import { discoverChatSessions } from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
-
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			name?: unknown;
-		};
-		return typeof packageJson.name === "string" && packageJson.name.trim()
-			? packageJson.name.trim()
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function isPathWithin(parentPath: string, childPath: string): boolean {
-	const relativePath = relative(resolve(parentPath), resolve(childPath));
-	return (
-		relativePath === "" ||
-		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
-	);
-}
-
-function getPluginDisplayName(filePath: string, searchRoot: string): string {
-	let current = dirname(filePath);
-	const root = resolve(searchRoot);
-	while (isPathWithin(root, current)) {
-		const packageName = readPackageName(join(current, "package.json"));
-		if (packageName) {
-			return packageName;
-		}
-		const parent = dirname(current);
-		if (parent === current) {
-			break;
-		}
-		current = parent;
-	}
-	return basename(filePath, extname(filePath));
-}
-
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,

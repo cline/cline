@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // gRPC clients: record which RPC the send path chose.
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
+const clearTask = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
 
@@ -13,7 +14,7 @@ vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
 		newTask: (req: unknown) => newTask(req),
 		askResponse: (req: unknown) => askResponse(req),
-		clearTask: vi.fn().mockResolvedValue(undefined),
+		clearTask: (req: unknown) => clearTask(req),
 	},
 	SlashServiceClient: {
 		condense: (req: unknown) => condense(req),
@@ -100,6 +101,8 @@ describe("useMessageHandlers — send routing", () => {
 		newTask.mockResolvedValue(undefined)
 		askResponse.mockReset()
 		askResponse.mockResolvedValue(undefined)
+		clearTask.mockReset()
+		clearTask.mockResolvedValue(undefined)
 		condense.mockReset()
 		condense.mockResolvedValue(undefined)
 		trackIntent.mockReset()
@@ -626,6 +629,30 @@ describe("useMessageHandlers — send routing", () => {
 		const pendingResponse = setPendingResponse.mock.calls[0][0]
 		const rollbackResponse = setPendingResponse.mock.calls.at(-1)?.[0]
 		expect(rollbackResponse(pendingResponse)).toBeUndefined()
+	})
+
+	it("startNewTask drops any unconfirmed optimistic message so it cannot be re-injected after clearTask", async () => {
+		mockTurnState = { phase: "streaming", seq: 2 }
+		const streamingConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task with attachment" },
+			{ ts: 2, type: "say", say: "text", text: "working", partial: true },
+		]
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				streamingConversation,
+				makeChatState(streamingConversation, { setPendingUserMessage, setPendingResponse }),
+			),
+		)
+
+		await act(async () => {
+			await result.current.startNewTask()
+		})
+
+		expect(clearTask).toHaveBeenCalledTimes(1)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(undefined)
+		expect(setPendingResponse).toHaveBeenCalledWith(undefined)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

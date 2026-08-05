@@ -13,6 +13,7 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
@@ -1315,6 +1316,159 @@ describe("sdk-gateway", () => {
 			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
 		]);
 		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	describe("image capability gating", () => {
+		// Simulates a "wedged" history: an image entered the conversation at
+		// message N (user attachment + a tool result carrying an image), and
+		// every request built after that must stay valid for the target model.
+		const imageBase64 = Buffer.alloc(24, 7).toString("base64");
+		const imageHistory: AgentMessage[] = [
+			{
+				id: "user_1",
+				role: "user",
+				content: [{ type: "text", text: "Hello" }],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_2",
+				role: "user",
+				content: [
+					{ type: "text", text: "see this screenshot" },
+					{
+						type: "image",
+						image: `data:image/png;base64,${imageBase64}`,
+						mediaType: "image/png",
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "assistant_1",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						input: { path: "/tmp/image.png" },
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_3",
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: [
+							{ type: "text", text: "Successfully read image" },
+							{ type: "image", data: imageBase64, mediaType: "image/png" },
+						],
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_4",
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+				createdAt: Date.now(),
+			},
+		];
+
+		it("substitutes image content with placeholder text for models without image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId: "deepseek", apiKey: "deepseek-key" },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Catalog entry advertises no "images" capability.
+					modelId: "deepseek-chat",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+			expect(serialized).not.toContain(imageBase64);
+			expect(serialized).not.toContain('"type":"image"');
+			expect(serialized).not.toContain('"type":"image-data"');
+		});
+
+		it("keeps image content for models that advertise image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-vision",
+								name: "DeepSeek Vision",
+								capabilities: ["text", "images"],
+							},
+						],
+					},
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					modelId: "deepseek-vision",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
+
+		it("keeps image content for models with no capability data (fail open)", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId: "deepseek", apiKey: "deepseek-key" },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Not in the catalog: resolves to an unregistered model
+					// definition without capability data.
+					modelId: "some-unknown-model",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {
