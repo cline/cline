@@ -9,7 +9,7 @@ import {
 	Clock3,
 	CornerUpLeft,
 	Loader2,
-	MoreHorizontal,
+	MoreVertical,
 	Plus,
 	Trash2,
 } from "lucide-react";
@@ -24,7 +24,6 @@ import {
 } from "@/lib/session-agents";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
-import { WorkspaceSelector } from "./views/chat/workspace-selector";
 import { Button } from "./ui/button";
 import {
 	DropdownMenu,
@@ -35,6 +34,7 @@ import {
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { normalizeTitle } from "./utils";
+import { WorkspaceSelector } from "./views/chat/workspace-selector";
 
 type AgentHeaderProps = {
 	title?: string;
@@ -212,48 +212,22 @@ export function AgentHeader({
 								{threadTitle}
 							</button>
 						)}
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									aria-label="Session actions"
-									className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-									id="show-more-btn"
-									variant="ghost"
-									size="icon-sm"
-									type="button"
-								>
-									<MoreHorizontal className="size-3" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="start" className="w-44">
-								<DropdownMenuItem
-									className="text-destructive focus:text-destructive"
-									disabled={!canDeleteSession || deletingSession}
-									onClick={triggerDeleteSession}
-								>
-									<Trash2 className="size-4" />
-									<span>
-										{deletingSession ? "Deleting..." : "Delete session"}
-									</span>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
+						{workspace ? (
+							<WorkspaceSelector
+								className="text-xs text-muted-foreground disabled:opacity-100"
+								currentBranch={workspace.currentBranch}
+								disabled
+								onListGitBranches={workspace.onListGitBranches}
+								onPickWorkspaceDirectory={workspace.onPickWorkspaceDirectory}
+								onRefreshWorkspaces={workspace.onRefreshWorkspaces}
+								onSwitchGitBranch={workspace.onSwitchGitBranch}
+								onSwitchWorkspace={workspace.onSwitchWorkspace}
+								placement="bottom"
+								workspaces={workspace.workspaces}
+								workspaceRoot={workspace.workspaceRoot}
+							/>
+						) : null}
 					</div>
-					{workspace ? (
-						<WorkspaceSelector
-							className="text-xs text-muted-foreground disabled:opacity-100"
-							currentBranch={workspace.currentBranch}
-							disabled
-							onListGitBranches={workspace.onListGitBranches}
-							onPickWorkspaceDirectory={workspace.onPickWorkspaceDirectory}
-							onRefreshWorkspaces={workspace.onRefreshWorkspaces}
-							onSwitchGitBranch={workspace.onSwitchGitBranch}
-							onSwitchWorkspace={workspace.onSwitchWorkspace}
-							placement="bottom"
-							workspaces={workspace.workspaces}
-							workspaceRoot={workspace.workspaceRoot}
-						/>
-					) : null}
 				</div>
 			</div>
 
@@ -298,7 +272,7 @@ export function AgentHeader({
 					) : (
 						<Button
 							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							className="hidden flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
 							variant="ghost"
@@ -306,6 +280,32 @@ export function AgentHeader({
 							<Plus className="size-4" />
 						</Button>
 					)}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								aria-label="Session actions"
+								className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+								id="show-more-btn"
+								variant="ghost"
+								size="icon-sm"
+								type="button"
+							>
+								<MoreVertical className="size-3" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="w-44">
+							<DropdownMenuItem
+								className="text-destructive focus:text-destructive"
+								disabled={!canDeleteSession || deletingSession}
+								onClick={triggerDeleteSession}
+							>
+								<Trash2 className="size-4" />
+								<span>
+									{deletingSession ? "Deleting..." : "Delete session"}
+								</span>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			) : null}
 		</header>
