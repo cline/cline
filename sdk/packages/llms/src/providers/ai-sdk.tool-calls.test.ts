@@ -264,13 +264,11 @@ describe("repairMalformedToolCall", () => {
 });
 
 describe("ai-sdk adapter tool schema normalization", () => {
-	it("flattens top-level anyOf unions before sending tools to the provider", async () => {
-		// MCP servers commonly advertise tools whose input schema is a union of
-		// object shapes. Anthropic — and several providers OpenRouter fans out
-		// to — reject any input_schema with oneOf/allOf/anyOf at the top level,
-		// failing the whole request with "tools.N.custom.input_schema:
-		// input_schema does not support oneOf, allOf, or anyOf at the top
-		// level".
+	// Drives the real adapter with a capturing fetch and returns the tool
+	// parameters exactly as they would be serialized onto the wire.
+	async function captureNormalizedToolParameters(
+		inputSchema: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
 		let capturedBody: Record<string, unknown> | undefined;
 		const config = {
 			providerId: "openai-compatible",
@@ -303,20 +301,7 @@ describe("ai-sdk adapter tool schema normalization", () => {
 		const unionTool: AgentToolDefinition = {
 			name: "lookup_entity",
 			description: "Look up an entity by id or by name.",
-			inputSchema: {
-				anyOf: [
-					{
-						type: "object",
-						properties: { id: { type: "string" } },
-						required: ["id"],
-					},
-					{
-						type: "object",
-						properties: { name: { type: "string" } },
-						required: ["name"],
-					},
-				],
-			},
+			inputSchema,
 		};
 		const request = {
 			providerId: "openai-compatible",
@@ -339,12 +324,90 @@ describe("ai-sdk adapter tool schema normalization", () => {
 		const requestTools = capturedBody?.tools as Array<{
 			function: { name: string; parameters: Record<string, unknown> };
 		}>;
-		expect(requestTools[0].function.parameters).toEqual({
+		return requestTools[0].function.parameters;
+	}
+
+	it("flattens top-level anyOf unions before sending tools to the provider", async () => {
+		// MCP servers commonly advertise tools whose input schema is a union of
+		// object shapes. Anthropic — and several providers OpenRouter fans out
+		// to — reject any input_schema with oneOf/allOf/anyOf at the top level,
+		// failing the whole request with "tools.N.custom.input_schema:
+		// input_schema does not support oneOf, allOf, or anyOf at the top
+		// level". Branch-required fields disagree here, so none survive.
+		const parameters = await captureNormalizedToolParameters({
+			anyOf: [
+				{
+					type: "object",
+					properties: { id: { type: "string" } },
+					required: ["id"],
+				},
+				{
+					type: "object",
+					properties: { name: { type: "string" } },
+					required: ["name"],
+				},
+			],
+		});
+		expect(parameters).toEqual({
 			type: "object",
 			properties: {
 				id: { type: "string" },
 				name: { type: "string" },
 			},
+		});
+	});
+
+	it("keeps properties required by every anyOf branch as required", async () => {
+		// The input matches ONE branch, so a property is only truly required
+		// when all branches require it.
+		const parameters = await captureNormalizedToolParameters({
+			anyOf: [
+				{
+					type: "object",
+					properties: { id: { type: "string" }, scope: { type: "string" } },
+					required: ["id", "scope"],
+				},
+				{
+					type: "object",
+					properties: { name: { type: "string" }, scope: { type: "string" } },
+					required: ["name", "scope"],
+				},
+			],
+		});
+		expect(parameters).toEqual({
+			type: "object",
+			properties: {
+				id: { type: "string" },
+				scope: { type: "string" },
+				name: { type: "string" },
+			},
+			required: ["scope"],
+		});
+	});
+
+	it("merges required constraints from all allOf branches", async () => {
+		// allOf branches ALL apply, so requirements placed in a separate
+		// branch from the properties must still be advertised as required.
+		const parameters = await captureNormalizedToolParameters({
+			allOf: [
+				{
+					type: "object",
+					properties: {
+						query: { type: "string" },
+						limit: { type: "number" },
+					},
+				},
+				{ required: ["query"] },
+				{ required: ["limit"] },
+			],
+		});
+		expect(parameters).toEqual({
+			type: "object",
+			properties: {
+				query: { type: "string" },
+				limit: { type: "number" },
+			},
+			required: ["query", "limit"],
 		});
 	});
 });

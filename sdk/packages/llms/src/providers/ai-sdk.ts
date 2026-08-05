@@ -492,15 +492,46 @@ function normalizeAiSdkToolInputSchema(
 		const properties: Record<string, unknown> = {
 			...(rest.properties as Record<string, unknown> | undefined),
 		};
+		const requiredPerBranch: string[][] = [];
 		for (const branch of branches) {
 			if (branch && typeof branch === "object") {
-				Object.assign(
-					properties,
-					(branch as Record<string, unknown>).properties,
+				const branchRecord = branch as Record<string, unknown>;
+				Object.assign(properties, branchRecord.properties);
+				requiredPerBranch.push(
+					Array.isArray(branchRecord.required)
+						? branchRecord.required.filter(
+								(entry): entry is string => typeof entry === "string",
+							)
+						: [],
 				);
 			}
 		}
-		return normalizeAiSdkToolInputSchema({ ...rest, properties });
+		// allOf: every branch applies, so require the union of branch
+		// requirements. anyOf/oneOf: the input matches one branch, so only
+		// properties required by every branch are truly required.
+		const branchRequired =
+			key === "allOf"
+				? [...new Set(requiredPerBranch.flat())]
+				: requiredPerBranch.length > 0
+					? requiredPerBranch.reduce((common, current) =>
+							common.filter((entry) => current.includes(entry)),
+						)
+					: [];
+		const required = [
+			...new Set([
+				...(Array.isArray(rest.required)
+					? rest.required.filter(
+							(entry): entry is string => typeof entry === "string",
+						)
+					: []),
+				...branchRequired,
+			]),
+		];
+		return normalizeAiSdkToolInputSchema({
+			...rest,
+			properties,
+			...(required.length > 0 ? { required } : {}),
+		});
 	}
 
 	if (inputSchema.type === "object") {
