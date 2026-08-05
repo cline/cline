@@ -180,6 +180,38 @@ describe("pathless session starts", () => {
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
 	});
+
+	it("marks sessions initiated by realtime voice with the realtime source", async () => {
+		const start = vi.fn(async () => ({
+			sessionId: "session-realtime",
+			manifest: {
+				cwd: "/workspace/project",
+				workspace_root: "/workspace/project",
+			},
+			manifestPath: "/tmp/session-realtime.json",
+			messagesPath: "/tmp/session-realtime.messages.json",
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			source: "realtime",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace/project",
+				workspaceRoot: "/workspace/project",
+			},
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ source: "realtime" }),
+		);
+	});
 });
 
 describe("session forks", () => {
@@ -1246,6 +1278,97 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("system prompt mode resolution", () => {
+	function createStartContext() {
+		const start = vi.fn(async (input: { config: Record<string, unknown> }) => ({
+			sessionId: "session-mode-test",
+			manifest: {
+				cwd: String(input.config.cwd ?? ""),
+				workspace_root: String(input.config.workspaceRoot ?? ""),
+			},
+			manifestPath: "/tmp/session-mode-test.json",
+			messagesPath: "/tmp/session-mode-test.messages.json",
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+		return { ctx, start };
+	}
+
+	async function startAndCaptureSystemPrompt(
+		config: Record<string, unknown>,
+	): Promise<string> {
+		const { ctx, start } = createStartContext();
+		const cwd = String(config.cwd ?? "");
+		// Seed the metadata cache so resolveSystemPrompt does not scan a real
+		// workspace during the test.
+		prewarmWorkspaceMetadata(cwd, async () => "test metadata");
+		await handleChatSessionCommand(ctx, { action: "start", config });
+		expect(start).toHaveBeenCalledTimes(1);
+		const input = start.mock.calls[0][0] as {
+			config: Record<string, unknown>;
+		};
+		return String(input.config.systemPrompt ?? "");
+	}
+
+	it("keeps the interactive act persona when autoApproveTools is enabled", async () => {
+		const systemPrompt = await startAndCaptureSystemPrompt({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/tmp/cline-desktop-mode-act-auto-approve",
+			mode: "act",
+			autoApproveTools: true,
+		});
+
+		expect(systemPrompt).not.toContain("submit_and_exit");
+		expect(systemPrompt).not.toContain(
+			"user who you cannot communicate with directly",
+		);
+		expect(systemPrompt).toContain("assist users with various coding tasks");
+	});
+
+	it("defaults to act mode when mode is omitted", async () => {
+		const systemPrompt = await startAndCaptureSystemPrompt({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/tmp/cline-desktop-mode-default",
+			autoApproveTools: true,
+		});
+
+		expect(systemPrompt).not.toContain("submit_and_exit");
+		expect(systemPrompt).toContain("assist users with various coding tasks");
+	});
+
+	it("appends plan-mode instructions when mode is plan", async () => {
+		const systemPrompt = await startAndCaptureSystemPrompt({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/tmp/cline-desktop-mode-plan",
+			mode: "plan",
+			autoApproveTools: true,
+		});
+
+		expect(systemPrompt).not.toContain("submit_and_exit");
+		expect(systemPrompt).toContain("You are in Plan mode");
+	});
+
+	it("only uses the yolo persona when mode is explicitly yolo", async () => {
+		const systemPrompt = await startAndCaptureSystemPrompt({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/tmp/cline-desktop-mode-yolo",
+			mode: "yolo",
+			autoApproveTools: true,
+		});
+
+		expect(systemPrompt).toContain("submit_and_exit");
+		expect(systemPrompt).toContain(
+			"user who you cannot communicate with directly",
+		);
 	});
 });
 

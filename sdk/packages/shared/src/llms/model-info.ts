@@ -32,6 +32,7 @@ export const ModelCapabilitySchema = z.enum([
 	"structured_output",
 	"temperature",
 	"files",
+	"transcription-streaming",
 ]);
 
 export type ModelCapability = z.infer<typeof ModelCapabilitySchema>;
@@ -71,6 +72,71 @@ export const ModelMetadataSchema = z
 
 export type ModelMetadata = z.infer<typeof ModelMetadataSchema>;
 
+export const ModelModalitySchema = z.enum([
+	"text",
+	"image",
+	"audio",
+	"video",
+	"pdf",
+]);
+
+export type ModelModality = z.infer<typeof ModelModalitySchema>;
+
+export const ModelModalitiesSchema = z.object({
+	input: z.array(ModelModalitySchema),
+	output: z.array(ModelModalitySchema),
+});
+
+export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
+
+export function isImageGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("image")
+	);
+}
+
+export function isDedicatedImageGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isImageGenerationModel(model) && output?.includes("text") !== true;
+}
+
+export function isVideoGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("video")
+	);
+}
+
+export function isDedicatedVideoGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isVideoGenerationModel(model) && output?.includes("text") !== true;
+}
+
+export function isAudioGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("audio")
+	);
+}
+
+export function isDedicatedAudioGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isAudioGenerationModel(model) && output?.includes("text") !== true;
+}
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
@@ -91,6 +157,7 @@ export const ModelInfoSchema = z.object({
 	releaseDate: z.string().optional(),
 	deprecationDate: z.string().optional(),
 	family: z.string().optional(),
+	modalities: ModelModalitiesSchema.optional(),
 	metadata: ModelMetadataSchema.optional(),
 });
 

@@ -113,10 +113,7 @@ interface PluginSetupCtx {
  * setters are host concerns and are intentionally no-ops in the sandbox.
  */
 interface PluginTelemetryBridge {
-	capture(input: {
-		event: string;
-		properties?: Record<string, unknown>;
-	}): void;
+	capture(input: { event: string; properties?: Record<string, unknown> }): void;
 	captureRequired(event: string, properties?: Record<string, unknown>): void;
 	recordCounter(
 		name: string,

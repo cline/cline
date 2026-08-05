@@ -69,6 +69,11 @@ export interface CreateAgentRuntimeConfigInput {
 	/** Seed messages (usually `session.conversation.getMessages()`). */
 	readonly initialMessages?: readonly AgentMessage[];
 	/**
+	 * Optional completion-policy override. Pass `null` for model modes that
+	 * cannot call tools (for example image generation).
+	 */
+	readonly completionPolicy?: AgentRuntimeConfig["completionPolicy"] | null;
+	/**
 	 * Override for `AgentRuntimeConfig.systemPrompt` — useful when
 	 * the caller has composed additional guidance (e.g. via
 	 * `LocalRuntimeHost.composeSystemPrompt`). Defaults to
@@ -108,12 +113,16 @@ export function createAgentRuntimeConfig(
 		logger: input.logger ?? agentConfig.logger,
 		telemetry: input.telemetry ?? agentConfig.telemetry,
 		initialMessages: input.initialMessages,
-		completionPolicy: agentConfig.completionPolicy,
+		completionPolicy:
+			input.completionPolicy === null
+				? undefined
+				: (input.completionPolicy ?? agentConfig.completionPolicy),
 		maxIterations: agentConfig.maxIterations,
 		toolExecution,
 		toolPolicies: agentConfig.toolPolicies,
 		toolContextMetadata: input.toolContextMetadata,
 		requestToolApproval: agentConfig.requestToolApproval,
+		storeGeneratedArtifact: agentConfig.storeGeneratedArtifact,
 	};
 
 	return config;

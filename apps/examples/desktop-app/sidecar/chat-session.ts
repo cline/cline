@@ -489,11 +489,12 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	// Mode comes from config.mode only. `autoApproveTools` is a tool-approval
+	// policy (see resolveToolPolicies) and must NOT switch the session to the
+	// non-interactive "yolo" persona, whose prompt demands a `submit_and_exit`
+	// tool that interactive desktop sessions do not expose.
+	const mode =
+		config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act";
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -618,7 +619,10 @@ async function handleStart(
 	});
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
-		source: SessionSource.DESKTOP,
+		source:
+			request.source === SessionSource.REALTIME
+				? SessionSource.REALTIME
+				: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages
 			? { initialMessages: initialMessages as Message[] }
@@ -976,11 +980,19 @@ async function handleSend(
 		} else {
 			deleteMaterializedAttachments(sessionId, userFiles);
 		}
-		ctx.logger?.log("Desktop chat prompt completed", {
+		const completionMetadata = {
 			sessionId,
 			finishReason: result?.finishReason,
 			textLength: result?.text?.length ?? 0,
-		});
+		};
+		if (result?.finishReason === "error") {
+			ctx.logger?.error?.("Desktop chat prompt returned an error result", {
+				...completionMetadata,
+				failure: result.text,
+			});
+		} else {
+			ctx.logger?.log("Desktop chat prompt completed", completionMetadata);
+		}
 		if (session && ownsBusyState) {
 			session.status = "idle";
 			if (result?.messages) session.messages = result.messages as unknown[];

@@ -54,6 +54,16 @@ export type AiSdkFormatterPart =
 			content: string;
 	  }
 	| {
+			type: "video";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
+			type: "audio";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
 			type: "tool-call";
 			toolCallId: string;
 			toolName: string;
@@ -75,6 +85,7 @@ export interface AiSdkFormatterMessage {
 
 export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
 const IMAGE_ATTACHED_TEXT = "[image attached]";
+const GENERATED_IMAGE_TEXT = "[generated image]";
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
@@ -583,6 +594,13 @@ export function formatMessagesForAiSdk(
 	const supportsImages = options?.supportsImages ?? true;
 	const result: AiSdkMessage[] = [];
 	const mediaState = createMediaBudgetState();
+	const pendingAssistantImages: Array<
+		Extract<AiSdkFormatterPart, { type: "image" }>
+	> = [];
+	const takePendingAssistantImages = (): AiSdkMessagePart[] =>
+		pendingAssistantImages
+			.splice(0)
+			.map((image) => toUserImagePart(image, mediaState));
 
 	if (
 		(typeof systemContent === "string" && systemContent.trim().length > 0) ||
@@ -601,6 +619,26 @@ export function formatMessagesForAiSdk(
 		const contentParts = message.content;
 
 		if (typeof contentParts === "string") {
+			const movedAssistantImages =
+				message.role === "user" && pendingAssistantImages.length > 0
+					? takePendingAssistantImages()
+					: [];
+			if (movedAssistantImages.length > 0) {
+				result.push({
+					role: message.role,
+					content: [
+						{
+							type: "text",
+							text:
+								contentParts.trim().length > 0
+									? sanitizeSurrogates(contentParts)
+									: EMPTY_CONTENT_TEXT,
+						},
+						...movedAssistantImages,
+					],
+				});
+				continue;
+			}
 			if (contentParts.trim().length === 0) {
 				result.push({
 					role: message.role,
@@ -646,11 +684,38 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(
-						supportsImages
-							? toUserImagePart(part, mediaState)
-							: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
-					);
+					if (!supportsImages) {
+						messageParts.push({
+							type: "text",
+							text: IMAGE_UNSUPPORTED_PLACEHOLDER,
+						});
+					} else if (message.role === "assistant") {
+						// AI SDK ModelMessage only accepts generated media as an
+						// assistant `file` part, but common provider wire formats
+						// (including Anthropic and OpenAI chat) only accept images on
+						// user turns. Preserve the assistant output marker and move the
+						// validated image to the following user turn so vision models
+						// can reliably inspect generated images in conversation history.
+						pendingAssistantImages.push(part);
+						messageParts.push({
+							type: "text",
+							text: GENERATED_IMAGE_TEXT,
+						});
+					} else {
+						messageParts.push(toUserImagePart(part, mediaState));
+					}
+					break;
+				case "video":
+					messageParts.push({
+						type: "text",
+						text: `[Generated video artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
+					});
+					break;
+				case "audio":
+					messageParts.push({
+						type: "text",
+						text: `[Generated audio artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
+					});
 					break;
 				case "file":
 					messageParts.push({
@@ -691,6 +756,9 @@ export function formatMessagesForAiSdk(
 			}
 		}
 
+		if (message.role === "user" && pendingAssistantImages.length > 0) {
+			messageParts.push(...takePendingAssistantImages());
+		}
 		if (messageParts.length > 0) {
 			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}

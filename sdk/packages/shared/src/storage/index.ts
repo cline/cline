@@ -20,6 +20,7 @@ export {
 	resolveAgentConfigSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
+	resolveClientSettingsPath,
 	resolveClineDataDir,
 	resolveClineDir,
 	resolveConfiguredPluginModulePaths,

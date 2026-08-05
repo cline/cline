@@ -1713,6 +1713,93 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.image": {
+				const image =
+					event.payload?.image &&
+					typeof event.payload.image === "object" &&
+					!Array.isArray(event.payload.image)
+						? (event.payload.image as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof image?.data !== "string" ||
+					typeof image.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "image",
+							image: {
+								data: image.data,
+								mediaType: image.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.video": {
+				const video =
+					event.payload?.video &&
+					typeof event.payload.video === "object" &&
+					!Array.isArray(event.payload.video)
+						? (event.payload.video as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof video?.path !== "string" ||
+					typeof video.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "video",
+							video: {
+								path: video.path,
+								mediaType: video.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.audio": {
+				const audio =
+					event.payload?.audio &&
+					typeof event.payload.audio === "object" &&
+					!Array.isArray(event.payload.audio)
+						? (event.payload.audio as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof audio?.path !== "string" ||
+					typeof audio.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "audio",
+							audio: {
+								path: audio.path,
+								mediaType: audio.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",

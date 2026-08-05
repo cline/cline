@@ -10,6 +10,36 @@ const sortedGeneratedModelsByProviderCache = new Map<
 	Record<string, ModelInfo>
 >();
 
+const DIRECT_MINIMAX_PROVIDERS = new Set([
+	"minimax",
+	"minimax-cn",
+	"minimax-coding-plan",
+	"minimax-cn-coding-plan",
+]);
+
+function applyGeneratedCatalogCorrections(
+	providerId: string,
+	models: Record<string, ModelInfo>,
+): Record<string, ModelInfo> {
+	if (!DIRECT_MINIMAX_PROVIDERS.has(providerId)) return models;
+	const miniMaxM3 = models["MiniMax-M3"];
+	if (!miniMaxM3) return models;
+	const capabilities = [
+		...new Set<NonNullable<ModelInfo["capabilities"]>[number]>([
+			...(miniMaxM3.capabilities ?? []),
+			"images",
+			"video",
+		]),
+	];
+	return {
+		...models,
+		"MiniMax-M3": {
+			...miniMaxM3,
+			capabilities,
+		},
+	};
+}
+
 export function getGeneratedProviderModels(): Record<
 	string,
 	Record<string, ModelInfo>
@@ -34,7 +64,10 @@ export function getGeneratedModelsForProvider(
 		return cached;
 	}
 	const sorted = sortModelsByReleaseDate(
-		GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+		applyGeneratedCatalogCorrections(
+			providerId,
+			GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+		),
 	);
 	sortedGeneratedModelsByProviderCache.set(providerId, sorted);
 	return sorted;

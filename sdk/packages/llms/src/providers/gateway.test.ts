@@ -26,6 +26,11 @@ import {
 } from "./gateway";
 
 const streamTextSpy = vi.fn();
+const generateVideoSpy = vi.fn();
+const googleVideoSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "google-video",
+}));
 const openaiCompatibleFactorySpy = vi.fn();
 const openaiCompatibleSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -34,6 +39,15 @@ const openaiCompatibleSpy = vi.fn((modelId: string) => ({
 const openaiResponsesSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "openai",
+}));
+const openaiImageSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "openai-image",
+}));
+const openaiImageGenerationToolSpy = vi.fn((options: unknown) => ({
+	type: "provider-tool",
+	id: "openai.image_generation",
+	options,
 }));
 const anthropicSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -64,6 +78,8 @@ vi.mock("ai", () => ({
 		jsonSchema: schema,
 		...(options && typeof options === "object" ? options : {}),
 	}),
+	tool: (definition: unknown) => definition,
+	experimental_generateVideo: (input: unknown) => generateVideoSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
 	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
@@ -78,6 +94,11 @@ vi.mock("ai", () => ({
 vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
 		responses: (modelId: string) => openaiResponsesSpy(modelId),
+		image: (modelId: string) => openaiImageSpy(modelId),
+		tools: {
+			imageGeneration: (options: unknown) =>
+				openaiImageGenerationToolSpy(options),
+		},
 	}),
 }));
 
@@ -93,7 +114,10 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }));
 
 vi.mock("@ai-sdk/google", () => ({
-	createGoogleGenerativeAI: () => (modelId: string) => googleSpy(modelId),
+	createGoogleGenerativeAI: () =>
+		Object.assign((modelId: string) => googleSpy(modelId), {
+			video: (modelId: string) => googleVideoSpy(modelId),
+		}),
 }));
 
 vi.mock("ai-sdk-provider-codex-cli", () => ({
@@ -231,6 +255,8 @@ describe("sdk-gateway", () => {
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
+		generateVideoSpy.mockReset();
+		googleVideoSpy.mockClear();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
 		openaiResponsesSpy.mockReset();
@@ -711,6 +737,77 @@ describe("sdk-gateway", () => {
 			| { maxOutputTokens?: unknown }
 			| undefined;
 		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
+	it("emits generated audio files from multimodal model streams", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "file",
+					file: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "audio-model",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "audio",
+			data: "YXVkaW8=",
+			mediaType: "audio/mpeg",
+		});
+	});
+
+	it("uses generateVideo for dedicated text-to-video models", async () => {
+		generateVideoSpy.mockResolvedValue({
+			videos: [{ mediaType: "video/mp4", base64: "dmlkZW8=" }],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "gemini",
+					apiKey: "test",
+					models: [
+						{
+							id: "veo-test",
+							name: "Veo Test",
+							modalities: { input: ["text"], output: ["video"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "veo-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(googleVideoSpy).toHaveBeenCalledWith("veo-test");
+		expect(generateVideoSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({ modelId: "veo-test" }),
+				prompt: "Hello",
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
+			{ type: "finish", reason: "stop" },
+		]);
 	});
 
 	it("sends explicit maxOutputTokens through the OpenAI Responses provider", async () => {

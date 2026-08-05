@@ -28,6 +28,10 @@ describe("models-dev-catalog", () => {
 						reasoning: true,
 						reasoning_options: [{ type: "effort", values: ["medium", "high"] }],
 						cost: { cache_read: 1 },
+						modalities: {
+							input: ["text", "audio"],
+							output: ["text"],
+						},
 					},
 				},
 			},
@@ -97,6 +101,10 @@ describe("models-dev-catalog", () => {
 			docsUrl: "https://platform.openai.com/docs/models",
 			capabilities: ["tools", "reasoning", "prompt-cache"],
 		});
+		expect(providerModels["openai-native"]["gpt-test"].modalities).toEqual({
+			input: ["text", "audio"],
+			output: ["text"],
+		});
 		expect(providerSpecs.poolside).toMatchObject({
 			id: "poolside",
 			family: "openai-compatible",
@@ -121,6 +129,80 @@ describe("models-dev-catalog", () => {
 		expect(
 			providerModels["openai-native"]?.["gpt-test"]?.reasoningOptions,
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
+	});
+
+	it("keeps dedicated audio and image models without tool calling", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			groq: {
+				id: "groq",
+				name: "Groq",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"whisper-large-v3": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"gpt-realtime-whisper": {
+						name: "GPT Realtime Whisper",
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"speech-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"image-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"embedding-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels.groq).toMatchObject({
+			"whisper-large-v3": {
+				modalities: { input: ["audio"], output: ["text"] },
+			},
+			"speech-model": {
+				modalities: { input: ["text"], output: ["audio"] },
+			},
+			"image-model": {
+				modalities: { input: ["text"], output: ["image"] },
+			},
+			"gpt-realtime-whisper": {
+				capabilities: ["transcription-streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			},
+		});
+		expect(providerModels.groq).not.toHaveProperty("embedding-model");
+		expect(
+			normalizeModelsDevProviderSpecs(
+				{
+					groq: {
+						id: "groq",
+						name: "Groq",
+						models: {
+							"speech-model": {
+								tool_call: false,
+								modalities: { input: ["text"], output: ["audio"] },
+							},
+							"chat-model": {
+								tool_call: true,
+								modalities: { input: ["text"], output: ["text"] },
+							},
+						},
+					},
+				},
+				providerModels,
+			).groq.defaultModelId,
+		).toBe("chat-model");
 	});
 
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
@@ -637,6 +719,27 @@ describe("models-dev-catalog", () => {
 				"openai/gpt-5.3-codex"
 			]?.contextWindow,
 		).toBe(400_000);
+	});
+
+	it("ships directional audio modalities for transcription and speech models", () => {
+		expect(
+			getGeneratedModelsForProvider("groq")["whisper-large-v3"]?.modalities,
+		).toEqual({
+			input: ["audio"],
+			output: ["text"],
+		});
+		expect(
+			getGeneratedModelsForProvider("poe")["elevenlabs/elevenlabs-v2.5-turbo"]
+				?.modalities,
+		).toEqual({
+			input: ["text"],
+			output: ["audio"],
+		});
+		expect(
+			getGeneratedModelsForProvider("vercel-ai-gateway")[
+				"openai/gpt-realtime-whisper"
+			]?.capabilities,
+		).toContain("transcription-streaming");
 	});
 
 	it("includes video input for direct MiniMax M3 catalog entries", () => {

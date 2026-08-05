@@ -52,6 +52,7 @@
 	"dependencies": {
 		"@ai-sdk/amazon-bedrock": "^5",
 		"@ai-sdk/anthropic": "^4",
+		"@ai-sdk/gateway": "^4",
 		"@ai-sdk/google": "^4",
 		"@ai-sdk/google-vertex": "^5",
 		"@ai-sdk/mistral": "^4",
@@ -65,6 +66,7 @@
 		"@langfuse/otel": "^4.0.0",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
+		"@openrouter/ai-sdk-provider": "^3",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^7",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",

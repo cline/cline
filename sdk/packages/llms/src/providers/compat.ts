@@ -102,6 +102,7 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
@@ -557,6 +558,27 @@ function toApiStreamChunk(
 			// The legacy ApiStream contract has no file chunk type; generated
 			// files are only representable on the AgentModelEvent path.
 			return undefined;
+		case "image":
+			return {
+				type: "image",
+				id,
+				data: event.data,
+				mediaType: event.mediaType,
+			};
+		case "video":
+			return {
+				type: "video",
+				id,
+				data: event.data,
+				mediaType: event.mediaType,
+			};
+		case "audio":
+			return {
+				type: "audio",
+				id,
+				data: event.data,
+				mediaType: event.mediaType,
+			};
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {

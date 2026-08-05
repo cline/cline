@@ -224,6 +224,39 @@ async function projectAgentEvent(
 					),
 				);
 				break;
+			case "image":
+				if (agentEvent.image) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.image",
+							{ image: agentEvent.image },
+							sessionId,
+						),
+					);
+				}
+				break;
+			case "video":
+				if (agentEvent.video) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.video",
+							{ video: agentEvent.video },
+							sessionId,
+						),
+					);
+				}
+				break;
+			case "audio":
+				if (agentEvent.audio) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.audio",
+							{ audio: agentEvent.audio },
+							sessionId,
+						),
+					);
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

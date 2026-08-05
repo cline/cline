@@ -298,8 +298,6 @@ async function withSapServiceKey<T>(
 	process.env.AICORE_SERVICE_KEY = serviceKey;
 	try {
 		return await fn();
-	} catch (error) {
-		throw error;
 	} finally {
 		restoreSapServiceKey(previous);
 		releaseQueue();

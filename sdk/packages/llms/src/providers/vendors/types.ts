@@ -2,7 +2,7 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import type { CallSettings } from "ai";
+import type { CallSettings, ToolSet } from "ai";
 import type { RetryEmptyResponseOptions } from "../middleware/retry-empty-response";
 
 export interface ProviderFactoryResult {
@@ -17,6 +17,9 @@ export interface ProviderFactoryResult {
 	 * unset for the defaults.
 	 */
 	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
+	imageModel?: (modelId: string) => unknown;
+	videoModel?: (modelId: string) => unknown;
+	providerTools?: ToolSet;
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,

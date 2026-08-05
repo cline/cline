@@ -1075,6 +1075,65 @@ export class AgentRuntime {
 					});
 					break;
 				}
+				case "image": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "image",
+							image: event.data,
+							mediaType: event.mediaType,
+						},
+					});
+					break;
+				}
+				case "video": {
+					const stored = this.config.storeGeneratedArtifact
+						? await this.config.storeGeneratedArtifact({
+								kind: "video",
+								data: event.data,
+								mediaType: event.mediaType,
+							})
+						: undefined;
+					sequence.push({
+						type: "part",
+						part: stored
+							? {
+									type: "video",
+									path: stored.path,
+									mediaType: event.mediaType,
+								}
+							: {
+									type: "video",
+									data: event.data,
+									mediaType: event.mediaType,
+								},
+					});
+					break;
+				}
+				case "audio": {
+					const stored = this.config.storeGeneratedArtifact
+						? await this.config.storeGeneratedArtifact({
+								kind: "audio",
+								data: event.data,
+								mediaType: event.mediaType,
+							})
+						: undefined;
+					sequence.push({
+						type: "part",
+						part: stored
+							? {
+									type: "audio",
+									path: stored.path,
+									mediaType: event.mediaType,
+								}
+							: {
+									type: "audio",
+									data: event.data,
+									mediaType: event.mediaType,
+								},
+					});
+					break;
+				}
 				case "reasoning-delta": {
 					accumulatedReasoning += event.text;
 					const last = sequence.at(-1);

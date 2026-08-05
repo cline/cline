@@ -37,6 +37,8 @@ export function WorkspaceSelector({
 	onPickWorkspaceDirectory,
 	onCreateGitBranch,
 	disabled = false,
+	placement = "top",
+	className,
 }: {
 	currentBranch: string;
 	workspaceRoot: string;
@@ -48,6 +50,8 @@ export function WorkspaceSelector({
 	onPickWorkspaceDirectory?: (initialPath?: string) => Promise<string | null>;
 	onCreateGitBranch?: (branchName: string) => Promise<boolean>;
 	disabled?: boolean;
+	placement?: "top" | "bottom";
+	className?: string;
 }) {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -216,7 +220,10 @@ export function WorkspaceSelector({
 						<Button
 							variant="ghost"
 							aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
-							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							className={cn(
+								"flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0",
+								className,
+							)}
 							disabled={disabled || switching}
 							id="git-branch-btn"
 							onClick={() => {
@@ -243,7 +250,7 @@ export function WorkspaceSelector({
 						</Button>
 					</span>
 				</TooltipTrigger>
-				<TooltipContent align="end" side="top" sideOffset={6}>
+				<TooltipContent align="end" side={placement} sideOffset={6}>
 					{workspaceRoot || workspaceName} / {currentBranch}
 				</TooltipContent>
 			</Tooltip>
@@ -264,7 +271,12 @@ export function WorkspaceSelector({
 							setSearch("");
 						}}
 					/>
-					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl">
+					<div
+						className={cn(
+							"absolute right-0 z-50 w-72 rounded-lg border border-border bg-popover shadow-xl",
+							placement === "bottom" ? "top-full mt-2" : "bottom-full mb-2",
+						)}
+					>
 						{/* Search */}
 						<div className="p-2 border-b border-border">
 							<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5">

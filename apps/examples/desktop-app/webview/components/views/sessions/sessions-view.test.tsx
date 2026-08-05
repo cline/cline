@@ -251,6 +251,43 @@ describe("SessionsView table", () => {
 
 		expect(view.loadAllSessions).toHaveBeenCalledOnce();
 	});
+
+	it("groups filter choices without prefixes and searches them", async () => {
+		const view = renderView();
+		await view.render();
+		const filterButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Filter sessions"]',
+		);
+		await act(async () => {
+			filterButton?.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+				}),
+			);
+		});
+
+		expect(document.body.textContent).toContain("Workspaces");
+		expect(document.body.textContent).toContain("Providers");
+		expect(document.body.textContent).not.toContain("provider:cline-pass");
+
+		const search = document.body.querySelector<HTMLInputElement>(
+			'input[aria-label="Search session filters"]',
+		);
+		await act(async () => {
+			if (!search) return;
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(search, "cline-pass");
+			search.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		expect(document.body.textContent).toContain("cline-pass");
+		expect(document.body.textContent).not.toContain("Workspaces");
+	});
 });
 
 describe("SessionsView pagination", () => {

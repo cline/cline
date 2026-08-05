@@ -4,32 +4,33 @@ import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
-	Brain,
-	ChevronDown,
 	CircleStop,
 	Cpu,
 	Paperclip,
+	Signal,
+	SignalHigh,
+	SignalLow,
+	SignalMedium,
+	SignalZero,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
+import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
+import { RealtimeVoiceOverlay } from "@/components/realtime-voice-overlay";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
+import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -38,14 +39,13 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	MODE_SETTINGS_CHANGED_EVENT,
+	type RealtimeVoiceModelTarget,
 	subscribeToProviderModels,
+	type TranscriptionModelTarget,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
-import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
-
-// Memoized: the workspace/branch selector fans out into popovers and lists
-// that should not re-render for every keystroke in the composer textarea.
-const WorkspaceSelector = memo(WorkspaceSelectorImpl);
+import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 
 type ActiveMention = {
 	start: number;
@@ -63,17 +63,6 @@ type SlashCommand = {
 	description?: string;
 };
 
-type UserInstructionCommand = {
-	id: string;
-	name: string;
-	description?: string;
-	kind?: "skill" | "workflow";
-};
-
-type UserInstructionConfigResponse = {
-	runtimeCommands?: UserInstructionCommand[];
-};
-
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
@@ -81,30 +70,6 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
-
-export function buildUserInstructionSlashCommands(
-	response: UserInstructionConfigResponse,
-): SlashCommand[] {
-	const commands = Array.isArray(response.runtimeCommands)
-		? response.runtimeCommands
-		: [];
-	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
-		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
-	});
-}
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
@@ -140,7 +105,53 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
+
+function ReasoningEffortIcon({
+	value,
+	className = "size-3",
+}: {
+	value: ReasoningEffortOption["value"];
+	className?: string;
+}) {
+	const LevelIcon =
+		value === "none"
+			? SignalZero
+			: value === "low"
+				? SignalLow
+				: value === "medium"
+					? SignalMedium
+					: value === "high"
+						? SignalHigh
+						: Signal;
+	return (
+		<span
+			aria-hidden="true"
+			className={cn("relative inline-flex -scale-x-100", className)}
+		>
+			<Signal className="absolute inset-0 size-full text-primary opacity-50" />
+			<LevelIcon className="relative size-full text-primary" />
+		</span>
+	);
+}
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
+const PROMPT_INPUT_WELCOME_ROWS = 3;
+const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
+const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
+
+async function blobToBase64(blob: Blob): Promise<string> {
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	let binary = "";
+	for (
+		let offset = 0;
+		offset < bytes.length;
+		offset += AUDIO_BASE64_CHUNK_SIZE
+	) {
+		binary += String.fromCharCode(
+			...bytes.subarray(offset, offset + AUDIO_BASE64_CHUNK_SIZE),
+		);
+	}
+	return window.btoa(binary);
+}
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
@@ -251,7 +262,6 @@ type ChatInputBarProps = {
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
-	gitBranch: string;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -260,8 +270,6 @@ type ChatInputBarProps = {
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
-	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
-	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: (prompt: string) => void;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
@@ -274,6 +282,9 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
+	realtimeBridge?: RealtimeChatBridge | null;
+	onOpenRealtimeVoiceSettings?: () => void;
+	onOpenVoiceInputSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -292,15 +303,12 @@ export function ChatInputBar({
 	mode,
 	thinking,
 	reasoningEffort,
-	gitBranch,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
 	onModeToggle,
 	onReasoningChange,
-	onListGitBranches,
-	onSwitchGitBranch,
 	onSend,
 	onAbort,
 	promptsInQueue,
@@ -310,21 +318,20 @@ export function ChatInputBar({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
+	realtimeBridge = null,
+	onOpenRealtimeVoiceSettings,
+	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
-	const {
-		workspaceRoot,
-		workspaces,
-		refreshWorkspaces: onRefreshWorkspaces,
-		switchWorkspace: onSwitchWorkspace,
-		pickWorkspaceDirectory: onPickWorkspaceDirectory,
-	} = useWorkspace();
+	const { workspaceRoot } = useWorkspace();
 	// Keystrokes only update this local state; the parent page tree is not
 	// re-rendered per keypress. External writers push text in via promptDraft.
 	const [promptInput, setPromptInputState] = useState(promptDraft.value);
+	const promptInputValueRef = useRef(promptDraft.value);
 	const appliedDraftVersionRef = useRef(promptDraft.version);
 	const setPromptInput = useCallback(
 		(value: string) => {
+			promptInputValueRef.current = value;
 			setPromptInputState(value);
 			onPromptInputChange(value);
 		},
@@ -375,6 +382,19 @@ export function ChatInputBar({
 	}, [onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	const streamingTranscriptRangeRef = useRef<{
+		start: number;
+		end: number;
+	} | null>(null);
+	const [transcriptionTarget, setTranscriptionTarget] =
+		useState<TranscriptionModelTarget | null>(null);
+	const [realtimeVoiceTarget, setRealtimeVoiceTarget] =
+		useState<RealtimeVoiceModelTarget | null>(null);
+	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
+	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+	const [speechInputActive, setSpeechInputActive] = useState(false);
+	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
+	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	// Mention/slash detection is derived synchronously from the input +
@@ -414,23 +434,194 @@ export function ChatInputBar({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const slashCommandsLoadedRef = useRef(false);
+	useEffect(() => {
+		let cancelled = false;
+		let loadId = 0;
+		const loadModeSettings = () => {
+			const currentLoadId = ++loadId;
+			loadProviderModelCatalog()
+				.then((catalog) => {
+					if (!cancelled && currentLoadId === loadId) {
+						setTranscriptionTarget(catalog.modes.voiceInput);
+						setRealtimeVoiceTarget(catalog.modes.realtimeVoice);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && currentLoadId === loadId) {
+						setTranscriptionTarget(null);
+						setRealtimeVoiceTarget(null);
+					}
+				});
+		};
+		const handleModeSettingsChanged = (event: Event) => {
+			const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+			if (!mode || mode === "voiceInput" || mode === "realtimeVoice") {
+				loadModeSettings();
+			}
+		};
+		loadModeSettings();
+		window.addEventListener(
+			MODE_SETTINGS_CHANGED_EVENT,
+			handleModeSettingsChanged,
+		);
+		return () => {
+			cancelled = true;
+			loadId += 1;
+			window.removeEventListener(
+				MODE_SETTINGS_CHANGED_EVENT,
+				handleModeSettingsChanged,
+			);
+		};
+	}, []);
+
+	const handleTranscriptionChange = useCallback(
+		(transcript: string) => {
+			const text = transcript.trim();
+			if (!text) return;
+
+			const current = promptInputValueRef.current;
+			const input = promptInputRef.current;
+			const insertionStart = input?.selectionStart ?? current.length;
+			const insertionEnd = input?.selectionEnd ?? insertionStart;
+			const before = current.slice(0, insertionStart);
+			const after = current.slice(insertionEnd);
+			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
+			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
+			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
+			const next = `${before}${insertedText}${after}`;
+			const nextCursor = before.length + insertedText.length;
+			setPromptInput(next);
+			requestAnimationFrame(() => {
+				const textarea = promptInputRef.current;
+				if (!textarea) return;
+				textarea.focus();
+				textarea.setSelectionRange(nextCursor, nextCursor);
+				setCursorIndex(nextCursor);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleStreamingTranscriptionStart = useCallback(() => {
+		const current = promptInputValueRef.current;
+		const input = promptInputRef.current;
+		const start = input?.selectionStart ?? current.length;
+		const end = input?.selectionEnd ?? start;
+		streamingTranscriptRangeRef.current = { start, end };
+	}, []);
+
+	const handleStreamingTranscriptionChange = useCallback(
+		(transcript: string) => {
+			const text = transcript.trim();
+			const range = streamingTranscriptRangeRef.current;
+			if (!text || !range) return;
+
+			const current = promptInputValueRef.current;
+			const before = current.slice(0, range.start);
+			const after = current.slice(range.end);
+			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
+			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
+			const insertion = `${leadingSpace}${text}${trailingSpace}`;
+			const next = `${before}${insertion}${after}`;
+			const nextEnd = range.start + insertion.length;
+			streamingTranscriptRangeRef.current = {
+				start: range.start,
+				end: nextEnd,
+			};
+			setPromptInput(next);
+
+			requestAnimationFrame(() => {
+				const textarea = promptInputRef.current;
+				textarea?.focus();
+				textarea?.setSelectionRange(nextEnd, nextEnd);
+				setCursorIndex(nextEnd);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleStreamingTranscriptionEnd = useCallback(() => {
+		streamingTranscriptRangeRef.current = null;
+	}, []);
+
+	const handleStartStreamingTranscription = useCallback(
+		() =>
+			startVercelStreamingTranscription({
+				onTranscript: handleStreamingTranscriptionChange,
+			}),
+		[handleStreamingTranscriptionChange],
+	);
+
+	const handleAudioRecorded = useCallback(
+		async (audioBlob: Blob): Promise<string> => {
+			if (!transcriptionTarget) {
+				throw new Error(
+					"Configure an audio-to-text provider before using speech input",
+				);
+			}
+			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
+				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
+			}
+			writeDesktopDebugLog({
+				scope: "voice-input",
+				level: "debug",
+				message: "Webview recorded audio and is sending it to the sidecar",
+				timestamp: new Date().toISOString(),
+				metadata: {
+					providerId: transcriptionTarget.providerId,
+					modelId: transcriptionTarget.modelId,
+					mediaType: audioBlob.type,
+					audioBytes: audioBlob.size,
+				},
+			});
+			const audioBase64 = await blobToBase64(audioBlob);
+			const result = await desktopClient.invoke<{ text?: string }>(
+				"transcribe_audio",
+				{
+					audioBase64,
+					mediaType: audioBlob.type,
+				},
+			);
+			const text = result.text?.trim();
+			if (!text) {
+				throw new Error("The transcription provider returned no text");
+			}
+			return text;
+		},
+		[transcriptionTarget],
+	);
+
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
-	const hasExplicitReasoningSelection =
-		thinking !== undefined || reasoningEffort !== undefined;
-	const effortLabel =
-		!hasExplicitReasoningSelection && modelSupportsReasoning === null
-			? "Reasoning"
-			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
-				? "None"
-				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+	const effortLabel = EFFORT_LEVELS[effortIndex]?.label ?? "Low";
 	const promptInputRows =
-		variant === "welcome" || promptInputFocused
-			? PROMPT_INPUT_EXPANDED_ROWS
-			: PROMPT_INPUT_COLLAPSED_ROWS;
+		variant === "welcome"
+			? PROMPT_INPUT_WELCOME_ROWS
+			: promptInputFocused
+				? PROMPT_INPUT_EXPANDED_ROWS
+				: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -567,22 +758,35 @@ export function ChatInputBar({
 		}
 	}, [slashOpen]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// Lazily load workflow commands from the sidecar the first time the slash
+	// menu opens, then merge with the built-in commands.
 	useEffect(() => {
-		if (!slashOpen) {
+		if (!slashOpen || slashCommandsLoadedRef.current) {
 			return;
 		}
+		slashCommandsLoadedRef.current = true;
 		let cancelled = false;
 		setSlashLoading(true);
 		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+			.invoke<{
+				workflows?: Array<{ id: string; name: string }>;
+			}>("list_user_instruction_configs")
+			.then((response: { workflows?: Array<{ id: string; name: string }> }) => {
 				if (cancelled) return;
-				setSlashCommands([
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
-				]);
+				const workflows = Array.isArray(response?.workflows)
+					? response.workflows
+					: [];
+				const workflowCommands: SlashCommand[] = workflows.map(
+					(w: { id: string; name: string }) => ({
+						name: w.name.toLowerCase().replace(/\s+/g, "-"),
+						description: "Workflow command",
+					}),
+				);
+				const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
+				const dedupedWorkflows = workflowCommands.filter(
+					(c) => !builtinNames.has(c.name),
+				);
+				setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...dedupedWorkflows]);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -635,7 +839,7 @@ export function ChatInputBar({
 	return (
 		<div
 			className={cn(
-				"bg-card",
+				"w-full min-w-0 max-w-full bg-card",
 				variant === "welcome"
 					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
 					: "border-t border-border bg-card/95 backdrop-blur-sm",
@@ -739,9 +943,18 @@ export function ChatInputBar({
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
-								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+								"rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
+						{speechInputProcessing && (
+							<output
+								aria-live="polite"
+								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
+							>
+								<Spinner className="size-3.5" />
+								<span className="sr-only">Transcribing voice input</span>
+							</output>
+						)}
 						<textarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
@@ -849,11 +1062,13 @@ export function ChatInputBar({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: variant === "welcome"
+										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+										: isBusy
+											? "Agent is working... submit to queue another message"
+											: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
 							role="combobox"
@@ -864,25 +1079,75 @@ export function ChatInputBar({
 							}}
 							value={promptInput}
 						/>
-						<div className="flex shrink-0 items-center gap-2">
-							{canAbort && (
+						<div className="flex shrink-0 items-center gap-1">
+							<RealtimeVoiceOverlay
+								bridge={realtimeBridge}
+								onConfigure={() => onOpenRealtimeVoiceSettings?.()}
+								onOpenChange={setRealtimeVoiceOpen}
+								open={realtimeVoiceOpen}
+								target={realtimeVoiceTarget}
+							/>
+							{(!hasDraft || speechInputActive) && (
+								<SpeechInput
+									allowUnavailableClick={!transcriptionTarget}
+									key={
+										transcriptionTarget
+											? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
+											: "unconfigured"
+									}
+									onActiveChange={setSpeechInputActive}
+									onAudioRecorded={handleAudioRecorded}
+									onClick={(event) => {
+										if (!transcriptionTarget) {
+											event.preventDefault();
+											onOpenVoiceInputSettings?.();
+										}
+									}}
+									onError={handleSpeechInputError}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={
+										transcriptionTarget?.supportsStreaming
+											? handleStartStreamingTranscription
+											: undefined
+									}
+									onStreamingEnd={handleStreamingTranscriptionEnd}
+									onStreamingStart={handleStreamingTranscriptionStart}
+									onTranscriptionChange={
+										transcriptionTarget?.supportsStreaming
+											? undefined
+											: handleTranscriptionChange
+									}
+									recordingMode={
+										transcriptionTarget?.supportsStreaming
+											? "streaming"
+											: "auto"
+									}
+									title={
+										transcriptionTarget
+											? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
+											: "Configure voice input in Settings → Models"
+									}
+								/>
+							)}
+							{canAbort ? (
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
+										"inline-grid size-7 shrink-0 place-items-center p-0 text-background transition-colors hover:bg-primary/80",
+										variant === "welcome"
+											? "rounded-md bg-foreground"
+											: "rounded-full bg-foreground",
 									)}
 									onClick={onAbort}
 									type="button"
 								>
 									<CircleStop className="size-2" />
 								</button>
-							)}
-							{(!isBusy || canSend) && (
+							) : canSend ? (
 								<button
 									aria-label="Send message"
 									className={cn(
-										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										"inline-grid size-7 shrink-0 place-items-center p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
 										variant === "welcome"
 											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
 											: "rounded-full bg-primary text-background hover:bg-primary/80",
@@ -893,7 +1158,7 @@ export function ChatInputBar({
 								>
 									<ArrowUp className="size-2" />
 								</button>
-							)}
+							) : null}
 						</div>
 					</div>
 				</div>
@@ -974,74 +1239,129 @@ export function ChatInputBar({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0 shrink-0">
-						<ModelSelector
-							isBusy={isBusy}
-							model={model}
-							onModelChange={onModelChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onProviderChange={onProviderChange}
-							provider={provider}
-						/>
-					</div>
-					<Select
-						disabled={modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
-							size="sm"
-							title={
-								modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
-							}
-						>
-							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
 				</div>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
-					{variant === "conversation" ? (
-						<div className="flex min-w-0 items-center gap-0">
-							<div className="min-w-0 overflow-visible">
-								<WorkspaceSelector
-									currentBranch={gitBranch}
-									disabled
-									onListGitBranches={onListGitBranches}
-									onRefreshWorkspaces={onRefreshWorkspaces}
-									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={onSwitchWorkspace}
-									workspaces={workspaces}
-									workspaceRoot={workspaceRoot}
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-0">
+					<Popover onOpenChange={setModelSettingsOpen} open={modelSettingsOpen}>
+						<PopoverTrigger asChild>
+							<button
+								aria-label="Model settings"
+								className="flex h-7 max-w-md items-center gap-1 rounded-md px-2 text-[11px] transition-colors hover:bg-accent"
+								type="button"
+							>
+								<span className="truncate text-muted-foreground">
+									{provider}
+								</span>
+								<span className="truncate text-foreground">{model}</span>
+								<ReasoningEffortIcon
+									className="size-3 shrink-0"
+									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 								/>
-							</div>
-							<TokenUsageRing
-								usage={{
-									contextWindow: modelContextWindow,
-									tokensIn: summary.tokensIn,
-									tokensOut: summary.tokensOut,
-									cacheReadTokens: summary.cacheReadTokens ?? 0,
-									totalCost: summary.totalCostUsd,
-								}}
+							</button>
+						</PopoverTrigger>
+						<PopoverContent
+							align="end"
+							className="w-72 space-y-1 p-2"
+							onOpenAutoFocus={(event) => {
+								event.preventDefault();
+								requestAnimationFrame(() => thinkingSliderRef.current?.focus());
+							}}
+							side="top"
+						>
+							<ModelSelector
+								isBusy={isBusy}
+								model={model}
+								onModelChange={onModelChange}
+								onModelSupportsReasoningChange={
+									handleModelSupportsReasoningChange
+								}
+								onProviderChange={onProviderChange}
+								provider={provider}
+								variant="menu"
 							/>
-						</div>
+							<div className="rounded-md p-1 px-2">
+								<div className="flex items-center justify-between text-xs">
+									<div className="mb-0.5 text-[10px] text-muted-foreground">
+										Effort
+									</div>
+									<span className="flex items-center gap-1.5 text-foreground text-[10px]">
+										{effortLabel}
+										<ReasoningEffortIcon
+											className="size-3.5"
+											value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+										/>
+									</span>
+								</div>
+								<div className="relative mt-3 h-4">
+									<input
+										aria-label="Effort"
+										aria-valuetext={effortLabel}
+										className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full transition-colors duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:ease-out active:[&::-webkit-slider-thumb]:scale-110"
+										disabled={modelSupportsReasoning !== true}
+										max={EFFORT_LEVELS.length - 1}
+										min={0}
+										onChange={(event) => {
+											const option =
+												EFFORT_LEVELS[Number(event.currentTarget.value)];
+											if (option) handleEffortChange(option.value);
+										}}
+										onKeyDown={(event) => {
+											if (
+												event.key !== "ArrowLeft" &&
+												event.key !== "ArrowRight"
+											) {
+												return;
+											}
+											event.preventDefault();
+											const direction = event.key === "ArrowRight" ? 1 : -1;
+											const nextIndex = Math.min(
+												EFFORT_LEVELS.length - 1,
+												Math.max(0, effortIndex + direction),
+											);
+											const option = EFFORT_LEVELS[nextIndex];
+											if (option) handleEffortChange(option.value);
+										}}
+										step={1}
+										ref={thinkingSliderRef}
+										style={{
+											background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(effortIndex / (EFFORT_LEVELS.length - 1)) * 100}%, var(--muted) ${(effortIndex / (EFFORT_LEVELS.length - 1)) * 100}%, var(--muted) 100%)`,
+										}}
+										type="range"
+										value={effortIndex}
+									/>
+									{effortIndex === EFFORT_LEVELS.length - 1 ? (
+										<div
+											aria-hidden="true"
+											className="cline-thinking-slider-shimmer pointer-events-none absolute inset-0 z-20 rounded-full"
+											data-slot="extra-thinking-animation"
+										/>
+									) : null}
+									<div
+										aria-hidden="true"
+										className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
+										data-slot="thinking-level-markers"
+									>
+										{EFFORT_LEVELS.map((option) => (
+											<span
+												className="size-1 rounded-full bg-zinc-500 opacity-50"
+												key={option.value}
+											/>
+										))}
+									</div>
+								</div>
+							</div>
+						</PopoverContent>
+					</Popover>
+					{variant === "conversation" ? (
+						<TokenUsageRing
+							usage={{
+								contextWindow: modelContextWindow,
+								tokensIn: summary.tokensIn,
+								tokensOut: summary.tokensOut,
+								cacheReadTokens: summary.cacheReadTokens ?? 0,
+								totalCost: summary.totalCostUsd,
+							}}
+						/>
 					) : null}
 				</div>
 			</div>
@@ -1058,6 +1378,7 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
+	variant = "toolbar",
 }: {
 	provider: string;
 	model: string;
@@ -1065,6 +1386,7 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	variant?: "toolbar" | "menu";
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1316,7 +1638,10 @@ const ModelSelector = memo(function ModelSelector({
 			visibleProviderModels,
 		],
 	);
-	const renderProviderSelect = (triggerClassName: string) => (
+	const renderProviderSelect = (
+		triggerClassName: string,
+		placement: "top" | "right" | "bottom" | "left" = "top",
+	) => (
 		<SearchCombobox
 			ariaLabel="Provider"
 			className={triggerClassName}
@@ -1325,7 +1650,7 @@ const ModelSelector = memo(function ModelSelector({
 			onValueChange={handleProviderSelect}
 			options={providers.map((value) => ({ label: value, value }))}
 			placeholder="Provider"
-			placement="top"
+			placement={placement}
 			searchPlaceholder="Search providers"
 			value={resolvedProvider}
 		/>
@@ -1333,8 +1658,11 @@ const ModelSelector = memo(function ModelSelector({
 	const renderModelSelect = (
 		triggerClassName: string,
 		closeMobileMenu = false,
+		placement: "top" | "right" | "bottom" | "left" = "top",
+		align: "start" | "end" = "start",
 	) => (
 		<SearchCombobox
+			align={align}
 			ariaLabel="Model"
 			className={triggerClassName}
 			disabled={isBusy || modelsForProvider.length === 0}
@@ -1345,11 +1673,41 @@ const ModelSelector = memo(function ModelSelector({
 			}}
 			options={modelsForProvider.map((value) => ({ label: value, value }))}
 			placeholder="Model"
-			placement="top"
+			placement={placement}
 			searchPlaceholder="Search models"
 			value={resolvedModel}
 		/>
 	);
+	if (variant === "menu") {
+		return (
+			<div className="grid gap-1 text-xs">
+				<div
+					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
+					data-slot="provider-selector-row"
+				>
+					<div className="mb-0.5 text-[10px] text-muted-foreground">
+						Provider
+					</div>
+					{renderProviderSelect(
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						"left",
+					)}
+				</div>
+				<div
+					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
+					data-slot="model-selector-row"
+				>
+					<div className="mb-0.5 text-[10px] text-muted-foreground">Model</div>
+					{renderModelSelect(
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						false,
+						"left",
+						"start",
+					)}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="relative min-w-0 shrink-0 text-[11px]">
@@ -1396,10 +1754,9 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28 text-[11px]")}
-				<span className="text-muted-foreground/50">/</span>
-				{renderModelSelect("max-w-52 text-[11px]")}
+			<div className="flex min-w-0 items-center gap-0 max-[560px]:hidden">
+				{renderProviderSelect("max-w-28 text-[11px] text-muted-foreground")}
+				{renderModelSelect("max-w-52 text-[11px] text-foreground")}
 			</div>
 		</div>
 	);

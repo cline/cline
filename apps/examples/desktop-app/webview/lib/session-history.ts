@@ -16,6 +16,11 @@ export type SessionMetadata = {
 		url?: string;
 		branch?: string;
 	};
+	usage?: {
+		inputTokens?: number;
+		outputTokens?: number;
+		totalCost?: number;
+	};
 	[key: string]: unknown;
 };
 
