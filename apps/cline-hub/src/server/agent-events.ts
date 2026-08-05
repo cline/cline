@@ -119,6 +119,20 @@ function forwardAgentEvent(
 		return;
 	}
 	if (event.type === "error") {
+		// Recoverable errors are in-run notices, not turn outcomes: the
+		// MistakeTracker emits one for every recorded mistake (e.g. a
+		// plan-mode guard-blocked run_commands call) and the run keeps
+		// going. Forwarding them as `error` made the webview drop out of
+		// the sending state and append an error row mid-turn. Any tool
+		// failure involved is already forwarded inline as a failed
+		// tool_event above; the turn's outcome is decided by how it
+		// actually ends (turn_done / non-recoverable error).
+		if (event.recoverable) {
+			console.warn(
+				`Recoverable agent error (run continues): ${event.error.message}`,
+			);
+			return;
+		}
 		ctx.sendToSelectedPeers(sessionId, {
 			type: "error",
 			text: event.error.message,
