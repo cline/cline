@@ -1,15 +1,15 @@
 import type {
-	LanguageModelV3StreamPart,
-	LanguageModelV3StreamResult,
+	LanguageModelV4StreamPart,
+	LanguageModelV4StreamResult,
 } from "@ai-sdk/provider";
 import { describe, expect, it, vi } from "vitest";
 import { createRetryEmptyResponseMiddleware } from "./retry-empty-response";
 
 function streamOf(
-	parts: LanguageModelV3StreamPart[],
-): LanguageModelV3StreamResult {
+	parts: LanguageModelV4StreamPart[],
+): LanguageModelV4StreamResult {
 	return {
-		stream: new ReadableStream<LanguageModelV3StreamPart>({
+		stream: new ReadableStream<LanguageModelV4StreamPart>({
 			start(controller) {
 				for (const part of parts) {
 					controller.enqueue(part);
@@ -17,41 +17,50 @@ function streamOf(
 				controller.close();
 			},
 		}),
-	} as LanguageModelV3StreamResult;
+	} as LanguageModelV4StreamResult;
 }
 
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 } as never;
 
-const streamStart: LanguageModelV3StreamPart = {
+const streamStart: LanguageModelV4StreamPart = {
 	type: "stream-start",
 	warnings: [],
 };
-function finish(finishReason = "stop"): LanguageModelV3StreamPart {
-	return { type: "finish", finishReason, usage } as LanguageModelV3StreamPart;
+function finish(
+	finishReason: Extract<
+		LanguageModelV4StreamPart,
+		{ type: "finish" }
+	>["finishReason"]["unified"] = "stop",
+): Extract<LanguageModelV4StreamPart, { type: "finish" }> {
+	return {
+		type: "finish",
+		finishReason: { unified: finishReason, raw: finishReason },
+		usage,
+	};
 }
-const textParts: LanguageModelV3StreamPart[] = [
+const textParts: LanguageModelV4StreamPart[] = [
 	streamStart,
 	{ type: "text-start", id: "t" },
 	{ type: "text-delta", id: "t", delta: "hello" },
 	{ type: "text-end", id: "t" },
 	finish(),
 ];
-const emptyParts: LanguageModelV3StreamPart[] = [streamStart, finish()];
-const toolCallParts: LanguageModelV3StreamPart[] = [
+const emptyParts: LanguageModelV4StreamPart[] = [streamStart, finish()];
+const toolCallParts: LanguageModelV4StreamPart[] = [
 	streamStart,
 	{
 		type: "tool-call",
 		toolCallId: "c1",
 		toolName: "read_file",
 		input: '{"path":"a.ts"}',
-	} as LanguageModelV3StreamPart,
+	} as LanguageModelV4StreamPart,
 	finish("tool-calls"),
 ];
 
 async function collect(
-	result: LanguageModelV3StreamResult,
-): Promise<LanguageModelV3StreamPart[]> {
-	const out: LanguageModelV3StreamPart[] = [];
+	result: LanguageModelV4StreamResult,
+): Promise<LanguageModelV4StreamPart[]> {
+	const out: LanguageModelV4StreamPart[] = [];
 	const reader = result.stream.getReader();
 	while (true) {
 		const { done, value } = await reader.read();
@@ -62,7 +71,7 @@ async function collect(
 }
 
 function run(
-	doStream: () => Promise<LanguageModelV3StreamResult>,
+	doStream: () => Promise<LanguageModelV4StreamResult>,
 	options: Parameters<typeof createRetryEmptyResponseMiddleware>[0] = {},
 ) {
 	const middleware = createRetryEmptyResponseMiddleware({

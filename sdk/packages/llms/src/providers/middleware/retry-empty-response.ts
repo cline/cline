@@ -1,4 +1,4 @@
-// LanguageModelV3 middleware that retries an Ollama stream when the model
+// LanguageModelV4 middleware that retries an Ollama stream when the model
 // returns an *empty* turn — no text, no reasoning, and no tool call.
 //
 // Background: local backends (Ollama especially) intermittently return a
@@ -24,9 +24,9 @@
 //     through unchanged (retrying wouldn't help and could mask the cause).
 
 import type {
-	LanguageModelV3Middleware,
-	LanguageModelV3StreamPart,
-	LanguageModelV3StreamResult,
+	LanguageModelV4Middleware,
+	LanguageModelV4StreamPart,
+	LanguageModelV4StreamResult,
 } from "@ai-sdk/provider";
 
 /** Minimal logger surface (a subset of `BasicLogger`). */
@@ -62,7 +62,7 @@ const RETRYABLE_FINISH_REASONS = new Set(["stop", "other", "unknown"]);
  * Structural markers (`text-start`/`-end`, `stream-start`, `response-metadata`,
  * `finish`, `raw`) do not count.
  */
-function isContentPart(part: LanguageModelV3StreamPart): boolean {
+function isContentPart(part: LanguageModelV4StreamPart): boolean {
 	switch (part.type) {
 		case "text-delta":
 		case "reasoning-delta":
@@ -92,7 +92,7 @@ function sleep(ms: number): Promise<void> {
  */
 export function createRetryEmptyResponseMiddleware(
 	options: RetryEmptyResponseOptions = {},
-): LanguageModelV3Middleware {
+): LanguageModelV4Middleware {
 	const maxAttempts = Math.max(
 		1,
 		options.maxAttempts ?? DEFAULT_EMPTY_RESPONSE_MAX_ATTEMPTS,
@@ -104,14 +104,14 @@ export function createRetryEmptyResponseMiddleware(
 	const logger = options.logger;
 
 	return {
-		specificationVersion: "v3",
+		specificationVersion: "v4",
 		wrapStream: async ({ doStream, model }) => {
 			// Kick off the first attempt eagerly, matching normal doStream timing.
 			const firstResult = await doStream();
 
-			const stream = new ReadableStream<LanguageModelV3StreamPart>({
+			const stream = new ReadableStream<LanguageModelV4StreamPart>({
 				async start(controller) {
-					let result: LanguageModelV3StreamResult = firstResult;
+					let result: LanguageModelV4StreamResult = firstResult;
 					let streamStartForwarded = false;
 
 					for (let attempt = 1; ; attempt++) {
@@ -119,7 +119,7 @@ export function createRetryEmptyResponseMiddleware(
 						let hadContent = false;
 						let sawError = false;
 						let pendingFinish: Extract<
-							LanguageModelV3StreamPart,
+							LanguageModelV4StreamPart,
 							{ type: "finish" }
 						> | null = null;
 
@@ -155,9 +155,8 @@ export function createRetryEmptyResponseMiddleware(
 							reader.releaseLock();
 						}
 
-						const finishReason = String(
-							pendingFinish?.finishReason ?? "unknown",
-						);
+						const finishReason =
+							pendingFinish?.finishReason.unified ?? "unknown";
 						const canRetry =
 							!hadContent &&
 							!sawError &&

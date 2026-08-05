@@ -47,6 +47,7 @@ import { Logger } from "@shared/services/Logger"
 import * as path from "path"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { MessageIdMinter } from "./message-id-minter"
+import { describeMissingCredentialError } from "./provider-credential-error"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
@@ -2506,10 +2507,12 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
  * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
  * info from the error message when present and falling back to raw text.
  */
-export function reshapeErrorForWebview(
-	error: { message?: string; status?: number; code?: string },
-	providerId = "cline",
-): string {
+export function reshapeErrorForWebview(error: { message?: string; status?: number; code?: string }, providerId?: string): string {
+	// The ClineError-JSON branches below are cline-provider flows (balance,
+	// spend limit), so "cline" stays their fallback id. The missing-credential
+	// message instead gets the raw value: defaulting there would name the wrong
+	// provider when the active provider id is unknown.
+	const clineErrorProviderId = providerId ?? "cline"
 	const rawMessage = error.message ?? "Unknown error"
 
 	// Try to extract structured error info from the error message.
@@ -2551,7 +2554,7 @@ export function reshapeErrorForWebview(
 			return JSON.stringify({
 				message: rawMessage,
 				code: "insufficient_credits",
-				providerId,
+				providerId: clineErrorProviderId,
 				details: {
 					current_balance: balance,
 					message: rawMessage,
@@ -2562,12 +2565,16 @@ export function reshapeErrorForWebview(
 			return JSON.stringify({
 				message: rawMessage,
 				code: "SPEND_LIMIT_EXCEEDED",
-				providerId,
+				providerId: clineErrorProviderId,
 				details: {
 					code: "SPEND_LIMIT_EXCEEDED",
 					message: rawMessage,
 				},
 			})
+		}
+		const credentialMessage = describeMissingCredentialError(rawMessage, providerId)
+		if (credentialMessage) {
+			return credentialMessage
 		}
 		const notFoundMessage = describeModelNotFoundError(rawMessage)
 		if (notFoundMessage) {
@@ -2583,7 +2590,7 @@ export function reshapeErrorForWebview(
 		return JSON.stringify({
 			message: (parsed.message as string) ?? rawMessage,
 			code: "insufficient_credits",
-			providerId,
+			providerId: clineErrorProviderId,
 			details: {
 				current_balance: parsed.current_balance,
 				total_spent: parsed.total_spent,
@@ -2599,7 +2606,7 @@ export function reshapeErrorForWebview(
 		return JSON.stringify({
 			message: (parsed.message as string) ?? rawMessage,
 			code: "SPEND_LIMIT_EXCEEDED",
-			providerId,
+			providerId: clineErrorProviderId,
 			details: {
 				code: "SPEND_LIMIT_EXCEEDED",
 				limit_scope: parsed.limit_scope,

@@ -59,6 +59,29 @@ let providerCatalogCache: {
 	promise: Promise<ProviderCatalogResponse>;
 } | null = null;
 
+type ProviderModelsListener = (
+	providerId: string,
+	models: ProviderModel[],
+) => void;
+const providerModelsListeners = new Set<ProviderModelsListener>();
+
+export function publishProviderModels(
+	providerId: string,
+	models: ProviderModel[],
+): void {
+	invalidateProviderCatalogCache();
+	for (const listener of providerModelsListeners) {
+		listener(providerId, models);
+	}
+}
+
+export function subscribeToProviderModels(
+	listener: ProviderModelsListener,
+): () => void {
+	providerModelsListeners.add(listener);
+	return () => providerModelsListeners.delete(listener);
+}
+
 export function fetchProviderCatalog(options?: {
 	fresh?: boolean;
 }): Promise<ProviderCatalogResponse> {

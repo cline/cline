@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
@@ -7,6 +7,7 @@ import type {
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import { isOpenAIReasoningEraModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -104,6 +105,35 @@ function createResponseErrorFetch(input: {
 	return responseErrorFetch;
 }
 
+/**
+ * OpenAI's chat-completions API rejects `max_tokens` for reasoning-era
+ * models ("Unsupported parameter: 'max_tokens' is not supported with this
+ * model. Use 'max_completion_tokens' instead."). Rename the parameter only
+ * for model ids that require it: OpenAI, Azure OpenAI, and the major
+ * OpenAI-compatible gateways (OpenRouter, LiteLLM) all accept
+ * `max_completion_tokens`, while older third-party servers that only know
+ * `max_tokens` do not serve o-series/gpt-5 model ids — so every other
+ * request keeps its exact current wire format.
+ */
+export function withMaxCompletionTokensForReasoningModels(
+	body: Record<string, unknown>,
+): Record<string, unknown> {
+	const { max_tokens: maxTokens, ...rest } = body;
+	if (
+		maxTokens == null ||
+		typeof body.model !== "string" ||
+		!isOpenAIReasoningEraModelId(body.model)
+	) {
+		return body;
+	}
+	return {
+		...rest,
+		// Keep an explicit `max_completion_tokens` passed via provider
+		// options passthrough if one is already present.
+		max_completion_tokens: rest.max_completion_tokens ?? maxTokens,
+	};
+}
+
 export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -128,6 +158,7 @@ export async function createOpenAICompatibleProviderModule(
 		...(config.headers ? { headers: config.headers } : {}),
 		...(providerFetch ? { fetch: providerFetch } : {}),
 		includeUsage: true,
+		transformRequestBody: withMaxCompletionTokensForReasoningModels,
 	} as never);
 	return {
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
@@ -137,7 +168,7 @@ export async function createOpenAICompatibleProviderModule(
 		// Completions wire format does NOT support multimodal tool messages
 		// (the `@ai-sdk/openai-compatible` chat-messages converter
 		// `JSON.stringify`s the parts array, losing image bytes). The
-		// middleware operates on the typed `LanguageModelV3Prompt` BEFORE
+		// middleware operates on the typed `LanguageModelV4Prompt` BEFORE
 		// the converter runs, so the converter sees only text-only tool
 		// messages with adjacent multimodal user messages — the wire
 		// pattern that classic Cline used in production for years (see
@@ -145,7 +176,7 @@ export async function createOpenAICompatibleProviderModule(
 		// on origin/main).
 		model: (modelId) =>
 			wrapLanguageModel({
-				model: provider(modelId) as LanguageModelV3,
+				model: provider(modelId) as LanguageModelV4,
 				middleware: splitToolImagesMiddleware,
 			}),
 	};

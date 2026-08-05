@@ -37,7 +37,7 @@ import {
 	type SearchableItem,
 	useSearchableList,
 } from "../../components/searchable-list";
-import { palette } from "../../palette";
+import { useTheme } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -82,6 +82,7 @@ export interface OnboardingControllerProps {
 
 export function useOnboardingController(props: OnboardingControllerProps) {
 	const { onComplete } = props;
+	const theme = useTheme();
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
@@ -147,9 +148,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						: undefined,
 				searchText: `${p.name} ${p.id}`,
 				rightLabel: p.hasAuth ? "\u25cf" : undefined,
-				rightLabelColor: palette.success,
+				rightLabelColor: theme.accents.success,
 			})),
-		[providers],
+		[providers, theme.accents.success],
 	);
 
 	const providerList = useSearchableList(providerItems);
