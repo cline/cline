@@ -41,6 +41,10 @@ import {
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
+	applyBedrockCachePointToLastUserMessage,
+	shouldApplyBedrockCachePoint,
+} from "./routing/bedrock-cache-point";
+import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
 } from "./routing/provider-options";
@@ -74,7 +78,7 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
-function buildCachedAiSdkMessages(
+function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	systemPrompt?: string,
@@ -83,6 +87,16 @@ function buildCachedAiSdkMessages(
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
 		supportsImages: modelSupportsImageInput(context),
 	}) as Array<Record<string, unknown>>;
+
+	if (shouldApplyBedrockCachePoint(request, context)) {
+		applyBedrockCachePointToLastUserMessage(aiMessages);
+		return aiMessages;
+	}
+
+	if (!shouldApplyPromptCache(request, context)) {
+		return aiMessages;
+	}
+
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -1219,12 +1233,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
-				const messages = shouldApplyPromptCache(request, context)
-					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
-							includeReasoning: shouldIncludeReasoningHistory(request, context),
-							supportsImages: modelSupportsImageInput(context),
-						});
+				const messages = buildAiSdkRequestMessages(
+					request,
+					context,
+					messagesSystemPrompt,
+				);
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,

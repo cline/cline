@@ -529,7 +529,6 @@ describe("sdk-gateway", () => {
 		expect(strategyProviders).toEqual([
 			"aihubmix",
 			"anthropic",
-			"bedrock",
 			"cline",
 			"cline-pass",
 			"minimax",
@@ -541,6 +540,21 @@ describe("sdk-gateway", () => {
 			"vercel-ai-gateway",
 			"vertex",
 		]);
+	});
+
+	it("routes Bedrock prompt caching through Converse cachePoint markers", () => {
+		const gateway = createGateway();
+		const cachePointProviders = gateway
+			.listProviders()
+			.filter(
+				(provider) =>
+					provider.metadata?.routing?.promptCache?.format ===
+					"bedrock-cache-point",
+			)
+			.map((provider) => provider.id)
+			.sort();
+
+		expect(cachePointProviders).toEqual(["bedrock"]);
 	});
 
 	it("routes Qwen cache controls by model family instead of exact model ids", () => {
@@ -3379,32 +3393,34 @@ describe("sdk-gateway", () => {
 				messages: [
 					expect.objectContaining({
 						role: "user",
-						content: expect.arrayContaining([
+						content: [
 							expect.objectContaining({
 								type: "text",
 								text: "Hello",
-								providerOptions: expect.objectContaining({
-									anthropic: expect.objectContaining({
-										cache_control: { type: "ephemeral" },
-									}),
-									bedrock: expect.objectContaining({
-										cache_control: { type: "ephemeral" },
-									}),
-								}),
 							}),
-						]),
+						],
+						providerOptions: expect.objectContaining({
+							bedrock: { cachePoint: { type: "default" } },
+						}),
 					}),
 				],
-				providerOptions: expect.objectContaining({
-					anthropic: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
-					}),
-					bedrock: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
-					}),
-				}),
 			}),
 		);
+
+		const bedrockStreamCall = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			providerOptions?: Record<string, Record<string, unknown>>;
+		};
+		// Bedrock's Converse API only understands `cachePoint` markers; the
+		// Anthropic `cache_control` dialect must not leak into the request.
+		expect(bedrockStreamCall.providerOptions?.bedrock ?? {}).not.toHaveProperty(
+			"cache_control",
+		);
+		expect(
+			bedrockStreamCall.providerOptions?.anthropic ?? {},
+		).not.toHaveProperty("cache_control");
+		expect(
+			bedrockStreamCall.providerOptions?.openaiCompatible ?? {},
+		).not.toHaveProperty("cache_control");
 	});
 
 	it("supports provider config metadata overrides for anthropic prompt-cache strategy", async () => {
