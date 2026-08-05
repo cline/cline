@@ -6,7 +6,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentAttachments } from "../components/index.js";
 
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+(
+	globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | undefined;
 
