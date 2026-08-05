@@ -5,6 +5,7 @@ import {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
+import { IMAGE_UNSUPPORTED_PLACEHOLDER } from "./media";
 
 describe("formatMessagesForAiSdk", () => {
 	const imageData = (byteLength: number, fill = 1) =>
@@ -1230,5 +1231,181 @@ describe("formatMessagesForAiSdk - surrogate sanitization", () => {
 			text: string;
 		}>;
 		expect(content[0]?.text).toContain("file \uFFFD");
+	});
+});
+
+describe("formatMessagesForAiSdk - models without image support", () => {
+	const imageData = (byteLength: number, fill = 1) =>
+		Buffer.alloc(byteLength, fill).toString("base64");
+
+	it("substitutes user image parts with placeholder text", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "look at this" },
+						{ type: "image", image, mediaType: "image/png" },
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "look at this" },
+					{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("keeps user image parts when supportsImages is explicitly true", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/png" }],
+				},
+			],
+			{ supportsImages: true },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("substitutes image blocks inside tool-result content arrays", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_file",
+							output: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "image", data: image, mediaType: "image/jpeg" },
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+							],
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("substitutes nested images in structured tool results without hoisting", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_files",
+							output: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										{ type: "text", text: "Successfully read image" },
+										{ type: "image", data: image, mediaType: "image/jpeg" },
+									],
+									success: true,
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: {
+							type: "json",
+							value: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										"Successfully read image",
+										IMAGE_UNSUPPORTED_PLACEHOLDER,
+									],
+									success: true,
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		const serialized = JSON.stringify(messages);
+		expect(serialized).not.toContain(image);
+		expect(serialized).not.toContain('"type":"image-data"');
+	});
+
+	it("uses the unsupported placeholder for error tool-result media too", () => {
+		const image = imageData(16);
+		const output = toAiSdkToolResultOutput(
+			[
+				{ type: "text", text: "boom" },
+				{ type: "image", data: image, mediaType: "image/jpeg" },
+			],
+			true,
+			undefined,
+			{ supportsImages: false },
+		);
+
+		expect(output).toEqual({
+			type: "error-json",
+			value: ["boom", IMAGE_UNSUPPORTED_PLACEHOLDER],
+		});
 	});
 });

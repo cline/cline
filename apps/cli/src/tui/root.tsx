@@ -11,8 +11,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
-import type { RepoStatus } from "../utils/repo-status";
-import { readRepoStatus } from "../utils/repo-status";
+import {
+	isSameRepoStatus,
+	type RepoStatus,
+	readRepoStatus,
+} from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
@@ -137,11 +140,30 @@ function App(props: TuiProps) {
 		skillCommands,
 	});
 
+	const repoStatusInFlightRef = useRef(false);
 	const refreshRepoStatus = useCallback(() => {
+		// Skip if the previous read is still running (slow git on huge repos)
+		// so poll ticks never stack subprocesses or apply stale results.
+		if (repoStatusInFlightRef.current) return;
+		repoStatusInFlightRef.current = true;
 		readRepoStatus(props.config.cwd)
-			.then(setRepoStatus)
-			.catch(() => {});
+			.then((next) =>
+				// Keep the previous object when nothing changed so poll ticks
+				// don't re-render the app.
+				setRepoStatus((prev) => (isSameRepoStatus(prev, next) ? prev : next)),
+			)
+			.catch(() => {})
+			.finally(() => {
+				repoStatusInFlightRef.current = false;
+			});
 	}, [props.config.cwd]);
+
+	// Poll so branch switches made outside the CLI (another terminal, an
+	// editor) show up without requiring an agent turn.
+	useEffect(() => {
+		const interval = setInterval(refreshRepoStatus, 5_000);
+		return () => clearInterval(interval);
+	}, [refreshRepoStatus]);
 
 	const refocusTextareaRef = useRef<() => void>(() => {});
 	const populateInputRef = useRef<(value: string) => void>(() => {});

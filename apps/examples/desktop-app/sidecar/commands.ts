@@ -25,6 +25,7 @@ import {
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -43,6 +44,7 @@ import {
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
+	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import {
@@ -822,7 +824,7 @@ async function listUserInstructionConfigs(
 						continue;
 					}
 					pluginsByPath.set(filePath, {
-						name: basename(filePath, extname(filePath)),
+						name: getPluginDisplayName(filePath, directory),
 						path: filePath,
 						enabled: !disabledPlugins.has(filePath),
 					});
@@ -1528,6 +1530,17 @@ export async function handleCommand(
 					: undefined,
 			capabilities: Array.isArray(args?.capabilities)
 				? (args.capabilities as ProviderCapability[])
+				: undefined,
+		});
+	}
+	if (command === "update_provider_models") {
+		const providerId = String(args?.provider ?? "").trim();
+		const manager = new ProviderSettingsManager();
+		await ensureCustomProvidersLoaded(manager);
+		return await updateLocalProvider(manager, {
+			providerId,
+			models: Array.isArray(args?.models)
+				? (args.models as string[])
 				: undefined,
 		});
 	}

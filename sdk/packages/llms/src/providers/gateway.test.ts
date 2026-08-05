@@ -13,7 +13,9 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ITelemetryService,
+	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -227,6 +229,7 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 
 describe("sdk-gateway", () => {
 	beforeEach(() => {
+		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
@@ -805,6 +808,106 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("marks the finish event as reported so the agent loop skips the same failure", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Upstream returned HTTP 429",
+			errorReported: true,
+		});
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(1);
+	});
+
+	it("does not mark the finish event as reported when telemetry is unavailable", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const finish = events.at(-1) as { errorReported?: boolean };
+		expect(finish.errorReported).not.toBe(true);
+	});
+
+	it("rate-limits identical stream failures per process", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+				statusCode: 429,
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+	});
+
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
 		streamTextSpy.mockImplementation(() => {
 			throw new Error("No output generated. Check the stream for errors.", {
@@ -1213,6 +1316,159 @@ describe("sdk-gateway", () => {
 			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
 		]);
 		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	describe("image capability gating", () => {
+		// Simulates a "wedged" history: an image entered the conversation at
+		// message N (user attachment + a tool result carrying an image), and
+		// every request built after that must stay valid for the target model.
+		const imageBase64 = Buffer.alloc(24, 7).toString("base64");
+		const imageHistory: AgentMessage[] = [
+			{
+				id: "user_1",
+				role: "user",
+				content: [{ type: "text", text: "Hello" }],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_2",
+				role: "user",
+				content: [
+					{ type: "text", text: "see this screenshot" },
+					{
+						type: "image",
+						image: `data:image/png;base64,${imageBase64}`,
+						mediaType: "image/png",
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "assistant_1",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						input: { path: "/tmp/image.png" },
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_3",
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: [
+							{ type: "text", text: "Successfully read image" },
+							{ type: "image", data: imageBase64, mediaType: "image/png" },
+						],
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_4",
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+				createdAt: Date.now(),
+			},
+		];
+
+		it("substitutes image content with placeholder text for models without image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId: "deepseek", apiKey: "deepseek-key" },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Catalog entry advertises no "images" capability.
+					modelId: "deepseek-chat",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+			expect(serialized).not.toContain(imageBase64);
+			expect(serialized).not.toContain('"type":"image"');
+			expect(serialized).not.toContain('"type":"image-data"');
+		});
+
+		it("keeps image content for models that advertise image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-vision",
+								name: "DeepSeek Vision",
+								capabilities: ["text", "images"],
+							},
+						],
+					},
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					modelId: "deepseek-vision",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
+
+		it("keeps image content for models with no capability data (fail open)", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{ providerId: "deepseek", apiKey: "deepseek-key" },
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Not in the catalog: resolves to an unregistered model
+					// definition without capability data.
+					modelId: "some-unknown-model",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {
