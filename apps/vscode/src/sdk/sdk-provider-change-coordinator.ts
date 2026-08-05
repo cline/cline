@@ -79,7 +79,15 @@ export class SdkProviderChangeCoordinator {
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for provider change`)
 
 		try {
-			const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
+			// Multichat: buildSessionConfig reads historyItem.multiModelParticipants to decide
+			// whether to append group-chat framing to the system prompt — without this, a
+			// mid-conversation backend switch (which restarts the session right here) would
+			// silently lose that framing on the very turn it first becomes relevant.
+			const taskId = this.options.getTask()?.taskId
+			const historyItem = taskId
+				? this.options.stateManager.getGlobalStateKey("taskHistory")?.find((item) => item.id === taskId)
+				: undefined
+			const config = await this.options.sessionConfigBuilder.build({ cwd, mode, historyItem })
 			config.sessionId = oldSessionId
 
 			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)

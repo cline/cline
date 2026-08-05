@@ -1,4 +1,5 @@
 import { setCompactionStrategyGlobally } from "@cline/core"
+import type { NamedApiBackend } from "@shared/api"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -109,6 +110,20 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.preferredLanguage !== undefined) {
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
+		}
+
+		if (request.defaultBackendName !== undefined) {
+			controller.stateManager.setGlobalState("defaultBackendName", request.defaultBackendName)
+		}
+
+		// JSON-encoded NamedApiBackend[] — see UpdateSettingsRequest.named_api_backends_json.
+		if (request.namedApiBackendsJson !== undefined) {
+			try {
+				const namedApiBackends = JSON.parse(request.namedApiBackendsJson) as NamedApiBackend[]
+				controller.stateManager.setGlobalState("namedApiBackends", namedApiBackends)
+			} catch (error) {
+				Logger.error("Failed to parse namedApiBackendsJson:", error)
+			}
 		}
 
 		// Update terminal timeout setting

@@ -76,6 +76,7 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
+import { SdkMultichatCoordinator } from "./sdk-multichat-coordinator"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
@@ -175,6 +176,7 @@ export class Controller {
 	private mcpTools: SdkMcpCoordinator
 	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
 	private providerChanges: SdkProviderChangeCoordinator
+	private multichat: SdkMultichatCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
@@ -505,6 +507,15 @@ export class Controller {
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 			rebuilds: this.sessionRebuilds,
+		})
+		this.multichat = new SdkMultichatCoordinator({
+			stateManager: this.stateManager,
+			providerChanges: this.providerChanges,
+			sessions: this.sessions,
+			rebuilds: this.sessionRebuilds,
+			taskHistory: this.taskHistory,
+			messages: this.messages,
+			getTask: () => this.task,
 		})
 		this.followups = new SdkFollowupCoordinator({
 			stateManager: this.stateManager,
@@ -1211,6 +1222,10 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
+		// Multichat: a "<Backend name>, ..." prefix switches the live provider before the
+		// session is built, so the new task starts on the addressed backend. Must run before
+		// taskStart.initTask() — that call reads/builds the session config immediately.
+		await this.multichat.detectAndSwitch(prompt)
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
@@ -1325,6 +1340,9 @@ export class Controller {
 		this.postStateToWebview().catch((error) => {
 			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
 		})
+		// Multichat: switch backends before the follow-up is sent, so it lands on the newly
+		// addressed session rather than the one it was queued against. See initTask() above.
+		await this.multichat.detectAndSwitch(prompt)
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
@@ -1393,6 +1411,10 @@ export class Controller {
 				historyItem?.cwdOnTaskInitialization?.trim() ||
 				fallbackCwd
 			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+			// Multichat: switch backends before the regenerated session's config is built.
+			// restartActiveSession: false — this method builds and starts its own replacement
+			// session below; restarting the still-live one here would race that teardown.
+			await this.multichat.detectAndSwitch(editedText, { restartActiveSession: false })
 			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
 			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
 				this.emitClineAuthErrorWithTelemetry(editedText)

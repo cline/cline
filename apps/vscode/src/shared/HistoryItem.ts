@@ -16,4 +16,11 @@ export type HistoryItem = {
 
 	modelId?: string
 	isLegacy?: boolean
+
+	/**
+	 * Names of the named backends (see NamedApiBackend) that have responded in this
+	 * task, in first-used order. More than one entry means the task is a multichat
+	 * "group chat" — buildSessionConfig appends a framing note to the system prompt.
+	 */
+	multiModelParticipants?: string[]
 }

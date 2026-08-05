@@ -909,6 +909,33 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		Logger.warn("[SessionFactory] Failed to inject preferredLanguage instructions:", error)
 	}
 
+	// Multichat: tell the model about the multi-model group chat it may be part
+	// of (see SdkMultichatCoordinator / HistoryItem.multiModelParticipants).
+	// Two cases, from most to least informative:
+	//   - A second backend has already spoken this task: full framing, naming
+	//     every participant so far.
+	//   - No switch has happened yet, but the user has named backends
+	//     configured: a lighter heads-up so even the FIRST response in a task
+	//     is written knowing a handoff could happen at any point, rather than
+	//     only finding out retroactively once someone else has already joined.
+	try {
+		const stateManager = StateManager.get()
+		const currentBackendName = stateManager.getGlobalSettingsKey("defaultBackendName")?.trim()
+		const participants = input.historyItem?.multiModelParticipants
+
+		if (participants && participants.length > 1) {
+			const currentName = currentBackendName || participants[participants.length - 1]
+			const others = participants.filter((name) => name !== currentName)
+			systemPrompt = `${systemPrompt}\n\n# Multi-Model Group Chat\n\nThis conversation is being relayed between multiple AI models, each with its own name, as if in a group chat. You are currently responding as "${currentName}".${
+				others.length > 0 ? ` Other participants so far: ${others.join(", ")}.` : ""
+			} Earlier turns in this conversation may have been answered by a different named model — read them as such, and feel free to reference, agree with, or respectfully disagree with what a prior model said. When useful, you may open your response by identifying yourself (e.g. "As ${currentName}, I think...").`
+		} else if (currentBackendName && (stateManager.getGlobalSettingsKey("namedApiBackends")?.length ?? 0) > 0) {
+			systemPrompt = `${systemPrompt}\n\n# Multi-Model Group Chat\n\nYou are currently responding as "${currentBackendName}". This workspace has other named AI backends configured, and the user may address one of them by name (e.g. "<name>, ...") at any point, which hands the rest of this conversation to that model instead. If that happens, treat it as a group chat: the other model may reference or respond to what you said here.`
+		}
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to inject multichat group-chat framing:", error)
+	}
+
 	const stateManager = StateManager.get()
 	// Auto compact is on by default; keep this fallback aligned with the
 	// `useAutoCondense` default in shared/storage/state-keys.ts.

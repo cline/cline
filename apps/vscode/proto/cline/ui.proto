@@ -233,6 +233,11 @@ message ClineMessage {
   // epoch = conversation/replica fence (older epoch is dropped by the webview)
   int64 seq = 24;
   int64 epoch = 25;
+
+  // Multichat: name of the backend (see NamedApiBackend) that produced this
+  // message, stamped at emission time. Empty for messages not authored by a
+  // named backend (e.g. user messages). Drives per-backend color coding.
+  string backend_name = 26;
 }
 
 message ShowWebviewEvent {
