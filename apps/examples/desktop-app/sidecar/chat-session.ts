@@ -1,4 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+} from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -238,6 +244,22 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
 		return null;
+	}
+}
+
+export function copySessionGeneratedArtifacts(
+	sourceSessionId: string,
+	targetSessionId: string,
+): void {
+	if (sourceSessionId === targetSessionId) return;
+	const sourceDir = join(sharedSessionDataDir(), sourceSessionId, "artifacts");
+	if (!existsSync(sourceDir)) return;
+
+	const targetDir = join(sharedSessionDataDir(), targetSessionId, "artifacts");
+	mkdirSync(targetDir, { recursive: true });
+	for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+		if (!entry.isFile()) continue;
+		copyFileSync(join(sourceDir, entry.name), join(targetDir, entry.name));
 	}
 }
 
@@ -1255,6 +1277,7 @@ async function handleForkUnlocked(
 		});
 		newSessionId = started.sessionId;
 	}
+	copySessionGeneratedArtifacts(sourceSessionId, newSessionId);
 	try {
 		const read = await manager.readMessages(newSessionId);
 		if (forkBeforeRunCount !== undefined || read.length > 0) {
@@ -1350,6 +1373,7 @@ async function handleRestoreCheckpoint(
 		if (!sessionId || !restoredMessages) {
 			throw new Error("Checkpoint restore did not return a new session");
 		}
+		copySessionGeneratedArtifacts(sourceSessionId, sessionId);
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),

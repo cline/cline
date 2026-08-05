@@ -1017,10 +1017,14 @@ export function useChatSession() {
 						mediaType: audio.mediaType as string,
 						artifactName: audio.artifactName as string,
 					};
-					const updated = updateMessageById(previous, assistantId, (message) => ({
-						...message,
-						audios: [...(message.audios ?? []), generatedAudio],
-					}));
+					const updated = updateMessageById(
+						previous,
+						assistantId,
+						(message) => ({
+							...message,
+							audios: [...(message.audios ?? []), generatedAudio],
+						}),
+					);
 					if (updated !== previous) return updated;
 					return sliceMessages([
 						...previous,

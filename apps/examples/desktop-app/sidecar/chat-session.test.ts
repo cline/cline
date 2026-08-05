@@ -13,6 +13,7 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
+	copySessionGeneratedArtifacts,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -215,6 +216,43 @@ describe("pathless session starts", () => {
 });
 
 describe("session forks", () => {
+	it("copies generated artifacts into the forked session", () => {
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-fork-artifacts-"));
+		const sourceSessionId = "source-session";
+		const targetSessionId = "forked-session";
+		const sourceArtifactsDir = join(sessionsDir, sourceSessionId, "artifacts");
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+			mkdirSync(sourceArtifactsDir, { recursive: true });
+			writeFileSync(join(sourceArtifactsDir, "generated.mp4"), "video");
+			writeFileSync(join(sourceArtifactsDir, "generated.mp3"), "audio");
+
+			copySessionGeneratedArtifacts(sourceSessionId, targetSessionId);
+
+			expect(
+				readFileSync(
+					join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
+					"utf8",
+				),
+			).toBe("video");
+			expect(
+				readFileSync(
+					join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
+					"utf8",
+				),
+			).toBe("audio");
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(sessionsDir, { recursive: true, force: true });
+		}
+	});
+
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [

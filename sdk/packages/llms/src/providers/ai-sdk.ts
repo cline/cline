@@ -1262,11 +1262,11 @@ async function* emitAiSdkEvents(
 					const data = file?.base64;
 					if (typeof data === "string" && data.length > 0) {
 						if (file?.mediaType?.startsWith("image/")) emittedImages += 1;
-							yield {
-								type: "file",
+						yield {
+							type: "file",
 							data,
 							mediaType: file?.mediaType ?? "application/octet-stream",
-							};
+						};
 					}
 					continue;
 				}

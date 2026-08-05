@@ -1495,9 +1495,7 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId: "deepseek", apiKey: "deepseek-key" },
-				],
+				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
 			});
 
 			await collect(
@@ -1558,9 +1556,7 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId: "deepseek", apiKey: "deepseek-key" },
-				],
+				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
 			});
 
 			await collect(

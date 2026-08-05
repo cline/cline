@@ -33,8 +33,8 @@ import {
 	FilesIcon,
 	LibraryIcon,
 	Loader2,
-	Maximize2,
 	type LucideIcon,
+	Maximize2,
 	MessageCircleQuestionMarkIcon,
 	PanelsTopLeftIcon,
 	PencilIcon,
@@ -62,6 +62,14 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@/components/ui/audio-player";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -368,14 +376,29 @@ function GeneratedAudio({
 	}, [audio.artifactName, sessionId]);
 
 	return source ? (
-		// biome-ignore lint/a11y/useMediaCaption: Generated audio does not include a separate caption track.
-		<audio
-			aria-label="Generated audio"
-			className="h-10 w-full max-w-md"
-			controls
-			preload="metadata"
-			src={source}
-		/>
+		<AudioPlayer className="w-full max-w-md text-foreground">
+			<AudioPlayerElement
+				aria-label="Generated audio"
+				muted={false}
+				onPlay={(event) => {
+					event.currentTarget.muted = false;
+					if (event.currentTarget.volume === 0) {
+						event.currentTarget.volume = 1;
+					}
+				}}
+				preload="metadata"
+				src={source}
+			/>
+			<AudioPlayerControlBar className="w-full">
+				<AudioPlayerPlayButton aria-label="Play or pause generated audio" />
+				<AudioPlayerTimeRange />
+				<AudioPlayerTimeDisplay
+					aria-label="Generated audio time remaining"
+					noToggle
+					remaining
+				/>
+			</AudioPlayerControlBar>
+		</AudioPlayer>
 	) : (
 		<div className="flex h-10 w-72 items-center justify-center rounded-lg border border-border text-sm text-muted-foreground">
 			<Loader2 className="mr-2 size-4 animate-spin" />
