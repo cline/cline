@@ -303,6 +303,10 @@ export function useChatSession() {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	// Optimistic user bubbles whose prompt is still in flight, by message id.
+	// A chat_queued_prompt_start event may only re-key one of these — never a
+	// same-content message left over from an earlier turn (see the handler).
+	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -429,6 +433,7 @@ export function useChatSession() {
 
 	const setErrorState = useCallback(
 		(msg: string, sid: string | null = null) => {
+			outstandingOptimisticUserIdsRef.current.clear();
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
@@ -986,6 +991,33 @@ export function useChatSession() {
 							return prev;
 						}
 						const images = toChatMessageImages(userImages, userMessageId);
+						// A prompt dispatched while the session was idle already has
+						// an optimistic bubble from the send path; when the runtime
+						// routes that prompt through its queue, this event describes
+						// the same prompt. Re-key the optimistic bubble instead of
+						// rendering the message a second time. Only bubbles whose
+						// prompt is still in flight are eligible — a same-content
+						// message left over from an earlier (e.g. cancelled) turn
+						// must stay distinct from the new submission.
+						for (let i = prev.length - 1; i >= 0; i--) {
+							const candidate = prev[i];
+							if (candidate.role !== "user") {
+								break;
+							}
+							if (
+								outstandingOptimisticUserIdsRef.current.has(candidate.id) &&
+								candidate.content === userLabel
+							) {
+								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
+								const next = [...prev];
+								next[i] = {
+									...candidate,
+									id: userMessageId,
+									images: images.length > 0 ? images : candidate.images,
+								};
+								return sliceMessages(next);
+							}
+						}
 						return sliceMessages([
 							...prev,
 							{
@@ -1038,6 +1070,10 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				// The turn is over: any optimistic bubble still registered was
+				// consumed by a direct send and must not be re-keyed by a later
+				// queued prompt that happens to repeat the same text.
+				outstandingOptimisticUserIdsRef.current.clear();
 				clearLiveToolRefs();
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
@@ -1388,6 +1424,7 @@ export function useChatSession() {
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (optimisticUserMessageId) {
+				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1975,6 +2012,7 @@ export function useChatSession() {
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
 			) => {
+				outstandingOptimisticUserIdsRef.current.clear();
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
