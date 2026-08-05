@@ -9,8 +9,8 @@
 import type { GatewayProviderContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
-import { getModelsForProvider } from "./model-registry";
 import { resolveClaudeThinkingEra } from "./model-facts";
+import { getModelsForProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 

@@ -25,8 +25,8 @@ import type {
 	AgentTool,
 } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "../../runtime/orchestration/runtime-builder";
+import type { CoreSessionConfig } from "../../types/config";
 import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "./command-guard-extension";
 
 const tempDirs: string[] = [];
@@ -210,9 +210,7 @@ describe("plan-mode command guard (end-to-end through the agent loop)", () => {
 
 		const result = await runtime.run("Please inspect the repo");
 
-		expect(executed).toEqual([
-			["git status", "ls -la", "grep -rn foo src/"],
-		]);
+		expect(executed).toEqual([["git status", "ls -la", "grep -rn foo src/"]]);
 		expect(result.status).toBe("completed");
 	});
 
