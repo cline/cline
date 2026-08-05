@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 import {
 	isAnthropicCompatibleModel,
 	isAnthropicCompatibleModelId,
-	isClaudeAdaptiveEraModelId,
 	isClaudeModelId,
 	isGlmModel,
 	isQwenModel,
@@ -366,76 +365,6 @@ describe("anthropic-compatible routing helpers", () => {
 		).toEqual({
 			kind: "anthropic-manual",
 		});
-	});
-
-	it("detects adaptive-era Claude model ids", () => {
-		const adaptiveEraIds = [
-			"claude-sonnet-5",
-			"claude-sonnet-5:1m",
-			"claude-opus-5",
-			"claude-opus-4-6",
-			"claude-opus-4-6:1m",
-			"claude-opus-4-8",
-			"claude-sonnet-4.6",
-			"claude-fable-5",
-			"claude-sonnet-5-20260629",
-			"anthropic.claude-opus-4-7-v1:0",
-			"anthropic/claude-haiku-5",
-		];
-		for (const modelId of adaptiveEraIds) {
-			expect(isClaudeAdaptiveEraModelId(modelId), modelId).toBe(true);
-		}
-
-		const preAdaptiveOrUnrelatedIds = [
-			"claude-sonnet-4-5",
-			"claude-sonnet-4-5-20250929",
-			"claude-haiku-4-5-20251001",
-			"claude-opus-4-1",
-			"claude-3-7-sonnet",
-			"claude-3-5-sonnet-20241022",
-			"claude-2.1",
-			"gpt-5.4",
-			undefined,
-		];
-		for (const modelId of preAdaptiveOrUnrelatedIds) {
-			expect(isClaudeAdaptiveEraModelId(modelId), modelId ?? "undefined").toBe(
-				false,
-			);
-		}
-	});
-
-	it("infers adaptive reasoning for adaptive-era Claude ids when catalog options are missing", () => {
-		const context = makeContext(
-			"claude-sonnet",
-			metadataWithRouting({
-				reasoningRoutes: [{ matcher: "anthropic-compatible" }],
-			}),
-		);
-		const makeRequest = (modelId: string) => ({
-			providerId: "test-provider",
-			modelId,
-			messages: [],
-		});
-
-		expect(
-			resolveAnthropicReasoningRequestPolicy(
-				makeRequest("claude-sonnet-5"),
-				context,
-			),
-		).toEqual({ kind: "anthropic-adaptive" });
-		expect(
-			resolveAnthropicReasoningRequestPolicy(
-				makeRequest("claude-opus-4-6:1m"),
-				context,
-			),
-		).toEqual({ kind: "anthropic-adaptive" });
-		// Pre-adaptive ids keep the manual wire shape.
-		expect(
-			resolveAnthropicReasoningRequestPolicy(
-				makeRequest("claude-sonnet-4-5"),
-				context,
-			),
-		).toEqual({ kind: "anthropic-manual" });
 	});
 
 	it("keeps adaptive when a numeric budget is requested but the model advertises effort", () => {

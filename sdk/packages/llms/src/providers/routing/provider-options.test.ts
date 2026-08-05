@@ -434,48 +434,13 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			// Adaptive-era ids (4.6+ / 5.x) reject thinking.type "enabled", so
-			// the missing-reasoningOptions fallback must infer adaptive.
-			// Unlisted ids still get only broadly supported effort values, so
-			// xhigh is downgraded to high.
-			name: "unknown future Claude aliases without catalog options infer adaptive thinking",
+			name: "unknown future Claude aliases fall back without inferred adaptive effort",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-haiku-5",
 				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-haiku" },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
-				},
-			],
-		},
-		{
-			name: "unlisted adaptive-era suffix variant without catalog options infers adaptive thinking",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-opus-4-6:1m",
-				reasoning: { enabled: true },
-			},
-			context: { family: "claude-opus" },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING },
-					lacks: ["effort"],
-				},
-			],
-		},
-		{
-			name: "pre-adaptive Claude ids without catalog options keep manual thinking",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-				reasoning: { enabled: true },
-			},
-			context: { family: "claude-sonnet" },
 			expect: [
 				{
 					bucket: "anthropic",
