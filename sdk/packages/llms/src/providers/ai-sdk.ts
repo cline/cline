@@ -974,6 +974,26 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "file") {
+					// Model-generated file (e.g. image-output models). Convert it
+					// so a file-only turn reaches the assistant message instead of
+					// being dropped and failing as "Model returned empty response"
+					// — the retry middleware counts `file` parts as content on the
+					// same premise (see stream-part-classification.ts).
+					const file = part.file as
+						| { base64?: string; mediaType?: string }
+						| undefined;
+					const data = file?.base64;
+					if (typeof data === "string" && data.length > 0) {
+						yield {
+							type: "file",
+							data,
+							mediaType: file?.mediaType ?? "application/octet-stream",
+						};
+					}
+					continue;
+				}
+
 				if (part.type === "tool-call") {
 					sawToolCalls = true;
 					const toolCallId =

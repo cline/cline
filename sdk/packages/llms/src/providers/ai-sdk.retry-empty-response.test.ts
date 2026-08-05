@@ -359,22 +359,127 @@ const v4TextParts: LanguageModelV4StreamPart[] = [
 	},
 ];
 
+async function streamThroughOllama(
+	parts: LanguageModelV4StreamPart[][],
+): Promise<AgentModelEvent[]> {
+	ollamaDoStreamMock.mockReset();
+	for (const attempt of parts) {
+		ollamaDoStreamMock.mockResolvedValueOnce(v4Stream(attempt));
+	}
+	const config = { providerId: "ollama" };
+	const provider = await createOllamaProvider(config);
+	return collect(
+		await provider.stream(streamRequest(), providerContext("ollama", config)),
+	);
+}
+
 describe("ollama (central wrap replaces the old vendor-level wrap)", () => {
 	it("retries an empty turn and streams the successful attempt", async () => {
-		ollamaDoStreamMock.mockReset();
-		ollamaDoStreamMock
-			.mockResolvedValueOnce(v4Stream(v4EmptyParts))
-			.mockResolvedValueOnce(v4Stream(v4TextParts));
-
-		const config = { providerId: "ollama" };
-		const provider = await createOllamaProvider(config);
-		const events = await collect(
-			await provider.stream(streamRequest(), providerContext("ollama", config)),
-		);
+		const events = await streamThroughOllama([v4EmptyParts, v4TextParts]);
 
 		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(2);
 		expect(hasTextDelta(events, "hello")).toBe(true);
 		expect(finishEvents(events)).toHaveLength(1);
+	});
+});
+
+describe("full path: model output classes through emitAiSdkEvents", () => {
+	it("converts a file-only turn into a file event instead of retrying or dropping it", async () => {
+		const events = await streamThroughOllama([
+			[
+				{ type: "stream-start", warnings: [] },
+				{
+					type: "file",
+					mediaType: "image/png",
+					data: { type: "data", data: "aGVsbG8=" },
+				} as LanguageModelV4StreamPart,
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: v4Usage,
+				},
+			],
+		]);
+
+		// Not retried (a generated file is content)...
+		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(1);
+		// ...and converted, so the assistant message will not be empty.
+		const fileEvent = events.find((event) => event.type === "file");
+		expect(fileEvent).toMatchObject({
+			type: "file",
+			mediaType: "image/png",
+			data: "aGVsbG8=",
+		});
+	});
+
+	it("does not retry a custom-only turn (unsupported output is not empty)", async () => {
+		const events = await streamThroughOllama([
+			[
+				{ type: "stream-start", warnings: [] },
+				{
+					type: "custom",
+					kind: "anthropic.container",
+				} as LanguageModelV4StreamPart,
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: v4Usage,
+				},
+			],
+		]);
+
+		// The model responded; retrying would re-bill for the same output.
+		// The adapter does not convert custom parts (explicitly unsupported),
+		// so no content events are emitted — the downstream empty-message
+		// failure, if it happens, is honest rather than masked by retries.
+		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(1);
+		expect(events.some((event) => event.type === "text-delta")).toBe(false);
+		expect(finishEvents(events)).toHaveLength(1);
+	});
+
+	it("aggregates discarded-attempt usage into the final usage event", async () => {
+		const usageOf = (input: number, output: number) =>
+			({
+				inputTokens: {
+					total: input,
+					noCache: undefined,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				outputTokens: { total: output, text: undefined, reasoning: undefined },
+			}) as never;
+		const emptyAttempt = (input: number, output: number) => [
+			{ type: "stream-start", warnings: [] } as LanguageModelV4StreamPart,
+			{
+				type: "finish",
+				finishReason: { unified: "stop", raw: "stop" },
+				usage: usageOf(input, output),
+			} as LanguageModelV4StreamPart,
+		];
+		const events = await streamThroughOllama([
+			emptyAttempt(7, 3),
+			emptyAttempt(9, 2),
+			[
+				{ type: "stream-start", warnings: [] },
+				{ type: "text-start", id: "t" },
+				{ type: "text-delta", id: "t", delta: "hello" },
+				{ type: "text-end", id: "t" },
+				{
+					type: "finish",
+					finishReason: { unified: "stop", raw: "stop" },
+					usage: usageOf(11, 5),
+				},
+			],
+		]);
+
+		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(3);
+		const usageEvent = events.find((event) => event.type === "usage") as
+			| { usage: { inputTokens?: number; outputTokens?: number } }
+			| undefined;
+		expect(usageEvent).toBeDefined();
+		// 7 + 9 + 11 input, 3 + 2 + 5 output across all three attempts.
+		expect(usageEvent?.usage.inputTokens).toBe(27);
+		expect(usageEvent?.usage.outputTokens).toBe(10);
 	});
 });
 
