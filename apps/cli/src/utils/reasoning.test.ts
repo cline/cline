@@ -39,6 +39,19 @@ describe("resolveCliReasoning", () => {
 		});
 	});
 
+	it("preserves explicit max reasoning effort", () => {
+		expect(
+			resolveCliReasoning({
+				thinking: true,
+				thinkingExplicitlySet: true,
+				reasoningEffort: "max",
+			}),
+		).toEqual({
+			thinking: true,
+			reasoningEffort: "max",
+		});
+	});
+
 	it("uses persisted disabled reasoning when --thinking is unset", () => {
 		expect(
 			resolveCliReasoning({

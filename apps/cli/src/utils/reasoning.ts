@@ -8,6 +8,7 @@ const ACTIVE_REASONING_EFFORTS = new Set<ActiveCliReasoningEffort>([
 	"medium",
 	"high",
 	"xhigh",
+	"max",
 ]);
 
 export interface ResolveCliReasoningInput {
