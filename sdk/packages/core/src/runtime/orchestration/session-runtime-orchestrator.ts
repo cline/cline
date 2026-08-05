@@ -48,7 +48,6 @@ import {
 	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
-import { isPlanModeBlockedCommandError } from "../../extensions/tools/command-guard";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
@@ -1153,15 +1152,6 @@ export class SessionRuntime {
 				};
 				this.currentRunToolCalls.push(record);
 				// Per-turn success/failure bookkeeping for MistakeTracker.
-				// Plan-mode command-guard rejections are deliberate session
-				// policy, not model mistakes: the run continues and the model
-				// is expected to fold the change into its plan. Counting them
-				// as failures would emit a recoverable "error" event that
-				// hosts render as a failed turn (breaking e.g. the VS Code
-				// plan→act auto-continue), so they are neutral here.
-				if (isError && isPlanModeBlockedCommandError(errorText)) {
-					break;
-				}
 				if (isError) {
 					this.currentTurnFailedTools += 1;
 					if (errorText) {

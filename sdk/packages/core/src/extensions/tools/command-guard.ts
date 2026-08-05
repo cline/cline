@@ -509,45 +509,13 @@ export function findFileEditingCommand(
 }
 
 /**
- * Stable sentence shared by every plan-mode block error. Consumers use it to
- * recognize guard rejections (see `isPlanModeBlockedCommandError`), so it must
- * stay in sync with `formatPlanModeBlockedCommandError`.
- */
-const PLAN_MODE_BLOCKED_COMMAND_MARKER =
-	"file modifications are blocked in plan mode";
-
-/**
  * Tool error returned in place of executing a blocked command in plan mode.
  */
 export function formatPlanModeBlockedCommandError(reason: string): string {
 	return (
-		`Command not executed: ${reason} can modify files, and ${PLAN_MODE_BLOCKED_COMMAND_MARKER}. ` +
+		`Command not executed: ${reason} can modify files, and file modifications are blocked in plan mode. ` +
 		"You are in PLAN MODE — explore, analyze, and present a plan; do not make changes. " +
 		"Use read-only commands to inspect the project (redirecting output to /tmp, or %TEMP% on Windows, is allowed), " +
 		"and if this change is part of the task, put it in your plan so it can run after the user approves switching to act mode."
-	);
-}
-
-/**
- * Whether a tool error text is (or embeds) the plan-mode command-guard
- * rejection. The guard blocking a command is deliberate session policy —
- * the run continues and the model is expected to plan instead — so
- * consumers use this to avoid treating the rejection as a model mistake
- * or a failed turn.
- *
- * FIXME: this is brittle string matching — the guard's `beforeTool` skip
- * reason is flattened into the tool-result error text, so recognizing it
- * afterwards means sniffing for the marker sentence. Replace with a typed
- * skip channel: carry a structured `skipSource`/`skipCode` on the
- * tool-finished runtime event (@cline/shared + @cline/agents) so the
- * orchestrator can treat policy/hook/approval skips as "tool never ran"
- * instead of pattern-matching error strings. The VS Code extension's
- * approval-denial suppression (isDeniedToolApprovalMistake) has the same
- * problem and should ride the same typed channel.
- */
-export function isPlanModeBlockedCommandError(errorText: unknown): boolean {
-	return (
-		typeof errorText === "string" &&
-		errorText.includes(PLAN_MODE_BLOCKED_COMMAND_MARKER)
 	);
 }
