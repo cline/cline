@@ -144,4 +144,69 @@ describe("AgentAttachments", () => {
 		);
 		container.remove();
 	});
+
+	it("moves focus to a fallback when removing the only attachment", () => {
+		const container = document.createElement("div");
+		document.body.append(container);
+		root = createRoot(container);
+		const renderHost = (hasAttachment: boolean) =>
+			root?.render(
+				<>
+					<textarea aria-label="Composer" />
+					<AgentAttachments
+						attachments={
+							hasAttachment ? [{ id: "only", label: "only.png" }] : []
+						}
+						onRemove={() => renderHost(false)}
+						onRemoveFocusFallback={() =>
+							container.querySelector<HTMLTextAreaElement>("textarea")?.focus()
+						}
+					/>
+				</>,
+			);
+		act(() => renderHost(true));
+
+		const fallback = container.querySelector<HTMLTextAreaElement>("textarea");
+		const remove = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Remove only.png"]',
+		);
+		act(() => {
+			remove?.focus();
+			remove?.click();
+		});
+
+		expect(document.activeElement).toBe(fallback);
+		container.remove();
+	});
+
+	it("preserves host focus when a pointer click does not focus the button", () => {
+		const container = document.createElement("div");
+		document.body.append(container);
+		const fallback = vi.fn();
+		root = createRoot(container);
+		act(() => {
+			root?.render(
+				<>
+					<textarea aria-label="Composer" />
+					<AgentAttachments
+						attachments={[{ id: "only", label: "only.png" }]}
+						onRemove={() => undefined}
+						onRemoveFocusFallback={fallback}
+					/>
+				</>,
+			);
+		});
+
+		const composer = container.querySelector<HTMLTextAreaElement>("textarea");
+		composer?.focus();
+		act(() =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Remove only.png"]')
+				?.click(),
+		);
+
+		expect(document.activeElement).toBe(composer);
+		expect(fallback).not.toHaveBeenCalled();
+		container.remove();
+	});
 });

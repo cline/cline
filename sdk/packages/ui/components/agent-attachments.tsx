@@ -14,6 +14,7 @@ export interface AgentAttachmentsProps
 	attachments: readonly AgentAttachmentItem[];
 	disabled?: boolean;
 	onRemove?: (id: string) => void;
+	onRemoveFocusFallback?: () => void;
 	variant?: "grid" | "inline";
 }
 
@@ -22,6 +23,7 @@ export function AgentAttachments({
 	className,
 	disabled = false,
 	onRemove,
+	onRemoveFocusFallback,
 	variant = "grid",
 	...props
 }: AgentAttachmentsProps) {
@@ -63,7 +65,7 @@ export function AgentAttachments({
 							disabled={disabled}
 							onClick={(event) => {
 								event.stopPropagation();
-								focusAdjacentRemoveButton(event.currentTarget);
+								focusAfterRemoval(event.currentTarget, onRemoveFocusFallback);
 								onRemove(attachment.id);
 							}}
 							type="button"
@@ -77,7 +79,11 @@ export function AgentAttachments({
 	);
 }
 
-function focusAdjacentRemoveButton(current: HTMLButtonElement) {
+function focusAfterRemoval(
+	current: HTMLButtonElement,
+	fallback: (() => void) | undefined,
+) {
+	if (document.activeElement !== current) return;
 	const buttons = Array.from(
 		current
 			.closest("ul")
@@ -86,7 +92,9 @@ function focusAdjacentRemoveButton(current: HTMLButtonElement) {
 			) ?? [],
 	);
 	const index = buttons.indexOf(current);
-	(buttons[index + 1] ?? buttons[index - 1])?.focus();
+	const adjacent = buttons[index + 1] ?? buttons[index - 1];
+	if (adjacent) adjacent.focus();
+	else fallback?.();
 }
 
 function AttachmentPreview({

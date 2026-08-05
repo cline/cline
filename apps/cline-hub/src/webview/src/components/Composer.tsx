@@ -9,7 +9,7 @@ import {
 	SignalLow,
 	SignalMedium,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	ModelSelector,
@@ -61,7 +61,11 @@ type ProviderOption = Extract<
 	{ type: "providers" }
 >["providers"][number];
 
-function PromptAttachmentsDisplay() {
+function PromptAttachmentsDisplay({
+	onRemoveFocusFallback,
+}: {
+	onRemoveFocusFallback: () => void;
+}) {
 	const attachments = usePromptInputAttachments();
 
 	if (attachments.files.length === 0) {
@@ -80,6 +84,7 @@ function PromptAttachmentsDisplay() {
 					}),
 				)}
 				onRemove={attachments.remove}
+				onRemoveFocusFallback={onRemoveFocusFallback}
 				variant="inline"
 			/>
 		</div>
@@ -361,6 +366,7 @@ export function Composer({
 	workspaceRoot: string;
 }) {
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const controller = usePromptInputController();
 	const attachments = usePromptInputAttachments();
 	const selectedModel = models.find((item) => item.id === model);
@@ -416,7 +422,9 @@ export function Composer({
 				}}
 			>
 				<PromptInputHeader>
-					<PromptAttachmentsDisplay />
+					<PromptAttachmentsDisplay
+						onRemoveFocusFallback={() => textareaRef.current?.focus()}
+					/>
 				</PromptInputHeader>
 				<PromptInputBody>
 					<PromptInputTextarea
@@ -425,6 +433,7 @@ export function Composer({
 							controller.textInput.setInput(event.target.value)
 						}
 						placeholder="Type @ for context and / for skills"
+						ref={textareaRef}
 						value={controller.textInput.value}
 						className="text-sm outline-none ring-0"
 					/>
