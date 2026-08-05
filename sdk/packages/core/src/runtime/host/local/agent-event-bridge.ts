@@ -7,6 +7,7 @@ import type {
 import type { TeamEvent } from "../../../extensions/tools/team";
 import {
 	type AgentEventContext,
+	type AgentTelemetryContextOverrides,
 	buildTelemetryAgentIdentity,
 	extractAgentEventMetadata,
 	handleAgentEvent,
@@ -39,6 +40,20 @@ export interface AgentEventBridgeDeps {
 export class AgentEventBridge {
 	constructor(private readonly deps: AgentEventBridgeDeps) {}
 
+	/**
+	 * Last agent identity stamped on each session's events while the session
+	 * was still registered. A session's agent can keep emitting after the host
+	 * removes it from the sessions map (teardown deletes the entry before the
+	 * run fully drains), and without this snapshot those late events reach
+	 * telemetry with no agent identity at all. Bounded FIFO so a long-lived
+	 * host doesn't accumulate entries forever.
+	 */
+	private readonly lastKnownIdentityBySession = new Map<
+		string,
+		AgentTelemetryContextOverrides
+	>();
+	private static readonly MAX_IDENTITY_SNAPSHOTS = 512;
+
 	dispatchAgentEvent(
 		sessionId: string,
 		config: CoreSessionConfig,
@@ -59,20 +74,50 @@ export class AgentEventBridge {
 			!!liveSession &&
 			(!eventMetadata.agentId ||
 				eventMetadata.agentId === readAgentId(liveSession.agent));
-		handleAgentEvent(
-			ctx,
-			event,
-			isRootAgentEvent
-				? {
-						isPrimaryAgentEvent: true,
-						agentId: readAgentId(liveSession.agent),
-						conversationId: liveSession.agent.getConversationId(),
-						...(liveSession?.runtime.teamRuntime
-							? { teamRole: "lead" as const }
-							: {}),
-					}
-				: { isPrimaryAgentEvent: false },
-		);
+		if (isRootAgentEvent) {
+			const identity: AgentTelemetryContextOverrides = {
+				agentId: readAgentId(liveSession.agent),
+				conversationId: liveSession.agent.getConversationId(),
+				...(liveSession?.runtime.teamRuntime
+					? { teamRole: "lead" as const }
+					: {}),
+			};
+			this.rememberSessionIdentity(sessionId, identity);
+			handleAgentEvent(ctx, event, {
+				...identity,
+				isPrimaryAgentEvent: true,
+			});
+			return;
+		}
+		handleAgentEvent(ctx, event, {
+			// Session-map miss: the session was already deregistered but its
+			// agent is still emitting. Reuse the identity captured while it was
+			// live so task.tool_used and friends keep their agentId/agentKind
+			// attributes. When the session IS live this is a non-root
+			// (sub-agent) event carrying its own metadata, so no fallback is
+			// applied.
+			...(liveSession ? {} : this.lastKnownIdentityBySession.get(sessionId)),
+			isPrimaryAgentEvent: false,
+		});
+	}
+
+	private rememberSessionIdentity(
+		sessionId: string,
+		identity: AgentTelemetryContextOverrides,
+	): void {
+		// Delete-then-set keeps insertion order acting as least-recently-updated
+		// for the FIFO eviction below.
+		this.lastKnownIdentityBySession.delete(sessionId);
+		this.lastKnownIdentityBySession.set(sessionId, identity);
+		if (
+			this.lastKnownIdentityBySession.size >
+			AgentEventBridge.MAX_IDENTITY_SNAPSHOTS
+		) {
+			const oldest = this.lastKnownIdentityBySession.keys().next().value;
+			if (oldest !== undefined) {
+				this.lastKnownIdentityBySession.delete(oldest);
+			}
+		}
 	}
 
 	async handleTeamEvent(

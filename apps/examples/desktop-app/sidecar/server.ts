@@ -1,3 +1,4 @@
+import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
@@ -104,6 +105,32 @@ const EMPTY_MARKETPLACE_CATALOG = {
 	entries: [],
 };
 
+type DesktopClientErrorReport = {
+	operation?: unknown;
+	errorMessage?: unknown;
+	errorType?: unknown;
+	handled?: unknown;
+	command?: unknown;
+	timeoutMs?: unknown;
+	transportState?: unknown;
+};
+
+function captureDesktopError(
+	ctx: SidecarContext,
+	operation: string,
+	error: unknown,
+	context?: Record<string, string | number | boolean>,
+	handled = true,
+): void {
+	captureSdkError(ctx.telemetry, {
+		component: "desktop",
+		operation,
+		error,
+		handled,
+		context,
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Bun HTTP + WebSocket server
 // ---------------------------------------------------------------------------
@@ -180,6 +207,7 @@ export function createFetchHandler(
 			try {
 				return createJsonResponse(req, await fetchMarketplaceCatalog());
 			} catch (error) {
+				captureDesktopError(ctx, "marketplace.catalog", error);
 				return createJsonResponse(req, {
 					...EMPTY_MARKETPLACE_CATALOG,
 					error:
@@ -187,6 +215,56 @@ export function createFetchHandler(
 							? error.message
 							: "Failed to fetch marketplace catalog",
 				});
+			}
+		}
+
+		if (url.pathname === "/telemetry/error" && req.method === "POST") {
+			if (!isTrustedRequestOrigin(req)) {
+				return createJsonResponse(req, { ok: false }, 403);
+			}
+			try {
+				const report = (await req.json()) as DesktopClientErrorReport;
+				const operation =
+					typeof report.operation === "string" && report.operation.trim()
+						? report.operation.trim().slice(0, 100)
+						: "webview.unknown";
+				const error = Object.assign(
+					new Error(
+						typeof report.errorMessage === "string"
+							? report.errorMessage
+							: "Unknown desktop webview error",
+					),
+					{
+						name:
+							typeof report.errorType === "string"
+								? report.errorType.slice(0, 100)
+								: "Error",
+					},
+				);
+				const context: Record<string, string | number | boolean> = {};
+				if (typeof report.command === "string") {
+					context.command = report.command.slice(0, 100);
+				}
+				if (
+					typeof report.timeoutMs === "number" &&
+					Number.isFinite(report.timeoutMs)
+				) {
+					context.timeoutMs = report.timeoutMs;
+				}
+				if (typeof report.transportState === "string") {
+					context.transportState = report.transportState.slice(0, 30);
+				}
+				captureDesktopError(
+					ctx,
+					operation,
+					error,
+					context,
+					typeof report.handled === "boolean" ? report.handled : true,
+				);
+				return createJsonResponse(req, { ok: true }, 202);
+			} catch (error) {
+				captureDesktopError(ctx, "webview.error_report", error);
+				return createJsonResponse(req, { ok: false }, 400);
 			}
 		}
 
@@ -200,6 +278,7 @@ export function createFetchHandler(
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
+						captureDesktopError(ctx, "sidecar.shutdown", error);
 						ctx.logger?.error?.("Desktop sidecar shutdown failed", { error });
 					})
 					.finally(() => process.exit(0));
@@ -244,6 +323,9 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
+				captureDesktopError(ctx, "command.execute", error, {
+					command: request.command,
+				});
 				ws.send(jsonResponse(request.id, false, undefined, message));
 			}
 		},

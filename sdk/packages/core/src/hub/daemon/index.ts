@@ -18,10 +18,12 @@ import {
 	clearHubDiscovery,
 	createHubServerUrl,
 	type HubOwnerContext,
+	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	writeHubDiscovery,
 } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -414,11 +416,56 @@ export async function ensureDetachedHubServer(
 			expectedUrl,
 		);
 		if (isCompatibleHubRecord(expected)) {
+			// Live hub is healthy but discovery is missing/unreadable (or auth
+			// token was empty). Prefer attaching via any known auth token rather
+			// than spawning a second daemon that dies with EADDRINUSE.
+			const candidateTokens = [
+				expected.authToken,
+				discovered?.authToken,
+			].filter(
+				(token): token is string =>
+					typeof token === "string" && token.trim().length > 0,
+			);
+			for (const token of candidateTokens) {
+				if (
+					!(await verifyHubConnection(expected.url, {
+						authToken: token,
+					}))
+				) {
+					continue;
+				}
+				const repaired: HubServerDiscoveryRecord = {
+					hubId: expected.hubId ?? `repaired-${expected.port}`,
+					protocolVersion: expected.protocolVersion,
+					minClientProtocolVersion: expected.minClientProtocolVersion,
+					maxClientProtocolVersion: expected.maxClientProtocolVersion,
+					capabilities: expected.capabilities,
+					coreVersion: expected.coreVersion,
+					buildId: expected.buildId,
+					authToken: token,
+					host: expected.host,
+					port: expected.port,
+					url: expected.url,
+					pid: expected.pid ?? discovered?.pid,
+					startedAt: expected.startedAt ?? new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				};
+				try {
+					await writeHubDiscovery(owner.discoveryPath, repaired);
+				} catch {
+					// Best-effort repair; attaching still works with the token
+					// we just verified even if the discovery file is unwritable.
+				}
+				return rememberIfManaged({
+					url: expected.url,
+					authToken: token,
+				});
+			}
 			const upgradeHint = retiredUnusableDiscovery
 				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
 				: "";
 			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
 		const retiredExpected = await retireIncompatibleHub(
