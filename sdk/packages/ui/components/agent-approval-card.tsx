@@ -19,7 +19,7 @@ function Spinner() {
 	return (
 		<svg
 			aria-hidden="true"
-			className="cline-ui-agent-approval-card__spinner mr-1 size-3.5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]"
+			className="cline-ui-agent-approval-card__spinner mr-1 size-3.5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] stroke-2"
 			viewBox="0 0 24 24"
 		>
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
