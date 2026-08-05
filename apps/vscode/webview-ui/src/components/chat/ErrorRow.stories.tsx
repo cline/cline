@@ -231,6 +231,72 @@ export const ClinePassEntitlementError: Story = {
 	},
 }
 
+// Cline free model promotion ended (the model is deleted, so requests 404)
+const clineFreePromotionEndedMessage = JSON.stringify({
+	message: "Error 404: model not found",
+	code: "CLINE_FREE_PROMOTION_ENDED",
+	providerId: "cline",
+	modelId: "cline-free/glm-5.2",
+	details: {
+		code: "CLINE_FREE_PROMOTION_ENDED",
+		message: "Error 404: model not found",
+		modelId: "cline-free/glm-5.2",
+	},
+})
+
+const freeModelExtensionState = (freeModelId: string, clineModels: Record<string, any>) => ({
+	apiConfiguration: {
+		planModeApiProvider: "cline",
+		actModeApiProvider: "cline",
+		planModeClineModelId: freeModelId,
+		actModeClineModelId: freeModelId,
+	},
+	mode: "act",
+	providerModelsByProvider: {
+		cline: { models: clineModels },
+	},
+})
+
+export const ClineFreePromotionEnded: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage: clineFreePromotionEndedMessage,
+	},
+	decorators: [
+		createStoryDecorator(
+			{ clineUser: { id: "user123", email: "user@example.com" }, isAuthenticated: true },
+			freeModelExtensionState("cline-free/glm-5.2", {
+				"zai/glm-5.2": { id: "zai/glm-5.2", name: "GLM 5.2" },
+			}),
+		),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "A free model that Cline removed at the end of its promotion. Retrying can never succeed, so the row offers the paid twin on usage-based billing plus a jump to the model picker.",
+			},
+		},
+	},
+}
+
+export const ClineFreePromotionEndedWithoutPaidModel: Story = {
+	...ClineFreePromotionEnded,
+	decorators: [
+		createStoryDecorator(
+			{ clineUser: { id: "user123", email: "user@example.com" }, isAuthenticated: true },
+			freeModelExtensionState("cline-free/retired-model", {}),
+		),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Same notice when the free model has no paid counterpart in the Cline catalog: the only action left is picking a different model.",
+			},
+		},
+	},
+}
+
 // Authentication-related errors with configurable scenarios
 export const AuthenticationErrors: Story = {
 	args: {

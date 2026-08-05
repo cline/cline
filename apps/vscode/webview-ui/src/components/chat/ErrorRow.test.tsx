@@ -5,12 +5,32 @@ import ErrorRow from "./ErrorRow"
 
 const mockSetUserOrganization = vi.hoisted(() => vi.fn())
 const mockUpdateApiConfigurationProto = vi.hoisted(() => vi.fn())
+const mockNavigateToSettingsModelPicker = vi.hoisted(() => vi.fn())
+const DEFAULT_API_CONFIGURATION = {
+	planModeApiProvider: "cline-pass",
+	actModeApiProvider: "cline-pass",
+	planModeClinePassModelId: "cline-pass/test-plan-model",
+	actModeClinePassModelId: "cline-pass/test-act-model",
+}
 const mockApiConfiguration = vi.hoisted(() => ({
 	planModeApiProvider: "cline-pass",
 	actModeApiProvider: "cline-pass",
 	planModeClinePassModelId: "cline-pass/test-plan-model",
 	actModeClinePassModelId: "cline-pass/test-act-model",
 }))
+const mockProviderModelsByProvider = vi.hoisted(() => ({
+	cline: { models: { "zai/glm-5.2": { id: "zai/glm-5.2", name: "GLM 5.2" } } },
+}))
+
+function selectFreeModel(providerId: "cline" | "cline-pass", modelId: string) {
+	Object.assign(mockApiConfiguration, {
+		planModeApiProvider: providerId,
+		actModeApiProvider: providerId,
+		...(providerId === "cline"
+			? { planModeClineModelId: modelId, actModeClineModelId: modelId }
+			: { planModeClinePassModelId: modelId, actModeClinePassModelId: modelId }),
+	})
+}
 
 // Mock the auth context
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -27,9 +47,10 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		apiConfiguration: mockApiConfiguration,
 		mode: "act",
-		providerModelsByProvider: {},
+		providerModelsByProvider: mockProviderModelsByProvider,
 		startProviderModelsRequest: vi.fn(),
 		applyProviderModelsResponse: vi.fn(),
+		navigateToSettingsModelPicker: mockNavigateToSettingsModelPicker,
 	}),
 }))
 
@@ -67,6 +88,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		OrgClinePassRestriction: "orgClinePassRestriction",
 		ClinePassLimit: "clinePassLimit",
 		ClineFreeModelLimit: "clineFreeModelLimit",
+		ClineFreePromotionEnded: "clineFreePromotionEnded",
 		QuotaExceeded: "quotaExceeded",
 	},
 }))
@@ -83,6 +105,10 @@ describe("ErrorRow", () => {
 		vi.clearAllMocks()
 		mockSetUserOrganization.mockResolvedValue({})
 		mockUpdateApiConfigurationProto.mockResolvedValue({})
+		for (const key of Object.keys(mockApiConfiguration)) {
+			delete (mockApiConfiguration as Record<string, unknown>)[key]
+		}
+		Object.assign(mockApiConfiguration, DEFAULT_API_CONFIGURATION)
 	})
 
 	it("renders basic error message", () => {
@@ -333,6 +359,55 @@ describe("ErrorRow", () => {
 			expect(screen.queryByText(limitMessage)).not.toBeInTheDocument()
 			expect(screen.queryByText(/deepseek-v4-flash/i)).not.toBeInTheDocument()
 			expect(screen.queryByText(/Switch to Usage-Based billing/i)).not.toBeInTheDocument()
+		})
+
+		it("renders the ended free promotion with a switch to the paid model", async () => {
+			selectFreeModel("cline", "cline-free/glm-5.2")
+			const rawMessage = "Error 404: model not found"
+			const mockClineError = {
+				message: rawMessage,
+				isErrorType: vi.fn((type) => type === "clineFreePromotionEnded"),
+				providerId: "cline",
+				_error: { code: "CLINE_FREE_PROMOTION_ENDED", message: rawMessage },
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={rawMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("cline-free-promotion-ended-error")).toBeInTheDocument()
+			expect(screen.getByText(/The free promotion for this model has ended/)).toBeInTheDocument()
+			expect(screen.queryByText(rawMessage)).not.toBeInTheDocument()
+			expect(screen.getByText(/zai\/glm-5.2/)).toBeInTheDocument()
+
+			fireEvent.click(screen.getByText("Switch to Usage-Based billing"))
+
+			await waitFor(() => expect(screen.getByText("Switched to Usage-Based billing")).toBeInTheDocument())
+		})
+
+		it("offers the model picker when the ended free model has no paid counterpart", async () => {
+			selectFreeModel("cline-pass", "cline-free/retired-model")
+			const rawMessage = "Error 404: model not found"
+			const mockClineError = {
+				message: rawMessage,
+				isErrorType: vi.fn((type) => type === "clineFreePromotionEnded"),
+				providerId: "cline-pass",
+				_error: { code: "CLINE_FREE_PROMOTION_ENDED", message: rawMessage },
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={rawMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("cline-free-promotion-ended-error")).toBeInTheDocument()
+			expect(screen.getByText("Select another model to continue.")).toBeInTheDocument()
+			expect(screen.queryByText("Switch to Usage-Based billing")).not.toBeInTheDocument()
+
+			fireEvent.click(screen.getByText("Choose another model"))
+
+			expect(mockNavigateToSettingsModelPicker).toHaveBeenCalledWith({ targetSection: "api-config" })
 		})
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
