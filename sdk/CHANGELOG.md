@@ -1,5 +1,20 @@
 # Cline SDK Changelog
 
+## 0.0.70
+
+- Plan mode now hard-blocks file-editing shell commands instead of relying on prompting alone — `run_commands` stays available for read-only investigation, but file-manipulation commands, in-place editors (`sed -i`, `perl -i`), redirection to files, mutating git subcommands, package installs, and nested command strings (`sh -c`, `eval`, `sudo`, `xargs`) are rejected with a tool error, on Windows and PowerShell too
+- Context-window overflow errors are now detected and recovered from instead of surfacing as raw unclassified provider errors: the runtime force-compacts with a deterministic strategy that needs no extra LLM call and retries the run once, and terminal cases (nothing left to compact, a retry that still overflows) fail with an actionable message
+- Sessions now record how they began — a new `mode` on `StartSessionInput` (`user`, `automation`, `subagent`, `team`) alongside `source` — and root-session persistence is lazy: starting a runtime allocates the session id in memory without writing a database row, so closing it before any user turn no longer leaves an empty history entry
+- Turns that come back completely empty are now retried on every provider, not just Ollama — hosted backends (OpenRouter, Cline, OpenAI-compatible endpoints) previously failed the task outright with "Model returned empty response". Tool-call-only turns are never retried, and turns that error or hit the token limit pass through unchanged
+- Adaptive-era Claude models (4.6+ and 5.x) are no longer sent the manual thinking wire shape and rejected with "thinking.type.enabled is not supported" — the baked model catalog now carries reasoning metadata, and unlisted or user-typed adaptive ids are inferred correctly when that metadata is missing
+- Bedrock prompt caching works again: the provider now emits Converse `cachePoint` markers instead of Anthropic `cache_control`, which the Bedrock converter silently dropped, so cache reads and writes are no longer always 0 and no stray `cache_control` field leaks into the request body
+- Bedrock foundation models are now routed through geo inference profiles
+- Reasoning models on OpenAI-compatible endpoints now receive `max_completion_tokens` instead of the rejected `max_tokens`
+- Requests to models without image support now substitute image content instead of failing
+- MiniMax now inherits its default model from models.dev
+- Upgraded the model layer to AI SDK 7, switched Ollama to the native AI SDK provider (with wire-contract fixes for empty `think` settings, mid-stream errors, and attachment-only turns), and emitted the canonical AI SDK 7 file parts for images so image-bearing requests no longer log deprecation warnings
+- `sdk.error` telemetry is no longer emitted twice for the same provider failure, and repeated failures from unattended retry loops are rate-limited
+
 ## 0.0.69
 
 - Ollama's response-start timeout now defaults to 5 minutes instead of 30 seconds, so large models that cold-load no longer fail before they finish loading — unreachable servers still fail immediately, requests are still cancelable, and an explicit `requestTimeoutMs` is still honored
