@@ -390,7 +390,10 @@ function toAiSdkMessages(
 	});
 }
 
-function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
+function toAiSdkTools(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): ToolSet | undefined {
 	if (!request.tools?.length) {
 		return undefined;
 	}
@@ -400,12 +403,19 @@ function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 	// accept common weak-model shapes like a bare string for a string[]
 	// property). Rejecting here would return an error to the model without
 	// the tool's own input handling ever seeing the call.
+	const flattenTopLevelCompositions = isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family: resolveModelFamily(context),
+	});
 	const tools: ToolSet = {};
 	for (const definition of request.tools) {
 		tools[definition.name] = {
 			description: definition.description,
 			inputSchema: jsonSchema(
-				normalizeAiSdkToolInputSchema(definition.inputSchema),
+				normalizeAiSdkToolInputSchema(
+					definition.inputSchema,
+					flattenTopLevelCompositions,
+				),
 			),
 		};
 	}
@@ -456,12 +466,13 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
+	flattenTopLevelCompositions: boolean,
 ): Record<string, unknown> {
 	const { oneOf, anyOf, allOf, ...schema } = inputSchema;
 	const compositions = [oneOf, anyOf, allOf].filter(
 		(value): value is Record<string, unknown>[] => Array.isArray(value),
 	);
-	if (compositions.length === 0) {
+	if (!flattenTopLevelCompositions || compositions.length === 0) {
 		return inputSchema.type === "object"
 			? inputSchema
 			: { type: "object", ...inputSchema };
@@ -479,11 +490,16 @@ function normalizeAiSdkToolInputSchema(
 			: [],
 	);
 
-	for (const composition of compositions) {
+	for (const [compositionKind, composition] of [
+		["oneOf", oneOf],
+		["anyOf", anyOf],
+		["allOf", allOf],
+	] as const) {
+		if (!Array.isArray(composition)) continue;
 		for (const branch of composition) {
 			if (!branch || typeof branch !== "object" || Array.isArray(branch))
 				continue;
-			const normalizedBranch = normalizeAiSdkToolInputSchema(branch);
+			const normalizedBranch = normalizeAiSdkToolInputSchema(branch, true);
 			if (
 				normalizedBranch.properties &&
 				typeof normalizedBranch.properties === "object" &&
@@ -493,6 +509,14 @@ function normalizeAiSdkToolInputSchema(
 					properties,
 					normalizedBranch.properties as Record<string, unknown>,
 				);
+			}
+			if (
+				compositionKind === "allOf" &&
+				Array.isArray(normalizedBranch.required)
+			) {
+				for (const key of normalizedBranch.required) {
+					if (typeof key === "string") required.add(key);
+				}
 			}
 		}
 	}
@@ -1249,7 +1273,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				);
 				const tools = providerDisablesExternalToolExecution(context)
 					? undefined
-					: toAiSdkTools(request);
+					: toAiSdkTools(request, context);
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;

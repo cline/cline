@@ -2748,7 +2748,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("flattens top-level tool schema unions for Anthropic-compatible providers", async () => {
+	it("flattens top-level tool schema unions for Anthropic-compatible models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -2800,6 +2800,112 @@ describe("sdk-gateway", () => {
 			},
 		});
 		expect(JSON.stringify(schema)).not.toMatch(/"(?:oneOf|anyOf|allOf)"/);
+	});
+
+	it("preserves top-level tool schema unions for non-Anthropic models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const inputSchema = {
+			type: "object",
+			anyOf: [
+				{
+					type: "object",
+					properties: { query: { type: "string" } },
+					required: ["query"],
+				},
+				{
+					type: "object",
+					properties: { id: { type: "string" } },
+					required: ["id"],
+				},
+			],
+		};
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test",
+					baseUrl: "https://example.com/v1",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "test-model",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "custom",
+						description: "A tool supplied by an extension",
+						inputSchema,
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		expect(await call?.tools?.custom.inputSchema?.jsonSchema).toEqual(
+			inputSchema,
+		);
+	});
+
+	it("preserves required fields while flattening allOf tool schemas", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "custom",
+						description: "A tool supplied by an extension",
+						inputSchema: {
+							type: "object",
+							allOf: [
+								{
+									type: "object",
+									properties: { query: { type: "string" } },
+									required: ["query"],
+								},
+								{
+									type: "object",
+									properties: { limit: { type: "number" } },
+									required: ["limit"],
+								},
+							],
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		expect(await call?.tools?.custom.inputSchema?.jsonSchema).toEqual({
+			type: "object",
+			properties: {
+				query: { type: "string" },
+				limit: { type: "number" },
+			},
+			required: ["query", "limit"],
+		});
 	});
 
 	it("passes reasoning effort through to Anthropic provider options", async () => {
