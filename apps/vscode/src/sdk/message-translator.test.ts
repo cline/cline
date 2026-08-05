@@ -1,11 +1,15 @@
 import type { CoreSessionEvent } from "@cline/core"
+import type { Message as SdkMessage } from "@cline/llms"
 import type { AgentEvent } from "@cline/shared"
-import type { ClineAskUseMcpServer } from "@shared/ExtensionMessage"
+import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { getDesktopDir } from "@/utils/path"
 import {
+	buildToolApprovalAskMessage,
 	extractToolOutputText,
 	historyItemToSessionFields,
 	MessageTranslatorState,
+	sdkMessagesToClineMessages,
 	translateSessionEvent,
 } from "./message-translator"
 
@@ -3680,5 +3684,186 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("use_mcp_server")
 		expect(result.messages[0].partial).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Display-path relativization — tool paths shown in the chat view render
+// relative to the task's cwd instead of as full absolute paths.
+// ---------------------------------------------------------------------------
+
+describe("tool display paths are relativized to the cwd", () => {
+	const CWD = "/home/user/project"
+	const stateWithCwd = () => new MessageTranslatorState(undefined, undefined, undefined, () => CWD)
+
+	const toolEvent = (
+		type: "content_start" | "content_end",
+		toolName: string,
+		input?: unknown,
+		callId = "call-1",
+	): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "s1",
+			event: { type, contentType: "tool", toolName, toolCallId: callId, input } as AgentEvent,
+		},
+	})
+
+	const parseTool = (text: string | undefined) => JSON.parse(text ?? "{}") as ClineSayTool
+
+	it("renders a readFile path inside the cwd as relative, keeping the absolute click-to-open target", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/src/index.ts` }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.tool).toBe("readFile")
+		expect(tool.path).toBe("src/index.ts")
+		// The webview's readFile card opens `content` in the editor on click.
+		expect(tool.content).toBe(`${CWD}/src/index.ts`)
+	})
+
+	it("keeps paths outside the cwd absolute", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: "/etc/hosts" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("/etc/hosts")
+	})
+
+	it("treats an in-cwd entry named with a '..' prefix as inside the cwd", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/..config/x.ts` }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("..config/x.ts")
+	})
+
+	it("keeps paths absolute when the cwd is the no-workspace Desktop fallback", () => {
+		// With no workspace open, getWorkspaceRoot() falls back to the Desktop;
+		// classic getReadablePath keeps full absolute paths in that case.
+		const desktop = getDesktopDir()
+		const state = new MessageTranslatorState(undefined, undefined, undefined, () => desktop)
+		const absolutePath = `${desktop}/project/file.ts`
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: absolutePath }), state)
+		expect(parseTool(result.messages[0].text).path).toBe(absolutePath.replace(/\\/g, "/"))
+	})
+
+	it("relativizes '*** Move to:' destinations in apply_patch payloads", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/old.ts`,
+			`*** Move to: ${CWD}/src/new.ts`,
+			"@@",
+			"-old",
+			"+new",
+			"*** End Patch",
+		].join("\n")
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/old.ts")
+		expect(tool.content).toContain("*** Move to: src/new.ts")
+		expect(tool.content).not.toContain(CWD)
+	})
+
+	it("renders the cwd itself as its basename", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "list_files", { path: CWD }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("project")
+	})
+
+	it("relativizes editor and delete_file paths", () => {
+		const editState = stateWithCwd()
+		const editResult = translateSessionEvent(
+			toolEvent("content_start", "editor", { path: `${CWD}/a/b.ts`, old_text: "x", new_text: "y" }),
+			editState,
+		)
+		const editTool = parseTool(editResult.messages[0].text)
+		expect(editTool.tool).toBe("editedExistingFile")
+		expect(editTool.path).toBe("a/b.ts")
+
+		const deleteState = stateWithCwd()
+		const deleteResult = translateSessionEvent(
+			toolEvent("content_start", "delete_file", { path: `${CWD}/a/b.ts` }),
+			deleteState,
+		)
+		expect(parseTool(deleteResult.messages[0].text).path).toBe("a/b.ts")
+	})
+
+	it("rewrites apply_patch file markers so the diff view shows relative paths", () => {
+		const state = stateWithCwd()
+		const patch = `*** Begin Patch\n*** Update File: ${CWD}/src/app.ts\n@@\n-old\n+new\n*** End Patch`
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/app.ts")
+		expect(tool.content).not.toContain(`*** Update File: ${CWD}`)
+	})
+
+	it("splits multi-file apply_patch into rows with relativized paths and markers", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/a.ts`,
+			`*** Move to: ${CWD}/src/a-renamed.ts`,
+			"@@",
+			"-old",
+			"+new",
+			`*** Add File: ${CWD}/src/b.ts`,
+			"+added",
+			"*** End Patch",
+		].join("\n")
+		translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const result = translateSessionEvent(toolEvent("content_end", "apply_patch"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toContain("*** Update File: src/a.ts")
+		expect(first.content).toContain("*** Move to: src/a-renamed.ts")
+		expect(second.path).toBe("src/b.ts")
+		expect(second.content).toContain("*** Add File: src/b.ts")
+	})
+
+	it("relativizes each row of a multi-file read_files finalize", () => {
+		const state = stateWithCwd()
+		const input = { files: [{ path: `${CWD}/src/a.ts` }, { path: "/outside/b.ts" }] }
+		translateSessionEvent(toolEvent("content_start", "read_files", input), state)
+		const result = translateSessionEvent(toolEvent("content_end", "read_files"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toBe(`${CWD}/src/a.ts`)
+		expect(second.path).toBe("/outside/b.ts")
+	})
+
+	it("does not touch web url / search query / skill-name pseudo-paths", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "web_fetch", { url: "https://example.com/a/b" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("https://example.com/a/b")
+	})
+
+	it("leaves paths untouched when no cwd source is configured", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			toolEvent("content_start", "read_files", { path: "/home/user/project/src/index.ts" }),
+			state,
+		)
+		expect(parseTool(result.messages[0].text).path).toBe("/home/user/project/src/index.ts")
+	})
+
+	it("relativizes the path in tool-approval ask messages", () => {
+		const message = buildToolApprovalAskMessage("editor", { path: `${CWD}/src/index.ts`, content: "x" }, 1, CWD)
+		expect(parseTool(message.text).path).toBe("src/index.ts")
+	})
+
+	it("relativizes persisted-history tool paths via options.cwd", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "t1", name: "read_files", input: { path: `${CWD}/src/index.ts` } }],
+			} as SdkMessage,
+		]
+		const clineMessages = sdkMessagesToClineMessages(messages, undefined, { cwd: CWD })
+		const toolMessage = clineMessages.find((m) => m.say === "tool")
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
 	})
 })
