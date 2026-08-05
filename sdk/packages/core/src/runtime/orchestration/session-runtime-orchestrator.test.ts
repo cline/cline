@@ -33,6 +33,7 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { formatPlanModeBlockedCommandError } from "../../extensions/tools/command-guard";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -2132,6 +2133,54 @@ function failedStructuredToolTurnEvents(): AgentRuntimeEvent[] {
 	];
 }
 
+function planModeBlockedToolTurnEvents(): AgentRuntimeEvent[] {
+	return [
+		{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+		{
+			type: "tool-started",
+			iteration: 1,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: "tc_blocked",
+				toolName: "run_commands",
+				input: { commands: ["cp notes.txt /tmp/backup.txt"] },
+			},
+			snapshot: makeSnapshot(),
+		},
+		{
+			type: "tool-finished",
+			iteration: 1,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: "tc_blocked",
+				toolName: "run_commands",
+				input: { commands: ["cp notes.txt /tmp/backup.txt"] },
+			},
+			message: {
+				id: "m_blocked",
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "tc_blocked",
+						toolName: "run_commands",
+						output: { error: formatPlanModeBlockedCommandError("`cp`") },
+						isError: true,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		},
+		{
+			type: "turn-finished",
+			iteration: 1,
+			toolCallCount: 1,
+			snapshot: makeSnapshot(),
+		},
+	];
+}
+
 describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	it("aborts after maxConsecutiveMistakes failed-tool turns", async () => {
 		const { deps, abortCalls } = makeScriptedRuntime({
@@ -2177,6 +2226,33 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(errors).toContain(
 			'1 tool call(s) failed: [exec] {"message":"sandbox denied","code":"EPERM"}',
 		);
+	});
+
+	it("does not record a mistake or emit an error for plan-mode guard-blocked commands", async () => {
+		// The plan-mode command guard rejecting a command is deliberate
+		// session policy, not a model mistake. A turn whose only tool call
+		// was guard-blocked must not feed the MistakeTracker: the tracker's
+		// recoverable "error" event would make hosts render the turn as
+		// failed (e.g. the VS Code extension drops into the error phase and
+		// the plan→act toggle stops auto-continuing on the presented plan).
+		const errors: string[] = [];
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: planModeBlockedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({ execution: { maxConsecutiveMistakes: 1 } }),
+			deps,
+		);
+		session.subscribeEvents((event) => {
+			if (event.type === "error") {
+				errors.push(event.error.message);
+			}
+		});
+
+		await session.run("copy the file");
+
+		expect(errors).toHaveLength(0);
+		expect(abortCalls).toHaveLength(0);
 	});
 
 	it("resets mistake tracking when run() starts a fresh conversation", async () => {

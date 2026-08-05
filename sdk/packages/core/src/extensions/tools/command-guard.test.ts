@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	findFileEditingCommand,
 	formatPlanModeBlockedCommandError,
+	isPlanModeBlockedCommandError,
 } from "./command-guard";
 
 /** Convenience: true when the guard blocks the command. */
@@ -378,5 +379,26 @@ describe("formatPlanModeBlockedCommandError", () => {
 		expect(message).toContain("PLAN MODE");
 		expect(message).toContain("not executed");
 		expect(message).toContain("act mode");
+	});
+});
+
+describe("isPlanModeBlockedCommandError", () => {
+	it("recognizes the formatted guard error", () => {
+		expect(
+			isPlanModeBlockedCommandError(formatPlanModeBlockedCommandError("`cp`")),
+		).toBe(true);
+	});
+
+	it("recognizes the guard error embedded in a serialized tool result", () => {
+		const serialized = JSON.stringify({
+			error: formatPlanModeBlockedCommandError("output redirection (`> f`)"),
+		});
+		expect(isPlanModeBlockedCommandError(serialized)).toBe(true);
+	});
+
+	it("rejects unrelated errors and non-strings", () => {
+		expect(isPlanModeBlockedCommandError("command not found: rmx")).toBe(false);
+		expect(isPlanModeBlockedCommandError(undefined)).toBe(false);
+		expect(isPlanModeBlockedCommandError({ error: "boom" })).toBe(false);
 	});
 });
