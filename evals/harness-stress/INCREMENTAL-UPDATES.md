@@ -36,6 +36,63 @@ For 128 KiB delivered one byte at a time, those steps run 131,072 times. The sam
 
 This does **not** yet prove which layer allocates the memory or consumes the CPU. It localizes the issue to the real HTTP/SSE → AI SDK → `@cline/llms` adapter boundary and provides an exact input for profiling that boundary.
 
+## V8 CPU profile
+
+The exact replay was also run under Node 24.16.0 with V8's `--cpu-prof` profiler. Because this repository's source graph uses Bun-compatible extensionless imports and has an unavailable optional Ollama dependency, the profiling command used an ignored Node-targeted bundle with source maps and a link-only Ollama stub. The stub throws if invoked; the replay uses the real OpenAI-compatible provider, AI SDK, Zod schemas, and Cline adapter.
+
+| Shape | Duration | Sampled peak RSS delta |
+|---|---:|---:|
+| 128 KiB, one-byte updates | 4,701 ms | 181.6 MiB |
+| 128 KiB, 1 KiB updates | 101 ms | 17.1 MiB |
+
+The one-byte profile attributes 90.4% of sampled self CPU to V8/Node runtime work. The dominant frame is Node's WHATWG Web Streams queue:
+
+| Function | Self time | Self CPU |
+|---|---:|---:|
+| `node:internal/webstreams/util:dequeueValue` | 5,375 ms | 46.4% |
+| `runMicrotasks` | 572 ms | 4.9% |
+| `pullAlgorithm` | 297 ms | 2.6% |
+| Garbage collector | 271 ms | 2.3% |
+| `readableStreamDefaultControllerCallPullIfNeeded` | 195 ms | 1.7% |
+| `writableStreamUpdateBackpressure` | 187 ms | 1.6% |
+| `transformStreamSetBackpressure` | 177 ms | 1.5% |
+| `writableStreamDefaultControllerWrite` | 151 ms | 1.3% |
+| `transformStreamDefaultControllerPerformTransform` | 132 ms | 1.1% |
+| `writableStreamDefaultWriterWrite` | 123 ms | 1.1% |
+
+This is not one hot Cline loop. The bulk of the cost is per-update Web Streams queueing, backpressure bookkeeping, pulls, writes, and microtask scheduling. JSON/schema/adapter work is present, but secondary. Batching adjacent text updates before they traverse every stream transform is therefore a higher-leverage direction than micro-optimizing `emitAiSdkEvents` alone.
+
+The `.cpuprofile` is intentionally generated under the ignored results directory rather than committed. To recreate it, build a Node-targeted profile artifact from `matrix.ts`, then run the replay with:
+
+```text
+node --cpu-prof --cpu-prof-interval=1000 <matrix-artifact> --model <replay-model>
+```
+
+Profile both the one-byte replay and the 1 KiB control: module startup dominates the short control, so interpreting only one profile overstates unrelated initialization work.
+
+## IDE-host behavior
+
+The one-byte replay was exercised through an isolated SDK-backed VS Code Extension Development Host. The workbench and Cline renderer remained responsive to DevTools round trips during the stream:
+
+| Probe | p95 | Maximum |
+|---|---:|---:|
+| Workbench renderer | 16 ms | 33 ms |
+| Cline webview | 43 ms | 75 ms |
+
+However, model-stream throughput collapsed downstream of the harness:
+
+- the provider-only replay completes in about 4 seconds;
+- the IDE reached only 87,552 of 131,072 updates;
+- the last progress arrived after 37,041 ms;
+- the stream stopped at 66.8% and never emitted its finish event;
+- the harness repeatedly paused on HTTP backpressure while its own RSS stayed around 73 MiB.
+
+This is not the same failure shape as a synchronously frozen extension host: the renderers answered probes while the client stopped draining the model stream. It is closer to a live-lock or throughput-collapse boundary between provider events, session processing, persistence, and host/webview reporting.
+
+The extension host later exited and Crashpad produced a dump. Do **not** attribute that exit to this replay yet: VS Code updated from 1.131.0 to 1.132.0 immediately afterward, and update/restart activity is a material confounder. The 37-second backpressure stall happened before the update and is valid; the later exit needs reproduction on a pinned, stable VS Code build.
+
+For a clean IDE comparison, pin the same VS Code build, reuse the same isolated user-data directory after dismissing first-run UI, run the 1 KiB control first, restart at the model/session boundary, and then run the one-byte replay. Record extension-host, workbench renderer, and webview renderer process metrics separately.
+
 ## Quick reproduction
 
 From the repository root, install the workspace dependencies as usual, then run:

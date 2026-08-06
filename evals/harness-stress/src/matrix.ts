@@ -7,7 +7,7 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { createOpenAICompatibleProvider } from "../../../sdk/packages/llms/src/providers/ai-sdk";
+import { createOpenAICompatibleProvider } from "../../../sdk/packages/llms/src/providers/ai-sdk.ts";
 import {
 	profileSpecs,
 	replayModel,
@@ -175,7 +175,12 @@ const report = {
 	version: 1,
 	createdAt: new Date().toISOString(),
 	profile: args.profile,
-	runtime: { bun: Bun.version, platform: process.platform, arch: process.arch },
+	runtime: {
+		node: process.version,
+		...(typeof Bun !== "undefined" ? { bun: Bun.version } : {}),
+		platform: process.platform,
+		arch: process.arch,
+	},
 	summary: {
 		passed: results.filter((result) => result.status === "passed").length,
 		failed: results.filter((result) => result.status === "failed").length,
