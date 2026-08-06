@@ -149,6 +149,23 @@ describe("tool events", () => {
 		expect(parsed.result).toBe("exit 1");
 	});
 
+	it("ignores a duplicate tool.started for an already recorded call", () => {
+		const state = apply(
+			createCloudChatState(),
+			event("tool.started", {
+				toolCallId: "call-dup",
+				toolName: "bash",
+				input: { command: "ls" },
+			}),
+			event("tool.started", {
+				toolCallId: "call-dup",
+				toolName: "bash",
+				input: { command: "ls" },
+			}),
+		);
+		expect(state.messages).toHaveLength(1);
+	});
+
 	it("starts a new assistant bubble after a tool call", () => {
 		const state = apply(
 			createCloudChatState(),

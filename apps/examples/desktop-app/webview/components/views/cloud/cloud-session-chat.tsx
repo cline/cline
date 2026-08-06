@@ -42,6 +42,26 @@ function toChatStatus(runStatus: CloudRunStatus): ChatSessionStatus {
 	}
 }
 
+function toChatTransportState(
+	state: CloudConnectionState,
+	expired: boolean,
+): "connecting" | "reconnecting" | "connected" | "unavailable" {
+	// An expired session renders a read-only archive; no transport indicator.
+	if (expired) {
+		return "connected";
+	}
+	switch (state) {
+		case "connected":
+			return "connected";
+		case "reconnecting":
+			return "reconnecting";
+		case "connecting":
+			return "connecting";
+		default:
+			return "unavailable";
+	}
+}
+
 function connectionLabel(state: CloudConnectionState): string {
 	switch (state) {
 		case "connected":
@@ -264,6 +284,7 @@ export function CloudSessionChat({
 					</div>
 				) : (
 					<ChatMessages
+						chatTransportState={toChatTransportState(connectionState, expired)}
 						error={chat.lastError}
 						messages={chat.messages}
 						onAnswerAskQuestion={() => {}}

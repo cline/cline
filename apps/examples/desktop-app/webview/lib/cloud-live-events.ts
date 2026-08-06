@@ -227,6 +227,14 @@ export function applyCloudSessionEvent(
 			const messageId = toolCallId
 				? `cloud_tool_${toolCallId}`
 				: nextMessageId("cloud_tool");
+			// Hub delivery is at-least-once across reconnects; a tool call we
+			// already recorded must not create a second row.
+			if (
+				toolCallId &&
+				state.messages.some((message) => message.id === messageId)
+			) {
+				return { ...state, streamingAssistantId: null };
+			}
 			// A tool call ends the current assistant text segment; the next
 			// delta starts a fresh bubble below the tool row.
 			const next: CloudChatState = { ...state, streamingAssistantId: null };

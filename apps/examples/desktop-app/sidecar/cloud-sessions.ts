@@ -549,6 +549,12 @@ class SandboxHubClient {
 type CloudConnection = {
 	remoteSessionId: string;
 	client: SandboxHubClient | null;
+	/**
+	 * In-flight open, shared by concurrent connect calls (e.g. React strict
+	 * mode double-hydration). Without this, racing connects each open their
+	 * own socket and the superseded one keeps broadcasting duplicate events.
+	 */
+	connectPromise: Promise<SandboxHubClient> | null;
 	state: CloudConnectionState;
 	/** The agent session running inside the sandbox (hub session id). */
 	agentSessionId: string | null;
@@ -610,6 +616,15 @@ async function openSandboxClient(
 		url: sandboxWsUrl(connection.remoteSessionId),
 		authToken: token,
 		onEvent: (event) => {
+			// A superseded client (replaced after a reconnect) may still deliver
+			// buffered frames; dropping them prevents duplicate chat messages.
+			if (
+				connection.disposed ||
+				client.closedByClient ||
+				(connection.client !== null && connection.client !== client)
+			) {
+				return;
+			}
 			// The newest agent session inside the sandbox owns the conversation;
 			// remember it so later prompts steer the same session.
 			if (event.sessionId && !connection.agentSessionId) {
@@ -632,6 +647,34 @@ async function openSandboxClient(
 	return client;
 }
 
+/**
+ * Returns the open hub client for this connection, opening one if needed.
+ * Concurrent callers share a single in-flight open so the sandbox never ends
+ * up with more than one live client per connection.
+ */
+function ensureSandboxClient(
+	ctx: SidecarContext,
+	connection: CloudConnection,
+): Promise<SandboxHubClient> {
+	if (connection.client?.isOpen()) {
+		return Promise.resolve(connection.client);
+	}
+	if (!connection.connectPromise) {
+		connection.connectPromise = (async () => {
+			// Drop any stale half-open client before replacing it.
+			connection.client?.close();
+			connection.client = null;
+			const client = await openSandboxClient(ctx, connection);
+			connection.client = client;
+			connection.reconnectAttempt = 0;
+			return client;
+		})().finally(() => {
+			connection.connectPromise = null;
+		});
+	}
+	return connection.connectPromise;
+}
+
 function scheduleSandboxReconnect(
 	ctx: SidecarContext,
 	connection: CloudConnection,
@@ -652,9 +695,7 @@ function scheduleSandboxReconnect(
 		}
 		void (async () => {
 			try {
-				const client = await openSandboxClient(ctx, connection);
-				connection.client = client;
-				connection.reconnectAttempt = 0;
+				await ensureSandboxClient(ctx, connection);
 				broadcastConnectionState(ctx, connection, "connected");
 				// Re-hydrate after the gap: events sent while disconnected were
 				// missed, so the webview refetches the transcript snapshot.
@@ -683,6 +724,7 @@ async function connectCloudSession(
 		connection = {
 			remoteSessionId,
 			client: null,
+			connectPromise: null,
 			state: "connecting",
 			agentSessionId: null,
 			reconnectAttempt: 0,
@@ -694,8 +736,7 @@ async function connectCloudSession(
 	if (!connection.client?.isOpen()) {
 		broadcastConnectionState(ctx, connection, "connecting");
 		try {
-			connection.client = await openSandboxClient(ctx, connection);
-			connection.reconnectAttempt = 0;
+			await ensureSandboxClient(ctx, connection);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			broadcastConnectionState(ctx, connection, "error", message);
