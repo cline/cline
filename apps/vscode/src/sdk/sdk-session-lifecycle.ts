@@ -6,7 +6,7 @@ import type {
 	RestoreResult,
 	StartSessionResult,
 } from "@cline/core"
-import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import { formatMcpToolsUpdatedNotice, formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -52,6 +52,11 @@ export interface SdkSessionLifecycleOptions {
 	 * message. Consumed exactly once; null when no switch is pending.
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
+	/**
+	 * Returns (and clears) a pending MCP tools-updated notice so the next send
+	 * carries <mcp_tools_notice> for the model (hidden from chat display).
+	 */
+	consumeMcpToolsNotice?: (sessionId: string) => string | null
 	onDidBecomeIdle?: () => void
 }
 
@@ -379,14 +384,19 @@ export class SdkSessionLifecycle {
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
 			return true
 		}
-		// Mark a preceding user-initiated mode switch on this message so the model
-		// sees exactly when the rules changed, instead of only inferring it from
-		// the user_input mode attribute flipping (mirrors the CLI's
-		// run-interactive stamping). The notice survives prepareTurnInput's
-		// normalizeUserInput sanitize and is hidden from display surfaces by
+		// Mark a preceding user-initiated mode switch / MCP tools update on this
+		// message so the model sees the change. Notices survive prepareTurnInput's
+		// normalizeUserInput sanitize and are hidden from display surfaces by
 		// stripModeNotices.
-		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
-		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
+		const modeNotice = this.options.consumeModeSwitchNotice?.(sessionId)
+		const mcpToolsNotice = this.options.consumeMcpToolsNotice?.(sessionId)
+		let noticedPrompt = prompt
+		if (modeNotice) {
+			noticedPrompt = `${formatModeSwitchNotice(modeNotice.from, modeNotice.to)}\n${noticedPrompt}`
+		}
+		if (mcpToolsNotice) {
+			noticedPrompt = `${formatMcpToolsUpdatedNotice(mcpToolsNotice)}\n${noticedPrompt}`
+		}
 		this.options.onSendStart?.(sessionId)
 		sdkHost
 			.send({

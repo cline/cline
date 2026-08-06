@@ -317,6 +317,7 @@ export {
 	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatMcpToolsUpdatedNotice,
 	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
@@ -324,6 +325,7 @@ export {
 	parseUserCommandEnvelope,
 	parseUserInputMode,
 	stripModeNotices,
+	summarizeConnectedMcpTools,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
