@@ -228,7 +228,7 @@ function WorkspacePicker({
 							variant="ghost"
 						>
 							<Plus className="size-3" />
-							{picking ? "Opening folder picker..." : "Add project..."}
+							{picking ? "Opening folder picker..." : "Open folder..."}
 						</Button>
 						<Button
 							className="w-full justify-start text-xs text-muted-foreground"
@@ -285,8 +285,7 @@ function BranchPicker({
 		};
 	}, [open, onListGitBranches]);
 
-	const hasGit = currentBranch !== "no-git";
-	const branchLabel = hasGit ? currentBranch : "No branch";
+	const branchLabel = currentBranch;
 
 	const filteredBranches = branches.filter((branch) =>
 		branch.toLowerCase().includes(search.toLowerCase()),
@@ -427,7 +426,9 @@ export function WelcomeWorkspaceControls({
 				workspaceRoot={workspaceRoot}
 				workspaces={workspaces}
 			/>
-			{!isChatWorkspace ? (
+			{/* Git is a developer affordance: a plain (non-git) folder gets no
+			    branch chrome at all instead of a confusing "No branch" chip. */}
+			{!isChatWorkspace && currentBranch !== "no-git" ? (
 				<BranchPicker
 					currentBranch={currentBranch}
 					onClose={() => setOpenMenu(null)}
