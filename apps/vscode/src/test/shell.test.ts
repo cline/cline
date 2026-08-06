@@ -193,10 +193,43 @@ describe("Shell Detection Tests", () => {
 			expect(getShellForProfile("powershell-7")).to.equal(storePwsh)
 		})
 
-		it("falls back to legacy PowerShell if profile includes 'powershell' but no path/source", () => {
+		it("falls back to legacy PowerShell if profile includes 'powershell' but no path/source, and pwsh is not installed", () => {
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: {},
 			})
+			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+		})
+
+		it("detects installed pwsh 7 for an auto-detected PowerShell profile absent from profiles.windows", () => {
+			// "Terminal: Select Default Profile" only writes defaultProfile.windows;
+			// an auto-detected profile the user never explicitly configured has no
+			// entry in profiles.windows at all.
+			process.env.ProgramW6432 = "C:\\Program Files"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "PowerShell 7", {})
+			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("detects Store-installed pwsh for an auto-detected 'PowerShell' profile absent from profiles.windows", () => {
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			lstatSyncImpl = ((candidate: actualFs.PathLike) => {
+				if (candidate !== storePwsh) {
+					throw new Error("ENOENT")
+				}
+				return { isSymbolicLink: () => true } as actualFs.Stats
+			}) as typeof actualFs.lstatSync
+			mockVsCodeConfig("windows", "PowerShell", {})
+			expect(getShell()).to.equal(storePwsh)
+		})
+
+		it("honors an explicit 'Windows PowerShell' default even when pwsh 7 is installed", () => {
+			process.env.ProgramW6432 = "C:\\Program Files"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Windows PowerShell", {})
 			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
 		})
 

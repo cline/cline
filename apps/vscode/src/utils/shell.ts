@@ -196,8 +196,18 @@ function getWindowsShellFromVSCode(): string | null {
 			// PowerShell 7 was installed to the MSI path.
 			return getWindowsDefaultShell()
 		}
-		// Otherwise, assume legacy Windows PowerShell
-		return SHELL_PATHS.POWERSHELL_LEGACY
+		if (defaultProfileName.toLowerCase().includes("windows powershell")) {
+			// The name explicitly names the legacy 5.1 build; honor that
+			// deliberate choice rather than upgrading it.
+			return SHELL_PATHS.POWERSHELL_LEGACY
+		}
+		// No path or source to go on. This is the common case for an
+		// auto-detected profile (e.g. "PowerShell 7", "PowerShell") that the
+		// user picked via "Select Default Profile" but never explicitly
+		// configured — VS Code doesn't write those into profiles.windows.
+		// Mirror VS Code's own default-terminal detection instead of
+		// assuming legacy PowerShell.
+		return getWindowsDefaultShell()
 	}
 
 	// If there's a specific path, return that immediately
