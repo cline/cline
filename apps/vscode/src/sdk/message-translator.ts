@@ -46,6 +46,7 @@ import type {
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
+import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
@@ -152,6 +153,7 @@ export class MessageTranslatorState {
 		private readonly getActiveProviderId?: () => string | undefined,
 		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
 		private readonly getCwd?: () => string | undefined,
+		private readonly getActiveModelId?: () => string | undefined,
 	) {
 		this.minter = minter
 	}
@@ -159,6 +161,11 @@ export class MessageTranslatorState {
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
+	}
+
+	/** Model backing the active turn, if the host can supply it. */
+	activeModelId(): string | undefined {
+		return this.getActiveModelId?.()
 	}
 
 	/**
@@ -1909,7 +1916,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// `code: "insufficient_credits"`). We try to reshape it into the
 			// ClineError-serialized format the webview expects so that ErrorRow
 			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId())
+			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces
@@ -2530,13 +2537,34 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
  * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
  * info from the error message when present and falling back to raw text.
  */
-export function reshapeErrorForWebview(error: { message?: string; status?: number; code?: string }, providerId?: string): string {
+export function reshapeErrorForWebview(
+	error: { message?: string; status?: number; code?: string },
+	providerId?: string,
+	modelId?: string,
+): string {
 	// The ClineError-JSON branches below are cline-provider flows (balance,
 	// spend limit), so "cline" stays their fallback id. The missing-credential
 	// message instead gets the raw value: defaulting there would name the wrong
 	// provider when the active provider id is unknown.
 	const clineErrorProviderId = providerId ?? "cline"
 	const rawMessage = error.message ?? "Unknown error"
+
+	// A retired cline-free/ model answers "model not found" once its free
+	// promotion ends and the id is removed from the catalog. Stamp the payload
+	// with a dedicated code so the webview renders the promotion-ended card
+	// instead of the generic model-not-found guidance below.
+	if (isClineFreePromotionEndedMessage(rawMessage, modelId)) {
+		return JSON.stringify({
+			message: rawMessage,
+			code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+			providerId: clineErrorProviderId,
+			modelId,
+			details: {
+				code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+				message: rawMessage,
+			},
+		})
+	}
 
 	// Try to extract structured error info from the error message.
 	// The SDK often wraps API error JSON in the Error.message field.
