@@ -281,7 +281,11 @@ async function simulateRun(sandbox: Sandbox, prompt: string): Promise<void> {
 		}
 		agent.status = "idle";
 		agent.run = null;
-		broadcast(sandbox, status === "completed" ? "run.completed" : "run.aborted", {});
+		broadcast(
+			sandbox,
+			status === "completed" ? "run.completed" : "run.aborted",
+			{},
+		);
 	};
 	const recordTool = (
 		toolCallId: string,
@@ -601,7 +605,9 @@ const server = Bun.serve<SocketData, string>({
 				createdAt: now.toISOString(),
 				updatedAt: now.toISOString(),
 				expiredAt: new Date(now.getTime() + 24 * 3600 * 1000).toISOString(),
-				organizationId: body.organizationId ? String(body.organizationId) : null,
+				organizationId: body.organizationId
+					? String(body.organizationId)
+					: null,
 				origin: "desktop",
 				metadata: { modelId: String(body.modelId ?? "") },
 				repoContext: { repoUrl: String(body.repoUrl ?? "") },
