@@ -2,7 +2,7 @@ import { describe, it } from "mocha"
 import "should"
 import type { ModelInfo } from "@shared/api"
 import sinon from "sinon"
-import { createOpenRouterStream } from "../openrouter-stream"
+import { createOpenRouterStream, IMAGE_UNSUPPORTED_PLACEHOLDER } from "../openrouter-stream"
 
 describe("createOpenRouterStream", () => {
 	const createAsyncIterable = () => ({
@@ -28,6 +28,80 @@ describe("createOpenRouterStream", () => {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+	})
+
+	const image = {
+		type: "image" as const,
+		source: { type: "base64" as const, media_type: "image/png" as const, data: "aW1hZ2U=" },
+	}
+
+	it("replaces historical user and tool-result images for known text-only models", async () => {
+		const { client, create } = createClient()
+		const messages = [
+			{ role: "user", content: [{ type: "text", text: "look" }, image] },
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "tool_1", content: [{ type: "text", text: "read" }, image] }],
+			},
+		] as any
+		const snapshot = structuredClone(messages)
+
+		await createOpenRouterStream(client as any, "system prompt", messages, {
+			id: "deepseek/deepseek-v4-flash",
+			info: { ...createModelInfo(8_192), supportsImages: false },
+		})
+
+		const serialized = JSON.stringify(create.firstCall.args[0].messages)
+		serialized.includes("image_url").should.be.false()
+		serialized.includes(image.source.data).should.be.false()
+		serialized.includes(IMAGE_UNSUPPORTED_PLACEHOLDER).should.be.true()
+		messages.should.deepEqual(snapshot)
+	})
+
+	it("keeps images for image-capable and unknown models", async () => {
+		for (const supportsImages of [true, undefined]) {
+			const { client, create } = createClient()
+
+			await createOpenRouterStream(
+				client as any,
+				"system prompt",
+				[{ role: "user", content: [image] }] as any,
+				{
+					id: "openai/gpt-4o",
+					info: { ...createModelInfo(8_192), supportsImages },
+				},
+			)
+
+			const serialized = JSON.stringify(create.firstCall.args[0].messages)
+			serialized.includes("image_url").should.be.true()
+			serialized.includes(image.source.data).should.be.true()
+			serialized.includes(IMAGE_UNSUPPORTED_PLACEHOLDER).should.be.false()
+		}
+	})
+
+	it("preserves substituted tool-result context for known text-only R1 models", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "tool_1", content: [{ type: "text", text: "read" }, image] }],
+				},
+			] as any,
+			{
+				id: "deepseek/deepseek-r1",
+				info: { ...createModelInfo(8_192), supportsImages: false },
+			},
+		)
+
+		const serialized = JSON.stringify(create.firstCall.args[0].messages)
+		serialized.includes("read").should.be.true()
+		serialized.includes(IMAGE_UNSUPPORTED_PLACEHOLDER).should.be.true()
+		serialized.includes("image_url").should.be.false()
+		serialized.includes(image.source.data).should.be.false()
 	})
 
 	it("caps Gemini Flash OpenRouter requests to 8192 max_tokens", async () => {
