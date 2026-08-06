@@ -2,10 +2,14 @@ import type { Provider } from "@/lib/provider-schema";
 
 /**
  * Whether a provider from the catalog is usable for turns, for the purpose
- * of the first-run "connect a model" notice. Beyond plain API keys and
- * OAuth, structured-config providers (Bedrock, Vertex) count once every
- * required field is filled, and keyless providers (local endpoints like
- * Ollama) count once the user has deliberately enabled them.
+ * of the first-run "connect a model" notice. Plain API keys and OAuth are
+ * definitive. Beyond those, an enabled provider counts as connected unless
+ * a *required* config field is unmet: `enabled` means the user deliberately
+ * persisted settings for it, and its credentials may legitimately live
+ * outside the catalog (Bedrock IAM/profile auth, env-var keys, keyless
+ * local endpoints like Ollama), so an empty optional API-key field must not
+ * disqualify it. A brand-new user has no enabled providers, so the notice
+ * still shows for them.
  */
 export function isProviderConnected(provider: Provider): boolean {
 	if (provider.apiKey?.trim()) {
@@ -17,18 +21,14 @@ export function isProviderConnected(provider: Provider): boolean {
 	if (!provider.enabled) {
 		return false;
 	}
-	const fields = provider.configFields ?? [];
-	const requiredFields = fields.filter((field) => field.required);
-	if (requiredFields.length > 0) {
-		return requiredFields.every((field) => {
-			const value = provider.configValues?.[field.path];
-			if (value === null || value === undefined) {
-				return false;
-			}
-			return String(value).trim() !== "";
-		});
-	}
-	// No required fields: keyless providers are connected once enabled, but
-	// an enabled provider with an (optional) empty API key field is not.
-	return !fields.some((field) => field.path === "apiKey");
+	const requiredFields = (provider.configFields ?? []).filter(
+		(field) => field.required,
+	);
+	return requiredFields.every((field) => {
+		const value = provider.configValues?.[field.path];
+		if (value === null || value === undefined) {
+			return false;
+		}
+		return String(value).trim() !== "";
+	});
 }
