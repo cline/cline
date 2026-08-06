@@ -438,6 +438,16 @@ export default function Home() {
 	);
 }
 
+// "+ new chat" remounts ChatThreadPane with a fresh thread id, and the pane
+// blocks on the provider catalog (a large fetch) before rendering anything.
+// Seed remounts from the last successful load so only the first-ever mount
+// shows the boot spinner; the effect still refreshes in the background.
+let providerCatalogSnapshot: {
+	credentials: Record<string, { apiKey: string }>;
+	contextWindows: Record<string, Record<string, number>>;
+} | null = null;
+let workspacesLoadedOnce = false;
+
 function ChatThreadPane({
 	threadId,
 	historySession,
@@ -527,10 +537,14 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState("no-git");
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
-	>({});
+	>(() => providerCatalogSnapshot?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
-		useState<Record<string, Record<string, number>>>({});
-	const [providersLoaded, setProvidersLoaded] = useState(false);
+		useState<Record<string, Record<string, number>>>(
+			() => providerCatalogSnapshot?.contextWindows ?? {},
+		);
+	const [providersLoaded, setProvidersLoaded] = useState(
+		() => providerCatalogSnapshot !== null,
+	);
 	// History paths lead each merge: they are ordered by session recency, so
 	// stored or stale entries only append after them.
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
@@ -541,7 +555,9 @@ function ChatThreadPane({
 			),
 		),
 	);
-	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
+	const [workspacesLoaded, setWorkspacesLoaded] = useState(
+		() => workspacesLoadedOnce,
+	);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
@@ -609,6 +625,10 @@ function ChatThreadPane({
 					}
 					nextContextWindows[id] = contextWindows;
 				}
+				providerCatalogSnapshot = {
+					credentials: next,
+					contextWindows: nextContextWindows,
+				};
 				setProviderCredentials(next);
 				setProviderModelContextWindows(nextContextWindows);
 			} catch {
@@ -753,6 +773,7 @@ function ChatThreadPane({
 						: merged;
 				});
 			} finally {
+				workspacesLoadedOnce = true;
 				setWorkspacesLoaded(true);
 			}
 		},
