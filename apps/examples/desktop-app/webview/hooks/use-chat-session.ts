@@ -178,23 +178,95 @@ function mergeHydratedMessagesWithLive(options: {
 	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
 }
 
-function mergeReconnectSnapshotWithLive(
+type CloudOptimisticState = {
+	sessionId: string;
+	state: "pending" | "failed";
+};
+
+function userMessageCounts(messages: ChatMessage[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const message of messages) {
+		if (message.role !== "user") continue;
+		counts.set(message.content, (counts.get(message.content) ?? 0) + 1);
+	}
+	return counts;
+}
+
+export function mergeCloudSnapshotWithLive(
 	hydrated: ChatMessage[],
 	current: ChatMessage[],
+	options: {
+		sessionId: string;
+		transcriptKnown: boolean;
+		previousUserCounts: Map<string, number>;
+		optimisticStates: Map<string, CloudOptimisticState>;
+		preserveUnmatchedLive?: boolean;
+	},
 ): ChatMessage[] {
 	const hydratedKeyCounts = new Map<string, number>();
 	for (const message of hydrated) {
 		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
 		hydratedKeyCounts.set(key, (hydratedKeyCounts.get(key) ?? 0) + 1);
 	}
-	const liveOnly = current.filter((message) => {
+	const hydratedAssistantTexts = hydrated
+		.filter((message) => message.role === "assistant" && message.content)
+		.map((message) => message.content);
+	const liveOnly: ChatMessage[] = [];
+	const optimistic: ChatMessage[] = [];
+	for (const message of current) {
+		const optimisticState = options.optimisticStates.get(message.id);
+		if (
+			message.role === "user" &&
+			optimisticState?.sessionId === options.sessionId
+		) {
+			optimistic.push(message);
+			continue;
+		}
 		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
 		const hydratedCount = hydratedKeyCounts.get(key) ?? 0;
-		if (hydratedCount === 0) return true;
-		if (hydratedCount === 1) hydratedKeyCounts.delete(key);
-		else hydratedKeyCounts.set(key, hydratedCount - 1);
-		return false;
-	});
+		if (hydratedCount > 0) {
+			if (hydratedCount === 1) hydratedKeyCounts.delete(key);
+			else hydratedKeyCounts.set(key, hydratedCount - 1);
+			continue;
+		}
+		if (
+			message.role === "assistant" &&
+			message.content &&
+			hydratedAssistantTexts.some((text) => text.includes(message.content))
+		) {
+			continue;
+		}
+		if (options.preserveUnmatchedLive === false) continue;
+		liveOnly.push(message);
+	}
+
+	const currentUserCounts = userMessageCounts(hydrated);
+	const reflectedPromptBudget = new Map<string, number>();
+	for (const [content, count] of currentUserCounts) {
+		reflectedPromptBudget.set(
+			content,
+			options.transcriptKnown
+				? Math.max(0, count - (options.previousUserCounts.get(content) ?? 0))
+				: count,
+		);
+	}
+	// Pending optimistic bubbles reconcile by count delta, not text existence:
+	// two identical prompts are two messages. Failed bubbles are deliberately
+	// retained, especially on the first authoritative hydrate.
+	for (const message of optimistic) {
+		const optimisticState = options.optimisticStates.get(message.id);
+		const budget = reflectedPromptBudget.get(message.content) ?? 0;
+		if (
+			options.transcriptKnown &&
+			optimisticState?.state === "pending" &&
+			budget > 0
+		) {
+			reflectedPromptBudget.set(message.content, budget - 1);
+			options.optimisticStates.delete(message.id);
+			continue;
+		}
+		liveOnly.push(message);
+	}
 	return sliceMessages(sortMessagesChronologically([...hydrated, ...liveOnly]));
 }
 
@@ -332,6 +404,13 @@ export function useChatSession() {
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
 	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
+	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
+		new Map(),
+	);
+	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
+	const cloudTranscriptUserCountsRef = useRef<
+		Record<string, Map<string, number>>
+	>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -1290,7 +1369,12 @@ export function useChatSession() {
 			"cloud_session_rehydrated",
 			(payload) => {
 				if (!payload || typeof payload !== "object") return;
-				const record = payload as { sessionId?: string; status?: string };
+				const record = payload as {
+					sessionId?: string;
+					status?: string;
+					messages?: ChatMessage[];
+					transcriptKnown?: boolean;
+				};
 				const targetSessionId = record.sessionId?.trim();
 				if (
 					!targetSessionId ||
@@ -1298,39 +1382,70 @@ export function useChatSession() {
 				) {
 					return;
 				}
+				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
+					if (activeSessionIdRef.current !== targetSessionId) return;
+					const nextStatus = record.status?.trim();
+					const previousUserCounts =
+						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
+					const transcriptKnown =
+						cloudTranscriptKnownRef.current[targetSessionId] === true;
+					setMessages((current) =>
+						mergeCloudSnapshotWithLive(rehydratedMessages, current, {
+							sessionId: targetSessionId,
+							transcriptKnown,
+							previousUserCounts,
+							optimisticStates: cloudOptimisticStatesRef.current,
+							preserveUnmatchedLive:
+								nextStatus === "running" || nextStatus === "pending",
+						}),
+					);
+					cloudTranscriptUserCountsRef.current[targetSessionId] =
+						userMessageCounts(rehydratedMessages);
+					cloudTranscriptKnownRef.current[targetSessionId] =
+						record.transcriptKnown !== false;
+					clearLiveToolRefs();
+					if (nextStatus === "failed" || nextStatus === "error") {
+						setStatus("failed");
+					} else if (nextStatus === "aborted") {
+						setStatus("cancelled");
+					} else if (nextStatus === "running" || nextStatus === "pending") {
+						setStatus("running");
+					} else if (nextStatus === "idle" || nextStatus === "ready") {
+						setStatus("idle");
+					} else {
+						setStatus("completed");
+					}
+				};
+				if (Array.isArray(record.messages)) {
+					applySnapshot(record.messages);
+					return;
+				}
 				void desktopClient
 					.invoke<ChatMessage[]>("read_session_messages", {
 						sessionId: targetSessionId,
 						maxMessages: MAX_MESSAGES,
 					})
-					.then((rehydratedMessages) => {
-						if (activeSessionIdRef.current !== targetSessionId) return;
-						const nextStatus = record.status?.trim();
-						setMessages((current) =>
-							nextStatus === "running" || nextStatus === "pending"
-								? mergeReconnectSnapshotWithLive(rehydratedMessages, current)
-								: rehydratedMessages,
-						);
-						clearLiveToolRefs();
-						if (nextStatus === "failed" || nextStatus === "error") {
-							setStatus("failed");
-						} else if (nextStatus === "aborted") {
-							setStatus("cancelled");
-						} else if (nextStatus === "running" || nextStatus === "pending") {
-							setStatus("running");
-						} else if (nextStatus === "idle" || nextStatus === "ready") {
-							setStatus("idle");
-						} else {
-							setStatus("completed");
-						}
-					})
+					.then(applySnapshot)
 					.catch((error) => setError(errorMessage(error)));
+			},
+		);
+		const unsubscribeSyncFailed = desktopClient.subscribe(
+			"cloud_session_sync_failed",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as { sessionId?: string; message?: string };
+				if (record.sessionId?.trim() !== activeSessionIdRef.current) return;
+				setError(
+					record.message?.trim() ||
+						"Cloud session history could not be refreshed. Live updates are still connected.",
+				);
 			},
 		);
 		return () => {
 			unsubscribeStatus();
 			unsubscribeEnded();
 			unsubscribeRehydrated();
+			unsubscribeSyncFailed();
 		};
 	}, [clearLiveToolRefs]);
 
@@ -1500,9 +1615,22 @@ export function useChatSession() {
 				: null;
 			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
+			const markCloudOptimisticFailed = () => {
+				if (!optimisticUserMessageId) return;
+				const cloudOptimistic = cloudOptimisticStatesRef.current.get(
+					optimisticUserMessageId,
+				);
+				if (cloudOptimistic) cloudOptimistic.state = "failed";
+			};
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
+				if (parsed.executionTarget === "cloud") {
+					cloudOptimisticStatesRef.current.set(optimisticUserMessageId, {
+						sessionId: plannedSessionId,
+						state: "pending",
+					});
+				}
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1537,6 +1665,7 @@ export function useChatSession() {
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
 							);
 						}
+						markCloudOptimisticFailed();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1556,6 +1685,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
+						markCloudOptimisticFailed();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1581,6 +1711,7 @@ export function useChatSession() {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
+						markCloudOptimisticFailed();
 						setErrorState(errorMessage(err));
 						finishPromptSubmission();
 						return;
@@ -1590,8 +1721,17 @@ export function useChatSession() {
 						}
 					}
 				}
+				if (optimisticUserMessageId) {
+					const cloudOptimistic = cloudOptimisticStatesRef.current.get(
+						optimisticUserMessageId,
+					);
+					if (cloudOptimistic) {
+						cloudOptimistic.sessionId = activeSessionId;
+					}
+				}
 				const serializedAttachmentsResult = await serializedAttachmentsTask;
 				if (!serializedAttachmentsResult.ok) {
+					markCloudOptimisticFailed();
 					setErrorState(
 						errorMessage(serializedAttachmentsResult.error),
 						activeSessionId,
@@ -1872,6 +2012,7 @@ export function useChatSession() {
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
 					);
 				}
+				markCloudOptimisticFailed();
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
 				clearAbortFallbackTimeout();
@@ -2118,12 +2259,28 @@ export function useChatSession() {
 				sessionStatus: typeof session.status,
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
-				const mergedMessages = mergeHydratedMessagesWithLive({
-					hydrated: msgs,
-					current: messagesRef.current,
-					sessionId: session.sessionId,
-					hydrationStartedAt,
-				});
+				const mergedMessages =
+					session.origin === "cloud"
+						? mergeCloudSnapshotWithLive(msgs, messagesRef.current, {
+								sessionId: session.sessionId,
+								transcriptKnown:
+									cloudTranscriptKnownRef.current[session.sessionId] === true,
+								previousUserCounts:
+									cloudTranscriptUserCountsRef.current[session.sessionId] ??
+									new Map(),
+								optimisticStates: cloudOptimisticStatesRef.current,
+							})
+						: mergeHydratedMessagesWithLive({
+								hydrated: msgs,
+								current: messagesRef.current,
+								sessionId: session.sessionId,
+								hydrationStartedAt,
+							});
+				if (session.origin === "cloud") {
+					cloudTranscriptUserCountsRef.current[session.sessionId] =
+						userMessageCounts(msgs);
+					cloudTranscriptKnownRef.current[session.sessionId] = true;
+				}
 				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();

@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useChatSession } from "./use-chat-session";
+import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -24,6 +24,93 @@ vi.mock("@/lib/desktop-client", () => ({
 }));
 
 type ChatSessionHook = ReturnType<typeof useChatSession>;
+
+describe("mergeCloudSnapshotWithLive", () => {
+	const message = (
+		id: string,
+		role: "user" | "assistant",
+		content: string,
+		createdAt: number,
+	) => ({ id, sessionId: "ses-cloud", role, content, createdAt });
+
+	it("reconciles identical optimistic prompts by authoritative count delta", () => {
+		const optimisticStates = new Map([
+			["optimistic-2", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				message("saved-1", "user", "same prompt", 1),
+				message("saved-2", "user", "same prompt", 3),
+			],
+			[
+				message("saved-1", "user", "same prompt", 1),
+				message("optimistic-2", "user", "same prompt", 2),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map([["same prompt", 1]]),
+				optimisticStates,
+			},
+		);
+
+		expect(
+			merged.filter((item) => item.content === "same prompt"),
+		).toHaveLength(2);
+		expect(optimisticStates.has("optimistic-2")).toBe(false);
+	});
+
+	it("keeps a failed optimistic prompt during the first hydrate", () => {
+		const optimisticStates = new Map([
+			["failed-prompt", { sessionId: "ses-cloud", state: "failed" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[message("older", "user", "repeat", 1)],
+			[message("failed-prompt", "user", "repeat", 2)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: false,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["older", "failed-prompt"]);
+	});
+
+	it("does not consume a pending prompt before a transcript baseline exists", () => {
+		const optimisticStates = new Map([
+			["pending-prompt", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[message("older", "user", "repeat", 1)],
+			[message("pending-prompt", "user", "repeat", 2)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: false,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["older", "pending-prompt"]);
+	});
+
+	it("drops an earlier partial assistant message included by the snapshot", () => {
+		const merged = mergeCloudSnapshotWithLive(
+			[message("saved", "assistant", "the complete answer", 2)],
+			[message("partial", "assistant", "the complete", 1)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates: new Map(),
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["saved"]);
+	});
+});
 
 let container: HTMLDivElement;
 let root: Root;

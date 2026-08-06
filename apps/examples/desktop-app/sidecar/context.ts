@@ -496,6 +496,7 @@ export async function disposeSidecarContext(
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
 	const cleanup: Array<Promise<unknown>> = [];
+	const approvalCleanup: Array<Promise<unknown>> = [];
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
@@ -514,7 +515,14 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
-		pending.resolve({ approved: false, reason });
+		try {
+			approvalCleanup.push(
+				Promise.resolve(pending.resolve({ approved: false, reason })),
+			);
+		} catch (error) {
+			// Keep disposing the remaining resources, then preserve the failure.
+			approvalCleanup.push(Promise.reject(error));
+		}
 	}
 	ctx.pendingApprovals.clear();
 	for (const pending of ctx.pendingQuestions.values()) {
@@ -522,6 +530,8 @@ export async function disposeSidecarContext(
 		pending.reject(new Error(reason));
 	}
 	ctx.pendingQuestions.clear();
+	// Approval callbacks may need the Hub/cloud clients that are disposed below.
+	const approvalResults = await Promise.allSettled(approvalCleanup);
 
 	const cloudSessionManager = ctx.cloudSessionManager;
 	ctx.cloudSessionManager = null;
@@ -541,7 +551,7 @@ export async function disposeSidecarContext(
 		cleanup.push(sessionManager.dispose(reason));
 	}
 
-	const results = await Promise.allSettled(cleanup);
+	const results = [...approvalResults, ...(await Promise.allSettled(cleanup))];
 	const firstFailure = results.find(
 		(result): result is PromiseRejectedResult => result.status === "rejected",
 	);

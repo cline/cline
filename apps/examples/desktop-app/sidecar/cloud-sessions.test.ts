@@ -8,6 +8,7 @@ import {
 	CloudSessionManager,
 	type CloudSessionRecord,
 	cloudSessionToDiscoveryRecord,
+	reconcileBufferedCloudEvents,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import type { SidecarContext } from "./types";
@@ -63,6 +64,19 @@ class FakeHubClient {
 	events?: (event: HubEventEnvelope) => void;
 	disposed = false;
 	failNextSend = false;
+	onFailedSend?: () => void;
+	commandHook?: (command: string) => void | Promise<void>;
+	invalidMessagesSnapshot = false;
+	messages: unknown[] = [{ role: "user", content: "hi" }];
+	prompts: Array<Record<string, unknown>> = [
+		{
+			id: "q-1",
+			prompt: "queued prompt",
+			delivery: "queue",
+			attachmentCount: 0,
+		},
+	];
+	pendingApprovals: Array<Record<string, unknown>> = [];
 	readonly commands: Array<{
 		command: string;
 		payload?: Record<string, unknown>;
@@ -95,8 +109,10 @@ class FakeHubClient {
 		payload?: Record<string, unknown>;
 	}> {
 		this.commands.push({ command, payload, sessionId, options });
+		await this.commandHook?.(command);
 		if (command === "session.send_input" && this.failNextSend) {
 			this.failNextSend = false;
+			this.onFailedSend?.();
 			throw new HubTransportError("hub_connection_closed", "socket closed");
 		}
 		if (command === "session.list") {
@@ -115,6 +131,12 @@ class FakeHubClient {
 				payload: { session: { sessionId: "inner-created" } },
 			};
 		}
+		if (command === "approval.list_pending") {
+			return {
+				ok: true,
+				payload: { approvals: this.pendingApprovals },
+			};
+		}
 		if (
 			command === "session.pending_prompts" ||
 			command === "session.update_pending_prompt" ||
@@ -125,24 +147,22 @@ class FakeHubClient {
 				payload: {
 					updated: command === "session.update_pending_prompt",
 					removed: command === "session.remove_pending_prompt",
-					prompts: [
-						{
-							id: "q-1",
-							prompt: "queued prompt",
-							delivery:
-								command === "session.update_pending_prompt"
-									? (payload?.delivery ?? "queue")
-									: "queue",
-							attachmentCount: 0,
-						},
-					],
+					prompts: this.prompts.map((item) => ({
+						...item,
+						delivery:
+							command === "session.update_pending_prompt"
+								? (payload?.delivery ?? "queue")
+								: item.delivery,
+					})),
 				},
 			};
 		}
 		if (command === "session.messages") {
 			return {
 				ok: true,
-				payload: { messages: [{ role: "user", content: "hi" }] },
+				payload: this.invalidMessagesSnapshot
+					? { messages: "invalid" }
+					: { messages: this.messages },
 			};
 		}
 		return { ok: true, payload: {} };
@@ -458,6 +478,91 @@ describe("cloud agents feature flag", () => {
 	});
 });
 
+describe("reconcileBufferedCloudEvents", () => {
+	const event = (
+		name: HubEventEnvelope["event"],
+		id: string,
+		payload: Record<string, unknown> = {},
+	): HubEventEnvelope => ({
+		version: "v1",
+		event: name,
+		eventId: id,
+		timestamp: Date.now(),
+		sessionId: "inner-1",
+		payload,
+	});
+
+	it("replays content the snapshot does NOT contain", () => {
+		// The safety-critical direction: an unreflected buffered turn must
+		// never be dropped, or a whole reply silently vanishes.
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "unpersisted reply" }),
+			event("run.completed", "done-1"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "a completely different answer" },
+			]).map((item) => item.event),
+		).toEqual(["assistant.delta", "run.completed"]);
+	});
+
+	it("supersedes despite trailing whitespace in the streamed text", () => {
+		const buffered = [
+			event("assistant.finished", "f-1", { text: "the answer \n" }),
+			event("run.completed", "done-1"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "prefix the answer" },
+			]).map((item) => item.event),
+		).toEqual(["run.completed"]);
+	});
+
+	it("always drops buffered queue snapshots (older than the synced queue)", () => {
+		const buffered = [
+			event("session.pending_prompts", "q-1", { prompts: [] }),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, []).map((item) => item.event),
+		).toEqual(["assistant.delta"]);
+	});
+
+	it("supersedes content independently across two terminal run segments", () => {
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "first tail" }),
+			event("run.completed", "done-1"),
+			event("assistant.delta", "a-2", { text: "second tail" }),
+			event("run.completed", "done-2"),
+		];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "prefix first tail" },
+				{ role: "assistant", content: "prefix second tail" },
+			]).map((item) => item.event),
+		).toEqual(["run.completed", "run.completed"]);
+	});
+
+	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "partial failure" }),
+			event("tool.started", "tool-1", { toolCallId: "call-1" }),
+			event("run.failed", "failed-1", { error: "boom" }),
+		];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "saved partial failure" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "call-1", name: "read_file" }],
+				},
+			]).map((item) => item.event),
+		).toEqual(["run.failed"]);
+	});
+});
+
 describe("CloudSessionManager", () => {
 	it("projects the outer remote-session id as the desktop session id", () => {
 		expect(
@@ -595,6 +700,36 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
+	it("drops replayed Hub events by eventId", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const replayed: HubEventEnvelope = {
+			version: "v1",
+			event: "assistant.delta",
+			eventId: "evt-replayed",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { text: "once" },
+		};
+
+		hub.events?.(replayed);
+		hub.events?.(replayed);
+
+		expect(
+			events.filter(
+				(item) => item.name === "chat_event" && item.payload.chunk === "once",
+			),
+		).toHaveLength(1);
+	});
+
 	it("resolves fresh bearer headers for each WebSocket connection attempt", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
@@ -634,6 +769,89 @@ describe("CloudSessionManager", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
+	});
+
+	it("queues one rerun when a second sync overlaps the active snapshot", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let releaseFirst!: () => void;
+		const firstBlocked = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let reachedFirst!: () => void;
+		const firstReached = new Promise<void>((resolve) => {
+			reachedFirst = resolve;
+		});
+		let messageReads = 0;
+		hub.commandHook = async (command) => {
+			if (command !== "session.messages") return;
+			messageReads += 1;
+			if (messageReads === 1) {
+				reachedFirst();
+				await firstBlocked;
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const first = manager.readMessages("ses-outer");
+		await firstReached;
+		const second = manager.readMessages("ses-outer");
+		releaseFirst();
+		await Promise.all([first, second]);
+
+		expect(messageReads).toBe(2);
+	});
+
+	it("retains the prior transcript and replays live events when a snapshot fails", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.invalidMessagesSnapshot = true;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const previous = [{ role: "assistant", content: "keep me" }];
+		const live = ctx.liveSessions.get("ses-outer");
+		if (live) live.messages = previous;
+		hub.commandHook = (command) => {
+			if (command !== "session.messages") return;
+			hub.events?.({
+				version: "v1",
+				event: "assistant.delta",
+				eventId: "evt-during-failed-sync",
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: { text: "still live" },
+			});
+		};
+
+		await expect(manager.readMessages("ses-outer")).rejects.toThrow(
+			/invalid transcript snapshot/i,
+		);
+		expect(ctx.liveSessions.get("ses-outer")?.messages).toBe(previous);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "chat_event",
+					payload: expect.objectContaining({
+						stream: "chat_text",
+						chunk: "still live",
+					}),
+				}),
+				expect.objectContaining({ name: "cloud_session_sync_failed" }),
+			]),
+		);
 	});
 
 	it("maps cloud approvals into the existing UI and responds on the inner id", async () => {
@@ -677,6 +895,54 @@ describe("CloudSessionManager", () => {
 			command: "approval.respond",
 			payload: { approvalId: "approval-1", approved: true },
 			sessionId: "inner-1",
+		});
+	});
+
+	it("restores pending cloud approvals when attaching after a missed event", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "approval-restored",
+				toolCallId: "tool-restored",
+				toolName: "write_to_file",
+				inputJson: '{"path":"README.md"}',
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		await manager.attach("ses-outer");
+
+		const pending = ctx.pendingApprovals.get("ses-outer:approval-restored");
+		expect(pending?.item).toMatchObject({
+			toolCallId: "tool-restored",
+			toolName: "write_to_file",
+			input: { path: "README.md" },
+		});
+		expect(events.at(-1)).toMatchObject({
+			name: "tool_approval_state",
+			payload: {
+				sessionId: "ses-outer",
+				items: [
+					expect.objectContaining({ requestId: "ses-outer:approval-restored" }),
+				],
+			},
+		});
+
+		await pending?.resolve({ approved: false, reason: "not now" });
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "approval.respond",
+			payload: {
+				approvalId: "approval-restored",
+				approved: false,
+				reason: "not now",
+			},
 		});
 	});
 
@@ -733,6 +999,60 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
+	it("confirms recovery when the pod stored the prompt in its user_input wrapper", async () => {
+		// Real pods persist prompts as <user_input mode="act">…</user_input>;
+		// unwrapped fixtures previously let a broken matcher pass every test.
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.failNextSend = true;
+		hub.onFailedSend = () => {
+			hub.messages.push({
+				role: "user",
+				content: '<user_input mode="act">Do this once</user_input>',
+			});
+		};
+
+		await expect(
+			manager.send("ses-outer", "Do this once"),
+		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
+	});
+
+	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
+		// Baseline must advance on delivered sends: without it, the first
+		// delivery's occurrence falsely confirms a second, genuinely lost send.
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await manager.send("ses-outer", "yes");
+		// The pod persisted the first send; the second is lost in transit.
+		hub.messages.push({
+			role: "user",
+			content: '<user_input mode="act">yes</user_input>',
+		});
+		hub.failNextSend = true;
+		hub.onFailedSend = () => {};
+
+		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
+			/please send it again/,
+		);
+	});
+
 	it("reattaches after a transport failure without retrying the prompt", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -745,6 +1065,9 @@ describe("CloudSessionManager", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 		hub.failNextSend = true;
+		hub.onFailedSend = () => {
+			hub.messages.push({ role: "user", content: "Do this once" });
+		};
 
 		await expect(
 			manager.send("ses-outer", "Do this once"),
@@ -756,12 +1079,64 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
-		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
+		expect(hub.commands.map((entry) => entry.command).slice(-5)).toEqual([
 			"session.attach",
 			"session.get",
 			"session.messages",
 			"session.pending_prompts",
+			"approval.list_pending",
 		]);
+	});
+
+	it("asks the user to resend when transport recovery cannot find the prompt", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.failNextSend = true;
+
+		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
+			/not found in the cloud session.*send it again/i,
+		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.send_input"),
+		).toHaveLength(1);
+	});
+
+	it("confirms a queued prompt from the recovered queue snapshot", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.failNextSend = true;
+		hub.onFailedSend = () => {
+			hub.prompts.push({
+				id: "q-2",
+				prompt: "Queued during disconnect",
+				delivery: "queue",
+				attachmentCount: 0,
+			});
+		};
+
+		await expect(
+			manager.send("ses-outer", "Queued during disconnect", "queue"),
+		).resolves.toMatchObject({
+			ok: true,
+			queued: true,
+			recoveredAfterDisconnect: true,
+		});
 	});
 
 	it("disposes the Hub connection before deleting the outer session", async () => {
@@ -1132,6 +1507,67 @@ describe("CloudSessionManager", () => {
 			placeholderId,
 			sessionId: "ses-created",
 		});
+	});
+
+	it("deletes a sandbox that finishes provisioning after the manager is disposed", async () => {
+		const { ctx } = createContext();
+		let finishCreate:
+			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| undefined;
+		const deleted: string[] = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: () =>
+					new Promise((resolve) => {
+						finishCreate = resolve;
+					}),
+				delete: async (sessionId: string) => {
+					deleted.push(sessionId);
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		const creating = manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await manager.dispose();
+
+		finishCreate?.({ sessionId: "ses-created-late", sandboxUrl: "pod" });
+
+		await expect(creating).rejects.toThrow(/account changed/i);
+		expect(deleted).toEqual(["ses-created-late"]);
+		expect(ctx.liveSessions.has("ses-created-late")).toBe(false);
+	});
+
+	it("returns cached cloud discovery promptly while a refresh is slow", async () => {
+		const { ctx } = createContext();
+		let listCalls = 0;
+		let finishRefresh: ((value: CloudSessionRecord[]) => void) | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => {
+					listCalls += 1;
+					if (listCalls === 1) return [REMOTE_SESSION];
+					return await new Promise((resolve) => {
+						finishRefresh = resolve;
+					});
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.listForDiscovery();
+
+		const cached = await manager.listForDiscovery({ timeoutMs: 1 });
+
+		expect(cached).toEqual([
+			expect.objectContaining({ sessionId: "ses-outer", origin: "cloud" }),
+		]);
+		finishRefresh?.([]);
+		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
 	it("uses only the active organization for billing and session listing", async () => {

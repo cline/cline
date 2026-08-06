@@ -17,6 +17,7 @@ export type HubCapabilityName =
 	| "session.get"
 	| "session.run"
 	| "session.abort"
+	| "approval.list_pending"
 	| "schedule.create"
 	| "schedule.list"
 	| "settings.get"
@@ -33,6 +34,8 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.get",
 	"session.run",
 	"session.abort",
+	// Capability-gated approval recovery (mobile checks this before calling).
+	"approval.list_pending",
 	"schedule.create",
 	"schedule.list",
 	"settings.get",
@@ -433,6 +436,7 @@ export type HubCommandName =
 	| "session.send_input"
 	| "run.abort"
 	| "approval.request"
+	| "approval.list_pending"
 	| "approval.respond"
 	| "capability.request"
 	| "capability.progress"

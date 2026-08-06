@@ -540,4 +540,37 @@ describe("disposeSidecarContext attachment cleanup", () => {
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
 	});
+
+	it("waits for pending approval callbacks before shutdown completes", async () => {
+		const { createSidecarContext, disposeSidecarContext } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		let release: (() => void) | undefined;
+		ctx.pendingApprovals.set("approval-1", {
+			item: {
+				requestId: "approval-1",
+				sessionId: "session-1",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				input: {},
+			},
+			resolve: async () =>
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				}),
+		});
+
+		let disposed = false;
+		const disposing = disposeSidecarContext(ctx, "test_shutdown").then(() => {
+			disposed = true;
+		});
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		expect(disposed).toBe(false);
+
+		release?.();
+		await disposing;
+		expect(disposed).toBe(true);
+	});
 });

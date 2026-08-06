@@ -53,6 +53,9 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+
+const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
+
 import packageJson from "../package.json";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
@@ -1153,14 +1156,13 @@ export async function handleCommand(
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "");
 		const cloud = getCloudSessionManager(ctx);
+		const maxMessages =
+			typeof args?.maxMessages === "number" ? args.maxMessages : 800;
 		if (cloud.isCloudSession(sessionId)) {
-			await cloud.readMessages(sessionId);
+			const messages = await cloud.readMessages(sessionId);
+			return await readSessionMessages(ctx, sessionId, maxMessages, messages);
 		}
-		return await readSessionMessages(
-			ctx,
-			sessionId,
-			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
-		);
+		return await readSessionMessages(ctx, sessionId, maxMessages);
 	}
 	if (command === "read_session_hooks") {
 		return await readSessionHooks(
@@ -1268,7 +1270,7 @@ export async function handleCommand(
 		// Existing cloud sessions stay listed even when the flag is off — the
 		// flag gates NEW creation only, so a rollback never strands a session.
 		const cloud = await getCloudSessionManager(ctx)
-			.listForDiscovery()
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch(() => []);
 		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
@@ -1285,7 +1287,7 @@ export async function handleCommand(
 			limit,
 		)) as JsonRecord[];
 		const cloud = await getCloudSessionManager(ctx)
-			.listForDiscovery()
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch(() => []);
 		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}

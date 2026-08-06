@@ -1182,7 +1182,7 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowFavorite={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				allowRename={thread.origin !== "cloud"}
+				allowRename
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
