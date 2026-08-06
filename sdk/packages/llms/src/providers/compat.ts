@@ -54,7 +54,7 @@ const BUILTIN_PROVIDER_MAP = new Map(
 function toGatewayCapabilities(
 	capabilities: readonly string[] | undefined,
 ): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
+	if (capabilities === undefined) {
 		return undefined;
 	}
 

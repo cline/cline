@@ -805,6 +805,33 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("preserves explicit text-only model metadata in the SDK session", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "text-only-model",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: {
+				name: "Text-only model",
+				supportsImages: false,
+				supportsPromptCache: false,
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "text-only-model",
+			overrides: { capabilities: [], supportsVision: false },
+		})
+		// Exercise the host metadata bridge rather than the registry's direct
+		// models.json path; both must preserve the explicit empty set.
+		vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["text-only-model"]
+
+		expect(knownModel.capabilities).toEqual([])
+	})
+
 	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",

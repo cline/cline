@@ -239,6 +239,11 @@ function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, 
 
 function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	const modelInfo = selection.modelInfo
+	const hasExplicitCapabilities =
+		selection.overrides?.capabilities !== undefined ||
+		modelInfo.supportsImages !== undefined ||
+		modelInfo.supportsReasoning !== undefined ||
+		selection.overrides?.supportsAttachments !== undefined
 	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>(
 		(selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>,
 	)
@@ -269,7 +274,7 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(maxTokens !== undefined ? { maxTokens } : {}),
 		...(contextWindow !== undefined ? { contextWindow } : {}),
 		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
-		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(hasExplicitCapabilities ? { capabilities: [...capabilities] } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(hasPricing

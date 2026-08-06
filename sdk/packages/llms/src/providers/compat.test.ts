@@ -815,6 +815,27 @@ describe("toGatewayRequestMessages — tool_result with images", () => {
 describe("buildGatewayModels", () => {
 	const { buildGatewayModels } = _testing;
 
+	it("preserves an explicit empty capability set as text-only", () => {
+		const models = buildGatewayModels("openrouter", {
+			providerId: "openrouter",
+			modelId: "text-only-model",
+			knownModels: {
+				"text-only-model": {
+					id: "text-only-model",
+					name: "Text-only model",
+					capabilities: [],
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "text-only-model",
+				capabilities: ["text"],
+			}),
+		]);
+	});
+
 	it("projects configured maxInputTokens onto the selected gateway model", () => {
 		const models = buildGatewayModels("ollama", {
 			providerId: "ollama",

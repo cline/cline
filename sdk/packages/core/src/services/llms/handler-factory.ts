@@ -131,7 +131,7 @@ export function resolveKnownModelsFromConfig(
 function toGatewayCapabilities(
 	capabilities: ModelInfo["capabilities"],
 ): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
+	if (capabilities === undefined) {
 		return undefined;
 	}
 
@@ -154,6 +154,9 @@ function toGatewayCapabilities(
 		}
 	}
 
+	// A present capability array is authoritative, including an empty one.
+	// Gateway models always support text, so preserve a known text-only model as
+	// `["text"]` rather than collapsing it into unknown capability metadata.
 	mapped.add("text");
 	return [...mapped];
 }

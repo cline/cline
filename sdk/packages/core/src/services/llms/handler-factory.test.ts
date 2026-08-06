@@ -200,6 +200,38 @@ describe("createAgentModelFromConfig", () => {
 		});
 	});
 
+	it("preserves an explicit empty capability set as a text-only gateway model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openrouter",
+				modelId: "text-only-model",
+				apiKey: "test-key",
+				systemPrompt: "",
+				tools: [],
+				knownModels: {
+					"text-only-model": {
+						id: "text-only-model",
+						name: "Text-only model",
+						capabilities: [],
+					},
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		const gatewayConfig = (
+			gatewayMock.createGateway.mock.calls as unknown as Array<
+				[{ providerConfigs: Array<{ models: Array<Record<string, unknown>> }> }]
+			>
+		)[0][0];
+		expect(gatewayConfig.providerConfigs[0].models[0]).toMatchObject({
+			id: "text-only-model",
+			capabilities: ["text"],
+		});
+	});
+
 	it("uses explicit per-turn max tokens and temperature for gateway request limits", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
