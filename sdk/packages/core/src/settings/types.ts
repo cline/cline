@@ -50,17 +50,20 @@ export interface CorePluginContributions {
 	providers: string[];
 }
 
+export interface CorePluginSettingsSnapshot {
+	plugins: CoreSettingsItem[];
+	tools: CoreSettingsItem[];
+}
+
 export interface CorePluginSettingsSource {
-	list(input: CoreSettingsListInput): Promise<{
-		plugins: CoreSettingsItem[];
-		tools: CoreSettingsItem[];
-	}>;
+	list(input: CoreSettingsListInput): Promise<CorePluginSettingsSnapshot>;
+	/** Apply enablement and return the source's authoritative post-mutation state. */
 	setEnabled(input: {
 		path: string;
 		enabled: boolean;
 		cwd?: string;
 		workspaceRoot?: string;
-	}): Promise<void>;
+	}): Promise<CorePluginSettingsSnapshot>;
 }
 
 export interface CoreSettingsServiceOptions {

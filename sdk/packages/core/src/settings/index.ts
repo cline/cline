@@ -5,6 +5,7 @@ export {
 export type {
 	ClineCoreSettingsApi,
 	CorePluginContributions,
+	CorePluginSettingsSnapshot,
 	CorePluginSettingsSource,
 	CoreSettingsItem,
 	CoreSettingsItemKind,

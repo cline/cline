@@ -817,6 +817,7 @@ export {
 } from "./session/user-run-messages";
 export type {
 	CorePluginContributions,
+	CorePluginSettingsSnapshot,
 	CorePluginSettingsSource,
 	CoreSettingsItem,
 	CoreSettingsItemKind,

@@ -535,30 +535,45 @@ export class CoreSettingsService {
 			if (!pluginPath) {
 				throw new Error("Plugin settings toggle requires a plugin path.");
 			}
-			let enabled = input.enabled;
-			if (enabled === undefined) {
-				const plugin = this.pluginSource
-					? (await this.pluginSource.list(input)).plugins.find(
-							(item) => item.path === pluginPath,
-						)
-					: listPluginSettings({
-							workspaceRoot: resolveWorkspaceRoot(input),
-						}).find((item) => item.path === pluginPath);
-				if (!plugin) {
-					throw new Error(`Unknown plugin: ${pluginPath}`);
-				}
-				enabled = !plugin.enabled;
-			}
 			if (this.pluginSource) {
-				await this.pluginSource.setEnabled({
+				const snapshotBeforeMutation = await this.list(input);
+				let enabled = input.enabled;
+				if (enabled === undefined) {
+					const plugin = snapshotBeforeMutation.plugins.find(
+						(item) => item.path === pluginPath,
+					);
+					if (!plugin) {
+						throw new Error(`Unknown plugin: ${pluginPath}`);
+					}
+					enabled = !plugin.enabled;
+				}
+				const sourceSnapshot = await this.pluginSource.setEnabled({
 					path: pluginPath,
 					enabled,
 					cwd: input.cwd,
 					workspaceRoot: input.workspaceRoot,
 				});
-			} else {
-				setDisabledPlugin(pluginPath, !enabled);
+				return {
+					snapshot: {
+						...snapshotBeforeMutation,
+						plugins: sourceSnapshot.plugins,
+						tools: toSorted(sourceSnapshot.tools),
+					},
+					changedTypes: ["plugins"],
+				};
 			}
+
+			let enabled = input.enabled;
+			if (enabled === undefined) {
+				const plugin = listPluginSettings({
+					workspaceRoot: resolveWorkspaceRoot(input),
+				}).find((item) => item.path === pluginPath);
+				if (!plugin) {
+					throw new Error(`Unknown plugin: ${pluginPath}`);
+				}
+				enabled = !plugin.enabled;
+			}
+			setDisabledPlugin(pluginPath, !enabled);
 			return {
 				snapshot: await this.list(input),
 				changedTypes: ["plugins"],
