@@ -1516,7 +1516,10 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "Chutes unknown reasoning family keeps standard compatible reasoning",
+			// Chutes reads its thinking switch from chat_template_kwargs only, so a
+			// family this rule does not encode emits no reasoning control at all
+			// rather than a generic field the endpoint ignores.
+			name: "Chutes unknown reasoning family emits no reasoning control",
 			request: {
 				providerId: "chutes",
 				modelId: "future/reasoner-1",
@@ -1529,13 +1532,12 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "chutes",
-					has: { reasoningEffort: "high" },
-					lacks: ["chat_template_kwargs", "thinking"],
+					lacks: ["chat_template_kwargs", "thinking", "reasoningEffort"],
 				},
 			],
 		},
 		{
-			name: "Chutes Claude family keeps standard Anthropic-compatible reasoning",
+			name: "Chutes Claude family keeps Anthropic-compatible thinking",
 			request: {
 				providerId: "chutes",
 				modelId: "anthropic/claude-future",
@@ -1548,13 +1550,13 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "chutes",
-					has: { reasoning: { enabled: true, max_tokens: 1024 } },
-					lacks: ["chat_template_kwargs", "thinking", "reasoningEffort"],
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["chat_template_kwargs", "reasoningEffort"],
 				},
 			],
 		},
 		{
-			name: "Chutes Kimi family without reasoning capability keeps standard options",
+			name: "Chutes Kimi family without reasoning capability emits no controls",
 			request: {
 				providerId: "chutes",
 				modelId: "moonshotai/Kimi-K2.7-TEE",
@@ -1567,8 +1569,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "chutes",
-					has: { reasoningEffort: "high" },
-					lacks: ["chat_template_kwargs", "thinking"],
+					lacks: ["chat_template_kwargs", "thinking", "reasoningEffort"],
 				},
 			],
 		},

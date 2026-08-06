@@ -234,7 +234,7 @@ const chutesChatTemplateReasoningRule: ProviderOptionRule = {
 		"Chutes Kimi and hybrid Qwen families use chat_template_kwargs thinking controls.",
 	applies: (input) =>
 		usesChutesChatTemplateReasoning(input.request, input.context),
-	suppresses: { genericThinking: true, genericEffort: true },
+	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildChutesThinkingProviderOptionsPatch(
 			input.request,
