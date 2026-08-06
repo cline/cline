@@ -64,6 +64,7 @@ export type McpServerTransportConfig =
 export interface McpServerOAuthState {
 	clientInformation?: Record<string, unknown>;
 	tokens?: Record<string, unknown>;
+	tokenClientFingerprint?: string;
 	codeVerifier?: string;
 	discoveryState?: Record<string, unknown>;
 	redirectUrl?: string;

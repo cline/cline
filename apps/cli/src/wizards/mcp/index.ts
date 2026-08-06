@@ -199,17 +199,26 @@ async function collectUrlTransport(
 	if (isCancel(authMode)) return null;
 
 	if (authMode === "oauth") {
-		const clientId = await p.text({ message: "OAuth client ID (leave empty for dynamic registration)" });
+		const clientId = await p.text({
+			message: "OAuth client ID (leave empty for dynamic registration)",
+		});
 		if (isCancel(clientId)) return null;
 		const normalizedClientId = (clientId as string).trim();
 		let clientSecret: string | undefined;
 		if (normalizedClientId) {
-			const secret = await p.password({ message: "OAuth client secret (leave empty for public clients)" });
+			const secret = await p.password({
+				message: "OAuth client secret (leave empty for public clients)",
+			});
 			if (isCancel(secret)) return null;
 			clientSecret = (secret as string).trim() || undefined;
 		}
-		return { transport: { type, url: (url as string).trim() }, authMode,
-			oauthClient: normalizedClientId ? { clientId: normalizedClientId, clientSecret } : undefined };
+		return {
+			transport: { type, url: (url as string).trim() },
+			authMode,
+			oauthClient: normalizedClientId
+				? { clientId: normalizedClientId, clientSecret }
+				: undefined,
+		};
 	}
 	if (authMode === "none") {
 		return {

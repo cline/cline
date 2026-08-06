@@ -43,6 +43,7 @@ const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
 		tokens: z.record(z.string(), z.unknown()).optional(),
+		tokenClientFingerprint: z.string().optional(),
 		codeVerifier: z.string().optional(),
 		discoveryState: z.record(z.string(), z.unknown()).optional(),
 		redirectUrl: z.string().url().optional(),
@@ -50,10 +51,12 @@ const oauthStateSchema = z
 		lastAuthenticatedAt: z.number().int().positive().optional(),
 	})
 	.strip();
-const oauthClientSchema = z.object({
-	clientId: z.string().min(1),
-	clientSecret: z.string().min(1).optional(),
-}).strip();
+const oauthClientSchema = z
+	.object({
+		clientId: z.string().min(1),
+		clientSecret: z.string().min(1).optional(),
+	})
+	.strip();
 
 const stdioTransportSchema = z.object({
 	type: z.literal("stdio"),
@@ -685,6 +688,9 @@ export function normalizeMcpServerOAuthState(
 			? { clientInformation: value.clientInformation }
 			: {}),
 		...(value.tokens ? { tokens: value.tokens } : {}),
+		...(value.tokenClientFingerprint
+			? { tokenClientFingerprint: value.tokenClientFingerprint }
+			: {}),
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
 		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),

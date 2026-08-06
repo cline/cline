@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
 	OAuthClientProvider,
 	OAuthDiscoveryState,
@@ -93,6 +93,17 @@ function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {
 	};
 }
 
+function fingerprintOAuthClient(
+	clientInformation: OAuthClientInformationMixed | undefined,
+): string | undefined {
+	if (!clientInformation?.client_id) return undefined;
+	return createHash("sha256")
+		.update(clientInformation.client_id)
+		.update("\0")
+		.update(clientInformation.client_secret ?? "")
+		.digest("hex");
+}
+
 export function createMcpOAuthProviderContext(
 	options: CreateMcpOAuthProviderContextOptions,
 ): McpOAuthProviderContext {
@@ -107,6 +118,9 @@ export function createMcpOAuthProviderContext(
 	}
 	let lastAuthorizationUrl: string | undefined;
 	let lastOAuthState: string | undefined;
+	const currentClientInformation = () =>
+		options.clientInformation ??
+		(state.clientInformation as OAuthClientInformationMixed | undefined);
 
 	const patch = async (
 		updater: (current: McpServerOAuthState) => McpServerOAuthState,
@@ -134,9 +148,7 @@ export function createMcpOAuthProviderContext(
 			lastOAuthState = randomUUID();
 			return lastOAuthState;
 		},
-		clientInformation: () =>
-			options.clientInformation ??
-			(state.clientInformation as OAuthClientInformationMixed | undefined),
+		clientInformation: currentClientInformation,
 		saveClientInformation: async (clientInformation) => {
 			await patch((current) => ({
 				...current,
@@ -145,12 +157,23 @@ export function createMcpOAuthProviderContext(
 				lastError: undefined,
 			}));
 		},
-		tokens: () => state.tokens as OAuthTokens | undefined,
+		tokens: () =>
+			state.tokenClientFingerprint ===
+			fingerprintOAuthClient(currentClientInformation())
+				? (state.tokens as OAuthTokens | undefined)
+				: undefined,
 		saveTokens: async (tokens) => {
 			const lastAuthenticatedAt = Date.now();
+			const tokenClientFingerprint = fingerprintOAuthClient(
+				currentClientInformation(),
+			);
+			if (!tokenClientFingerprint) {
+				throw new Error("Cannot save MCP OAuth tokens without a client ID.");
+			}
 			await patch((current) => ({
 				...current,
 				tokens: tokens as Record<string, unknown>,
+				tokenClientFingerprint,
 				redirectUrl: options.redirectUrl,
 				lastError: undefined,
 				lastAuthenticatedAt,
@@ -187,7 +210,11 @@ export function createMcpOAuthProviderContext(
 					...current,
 					...(scope === "client" ? { clientInformation: undefined } : {}),
 					...(scope === "tokens"
-						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						? {
+								tokens: undefined,
+								tokenClientFingerprint: undefined,
+								lastAuthenticatedAt: undefined,
+							}
 						: {}),
 					...(scope === "verifier" ? { codeVerifier: undefined } : {}),
 					...(scope === "discovery" ? { discoveryState: undefined } : {}),

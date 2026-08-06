@@ -76,4 +76,45 @@ describe("mcp oauth", () => {
 
 		await expect(readFile(settingsPath, "utf8")).resolves.toBe(before);
 	});
+
+	it("does not reuse tokens after the configured OAuth client changes", async () => {
+		const settingsPath = await createSettingsFile();
+		const first = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-a",
+				client_secret: "secret-a",
+			},
+		});
+		await first.provider.saveTokens({
+			access_token: "old-access-token",
+			refresh_token: "old-refresh-token",
+			token_type: "bearer",
+		});
+		expect(first.provider.tokens()?.access_token).toBe("old-access-token");
+
+		const changedId = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-b",
+				client_secret: "secret-a",
+			},
+		});
+		expect(changedId.provider.tokens()).toBeUndefined();
+
+		const changedSecret = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-a",
+				client_secret: "secret-b",
+			},
+		});
+		expect(changedSecret.provider.tokens()).toBeUndefined();
+	});
 });
