@@ -39,6 +39,33 @@ const strategies: Array<(text: string) => unknown> = [
 	repairBareObjectValue,
 ];
 
+/**
+ * True when JSON-ish text ends inside an unterminated double-quoted string,
+ * i.e. the text was cut off mid-key or mid-string-value (typically because
+ * the model hit its output limit while streaming). Repairing such input
+ * (e.g. with jsonrepair) closes the string and produces a valid-looking but
+ * silently truncated value, so callers should surface the parse failure
+ * instead of repairing.
+ */
+export function endsInsideJsonString(text: string): boolean {
+	let inString = false;
+	let escaped = false;
+	for (const char of text) {
+		if (!inString) {
+			if (char === '"') inString = true;
+			continue;
+		}
+		if (escaped) {
+			escaped = false;
+		} else if (char === "\\") {
+			escaped = true;
+		} else if (char === '"') {
+			inString = false;
+		}
+	}
+	return inString;
+}
+
 export function parseJsonStream(input: unknown): unknown {
 	if (typeof input !== "string") return input;
 

@@ -13,6 +13,7 @@ import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
+	endsInsideJsonString,
 	formatMessagesForAiSdk,
 	parseJsonStream,
 	sanitizeSurrogates,
@@ -443,10 +444,12 @@ interface RepairableToolCall {
 
 /**
  * Last-chance repair for tool calls whose arguments are not valid JSON
- * (truncated payloads, single quotes, unescaped newlines — common with
- * weaker models). Runs the raw argument text through the shared jsonrepair
- * strategies; unknown tool names and already-valid JSON are not repairable
- * here, and returning null preserves the AI SDK's original error behavior.
+ * (single quotes, unescaped newlines, missing closing brackets — common
+ * with weaker models). Runs the raw argument text through the shared
+ * jsonrepair strategies; unknown tool names and already-valid JSON are not
+ * repairable here, and input that ends inside an unterminated string is
+ * deliberately not repaired because the value was truncated mid-content.
+ * Returning null preserves the AI SDK's original error behavior.
  */
 export async function repairMalformedToolCall<T extends RepairableToolCall>({
 	toolCall,
@@ -469,6 +472,14 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 		return null;
 	} catch {
 		// Not valid JSON — attempt repair below.
+	}
+	// Never repair input that was cut off inside a string value (e.g. the
+	// model hit max_tokens mid-argument). jsonrepair would close the string
+	// and return a valid-looking but silently truncated value, which would
+	// then execute with corrupted data (file contents, shell commands, ...).
+	// Returning null surfaces the original parse error so the model retries.
+	if (endsInsideJsonString(toolCall.input)) {
+		return null;
 	}
 	const repaired = parseJsonStream(toolCall.input);
 	if (repaired === toolCall.input || typeof repaired === "string") {

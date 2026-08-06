@@ -222,12 +222,32 @@ describe("repairMalformedToolCall", () => {
 		input,
 	});
 
-	it("repairs truncated JSON", async () => {
+	it("repairs JSON truncated at a structural boundary", async () => {
 		const repaired = await repairMalformedToolCall({
 			toolCall: toolCall('{"commands": ["ls"'),
 			error: new Error("JSON parsing failed"),
 		});
 		expect(repaired?.input).toBe('{"commands":["ls"]}');
+	});
+
+	it("returns null for JSON truncated inside a string value (#13001)", async () => {
+		// Repairing this would silently execute the tool with a
+		// plausible-looking but corrupted value.
+		const repaired = await repairMalformedToolCall({
+			toolCall: toolCall(
+				'{"path":"config/database.yml","content":"production:\\n  host: db.prod.internal\\n  password: correct-horse-battery-sta',
+			),
+			error: new Error("JSON parsing failed"),
+		});
+		expect(repaired).toBeNull();
+	});
+
+	it("returns null for JSON truncated inside a key", async () => {
+		const repaired = await repairMalformedToolCall({
+			toolCall: toolCall('{"commands": ["ls"], "requires_ap'),
+			error: new Error("JSON parsing failed"),
+		});
+		expect(repaired).toBeNull();
 	});
 
 	it("repairs single-quoted JSON", async () => {

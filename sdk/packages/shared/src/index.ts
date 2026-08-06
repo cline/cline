@@ -250,6 +250,7 @@ export {
 export * from "./mcp";
 export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
+	endsInsideJsonString,
 	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
 	safeJsonParse,
