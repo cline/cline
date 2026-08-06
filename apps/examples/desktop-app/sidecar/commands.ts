@@ -1227,16 +1227,31 @@ export async function handleCommand(
 		if (!sessionId || !requestId) {
 			throw new Error("sessionId and requestId are required");
 		}
+		const approved = Boolean(args?.approved);
+		const alwaysAllow = approved && args?.always_allow === true;
 		const pending = ctx.pendingApprovals.get(requestId);
 		if (pending) {
 			pending.resolve({
-				approved: Boolean(args?.approved),
+				approved,
 				...(typeof args?.reason === "string" && args.reason.trim().length > 0
 					? { reason: args.reason.trim() }
 					: {}),
 			});
 		}
 		ctx.pendingApprovals.delete(requestId);
+		if (alwaysAllow) {
+			// Approve the rest of this turn immediately: flush queued requests
+			// for the session and auto-resolve any future ones.
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				session.autoApproveAllRequests = true;
+			}
+			for (const [otherId, other] of ctx.pendingApprovals) {
+				if (other.item.sessionId !== sessionId) continue;
+				other.resolve({ approved: true });
+				ctx.pendingApprovals.delete(otherId);
+			}
+		}
 		const remaining = Array.from(ctx.pendingApprovals.values())
 			.filter((a) => a.item.sessionId === sessionId)
 			.map((a) => a.item);

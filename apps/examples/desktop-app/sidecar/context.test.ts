@@ -430,6 +430,69 @@ describe("Code sidecar runtime capabilities", () => {
 		).toEqual([]);
 	});
 
+	it("flushes and short-circuits the session's approvals on always-allow", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("sess-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		await initializeSessionManager(ctx);
+		const capabilities = createCoreMock.mock.calls[0][0]
+			.capabilities as RuntimeCapabilities;
+		const request = (toolCallId: string) =>
+			capabilities.requestToolApproval?.({
+				sessionId: "sess-1",
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				iteration: 2,
+				toolCallId,
+				toolName: "run_commands",
+				input: { commands: ["echo hi"] },
+				policy: { autoApprove: false },
+			});
+
+		const first = request("tool-call-1");
+		const second = request("tool-call-2");
+		const pending = (await handleCommand(ctx, "poll_tool_approvals", {
+			sessionId: "sess-1",
+		})) as Array<{ requestId: string; toolCallId: string }>;
+		expect(pending).toHaveLength(2);
+
+		const firstRequestId = pending.find(
+			(item) => item.toolCallId === "tool-call-1",
+		)?.requestId;
+		await handleCommand(ctx, "respond_tool_approval", {
+			sessionId: "sess-1",
+			requestId: firstRequestId,
+			approved: true,
+			always_allow: true,
+		});
+
+		// Both the responded request and the other queued one resolve approved.
+		await expect(first).resolves.toEqual({ approved: true });
+		await expect(second).resolves.toEqual({ approved: true });
+		expect(
+			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
+		).toEqual([]);
+
+		// Later requests in the same turn no longer prompt at all.
+		await expect(request("tool-call-3")).resolves.toEqual({ approved: true });
+		expect(
+			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
+		).toEqual([]);
+	});
+
 	it("routes routine commands through the connected shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

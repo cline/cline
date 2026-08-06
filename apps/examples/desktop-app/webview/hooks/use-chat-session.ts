@@ -1853,19 +1853,26 @@ export function useChatSession() {
 	);
 
 	const respondToolApproval = useCallback(
-		async (requestId: string, approved: boolean) => {
+		async (
+			requestId: string,
+			approved: boolean,
+			options?: { alwaysAllow?: boolean },
+		) => {
 			const activeSessionId = activeSessionIdRef.current;
 			if (!activeSessionId) return;
 			await desktopClient.invoke("respond_tool_approval", {
 				sessionId: activeSessionId,
 				requestId,
 				approved,
+				always_allow: options?.alwaysAllow === true ? true : undefined,
 				reason: approved
 					? undefined
 					: "Tool call rejected from desktop approval prompt",
 			});
 			setPendingToolApprovals((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
+				options?.alwaysAllow
+					? []
+					: prev.filter((item) => item.requestId !== requestId),
 			);
 		},
 		[],
@@ -1873,6 +1880,12 @@ export function useChatSession() {
 
 	const approveToolApproval = useCallback(
 		(requestId: string) => respondToolApproval(requestId, true),
+		[respondToolApproval],
+	);
+
+	const approveToolApprovalAlways = useCallback(
+		(requestId: string) =>
+			respondToolApproval(requestId, true, { alwaysAllow: true }),
 		[respondToolApproval],
 	);
 
@@ -2325,6 +2338,7 @@ export function useChatSession() {
 		updatePromptInQueue,
 		removePromptInQueue,
 		approveToolApproval,
+		approveToolApprovalAlways,
 		rejectToolApproval,
 		answerAskQuestion,
 		restoreCheckpoint,

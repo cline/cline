@@ -64,6 +64,12 @@ export type LiveSession = {
 	 * detect when a send needs a session rebuild to apply the new mode.
 	 */
 	appliedApprovalModeKey?: string;
+	/**
+	 * Set when the user picks "Always allow" on an approval card: subsequent
+	 * approval requests in the running turn resolve immediately (tool policies
+	 * are fixed at session start, so the rebuild only applies at next send).
+	 */
+	autoApproveAllRequests?: boolean;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */

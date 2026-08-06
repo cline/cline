@@ -630,6 +630,12 @@ function requestSidecarToolApproval(
 	ctx: SidecarContext,
 	request: ToolApprovalRequest,
 ): Promise<ToolApprovalResult> {
+	// "Always allow" chosen earlier in this turn: resolve without asking. The
+	// persisted auto-approve setting takes over at the next send via the
+	// session rebuild.
+	if (ctx.liveSessions.get(request.sessionId)?.autoApproveAllRequests) {
+		return Promise.resolve({ approved: true });
+	}
 	return new Promise<ToolApprovalResult>((resolve) => {
 		const requestId = randomUUID();
 		const pending: PendingToolApproval = {

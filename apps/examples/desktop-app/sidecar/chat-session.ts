@@ -944,6 +944,9 @@ async function handleSend(
 					nextConfig,
 				);
 				session.appliedApprovalModeKey = approvalModeKey(nextConfig);
+				// Fresh tool policies govern from here; drop any mid-turn
+				// "always allow" short-circuit.
+				session.autoApproveAllRequests = false;
 			} else if (
 				!session ||
 				session.attachedViaHub ||

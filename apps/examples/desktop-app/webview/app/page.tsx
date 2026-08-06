@@ -453,6 +453,7 @@ function ChatThreadPane({
 		updatePromptInQueue,
 		removePromptInQueue,
 		approveToolApproval,
+		approveToolApprovalAlways,
 		rejectToolApproval,
 		answerAskQuestion,
 		restoreCheckpoint,
@@ -948,14 +949,15 @@ function ChatThreadPane({
 	const handleAutoApproveToggle = useCallback(() => {
 		setAutoApproveTools(!(config.autoApproveTools ?? false));
 	}, [config.autoApproveTools, setAutoApproveTools]);
-	// "Always allow": approve this request and stop asking for the rest of the
-	// session (also persisted as the new default).
+	// "Always allow": approve this request (and everything else in the running
+	// turn) and stop asking for the rest of the session — persisted as the new
+	// default and applied to future sends via the session rebuild.
 	const handleApproveAlwaysToolApproval = useCallback(
 		(requestId: string) => {
-			void approveToolApproval(requestId);
+			void approveToolApprovalAlways(requestId);
 			setAutoApproveTools(true);
 		},
-		[approveToolApproval, setAutoApproveTools],
+		[approveToolApprovalAlways, setAutoApproveTools],
 	);
 	const handleAnswerAskQuestion = useCallback(
 		(requestId: string, answer: string) => {
