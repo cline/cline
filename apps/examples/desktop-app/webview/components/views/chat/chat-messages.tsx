@@ -84,6 +84,8 @@ type ChatMessagesProps = {
 	pendingToolApprovals: ToolApprovalRequestItem[];
 	pendingAskQuestions: AskQuestionRequestItem[];
 	onApproveToolApproval: (requestId: string) => void | Promise<void>;
+	/** Approve this request and auto-approve the session's remaining tool calls. */
+	onApproveAlwaysToolApproval?: (requestId: string) => void | Promise<void>;
 	onRejectToolApproval: (requestId: string) => void | Promise<void>;
 	onAnswerAskQuestion: (
 		requestId: string,
@@ -303,6 +305,7 @@ function ChatMessagesImpl({
 	pendingToolApprovals,
 	pendingAskQuestions,
 	onApproveToolApproval,
+	onApproveAlwaysToolApproval,
 	onRejectToolApproval,
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
@@ -647,6 +650,16 @@ function ChatMessagesImpl({
 											onApproveToolApproval,
 										)
 									}
+									onApproveAlways={
+										onApproveAlwaysToolApproval
+											? (requestId) =>
+													handleToolApprovalDecision(
+														requestId,
+														"approving",
+														onApproveAlwaysToolApproval,
+													)
+											: undefined
+									}
 									onReject={(requestId) =>
 										handleToolApprovalDecision(
 											requestId,
@@ -965,12 +978,14 @@ function ToolApprovalPanel({
 	pendingActions,
 	requestErrors,
 	onApprove,
+	onApproveAlways,
 	onReject,
 }: {
 	items: ToolApprovalRequestItem[];
 	pendingActions: Record<string, "approving" | "rejecting">;
 	requestErrors: Record<string, string>;
 	onApprove: (requestId: string) => void;
+	onApproveAlways?: (requestId: string) => void;
 	onReject: (requestId: string) => void;
 }) {
 	return (
@@ -987,35 +1002,46 @@ function ToolApprovalPanel({
 					const pendingAction = pendingActions[item.requestId];
 					const error = requestErrors[item.requestId];
 					return (
-						<AgentApprovalCard
-							description={
-								<>
-									Request {item.requestId}
-									{item.iteration != null
-										? ` · Iteration ${item.iteration}`
-										: ""}
-								</>
-							}
-							detail={formatApprovalInput(item.input)}
-							error={error}
-							key={item.requestId}
-							meta={
-								<>
-									<Clock3 className="h-3 w-3" />
-									{formatApprovalTimestamp(item.createdAt)}
-								</>
-							}
-							onApprove={() => onApprove(item.requestId)}
-							onReject={() => onReject(item.requestId)}
-							responding={
-								pendingAction === "approving"
-									? "approve"
-									: pendingAction === "rejecting"
-										? "reject"
-										: undefined
-							}
-							title={item.toolName}
-						/>
+						<div key={item.requestId}>
+							<AgentApprovalCard
+								description={
+									<>
+										Request {item.requestId}
+										{item.iteration != null
+											? ` · Iteration ${item.iteration}`
+											: ""}
+									</>
+								}
+								detail={formatApprovalInput(item.input)}
+								error={error}
+								meta={
+									<>
+										<Clock3 className="h-3 w-3" />
+										{formatApprovalTimestamp(item.createdAt)}
+									</>
+								}
+								onApprove={() => onApprove(item.requestId)}
+								onReject={() => onReject(item.requestId)}
+								responding={
+									pendingAction === "approving"
+										? "approve"
+										: pendingAction === "rejecting"
+											? "reject"
+											: undefined
+								}
+								title={item.toolName}
+							/>
+							{onApproveAlways ? (
+								<button
+									className="mt-1 text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+									disabled={pendingAction !== undefined}
+									onClick={() => onApproveAlways(item.requestId)}
+									type="button"
+								>
+									Always allow — approve and turn on auto-approve
+								</button>
+							) : null}
+						</div>
 					);
 				})}
 			</div>

@@ -396,6 +396,51 @@ export function useChatSession() {
 		}));
 	}, []);
 
+	// Hydrate persisted approval + plan/act preferences from global settings.
+	// Applied once per mount, and only while the user has not already toggled
+	// them in this pane (tracked via the ref the toggle handlers set).
+	const approvalPrefsTouchedRef = useRef(false);
+	const markApprovalPrefsTouched = useCallback(() => {
+		approvalPrefsTouchedRef.current = true;
+	}, []);
+	useEffect(() => {
+		let cancelled = false;
+		void desktopClient
+			.invoke<{
+				toolAutoApprove?: boolean;
+				planActMode?: string;
+			}>("get_global_settings")
+			.then((settings) => {
+				if (cancelled || approvalPrefsTouchedRef.current) {
+					return;
+				}
+				const toolAutoApprove =
+					typeof settings?.toolAutoApprove === "boolean"
+						? settings.toolAutoApprove
+						: undefined;
+				const planActMode =
+					settings?.planActMode === "plan" || settings?.planActMode === "act"
+						? settings.planActMode
+						: undefined;
+				if (toolAutoApprove === undefined && planActMode === undefined) {
+					return;
+				}
+				setConfig((previous) => ({
+					...previous,
+					...(toolAutoApprove !== undefined
+						? { autoApproveTools: toolAutoApprove }
+						: {}),
+					...(planActMode !== undefined ? { mode: planActMode } : {}),
+				}));
+			})
+			.catch(() => {
+				// Defaults stay in place when settings cannot be read.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
 	// ---- Shared state reset helpers ----
 
 	const clearLiveToolRefs = useCallback(() => {
@@ -2272,6 +2317,7 @@ export function useChatSession() {
 		pendingAskQuestions,
 		setConfig,
 		setWorkspacePath,
+		markApprovalPrefsTouched,
 		start,
 		hydrateSession,
 		sendPrompt,

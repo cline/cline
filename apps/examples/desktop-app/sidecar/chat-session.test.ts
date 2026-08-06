@@ -11,16 +11,59 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
+	approvalModeKey,
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
 	hasProviderChanged,
+	isAutoApproveEnabled,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveSystemPromptMode,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
+
+describe("approval + plan/act mode resolution", () => {
+	it("only treats an explicit true as auto-approve (safe by default)", () => {
+		expect(isAutoApproveEnabled({ autoApproveTools: true })).toBe(true);
+		expect(isAutoApproveEnabled({ autoApproveTools: false })).toBe(false);
+		expect(isAutoApproveEnabled({})).toBe(false);
+	});
+
+	it("never lets auto-approve override plan mode in the system prompt", () => {
+		expect(
+			resolveSystemPromptMode({ mode: "plan", autoApproveTools: true }),
+		).toBe("plan");
+		expect(
+			resolveSystemPromptMode({ mode: "plan", autoApproveTools: false }),
+		).toBe("plan");
+	});
+
+	it("uses yolo only for act mode with auto-approve on", () => {
+		expect(
+			resolveSystemPromptMode({ mode: "act", autoApproveTools: true }),
+		).toBe("yolo");
+		expect(
+			resolveSystemPromptMode({ mode: "act", autoApproveTools: false }),
+		).toBe("act");
+		expect(resolveSystemPromptMode({})).toBe("act");
+	});
+
+	it("changes the approval-mode key when mode or auto-approve changes", () => {
+		const base = approvalModeKey({ mode: "act", autoApproveTools: false });
+		expect(approvalModeKey({ mode: "act", autoApproveTools: false })).toBe(
+			base,
+		);
+		expect(approvalModeKey({ mode: "plan", autoApproveTools: false })).not.toBe(
+			base,
+		);
+		expect(approvalModeKey({ mode: "act", autoApproveTools: true })).not.toBe(
+			base,
+		);
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {

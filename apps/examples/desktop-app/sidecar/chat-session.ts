@@ -289,6 +289,7 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		appliedApprovalModeKey: approvalModeKey(config),
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -489,11 +490,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveSystemPromptMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -519,12 +516,46 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	});
 }
 
+/**
+ * Whether the session runs tools without asking. Only an explicit `true`
+ * enables auto-approve — the desktop is safe by default, so absent/unknown
+ * config requires per-tool approval.
+ */
+export function isAutoApproveEnabled(config: JsonRecord): boolean {
+	return config.autoApproveTools === true;
+}
+
+/**
+ * The system-prompt mode for a session config. Plan mode always wins: the
+ * user's Plan toggle must never be silently overridden by auto-approve
+ * (previously auto-approve forced "yolo" even in plan mode).
+ */
+export function resolveSystemPromptMode(
+	config: JsonRecord,
+): "plan" | "act" | "yolo" {
+	if (config.mode === "plan") {
+		return "plan";
+	}
+	return isAutoApproveEnabled(config) ? "yolo" : "act";
+}
+
+/**
+ * Key identifying the approval/mode combination a core session was built
+ * with. System prompt and tool policies are fixed at `manager.start`, so when
+ * this key changes between sends the session must be rebuilt.
+ */
+export function approvalModeKey(config: JsonRecord): string {
+	return `${resolveSystemPromptMode(config)}:${
+		isAutoApproveEnabled(config) ? "auto" : "manual"
+	}`;
+}
+
 function resolveToolPolicies(
 	config: JsonRecord,
 ): { "*": { autoApprove: boolean } } | undefined {
 	return {
 		"*": {
-			autoApprove: config.autoApproveTools !== false,
+			autoApprove: isAutoApproveEnabled(config),
 		},
 	};
 }
@@ -881,6 +912,17 @@ async function handleSend(
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
+	// Plan/act and auto-approve are baked into the system prompt and tool
+	// policies at session start; when the composer toggles them the session
+	// must be rebuilt. Queued/steered prompts skip this (the running turn keeps
+	// its mode) — the key stays stale so the next owned send applies it.
+	const approvalModeChanged = Boolean(
+		session &&
+			nextConfig &&
+			ownsBusyState &&
+			(session.appliedApprovalModeKey ?? approvalModeKey(session.config)) !==
+				approvalModeKey(nextConfig),
+	);
 	if (session) {
 		if (ownsBusyState) {
 			session.prompt = prompt;
@@ -893,7 +935,7 @@ async function handleSend(
 	}
 	try {
 		if (request.config && nextConfig) {
-			if (providerChanged && session) {
+			if ((providerChanged || approvalModeChanged) && session) {
 				await rebuildSessionForProviderChange(
 					ctx,
 					manager,
@@ -901,6 +943,7 @@ async function handleSend(
 					session.config,
 					nextConfig,
 				);
+				session.appliedApprovalModeKey = approvalModeKey(nextConfig);
 			} else if (
 				!session ||
 				session.attachedViaHub ||
@@ -913,7 +956,7 @@ async function handleSend(
 			}
 			if (session) {
 				session.config = nextConfig;
-				if (providerChanged) {
+				if (providerChanged || approvalModeChanged) {
 					session.attachedViaHub = false;
 				}
 			}

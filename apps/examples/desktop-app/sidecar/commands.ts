@@ -42,7 +42,9 @@ import {
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
@@ -1586,6 +1588,21 @@ export async function handleCommand(
 			throw new Error("auto_update_enabled must be a boolean");
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+	if (command === "set_tool_auto_approve") {
+		if (typeof args?.tool_auto_approve !== "boolean") {
+			throw new Error("tool_auto_approve must be a boolean");
+		}
+		setToolAutoApproveGlobally(args.tool_auto_approve);
+		return readGlobalSettings();
+	}
+	if (command === "set_plan_act_mode") {
+		const planActMode = args?.plan_act_mode;
+		if (planActMode !== "plan" && planActMode !== "act") {
+			throw new Error('plan_act_mode must be "plan" or "act"');
+		}
+		setPlanActModeGlobally(planActMode);
 		return readGlobalSettings();
 	}
 

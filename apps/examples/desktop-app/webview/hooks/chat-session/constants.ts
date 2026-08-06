@@ -32,7 +32,9 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	enableTools: true,
 	enableSpawn: undefined,
 	enableTeams: undefined,
-	autoApproveTools: true,
+	// Safe by default: every tool call requires user approval unless the user
+	// explicitly enables auto-approve (persisted via global settings).
+	autoApproveTools: false,
 	missionStepInterval: undefined,
 	missionTimeIntervalMs: undefined,
 };

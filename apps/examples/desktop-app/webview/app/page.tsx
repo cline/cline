@@ -460,6 +460,7 @@ function ChatThreadPane({
 		reset,
 		abort,
 		hydrateSession,
+		markApprovalPrefsTouched,
 	} = useChatSession();
 	// The live composer text lives inside ChatInputBar so typing does not
 	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
@@ -928,6 +929,34 @@ function ChatThreadPane({
 		},
 		[rejectToolApproval],
 	);
+	const setAutoApproveTools = useCallback(
+		(next: boolean) => {
+			markApprovalPrefsTouched();
+			setConfig((prev) =>
+				(prev.autoApproveTools ?? false) === next
+					? prev
+					: { ...prev, autoApproveTools: next },
+			);
+			void desktopClient
+				.invoke("set_tool_auto_approve", { tool_auto_approve: next })
+				.catch(() => {
+					// The in-session toggle already applied; persistence is best-effort.
+				});
+		},
+		[markApprovalPrefsTouched, setConfig],
+	);
+	const handleAutoApproveToggle = useCallback(() => {
+		setAutoApproveTools(!(config.autoApproveTools ?? false));
+	}, [config.autoApproveTools, setAutoApproveTools]);
+	// "Always allow": approve this request and stop asking for the rest of the
+	// session (also persisted as the new default).
+	const handleApproveAlwaysToolApproval = useCallback(
+		(requestId: string) => {
+			void approveToolApproval(requestId);
+			setAutoApproveTools(true);
+		},
+		[approveToolApproval, setAutoApproveTools],
+	);
 	const handleAnswerAskQuestion = useCallback(
 		(requestId: string, answer: string) => {
 			void answerAskQuestion(requestId, answer);
@@ -1312,12 +1341,19 @@ function ChatThreadPane({
 					prev.model === nextModel ? prev : { ...prev, model: nextModel },
 				)
 			}
-			onModeToggle={() =>
-				setConfig((prev) => ({
-					...prev,
-					mode: prev.mode === "plan" ? "act" : "plan",
-				}))
-			}
+			onModeToggle={() => {
+				const nextMode = config.mode === "plan" ? "act" : "plan";
+				markApprovalPrefsTouched();
+				setConfig((prev) =>
+					prev.mode === nextMode ? prev : { ...prev, mode: nextMode },
+				);
+				void desktopClient
+					.invoke("set_plan_act_mode", { plan_act_mode: nextMode })
+					.catch(() => {
+						// The in-session toggle already applied; persistence is best-effort.
+					});
+			}}
+			onAutoApproveToggle={handleAutoApproveToggle}
 			onPromptInputChange={handlePromptInputChange}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
@@ -1342,6 +1378,7 @@ function ChatThreadPane({
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
+			autoApproveTools={config.autoApproveTools ?? false}
 			promptsInQueue={promptsInQueue}
 			promptDraft={promptDraft}
 			provider={config.provider}
@@ -1423,6 +1460,7 @@ function ChatThreadPane({
 							<ChatMessages
 								onAnswerAskQuestion={handleAnswerAskQuestion}
 								onApproveToolApproval={handleApproveToolApproval}
+								onApproveAlwaysToolApproval={handleApproveAlwaysToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
 								error={displayedError}

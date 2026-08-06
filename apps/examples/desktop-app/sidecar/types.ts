@@ -58,6 +58,12 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/**
+	 * The plan/act + auto-approve combination the running core session was
+	 * built with (system prompt and tool policies are fixed at start), used to
+	 * detect when a send needs a session rebuild to apply the new mode.
+	 */
+	appliedApprovalModeKey?: string;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */

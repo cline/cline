@@ -9,6 +9,8 @@ import {
 	CircleStop,
 	Cpu,
 	Paperclip,
+	ShieldCheck,
+	ShieldQuestion,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -249,6 +251,7 @@ type ChatInputBarProps = {
 	model: string;
 	modelContextWindow?: number;
 	mode: "act" | "plan";
+	autoApproveTools: boolean;
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	gitBranch: string;
@@ -257,6 +260,7 @@ type ChatInputBarProps = {
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModeToggle: () => void;
+	onAutoApproveToggle: () => void;
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
@@ -290,6 +294,7 @@ export function ChatInputBar({
 	model,
 	modelContextWindow,
 	mode,
+	autoApproveTools,
 	thinking,
 	reasoningEffort,
 	gitBranch,
@@ -298,6 +303,7 @@ export function ChatInputBar({
 	onProviderChange,
 	onModelChange,
 	onModeToggle,
+	onAutoApproveToggle,
 	onReasoningChange,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -942,7 +948,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -954,6 +960,7 @@ export function ChatInputBar({
 							onClick={() => {
 								if (mode !== "plan") onModeToggle();
 							}}
+							title="Plan mode: discuss and design before making changes"
 							type="button"
 						>
 							Plan
@@ -969,11 +976,42 @@ export function ChatInputBar({
 							onClick={() => {
 								if (mode !== "act") onModeToggle();
 							}}
+							title="Act mode: make changes in the workspace"
 							type="button"
 						>
 							Act
 						</button>
 					</div>
+					<button
+						aria-label={
+							autoApproveTools
+								? "Auto-approve is on — tools run without asking"
+								: "Auto-approve is off — every tool call asks first"
+						}
+						aria-pressed={autoApproveTools}
+						className={cn(
+							"flex h-7 shrink-0 items-center gap-1 rounded-md px-2 transition-colors",
+							autoApproveTools
+								? "bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 dark:text-amber-400"
+								: "bg-muted text-muted-foreground hover:text-foreground",
+						)}
+						onClick={onAutoApproveToggle}
+						title={
+							autoApproveTools
+								? "Auto-approve is on: the agent runs tools without asking. Click to require approval for each tool call."
+								: "Auto-approve is off: the agent asks before each tool call. Click to let it run tools without asking."
+						}
+						type="button"
+					>
+						{autoApproveTools ? (
+							<ShieldCheck className="size-3" />
+						) : (
+							<ShieldQuestion className="size-3" />
+						)}
+						<span className="max-[560px]:sr-only">
+							{autoApproveTools ? "Auto-approve" : "Ask first"}
+						</span>
+					</button>
 					<div className="min-w-0 shrink-0">
 						<ModelSelector
 							isBusy={isBusy}

@@ -79,6 +79,87 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("shows plan/act and auto-approve controls and dispatches their toggles", async () => {
+		const onModeToggle = vi.fn();
+		const onAutoApproveToggle = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						autoApproveTools={false}
+						onAutoApproveToggle={onAutoApproveToggle}
+						onModeToggle={onModeToggle}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		const planButton = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent === "Plan");
+		const actButton = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent === "Act");
+		expect(planButton).toBeDefined();
+		expect(actButton).toBeDefined();
+		// The mode toggle is user-visible (it used to be rendered hidden).
+		expect(planButton?.parentElement?.className).not.toContain("hidden");
+		expect(actButton?.getAttribute("aria-pressed")).toBe("true");
+		expect(planButton?.getAttribute("aria-pressed")).toBe("false");
+		await act(async () => planButton?.click());
+		expect(onModeToggle).toHaveBeenCalledTimes(1);
+		// Clicking the already-active mode is a no-op.
+		await act(async () => actButton?.click());
+		expect(onModeToggle).toHaveBeenCalledTimes(1);
+
+		const autoApproveButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label*="Auto-approve is off"]',
+		);
+		expect(autoApproveButton).not.toBeNull();
+		expect(autoApproveButton?.getAttribute("aria-pressed")).toBe("false");
+		expect(autoApproveButton?.textContent).toContain("Ask first");
+		await act(async () => autoApproveButton?.click());
+		expect(onAutoApproveToggle).toHaveBeenCalledTimes(1);
+	});
+
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
@@ -107,7 +188,9 @@ describe("ChatInputBar", () => {
 								current: "main",
 								branches: ["main"],
 							}))}
-							onModeToggle={vi.fn()}
+							autoApproveTools={false}
+						onAutoApproveToggle={vi.fn()}
+						onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
@@ -276,6 +359,8 @@ describe("ChatInputBar", () => {
 							current: "main",
 							branches: ["main"],
 						}))}
+						autoApproveTools={false}
+						onAutoApproveToggle={vi.fn()}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
@@ -363,6 +448,8 @@ describe("ChatInputBar", () => {
 							current: "main",
 							branches: ["main"],
 						}))}
+						autoApproveTools={false}
+						onAutoApproveToggle={vi.fn()}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
@@ -512,6 +599,8 @@ describe("ChatInputBar token ring", () => {
 							current: "main",
 							branches: ["main"],
 						}))}
+						autoApproveTools={false}
+						onAutoApproveToggle={vi.fn()}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
