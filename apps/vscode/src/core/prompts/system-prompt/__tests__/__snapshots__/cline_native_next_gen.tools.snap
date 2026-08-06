@@ -373,7 +373,7 @@
         "properties": {
           "result": {
             "type": "string",
-            "description": "A clear, brief and very short (1-2 paragraph) summary of the final result of the task."
+            "description": "A clear, brief and very short (1-2 paragraph) summary of the final result of the task. The user sees this result as your message, so do NOT repeat the same content as plain text outside of this tool call."
           },
           "command": {
             "type": "string",
@@ -402,7 +402,7 @@
         "properties": {
           "response": {
             "type": "string",
-            "description": "The response to provide to the user."
+            "description": "The response to provide to the user. The user sees this response as your message, so do NOT repeat the same content as plain text outside of this tool call."
           },
           "task_progress": {
             "type": "string",

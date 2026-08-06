@@ -286,7 +286,7 @@
       "properties": {
         "result": {
           "type": "STRING",
-          "description": "The result of the tool use. This should be a clear, specific description of the result."
+          "description": "The result of the tool use. This should be a clear, specific description of the result. The user sees this result as your message, so do NOT repeat the same content as plain text outside of this tool call."
         },
         "command": {
           "type": "STRING",

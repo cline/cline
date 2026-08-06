@@ -1,6 +1,6 @@
-import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { ModelFamily } from "@/shared/prompts";
+import { ClineDefaultTool } from "@/shared/tools";
+import type { ClineToolSpec } from "../spec";
 
 /**
  * ## plan_mode_respond
@@ -20,7 +20,7 @@ Checklist here (If you have presented the user with concrete steps or requiremen
 </plan_mode_respond>
  */
 
-const id = ClineDefaultTool.PLAN_MODE
+const id = ClineDefaultTool.PLAN_MODE;
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
@@ -32,7 +32,7 @@ However, if while writing your response you realize you actually need to do more
 		{
 			name: "response",
 			required: true,
-			instruction: `The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)`,
+			instruction: `The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.) The user sees this response as your message, so do NOT repeat the same content as plain text outside of this tool call.`,
 			usage: "Your response here",
 		},
 		{
@@ -40,7 +40,8 @@ However, if while writing your response you realize you actually need to do more
 			required: false,
 			instruction:
 				"Set to true if while formulating your response that you found you need to do more exploration with tools, for example reading files. (Remember, you can explore the project with tools like read_file in PLAN MODE without the user having to toggle to ACT MODE.) Defaults to false if not specified.",
-			usage: "true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
+			usage:
+				"true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
 			type: "boolean",
 		},
 		// Different than the vanilla TASK_PROGRESS_PARAMETER
@@ -49,11 +50,12 @@ However, if while writing your response you realize you actually need to do more
 			required: false,
 			instruction:
 				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
-			usage: "Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
+			usage:
+				"Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
 			dependencies: [ClineDefaultTool.TODO],
 		},
 	],
-}
+};
 
 const NATIVE_GPT_5: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
@@ -65,15 +67,16 @@ However, if while writing your response you realize you actually need to do more
 		{
 			name: "response",
 			required: true,
-			instruction: `The response to provide to the user.`,
+			instruction: `The response to provide to the user. The user sees this response as your message, so do NOT repeat the same content as plain text outside of this tool call.`,
 		},
 		{
 			name: "task_progress",
 			required: false,
-			instruction: "A checklist showing task progress with the latest status of each subtasks included previously if any.",
+			instruction:
+				"A checklist showing task progress with the latest status of each subtasks included previously if any.",
 		},
 	],
-}
+};
 
 const GEMINI_3: ClineToolSpec = {
 	variant: ModelFamily.GEMINI_3,
@@ -92,7 +95,8 @@ If it becomes apparent that additional exploration is required while the plan_mo
 			name: "needs_more_exploration",
 			required: false,
 			instruction: `needs_more_exploration can be set to true if it is determined that further exploration with read_file/search tools is necessary to formulate a complete plan. This determination can be reached during the response generation process, but should not be acknowledged until this parameter is set to true if required.`,
-			usage: "true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
+			usage:
+				"true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
 			type: "boolean",
 		},
 		{
@@ -100,15 +104,21 @@ If it becomes apparent that additional exploration is required while the plan_mo
 			required: false,
 			instruction:
 				"A checklist showing task progress after this tool use is completed. If you are presenting a final implementation plan to the user with needs_more_exploration set to false, you should include a checklist of items to be completed during Act Mode when implementation is underway. (See 'Updating Task Progress' section for more details)",
-			usage: "Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
+			usage:
+				"Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
 			dependencies: [ClineDefaultTool.TODO],
 		},
 	],
-}
+};
 
 const NATIVE_NEXT_GEN: ClineToolSpec = {
 	...NATIVE_GPT_5,
 	variant: ModelFamily.NATIVE_NEXT_GEN,
-}
+};
 
-export const plan_mode_respond_variants = [generic, NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]
+export const plan_mode_respond_variants = [
+	generic,
+	NATIVE_GPT_5,
+	NATIVE_NEXT_GEN,
+	GEMINI_3,
+];

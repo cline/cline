@@ -1,8 +1,10 @@
-import { SystemPromptSection } from "../templates/placeholders"
-import { TemplateEngine } from "../templates/TemplateEngine"
-import type { PromptVariant, SystemPromptContext } from "../types"
+import { SystemPromptSection } from "../templates/placeholders";
+import { TemplateEngine } from "../templates/TemplateEngine";
+import type { PromptVariant, SystemPromptContext } from "../types";
 
-const getActVsPlanModeTemplateText = (context: SystemPromptContext) => `ACT MODE V.S. PLAN MODE
+const getActVsPlanModeTemplateText = (
+	context: SystemPromptContext,
+) => `ACT MODE V.S. PLAN MODE
 
 In each user message, the environment_details will specify the current mode. There are two modes:
 
@@ -11,6 +13,7 @@ In each user message, the environment_details will specify the current mode. The
 - PLAN MODE: In this special mode, you have access to the plan_mode_respond tool.
  - In PLAN MODE, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
  - In PLAN MODE, when you need to converse with the user or present a plan, you should use the plan_mode_respond tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using plan_mode_respond - just use it directly to share your thoughts and provide helpful answers.
+- Both attempt_completion and plan_mode_respond display to the user as assistant messages, so include your message content within the tool call itself rather than duplicating it outside. NEVER write out your plan or final result as plain text and then repeat the same content inside the tool call - the user would see it twice.
 
 ## What is PLAN MODE?
 
@@ -18,10 +21,15 @@ In each user message, the environment_details will specify the current mode. The
 - When starting in PLAN MODE, depending on the user's request, you may need to do some information gathering e.g. using read_file or search_files to get more context about the task.${context.yoloModeToggled !== true ? " You may also ask the user clarifying questions with ask_followup_question to get a better understanding of the task." : ""}
 - Once you've gained more context about the user's request, you should architect a detailed plan for how you will accomplish the task. Present the plan to the user using the plan_mode_respond tool.
 - Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
-- Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.`
+- Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.`;
 
-export async function getActVsPlanModeSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || getActVsPlanModeTemplateText
+export async function getActVsPlanModeSection(
+	variant: PromptVariant,
+	context: SystemPromptContext,
+): Promise<string> {
+	const template =
+		variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template ||
+		getActVsPlanModeTemplateText;
 
-	return new TemplateEngine().resolve(template, context, {})
+	return new TemplateEngine().resolve(template, context, {});
 }

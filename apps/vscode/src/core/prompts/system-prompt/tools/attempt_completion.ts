@@ -1,8 +1,8 @@
-import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { ModelFamily } from "@/shared/prompts";
+import { ClineDefaultTool } from "@/shared/tools";
+import type { ClineToolSpec } from "../spec";
 
-const id = ClineDefaultTool.ATTEMPT
+const id = ClineDefaultTool.ATTEMPT;
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
@@ -14,14 +14,15 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 		{
 			name: "result",
 			required: true,
-			instruction: "The result of the tool use. This should be a clear, specific description of the result.",
+			instruction:
+				"The result of the tool use. This should be a clear, specific description of the result. The user sees this result as your message, so do NOT repeat the same content as plain text outside of this tool call.",
 			usage: "Your final result description here",
 		},
 		{
 			name: "command",
 			required: false,
 			instruction:
-				"A CLI command to execute to show a live demo of the result to the user. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. But DO NOT use commands like \`echo\` or \`cat\` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions",
+				"A CLI command to execute to show a live demo of the result to the user. For example, use `open index.html` to display a created html website, or `open localhost:3000` to display a locally running development server. But DO NOT use commands like `echo` or `cat` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions",
 			usage: "Your command here (optional)",
 		},
 		// Different than the vanilla ASK_PROGRESS_PARAMETER
@@ -30,13 +31,14 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 			required: false,
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
-			usage: "Checklist here (required if you used task_progress in previous tool uses)",
+			usage:
+				"Checklist here (required if you used task_progress in previous tool uses)",
 			dependencies: [ClineDefaultTool.TODO],
 			description:
 				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 	],
-}
+};
 
 const GPT_5: ClineToolSpec = {
 	variant: ModelFamily.GPT_5,
@@ -48,14 +50,15 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 		{
 			name: "result",
 			required: true,
-			instruction: "The result of the tool use. This should be a clear, specific description of the result.",
+			instruction:
+				"The result of the tool use. This should be a clear, specific description of the result. The user sees this result as your message, so do NOT repeat the same content as plain text outside of this tool call.",
 			usage: "Your final result description here",
 		},
 		{
 			name: "command",
 			required: false,
 			instruction:
-				"A CLI command to execute to show a live demo of the result to the user. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. But DO NOT use commands like \`echo\` or \`cat\` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions",
+				"A CLI command to execute to show a live demo of the result to the user. For example, use `open index.html` to display a created html website, or `open localhost:3000` to display a locally running development server. But DO NOT use commands like `echo` or `cat` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions",
 			usage: "Your command here (optional)",
 		},
 		// Different than the vanilla ASK_PROGRESS_PARAMETER
@@ -64,13 +67,14 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 			required: false,
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
-			usage: "Checklist here (required if you used task_progress in previous tool uses)",
+			usage:
+				"Checklist here (required if you used task_progress in previous tool uses)",
 			dependencies: [ClineDefaultTool.TODO],
 			description:
 				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 	],
-}
+};
 
 const NATIVE_NEXT_GEN: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
@@ -82,13 +86,14 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 		{
 			name: "result",
 			required: true,
-			instruction: "A clear, brief and very short (1-2 paragraph) summary of the final result of the task.",
+			instruction:
+				"A clear, brief and very short (1-2 paragraph) summary of the final result of the task. The user sees this result as your message, so do NOT repeat the same content as plain text outside of this tool call.",
 		},
 		{
 			name: "command",
 			required: false,
 			instruction:
-				"An actionable terminal command that is non-verbose that allows user to review the result of your work. For example, use \`start localhost:3000\` to start a locally running development server. Commands like \`echo\` or \`cat\` that merely print text or open a file are not allowed. Ensure the command is properly formatted for user's OS and does not contain any harmful instructions",
+				"An actionable terminal command that is non-verbose that allows user to review the result of your work. For example, use `start localhost:3000` to start a locally running development server. Commands like `echo` or `cat` that merely print text or open a file are not allowed. Ensure the command is properly formatted for user's OS and does not contain any harmful instructions",
 		},
 		{
 			name: "task_progress",
@@ -98,11 +103,16 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 				"A checklist showing task progress with the latest status of each subtasks included previously, if any. If you are calling attempt completion, and all items in this list have been completed, they must be marked as completed in this response.",
 		},
 	],
-}
+};
 
 const NATIVE_GPT_5: ClineToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
-}
+};
 
-export const attempt_completion_variants = [generic, GPT_5, NATIVE_NEXT_GEN, NATIVE_GPT_5]
+export const attempt_completion_variants = [
+	generic,
+	GPT_5,
+	NATIVE_NEXT_GEN,
+	NATIVE_GPT_5,
+];
