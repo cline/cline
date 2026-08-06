@@ -1362,8 +1362,8 @@ export class Controller {
 
 	/**
 	 * Surfaces a /goal command reply. With an open conversation it renders as
-	 * an informational chat row (like compaction progress); with no task open
-	 * it falls back to a host notification.
+	 * a compact divider row (like compaction progress); with no task open it
+	 * falls back to a host notification.
 	 */
 	private emitGoalInfo(text: string): void {
 		const sessionId = this.sessions.getActiveSession()?.sessionId ?? this.task?.taskId
@@ -1373,7 +1373,7 @@ export class Controller {
 				.catch((error) => Logger.error("[SdkController] Failed to show goal reply:", error))
 			return
 		}
-		this.messages.appendAndEmit([{ ts: Date.now(), type: "say", say: "info", text, partial: false }], {
+		this.messages.appendAndEmit([{ ts: Date.now(), type: "say", say: "goal", text, partial: false }], {
 			type: "status",
 			payload: { sessionId, status: "running" },
 		})
