@@ -1389,6 +1389,18 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is not connected and cannot be used.${detail}`)
 		}
 
+		// Validate the tool name against the connected server's catalog so
+		// the model receives a corrective error listing the real tool names
+		// instead of a bare server-side rejection.
+		if (connection.server.tools && connection.server.tools.length > 0) {
+			const knownToolNames = connection.server.tools.map((t) => t.name)
+			if (!knownToolNames.includes(toolName)) {
+				throw new Error(
+					`Tool "${toolName}" does not exist on server "${serverName}". Available tools: ${knownToolNames.join(", ")}`,
+				)
+			}
+		}
+
 		// The config is re-resolved on each call, so a changed timeout takes
 		// effect on the next request.
 		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
