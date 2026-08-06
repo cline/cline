@@ -3,7 +3,9 @@
 import { AgentAurora } from "@cline/ui";
 import {
 	ArrowLeft,
+	Check,
 	CheckCircle2,
+	Copy,
 	ExternalLink,
 	KeyRound,
 	Loader2,
@@ -40,6 +42,16 @@ export type OnboardingStep = "welcome" | "connect" | "done";
 type OnboardingConnection =
 	| { kind: "cline" }
 	| { kind: "provider"; providerName: string };
+
+type DeviceAuthPanel =
+	| { phase: "starting" }
+	| {
+			phase: "waiting";
+			authId: string;
+			userCode: string;
+			verificationUri: string;
+			verificationUriComplete?: string;
+	  };
 
 /**
  * Providers surfaced first in the bring-your-own-key picker. Everything else
@@ -232,15 +244,51 @@ function ConnectStep({
 	// cannot advance or error the UI after the user has moved on.
 	const signInAttemptRef = useRef(0);
 
+	// Progress lines from the sidecar's OAuth flow (verification URL, "enter
+	// this code" instructions). Shown while a browser sign-in is pending so
+	// the user can still finish when the browser failed to open.
+	const [signInOutput, setSignInOutput] = useState<string[]>([]);
+	useEffect(() => {
+		if (!signingIn) {
+			return;
+		}
+		const unsubscribe = desktopClient.subscribe(
+			"oauth_login_output",
+			(payload) => {
+				const record =
+					payload && typeof payload === "object"
+						? (payload as { provider?: unknown; message?: unknown })
+						: null;
+				if (record?.provider !== "cline" || typeof record.message !== "string") {
+					return;
+				}
+				const message = record.message.trim();
+				if (!message) {
+					return;
+				}
+				setSignInOutput((previous) =>
+					previous.includes(message) ? previous : [...previous, message],
+				);
+			},
+		);
+		return unsubscribe;
+	}, [signingIn]);
+
 	const signInWithCline = useCallback(async () => {
 		signInAttemptRef.current += 1;
 		const attempt = signInAttemptRef.current;
 		setSigningIn(true);
 		setSignInError(null);
+		setSignInOutput([]);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			// The browser round-trip legitimately outlives the default command
+			// deadline (device authorizations stay valid for ~5 minutes), and
+			// Cancel plus connection-close cleanup already bound the wait.
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: null },
+			);
 			if (signInAttemptRef.current !== attempt) {
 				// The sign-in completed after the user cancelled but before the
 				// backend processed the cancellation, so credentials were saved.
@@ -270,6 +318,7 @@ function ConnectStep({
 	const cancelSignInWithCline = useCallback(() => {
 		signInAttemptRef.current += 1;
 		setSigningIn(false);
+		setSignInOutput([]);
 		// Cancel the backend browser round-trip so a later-completed
 		// authorization in the abandoned tab can never persist credentials.
 		// Retry transient delivery failures; if the transport itself is gone,
@@ -288,6 +337,95 @@ function ConnectStep({
 				}
 			}
 		})();
+	}, []);
+
+	// Device-code fallback: sign in from any browser (this or another device)
+	// without relying on the app being able to open one locally.
+	const deviceAuthAttemptRef = useRef(0);
+	const [deviceAuth, setDeviceAuth] = useState<DeviceAuthPanel | null>(null);
+	const [deviceAuthError, setDeviceAuthError] = useState<string | null>(null);
+	const [deviceCodeCopied, setDeviceCodeCopied] = useState(false);
+
+	const startDeviceCodeSignIn = useCallback(async () => {
+		deviceAuthAttemptRef.current += 1;
+		const attempt = deviceAuthAttemptRef.current;
+		setDeviceAuthError(null);
+		setDeviceCodeCopied(false);
+		setDeviceAuth({ phase: "starting" });
+		try {
+			const started = await desktopClient.invoke<{
+				authId: string;
+				userCode: string;
+				verificationUri: string;
+				verificationUriComplete?: string;
+				expiresInSeconds: number;
+			}>("start_cline_device_auth");
+			if (deviceAuthAttemptRef.current !== attempt) {
+				void desktopClient
+					.invoke("cancel_cline_device_auth", { auth_id: started.authId })
+					.catch(() => undefined);
+				return;
+			}
+			setDeviceAuth({
+				phase: "waiting",
+				authId: started.authId,
+				userCode: started.userCode,
+				verificationUri: started.verificationUri,
+				verificationUriComplete: started.verificationUriComplete,
+			});
+			// Resolves once the user approves the code in a browser; the
+			// authorization stays valid for several minutes, so opt out of the
+			// default command deadline (Cancel bounds the wait instead).
+			await desktopClient.invoke(
+				"complete_cline_device_auth",
+				{ auth_id: started.authId },
+				{ timeoutMs: null },
+			);
+			if (deviceAuthAttemptRef.current !== attempt) {
+				// Completed after the user moved on but before the backend saw
+				// the cancellation; reflect the persisted signed-in state.
+				void refreshAccount();
+				return;
+			}
+			rememberProviderSelection({ id: "cline" });
+			await refreshAccount();
+			onConnected({ kind: "cline" });
+		} catch (error) {
+			if (deviceAuthAttemptRef.current !== attempt) {
+				return;
+			}
+			setDeviceAuth(null);
+			setDeviceAuthError(error instanceof Error ? error.message : String(error));
+		} finally {
+			// Credentials may have been persisted; drop the short-lived catalog
+			// cache so the app reloads them instead of a pre-save copy.
+			invalidateProviderCatalogCache();
+		}
+	}, [onConnected, refreshAccount]);
+
+	const cancelDeviceCodeSignIn = useCallback(() => {
+		const current = deviceAuth;
+		deviceAuthAttemptRef.current += 1;
+		setDeviceAuth(null);
+		setDeviceAuthError(null);
+		if (current?.phase === "waiting") {
+			// Cancel backend polling so a later approval in an abandoned
+			// browser tab can never persist credentials.
+			void desktopClient
+				.invoke("cancel_cline_device_auth", { auth_id: current.authId })
+				.catch(() => undefined);
+		}
+	}, [deviceAuth]);
+
+	const copyDeviceCode = useCallback(async (code: string) => {
+		try {
+			await navigator.clipboard.writeText(code);
+			setDeviceCodeCopied(true);
+			setTimeout(() => setDeviceCodeCopied(false), 2000);
+		} catch {
+			// Clipboard access can be denied; the code stays visible to copy
+			// manually.
+		}
 	}, []);
 
 	const connectWithClineApiKey = useCallback(async () => {
@@ -459,6 +597,29 @@ function ConnectStep({
 							)}
 						</div>
 					)}
+					{signingIn && signInOutput.length > 0 ? (
+						<div className="mt-3 flex flex-col gap-1 rounded-xl border border-border/70 bg-background/70 p-3">
+							<p className="text-xs font-medium text-foreground">
+								Browser didn&apos;t open? Finish signing in manually:
+							</p>
+							{signInOutput.map((line) =>
+								/^https?:\/\//.test(line) ? (
+									<button
+										className="max-w-full truncate text-left font-mono text-xs text-primary underline-offset-2 hover:underline"
+										key={line}
+										onClick={() => void openExternalUrl(line)}
+										type="button"
+									>
+										{line}
+									</button>
+								) : (
+									<p className="text-xs text-muted-foreground" key={line}>
+										{line}
+									</p>
+								),
+							)}
+						</div>
+					) : null}
 					{signInError ? (
 						<p className="mt-2 text-xs text-destructive" role="alert">
 							Sign in failed: {signInError}
@@ -466,16 +627,115 @@ function ConnectStep({
 					) : null}
 					{!user ? (
 						<div className="mt-3">
-							<button
-								aria-expanded={showClineKeyForm}
-								className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
-								onClick={() => setShowClineKeyForm((current) => !current)}
-								type="button"
-							>
-								{showClineKeyForm
-									? "Hide Cline API key"
-									: "Use a Cline API key instead"}
-							</button>
+							<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+								<button
+									aria-expanded={showClineKeyForm}
+									className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+									onClick={() => setShowClineKeyForm((current) => !current)}
+									type="button"
+								>
+									{showClineKeyForm
+										? "Hide Cline API key"
+										: "Use a Cline API key instead"}
+								</button>
+								<button
+									aria-expanded={deviceAuth !== null}
+									className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+									onClick={() => {
+										if (deviceAuth) {
+											cancelDeviceCodeSignIn();
+										} else {
+											void startDeviceCodeSignIn();
+										}
+									}}
+									type="button"
+								>
+									{deviceAuth ? "Hide device code" : "Use a device code"}
+								</button>
+							</div>
+							{deviceAuth ? (
+								<div className="mt-3 rounded-xl border border-border/70 bg-background/70 p-4">
+									{deviceAuth.phase === "starting" ? (
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<Loader2 className="size-4 animate-spin" />
+											Requesting a device code...
+										</div>
+									) : (
+										<div className="flex flex-col gap-3">
+											<p className="text-sm text-muted-foreground">
+												On any device, go to{" "}
+												<button
+													className="break-all font-mono text-primary underline-offset-2 hover:underline"
+													onClick={() =>
+														void openExternalUrl(deviceAuth.verificationUri)
+													}
+													type="button"
+												>
+													{deviceAuth.verificationUri}
+												</button>{" "}
+												and enter this code:
+											</p>
+											<div className="flex flex-wrap items-center gap-2">
+												<code
+													className="rounded-lg bg-secondary px-3 py-1.5 font-mono text-lg font-semibold tracking-[0.2em] text-foreground"
+													data-testid="device-user-code"
+												>
+													{deviceAuth.userCode}
+												</code>
+												<Button
+													className="rounded-full"
+													onClick={() =>
+														void copyDeviceCode(deviceAuth.userCode)
+													}
+													size="sm"
+													type="button"
+													variant="outline"
+												>
+													{deviceCodeCopied ? (
+														<Check className="size-3.5" />
+													) : (
+														<Copy className="size-3.5" />
+													)}
+													{deviceCodeCopied ? "Copied" : "Copy code"}
+												</Button>
+												<Button
+													className="rounded-full"
+													onClick={() =>
+														void openExternalUrl(
+															deviceAuth.verificationUriComplete ??
+																deviceAuth.verificationUri,
+														)
+													}
+													size="sm"
+													type="button"
+													variant="secondary"
+												>
+													Open browser
+													<ExternalLink className="size-3.5" />
+												</Button>
+											</div>
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<span className="flex items-center gap-2 text-xs text-muted-foreground">
+													<Loader2 className="size-3 animate-spin" />
+													Waiting for approval...
+												</span>
+												<button
+													className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+													onClick={cancelDeviceCodeSignIn}
+													type="button"
+												>
+													Cancel
+												</button>
+											</div>
+										</div>
+									)}
+								</div>
+							) : null}
+							{deviceAuthError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Device sign-in failed: {deviceAuthError}
+								</p>
+							) : null}
 							{showClineKeyForm ? (
 								<div className="mt-3 flex flex-col gap-2">
 									<div className="flex flex-wrap items-center gap-2">

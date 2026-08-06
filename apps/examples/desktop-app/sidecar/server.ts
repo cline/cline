@@ -3,6 +3,7 @@ import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { cancelClineDeviceAuthFlowsForOwner } from "./device-auth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
 	BunRuntime,
@@ -335,6 +336,7 @@ function createWebSocketHandler(ctx: SidecarContext) {
 			// goes away (webview reload, transport drop), cancel it so the
 			// abandoned browser flow can never persist credentials later.
 			cancelProviderOAuthLoginsForOwner(ws);
+			cancelClineDeviceAuthFlowsForOwner(ws);
 		},
 	};
 }

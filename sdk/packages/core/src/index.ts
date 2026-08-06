@@ -643,6 +643,7 @@ export {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	listLocalProviders,
+	type LocalProviderLoginOverrides,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	markLocalProviderEnabled,

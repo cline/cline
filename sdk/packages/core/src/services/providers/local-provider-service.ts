@@ -10,6 +10,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
+import type { OAuthPrompt } from "../../auth/types";
 import {
 	getProviderAuthHandler,
 	loginAndSaveProviderOAuthCredentials,
@@ -912,18 +913,37 @@ export function normalizeOAuthProvider(provider: string): string {
 	throw new Error(`provider "${provider}" does not support OAuth login`);
 }
 
+export interface LocalProviderLoginOverrides {
+	/**
+	 * Interactive fallback when the login flow needs manual input (e.g. the
+	 * localhost callback never arrived and the user must paste the
+	 * authorization code). Defaults to answering with the prompt's default
+	 * value, which effectively skips manual entry.
+	 */
+	onPrompt?: (prompt: OAuthPrompt) => Promise<string>;
+	/**
+	 * Receives user-facing progress lines (verification URLs, "enter this
+	 * code" instructions). Without it those lines are dropped, which hides
+	 * device-auth user codes from UIs that rely on this helper.
+	 */
+	onOutput?: (message: string) => void;
+}
+
 export async function loginLocalProvider(
 	providerId: string,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
+	overrides?: LocalProviderLoginOverrides,
 ): Promise<ProviderOAuthCredentials> {
 	const handler = getProviderAuthHandler(providerId);
 	if (!handler) {
 		throw new Error(`provider "${providerId}" does not support OAuth login`);
 	}
 	const callbacks = createOAuthClientCallbacks({
-		onPrompt: async (prompt) => prompt.defaultValue ?? "",
+		onPrompt:
+			overrides?.onPrompt ?? (async (prompt) => prompt.defaultValue ?? ""),
+		onOutput: overrides?.onOutput,
 		openUrl,
 		onOpenUrlError: ({ error }) => {
 			throw error instanceof Error ? error : new Error(String(error));

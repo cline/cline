@@ -73,7 +73,13 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
+	cancelClineDeviceAuthFlow,
+	completeClineDeviceAuthFlow,
+	startClineDeviceAuthFlow,
+} from "./device-auth";
+import {
 	cancelProviderOAuthLogin,
+	respondOAuthPrompt,
 	runCancellableProviderOAuthLogin,
 } from "./oauth-login";
 import {
@@ -1559,7 +1565,10 @@ export async function handleCommand(
 					);
 				});
 			},
-			{ owner: options?.connection },
+			{
+				owner: options?.connection,
+				broadcast: (name, payload) => broadcastEvent(ctx, name, payload),
+			},
 		);
 	}
 	if (command === "cancel_provider_oauth_login") {
@@ -1567,6 +1576,37 @@ export async function handleCommand(
 		return {
 			provider: providerId,
 			cancelled: cancelProviderOAuthLogin(providerId),
+		};
+	}
+	if (command === "respond_oauth_prompt") {
+		const promptId = String(args?.prompt_id ?? "").trim();
+		if (!promptId) {
+			throw new Error("prompt_id is required");
+		}
+		return {
+			promptId,
+			handled: respondOAuthPrompt(
+				promptId,
+				typeof args?.value === "string" ? args.value : "",
+			),
+		};
+	}
+	if (command === "start_cline_device_auth") {
+		return await startClineDeviceAuthFlow({ owner: options?.connection });
+	}
+	if (command === "complete_cline_device_auth") {
+		const authId = String(args?.auth_id ?? "").trim();
+		if (!authId) {
+			throw new Error("auth_id is required");
+		}
+		const manager = new ProviderSettingsManager();
+		return await completeClineDeviceAuthFlow(manager, authId);
+	}
+	if (command === "cancel_cline_device_auth") {
+		const authId = String(args?.auth_id ?? "").trim();
+		return {
+			authId,
+			cancelled: authId ? cancelClineDeviceAuthFlow(authId) : false,
 		};
 	}
 

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { OAuthPromptDialog } from "@/components/oauth-prompt-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -394,6 +395,7 @@ export default function Home() {
 					<OnboardingView onComplete={completeOnboarding} />
 				</div>
 			) : null}
+			<OAuthPromptDialog />
 		</AccountProvider>
 	);
 }

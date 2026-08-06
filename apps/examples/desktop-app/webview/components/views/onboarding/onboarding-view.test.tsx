@@ -11,9 +11,12 @@ import {
 import type { Provider } from "@/lib/provider-schema";
 import { OnboardingView, sortProvidersForApiKeySetup } from "./onboarding-view";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, subscribe } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	subscribe: vi.fn(() => () => undefined),
+}));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe },
 	openExternalUrl: vi.fn(),
 }));
 
@@ -100,6 +103,8 @@ describe("OnboardingView", () => {
 		Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 		window.localStorage.clear();
 		invoke.mockReset();
+		subscribe.mockReset();
+		subscribe.mockImplementation(() => () => undefined);
 		// AccountProvider fetches the account on mount; unresolved auth means
 		// the signed-out variant of the connect step renders.
 		invoke.mockImplementation(async (command: string) => {
@@ -239,6 +244,161 @@ describe("OnboardingView", () => {
 		});
 	});
 
+	it("signs in with a device code shown in the app", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		let resolveCompletion: (value: unknown) => void = () => undefined;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "start_cline_device_auth") {
+				return {
+					authId: "auth-1",
+					userCode: "ABCD-1234",
+					verificationUri: "https://auth.example.com/device",
+					verificationUriComplete:
+						"https://auth.example.com/device?code=ABCD-1234",
+					expiresInSeconds: 300,
+				};
+			}
+			if (command === "complete_cline_device_auth") {
+				return await new Promise((resolve) => {
+					resolveCompletion = resolve;
+				});
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			buttonByText("Use a device code").click();
+		});
+		// The code and verification URL are visible while polling continues.
+		expect(
+			container.querySelector('[data-testid="device-user-code"]')?.textContent,
+		).toBe("ABCD-1234");
+		expect(container.textContent).toContain("https://auth.example.com/device");
+		expect(container.textContent).toContain("Waiting for approval...");
+		// Polling legitimately outlives the default command deadline.
+		expect(invoke).toHaveBeenCalledWith(
+			"complete_cline_device_auth",
+			{ auth_id: "auth-1" },
+			{ timeoutMs: null },
+		);
+
+		await act(async () => {
+			resolveCompletion({ provider: "cline", accessToken: "token" });
+		});
+		expect(container.textContent).toContain("You're all set");
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			).lastProvider,
+		).toBe("cline");
+	});
+
+	it("cancels a pending device-code sign-in", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "start_cline_device_auth") {
+				return {
+					authId: "auth-2",
+					userCode: "WXYZ-5678",
+					verificationUri: "https://auth.example.com/device",
+					expiresInSeconds: 300,
+				};
+			}
+			if (command === "complete_cline_device_auth") {
+				return await new Promise(() => undefined);
+			}
+			if (command === "cline_account") {
+				throw new Error("No Cline account auth token found");
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			buttonByText("Use a device code").click();
+		});
+		expect(container.textContent).toContain("WXYZ-5678");
+
+		await act(async () => {
+			buttonByText("Cancel").click();
+		});
+		expect(container.textContent).not.toContain("WXYZ-5678");
+		// Cancelling must also stop backend polling so a later approval in an
+		// abandoned browser tab can never persist credentials.
+		expect(invoke).toHaveBeenCalledWith("cancel_cline_device_auth", {
+			auth_id: "auth-2",
+		});
+	});
+
+	it("surfaces OAuth progress lines while a browser sign-in is pending", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+
+		let emitOutput: ((payload: unknown) => void) | undefined;
+		subscribe.mockImplementation(
+			((eventName: string, handler: (payload: unknown) => void) => {
+				if (eventName === "oauth_login_output") {
+					emitOutput = handler;
+				}
+				return () => undefined;
+			}) as never,
+		);
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise(() => undefined);
+			}
+			if (command === "cline_account") {
+				throw new Error("No Cline account auth token found");
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			buttonByText("Sign in").click();
+		});
+		await act(async () => {
+			emitOutput?.({
+				provider: "cline",
+				message: "Enter this code in your browser: ABCD-1234",
+			});
+			emitOutput?.({
+				provider: "cline",
+				message: "https://auth.example.com/device?code=ABCD-1234",
+			});
+			// Other providers' logins must not leak into the Cline card.
+			emitOutput?.({ provider: "oca", message: "unrelated line" });
+		});
+
+		expect(container.textContent).toContain(
+			"Enter this code in your browser: ABCD-1234",
+		);
+		expect(container.textContent).toContain(
+			"https://auth.example.com/device?code=ABCD-1234",
+		);
+		expect(container.textContent).not.toContain("unrelated line");
+	});
+
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
 		const onComplete = await render();
 		await act(async () => {
@@ -371,9 +531,11 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			{ timeoutMs: null },
+		);
 		expect(container.textContent).toContain("You're all set");
 		expect(
 			parseModelSelectionStorage(
