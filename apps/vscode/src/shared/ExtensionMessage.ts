@@ -65,12 +65,6 @@ export interface ExtensionState {
 	 */
 	queuedPrompts?: QueuedPrompt[]
 	/**
-	 * The /goal completion guard armed for the current conversation, if any.
-	 * Drives the goal banner above the composer; verifying is true while an
-	 * automatic post-run verification turn is in flight.
-	 */
-	activeGoal?: { goal: string; verifying: boolean }
-	/**
 	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
 	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
 	 * ignored. Stamped by the extension. Optional for classic/legacy.
@@ -266,7 +260,6 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
-	| "goal" // /goal completion-guard lifecycle row (ClineGoalInfo JSON payload)
 
 export interface ClineSayTool {
 	tool:
@@ -392,17 +385,6 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
-}
-
-/** JSON payload of a say="goal" row (the /goal completion guard lifecycle). */
-export interface ClineGoalInfo {
-	kind: "set" | "completed" | "cleared" | "status"
-	/** The goal text ("set", "completed", and "status" with an active goal). */
-	goal?: string
-	/** Model-provided completion summary ("completed" only). */
-	summary?: string
-	/** Preformatted reply text ("status" and "cleared"). */
-	detail?: string
 }
 
 export interface ClineSubagentUsageInfo {

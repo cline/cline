@@ -50,7 +50,6 @@ import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
-import GoalRow from "./GoalRow"
 import HookMessage from "./HookMessage"
 import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
@@ -1004,8 +1003,6 @@ export const ChatRowContent = memo(
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					case "compaction":
 						return <CompactionRow message={message} />
-					case "goal":
-						return <GoalRow message={message} />
 					default:
 						return (
 							<div>
