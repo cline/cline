@@ -4,6 +4,7 @@
 
 export { ActionButtons } from "./ActionButtons"
 export { ChatLayout } from "./ChatLayout"
+export { GoalBanner } from "./GoalBanner"
 export { InputSection } from "./InputSection"
 export { MessagesArea } from "./MessagesArea"
 export { QueuedPrompts } from "./QueuedPrompts"

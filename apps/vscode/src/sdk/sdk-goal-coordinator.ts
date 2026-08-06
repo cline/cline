@@ -6,6 +6,7 @@ import {
 	MAX_GOAL_VERIFICATION_ROUNDS,
 } from "@cline/core"
 import type { AgentResult, AgentTool } from "@cline/shared"
+import type { ClineGoalInfo } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkSendOrigin } from "./sdk-session-lifecycle"
 
@@ -37,6 +38,18 @@ export function parseGoalCommand(text: string): GoalCommand | undefined {
 		return { kind: "clear" }
 	}
 	return { kind: "set", goal: args }
+}
+
+/** Plain-text rendering of a goal row, for host notifications and logs. */
+export function formatGoalInfoText(info: ClineGoalInfo): string {
+	switch (info.kind) {
+		case "set":
+			return `Goal set: ${info.goal ?? ""}`
+		case "completed":
+			return `Goal completed: ${info.goal ?? ""}${info.summary ? ` — ${info.summary}` : ""}`
+		default:
+			return info.detail ?? ""
+	}
 }
 
 export interface SdkGoalCoordinatorOptions {
@@ -88,6 +101,12 @@ export class SdkGoalCoordinator {
 
 	hasActiveGoal(): boolean {
 		return this.guard.getActiveGoal() !== undefined
+	}
+
+	/** Banner-facing snapshot of the armed guard, if any. */
+	getActiveGoalState(): { goal: string; verifying: boolean } | undefined {
+		const active = this.guard.getActiveGoal()
+		return active ? { goal: active.goal, verifying: active.awaitingVerification } : undefined
 	}
 
 	formatStatus(): string {

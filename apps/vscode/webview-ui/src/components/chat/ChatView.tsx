@@ -18,6 +18,7 @@ import {
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	GoalBanner,
 	groupLowStakesTools,
 	groupMessages,
 	InputSection,
@@ -422,6 +423,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					task={task}
 				/>
 				<QueuedPrompts items={queuedPrompts} />
+				<GoalBanner />
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

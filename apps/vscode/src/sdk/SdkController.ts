@@ -21,7 +21,7 @@ import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineGoalInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
@@ -72,7 +72,7 @@ import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import { parseGoalCommand, SdkGoalCoordinator } from "./sdk-goal-coordinator"
+import { formatGoalInfoText, parseGoalCommand, SdkGoalCoordinator } from "./sdk-goal-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -372,9 +372,9 @@ export class Controller {
 				return true
 			},
 			// The mark_goal_complete call renders no dedicated tool row, so a
-			// successful completion is surfaced as an info row instead.
+			// successful completion is surfaced as a goal row instead.
 			onGoalCompleted: (record) => {
-				this.emitGoalInfo(`Goal verified complete: ${record.goal}${record.summary ? ` — ${record.summary}` : ""}`)
+				this.emitGoalRow({ kind: "completed", goal: record.goal, summary: record.summary })
 			},
 		})
 		this.sessions = new SdkSessionLifecycle({
@@ -416,6 +416,12 @@ export class Controller {
 			},
 			onTurnSettled: (sessionId, result, origin) => {
 				this.goal.handleTurnSettled(sessionId, result, origin)
+				// The settle may have flipped the guard's verifying flag (round
+				// cap, non-completed turn) without emitting a row; repost so the
+				// goal banner tracks it. Completion posts via emitGoalRow.
+				if (this.goal.hasActiveGoal()) {
+					this.postStateToWebview().catch(() => {})
+				}
 			},
 			// Host-lifetime registration: session rebuilds (mode/provider/MCP
 			// changes) rebuild extraTools from scratch, and the guard must
@@ -1266,12 +1272,13 @@ export class Controller {
 		// invoke the /goal command.
 		const goalCommand = !historyItem && prompt ? parseGoalCommand(prompt) : undefined
 		if (goalCommand && goalCommand.kind !== "set") {
-			// No conversation is open to attach the reply to, so surface it as
-			// a host notification instead of a chat row.
-			const reply = goalCommand.kind === "status" ? this.goal.formatStatus() : this.goal.clearGoal()
-			HostProvider.window
-				.showMessage({ type: ShowMessageType.INFORMATION, message: reply })
-				.catch((error) => Logger.error("[SdkController] Failed to show goal reply:", error))
+			// No conversation is open to attach the reply to, so this falls
+			// back to a host notification inside emitGoalRow.
+			if (goalCommand.kind === "status") {
+				this.emitGoalRow({ kind: "status", detail: this.goal.formatStatus() })
+			} else {
+				this.emitGoalRow({ kind: "cleared", detail: this.goal.clearGoal() })
+			}
 			return undefined
 		}
 		// Fire-and-forget: ensure we have the latest remote config (enterprise
@@ -1290,7 +1297,8 @@ export class Controller {
 			// failed must not leave a goal armed for whichever task runs next.
 			// The first turn is still in flight here (sends are
 			// fire-and-forget), so the guard is active well before it settles.
-			this.emitGoalInfo(this.goal.setGoal(goalCommand.goal))
+			this.goal.setGoal(goalCommand.goal)
+			this.emitGoalRow({ kind: "set", goal: goalCommand.goal })
 		}
 		return taskId
 	}
@@ -1361,22 +1369,27 @@ export class Controller {
 	}
 
 	/**
-	 * Surfaces a /goal command reply. With an open conversation it renders as
-	 * an informational chat row (like compaction progress); with no task open
-	 * it falls back to a host notification.
+	 * Surfaces a /goal lifecycle event. With an open conversation it renders
+	 * as a dedicated goal row (see webview GoalRow); with no task open it
+	 * falls back to a host notification. Always reposts state so the goal
+	 * banner above the composer tracks the guard.
 	 */
-	private emitGoalInfo(text: string): void {
+	private emitGoalRow(info: ClineGoalInfo): void {
 		const sessionId = this.sessions.getActiveSession()?.sessionId ?? this.task?.taskId
 		if (!sessionId || !this.task) {
 			HostProvider.window
-				.showMessage({ type: ShowMessageType.INFORMATION, message: text })
+				.showMessage({ type: ShowMessageType.INFORMATION, message: formatGoalInfoText(info) })
 				.catch((error) => Logger.error("[SdkController] Failed to show goal reply:", error))
-			return
+		} else {
+			this.messages.appendAndEmit(
+				[{ ts: Date.now(), type: "say", say: "goal", text: JSON.stringify(info), partial: false }],
+				{
+					type: "status",
+					payload: { sessionId, status: "running" },
+				},
+			)
 		}
-		this.messages.appendAndEmit([{ ts: Date.now(), type: "say", say: "info", text, partial: false }], {
-			type: "status",
-			payload: { sessionId, status: "running" },
-		})
+		this.postStateToWebview().catch(() => {})
 	}
 
 	async clearTask(): Promise<void> {
@@ -1415,15 +1428,16 @@ export class Controller {
 		// ordinary follow-up turn below.
 		const goalCommand = prompt ? parseGoalCommand(prompt) : undefined
 		if (goalCommand?.kind === "status") {
-			this.emitGoalInfo(this.goal.formatStatus())
+			this.emitGoalRow({ kind: "status", goal: this.goal.getActiveGoalState()?.goal, detail: this.goal.formatStatus() })
 			return
 		}
 		if (goalCommand?.kind === "clear") {
-			this.emitGoalInfo(this.goal.clearGoal())
+			this.emitGoalRow({ kind: "cleared", detail: this.goal.clearGoal() })
 			return
 		}
 		if (goalCommand) {
-			this.emitGoalInfo(this.goal.setGoal(goalCommand.goal))
+			this.goal.setGoal(goalCommand.goal)
+			this.emitGoalRow({ kind: "set", goal: goalCommand.goal })
 			prompt = goalCommand.goal
 		}
 
@@ -2147,6 +2161,7 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				activeGoal: this.goal.getActiveGoalState(),
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}
