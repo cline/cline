@@ -102,6 +102,13 @@ export function convertToR1Format(
 					if (part.type === "text") {
 						textParts.push(part.text);
 					}
+					if (part.type === "tool_result") {
+						if (typeof part.content === "string") {
+							textParts.push(part.content);
+						} else if (Array.isArray(part.content)) {
+							textParts.push(...part.content.filter((resultPart) => resultPart.type === "text").map((resultPart) => resultPart.text));
+						}
+					}
 					if (part.type === "image") {
 						hasImages = true;
 						imageParts.push({
