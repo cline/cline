@@ -719,7 +719,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		popular: 40,
 		capabilities: ["prompt-cache"],
 		defaultModelId: "gpt-5.4",
