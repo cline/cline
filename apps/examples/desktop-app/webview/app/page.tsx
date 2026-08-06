@@ -91,36 +91,6 @@ function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-/**
- * Re-evaluates the cloud-agents feature flag whenever the signed-in account
- * changes (the sidecar targets flags per user), including the initial mount.
- * Rendered inside AccountProvider; renders nothing.
- */
-function CloudAgentsFlagSync({
-	onChange,
-}: {
-	onChange: (enabled: boolean) => void;
-}) {
-	const { user } = useAccount();
-	const userId = user?.id ?? null;
-	useEffect(() => {
-		let cancelled = false;
-		desktopClient
-			.invoke("get_feature_flags", {})
-			.then((flags) => {
-				if (!cancelled) {
-					onChange(
-						Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			})
-			.catch(() => undefined);
-		return () => {
-			cancelled = true;
-		};
-	}, [userId, onChange]);
-	return null;
-}
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
@@ -345,7 +315,6 @@ export default function Home() {
 
 	return (
 		<AccountProvider>
-			<CloudAgentsFlagSync onChange={setCloudAgentsEnabled} />
 			<SidebarProvider>
 				<div
 					aria-hidden={showOnboarding ? true : undefined}
@@ -520,9 +489,28 @@ function ChatThreadPane({
 	>(null);
 	const [gitBranch, setGitBranch] = useState("no-git");
 	// Cloud agents are feature-flagged; default off until the sidecar answers.
-	// Fetched by CloudAgentsFlagSync (inside AccountProvider) so a sign-in
-	// during onboarding re-evaluates per-user targeting without a restart.
+	// Re-evaluated whenever the signed-in account changes (flags are targeted
+	// per user), so signing in during onboarding enables Cloud without a
+	// restart. ChatThreadPane renders inside AccountProvider.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	const { user: accountUser } = useAccount();
+	const accountUserId = accountUser?.id ?? null;
+	useEffect(() => {
+		let cancelled = false;
+		desktopClient
+			.invoke("get_feature_flags", {})
+			.then((flags) => {
+				if (!cancelled) {
+					setCloudAgentsEnabled(
+						Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+					);
+				}
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	}, [accountUserId]);
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>({});
