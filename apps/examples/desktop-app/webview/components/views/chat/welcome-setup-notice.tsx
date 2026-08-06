@@ -16,10 +16,9 @@ export function WelcomeSetupNotice({
 	onOpenModelSettings: () => void;
 }) {
 	return (
-		<div
-			className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 backdrop-blur-sm"
-			role="status"
-		>
+		// <output> carries an implicit "status" role, announcing the notice to
+		// assistive tech when it appears.
+		<output className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 backdrop-blur-sm">
 			<div className="flex min-w-0 items-start gap-3">
 				<span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
 					<Cable className="size-4" />
@@ -52,6 +51,6 @@ export function WelcomeSetupNotice({
 					Model settings
 				</Button>
 			</div>
-		</div>
+		</output>
 	);
 }
