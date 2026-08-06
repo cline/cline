@@ -1298,6 +1298,140 @@ describe("useChatSession", () => {
 		expect(errorMessages[0]?.content).toContain("The run failed");
 	});
 
+	it("does not give credential guidance for non-credential failures", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Request exceeded the maximum context tokens for this model",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		// "tokens" here is a context-window problem, not a credential problem;
+		// pointing users at Settings → Models would be misleading.
+		expect(errorMessage?.content).toContain("maximum context tokens");
+		expect(errorMessage?.content).not.toContain("Check your model connection");
+	});
+
+	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
+		const history: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return history.map((message) => ({
+						...message,
+						sessionId: args?.sessionId,
+					}));
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		history.push({
+			id: "hist_user_1",
+			role: "user",
+			content: "First prompt",
+			createdAt: Date.now(),
+		});
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(
+			current.messages.some((message) => message.role === "error"),
+		).toBe(true);
+
+		// A later turn appends new messages after the failure bubble; its
+		// hydration must not re-pin the stale error to the bottom of the
+		// transcript out of chronological order.
+		history.push({
+			id: "hist_user_2",
+			role: "user",
+			content: "Second prompt",
+			createdAt: Date.now(),
+		});
+		await act(async () => {
+			await current.sendPrompt("Second prompt");
+		});
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(0);
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages.map((message) => message.content)).toEqual([
+			"First prompt",
+			"Second prompt",
+		]);
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

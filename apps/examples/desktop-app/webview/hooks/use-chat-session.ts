@@ -464,9 +464,12 @@ export function useChatSession() {
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+			// Deliberately avoids matching a bare "token": provider failures like
+			// "maximum context tokens exceeded" or rate-limit messages are not
+			// credential problems and must not point users at Settings → Models.
 			const looksCredentialRelated =
 				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|token/i.test(
+				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
 					description,
 				);
 			const content = [
@@ -497,13 +500,25 @@ export function useChatSession() {
 	// Persisted history never contains UI-only error bubbles, so replacing the
 	// transcript with canonical messages wholesale would silently erase a
 	// failure explanation appended from chat_done moments earlier. Re-append
-	// the active session's error messages after the canonical history.
+	// the session's error messages after the canonical history — but only the
+	// ones still at the tail of the transcript (explaining the most recent
+	// turn). Re-pinning every historical error would resurface failures from
+	// long-completed turns at the bottom, out of chronological order, on
+	// every hydration.
 	const applyCanonicalHistory = useCallback(
 		(sid: string, historyMessages: ChatMessage[]) => {
 			setMessages((prev) => {
-				const preservedErrors = prev.filter(
-					(message) => message.sessionId === sid && message.role === "error",
+				const sessionMessages = prev.filter(
+					(message) => message.sessionId === sid,
 				);
+				let tailErrorStart = sessionMessages.length;
+				while (
+					tailErrorStart > 0 &&
+					sessionMessages[tailErrorStart - 1]?.role === "error"
+				) {
+					tailErrorStart -= 1;
+				}
+				const preservedErrors = sessionMessages.slice(tailErrorStart);
 				if (preservedErrors.length === 0) {
 					return historyMessages;
 				}
