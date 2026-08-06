@@ -159,6 +159,16 @@ export function rewriteDesktopTeamPrompt(
 	);
 }
 
+async function resolveDesktopRuntimePrompt(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+): Promise<string> {
+	return rewriteDesktopTeamPrompt(
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+	);
+}
+
 function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	return (
 		session.busy ||
@@ -383,16 +393,6 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
-		enableSpawnAgent:
-			config.enableSpawn ??
-			config.enableSpawnAgent ??
-			config.enable_spawn ??
-			false,
-		enableAgentTeams:
-			config.enableTeams ??
-			config.enableAgentTeams ??
-			config.enable_teams ??
-			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
@@ -884,12 +884,10 @@ async function handleSend(
 	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
-	const runtimePrompt = rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(
-			ctx,
-			readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
-			prompt,
-		),
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
+		ctx,
+		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
+		prompt,
 	);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
@@ -1446,8 +1444,8 @@ async function handleUpdatePendingPrompt(
 	}
 	const manager = getSessionManager(ctx);
 	// Queued prompts are delivered by the runtime without another pass
-	// through handleSend, so expand a leading slash command here too.
-	const expandedPrompt = await expandRuntimeSlashCommand(
+	// through handleSend, so resolve slash commands here too.
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
 		readWorkspacePath(ctx.liveSessions.get(sessionId)?.config) ??
 			ctx.workspaceRoot,
@@ -1456,7 +1454,7 @@ async function handleUpdatePendingPrompt(
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt: expandedPrompt,
+		prompt: runtimePrompt,
 	});
 	return {
 		sessionId,
