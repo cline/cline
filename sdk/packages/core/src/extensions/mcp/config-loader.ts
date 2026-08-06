@@ -43,7 +43,6 @@ const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
 		tokens: z.record(z.string(), z.unknown()).optional(),
-		tokenClientFingerprint: z.string().optional(),
 		codeVerifier: z.string().optional(),
 		discoveryState: z.record(z.string(), z.unknown()).optional(),
 		redirectUrl: z.string().url().optional(),
@@ -688,9 +687,6 @@ export function normalizeMcpServerOAuthState(
 			? { clientInformation: value.clientInformation }
 			: {}),
 		...(value.tokens ? { tokens: value.tokens } : {}),
-		...(value.tokenClientFingerprint
-			? { tokenClientFingerprint: value.tokenClientFingerprint }
-			: {}),
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
 		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),

@@ -117,4 +117,35 @@ describe("mcp oauth", () => {
 		});
 		expect(changedSecret.provider.tokens()).toBeUndefined();
 	});
+
+	it("reuses tokens persisted before client binding was introduced", async () => {
+		const settingsPath = await createSettingsFile();
+		const settings = JSON.parse(await readFile(settingsPath, "utf8"));
+		settings.mcpServers.linear.oauth = {
+			clientInformation: {
+				client_id: "dynamically-registered-client",
+				client_secret: "registered-secret",
+			},
+			tokens: {
+				access_token: "legacy-access-token",
+				refresh_token: "legacy-refresh-token",
+				token_type: "bearer",
+			},
+		};
+		await writeFile(settingsPath, JSON.stringify(settings), "utf8");
+
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+
+		expect(context.provider.tokens()?.access_token).toBe("legacy-access-token");
+
+		await context.provider.saveClientInformation({
+			client_id: "replacement-client",
+			client_secret: "replacement-secret",
+		});
+		expect(context.provider.tokens()).toBeUndefined();
+	});
 });

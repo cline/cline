@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
 	OAuthClientProvider,
 	OAuthDiscoveryState,
@@ -93,15 +93,14 @@ function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {
 	};
 }
 
-function fingerprintOAuthClient(
-	clientInformation: OAuthClientInformationMixed | undefined,
-): string | undefined {
-	if (!clientInformation?.client_id) return undefined;
-	return createHash("sha256")
-		.update(clientInformation.client_id)
-		.update("\0")
-		.update(clientInformation.client_secret ?? "")
-		.digest("hex");
+function isSameOAuthClient(
+	left: OAuthClientInformationMixed | undefined,
+	right: OAuthClientInformationMixed | undefined,
+): boolean {
+	return (
+		left?.client_id === right?.client_id &&
+		left?.client_secret === right?.client_secret
+	);
 }
 
 export function createMcpOAuthProviderContext(
@@ -150,30 +149,39 @@ export function createMcpOAuthProviderContext(
 		},
 		clientInformation: currentClientInformation,
 		saveClientInformation: async (clientInformation) => {
-			await patch((current) => ({
-				...current,
-				clientInformation: clientInformation as Record<string, unknown>,
-				redirectUrl: options.redirectUrl,
-				lastError: undefined,
-			}));
+			await patch((current) => {
+				const clientChanged = !isSameOAuthClient(
+					current.clientInformation as OAuthClientInformationMixed | undefined,
+					clientInformation,
+				);
+				return {
+					...current,
+					clientInformation: clientInformation as Record<string, unknown>,
+					...(clientChanged
+						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						: {}),
+					redirectUrl: options.redirectUrl,
+					lastError: undefined,
+				};
+			});
 		},
 		tokens: () =>
-			state.tokenClientFingerprint ===
-			fingerprintOAuthClient(currentClientInformation())
+			isSameOAuthClient(
+				state.clientInformation as OAuthClientInformationMixed | undefined,
+				currentClientInformation(),
+			)
 				? (state.tokens as OAuthTokens | undefined)
 				: undefined,
 		saveTokens: async (tokens) => {
 			const lastAuthenticatedAt = Date.now();
-			const tokenClientFingerprint = fingerprintOAuthClient(
-				currentClientInformation(),
-			);
-			if (!tokenClientFingerprint) {
+			const clientInformation = currentClientInformation();
+			if (!clientInformation?.client_id) {
 				throw new Error("Cannot save MCP OAuth tokens without a client ID.");
 			}
 			await patch((current) => ({
 				...current,
 				tokens: tokens as Record<string, unknown>,
-				tokenClientFingerprint,
+				clientInformation: clientInformation as Record<string, unknown>,
 				redirectUrl: options.redirectUrl,
 				lastError: undefined,
 				lastAuthenticatedAt,
@@ -212,7 +220,6 @@ export function createMcpOAuthProviderContext(
 					...(scope === "tokens"
 						? {
 								tokens: undefined,
-								tokenClientFingerprint: undefined,
 								lastAuthenticatedAt: undefined,
 							}
 						: {}),
