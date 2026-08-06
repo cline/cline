@@ -67,7 +67,8 @@
     },
     "overrides": {
         "axios": "1.18.0",
-        "fast-uri": ">=3.1.4",
+        "fast-uri": ">=3.1.5 <4",
+        "ip-address": ">=10.3.1 <11",
         "@ai-sdk/provider-utils": ">=4.0.0",
         "undici@>=6.0.0 <7.0.0": "6.28.0",
         "@opentui/core": "0.4.3",
