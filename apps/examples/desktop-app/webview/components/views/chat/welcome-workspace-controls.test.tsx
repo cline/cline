@@ -116,6 +116,51 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 		expect(pathOption).toBeUndefined();
 	});
 
+	it("keeps typed path and errors when the workspace catalog refreshes mid-open", async () => {
+		// The workspace catalog re-derives on a timer (session-history refresh),
+		// handing the picker a new onRefreshWorkspaces identity. That must not
+		// wipe the menu's typed path or a visible error while it is open.
+		const onSwitchWorkspace = vi.fn(async () => false);
+		const render = async () => {
+			await act(async () => {
+				root.render(
+					<WelcomeWorkspaceControls
+						currentBranch="main"
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onPickWorkspaceDirectory={vi.fn(async () => null)}
+						onRefreshWorkspaces={vi.fn(async () => undefined)}
+						onSelectChat={vi.fn(async () => true)}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onSwitchWorkspace={onSwitchWorkspace}
+						workspaceRoot="/projects/project-1"
+						workspaces={["/projects/project-1"]}
+					/>,
+				);
+				await Promise.resolve();
+			});
+		};
+		await render();
+		await openWorkspaceMenu();
+		await typeInSearch("/does/not/exist");
+		await clickButton("Open folder \u201c/does/not/exist\u201d");
+		expect(container.textContent).toContain(
+			'Couldn\'t open "/does/not/exist"',
+		);
+
+		// Re-render with fresh callback identities, as the page does when the
+		// session history poll lands.
+		await render();
+
+		const input = container.querySelector<HTMLInputElement>("input");
+		expect(input?.value).toBe("/does/not/exist");
+		expect(container.textContent).toContain(
+			'Couldn\'t open "/does/not/exist"',
+		);
+	});
+
 	it("surfaces picker failures from Add project instead of a silent no-op", async () => {
 		const onPickWorkspaceDirectory = vi.fn(async () => {
 			throw new Error(

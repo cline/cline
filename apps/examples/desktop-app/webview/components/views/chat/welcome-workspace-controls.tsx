@@ -104,12 +104,20 @@ function WorkspacePicker({
 	);
 
 	// Refresh the catalog and clear the filter each time the menu opens.
+	// The refresh callback lives in a ref: its identity changes whenever the
+	// workspace catalog re-derives (e.g. periodic session-history refresh), and
+	// re-running this effect mid-open would wipe the user's typed path and any
+	// visible error message.
+	const refreshWorkspacesRef = useRef(onRefreshWorkspaces);
+	useEffect(() => {
+		refreshWorkspacesRef.current = onRefreshWorkspaces;
+	}, [onRefreshWorkspaces]);
 	useEffect(() => {
 		if (!open) return;
 		setSearch("");
 		setError(null);
-		void onRefreshWorkspaces();
-	}, [open, onRefreshWorkspaces]);
+		void refreshWorkspacesRef.current();
+	}, [open]);
 
 	// The active workspace can be an excluded path (restored session, process
 	// cwd fallback); register it explicitly so it stays visible while active.
