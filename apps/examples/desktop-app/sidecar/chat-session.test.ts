@@ -14,9 +14,11 @@ import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
+	hasModeChanged,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveSystemPromptMode,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
@@ -133,6 +135,45 @@ describe("hasProviderChanged", () => {
 			model: "gpt-5.3-codex",
 			modelId: "gpt-5.3-codex",
 		});
+	});
+});
+
+describe("hasModeChanged", () => {
+	it("detects a switch between act and plan", () => {
+		expect(hasModeChanged({ mode: "act" }, { mode: "plan" })).toBe(true);
+		expect(hasModeChanged({ mode: "plan" }, { mode: "act" })).toBe(true);
+		expect(hasModeChanged({ mode: "plan" }, { mode: "plan" })).toBe(false);
+	});
+
+	it("treats a missing stored mode as act", () => {
+		expect(hasModeChanged({}, { mode: "plan" })).toBe(true);
+		expect(hasModeChanged({}, { mode: "act" })).toBe(false);
+	});
+
+	it("ignores updates that omit mode", () => {
+		expect(hasModeChanged({ mode: "plan" }, { provider: "cline" })).toBe(
+			false,
+		);
+	});
+});
+
+describe("resolveSystemPromptMode", () => {
+	it("keeps plan authoritative over the auto-approve default", () => {
+		expect(
+			resolveSystemPromptMode({ mode: "plan", autoApproveTools: true }),
+		).toBe("plan");
+	});
+
+	it("maps auto-approved act sessions to yolo", () => {
+		expect(
+			resolveSystemPromptMode({ mode: "act", autoApproveTools: true }),
+		).toBe("yolo");
+	});
+
+	it("keeps act when auto-approve is off", () => {
+		expect(
+			resolveSystemPromptMode({ mode: "act", autoApproveTools: false }),
+		).toBe("act");
 	});
 });
 
@@ -1021,6 +1062,56 @@ describe("first-send connection updates", () => {
 		expect(start.mock.invocationCallOrder[0]).toBeLessThan(
 			send.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+
+	it("rebuilds the same session with its transcript before a Plan/Act mode switch", async () => {
+		const { ctx, readMessages, send, sessionId, start, stop } =
+			createContext();
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "plan this refactor",
+			config: { ...baseConfig, mode: "plan" },
+		});
+
+		expect(readMessages).toHaveBeenCalledWith(sessionId);
+		expect(stop).toHaveBeenCalledWith(sessionId);
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					mode: "plan",
+					sessionId,
+				}),
+				initialMessages: [
+					{ role: "user", content: "first prompt" },
+					{ role: "assistant", content: "first response" },
+				],
+			}),
+		);
+		expect(start.mock.invocationCallOrder[0]).toBeLessThan(
+			send.mock.invocationCallOrder[0] ?? 0,
+		);
+	});
+
+	it("rejects a Plan/Act switch while a turn is running", async () => {
+		const { ctx, sessionId, start, stop } = createContext();
+		const session = ctx.liveSessions.get(sessionId);
+		if (!session) throw new Error("missing session");
+		session.busy = true;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "switch to plan",
+				config: { ...baseConfig, mode: "plan" },
+			}),
+		).rejects.toThrow(
+			"Cannot switch between Plan and Act while a turn is running",
+		);
+		expect(stop).not.toHaveBeenCalled();
+		expect(start).not.toHaveBeenCalled();
 	});
 
 	it("blocks a concurrent send throughout provider-switch preparation", async () => {

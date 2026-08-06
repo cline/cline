@@ -942,7 +942,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="flex shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -954,6 +954,7 @@ export function ChatInputBar({
 							onClick={() => {
 								if (mode !== "plan") onModeToggle();
 							}}
+							title="Plan mode: read-only investigation — file edits and mutating commands are blocked until you switch to Act"
 							type="button"
 						>
 							Plan
@@ -969,6 +970,7 @@ export function ChatInputBar({
 							onClick={() => {
 								if (mode !== "act") onModeToggle();
 							}}
+							title="Act mode: the agent can edit files and run commands"
 							type="button"
 						>
 							Act

@@ -481,6 +481,33 @@ export function hasProviderChanged(
 	return nextProviderId !== undefined && currentProviderId !== nextProviderId;
 }
 
+function normalizeSessionMode(value: unknown): "plan" | "act" {
+	return value === "plan" ? "plan" : "act";
+}
+
+export function hasModeChanged(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	if (!Object.hasOwn(nextConfig, "mode")) return false;
+	return (
+		normalizeSessionMode(nextConfig.mode) !==
+		normalizeSessionMode(currentConfig.mode)
+	);
+}
+
+/**
+ * Plan is authoritative: a read-only planning session must never be silently
+ * upgraded to YOLO by the auto-approve default. Only Act sessions get the
+ * yolo system prompt when tools are auto-approved.
+ */
+export function resolveSystemPromptMode(
+	config: JsonRecord,
+): "plan" | "act" | "yolo" {
+	if (normalizeSessionMode(config.mode) === "plan") return "plan";
+	return config.autoApproveTools ? "yolo" : "act";
+}
+
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
@@ -489,11 +516,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveSystemPromptMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -761,7 +784,13 @@ async function startRebuiltSession(
 	}
 }
 
-async function rebuildSessionForProviderChange(
+/**
+ * Stop-and-restart the session runtime with its transcript preserved. Used
+ * when a config change cannot be applied in place: provider switches and
+ * Plan/Act mode switches (the runtime builder wires plan-mode tool presets
+ * and the plan-mode command guard at build time).
+ */
+async function rebuildSessionForRuntimeChange(
 	ctx: SidecarContext,
 	manager: ClineCore,
 	sessionId: string,
@@ -875,8 +904,17 @@ async function handleSend(
 			request.config &&
 			hasProviderChanged(session.config, request.config),
 	);
+	const modeChanged = Boolean(
+		session &&
+			request.config &&
+			hasModeChanged(session.config, request.config),
+	);
+	const runtimeChanged = providerChanged || modeChanged;
 	if (providerChanged && session?.busy) {
 		throw new Error("Cannot switch providers while a turn is running");
+	}
+	if (modeChanged && session?.busy) {
+		throw new Error("Cannot switch between Plan and Act while a turn is running");
 	}
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
@@ -887,14 +925,14 @@ async function handleSend(
 			session.busy = true;
 			session.status = "running";
 		}
-		if (providerChanged) {
+		if (runtimeChanged) {
 			session.transitioningProvider = true;
 		}
 	}
 	try {
 		if (request.config && nextConfig) {
-			if (providerChanged && session) {
-				await rebuildSessionForProviderChange(
+			if (runtimeChanged && session) {
+				await rebuildSessionForRuntimeChange(
 					ctx,
 					manager,
 					sessionId,
@@ -913,7 +951,7 @@ async function handleSend(
 			}
 			if (session) {
 				session.config = nextConfig;
-				if (providerChanged) {
+				if (runtimeChanged) {
 					session.attachedViaHub = false;
 				}
 			}
@@ -1026,7 +1064,7 @@ async function handleSend(
 			if (ownsBusyState) {
 				session.busy = false;
 			}
-			if (providerChanged) {
+			if (runtimeChanged) {
 				session.transitioningProvider = false;
 			}
 		}
