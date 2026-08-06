@@ -21,6 +21,7 @@ import type {
 	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
+	ChatUsageEvent,
 	CoreLogChunk,
 	ProcessContext,
 	PromptInQueue,
@@ -186,6 +187,63 @@ function updateMessageById(
 	return changed ? next : messages;
 }
 
+type SessionUsageSummary = {
+	tokensIn: number;
+	tokensOut: number;
+	cacheReadTokens: number;
+	totalCostUsd: number;
+};
+
+type TurnCostTracker = {
+	streamedCostUsd: number;
+};
+
+/**
+ * Read current context usage and cumulative cost from persisted chat messages.
+ *
+ * Each assistant message contains metrics for one model request. The latest
+ * request represents current context-window pressure; summing every request's
+ * input would instead measure lifetime traffic and make the ring saturate even
+ * after context compaction. Cost remains a session-wide sum.
+ */
+function summarizeSessionUsage(
+	messages: ChatMessage[],
+): SessionUsageSummary | undefined {
+	let tokensIn: number | undefined;
+	let tokensOut: number | undefined;
+	let cacheReadTokens: number | undefined;
+	let totalCostUsd = 0;
+	let hasCost = false;
+
+	for (const message of messages) {
+		const meta = message.meta;
+		if (!meta) continue;
+		if (
+			typeof meta.inputTokens === "number" ||
+			typeof meta.outputTokens === "number" ||
+			typeof meta.cacheReadTokens === "number"
+		) {
+			tokensIn = meta.inputTokens ?? 0;
+			tokensOut = meta.outputTokens ?? 0;
+			cacheReadTokens = meta.cacheReadTokens ?? 0;
+		}
+		if (typeof meta.totalCost === "number") {
+			totalCostUsd += meta.totalCost;
+			hasCost = true;
+		}
+	}
+
+	if (tokensIn === undefined && tokensOut === undefined && !hasCost) {
+		return undefined;
+	}
+	return {
+		tokensIn: tokensIn ?? 0,
+		tokensOut: tokensOut ?? 0,
+		cacheReadTokens: cacheReadTokens ?? 0,
+		totalCostUsd,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Core log dispatcher — avoids repeated if/else chains
 // ---------------------------------------------------------------------------
@@ -224,6 +282,8 @@ export function useChatSession() {
 	const [toolCalls, setToolCalls] = useState(0);
 	const [tokensIn, setTokensIn] = useState(0);
 	const [tokensOut, setTokensOut] = useState(0);
+	const [cacheReadTokens, setCacheReadTokens] = useState(0);
+	const [totalCostUsd, setTotalCostUsd] = useState(0);
 	const [fileDiffs, setFileDiffs] = useState<SessionFileDiff[]>([]);
 	const [diffSummary, setDiffSummary] =
 		useState<SessionDiffSummary>(EMPTY_DIFF_SUMMARY);
@@ -243,6 +303,10 @@ export function useChatSession() {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	// Optimistic user bubbles whose prompt is still in flight, by message id.
+	// A chat_queued_prompt_start event may only re-key one of these — never a
+	// same-content message left over from an earlier turn (see the handler).
+	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -256,11 +320,27 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
+	const unpersistedCostUsdRef = useRef(0);
+	const lastPersistedCostUsdRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
 		desktopClient.getTransportError(),
 	);
+	const persistedUsage = useMemo(
+		() =>
+			sessionId
+				? summarizeSessionUsage(
+						messages.filter((message) => message.sessionId === sessionId),
+					)
+				: undefined,
+		[messages, sessionId],
+	);
+	const persistedTokensIn = persistedUsage?.tokensIn;
+	const persistedTokensOut = persistedUsage?.tokensOut;
+	const persistedCacheReadTokens = persistedUsage?.cacheReadTokens;
+	const persistedTotalCostUsd = persistedUsage?.totalCostUsd;
 	// ---- Ref syncs ----
 
 	useEffect(() => {
@@ -272,6 +352,36 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		if (
+			persistedTokensIn === undefined ||
+			persistedTokensOut === undefined ||
+			persistedTotalCostUsd === undefined
+		) {
+			return;
+		}
+		setTokensIn(persistedTokensIn);
+		setTokensOut(persistedTokensOut);
+		setCacheReadTokens(persistedCacheReadTokens ?? 0);
+		// Move newly persisted spend out of the live ledger. Multiple queued turns
+		// may finish before their message metadata is hydrated, so this ledger is
+		// session-wide rather than tied only to the currently active turn.
+		const newlyPersistedCostUsd = Math.max(
+			0,
+			persistedTotalCostUsd - lastPersistedCostUsdRef.current,
+		);
+		unpersistedCostUsdRef.current = Math.max(
+			0,
+			unpersistedCostUsdRef.current - newlyPersistedCostUsd,
+		);
+		lastPersistedCostUsdRef.current = persistedTotalCostUsd;
+		setTotalCostUsd(persistedTotalCostUsd + unpersistedCostUsdRef.current);
+	}, [
+		persistedTokensIn,
+		persistedTokensOut,
+		persistedCacheReadTokens,
+		persistedTotalCostUsd,
+	]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
@@ -309,15 +419,21 @@ export function useChatSession() {
 	}, []);
 
 	const resetCounters = useCallback(() => {
+		activeTurnCostTrackerRef.current = null;
+		unpersistedCostUsdRef.current = 0;
+		lastPersistedCostUsdRef.current = 0;
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
+		setCacheReadTokens(0);
+		setTotalCostUsd(0);
 		setFileDiffs([]);
 		setDiffSummary(EMPTY_DIFF_SUMMARY);
 	}, []);
 
 	const setErrorState = useCallback(
 		(msg: string, sid: string | null = null) => {
+			outstandingOptimisticUserIdsRef.current.clear();
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
@@ -388,8 +504,6 @@ export function useChatSession() {
 							e.hookEventName === "tool_call" || e.hookName === "tool_call",
 					).length,
 				);
-				setTokensIn(events.reduce((sum, e) => sum + (e.inputTokens ?? 0), 0));
-				setTokensOut(events.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0));
 			} catch {
 				// Ignore in non-Tauri mode.
 			}
@@ -828,7 +942,9 @@ export function useChatSession() {
 			flushPendingStream();
 
 			if (payload.stream === "chat_queued_prompt_start") {
+				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				let parsed: {
+					promptId?: string;
 					prompt?: string;
 					attachmentCount?: number;
 					userImages?: string[];
@@ -875,6 +991,33 @@ export function useChatSession() {
 							return prev;
 						}
 						const images = toChatMessageImages(userImages, userMessageId);
+						// A prompt dispatched while the session was idle already has
+						// an optimistic bubble from the send path; when the runtime
+						// routes that prompt through its queue, this event describes
+						// the same prompt. Re-key the optimistic bubble instead of
+						// rendering the message a second time. Only bubbles whose
+						// prompt is still in flight are eligible — a same-content
+						// message left over from an earlier (e.g. cancelled) turn
+						// must stay distinct from the new submission.
+						for (let i = prev.length - 1; i >= 0; i--) {
+							const candidate = prev[i];
+							if (candidate.role !== "user") {
+								break;
+							}
+							if (
+								outstandingOptimisticUserIdsRef.current.has(candidate.id) &&
+								candidate.content === userLabel
+							) {
+								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
+								const next = [...prev];
+								next[i] = {
+									...candidate,
+									id: userMessageId,
+									images: images.length > 0 ? images : candidate.images,
+								};
+								return sliceMessages(next);
+							}
+						}
 						return sliceMessages([
 							...prev,
 							{
@@ -898,12 +1041,39 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_usage") {
-				// Usage is still finalized from the send() response to avoid
-				// double-counting when both stream and response include it.
+				let usage: ChatUsageEvent;
+				try {
+					usage = JSON.parse(payload.chunk) as ChatUsageEvent;
+				} catch {
+					return;
+				}
+				if (typeof usage.inputTokens === "number") {
+					setTokensIn(usage.inputTokens);
+				}
+				if (typeof usage.outputTokens === "number") {
+					setTokensOut(usage.outputTokens);
+				}
+				if (typeof usage.cacheReadTokens === "number") {
+					setCacheReadTokens(usage.cacheReadTokens);
+				}
+				const cost = usage.cost;
+				if (typeof cost === "number") {
+					const tracker = activeTurnCostTrackerRef.current ?? {
+						streamedCostUsd: 0,
+					};
+					tracker.streamedCostUsd += cost;
+					activeTurnCostTrackerRef.current = tracker;
+					unpersistedCostUsdRef.current += cost;
+					setTotalCostUsd((previous) => previous + cost);
+				}
 				return;
 			}
 
 			if (payload.stream === "chat_done") {
+				// The turn is over: any optimistic bubble still registered was
+				// consumed by a direct send and must not be re-keyed by a later
+				// queued prompt that happens to repeat the same text.
+				outstandingOptimisticUserIdsRef.current.clear();
 				clearLiveToolRefs();
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
@@ -1244,6 +1414,9 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
+				? undefined
+				: { streamedCostUsd: 0 };
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
@@ -1251,6 +1424,7 @@ export function useChatSession() {
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (optimisticUserMessageId) {
+				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1370,6 +1544,7 @@ export function useChatSession() {
 				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
+					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
 					setStatus("starting");
 				}
 				await precedingPromptDispatch;
@@ -1506,22 +1681,37 @@ export function useChatSession() {
 				// Token / cost bookkeeping
 				const inputTokens = result?.usage?.inputTokens ?? result?.inputTokens;
 				if (typeof inputTokens === "number") {
-					setTokensIn((prev) => prev + inputTokens);
+					setTokensIn(inputTokens);
 				}
 				const outputTokens =
 					result?.usage?.outputTokens ?? result?.outputTokens;
 				if (typeof outputTokens === "number") {
-					setTokensOut((prev) => prev + outputTokens);
+					setTokensOut(outputTokens);
+				}
+				const resultCacheReadTokens =
+					result?.usage?.cacheReadTokens ?? result?.cacheReadTokens;
+				if (typeof resultCacheReadTokens === "number") {
+					setCacheReadTokens(resultCacheReadTokens);
 				}
 				const totalCost =
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
 						: undefined;
+				const streamedTurnCostUsd = turnCostTracker?.streamedCostUsd ?? 0;
+				if (activeTurnCostTrackerRef.current === turnCostTracker) {
+					activeTurnCostTrackerRef.current = null;
+				}
+				if (typeof totalCost === "number") {
+					const unstreamedCostUsd = totalCost - streamedTurnCostUsd;
+					unpersistedCostUsdRef.current += unstreamedCostUsd;
+					setTotalCostUsd((previous) => previous + unstreamedCostUsd);
+				}
 				const assistantMessageId = activeAssistantMessageIdRef.current;
 				if (
 					assistantMessageId &&
 					(typeof inputTokens === "number" ||
 						typeof outputTokens === "number" ||
+						typeof resultCacheReadTokens === "number" ||
 						typeof totalCost === "number")
 				) {
 					setMessages((prev) =>
@@ -1537,6 +1727,10 @@ export function useChatSession() {
 									typeof outputTokens === "number"
 										? outputTokens
 										: msg.meta?.outputTokens,
+								cacheReadTokens:
+									typeof resultCacheReadTokens === "number"
+										? resultCacheReadTokens
+										: msg.meta?.cacheReadTokens,
 								totalCost:
 									typeof totalCost === "number"
 										? totalCost
@@ -1818,6 +2012,7 @@ export function useChatSession() {
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
 			) => {
+				outstandingOptimisticUserIdsRef.current.clear();
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
@@ -2043,6 +2238,8 @@ export function useChatSession() {
 			toolCalls,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
+			totalCostUsd,
 			additions: diffSummary.additions,
 			deletions: diffSummary.deletions,
 		}),
@@ -2051,6 +2248,8 @@ export function useChatSession() {
 			diffSummary.deletions,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
+			totalCostUsd,
 			toolCalls,
 		],
 	);

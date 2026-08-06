@@ -27,6 +27,14 @@ describe("default tool presets", () => {
 		expect(ToolPresets.yolo.enableWebFetch).toBe(false);
 	});
 
+	it("keeps shell access enabled in plan mode", () => {
+		// Plan mode keeps run_commands for read-only investigation; the
+		// plan-mode command-guard hook registered by the runtime builder is
+		// the hard backstop behind the prompt contract.
+		expect(ToolPresets.plan.enableBash).toBe(true);
+		expect(ToolPresets.plan.enableEditor).toBe(false);
+	});
+
 	it("yolo preset excludes ask_question even when its executor exists", () => {
 		const tools = createDefaultToolsWithPreset("yolo", {
 			executors: {

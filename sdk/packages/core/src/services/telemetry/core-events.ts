@@ -99,6 +99,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
+		PLAN_MODE_COMMAND_BLOCKED: "sdk.plan_mode_command_blocked",
 	},
 	FEATURE_FLAGS: {
 		FLAG_CALLED: "$feature_flag_called",
@@ -570,6 +571,32 @@ export function captureRunCommandsTimeout(
 	);
 }
 
+export interface PlanModeCommandBlockedTelemetryProperties {
+	tool_name: "run_commands";
+	/**
+	 * Short description of the blocked construct (e.g. "`rm`", "`sed -i`
+	 * (in-place edit)"). Never contains raw command content.
+	 */
+	blocked_construct: string;
+	command_count: number;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
+
+export function capturePlanModeCommandBlocked(
+	telemetry: ITelemetryService | undefined,
+	properties: PlanModeCommandBlockedTelemetryProperties,
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SDK.PLAN_MODE_COMMAND_BLOCKED,
+		stripUndefinedProperties(properties),
+	);
+}
+
 function stripUndefinedProperties(properties: object): TelemetryProperties {
 	const result: TelemetryProperties = {};
 	for (const [key, value] of Object.entries(properties)) {
@@ -730,8 +757,10 @@ export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
  * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
  *   when input tokens reach the fixed compaction threshold.
  * - `manual` — user-initiated (e.g. CLI `/compact`).
+ * - `overflow_recovery` — forced by the runtime after a provider rejected
+ *   the request as exceeding the model's context window.
  */
-export type TelemetryCompactionMode = "auto" | "manual";
+export type TelemetryCompactionMode = "auto" | "manual" | "overflow_recovery";
 
 export interface CaptureCompactionExecutedProperties {
 	ulid: string;

@@ -51,6 +51,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
@@ -235,48 +236,54 @@ class GoogleChatConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Google Chat bot username label")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Google Chat sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option("--base-url <url>", "Public base URL for webhook configuration")
-			.option(
-				"--pubsub-topic <topic>",
-				"Optional Pub/Sub topic for all-message events",
-			)
-			.option("--impersonate-user <email>", "Optional delegation user email")
-			.option("--use-adc", "Use Google Application Default Credentials")
-			.option("--credentials-json <json>", "Service account credentials JSON")
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  GOOGLE_CHAT_CREDENTIALS      Service account JSON",
-					"  GOOGLE_CHAT_USE_ADC=true     Use Application Default Credentials",
-					"  GOOGLE_CHAT_PUBSUB_TOPIC     Optional Pub/Sub topic",
-					"  GOOGLE_CHAT_IMPERSONATE_USER Optional delegation user",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Google Chat bot username label")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Google Chat sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option("--base-url <url>", "Public base URL for webhook configuration")
+				.option(
+					"--pubsub-topic <topic>",
+					"Optional Pub/Sub topic for all-message events",
+				)
+				.option("--impersonate-user <email>", "Optional delegation user email")
+				.option("--use-adc", "Use Google Application Default Credentials")
+				.option("--credentials-json <json>", "Service account credentials JSON")
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  GOOGLE_CHAT_CREDENTIALS      Service account JSON",
+						"  GOOGLE_CHAT_USE_ADC=true     Use Application Default Credentials",
+						"  GOOGLE_CHAT_PUBSUB_TOPIC     Optional Pub/Sub topic",
+						"  GOOGLE_CHAT_IMPERSONATE_USER Optional delegation user",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectGoogleChatOptions {
@@ -290,6 +297,7 @@ class GoogleChatConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -316,7 +324,7 @@ class GoogleChatConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -461,6 +469,12 @@ class GoogleChatConnector extends ConnectorBase<
 			);
 			return 1;
 		}
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectGoogleChatOptions,
+	): string | undefined {
+		return options.userName;
 	}
 
 	protected override async runWithOptions(
@@ -614,7 +628,7 @@ class GoogleChatConnector extends ConnectorBase<
 			thread: Thread<GoogleChatThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
 				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {

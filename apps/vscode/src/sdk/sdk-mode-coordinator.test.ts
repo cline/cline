@@ -21,29 +21,6 @@ describe("SdkModeCoordinator", () => {
 		vi.clearAllMocks()
 	})
 
-	it("applies a queued switch_to_act_mode change and auto-continues the task", async () => {
-		const activeSession = makeActiveSession()
-		const { coordinator, state, options } = makeCoordinator({ activeSession })
-
-		coordinator.queueSwitchToActMode()
-		expect(coordinator.hasPendingModeChange()).toBe(true)
-
-		await coordinator.applyPendingModeChange()
-
-		expect(coordinator.hasPendingModeChange()).toBe(false)
-		expect(state.mode).toBe("act")
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.onAutoContinueStarting).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			expect.anything(),
-			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
-			undefined,
-			undefined,
-		)
-		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
-	})
-
 	it("preserves pending input by returning false when toggling mode without an active session", async () => {
 		const { coordinator, state, options } = makeCoordinator({ mode: "act" })
 
@@ -711,19 +688,6 @@ describe("SdkModeCoordinator", () => {
 			await coordinator.togglePlanActMode("act", { message: "go ahead", images: [], files: [] })
 
 			expect(consumedAtSend).toEqual([{ from: "plan", to: "act" }])
-			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
-		})
-
-		it("does not record a notice for a switch_to_act_mode-initiated change", async () => {
-			// Matches the CLI: the tool result and canned continuation prompt
-			// already announce the switch, so no <mode_notice> is stamped.
-			const activeSession = makeActiveSession()
-			const task = makeTask("old-session")
-			const { coordinator } = makeCoordinator({ activeSession, task, mode: "plan" })
-
-			coordinator.queueSwitchToActMode()
-			await coordinator.applyPendingModeChange()
-
 			expect(coordinator.consumeModeSwitchNotice("new-session")).toBeNull()
 		})
 

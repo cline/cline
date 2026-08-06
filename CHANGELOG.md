@@ -1,5 +1,65 @@
 # Changelog
 
+## [4.1.5]
+
+### Added
+
+- Explain when a free model promotion ends. Requests to a retired free model now show a dedicated notice with a button to pick another model, instead of a generic error with nothing but a Retry prompt.
+
+### Changed
+
+- Map reasoning settings onto a shared path across AI SDK providers, so effort levels and enable/disable toggles behave consistently (including on Ollama) instead of relying on per-provider overrides.
+
+## [4.1.4]
+
+### Added
+
+- Recognize Chutes as a provider.
+- Show skills alongside workflows in the slash command menu, and disambiguate commands that share a name instead of letting one shadow the other.
+
+### Changed
+
+- Remove model-initiated plan-to-act switching. Switching out of plan mode is now driven by you, not by the model deciding mid-turn.
+- Hard-block file-editing shell commands in plan mode instead of relying on prompting alone. Read-only investigation still works, but file manipulation, in-place editors, redirection to files, mutating git subcommands, and package installs are refused.
+
+### Fixed
+
+- Stop treating a turn that completes with a plan as a failed turn when a plan-blocked command was its only tool call. The turn no longer ends in the error state with a Retry footer, and toggling to Act correctly re-runs the presented plan instead of appearing to do nothing.
+- Show tool paths relative to the workspace in the chat view instead of absolute paths.
+- Reset pending attachments when starting a new task, so images from the previous task no longer carry over.
+- Surface a clear error when the selected provider has no API key configured, instead of a generic failure.
+- Refresh MCP tool and resource lists when a server sends a `list_changed` notification, instead of only showing a toast.
+- Show installed plugins under their real package names instead of all appearing as "index".
+- Correct the Linux keybinding label in the Plan/Act mode tooltip.
+- Recover from running out of context instead of failing with a raw provider error — the run compacts and retries once, and the cases that genuinely cannot be recovered explain why.
+- Retry empty model responses on every provider rather than only Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Stop Claude 4.6+ and 5.x models being rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id.
+- Restore Bedrock prompt caching, which reported zero cache reads and writes because the provider sent a cache format Bedrock discards, and route Bedrock foundation models through geo inference profiles.
+- Send `max_completion_tokens` for reasoning models on OpenAI-compatible endpoints, and substitute image content for models without image support instead of failing the request.
+- Inherit the MiniMax default model from models.dev, and refresh the bundled catalog, which adds Infomaniak and SCX.ai.
+- Report the same provider failure once instead of twice in error telemetry, and rate-limit repeated failures from unattended retry loops.
+
+## [4.1.3]
+
+### Fixed
+
+- Stop the two bundles of the combined rollout package from invalidating each other's Cline account session. A still-open legacy window that refreshed its token after the machine was promoted to the new extension would consume the shared refresh token, producing spurious "Unauthorized" / re-authenticate prompts and unexpected sign-outs. Promoted legacy windows now keep working on their current session and offer a one-time Reload Window prompt instead.
+- Fall back to the default Cline model when migrating a setup that references a model id the new extension doesn't recognize, instead of leaving the provider unconfigured.
+- Restore reliable checkpoints: checkpoints are created consistently, and restoring one now rewinds the whole workspace rather than a subset of files.
+- Keep settings edits that are made before the provider config finishes loading — base URLs, API keys, and the Qwen/Moonshot API line are no longer silently discarded.
+- Stop losing keystrokes in custom base URL fields, and keep the custom URL checkbox state after a failed clear.
+- Use the AskSage custom API URL at inference time instead of ignoring it.
+- Settle a pending tool approval when an edited message replaces the session, so the task no longer hangs waiting on a prompt that is gone.
+- Drop attachments from messages that have been edited.
+- Complete terminal commands when the shell execution ends, so tasks no longer stall on commands that already finished.
+- Include untracked files when generating commit messages.
+- Run Windows Store PowerShell profiles correctly.
+- Surface the upstream provider error when a gateway-forwarded stream fails, instead of a generic failure.
+- Retry empty Ollama responses at the model boundary, and raise the response-start timeout to 5 minutes so cold model loads no longer error out.
+- Show proper display names for Cline free models and recommended models in the model picker.
+- Preserve video input capability for models that support it.
+- Keep the plan/act input border in sync with the actual textarea focus.
+
 ## [4.1.2]
 
 ### Added

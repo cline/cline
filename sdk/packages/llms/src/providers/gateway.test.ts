@@ -13,6 +13,9 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
+	type ITelemetryService,
+	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
@@ -67,7 +70,7 @@ vi.mock("ai", () => ({
 	// is exercised by its own unit tests; here we just need an identity
 	// pass-through so the vendor factories' downstream `model:` callbacks
 	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV3` interface, so we
+	// objects don't satisfy the real `LanguageModelV4` interface, so we
 	// can't call the real `wrapLanguageModel` either way.)
 	wrapLanguageModel: ({ model }: { model: unknown }) => model,
 }));
@@ -131,6 +134,17 @@ function mockSuccessfulStream(): void {
 	});
 }
 
+function createTelemetryMock(): {
+	telemetry: ITelemetryService;
+	capture: ReturnType<typeof vi.fn>;
+} {
+	const capture = vi.fn();
+	return {
+		capture,
+		telemetry: { capture } as unknown as ITelemetryService,
+	};
+}
+
 const baseMessages: AgentMessage[] = [
 	{
 		id: "user_1",
@@ -184,10 +198,11 @@ async function captureReasoningOptions({
 
 	const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 		| {
+				reasoning?: unknown;
 				providerOptions?: Record<string, { reasoning?: unknown }>;
 		  }
 		| undefined;
-	return call?.providerOptions?.[providerId]?.reasoning;
+	return call?.reasoning ?? call?.providerOptions?.[providerId]?.reasoning;
 }
 
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
@@ -215,6 +230,7 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 
 describe("sdk-gateway", () => {
 	beforeEach(() => {
+		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
@@ -514,7 +530,6 @@ describe("sdk-gateway", () => {
 		expect(strategyProviders).toEqual([
 			"aihubmix",
 			"anthropic",
-			"bedrock",
 			"cline",
 			"cline-pass",
 			"minimax",
@@ -526,6 +541,21 @@ describe("sdk-gateway", () => {
 			"vercel-ai-gateway",
 			"vertex",
 		]);
+	});
+
+	it("routes Bedrock prompt caching through Converse cachePoint markers", () => {
+		const gateway = createGateway();
+		const cachePointProviders = gateway
+			.listProviders()
+			.filter(
+				(provider) =>
+					provider.metadata?.routing?.promptCache?.format ===
+					"bedrock-cache-point",
+			)
+			.map((provider) => provider.id)
+			.sort();
+
+		expect(cachePointProviders).toEqual(["bedrock"]);
 	});
 
 	it("routes Qwen cache controls by model family instead of exact model ids", () => {
@@ -745,6 +775,180 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Invalid API key",
+			errorClass: "unknown",
+		});
+	});
+
+	it("records the extracted provider message for AI SDK stream errors", async () => {
+		const rawError = Object.assign(new Error("Stream error occurred"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long",
+					code: "context_length_exceeded",
+				},
+			}),
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([
+						{ type: "error", error: new Error("No output generated") },
+					]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.stream",
+				error_message: "prompt is too long",
+				error_status: 400,
+			}),
+		});
+	});
+
+	it("marks the finish event as reported so the agent loop skips the same failure", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Upstream returned HTTP 429",
+			errorReported: true,
+		});
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(1);
+	});
+
+	it("does not mark the finish event as reported when telemetry is unavailable", async () => {
+		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+			statusCode: 429,
+		});
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error: rawError });
+				return {
+					fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+				};
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const finish = events.at(-1) as { errorReported?: boolean };
+		expect(finish.errorReported).not.toBe(true);
+	});
+
+	it("rate-limits identical stream failures per process", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
+				statusCode: 429,
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+	});
+
+	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
+		streamTextSpy.mockImplementation(() => {
+			throw new Error("No output generated. Check the stream for errors.", {
+				cause: new Error("Invalid API key"),
+			});
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "provider.create_or_stream",
+				error_message: "Invalid API key",
+			}),
 		});
 	});
 
@@ -786,8 +990,48 @@ describe("sdk-gateway", () => {
 				type: "finish",
 				reason: "error",
 				error: "Invalid API key",
+				errorClass: "unknown",
 			},
 		]);
+	});
+
+	it("classifies context-window overflow errors on the finish event", async () => {
+		const overflowError = Object.assign(new Error("Bad Request"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				error: {
+					message: "prompt is too long: 213462 tokens > 200000 maximum",
+					type: "invalid_request_error",
+				},
+			}),
+		});
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "error", error: overflowError }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		});
 	});
 
 	it("surfaces API detail fields from OpenAI-compatible error bodies", async () => {
@@ -822,6 +1066,7 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			error: "Instructions are required",
+			errorClass: "unknown",
 		});
 	});
 
@@ -924,8 +1169,8 @@ describe("sdk-gateway", () => {
 								text: "whats in the pic",
 							}),
 							expect.objectContaining({
-								type: "image",
-								image: "data:image/png;base64,aGVsbG8=",
+								type: "file",
+								data: "data:image/png;base64,aGVsbG8=",
 								mediaType: "image/png",
 							}),
 						]),
@@ -1086,6 +1331,155 @@ describe("sdk-gateway", () => {
 			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
 		]);
 		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	describe("image capability gating", () => {
+		// Simulates a "wedged" history: an image entered the conversation at
+		// message N (user attachment + a tool result carrying an image), and
+		// every request built after that must stay valid for the target model.
+		const imageBase64 = Buffer.alloc(24, 7).toString("base64");
+		const imageHistory: AgentMessage[] = [
+			{
+				id: "user_1",
+				role: "user",
+				content: [{ type: "text", text: "Hello" }],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_2",
+				role: "user",
+				content: [
+					{ type: "text", text: "see this screenshot" },
+					{
+						type: "image",
+						image: `data:image/png;base64,${imageBase64}`,
+						mediaType: "image/png",
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "assistant_1",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						input: { path: "/tmp/image.png" },
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_3",
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: [
+							{ type: "text", text: "Successfully read image" },
+							{ type: "image", data: imageBase64, mediaType: "image/png" },
+						],
+					},
+				],
+				createdAt: Date.now(),
+			},
+			{
+				id: "user_4",
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+				createdAt: Date.now(),
+			},
+		];
+
+		it("substitutes image content with placeholder text for models without image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Catalog entry advertises no "images" capability.
+					modelId: "deepseek-chat",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+			expect(serialized).not.toContain(imageBase64);
+			expect(serialized).not.toContain('"type":"image"');
+			expect(serialized).not.toContain('"type":"image-data"');
+		});
+
+		it("keeps image content for models that advertise image input", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-vision",
+								name: "DeepSeek Vision",
+								capabilities: ["text", "images"],
+							},
+						],
+					},
+				],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					modelId: "deepseek-vision",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
+
+		it("keeps image content for models with no capability data (fail open)", async () => {
+			mockSuccessfulStream();
+
+			const gateway = createGateway({
+				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "deepseek",
+					// Not in the catalog: resolves to an unregistered model
+					// definition without capability data.
+					modelId: "some-unknown-model",
+					messages: imageHistory,
+				}),
+			);
+
+			const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+				| { messages?: unknown }
+				| undefined;
+			const serialized = JSON.stringify(call?.messages);
+			expect(serialized).toContain(imageBase64);
+			expect(serialized).not.toContain(IMAGE_UNSUPPORTED_PLACEHOLDER);
+		});
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {
@@ -2240,11 +2634,8 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(streamTextSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				tools: undefined,
-			}),
-		);
+		const streamTextOptions = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(streamTextOptions).not.toHaveProperty("tools");
 	});
 
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {
@@ -2444,12 +2835,12 @@ describe("sdk-gateway", () => {
 					}),
 					"openai-codex": expect.objectContaining({
 						store: false,
-						reasoningEffort: "high",
 					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -2522,7 +2913,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("passes reasoning effort through to Anthropic provider options", async () => {
+	it("passes reasoning effort through the AI SDK top-level option", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -2560,13 +2951,11 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					anthropic: expect.objectContaining({
-						thinking: expect.objectContaining({ type: "enabled" }),
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(call?.providerOptions?.anthropic).not.toHaveProperty("thinking");
 	});
 
 	it("does not enable adaptive thinking for Anthropic when reasoning is not requested", async () => {
@@ -2662,22 +3051,15 @@ describe("sdk-gateway", () => {
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							enabled: true,
-							max_tokens: expect.any(Number),
-						}),
 					}),
 					openrouter: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							effort: "high",
-						}),
 					}),
 					anthropic: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						thinking: expect.objectContaining({ type: "enabled" }),
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 	});
@@ -2999,32 +3381,34 @@ describe("sdk-gateway", () => {
 				messages: [
 					expect.objectContaining({
 						role: "user",
-						content: expect.arrayContaining([
+						content: [
 							expect.objectContaining({
 								type: "text",
 								text: "Hello",
-								providerOptions: expect.objectContaining({
-									anthropic: expect.objectContaining({
-										cache_control: { type: "ephemeral" },
-									}),
-									bedrock: expect.objectContaining({
-										cache_control: { type: "ephemeral" },
-									}),
-								}),
 							}),
-						]),
+						],
+						providerOptions: expect.objectContaining({
+							bedrock: { cachePoint: { type: "default" } },
+						}),
 					}),
 				],
-				providerOptions: expect.objectContaining({
-					anthropic: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
-					}),
-					bedrock: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
-					}),
-				}),
 			}),
 		);
+
+		const bedrockStreamCall = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			providerOptions?: Record<string, Record<string, unknown>>;
+		};
+		// Bedrock's Converse API only understands `cachePoint` markers; the
+		// Anthropic `cache_control` dialect must not leak into the request.
+		expect(bedrockStreamCall.providerOptions?.bedrock ?? {}).not.toHaveProperty(
+			"cache_control",
+		);
+		expect(
+			bedrockStreamCall.providerOptions?.anthropic ?? {},
+		).not.toHaveProperty("cache_control");
+		expect(
+			bedrockStreamCall.providerOptions?.openaiCompatible ?? {},
+		).not.toHaveProperty("cache_control");
 	});
 
 	it("supports provider config metadata overrides for anthropic prompt-cache strategy", async () => {
@@ -3338,9 +3722,16 @@ describe("sdk-gateway", () => {
 				expect.objectContaining(expectedCacheControl),
 			);
 		}
+		// Portable effort rides the top-level reasoning option, so no
+		// reasoning provider options are forwarded for either provider.
 		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
 			expect.objectContaining({
 				reasoning: expect.anything(),
+			}),
+		);
+		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
+			expect.objectContaining({
+				thinking: expect.anything(),
 			}),
 		);
 		expect(qwenCall.providerOptions?.anthropic).not.toEqual(
@@ -3455,18 +3846,7 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoningEffort: "high",
-					}),
-					cline: expect.objectContaining({
-						reasoning: expect.objectContaining({
-							enabled: true,
-							effort: "high",
-						}),
-						reasoningEffort: "high",
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -3520,11 +3900,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					zai: expect.objectContaining({
-						thinking: { type: "enabled" },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
@@ -3653,30 +4029,38 @@ describe("sdk-gateway", () => {
 				},
 			}),
 		);
+		await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
 
+		// Explicit enablement rides the portable top-level reasoning option.
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoning: { enabled: true },
-					}),
-					openrouter: expect.objectContaining({
-						reasoning: { enabled: true, max_tokens: 19_200 },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
-		expect(streamTextSpy).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openrouter: expect.objectContaining({
-						reasoning: { effort: "none" },
-					}),
-				}),
-			}),
-		);
+		// The openrouter catalog advertises an explicitly empty
+		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
+		// so no reasoning provider options are forwarded either way.
+		for (const callIndex of [0, 1]) {
+			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown> | undefined>;
+			};
+			expect(call.providerOptions?.openrouter).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+			expect(call.providerOptions?.openaiCompatible).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+		}
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({
@@ -3706,6 +4090,25 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+		// Unlisted GLM ids route explicit enablement through the portable
+		// top-level reasoning option instead of the routed include shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			5,
+			expect.objectContaining({
+				reasoning: "medium",
+			}),
+		);
+		{
+			const call = streamTextSpy.mock.calls[4]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown> | undefined>;
+			};
+			expect(call.providerOptions?.cline).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+			expect(call.providerOptions?.openaiCompatible).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+		}
 	});
 
 	it("maps legacy model thinking options into gateway reasoning", async () => {
@@ -3766,7 +4169,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "preserves structured enabled while filling an invalid effort",
@@ -3774,7 +4177,7 @@ describe("sdk-gateway", () => {
 				reasoning: { enabled: true, effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a non-finite legacy budget",
@@ -3782,12 +4185,12 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: Number.POSITIVE_INFINITY,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a fractional structured budget",
 			options: { reasoning: { effort: "high", budgetTokens: 0.5 } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a zero legacy budget",
@@ -3795,7 +4198,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: 0,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "validates handle defaults before merging requested reasoning",
@@ -3806,7 +4209,7 @@ describe("sdk-gateway", () => {
 				},
 			} as unknown as GatewayModelHandleOptions,
 			options: { reasoning: { effort: "high" } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 	])("$name", async ({ options, defaults, expected }) => {
 		expect(
@@ -3980,35 +4383,32 @@ describe("sdk-gateway", () => {
 			"qwen-plus-latest",
 			"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		],
-	])(
-		"routes %s to the %s regional endpoint when options.apiLine is set",
-		async (providerId, apiLine, modelId, expectedBaseUrl) => {
-			streamTextSpy.mockReturnValue({
-				fullStream: makeStreamParts([
-					{ type: "text-delta", textDelta: "Regional" },
-					{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
-				]),
-			});
+	])("routes %s to the %s regional endpoint when options.apiLine is set", async (providerId, apiLine, modelId, expectedBaseUrl) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Regional" },
+				{ type: "finish", usage: { inputTokens: 2, outputTokens: 1 } },
+			]),
+		});
 
-			const gateway = createGateway({
-				providerConfigs: [
-					{ providerId, apiKey: "test-key", options: { apiLine } },
-				],
-			});
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId, apiKey: "test-key", options: { apiLine } },
+			],
+		});
 
-			await collect(
-				await gateway.stream({
-					providerId,
-					modelId,
-					messages: baseMessages,
-				}),
-			);
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
 
-			expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
-				expect.objectContaining({ baseURL: expectedBaseUrl }),
-			);
-		},
-	);
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ baseURL: expectedBaseUrl }),
+		);
+	});
 
 	it("lets an explicit base URL win over options.apiLine", async () => {
 		streamTextSpy.mockReturnValue({
