@@ -93,7 +93,7 @@ describe("mcp oauth", () => {
 			refresh_token: "old-refresh-token",
 			token_type: "bearer",
 		});
-		expect(first.provider.tokens()?.access_token).toBe("old-access-token");
+		expect((await first.provider.tokens())?.access_token).toBe("old-access-token");
 
 		const changedId = createMcpOAuthProviderContext({
 			settingsPath,
@@ -104,7 +104,7 @@ describe("mcp oauth", () => {
 				client_secret: "secret-a",
 			},
 		});
-		expect(changedId.provider.tokens()).toBeUndefined();
+		expect(await changedId.provider.tokens()).toBeUndefined();
 
 		const changedSecret = createMcpOAuthProviderContext({
 			settingsPath,
@@ -115,7 +115,7 @@ describe("mcp oauth", () => {
 				client_secret: "secret-b",
 			},
 		});
-		expect(changedSecret.provider.tokens()).toBeUndefined();
+		expect(await changedSecret.provider.tokens()).toBeUndefined();
 	});
 
 	it("reuses tokens persisted before client binding was introduced", async () => {
@@ -140,12 +140,15 @@ describe("mcp oauth", () => {
 			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
 		});
 
-		expect(context.provider.tokens()?.access_token).toBe("legacy-access-token");
+		expect((await context.provider.tokens())?.access_token).toBe("legacy-access-token");
 
+		if (!context.provider.saveClientInformation) {
+			throw new Error("Expected OAuth provider to expose saveClientInformation.");
+		}
 		await context.provider.saveClientInformation({
 			client_id: "replacement-client",
 			client_secret: "replacement-secret",
 		});
-		expect(context.provider.tokens()).toBeUndefined();
+		expect(await context.provider.tokens()).toBeUndefined();
 	});
 });
