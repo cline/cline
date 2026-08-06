@@ -48,7 +48,10 @@ import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { parseCloudSessionError } from "@/lib/cloud-session-error";
+import {
+	humanizeCloudSessionError,
+	parseCloudSessionError,
+} from "@/lib/cloud-session-error";
 import {
 	createDesktopAppState,
 	type DesktopAppLocation,
@@ -327,13 +330,13 @@ export default function Home() {
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string) => {
+		async (sessionId: string): Promise<boolean> => {
 			const cachedSession = sessionHistory.sessions.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
 				handleOpenSession(cachedSession);
-				return;
+				return true;
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
@@ -344,12 +347,16 @@ export default function Home() {
 					throw new Error("The session for this run is no longer available.");
 				}
 				handleOpenSession(session);
+				return true;
 			} catch (error) {
 				toast({
 					title: "Unable to open run",
-					description: error instanceof Error ? error.message : String(error),
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
 					variant: "destructive",
 				});
+				return false;
 			}
 		},
 		[handleOpenSession, sessionHistory.sessions],
@@ -378,7 +385,13 @@ export default function Home() {
 			}
 			const swap = async () => {
 				if (placeholderThread.id === activeThreadId) {
-					await handleOpenSessionById(sessionId);
+					// If the real session cannot be opened, keep the placeholder
+					// thread — deleting it would dump the user onto a blank
+					// fallback thread mid-provision.
+					const opened = await handleOpenSessionById(sessionId);
+					if (!opened) {
+						return;
+					}
 				}
 				handleDeleteSession(placeholderId, placeholderThread.id);
 			};
@@ -1307,6 +1320,25 @@ function ChatThreadPane({
 		[providerCredentials.cline?.apiKey, setConfig, cloudAgentsEnabled],
 	);
 
+	// If the flag flips off (e.g. sign-out re-evaluates targeting) while a NEW
+	// thread's composer is in cloud mode, the Local/Cloud toggle disappears and
+	// nothing else can reset the target — the pane would be stranded cloud-gated
+	// forever. Existing cloud sessions keep their target (attach stays ungated).
+	useEffect(() => {
+		if (
+			!cloudAgentsEnabled &&
+			config.executionTarget === "cloud" &&
+			!historySession
+		) {
+			handleExecutionTargetChange("local");
+		}
+	}, [
+		cloudAgentsEnabled,
+		config.executionTarget,
+		historySession,
+		handleExecutionTargetChange,
+	]);
+
 	const handleCloudRepoUrlChange = useCallback(
 		(repoUrl: string) => {
 			setConfig((prev) =>
@@ -1477,6 +1509,14 @@ function ChatThreadPane({
 						},
 					}),
 				);
+			} catch (error) {
+				toast({
+					title: "Rename failed",
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
+					variant: "destructive",
+				});
 			} finally {
 				setRenamingSession(false);
 			}

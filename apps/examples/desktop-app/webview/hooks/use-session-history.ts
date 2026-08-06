@@ -4,6 +4,7 @@ import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
+import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	SessionHistoryItem,
@@ -243,7 +244,13 @@ function inferStatusFromMessages(
 		return content.trim().length > 0;
 	});
 	if (meaningfulMessages.length === 0) {
-		return status === "running" ? "running" : "idle";
+		// Provisioning placeholders legitimately have no messages — inferring
+		// "idle" here would kill the sidebar's provisioning state within one
+		// hydration cycle and flap it on every refresh after.
+		if (status === "running" || status === "provisioning") {
+			return status;
+		}
+		return "idle";
 	}
 	const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
 	if (status === "failed" && lastMeaningful.role === "assistant") {
@@ -1335,10 +1342,11 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Delete failed",
-					description:
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session could not be removed from local history.",
+					),
 				});
 				return false;
 			} finally {

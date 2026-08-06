@@ -369,7 +369,9 @@ export class NodeHubClient {
 		}
 
 		const connectPromise = this.openSocket(url, authToken);
-		this.connectPromise = connectPromise.then(async () => {
+		let attemptSocket: WebSocketLike | undefined;
+		this.connectPromise = connectPromise.then(async (socket) => {
+			attemptSocket = socket;
 			await this.commandOnce(
 				"client.register",
 				{
@@ -405,10 +407,11 @@ export class NodeHubClient {
 			}
 			// A socket that opened but never registered must not survive: a later
 			// connect() would see it open and resolve without a registered client.
-			// Close it and let the close listener reset state / schedule reconnect.
-			if (!this.registered && this.socket) {
+			// Close only THIS attempt's socket — after close()+connect() races the
+			// current socket may belong to a newer attempt that must stay alive.
+			if (!this.registered && attemptSocket && this.socket === attemptSocket) {
 				try {
-					this.socket.close();
+					attemptSocket.close();
 				} catch {
 					// best-effort close
 				}
@@ -417,7 +420,10 @@ export class NodeHubClient {
 		}
 	}
 
-	private async openSocket(url: URL, authToken?: string): Promise<void> {
+	private async openSocket(
+		url: URL,
+		authToken?: string,
+	): Promise<WebSocketLike> {
 		const resolveHeaders = this.options.resolveConnectionHeaders;
 		const headers = resolveHeaders ? await resolveHeaders() : undefined;
 		if (this.closedByClient) {
@@ -457,8 +463,12 @@ export class NodeHubClient {
 					`Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`,
 				);
 				this.sawSocketClose = false;
-				this.connectPromise = undefined;
-				this.socket = undefined;
+				// Guarded on identity: a stale attempt's late failure must not
+				// clobber a newer in-flight attempt's dedupe state.
+				if (this.socket === socket) {
+					this.connectPromise = undefined;
+					this.socket = undefined;
+				}
 				try {
 					socket.close();
 				} catch {
@@ -482,8 +492,10 @@ export class NodeHubClient {
 				clearTimeout(timeout);
 				this.lastCloseError = normalizeWebSocketConnectError(error, url);
 				this.sawSocketClose = false;
-				this.connectPromise = undefined;
-				this.socket = undefined;
+				if (this.socket === socket) {
+					this.connectPromise = undefined;
+					this.socket = undefined;
+				}
 				reject(this.lastCloseError);
 			});
 			socket.addEventListener("close", (event: unknown) => {
@@ -496,8 +508,10 @@ export class NodeHubClient {
 					this.lastCloseError = createHubCloseError(event);
 					this.sawSocketClose = true;
 				}
-				this.connectPromise = undefined;
-				this.socket = undefined;
+				if (this.socket === socket) {
+					this.connectPromise = undefined;
+					this.socket = undefined;
+				}
 				reject(this.lastCloseError);
 			});
 		});
@@ -526,6 +540,7 @@ export class NodeHubClient {
 		});
 
 		await opened;
+		return socket;
 	}
 
 	subscribe(

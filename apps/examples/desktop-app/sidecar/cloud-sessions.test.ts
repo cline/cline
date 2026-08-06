@@ -1,6 +1,6 @@
 import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
 	CloudSessionApi,
@@ -596,7 +596,7 @@ describe("CloudSessionManager", () => {
 	});
 
 	it("resolves fresh bearer headers for each WebSocket connection attempt", async () => {
-		const { ctx } = createContext();
+		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
 		const tokens = ["workos:first", "workos:refreshed"];
 		let resolveHeaders:
@@ -622,6 +622,18 @@ describe("CloudSessionManager", () => {
 		expect(await resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:refreshed",
 		});
+		await vi.waitFor(() => {
+			expect(
+				hub.commands.some((entry) => entry.command === "session.get"),
+			).toBe(true);
+		});
+		expect(
+			events.some(
+				(event) =>
+					event.name === "cloud_session_rehydrated" &&
+					event.payload.sessionId === "ses-outer",
+			),
+		).toBe(true);
 	});
 
 	it("maps cloud approvals into the existing UI and responds on the inner id", async () => {
@@ -1237,6 +1249,78 @@ describe("CloudSessionManager", () => {
 			}),
 		).rejects.toThrow("account endpoint down");
 		expect(createInput?.organizationId).toBeUndefined();
+	});
+
+	it("recovers with a fresh connection after inner-session creation fails", async () => {
+		const { ctx } = createContext();
+		let clientCount = 0;
+		let failNextInnerCreate = true;
+		const clients: FakeHubClient[] = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				clientCount += 1;
+				const hub = new (class extends FakeHubClient {
+					override async command(
+						command: string,
+						payload?: Record<string, unknown>,
+						sessionId?: string,
+						options?: { timeoutMs?: number | null },
+					) {
+						if (command === "session.create" && failNextInnerCreate) {
+							failNextInnerCreate = false;
+							throw new Error("insufficient balance");
+						}
+						return super.command(command, payload, sessionId, options);
+					}
+				})(false);
+				clients.push(hub);
+				return hub as never;
+			},
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		// First send fails at inner-session creation…
+		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
+			"insufficient balance",
+		);
+		// …and must NOT leave a poisoned connection behind: the retry gets a
+		// fresh client with a live event subscription and succeeds.
+		await manager.send("ses-outer", "second");
+		expect(clientCount).toBe(2);
+		expect(clients[1]?.events).toBeDefined();
+		expect(
+			clients[1]?.commands.some((entry) => entry.command === "session.create"),
+		).toBe(true);
+	});
+
+	it("single-flights inner-session creation under concurrent sends", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await Promise.all([
+			manager.send("ses-outer", "first"),
+			manager.send("ses-outer", "second"),
+		]);
+		const innerCreates = hub.commands.filter(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreates).toHaveLength(1);
 	});
 
 	it("names the session from the first prompt and supports rename", async () => {

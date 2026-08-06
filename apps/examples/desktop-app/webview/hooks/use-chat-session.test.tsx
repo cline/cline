@@ -275,6 +275,58 @@ describe("useChatSession", () => {
 		expect(current.error).toBeNull();
 	});
 
+	it("hydrates output missed during a passive cloud reconnect", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, _args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					return {
+						sessionId: "ses-cloud",
+						cwd: "/workspace",
+						workspaceRoot: "/workspace",
+					};
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "assistant-recovered",
+							sessionId: "ses-cloud",
+							role: "assistant",
+							content: "Finished while reconnecting",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				return [];
+			},
+		);
+		await act(async () => {
+			await current.start({
+				...current.config,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			});
+		});
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(rehydratedHandler).toBeDefined();
+
+		await act(async () => {
+			rehydratedHandler?.({ sessionId: "ses-cloud", status: "completed" });
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(current.messages.at(-1)?.content).toBe(
+			"Finished while reconnecting",
+		);
+		expect(current.status).toBe("completed");
+	});
+
 	it("restores a cloud session's persisted branch during hydration", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -326,7 +378,7 @@ describe("useChatSession", () => {
 
 	it("keeps an approval actionable when the remote acknowledgement fails", async () => {
 		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
+			async (command: string, _args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}

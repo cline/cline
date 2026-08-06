@@ -216,6 +216,50 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		expect(container.textContent).not.toContain("Could not load branches.");
 	});
 
+	it("uses a clear fallback label before default-branch metadata is deployed", async () => {
+		const onListCloudRepositories = vi.fn(async () => ({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [
+				{
+					id: 42,
+					name: "cline",
+					fullName: "cline/cline",
+					url: "https://github.com/cline/cline",
+					defaultBranch: "",
+				},
+			],
+		}));
+		const onListCloudBranches = vi.fn(async () => ({
+			available: false,
+			branches: [],
+		}));
+		const props = renderControls({
+			executionTarget: "cloud",
+			onListCloudRepositories,
+			onListCloudBranches,
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await click(button("cline/cline"));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "",
+			onListCloudRepositories,
+			onListCloudBranches,
+			onCloudBranchChange: props.onCloudBranchChange,
+		});
+
+		await vi.waitFor(() => {
+			expect(button("Default branch").disabled).toBe(true);
+		});
+		expect(container.textContent).not.toContain("Select branch… (default)");
+	});
+
 	it("links to GitHub setup when no integration is connected", async () => {
 		const props = renderControls({
 			executionTarget: "cloud",

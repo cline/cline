@@ -467,6 +467,10 @@ type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
 	innerSessionId?: string;
+	rehydrationPromise?: Promise<string>;
+	/** Single-flights inner-session creation — two concurrent sends must not
+	 * fork two inner sessions (the event filter would drop one run forever). */
+	innerSessionCreation?: Promise<void>;
 	unsubscribe: () => void;
 };
 
@@ -761,6 +765,12 @@ export class CloudSessionManager {
 			...input,
 			organizationId,
 		});
+		if (!created?.sessionId?.trim() || !created.sandboxUrl?.trim()) {
+			throw new CloudSessionError(
+				"request_failed",
+				"The cloud session service returned an unexpected response; please try again.",
+			);
+		}
 		if (this.disposed) {
 			throw new Error(
 				"Cline account changed while the cloud session was starting",
@@ -792,7 +802,17 @@ export class CloudSessionManager {
 			live.config.reasoningEffort = input.reasoningEffort;
 		}
 		this.ctx.liveSessions.set(record.id, live);
-		await this.ensureConnection(record.id, { createInner: true });
+		// The sandbox exists (and bills) from this point: a connect hiccup must
+		// not present as a failed create — the session is registered and the
+		// first user action will connect (and surface any real error) instead.
+		try {
+			await this.ensureConnection(record.id, { createInner: true });
+		} catch (error) {
+			this.ctx.logger?.log(
+				"Cloud session provisioned but initial connect failed; will connect on demand",
+				{ sessionId: record.id, error },
+			);
+		}
 		return {
 			sessionId: record.id,
 			origin: "cloud",
@@ -951,6 +971,25 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		connection: CloudConnection,
 	): Promise<string> {
+		if (connection.rehydrationPromise) {
+			return await connection.rehydrationPromise;
+		}
+		const rehydration = this.performTransportRehydration(
+			outerSessionId,
+			connection,
+		).finally(() => {
+			if (connection.rehydrationPromise === rehydration) {
+				connection.rehydrationPromise = undefined;
+			}
+		});
+		connection.rehydrationPromise = rehydration;
+		return await rehydration;
+	}
+
+	private async performTransportRehydration(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<string> {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
@@ -1020,6 +1059,10 @@ export class CloudSessionManager {
 		if (queueReply) {
 			this.applyQueueSnapshot(outerSessionId, queueReply);
 		}
+		sendEvent(this.ctx, "cloud_session_rehydrated", {
+			sessionId: outerSessionId,
+			status,
+		});
 		return status;
 	}
 
@@ -1203,6 +1246,12 @@ export class CloudSessionManager {
 				"This cloud session is still provisioning and cannot be deleted yet.",
 			);
 		}
+		// An in-flight connect would otherwise re-register the connection after
+		// this delete finishes, leaving a zombie client reconnecting forever.
+		const pendingConnect = this.connectionPromises.get(outerSessionId);
+		if (pendingConnect) {
+			await pendingConnect.catch(() => undefined);
+		}
 		await this.disposeConnection(outerSessionId);
 		await this.options.api.delete(outerSessionId);
 		this.knownSessions.delete(outerSessionId);
@@ -1348,11 +1397,21 @@ export class CloudSessionManager {
 
 		const connecting = (async () => {
 			const remote = await this.ensureKnownSession(outerSessionId);
+			// Cold-cache send/abort/read paths must surface expiry as the clean
+			// envelope, not a raw WS upgrade failure (the proxy answers 410).
+			if (isExpiredRecord(remote)) {
+				throw new CloudSessionError(
+					"session_expired",
+					"This cloud session has expired; its sandbox is gone. Start a new cloud session to continue.",
+				);
+			}
 			this.ctx.liveSessions.set(
 				outerSessionId,
 				this.ctx.liveSessions.get(outerSessionId) ??
 					recordToLiveSession(remote),
 			);
+			let connection: CloudConnection | undefined;
+			let socketAttempt = 0;
 			const client = this.createHubClient({
 				url: toWebSocketUrl(this.options.apiBaseUrl, outerSessionId),
 				clientId: `code-cloud-${outerSessionId}`,
@@ -1361,6 +1420,17 @@ export class CloudSessionManager {
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
 				resolveConnectionHeaders: async () => {
+					const reconnecting = socketAttempt > 0;
+					socketAttempt += 1;
+					if (reconnecting) {
+						setTimeout(() => {
+							if (!connection) return;
+							void this.rehydrateAfterTransportDrop(
+								outerSessionId,
+								connection,
+							).catch(() => undefined);
+						}, 0);
+					}
 					const token = await this.options.getAuthToken();
 					if (!token?.trim()) {
 						throw new CloudSessionError(
@@ -1371,7 +1441,7 @@ export class CloudSessionManager {
 					return { Authorization: `Bearer ${token.trim()}` };
 				},
 			});
-			const connection: CloudConnection = {
+			connection = {
 				remote,
 				client,
 				unsubscribe: () => {},
@@ -1402,6 +1472,10 @@ export class CloudSessionManager {
 				}
 				return connection;
 			} catch (error) {
+				// The entry may already be registered (set happens before inner
+				// session creation) — leaving it would poison every later call
+				// with a disposed client whose event listener is gone.
+				this.connections.delete(outerSessionId);
 				connection.unsubscribe();
 				await client.dispose().catch(() => undefined);
 				throw error;
@@ -1417,6 +1491,19 @@ export class CloudSessionManager {
 		if (connection.innerSessionId) {
 			return;
 		}
+		if (connection.innerSessionCreation) {
+			return await connection.innerSessionCreation;
+		}
+		const creation = this.createInnerSessionOnce(connection).finally(() => {
+			connection.innerSessionCreation = undefined;
+		});
+		connection.innerSessionCreation = creation;
+		return await creation;
+	}
+
+	private async createInnerSessionOnce(
+		connection: CloudConnection,
+	): Promise<void> {
 		const modelId = connection.remote.metadata.modelId?.trim();
 		if (!modelId) {
 			throw new Error("Cloud session is missing its model id");
@@ -1595,10 +1682,22 @@ export function getCloudSessionManager(
 		apiBaseUrl: environment.apiBaseUrl,
 		getAuthToken,
 	});
+	// Successful lookups are cached briefly — the session list polls every
+	// ~12s and must not add a /users/me round trip per tick. Failures are NOT
+	// cached and propagate, preserving fail-instead-of-personal-billing on
+	// create. Account switches rebuild the manager (resetCloudSessionManager),
+	// which discards this cache.
+	let activeOrgCache: { id: string | undefined; at: number } | undefined;
 	const getActiveOrganizationId = async (): Promise<string | undefined> => {
+		if (activeOrgCache && Date.now() - activeOrgCache.at < 60_000) {
+			return activeOrgCache.id;
+		}
 		const organizations = await accountService.fetchUserOrganizations();
-		return organizations?.find((organization) => organization.active)
-			?.organizationId;
+		const id = organizations?.find(
+			(organization) => organization.active,
+		)?.organizationId;
+		activeOrgCache = { id, at: Date.now() };
+		return id;
 	};
 	const manager = new CloudSessionManager(ctx, {
 		api,

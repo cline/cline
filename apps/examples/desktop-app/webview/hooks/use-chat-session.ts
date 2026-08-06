@@ -178,6 +178,26 @@ function mergeHydratedMessagesWithLive(options: {
 	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
 }
 
+function mergeReconnectSnapshotWithLive(
+	hydrated: ChatMessage[],
+	current: ChatMessage[],
+): ChatMessage[] {
+	const hydratedKeyCounts = new Map<string, number>();
+	for (const message of hydrated) {
+		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		hydratedKeyCounts.set(key, (hydratedKeyCounts.get(key) ?? 0) + 1);
+	}
+	const liveOnly = current.filter((message) => {
+		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const hydratedCount = hydratedKeyCounts.get(key) ?? 0;
+		if (hydratedCount === 0) return true;
+		if (hydratedCount === 1) hydratedKeyCounts.delete(key);
+		else hydratedKeyCounts.set(key, hydratedCount - 1);
+		return false;
+	});
+	return sliceMessages(sortMessagesChronologically([...hydrated, ...liveOnly]));
+}
+
 function updateMessageById(
 	messages: ChatMessage[],
 	id: string,
@@ -1266,9 +1286,51 @@ export function useChatSession() {
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
 			},
 		);
+		const unsubscribeRehydrated = desktopClient.subscribe(
+			"cloud_session_rehydrated",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as { sessionId?: string; status?: string };
+				const targetSessionId = record.sessionId?.trim();
+				if (
+					!targetSessionId ||
+					targetSessionId !== activeSessionIdRef.current
+				) {
+					return;
+				}
+				void desktopClient
+					.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: targetSessionId,
+						maxMessages: MAX_MESSAGES,
+					})
+					.then((rehydratedMessages) => {
+						if (activeSessionIdRef.current !== targetSessionId) return;
+						const nextStatus = record.status?.trim();
+						setMessages((current) =>
+							nextStatus === "running" || nextStatus === "pending"
+								? mergeReconnectSnapshotWithLive(rehydratedMessages, current)
+								: rehydratedMessages,
+						);
+						clearLiveToolRefs();
+						if (nextStatus === "failed" || nextStatus === "error") {
+							setStatus("failed");
+						} else if (nextStatus === "aborted") {
+							setStatus("cancelled");
+						} else if (nextStatus === "running" || nextStatus === "pending") {
+							setStatus("running");
+						} else if (nextStatus === "idle" || nextStatus === "ready") {
+							setStatus("idle");
+						} else {
+							setStatus("completed");
+						}
+					})
+					.catch((error) => setError(errorMessage(error)));
+			},
+		);
 		return () => {
 			unsubscribeStatus();
 			unsubscribeEnded();
+			unsubscribeRehydrated();
 		};
 	}, [clearLiveToolRefs]);
 
@@ -1773,6 +1835,8 @@ export function useChatSession() {
 						payload.status === "pending"
 					) {
 						setStatus("running");
+					} else if (payload.status === "idle" || payload.status === "ready") {
+						setStatus("idle");
 					} else {
 						setStatus("completed");
 					}

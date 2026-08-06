@@ -157,8 +157,9 @@ describe("ChatInputBar", () => {
 			)?.disabled,
 		).toBe(true);
 		expect(
-			container.querySelector<HTMLButtonElement>('[aria-label="Thinking level"]')
-				?.disabled,
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Thinking level"]',
+			)?.disabled,
 		).toBe(true);
 	});
 

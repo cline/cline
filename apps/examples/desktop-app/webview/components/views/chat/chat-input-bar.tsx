@@ -1057,8 +1057,8 @@ export function ChatInputBar({
 								cloudSettingsLocked
 									? "Model and thinking are fixed when a cloud session starts"
 									: modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
+										? "The selected model does not report reasoning support"
+										: undefined
 							}
 						>
 							<Brain className="size-3" />

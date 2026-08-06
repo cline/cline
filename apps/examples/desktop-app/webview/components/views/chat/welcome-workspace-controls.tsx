@@ -332,8 +332,11 @@ function CloudBranchPicker({
 					className="size-4 shrink-0 text-muted-foreground"
 				/>
 				<span className="max-w-48 truncate">
-					{branch || "Select branch…"}
-					{status === "unavailable" ? " (default)" : ""}
+					{status === "unavailable"
+						? branch
+							? `${branch} (default)`
+							: "Default branch"
+						: branch || "Select branch…"}
 				</span>
 			</button>
 
