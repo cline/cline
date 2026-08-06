@@ -71,6 +71,11 @@ export interface McpServerOAuthState {
 	lastAuthenticatedAt?: number;
 }
 
+export interface McpServerOAuthClientConfig {
+	clientId: string;
+	clientSecret?: string;
+}
+
 export interface McpServerRegistration {
 	name: string;
 	transport: McpServerTransportConfig;
@@ -85,6 +90,7 @@ export interface McpServerRegistration {
 	 */
 	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
+	oauthClient?: McpServerOAuthClientConfig;
 	oauth?: McpServerOAuthState;
 }
 

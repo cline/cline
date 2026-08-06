@@ -55,6 +55,7 @@ export type {
 	McpManagerOptions,
 	McpServerClient,
 	McpServerClientFactory,
+	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,

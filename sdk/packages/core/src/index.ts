@@ -305,6 +305,7 @@ export {
 	type McpServerClient,
 	type McpServerClientFactory,
 	type McpServerOAuthState,
+	type McpServerOAuthClientConfig,
 	type McpServerOAuthStatus,
 	type McpServerRegistration,
 	type McpServerSnapshot,

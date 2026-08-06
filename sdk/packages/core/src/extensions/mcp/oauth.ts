@@ -39,6 +39,7 @@ export interface CreateMcpOAuthProviderContextOptions {
 	serverName: string;
 	redirectUrl: string;
 	onAuthorizationUrl?: (url: string) => void | Promise<void>;
+	clientInformation?: OAuthClientInformationMixed;
 }
 
 export interface McpOAuthProviderContext {
@@ -134,7 +135,8 @@ export function createMcpOAuthProviderContext(
 			return lastOAuthState;
 		},
 		clientInformation: () =>
-			state.clientInformation as OAuthClientInformationMixed | undefined,
+			options.clientInformation ??
+			(state.clientInformation as OAuthClientInformationMixed | undefined),
 		saveClientInformation: async (clientInformation) => {
 			await patch((current) => ({
 				...current,
@@ -321,6 +323,14 @@ export async function authorizeMcpServerOAuth(
 		settingsPath: options.filePath,
 		serverName,
 		redirectUrl: callbackServer.callbackUrl,
+		clientInformation: registration.oauthClient
+			? {
+					client_id: registration.oauthClient.clientId,
+					...(registration.oauthClient.clientSecret
+						? { client_secret: registration.oauthClient.clientSecret }
+						: {}),
+				}
+			: undefined,
 		onAuthorizationUrl: async (url) => {
 			await options.openUrl?.(url);
 		},
