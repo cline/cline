@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { formatDisplayUserInput } from "@cline/shared";
 import { readSessionManifest } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
 import { readPersistedChatMessages } from "./messages";
@@ -93,8 +94,13 @@ function renderMessageBodyHtml(
 	message: RawMessage,
 	toolResults: Map<string, JsonRecord>,
 ): string {
+	// User turns carry the runtime's <user_input mode="..."> envelope; show
+	// what the user actually typed, like the CLI export does.
+	const displayText = (text: string) =>
+		message.role === "user" ? formatDisplayUserInput(text) : text;
 	if (typeof message.content === "string") {
-		return message.content.trim() ? renderTextHtml(message.content) : "";
+		const text = displayText(message.content);
+		return text.trim() ? renderTextHtml(text) : "";
 	}
 	if (!Array.isArray(message.content)) {
 		return "";
@@ -106,8 +112,9 @@ function renderMessageBodyHtml(
 			continue;
 		}
 		if (block.type === "text" && typeof block.text === "string") {
-			if (block.text.trim()) {
-				parts.push(renderTextHtml(block.text));
+			const text = displayText(block.text);
+			if (text.trim()) {
+				parts.push(renderTextHtml(text));
 			}
 			continue;
 		}

@@ -60,7 +60,11 @@ describe("generateSessionExportHtml", () => {
 			title: "Fix the <login> bug",
 			updatedAt: "2026-08-06T12:00:00.000Z",
 			messages: [
-				{ role: "user", content: "Please fix the bug & ship it" },
+				{
+					role: "user",
+					content:
+						'<user_input mode="act">Please fix the bug & ship it</user_input>',
+				},
 				{
 					role: "assistant",
 					content: [
@@ -94,6 +98,8 @@ describe("generateSessionExportHtml", () => {
 		// Titles and user text are escaped.
 		expect(html).toContain("Fix the &lt;login&gt; bug");
 		expect(html).toContain("Please fix the bug &amp; ship it");
+		// The runtime's <user_input mode="..."> envelope is stripped.
+		expect(html).not.toContain("user_input");
 		// Tool call renders with its paired result.
 		expect(html).toContain("run_command");
 		expect(html).toContain("bun test");
