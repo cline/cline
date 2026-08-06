@@ -22,6 +22,7 @@ import { z } from "zod";
 import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
+	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,
@@ -230,6 +231,15 @@ export interface LoadMcpSettingsOptions {
 	filePath?: string;
 }
 
+export interface UpdateMcpServerOAuthStateOptions
+	extends LoadMcpSettingsOptions {
+	/**
+	 * When present, only update OAuth state while the server still has this
+	 * configured client. `null` asserts that dynamic registration is still in use.
+	 */
+	expectedOAuthClient?: McpServerOAuthClientConfig | null;
+}
+
 export interface RegisterMcpServersFromSettingsOptions {
 	filePath?: string;
 }
@@ -253,6 +263,15 @@ export class McpSettingsUpdateSkippedError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "McpSettingsUpdateSkippedError";
+	}
+}
+
+export class McpOAuthClientChangedError extends Error {
+	constructor(serverName: string) {
+		super(
+			`OAuth client configuration changed while authorizing MCP server "${serverName}". Start authorization again.`,
+		);
+		this.name = "McpOAuthClientChangedError";
 	}
 }
 
@@ -783,12 +802,26 @@ export function getMcpServerOAuthState(
 function buildOAuthStateMutator(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
+	options: UpdateMcpServerOAuthStateOptions,
 ): McpSettingsMutator<McpServerOAuthState> {
 	return (settings) => {
 		const servers = settings.mcpServers as Record<string, unknown>;
 		const server = getOwnServerRecord(servers, serverName);
 		if (!server) {
 			throw new Error(`Unknown MCP server: ${serverName}`);
+		}
+		if (options.expectedOAuthClient !== undefined) {
+			const parsedClient = oauthClientSchema.safeParse(server.oauthClient);
+			const currentClient = parsedClient.success
+				? parsedClient.data
+				: undefined;
+			const expectedClient = options.expectedOAuthClient ?? undefined;
+			if (
+				currentClient?.clientId !== expectedClient?.clientId ||
+				currentClient?.clientSecret !== expectedClient?.clientSecret
+			) {
+				throw new McpOAuthClientChangedError(serverName);
+			}
 		}
 
 		const current = validateOauthState(server.oauth) ?? {};
@@ -813,12 +846,12 @@ function buildOAuthStateMutator(
 export function updateMcpServerOAuthState(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-	options: LoadMcpSettingsOptions = {},
+	options: UpdateMcpServerOAuthStateOptions = {},
 ): McpServerOAuthState {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
 	return updateMcpSettingsFileSync(
 		filePath,
-		buildOAuthStateMutator(serverName, updater),
+		buildOAuthStateMutator(serverName, updater, options),
 	);
 }
 
@@ -830,12 +863,12 @@ export function updateMcpServerOAuthState(
 export async function updateMcpServerOAuthStateAsync(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-	options: LoadMcpSettingsOptions = {},
+	options: UpdateMcpServerOAuthStateOptions = {},
 ): Promise<McpServerOAuthState> {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
 	return updateMcpSettingsFile(
 		filePath,
-		buildOAuthStateMutator(serverName, updater),
+		buildOAuthStateMutator(serverName, updater, options),
 	);
 }
 

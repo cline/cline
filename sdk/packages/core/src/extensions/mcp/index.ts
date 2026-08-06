@@ -14,12 +14,14 @@ export type {
 	McpSettingsMutator,
 	RegisterMcpServersFromSettingsOptions,
 	SetMcpServerDisabledOptions,
+	UpdateMcpServerOAuthStateOptions,
 } from "./config-loader";
 export {
 	getMcpServerOAuthState,
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpOAuthClientChangedError,
 	McpSettingsLockTimeoutError,
 	McpSettingsMutatorPurityError,
 	McpSettingsUpdateSkippedError,

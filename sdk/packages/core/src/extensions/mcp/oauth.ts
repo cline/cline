@@ -20,8 +20,10 @@ import {
 } from "../../auth/server";
 import {
 	getMcpServerOAuthState,
+	McpOAuthClientChangedError,
 	normalizeMcpServerOAuthState,
-	updateMcpServerOAuthState,
+	resolveDefaultMcpSettingsPath,
+	updateMcpServerOAuthStateAsync,
 } from "./config-loader";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
@@ -121,6 +123,21 @@ function isSameOAuthClient(
 	);
 }
 
+function assertOAuthClientUnchanged(
+	serverName: string,
+	current: McpServerOAuthState,
+	expected: OAuthClientInformationMixed | undefined,
+): void {
+	if (
+		!isSameOAuthClient(
+			current.clientInformation as OAuthClientInformationMixed | undefined,
+			expected,
+		)
+	) {
+		throw new McpOAuthClientChangedError(serverName);
+	}
+}
+
 export function createMcpOAuthProviderContext(
 	options: CreateMcpOAuthProviderContextOptions,
 ): McpOAuthProviderContext {
@@ -138,17 +155,34 @@ export function createMcpOAuthProviderContext(
 	const currentClientInformation = () =>
 		options.clientInformation ??
 		(state.clientInformation as OAuthClientInformationMixed | undefined);
+	const expectedOAuthClient = options.clientInformation
+		? {
+				clientId: options.clientInformation.client_id,
+				...(options.clientInformation.client_secret
+					? { clientSecret: options.clientInformation.client_secret }
+					: {}),
+			}
+		: null;
 
 	const patch = async (
 		updater: (current: McpServerOAuthState) => McpServerOAuthState,
 	): Promise<void> => {
-		const nextState = normalizeMcpServerOAuthState(updater(state)) ?? {};
 		try {
-			state = updateMcpServerOAuthState(options.serverName, () => nextState, {
-				filePath: options.settingsPath,
-			});
-		} catch {
-			state = nextState;
+			state = await updateMcpServerOAuthStateAsync(
+				options.serverName,
+				updater,
+				{
+					filePath: options.settingsPath,
+					expectedOAuthClient,
+				},
+			);
+		} catch (error) {
+			if (options.settingsPath || error instanceof McpOAuthClientChangedError) {
+				throw error;
+			}
+			// Programmatically supplied registrations may not have a settings file.
+			// They still need a functional in-memory provider context.
+			state = normalizeMcpServerOAuthState(updater(state)) ?? {};
 		}
 	};
 
@@ -167,7 +201,15 @@ export function createMcpOAuthProviderContext(
 		},
 		clientInformation: currentClientInformation,
 		saveClientInformation: async (clientInformation) => {
+			const previousClientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
 			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					previousClientInformation,
+				);
 				const clientChanged = !isSameOAuthClient(
 					current.clientInformation as OAuthClientInformationMixed | undefined,
 					clientInformation,
@@ -184,6 +226,7 @@ export function createMcpOAuthProviderContext(
 			});
 		},
 		tokens: () =>
+			currentClientInformation()?.client_id &&
 			isSameOAuthClient(
 				state.clientInformation as OAuthClientInformationMixed | undefined,
 				currentClientInformation(),
@@ -196,25 +239,45 @@ export function createMcpOAuthProviderContext(
 			if (!clientInformation?.client_id) {
 				throw new Error("Cannot save MCP OAuth tokens without a client ID.");
 			}
-			await patch((current) => ({
-				...current,
-				tokens: tokens as Record<string, unknown>,
-				clientInformation: clientInformation as Record<string, unknown>,
-				redirectUrl: options.redirectUrl,
-				lastError: undefined,
-				lastAuthenticatedAt,
-			}));
+			await patch((current) => {
+				// A pre-registered client is already bound by the guarded oauthClient
+				// setting, so its first token write may establish clientInformation.
+				// Dynamically registered clients must already be persisted and match.
+				if (current.clientInformation || !options.clientInformation) {
+					assertOAuthClientUnchanged(
+						options.serverName,
+						current,
+						clientInformation,
+					);
+				}
+				return {
+					...current,
+					tokens: tokens as Record<string, unknown>,
+					clientInformation: clientInformation as Record<string, unknown>,
+					redirectUrl: options.redirectUrl,
+					lastError: undefined,
+					lastAuthenticatedAt,
+				};
+			});
 		},
 		redirectToAuthorization: async (authorizationUrl) => {
 			lastAuthorizationUrl = authorizationUrl.toString();
 			await options.onAuthorizationUrl?.(lastAuthorizationUrl);
 		},
 		saveCodeVerifier: async (codeVerifier) => {
-			await patch((current) => ({
-				...current,
-				codeVerifier,
-				redirectUrl: options.redirectUrl,
-			}));
+			const clientInformation = currentClientInformation();
+			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
+				return {
+					...current,
+					codeVerifier,
+					redirectUrl: options.redirectUrl,
+				};
+			});
 		},
 		codeVerifier: () => {
 			if (!state.codeVerifier) {
@@ -225,7 +288,15 @@ export function createMcpOAuthProviderContext(
 			return state.codeVerifier;
 		},
 		invalidateCredentials: async (scope) => {
+			const clientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
 			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
 				if (scope === "all") {
 					return {
 						lastError: current.lastError,
@@ -247,10 +318,20 @@ export function createMcpOAuthProviderContext(
 			});
 		},
 		saveDiscoveryState: async (discoveryState) => {
-			await patch((current) => ({
-				...current,
-				discoveryState: discoveryState as unknown as Record<string, unknown>,
-			}));
+			const clientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
+			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
+				return {
+					...current,
+					discoveryState: discoveryState as unknown as Record<string, unknown>,
+				};
+			});
 		},
 		discoveryState: () =>
 			state.discoveryState as OAuthDiscoveryState | undefined,
@@ -261,14 +342,35 @@ export function createMcpOAuthProviderContext(
 		getLastAuthorizationUrl: () => lastAuthorizationUrl,
 		getLastOAuthState: () => lastOAuthState,
 		resetInteractiveState: async () => {
-			await patch((current) => ({
-				...current,
-				clientInformation: undefined,
-				codeVerifier: undefined,
-				discoveryState: undefined,
-				lastError: undefined,
-				redirectUrl: options.redirectUrl,
-			}));
+			await patch((current) => {
+				const configuredClientInformation = options.clientInformation;
+				const configuredClientChanged =
+					configuredClientInformation !== undefined &&
+					!isSameOAuthClient(
+						current.clientInformation as
+							| OAuthClientInformationMixed
+							| undefined,
+						configuredClientInformation,
+					);
+				return {
+					...current,
+					...(configuredClientInformation
+						? {
+								clientInformation: configuredClientInformation as Record<
+									string,
+									unknown
+								>,
+							}
+						: {}),
+					...(configuredClientChanged
+						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						: {}),
+					codeVerifier: undefined,
+					discoveryState: undefined,
+					lastError: undefined,
+					redirectUrl: options.redirectUrl,
+				};
+			});
 		},
 		markError: async (errorMessage) => {
 			await patch((current) => ({
@@ -370,8 +472,9 @@ export async function authorizeMcpServerOAuth(
 	}
 
 	const { resolveMcpServerRegistrations } = await import("./config-loader");
+	const settingsPath = options.filePath ?? resolveDefaultMcpSettingsPath();
 	const registration = resolveMcpServerRegistrations({
-		filePath: options.filePath,
+		filePath: settingsPath,
 	}).find((entry) => entry.name === serverName);
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
@@ -415,7 +518,7 @@ export async function authorizeMcpServerOAuth(
 	}
 
 	const oauthContext = createMcpOAuthProviderContext({
-		settingsPath: options.filePath,
+		settingsPath,
 		serverName,
 		redirectUrl: callbackServer.callbackUrl,
 		clientInformation: createMcpOAuthClientInformation(
