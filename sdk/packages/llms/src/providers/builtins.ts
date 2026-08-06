@@ -1,6 +1,5 @@
 import {
 	CLINE_DEFAULT_MODEL_ID,
-	type GatewayModelCapability,
 	type GatewayModelDefinition,
 	type GatewayProviderManifest,
 	type GatewayProviderMetadata,
@@ -1198,7 +1197,7 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 						id: collection.provider.defaultModelId || "default",
 						name: collection.provider.defaultModelId || "Default",
 						providerId: spec.id,
-						capabilities: ["text"] as GatewayModelCapability[],
+						capabilities: ["text"] as const,
 					},
 				];
 

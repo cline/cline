@@ -1,4 +1,4 @@
-import type { GatewayModelDefinition, ModelInfo } from "@cline/shared";
+import type { GatewayModelCapabilities, ModelInfo } from "@cline/shared";
 
 /**
  * Converts catalog capabilities into gateway capabilities without erasing
@@ -9,14 +9,12 @@ import type { GatewayModelDefinition, ModelInfo } from "@cline/shared";
  */
 export function toGatewayModelCapabilities(
 	capabilities: ModelInfo["capabilities"],
-): GatewayModelDefinition["capabilities"] {
+): GatewayModelCapabilities | undefined {
 	if (capabilities === undefined) {
 		return undefined;
 	}
 
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>(["text"]);
+	const mapped = new Set<Exclude<GatewayModelCapabilities[number], "text">>();
 	for (const capability of capabilities) {
 		switch (capability) {
 			case "tools":
@@ -31,5 +29,5 @@ export function toGatewayModelCapabilities(
 		}
 	}
 
-	return [...mapped];
+	return ["text", ...mapped];
 }
