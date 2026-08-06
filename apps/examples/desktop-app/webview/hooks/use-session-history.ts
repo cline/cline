@@ -965,6 +965,14 @@ export function useSessionHistory({
 				}
 			},
 		);
+		// Account/organization switches re-scope the cloud session list; the
+		// sidebar must reflect the new scope immediately, not on the next poll.
+		const unsubscribeCloudScope = desktopClient.subscribe(
+			"cloud_sessions_changed",
+			() => {
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
+			},
+		);
 		const unsubscribeTransportEnded = desktopClient.subscribe(
 			"chat_session_ended",
 			(payload) => {
@@ -1024,6 +1032,7 @@ export function useSessionHistory({
 			);
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
+			unsubscribeCloudScope();
 			unsubscribeTransportEnded();
 			unsubscribeTransportChatEvent();
 		};

@@ -173,6 +173,29 @@ describe("FeatureFlagsService", () => {
 		});
 	});
 
+	it("retains the last known value when the provider fails", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
+		const provider = createProvider();
+		const service = new FeatureFlagsService({ provider, cacheTtlMs: 1 });
+		await service.poll("user-1");
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+
+		vi.setSystemTime(new Date("2026-06-10T10:00:01Z"));
+		vi.mocked(provider.getAllFlagsAndPayloads).mockRejectedValueOnce(
+			new Error("network unavailable"),
+		);
+		await expect(service.poll("user-1")).rejects.toThrow("network unavailable");
+
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		expect(service.getCacheSnapshot()).toMatchObject({
+			userId: "user-1",
+			flagsPayload: {
+				featureFlags: { [TEST_BOOLEAN_FLAG]: true },
+			},
+		});
+	});
+
 	it("disposes the provider", async () => {
 		const provider = createProvider();
 		const service = new FeatureFlagsService({ provider });

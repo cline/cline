@@ -1759,6 +1759,45 @@ describe("CloudSessionManager", () => {
 		expect(innerCreates).toHaveLength(1);
 	});
 
+	it("re-scopes the visible list on org change but keeps open sessions routable", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let scope: string | undefined = "org-a";
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org-a", title: undefined };
+		const personalSession = {
+			...REMOTE_SESSION,
+			id: "ses-personal",
+			title: undefined,
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) =>
+					organizationId ? [orgSession] : [personalSession],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => scope,
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await manager.list();
+		await manager.attach("ses-org-a");
+
+		// The server-side active org changes (e.g. from the dashboard) and the
+		// resolver picks it up: the sidebar re-scopes to personal…
+		scope = undefined;
+		const visible = (await manager.listForDiscovery()).map(
+			(session) => session.sessionId,
+		);
+		expect(visible).toEqual(["ses-personal"]);
+
+		// …but the org session that is already open must stay routable.
+		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
+			ok: true,
+		});
+	});
+
 	it("names the session from the first prompt and supports rename", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();

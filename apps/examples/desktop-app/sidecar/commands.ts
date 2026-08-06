@@ -1201,8 +1201,7 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Refresh first so a boot-time query reflects the provider (bounded by
-		// the provider timeout; falls back to cache/defaults on failure).
+		// Refresh before the first UI read; failures fall back to cache/defaults.
 		await refreshDesktopFeatureFlags(ctx.logger);
 		return { cloudAgents: isCloudAgentsEnabled() };
 	}
@@ -1505,6 +1504,9 @@ export async function handleCommand(
 		);
 		if (operation === "switchAccount") {
 			await resetCloudSessionManager(ctx);
+			// The sidebar must re-scope immediately (personal ⇄ org), not on
+			// the next 12s poll.
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}

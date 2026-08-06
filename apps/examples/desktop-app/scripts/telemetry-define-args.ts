@@ -15,12 +15,7 @@ const OPTIONAL_SECRET_ENV_VARS = [
 	"ERROR_SERVICE_API_KEY",
 ] as const;
 
-/**
- * Feature toggles inlined only when set at build time. Unset keeps the
- * runtime env override working (dev/normal builds); setting it bakes the
- * value into the binary so a packaged dogfood build enables the feature
- * when launched normally from Finder/the Dock.
- */
+/** Optional build-time overrides for packaged dogfood builds. */
 const OPTIONAL_FEATURE_ENV_VARS = ["CLINE_CODE_CLOUD_AGENTS"] as const;
 
 /**

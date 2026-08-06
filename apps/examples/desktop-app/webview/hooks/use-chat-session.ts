@@ -250,9 +250,7 @@ export function mergeCloudSnapshotWithLive(
 				: count,
 		);
 	}
-	// Pending optimistic bubbles reconcile by count delta, not text existence:
-	// two identical prompts are two messages. Failed bubbles are deliberately
-	// retained, especially on the first authoritative hydrate.
+	// Reconcile pending prompts by count delta; always retain failed bubbles.
 	for (const message of optimistic) {
 		const optimisticState = options.optimisticStates.get(message.id);
 		const budget = reflectedPromptBudget.get(message.content) ?? 0;
@@ -506,6 +504,34 @@ export function useChatSession() {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
 	}, []);
+
+	const applyCloudSnapshotMessages = useCallback(
+		(options: {
+			sessionId: string;
+			messages: ChatMessage[];
+			preserveUnmatchedLive?: boolean;
+			transcriptKnown?: boolean;
+		}) => {
+			const previousUserCounts =
+				cloudTranscriptUserCountsRef.current[options.sessionId] ?? new Map();
+			const transcriptKnown =
+				cloudTranscriptKnownRef.current[options.sessionId] === true;
+			setMessages((current) =>
+				mergeCloudSnapshotWithLive(options.messages, current, {
+					sessionId: options.sessionId,
+					transcriptKnown,
+					previousUserCounts,
+					optimisticStates: cloudOptimisticStatesRef.current,
+					preserveUnmatchedLive: options.preserveUnmatchedLive,
+				}),
+			);
+			cloudTranscriptUserCountsRef.current[options.sessionId] =
+				userMessageCounts(options.messages);
+			cloudTranscriptKnownRef.current[options.sessionId] =
+				options.transcriptKnown !== false;
+		},
+		[],
+	);
 
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
@@ -1385,24 +1411,13 @@ export function useChatSession() {
 				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
 					if (activeSessionIdRef.current !== targetSessionId) return;
 					const nextStatus = record.status?.trim();
-					const previousUserCounts =
-						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
-					const transcriptKnown =
-						cloudTranscriptKnownRef.current[targetSessionId] === true;
-					setMessages((current) =>
-						mergeCloudSnapshotWithLive(rehydratedMessages, current, {
-							sessionId: targetSessionId,
-							transcriptKnown,
-							previousUserCounts,
-							optimisticStates: cloudOptimisticStatesRef.current,
-							preserveUnmatchedLive:
-								nextStatus === "running" || nextStatus === "pending",
-						}),
-					);
-					cloudTranscriptUserCountsRef.current[targetSessionId] =
-						userMessageCounts(rehydratedMessages);
-					cloudTranscriptKnownRef.current[targetSessionId] =
-						record.transcriptKnown !== false;
+					applyCloudSnapshotMessages({
+						sessionId: targetSessionId,
+						messages: rehydratedMessages,
+						transcriptKnown: record.transcriptKnown,
+						preserveUnmatchedLive:
+							nextStatus === "running" || nextStatus === "pending",
+					});
 					clearLiveToolRefs();
 					if (nextStatus === "failed" || nextStatus === "error") {
 						setStatus("failed");
@@ -1447,7 +1462,7 @@ export function useChatSession() {
 			unsubscribeRehydrated();
 			unsubscribeSyncFailed();
 		};
-	}, [clearLiveToolRefs]);
+	}, [applyCloudSnapshotMessages, clearLiveToolRefs]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -1862,19 +1877,6 @@ export function useChatSession() {
 							},
 						]);
 					});
-				} else {
-					// Recovery: load canonical messages if transport missed result text.
-					try {
-						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
-							"read_session_messages",
-							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
-						);
-						if (historyMessages.length > 0) {
-							setMessages(historyMessages);
-						}
-					} catch {
-						// Keep optimistic state if hydration read fails.
-					}
 				}
 				if (Array.isArray(result?.toolCalls) && result.toolCalls.length > 0) {
 					materializeToolMessagesFromResult({
@@ -1890,7 +1892,15 @@ export function useChatSession() {
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
 					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+						if (config.executionTarget === "cloud") {
+							applyCloudSnapshotMessages({
+								sessionId: activeSessionId,
+								messages: historyMessages,
+								preserveUnmatchedLive: true,
+							});
+						} else {
+							setMessages(historyMessages);
+						}
 					}
 				} catch {
 					// Keep optimistic state if canonical hydration fails.
@@ -2026,6 +2036,7 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			applyCloudSnapshotMessages,
 			applyPromptsInQueue,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
@@ -2259,29 +2270,22 @@ export function useChatSession() {
 				sessionStatus: typeof session.status,
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
-				const mergedMessages =
-					session.origin === "cloud"
-						? mergeCloudSnapshotWithLive(msgs, messagesRef.current, {
-								sessionId: session.sessionId,
-								transcriptKnown:
-									cloudTranscriptKnownRef.current[session.sessionId] === true,
-								previousUserCounts:
-									cloudTranscriptUserCountsRef.current[session.sessionId] ??
-									new Map(),
-								optimisticStates: cloudOptimisticStatesRef.current,
-							})
-						: mergeHydratedMessagesWithLive({
-								hydrated: msgs,
-								current: messagesRef.current,
-								sessionId: session.sessionId,
-								hydrationStartedAt,
-							});
 				if (session.origin === "cloud") {
-					cloudTranscriptUserCountsRef.current[session.sessionId] =
-						userMessageCounts(msgs);
-					cloudTranscriptKnownRef.current[session.sessionId] = true;
+					applyCloudSnapshotMessages({
+						sessionId: session.sessionId,
+						messages: msgs,
+						preserveUnmatchedLive: true,
+					});
+				} else {
+					setMessages(
+						mergeHydratedMessagesWithLive({
+							hydrated: msgs,
+							current: messagesRef.current,
+							sessionId: session.sessionId,
+							hydrationStartedAt,
+						}),
+					);
 				}
-				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
@@ -2394,6 +2398,7 @@ export function useChatSession() {
 			}
 		},
 		[
+			applyCloudSnapshotMessages,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			discardPendingStream,

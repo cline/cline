@@ -607,10 +607,7 @@ function ChatThreadPane({
 		string | null
 	>(null);
 	const [gitBranch, setGitBranch] = useState("no-git");
-	// Cloud agents are feature-flagged; default off until the sidecar answers.
-	// Re-evaluated whenever the signed-in account changes (flags are targeted
-	// per user), so signing in during onboarding enables Cloud without a
-	// restart. ChatThreadPane renders inside AccountProvider.
+	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
 	const { user: accountUser } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
@@ -1320,10 +1317,7 @@ function ChatThreadPane({
 		[providerCredentials.cline?.apiKey, setConfig, cloudAgentsEnabled],
 	);
 
-	// If the flag flips off (e.g. sign-out re-evaluates targeting) while a NEW
-	// thread's composer is in cloud mode, the Local/Cloud toggle disappears and
-	// nothing else can reset the target — the pane would be stranded cloud-gated
-	// forever. Existing cloud sessions keep their target (attach stays ungated).
+	// Reset only new composers when the flag turns off; existing sessions attach.
 	useEffect(() => {
 		if (
 			!cloudAgentsEnabled &&

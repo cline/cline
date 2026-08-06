@@ -414,6 +414,95 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("keeps the reconciled live tail when the duplicate history RPC resolves", async () => {
+		let resolveHistory!: (messages: Array<Record<string, unknown>>) => void;
+		let historyRequested!: () => void;
+		const requested = new Promise<void>((resolve) => {
+			historyRequested = resolve;
+		});
+		const history = new Promise<Array<Record<string, unknown>>>((resolve) => {
+			resolveHistory = resolve;
+		});
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			}
+			if (command === "read_session_messages") {
+				historyRequested();
+				return await history;
+			}
+			if (command === "chat_session_command") {
+				return {
+					sessionId: "ses-cloud",
+					status: "running",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				};
+			}
+			return [];
+		});
+
+		let hydration!: Promise<void>;
+		await act(async () => {
+			hydration = current.hydrateSession({
+				sessionId: "ses-cloud",
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-06T00:00:00.000Z",
+			});
+			await requested;
+		});
+
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const snapshot = [
+			{
+				id: "saved-assistant",
+				sessionId: "ses-cloud",
+				role: "assistant",
+				content: "Saved answer",
+				createdAt: 1,
+			},
+		];
+
+		await act(async () => {
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: snapshot,
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "tail-tool",
+					toolName: "read_files",
+					input: { paths: ["README.md"] },
+				}),
+				ts: 2,
+				index: 1,
+			});
+			resolveHistory(snapshot);
+			await hydration;
+		});
+
+		expect(current.messages.map((message) => message.role)).toEqual([
+			"assistant",
+			"tool",
+		]);
+		expect(current.messages.at(-1)?.content).toContain("read_files");
+	});
+
 	it("restores a cloud session's persisted branch during hydration", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

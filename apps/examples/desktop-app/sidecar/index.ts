@@ -65,10 +65,7 @@ async function main() {
 	});
 
 	prewarmWorkspaceMetadata(workspaceRoot);
-	// No boot-time flag poll: the SDK service marks its cache fresh before the
-	// provider answers, so a concurrent get_feature_flags poll would read
-	// defaults. The webview's awaited get_feature_flags query is the first and
-	// only poll trigger, which also warms the cache for the creation gate.
+	// Let the webview's awaited first read poll and warm the creation gate.
 	observability.logger.log(
 		"Login shell PATH resolution",
 		await shellPathPromise,

@@ -1513,16 +1513,11 @@ export async function handleChatSessionCommand(
 				const requestedSessionId = String(
 					request.config?.sessionId ?? request.config?.session_id ?? "",
 				).trim();
-				// An existing outer session id must never fall through to create —
-				// that would silently provision a second sandbox and fork the
-				// conversation. isCloudSession matches the server id shape (ses-*),
-				// so this holds even when the in-memory registry is cold; webview
-				// client-planned ids (session_*) still fall through to create.
+				// Server ids attach even with a cold registry; client-planned ids create.
 				if (requestedSessionId && cloud.isCloudSession(requestedSessionId)) {
 					return await cloud.attach(requestedSessionId);
 				}
-				// Creation is flag-gated; attach/read for existing sessions is not,
-				// so flipping the flag off never strands an in-flight session.
+				// Gate new sessions only; existing cloud sessions must remain usable.
 				if (!isCloudAgentsEnabled()) {
 					throw new Error(
 						"Cloud sessions are not enabled for this account yet.",

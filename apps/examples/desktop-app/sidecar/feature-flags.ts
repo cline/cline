@@ -15,8 +15,7 @@ import {
 import { FeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
-// Own cache file (not the CLI's feature-flags.json) so the two processes
-// never clobber each other's snapshots.
+// Separate from the CLI cache to avoid cross-process writes.
 const CACHE_FILE = "code-feature-flags.json";
 const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -39,10 +38,7 @@ function buildContext(): FeatureFlagsContext {
 	return buildDesktopFeatureFlagsContext(accountId);
 }
 
-/**
- * Applies a targeting context without allowing one account's cached rollout
- * value to become another account's network-failure fallback.
- */
+/** Clears cached targeting when the signed-in account changes. */
 export function applyDesktopFeatureFlagsContext(
 	service: FeatureFlagsService,
 	context: FeatureFlagsContext,
@@ -81,11 +77,7 @@ export function getDesktopFeatureFlagsService(options?: {
 	return desktopFeatureFlagsService;
 }
 
-/**
- * Refresh flags from the provider, re-reading the signed-in account first so
- * per-user targeting follows sign-in/sign-out. Errors are logged, never thrown
- * — flag reads fall back to the cached snapshot or registry defaults.
- */
+/** Refreshes the current account's flags, falling back to cache/defaults. */
 export async function refreshDesktopFeatureFlags(
 	logger?: BasicLogger,
 ): Promise<void> {
@@ -98,11 +90,7 @@ export async function refreshDesktopFeatureFlags(
 	}
 }
 
-/**
- * Whether cloud agent sessions are enabled. `CLINE_CODE_CLOUD_AGENTS` (1/0,
- * true/false) overrides the flag for local development and e2e rigs; otherwise
- * this reads the cached PostHog evaluation (registry default: off).
- */
+/** Env override first; otherwise the cached provider evaluation (default off). */
 export function isCloudAgentsEnabled(): boolean {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
 	if (override === "1" || override === "true") {

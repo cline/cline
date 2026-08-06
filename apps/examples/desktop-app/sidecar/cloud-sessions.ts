@@ -26,8 +26,7 @@ import type {
 
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
-// Non-create REST calls run on hot paths (session listing) — a black-holed
-// network must not hang the sidebar, so they get a short abort timeout.
+// Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
@@ -55,12 +54,10 @@ export type CloudSessionRecord = {
 	updatedAt: string;
 };
 
-/** First line of the prompt, sidebar-length, for the outer session title. */
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
 }
 
-/** "owner/repo" from a repository URL, for provisioning placeholders. */
 function repositoryLabel(repoUrl: string): string {
 	const parts = repoUrl
 		.replace(/\.git$/i, "")
@@ -73,16 +70,11 @@ function repositoryLabel(repoUrl: string): string {
 export type CreateCloudSessionInput = {
 	modelId: string;
 	repoUrl: string;
-	/** Existing branch to check out in the sandbox; omit for the repo default. */
 	branch?: string;
-	/** User's tool-approval preference; mirrors local `autoApproveTools`. */
 	autoApproveTools?: boolean;
 	thinking?: boolean;
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
-	/**
-	 * Organization to bill and scope the session to. Omitting it makes the
-	 * session PERSONAL — billed against personal credits, not the org balance.
-	 */
+	/** Omit for a personal session; otherwise scopes billing to this org. */
 	organizationId?: string;
 };
 
@@ -416,14 +408,7 @@ export class CloudSessionApi {
 		);
 	}
 
-	/**
-	 * Archived transcript snapshot, written server-side on proxy disconnect.
-	 * Unlike the CRUD endpoints the body is the raw snapshot envelope
-	 * ({version, sessionId, messages}), not a {success, data} wrapper.
-	 * Returns null when no snapshot exists (404) — callers must not mistake
-	 * that for an empty-but-present archive when deciding whether a fallback
-	 * may replace a live failure.
-	 */
+	/** Raw archived snapshot; null distinguishes a missing archive from []. */
 	async history(sessionId: string): Promise<unknown[] | null> {
 		const token = await this.options.getAuthToken();
 		if (!token?.trim()) {
@@ -484,8 +469,7 @@ type CloudConnection = {
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
 	seenEventIdOrder: string[];
-	/** Single-flights inner-session creation — two concurrent sends must not
-	 * fork two inner sessions (the event filter would drop one run forever). */
+	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
 	unsubscribe: () => void;
 };
@@ -503,23 +487,14 @@ type CloudSessionManagerOptions = {
 	>;
 	getAuthToken: () => Promise<string | undefined>;
 	apiBaseUrl: string;
-	/**
-	 * Resolves the user's ACTIVE organization so cloud sessions bill the org
-	 * balance, not personal credits. Undefined means the active account is
-	 * genuinely personal; resolver failures must propagate to avoid misbilling.
-	 */
+	/** Resolves the active billing org; undefined means a personal session. */
 	getActiveOrganizationId?: () => Promise<string | undefined>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
 };
 
-/**
- * Canonical outer session ids are minted by core-platform as `ses-<ULID>`.
- * Recognizing them by shape keeps cloud routing correct even before the
- * in-memory registry is hydrated (fresh sidecar, failed attach). Webview
- * client-planned ids use `session_*` and never match.
- */
+/** Recognizes server ids even before the in-memory cloud registry is warm. */
 export function isCloudOuterSessionId(sessionId: string): boolean {
 	return sessionId.trim().startsWith("ses-");
 }
@@ -649,12 +624,7 @@ function messageText(message: unknown): string {
 		.trim();
 }
 
-/**
- * Pod transcripts wrap user prompts as `<user_input mode="...">text</user_input>`
- * (verified against a live sandbox); local echoes and queue items are raw.
- * Occurrence counting must normalize both shapes or it never matches in
- * production while passing unwrapped test fixtures.
- */
+/** Normalizes pod-wrapped prompts and raw local/queue prompts. */
 function normalizeUserPrompt(text: string): string {
 	const trimmed = text.trim();
 	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
@@ -730,9 +700,7 @@ function collectToolCallIds(
 }
 
 function streamedAssistantText(events: HubEventEnvelope[]): string {
-	// Trimmed to match messageText()'s trimmed snapshot text — asymmetric
-	// whitespace defeats the substring supersession check and replays (i.e.
-	// duplicates) an entire already-persisted reply.
+	// Match messageText() trimming before substring supersession.
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
 		if (
@@ -752,11 +720,7 @@ function streamedAssistantText(events: HubEventEnvelope[]): string {
 		.trim();
 }
 
-/**
- * Reconnects can snapshot several completed runs at once. Supersession is
- * therefore decided per terminal-run segment, never once for the whole window.
- * Tool lifecycle events use their stable call id instead of text.
- */
+/** Reconciles each completed run separately; tools dedupe by stable call id. */
 export function reconcileBufferedCloudEvents(
 	events: HubEventEnvelope[],
 	snapshotMessages: unknown[],
@@ -776,17 +740,11 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// Buffered queue snapshots are by definition older than the
-			// pending-prompts snapshot fetched at the end of the sync window —
-			// replaying one regresses the queue and can false-fire a duplicate
-			// queued-prompt bubble. Fresh queue state arrives as live events.
+			// The separately fetched queue snapshot is newer than buffered copies.
 			if (event.event === "session.pending_prompts") {
 				continue;
 			}
-			// Terminal run events are deliberately ALWAYS replayed, even when
-			// their content is superseded: run.failed carries an error message
-			// that exists nowhere in the snapshot, and the re-emitted
-			// chat_session_ended is idempotent for the webview.
+			// Keep terminal events: run.failed may carry the only error detail.
 			if (event.event.startsWith("tool.")) {
 				const toolCallId = String(event.payload?.toolCallId ?? "").trim();
 				if (toolCallId && snapshotToolCallIds.has(toolCallId)) continue;
@@ -800,7 +758,7 @@ export function reconcileBufferedCloudEvents(
 		segment.push(event);
 		if (TERMINAL_RUN_EVENTS.has(event.event)) flush(true);
 	}
-	// An unterminated run may still be streaming beyond the snapshot boundary.
+	// Never supersede an unterminated tail.
 	flush(false);
 	return reconciled;
 }
@@ -815,8 +773,7 @@ export class CloudSessionManager {
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
-	// Sidebar placeholders for creates still provisioning (REST list can't
-	// see them yet). Keyed by a synthetic id; removed when the create settles.
+	// REST cannot list sessions that are still provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -844,7 +801,10 @@ export class CloudSessionManager {
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
 		const scoped = await this.options.api.list(organizationId);
-		this.knownSessions.clear();
+		// Upsert, never clear: the registry keeps every session seen this run
+		// so a thread opened under another scope (personal ⇄ org) stays
+		// routable after a switch. Display truth is lastListedSessions —
+		// only the ACTIVE scope shows in the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
 		}
@@ -936,9 +896,7 @@ export class CloudSessionManager {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
-		// Provisioning blocks for minutes and the REST list only returns the
-		// session once the sandbox is ready — without a placeholder the new
-		// session is invisible in the sidebar the whole time.
+		// Keep the session visible while the blocking create request provisions it.
 		const placeholderId = `cloud-provisioning-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 		const startedAt = new Date().toISOString();
 		this.pendingCreates.set(placeholderId, {
@@ -960,16 +918,14 @@ export class CloudSessionManager {
 				title: `Provisioning ${repositoryLabel(input.repoUrl)}…`,
 			},
 		});
-		// Nudges the webview to refresh the session list immediately (it also
-		// polls, but the placeholder should not wait for the next tick).
+		// Show the placeholder before the next sidebar poll.
 		sendEvent(this.ctx, "chat_session_status", {
 			sessionId: placeholderId,
 			status: "provisioning",
 		});
 		try {
 			const created = await this.createProvisionedSession(input);
-			// Lets the webview swap any thread showing this placeholder over to
-			// the real session ("opens automatically once ready").
+			// Swap an open placeholder thread to the real session.
 			sendEvent(this.ctx, "cloud_session_provisioned", {
 				placeholderId,
 				sessionId: String(created.sessionId ?? ""),
@@ -1019,8 +975,7 @@ export class CloudSessionManager {
 		};
 		this.knownSessions.set(record.id, record);
 		const live = recordToLiveSession(record);
-		// The tool-approval preference only exists client-side; the REST record
-		// can't round-trip it, so stamp it before the inner session is created.
+		// REST does not round-trip the client-side approval preference.
 		if (typeof input.autoApproveTools === "boolean") {
 			live.config.autoApproveTools = input.autoApproveTools;
 		}
@@ -1031,9 +986,7 @@ export class CloudSessionManager {
 			live.config.reasoningEffort = input.reasoningEffort;
 		}
 		this.ctx.liveSessions.set(record.id, live);
-		// The sandbox exists (and bills) from this point: a connect hiccup must
-		// not present as a failed create — the session is registered and the
-		// first user action will connect (and surface any real error) instead.
+		// Provisioning succeeded; a transient Hub connect must not report create failure.
 		try {
 			await this.ensureConnection(record.id, { createInner: true });
 		} catch (error) {
@@ -1076,9 +1029,7 @@ export class CloudSessionManager {
 	}
 
 	async attach(outerSessionId: string): Promise<JsonRecord> {
-		// Opening a provisioning placeholder is not an error — hand back its
-		// record so the chat pane renders a loading state until the real
-		// session replaces it.
+		// Opening a placeholder keeps the loading pane stable during provisioning.
 		const placeholder = this.pendingCreates.get(outerSessionId);
 		if (placeholder) {
 			return { ...placeholder };
@@ -1091,8 +1042,7 @@ export class CloudSessionManager {
 		try {
 			connection = await this.ensureConnection(outerSessionId);
 		} catch (error) {
-			// The record may have expired since it was cached (the proxy answers
-			// 410 on upgrade) — re-check before surfacing a connection failure.
+			// Re-check expiry after a proxy upgrade failure.
 			const refreshed = await this.refreshKnownSession(outerSessionId);
 			if (refreshed && isExpiredRecord(refreshed)) {
 				return await this.attachExpired(refreshed);
@@ -1167,8 +1117,7 @@ export class CloudSessionManager {
 			live.status = "running";
 			live.prompt ||= prompt;
 		}
-		// The first prompt names the session ("Session XE6QWN" is the id-derived
-		// fallback). Fire-and-forget: naming must never delay or fail a send.
+		// Name from the first prompt without delaying the send.
 		const record = this.knownSessions.get(outerSessionId);
 		if (record && !record.title?.trim()) {
 			const title = deriveCloudSessionTitle(prompt);
@@ -1189,10 +1138,7 @@ export class CloudSessionManager {
 				innerSessionId,
 				{ timeoutMs: null },
 			);
-			// Advance the local baseline: live.messages only refreshes on
-			// rehydration, so without this a later identical prompt lost to a
-			// transport drop would count the FIRST delivery as its own and be
-			// falsely confirmed (the exact ambiguity recovery exists to close).
+			// Advance the baseline so an older identical prompt cannot confirm this send.
 			if (live && delivery !== "queue") {
 				live.messages = [
 					...live.messages,
@@ -1289,9 +1235,7 @@ export class CloudSessionManager {
 		connection.bufferedEvents = [];
 		connection.rehydrationGeneration += 1;
 		try {
-			// command() waits for registration, including reconnect attempts. This
-			// is the first Hub operation so snapshots cannot race an unregistered
-			// socket merely because resolveConnectionHeaders already ran.
+			// command() waits for registration, including reconnect attempts.
 			await this.ensureAttached(connection);
 			const sessionReply = await connection.client.command(
 				"session.get",
@@ -1357,8 +1301,7 @@ export class CloudSessionManager {
 			await this.refreshPendingApprovals(outerSessionId, connection);
 			connection.transcriptKnown = true;
 
-			// Publish the canonical view synchronously before releasing any buffered
-			// tail so the webview observes the same ordering contract as mobile.
+			// Publish the snapshot before releasing the reconciled tail.
 			sendEvent(this.ctx, "cloud_session_rehydrated", {
 				sessionId: outerSessionId,
 				status,
@@ -1382,8 +1325,7 @@ export class CloudSessionManager {
 			}
 			return { status, messages, prompts };
 		} catch (error) {
-			// A failed read must never become an authoritative empty transcript.
-			// Preserve the current view and release every buffered live event.
+			// Preserve the current view and release the full tail on snapshot failure.
 			const buffered = connection.bufferedEvents;
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
@@ -1484,10 +1426,7 @@ export class CloudSessionManager {
 		);
 	}
 
-	/**
-	 * Queue command replies carry the authoritative prompts snapshot; mirror it
-	 * into the live session and notify the webview, matching the local path.
-	 */
+	/** Mirrors the authoritative queue reply into desktop state. */
 	private applyQueueSnapshot(
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
@@ -1530,10 +1469,7 @@ export class CloudSessionManager {
 				await this.rehydrateAfterTransportDrop(outerSessionId, connection)
 			).messages;
 		} catch (error) {
-			// Live hydration failed (dead pod, expiry mid-flight): an archived
-			// snapshot is strictly better than an error for a read-only view —
-			// but only when a snapshot actually exists (null = 404). Otherwise a
-			// blank transcript would mask a connection/auth failure.
+			// Fall back only to a real archive; [] on 404 would mask live failures.
 			const refreshed =
 				(await this.refreshKnownSession(outerSessionId)) ?? known;
 			if (refreshed) {
@@ -1567,8 +1503,7 @@ export class CloudSessionManager {
 				"This cloud session is still provisioning and cannot be deleted yet.",
 			);
 		}
-		// An in-flight connect would otherwise re-register the connection after
-		// this delete finishes, leaving a zombie client reconnecting forever.
+		// Settle an in-flight connect before deleting its connection.
 		const pendingConnect = this.connectionPromises.get(outerSessionId);
 		if (pendingConnect) {
 			await pendingConnect.catch(() => undefined);
@@ -1637,7 +1572,6 @@ export class CloudSessionManager {
 		};
 	}
 
-	/** Returns null when no snapshot exists; the live session is untouched. */
 	private async loadArchivedMessages(
 		record: CloudSessionRecord,
 	): Promise<unknown[] | null> {
@@ -1718,8 +1652,7 @@ export class CloudSessionManager {
 
 		const connecting = (async () => {
 			const remote = await this.ensureKnownSession(outerSessionId);
-			// Cold-cache send/abort/read paths must surface expiry as the clean
-			// envelope, not a raw WS upgrade failure (the proxy answers 410).
+			// Surface expiry before the proxy turns it into an upgrade failure.
 			if (isExpiredRecord(remote)) {
 				throw new CloudSessionError(
 					"session_expired",
@@ -1798,9 +1731,7 @@ export class CloudSessionManager {
 				}
 				return connection;
 			} catch (error) {
-				// The entry may already be registered (set happens before inner
-				// session creation) — leaving it would poison every later call
-				// with a disposed client whose event listener is gone.
+				// Never retain a client whose registration or inner creation failed.
 				this.connections.delete(outerSessionId);
 				connection.unsubscribe();
 				await client.dispose().catch(() => undefined);
@@ -2002,9 +1933,7 @@ export class CloudSessionManager {
 				innerSessionId,
 			)
 			.catch(() => undefined);
-		// Older sandbox images do not implement approval.list_pending (the
-		// error reply throws and is caught above). Belt-and-braces: never wipe
-		// observed approval state unless the reply provably carries the list.
+		// Old pods lack this command; keep observed state unless a list is returned.
 		if (!reply?.ok || !Array.isArray(reply.payload?.approvals)) {
 			return;
 		}
@@ -2086,11 +2015,7 @@ export function getCloudSessionManager(
 		apiBaseUrl: environment.apiBaseUrl,
 		getAuthToken,
 	});
-	// Successful lookups are cached briefly — the session list polls every
-	// ~12s and must not add a /users/me round trip per tick. Failures are NOT
-	// cached and propagate, preserving fail-instead-of-personal-billing on
-	// create. Account switches rebuild the manager (resetCloudSessionManager),
-	// which discards this cache.
+	// Cache successful org lookups across sidebar polls; never cache failures.
 	let activeOrgCache: { id: string | undefined; at: number } | undefined;
 	const getActiveOrganizationId = async (): Promise<string | undefined> => {
 		if (activeOrgCache && Date.now() - activeOrgCache.at < 60_000) {
