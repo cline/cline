@@ -31,6 +31,7 @@ import {
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
+import { formatChatMessageContent } from "@/components/views/chat/message-content";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
@@ -890,6 +891,27 @@ function ChatThreadPane({
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
 
+	// Failed turns are retried in the same session by re-sending the last user
+	// prompt — no fork, no draft round-trip through the composer.
+	const lastUserPrompt = useMemo(() => {
+		const lastUserMessage = [...messages]
+			.reverse()
+			.find((message) => message.role === "user");
+		if (!lastUserMessage) {
+			return "";
+		}
+		return formatChatMessageContent("user", lastUserMessage.content).trim();
+	}, [messages]);
+
+	const handleRetryFailedTurn = useMemo(() => {
+		if (!lastUserPrompt) {
+			return null;
+		}
+		return async () => {
+			await sendPrompt(lastUserPrompt);
+		};
+	}, [lastUserPrompt, sendPrompt]);
+
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
 			setConfig((prev) => {
@@ -1430,6 +1452,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onRetryFailedTurn={handleRetryFailedTurn}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

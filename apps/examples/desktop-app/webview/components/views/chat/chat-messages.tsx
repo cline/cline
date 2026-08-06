@@ -35,6 +35,7 @@ import {
 	MessageCircleQuestionMarkIcon,
 	PanelsTopLeftIcon,
 	PencilIcon,
+	RotateCcw,
 	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
@@ -96,6 +97,7 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onRetryFailedTurn?: (() => void | Promise<void>) | null;
 };
 
 type ToolApprovalRequestItem = {
@@ -308,6 +310,7 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onRetryFailedTurn,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
@@ -315,6 +318,23 @@ function ChatMessagesImpl({
 		.find((message) => message.role === "error");
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+	// A failed turn is recoverable by re-sending the last user prompt in the
+	// same session (no fork). The button lives with the failure feedback and
+	// disappears once a retry (or any new prompt) puts the session back to work.
+	const [retryPending, setRetryPending] = useState(false);
+	const canRetryFailedTurn =
+		Boolean(onRetryFailedTurn) &&
+		(status === "failed" || status === "error") &&
+		!isSessionSwitching;
+	const handleRetryFailedTurn = useCallback(async () => {
+		if (!onRetryFailedTurn) return;
+		setRetryPending(true);
+		try {
+			await onRetryFailedTurn();
+		} finally {
+			setRetryPending(false);
+		}
+	}, [onRetryFailedTurn]);
 	// Core reports "running" as soon as the turn is dispatched, well before the
 	// first streamed chunk arrives, so keep the thinking indicator up until the
 	// model produces output (or something else needs the user's attention).
@@ -820,6 +840,26 @@ function ChatMessagesImpl({
 					{shouldShowErrorBanner ? (
 						<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 							{error}
+						</div>
+					) : null}
+					{canRetryFailedTurn ? (
+						<div className="mt-2 flex">
+							<Button
+								aria-label="Retry failed turn"
+								className="gap-1.5 text-xs"
+								disabled={retryPending}
+								onClick={() => void handleRetryFailedTurn()}
+								size="sm"
+								title="Send the last message again in this session"
+								variant="outline"
+							>
+								{retryPending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<RotateCcw className="h-3.5 w-3.5" />
+								)}
+								Retry
+							</Button>
 						</div>
 					) : null}
 				</ConversationContent>

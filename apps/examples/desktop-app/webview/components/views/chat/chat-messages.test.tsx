@@ -1212,3 +1212,68 @@ describe("ChatMessages tool approvals", () => {
 		expect(onReject).toHaveBeenCalledWith("req-1");
 	});
 });
+
+describe("ChatMessages retry failed turn", () => {
+	const failedTurnMessages: ChatMessage[] = [
+		{
+			id: "user-1",
+			sessionId: "session-1",
+			role: "user",
+			content: "Summarize the repo",
+			createdAt: 1,
+		},
+		{
+			id: "error-1",
+			sessionId: "session-1",
+			role: "error",
+			content: "Rate limit exceeded",
+			createdAt: 2,
+		},
+	];
+
+	function retryButton(): HTMLButtonElement | null {
+		return container.querySelector<HTMLButtonElement>(
+			'[aria-label="Retry failed turn"]',
+		);
+	}
+
+	it("offers retry on a failed turn and re-sends through the handler", async () => {
+		const onRetryFailedTurn = vi.fn(async () => undefined);
+		await renderMessages(failedTurnMessages, {
+			status: "failed",
+			onRetryFailedTurn,
+		});
+
+		const button = retryButton();
+		expect(button).not.toBeNull();
+		expect(button?.textContent).toContain("Retry");
+
+		await act(async () => button?.click());
+		expect(onRetryFailedTurn).toHaveBeenCalledTimes(1);
+	});
+
+	it("offers retry alongside the error banner for error status", async () => {
+		await renderMessages([failedTurnMessages[0]], {
+			status: "error",
+			error: "Provider unavailable",
+			onRetryFailedTurn: vi.fn(async () => undefined),
+		});
+
+		expect(container.textContent).toContain("Provider unavailable");
+		expect(retryButton()).not.toBeNull();
+	});
+
+	it("hides retry while the session is healthy or has no handler", async () => {
+		await renderMessages(failedTurnMessages, {
+			status: "completed",
+			onRetryFailedTurn: vi.fn(async () => undefined),
+		});
+		expect(retryButton()).toBeNull();
+
+		await renderMessages(failedTurnMessages, {
+			status: "failed",
+			onRetryFailedTurn: null,
+		});
+		expect(retryButton()).toBeNull();
+	});
+});
