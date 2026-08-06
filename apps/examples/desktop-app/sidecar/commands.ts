@@ -215,53 +215,60 @@ function readMcpServersResponse(): JsonRecord {
 			name,
 			transportType,
 			disabled: record.disabled === true,
-			command:
-				resolvedTransport?.type === "stdio"
+			command: resolvedTransport
+				? resolvedTransport.type === "stdio"
 					? resolvedTransport.command
-					: typeof transport?.command === "string"
-						? transport.command
-						: typeof record.command === "string"
-							? record.command
-							: undefined,
-			args: Array.isArray(transport?.args)
-				? transport.args
-				: resolvedTransport?.type === "stdio"
+					: undefined
+				: typeof transport?.command === "string"
+					? transport.command
+					: typeof record.command === "string"
+						? record.command
+						: undefined,
+			args: resolvedTransport
+				? resolvedTransport.type === "stdio"
 					? resolvedTransport.args
+					: undefined
+				: Array.isArray(transport?.args)
+					? transport.args
 					: Array.isArray(record.args)
 						? record.args
 						: undefined,
-			cwd:
-				resolvedTransport?.type === "stdio"
+			cwd: resolvedTransport
+				? resolvedTransport.type === "stdio"
 					? resolvedTransport.cwd
-					: typeof transport?.cwd === "string"
-						? transport.cwd
-						: typeof record.cwd === "string"
-							? record.cwd
-							: undefined,
-			env:
-				resolvedTransport?.type === "stdio"
+					: undefined
+				: typeof transport?.cwd === "string"
+					? transport.cwd
+					: typeof record.cwd === "string"
+						? record.cwd
+						: undefined,
+			env: resolvedTransport
+				? resolvedTransport.type === "stdio"
 					? resolvedTransport.env
-					: transport?.env && typeof transport.env === "object"
-						? transport.env
-						: record.env && typeof record.env === "object"
-							? record.env
-							: undefined,
-			url:
-				resolvedTransport?.type !== "stdio" && resolvedTransport?.url
+					: undefined
+				: transport?.env && typeof transport.env === "object"
+					? transport.env
+					: record.env && typeof record.env === "object"
+						? record.env
+						: undefined,
+			url: resolvedTransport
+				? resolvedTransport.type !== "stdio"
 					? resolvedTransport.url
-					: typeof transport?.url === "string"
-						? transport.url
-						: typeof record.url === "string"
-							? record.url
-							: undefined,
-			headers:
-				resolvedTransport?.type !== "stdio" && resolvedTransport?.headers
+					: undefined
+				: typeof transport?.url === "string"
+					? transport.url
+					: typeof record.url === "string"
+						? record.url
+						: undefined,
+			headers: resolvedTransport
+				? resolvedTransport.type !== "stdio"
 					? resolvedTransport.headers
-					: transport?.headers && typeof transport.headers === "object"
-						? transport.headers
-						: record.headers && typeof record.headers === "object"
-							? record.headers
-							: undefined,
+					: undefined
+				: transport?.headers && typeof transport.headers === "object"
+					? transport.headers
+					: record.headers && typeof record.headers === "object"
+						? record.headers
+						: undefined,
 			metadata: registration?.metadata ?? record.metadata,
 			oauthStatus: oauthStatus
 				? {

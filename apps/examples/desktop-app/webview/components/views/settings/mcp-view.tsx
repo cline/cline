@@ -211,6 +211,9 @@ export function McpServersContent() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [serverActionErrors, setServerActionErrors] = useState<
+		Record<string, string>
+	>({});
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
 	const [authorizingServerName, setAuthorizingServerName] = useState<
 		string | null
@@ -230,6 +233,23 @@ export function McpServersContent() {
 		setHasSettingsFile(response.hasSettingsFile);
 	}, []);
 
+	const setServerActionError = useCallback(
+		(serverName: string, message?: string) => {
+			setServerActionErrors((current) => {
+				if (message) {
+					return { ...current, [serverName]: message };
+				}
+				if (!(serverName in current)) {
+					return current;
+				}
+				const next = { ...current };
+				delete next[serverName];
+				return next;
+			});
+		},
+		[],
+	);
+
 	const refreshServers = useCallback(async () => {
 		setIsLoading(true);
 		setErrorMessage(null);
@@ -237,6 +257,7 @@ export function McpServersContent() {
 			const response =
 				await desktopClient.invoke<McpServersResponse>("list_mcp_servers");
 			applyResponse(response);
+			setServerActionErrors({});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -253,18 +274,9 @@ export function McpServersContent() {
 	}, [refreshServers]);
 
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
-		if (
-			!disabled &&
-			server.oauthStatus?.authorizationRequired &&
-			!server.oauthStatus.configured
-		) {
-			setErrorMessage(
-				`Authorize OAuth for "${server.name}" using the sign-in icon before enabling it.`,
-			);
-			return;
-		}
 		setBusyServerName(server.name);
 		setErrorMessage(null);
+		setServerActionError(server.name);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"set_mcp_server_disabled",
@@ -276,7 +288,7 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(server.name, message);
 		} finally {
 			setBusyServerName(null);
 		}
@@ -293,10 +305,6 @@ export function McpServersContent() {
 				},
 			);
 			applyResponse(response);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-			throw error;
 		} finally {
 			setBusyServerName(null);
 		}
@@ -305,6 +313,7 @@ export function McpServersContent() {
 	const deleteServer = async (serverName: string) => {
 		setBusyServerName(serverName);
 		setErrorMessage(null);
+		setServerActionError(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"delete_mcp_server",
@@ -315,7 +324,7 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(serverName, message);
 		} finally {
 			setBusyServerName(null);
 		}
@@ -324,6 +333,7 @@ export function McpServersContent() {
 	const authorizeOAuth = async (serverName: string) => {
 		setAuthorizingServerName(serverName);
 		setErrorMessage(null);
+		setServerActionError(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"authorize_mcp_server_oauth",
@@ -334,13 +344,15 @@ export function McpServersContent() {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			await refreshServers();
-			setErrorMessage(message);
+			setServerActionError(serverName, message);
 		} finally {
 			setAuthorizingServerName(null);
 		}
 	};
 
 	const cancelOAuth = async (serverName: string) => {
+		setErrorMessage(null);
+		setServerActionError(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"cancel_mcp_server_oauth",
@@ -349,7 +361,7 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(serverName, message);
 		} finally {
 			setAuthorizingServerName(null);
 		}
@@ -495,30 +507,23 @@ export function McpServersContent() {
 		}));
 	};
 
-	const renderServerActions = (server: McpServer) => {
+	const renderServerToggle = (server: McpServer) => {
+		const isBusy = busyServerName === server.name;
+		return (
+			<Switch
+				checked={!server.disabled}
+				onCheckedChange={(enabled) => toggleServer(server, !enabled)}
+				disabled={isBusy}
+				aria-label={`Enable ${server.name}`}
+			/>
+		);
+	};
+
+	const renderServerManagementActions = (server: McpServer) => {
 		const isBusy = busyServerName === server.name;
 		const isAuthorizing = authorizingServerName === server.name;
 		return (
 			<div className="flex items-center gap-1">
-				{server.oauthStatus?.authorizationRequired ? (
-					<Button
-						variant="outline"
-						size="sm"
-						aria-label={
-							isAuthorizing
-								? `Cancel OAuth for ${server.name}`
-								: `Connect ${server.name} with OAuth`
-						}
-						onClick={() =>
-							void (isAuthorizing
-								? cancelOAuth(server.name)
-								: authorizeOAuth(server.name))
-						}
-						disabled={isBusy}
-					>
-						{isAuthorizing ? "Cancel" : "Connect"}
-					</Button>
-				) : null}
 				<Button
 					variant="ghost"
 					size="icon-sm"
@@ -537,12 +542,6 @@ export function McpServersContent() {
 				>
 					<Trash2 className="h-3.5 w-3.5" />
 				</Button>
-				<Switch
-					checked={!server.disabled}
-					onCheckedChange={(enabled) => toggleServer(server, !enabled)}
-					disabled={isBusy}
-					aria-label={`Enable ${server.name}`}
-				/>
 			</div>
 		);
 	};
@@ -589,81 +588,111 @@ export function McpServersContent() {
 	const renderServerCard = (
 		server: McpServer,
 		context?: MarketplaceLocalInstalledItemRenderContext,
-	) => (
-		<div
-			key={server.name}
-			className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-		>
-			<div className="flex items-center gap-3">
-				<Circle
-					className={cn(
-						"h-2.5 w-2.5 shrink-0",
-						server.disabled
-							? "fill-muted-foreground/40 text-muted-foreground/40"
-							: "fill-primary text-primary",
-					)}
-				/>
-				<h3 className="text-sm font-semibold text-foreground">{server.name}</h3>
-				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
-				</span>
-				{context?.matchedEntries?.length ? (
+	) => {
+		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
+		const serverError =
+			serverActionErrors[server.name] ?? server.oauthStatus?.lastError;
+
+		return (
+			<div
+				key={server.name}
+				className="group relative rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+			>
+				<div className="flex items-center gap-3">
+					<Circle
+						className={cn(
+							"h-2.5 w-2.5 shrink-0",
+							server.disabled
+								? "fill-muted-foreground/40 text-muted-foreground/40"
+								: "fill-primary text-primary",
+						)}
+					/>
+					<h3 className="text-sm font-semibold text-foreground">
+						{server.name}
+					</h3>
 					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-						Marketplace
+						{TRANSPORT_TYPE_LABELS[server.transportType] ??
+							server.transportType}
 					</span>
-				) : null}
-				<div className="flex-1" />
-				{renderServerActions(server)}
-			</div>
-			<div className="mt-2.5 ml-5.5 grid gap-2">
-				{server.oauthStatus?.authorizationRequired ? (
-					<div
-						className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
-						role="alert"
-					>
-						<div className="grid gap-0.5">
-							<p className="text-xs font-medium text-foreground">
-								{authorizingServerName === server.name
-									? "Waiting for OAuth authorization"
-									: "OAuth authorization required"}
+					{context?.matchedEntries?.length ? (
+						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+							Marketplace
+						</span>
+					) : null}
+					<div className="flex-1" />
+					{renderServerToggle(server)}
+				</div>
+				<div className="mt-2.5 grid gap-2">
+					{server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+							role="alert"
+						>
+							<div className="min-w-0 flex-1 grid gap-0.5">
+								<p className="text-xs font-medium text-foreground">
+									{isAuthorizing
+										? "Waiting for OAuth authorization"
+										: "OAuth authorization required"}
+								</p>
+								<p className="wrap-break-word text-xs text-muted-foreground">
+									{isAuthorizing
+										? "Complete sign-in in your browser, or select Cancel to stop waiting."
+										: (serverError ??
+											"Select Connect to sign in with your browser. The server will remain off until authorization succeeds.")}
+								</p>
+							</div>
+							<Button
+								variant="default"
+								size="sm"
+								className="shrink-0"
+								aria-label={
+									isAuthorizing
+										? `Cancel OAuth for ${server.name}`
+										: `Connect ${server.name} with OAuth`
+								}
+								onClick={() =>
+									void (isAuthorizing
+										? cancelOAuth(server.name)
+										: authorizeOAuth(server.name))
+								}
+								disabled={isBusy}
+							>
+								{isAuthorizing ? "Cancel" : "Connect"}
+							</Button>
+						</div>
+					) : null}
+					{serverError && !server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Connection failed
 							</p>
-							<p className="text-xs text-muted-foreground">
-								{authorizingServerName === server.name
-									? "Complete sign-in in your browser, or select Cancel to stop waiting."
-									: (server.oauthStatus.lastError ??
-										"Select Connect to sign in with your browser. The server will remain off until authorization succeeds.")}
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{serverError}
 							</p>
 						</div>
+					) : null}
+					{renderServerDetails(server)}
+					{server.oauthStatus?.configured ? (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
+								OAuth connected
+							</span>
+						</div>
+					) : null}
+					{context?.matchedEntries?.length ? (
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					) : null}
+					<div className="pointer-events-none absolute right-4 bottom-3 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+						{renderServerManagementActions(server)}
 					</div>
-				) : null}
-				{server.oauthStatus?.lastError &&
-				!server.oauthStatus.authorizationRequired ? (
-					<div
-						className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
-						role="alert"
-					>
-						<p className="text-xs font-medium text-destructive">
-							Connection failed
-						</p>
-						<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
-							{server.oauthStatus.lastError}
-						</p>
-					</div>
-				) : null}
-				{renderServerDetails(server)}
-				{server.oauthStatus?.configured ? (
-					<div className="flex items-center gap-2 text-xs text-muted-foreground">
-						<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
-							OAuth connected
-						</span>
-					</div>
-				) : null}
-				{context?.matchedEntries?.length ? (
-					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
-				) : null}
+				</div>
 			</div>
-		</div>
-	);
+		);
+	};
 
 	const installedItems = sortedServers.map(
 		(server): MarketplaceLocalInstalledItem => ({
