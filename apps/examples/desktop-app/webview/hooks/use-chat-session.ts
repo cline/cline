@@ -1191,8 +1191,16 @@ export function useChatSession() {
 			if (payload.stream === "chat_done") {
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
-				// queued prompt that happens to repeat the same text.
-				outstandingOptimisticUserIdsRef.current.clear();
+				// queued prompt that happens to repeat the same text. Clear
+				// inside an updater so that when this event lands in the same
+				// batch as its turn's chat_queued_prompt_start (fast-failing
+				// turns), the re-key updater queued by that event still sees the
+				// registered bubble and runs first. (Idempotent, so safe under
+				// StrictMode's double-invoked updaters.)
+				setMessages((prev) => {
+					outstandingOptimisticUserIdsRef.current.clear();
+					return prev;
+				});
 				clearLiveToolRefs();
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
