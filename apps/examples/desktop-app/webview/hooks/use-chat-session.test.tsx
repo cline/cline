@@ -324,6 +324,67 @@ describe("useChatSession", () => {
 		expect(current.config.branch).toBe("feature/cloud");
 	});
 
+	it("keeps an approval actionable when the remote acknowledgement fails", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					return {
+						sessionId: "ses-cloud",
+						cwd: "/workspace",
+						workspaceRoot: "/workspace",
+					};
+				}
+				if (command === "poll_tool_approvals") {
+					return [];
+				}
+				if (command === "respond_tool_approval") {
+					throw new Error("approval acknowledgement failed");
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.start({
+				...current.config,
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				provider: "cline",
+			});
+		});
+		const approvalHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "tool_approval_state",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(approvalHandler).toBeDefined();
+
+		await act(async () => {
+			approvalHandler?.({
+				sessionId: "ses-cloud",
+				items: [
+					{
+						requestId: "approval-1",
+						sessionId: "ses-cloud",
+						toolCallId: "tool-1",
+						toolName: "run_commands",
+						input: { command: "git status" },
+					},
+				],
+			});
+		});
+		expect(current.pendingToolApprovals).toHaveLength(1);
+
+		await act(async () => {
+			await current.approveToolApproval("approval-1");
+		});
+
+		expect(current.pendingToolApprovals).toHaveLength(1);
+		expect(current.error).toContain("approval acknowledgement failed");
+		expect(current.status).toBe("idle");
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

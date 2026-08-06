@@ -378,6 +378,7 @@ export function ChatInputBar({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const canSend = hasDraft && !needsCloudRepository;
 	const cloudContextLabel = useMemo(() => {
 		const repository = repoUrl
@@ -1033,7 +1034,7 @@ export function ChatInputBar({
 									? CLINE_ONLY_PROVIDER_IDS
 									: undefined
 							}
-							isBusy={isBusy}
+							isBusy={isBusy || cloudSettingsLocked}
 							model={model}
 							onModelChange={onModelChange}
 							onModelSupportsReasoningChange={
@@ -1044,7 +1045,7 @@ export function ChatInputBar({
 						/>
 					</div>
 					<Select
-						disabled={modelSupportsReasoning !== true}
+						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
 						onValueChange={handleEffortChange}
 						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 					>
@@ -1053,7 +1054,9 @@ export function ChatInputBar({
 							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
 							size="sm"
 							title={
-								modelSupportsReasoning === false
+								cloudSettingsLocked
+									? "Model and thinking are fixed when a cloud session starts"
+									: modelSupportsReasoning === false
 									? "The selected model does not report reasoning support"
 									: undefined
 							}

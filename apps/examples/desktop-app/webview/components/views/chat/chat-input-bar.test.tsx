@@ -109,6 +109,7 @@ describe("ChatInputBar", () => {
 						cloudBranch="feature/cloud"
 						executionTarget="cloud"
 						gitBranch="no-git"
+						hasActiveSession
 						mode="act"
 						model="claude-test"
 						onAbort={vi.fn()}
@@ -150,6 +151,15 @@ describe("ChatInputBar", () => {
 		expect(container.querySelector('[aria-label="Attach files"]')).toBeNull();
 		expect(container.querySelector("#git-branch-btn")).toBeNull();
 		expect(container.textContent).toContain("cline/cline / feature/cloud");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model and provider"]',
+			)?.disabled,
+		).toBe(true);
+		expect(
+			container.querySelector<HTMLButtonElement>('[aria-label="Thinking level"]')
+				?.disabled,
+		).toBe(true);
 	});
 
 	it("blocks a new cloud message until a GitHub repository is selected", async () => {

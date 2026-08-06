@@ -1673,6 +1673,13 @@ function ChatThreadPane({
 					body={
 						isProvisioningCloudSession ? (
 							<CloudProvisioningPane phase={provisioningPhase} />
+						) : isCloudSession &&
+							displayedIsSwitching &&
+							displayedMessages.length === 0 ? (
+							// Keeps the loading treatment continuous through the
+							// placeholder → real-session swap: same compact row instead
+							// of flashing the hydration skeleton for a beat.
+							<CloudProvisioningPane phase="Opening session..." />
 						) : showDiffView && !isCloudSession ? (
 							<DiffView
 								cwd={config.cwd || config.workspaceRoot}
