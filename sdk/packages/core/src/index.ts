@@ -584,11 +584,14 @@ export {
 export type {
 	McpInstallOptions,
 	McpInstallResult,
+	McpUninstallOptions,
+	McpUninstallResult,
 } from "./services/mcp-install";
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
 	parseMcpInstallArgs,
+	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
 	ParsedPluginSource,
