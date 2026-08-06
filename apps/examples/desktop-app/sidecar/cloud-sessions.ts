@@ -1,4 +1,9 @@
-import { NodeHubClient, ProviderSettingsManager } from "@cline/core";
+import {
+	ClineAccountService,
+	isHubReconnectableTransportError,
+	NodeHubClient,
+	ProviderSettingsManager,
+} from "@cline/core";
 import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
@@ -38,6 +43,7 @@ type FetchLike = (
 export type CloudSessionRecord = {
 	id: string;
 	status: string;
+	title?: string;
 	sandboxUrl: string;
 	repoContext: { repoUrl?: string; branch?: string };
 	metadata: { modelId?: string };
@@ -46,6 +52,21 @@ export type CloudSessionRecord = {
 	updatedAt: string;
 };
 
+/** First line of the prompt, sidebar-length, for the outer session title. */
+export function deriveCloudSessionTitle(prompt: string): string {
+	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
+}
+
+/** "owner/repo" from a repository URL, for provisioning placeholders. */
+function repositoryLabel(repoUrl: string): string {
+	const parts = repoUrl
+		.replace(/\.git$/i, "")
+		.replace(/\/+$/, "")
+		.split(/[/:]/)
+		.filter(Boolean);
+	return parts.slice(-2).join("/") || "repository";
+}
+
 export type CreateCloudSessionInput = {
 	modelId: string;
 	repoUrl: string;
@@ -53,6 +74,32 @@ export type CreateCloudSessionInput = {
 	branch?: string;
 	/** User's tool-approval preference; mirrors local `autoApproveTools`. */
 	autoApproveTools?: boolean;
+	thinking?: boolean;
+	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	/**
+	 * Organization to bill and scope the session to. Omitting it makes the
+	 * session PERSONAL — billed against personal credits, not the org balance.
+	 */
+	organizationId?: string;
+};
+
+export type CloudRepositoryOption = {
+	id: number;
+	name: string;
+	fullName: string;
+	url: string;
+	defaultBranch: string;
+};
+
+export type CloudRepositoryListResult = {
+	connected: boolean;
+	connectUrl: string;
+	repositories: CloudRepositoryOption[];
+};
+
+export type CloudBranchListResult = {
+	available: boolean;
+	branches: string[];
 };
 
 type CloudSessionApiOptions = {
@@ -107,6 +154,7 @@ function cloudErrorForResponse(
 	status: number,
 	payload: unknown,
 	appBaseUrl: string,
+	githubConnectUrl?: string,
 ): CloudSessionError {
 	const message = readApiError(
 		payload,
@@ -125,7 +173,8 @@ function cloudErrorForResponse(
 		return new CloudSessionError(
 			"github_not_connected",
 			message,
-			`${trimTrailingSlash(appBaseUrl)}/dashboard/integrations`,
+			githubConnectUrl ??
+				`${trimTrailingSlash(appBaseUrl)}/dashboard/integrations`,
 		);
 	}
 	return new CloudSessionError("request_failed", message);
@@ -144,7 +193,11 @@ export class CloudSessionApi {
 		this.createTimeoutMs = options.createTimeoutMs ?? CREATE_TIMEOUT_MS;
 	}
 
-	private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+	private async request<T>(
+		path: string,
+		init: RequestInit = {},
+		githubConnectUrl?: string,
+	): Promise<T> {
 		const token = await this.options.getAuthToken();
 		if (!token?.trim()) {
 			throw new CloudSessionError(
@@ -167,13 +220,113 @@ export class CloudSessionApi {
 				? undefined
 				: await response.json().catch(() => undefined);
 		if (!response.ok) {
-			throw cloudErrorForResponse(response.status, payload, this.appBaseUrl);
+			throw cloudErrorForResponse(
+				response.status,
+				payload,
+				this.appBaseUrl,
+				githubConnectUrl,
+			);
 		}
 		return (payload as ApiResponse<T> | undefined)?.data as T;
 	}
 
-	async list(): Promise<CloudSessionRecord[]> {
-		return (await this.request<CloudSessionRecord[]>("/api/v1/session")) ?? [];
+	async list(organizationId?: string): Promise<CloudSessionRecord[]> {
+		const query = organizationId?.trim()
+			? `?organizationId=${encodeURIComponent(organizationId.trim())}`
+			: "";
+		return (
+			(await this.request<CloudSessionRecord[]>(`/api/v1/session${query}`)) ??
+			[]
+		);
+	}
+
+	async listRepositories(
+		organizationId?: string,
+	): Promise<CloudRepositoryListResult> {
+		const normalizedOrganizationId = organizationId?.trim();
+		const connectUrl = normalizedOrganizationId
+			? `${this.appBaseUrl}/dashboard/organization/integrations`
+			: `${this.appBaseUrl}/dashboard/integrations`;
+		const path = normalizedOrganizationId
+			? `/api/v1/organizations/${encodeURIComponent(normalizedOrganizationId)}/integrations/github/repositories`
+			: "/api/v1/integrations/github/repositories";
+		try {
+			const repositories =
+				(await this.request<
+					Array<{
+						id?: unknown;
+						name?: unknown;
+						full_name?: unknown;
+						html_url?: unknown;
+						clone_url?: unknown;
+						default_branch?: unknown;
+					}>
+				>(path)) ?? [];
+			return {
+				connected: true,
+				connectUrl,
+				repositories: repositories.flatMap((repository) => {
+					const id = Number(repository.id);
+					const url = String(
+						repository.html_url ?? repository.clone_url ?? "",
+					).trim();
+					if (!Number.isSafeInteger(id) || id <= 0 || !url) return [];
+					const name = String(repository.name ?? "").trim();
+					return [
+						{
+							id,
+							name,
+							fullName: String(repository.full_name ?? (name || url)).trim(),
+							url,
+							defaultBranch: String(repository.default_branch ?? "").trim(),
+						},
+					];
+				}),
+			};
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				error.code === "session_not_found"
+			) {
+				return { connected: false, connectUrl, repositories: [] };
+			}
+			throw error;
+		}
+	}
+
+	async listBranches(
+		repositoryId: number,
+		organizationId?: string,
+	): Promise<CloudBranchListResult> {
+		if (!Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
+			throw new CloudSessionError(
+				"request_failed",
+				"Select a GitHub repository before loading branches.",
+			);
+		}
+		const normalizedOrganizationId = organizationId?.trim();
+		const path = normalizedOrganizationId
+			? `/api/v1/organizations/${encodeURIComponent(normalizedOrganizationId)}/integrations/github/repositories/${repositoryId}/branches`
+			: `/api/v1/integrations/github/repositories/${repositoryId}/branches`;
+		try {
+			const branches =
+				(await this.request<Array<{ name?: unknown }>>(path)) ?? [];
+			return {
+				available: true,
+				branches: branches.flatMap((branch) => {
+					const name = String(branch.name ?? "").trim();
+					return name ? [name] : [];
+				}),
+			};
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				error.code === "session_not_found"
+			) {
+				return { available: false, branches: [] };
+			}
+			throw error;
+		}
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<{
@@ -184,15 +337,24 @@ export class CloudSessionApi {
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		const requestedAt = Date.now();
 		try {
-			return await this.request("/api/v1/session", {
-				method: "POST",
-				body: JSON.stringify({
-					modelId: input.modelId,
-					repoUrl: input.repoUrl,
-					...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
-				}),
-				signal: controller.signal,
-			});
+			return await this.request(
+				"/api/v1/session",
+				{
+					method: "POST",
+					body: JSON.stringify({
+						modelId: input.modelId,
+						repoUrl: input.repoUrl,
+						...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
+						...(input.organizationId?.trim()
+							? { organizationId: input.organizationId.trim() }
+							: {}),
+					}),
+					signal: controller.signal,
+				},
+				input.organizationId?.trim()
+					? `${this.appBaseUrl}/dashboard/organization/integrations`
+					: undefined,
+			);
 		} catch (error) {
 			// Provisioning may finish after the client-facing load balancer closes
 			// the synchronous create request. Recover the matching record instead of
@@ -202,7 +364,9 @@ export class CloudSessionApi {
 				(error instanceof CloudSessionError && error.code === "request_failed");
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
-				const recovered = (await this.list().catch(() => []))
+				const recovered = (
+					await this.list(input.organizationId).catch(() => [])
+				)
 					.filter(
 						(session) =>
 							session.repoContext.repoUrl === input.repoUrl &&
@@ -234,6 +398,19 @@ export class CloudSessionApi {
 		await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}`, {
 			method: "DELETE",
 		});
+	}
+
+	async updateTitle(
+		sessionId: string,
+		title: string,
+	): Promise<CloudSessionRecord> {
+		return await this.request<CloudSessionRecord>(
+			`/api/v1/session/${encodeURIComponent(sessionId)}`,
+			{
+				method: "PATCH",
+				body: JSON.stringify({ title }),
+			},
+		);
 	}
 
 	/**
@@ -294,9 +471,24 @@ type CloudConnection = {
 };
 
 type CloudSessionManagerOptions = {
-	api: Pick<CloudSessionApi, "create" | "delete" | "list" | "history">;
+	api: Pick<
+		CloudSessionApi,
+		| "create"
+		| "delete"
+		| "list"
+		| "history"
+		| "updateTitle"
+		| "listRepositories"
+		| "listBranches"
+	>;
 	getAuthToken: () => Promise<string | undefined>;
 	apiBaseUrl: string;
+	/**
+	 * Resolves the user's ACTIVE organization so cloud sessions bill the org
+	 * balance, not personal credits. Undefined means the active account is
+	 * genuinely personal; resolver failures must propagate to avoid misbilling.
+	 */
+	getActiveOrganizationId?: () => Promise<string | undefined>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
@@ -330,14 +522,23 @@ function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 			model: record.metadata.modelId ?? "",
 			modelId: record.metadata.modelId ?? "",
 			repoUrl: record.repoContext.repoUrl ?? "",
+			branch: record.repoContext.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		},
 		messages: [],
 		promptsInQueue: [],
-		busy: record.status === "active",
+		// REST "active" means a proxy WebSocket is open, not that the agent is
+		// running. Hub attach/events provide the authoritative busy state.
+		busy: false,
 		startedAt: Date.parse(record.createdAt) || Date.now(),
-		endedAt: record.expiredAt ? Date.parse(record.expiredAt) : undefined,
+		// expiredAt is a FUTURE TTL deadline while the session is alive — it only
+		// becomes an end time once it has passed. A future endedAt renders every
+		// session as "now" in the sidebar.
+		endedAt:
+			isExpiredRecord(record) && record.expiredAt
+				? Date.parse(record.expiredAt)
+				: undefined,
 		status: record.status,
 		attachedViaHub: true,
 	};
@@ -356,12 +557,24 @@ export function cloudSessionToDiscoveryRecord(
 		cwd: CLOUD_WORKSPACE_ROOT,
 		workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		repoUrl: record.repoContext.repoUrl ?? "",
+		branch: record.repoContext.branch ?? "",
+		// createdAt, deliberately: the backend bumps updatedAt (and the TTL) on
+		// every WS connect — with auto-reconnecting clients that renders every
+		// visited session as "now" forever.
 		startedAt: record.createdAt,
-		endedAt: record.expiredAt ?? undefined,
+		endedAt: isExpiredRecord(record)
+			? (record.expiredAt ?? undefined)
+			: undefined,
 		updatedAt: record.updatedAt,
+		...(record.title?.trim() ? { title: record.title.trim() } : {}),
 		metadata: {
+			...(record.title?.trim() ? { title: record.title.trim() } : {}),
 			origin: "cloud",
 			repoUrl: record.repoContext.repoUrl ?? "",
+			git: {
+				url: record.repoContext.repoUrl ?? "",
+				branch: record.repoContext.branch ?? "",
+			},
 		},
 	};
 }
@@ -396,12 +609,16 @@ function parseApprovalInput(value: unknown): unknown {
 }
 
 export class CloudSessionManager {
+	private disposed = false;
 	private readonly connections = new Map<string, CloudConnection>();
 	private readonly connectionPromises = new Map<
 		string,
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	// Sidebar placeholders for creates still provisioning (REST list can't
+	// see them yet). Keyed by a synthetic id; removed when the create settles.
+	private readonly pendingCreates = new Map<string, JsonRecord>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
 	>;
@@ -419,27 +636,48 @@ export class CloudSessionManager {
 		return (
 			isCloudOuterSessionId(sessionId) ||
 			this.knownSessions.has(sessionId) ||
+			this.pendingCreates.has(sessionId) ||
 			this.connections.has(sessionId) ||
 			this.ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud"
 		);
 	}
 
 	async list(): Promise<CloudSessionRecord[]> {
-		const sessions = await this.options.api.list();
+		const organizationId = await this.resolveActiveOrganizationId();
+		const scoped = await this.options.api.list(organizationId);
 		this.knownSessions.clear();
-		for (const session of sessions) {
+		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
 		}
-		return sessions;
+		return scoped;
+	}
+
+	private async resolveActiveOrganizationId(): Promise<string | undefined> {
+		return await this.options.getActiveOrganizationId?.();
+	}
+
+	async listRepositories(): Promise<CloudRepositoryListResult> {
+		return await this.options.api.listRepositories(
+			await this.resolveActiveOrganizationId(),
+		);
+	}
+
+	async listBranches(repositoryId: number): Promise<CloudBranchListResult> {
+		return await this.options.api.listBranches(
+			repositoryId,
+			await this.resolveActiveOrganizationId(),
+		);
 	}
 
 	async listForDiscovery(): Promise<JsonRecord[]> {
-		return (await this.list()).map((record) => {
+		const placeholders = Array.from(this.pendingCreates.values());
+		const listed = (await this.list()).map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.ctx.liveSessions.get(record.id);
 			if (!live) {
 				return projected;
 			}
+			const title = live.title?.trim() || record.title?.trim();
 			return {
 				...projected,
 				status: live.status,
@@ -452,17 +690,82 @@ export class CloudSessionManager {
 					...((projected.metadata ?? {}) as JsonRecord),
 					title: resolveSessionListTitle({
 						sessionId: record.id,
-						metadata: live.title ? { title: live.title } : undefined,
+						metadata: title ? { title } : undefined,
 						prompt: live.prompt,
 						messages: live.messages,
 					}),
 				},
 			};
 		});
+		return [...placeholders, ...listed];
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
-		const created = await this.options.api.create(input);
+		if (this.disposed) {
+			throw new Error("Cloud session manager was disposed");
+		}
+		// Provisioning blocks for minutes and the REST list only returns the
+		// session once the sandbox is ready — without a placeholder the new
+		// session is invisible in the sidebar the whole time.
+		const placeholderId = `cloud-provisioning-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+		const startedAt = new Date().toISOString();
+		this.pendingCreates.set(placeholderId, {
+			sessionId: placeholderId,
+			origin: "cloud",
+			executionTarget: "cloud",
+			status: "provisioning",
+			provider: "cline",
+			model: input.modelId,
+			repoUrl: input.repoUrl,
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			startedAt,
+			updatedAt: startedAt,
+			metadata: {
+				origin: "cloud",
+				repoUrl: input.repoUrl,
+				git: { url: input.repoUrl, branch: input.branch ?? "" },
+				title: `Provisioning ${repositoryLabel(input.repoUrl)}…`,
+			},
+		});
+		// Nudges the webview to refresh the session list immediately (it also
+		// polls, but the placeholder should not wait for the next tick).
+		sendEvent(this.ctx, "chat_session_status", {
+			sessionId: placeholderId,
+			status: "provisioning",
+		});
+		try {
+			const created = await this.createProvisionedSession(input);
+			// Lets the webview swap any thread showing this placeholder over to
+			// the real session ("opens automatically once ready").
+			sendEvent(this.ctx, "cloud_session_provisioned", {
+				placeholderId,
+				sessionId: String(created.sessionId ?? ""),
+			});
+			return created;
+		} finally {
+			this.pendingCreates.delete(placeholderId);
+			sendEvent(this.ctx, "chat_session_status", {
+				sessionId: placeholderId,
+				status: "ended",
+			});
+		}
+	}
+
+	private async createProvisionedSession(
+		input: CreateCloudSessionInput,
+	): Promise<JsonRecord> {
+		const organizationId =
+			input.organizationId ?? (await this.resolveActiveOrganizationId());
+		const created = await this.options.api.create({
+			...input,
+			organizationId,
+		});
+		if (this.disposed) {
+			throw new Error(
+				"Cline account changed while the cloud session was starting",
+			);
+		}
 		const record: CloudSessionRecord = {
 			id: created.sessionId,
 			status: "ready",
@@ -482,6 +785,12 @@ export class CloudSessionManager {
 		if (typeof input.autoApproveTools === "boolean") {
 			live.config.autoApproveTools = input.autoApproveTools;
 		}
+		if (typeof input.thinking === "boolean") {
+			live.config.thinking = input.thinking;
+		}
+		if (input.reasoningEffort) {
+			live.config.reasoningEffort = input.reasoningEffort;
+		}
 		this.ctx.liveSessions.set(record.id, live);
 		await this.ensureConnection(record.id, { createInner: true });
 		return {
@@ -492,12 +801,20 @@ export class CloudSessionManager {
 			provider: "cline",
 			model: input.modelId,
 			repoUrl: input.repoUrl,
+			branch: input.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		};
 	}
 
 	async attach(outerSessionId: string): Promise<JsonRecord> {
+		// Opening a provisioning placeholder is not an error — hand back its
+		// record so the chat pane renders a loading state until the real
+		// session replaces it.
+		const placeholder = this.pendingCreates.get(outerSessionId);
+		if (placeholder) {
+			return { ...placeholder };
+		}
 		const known = await this.ensureKnownSession(outerSessionId);
 		if (isExpiredRecord(known)) {
 			return await this.attachExpired(known);
@@ -525,11 +842,16 @@ export class CloudSessionManager {
 			provider: "cline",
 			model: record.metadata.modelId ?? "",
 			repoUrl: record.repoContext.repoUrl ?? "",
+			branch: record.repoContext.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			metadata: {
 				origin: "cloud",
 				repoUrl: record.repoContext.repoUrl ?? "",
+				git: {
+					url: record.repoContext.repoUrl ?? "",
+					branch: record.repoContext.branch ?? "",
+				},
 			},
 		};
 	}
@@ -542,6 +864,8 @@ export class CloudSessionManager {
 		sessionId: string;
 		ok: true;
 		queued?: boolean;
+		recoveredAfterDisconnect?: boolean;
+		status?: string;
 		result?: unknown;
 	}> {
 		const knownForSend = this.knownSessions.get(outerSessionId);
@@ -566,6 +890,21 @@ export class CloudSessionManager {
 			live.status = "running";
 			live.prompt ||= prompt;
 		}
+		// The first prompt names the session ("Session XE6QWN" is the id-derived
+		// fallback). Fire-and-forget: naming must never delay or fail a send.
+		const record = this.knownSessions.get(outerSessionId);
+		if (record && !record.title?.trim()) {
+			const title = deriveCloudSessionTitle(prompt);
+			if (title) {
+				record.title = title;
+				if (live) {
+					live.title = title;
+				}
+				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
+					// Sidebar still shows the local title; REST retries on rename.
+				});
+			}
+		}
 		try {
 			const reply = await connection.client.command(
 				"session.send_input",
@@ -580,12 +919,108 @@ export class CloudSessionManager {
 				result: reply.payload?.result,
 			};
 		} catch (error) {
+			if (isHubReconnectableTransportError(error)) {
+				try {
+					const status = await this.rehydrateAfterTransportDrop(
+						outerSessionId,
+						connection,
+					);
+					return {
+						sessionId: outerSessionId,
+						ok: true,
+						recoveredAfterDisconnect: true,
+						status,
+					};
+				} catch (recoveryError) {
+					if (live && ownsBusyState) {
+						live.busy = false;
+						live.status = "error";
+					}
+					throw recoveryError;
+				}
+			}
 			if (live && ownsBusyState) {
 				live.busy = false;
 				live.status = "error";
 			}
 			throw error;
 		}
+	}
+
+	private async rehydrateAfterTransportDrop(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<string> {
+		if (this.disposed) {
+			throw new Error("Cloud session manager was disposed");
+		}
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await connection.client.connect();
+		await this.ensureAttached(connection);
+		const sessionReply = await connection.client.command(
+			"session.get",
+			{ includeSnapshot: true },
+			innerSessionId,
+		);
+		const session =
+			sessionReply.payload?.session &&
+			typeof sessionReply.payload.session === "object" &&
+			!Array.isArray(sessionReply.payload.session)
+				? (sessionReply.payload.session as JsonRecord)
+				: undefined;
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		const runtimeStatus = String(
+			session?.status ?? live?.status ?? "running",
+		).trim();
+		const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+
+		const messagesReply = await connection.client.command(
+			"session.messages",
+			{ sessionId: innerSessionId },
+			innerSessionId,
+		);
+		const messages = Array.isArray(messagesReply.payload?.messages)
+			? messagesReply.payload.messages
+			: [];
+		if (live) {
+			const statusChanged = live.status !== status;
+			live.messages = messages;
+			live.status = status;
+			live.busy = status === "running" || status === "pending";
+			if (statusChanged) {
+				if (
+					status === "completed" ||
+					status === "failed" ||
+					status === "aborted"
+				) {
+					live.endedAt ??= Date.now();
+					sendEvent(this.ctx, "chat_session_ended", {
+						sessionId: outerSessionId,
+						reason: status,
+					});
+				} else {
+					sendEvent(this.ctx, "chat_session_status", {
+						sessionId: outerSessionId,
+						status,
+					});
+				}
+			}
+		}
+
+		const queueReply = await connection.client
+			.command(
+				"session.pending_prompts",
+				{ sessionId: innerSessionId },
+				innerSessionId,
+			)
+			.catch(() => undefined);
+		if (queueReply) {
+			this.applyQueueSnapshot(outerSessionId, queueReply);
+		}
+		return status;
 	}
 
 	async abort(
@@ -703,6 +1138,9 @@ export class CloudSessionManager {
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
+		if (this.pendingCreates.has(outerSessionId)) {
+			return [];
+		}
 		const known = this.knownSessions.get(outerSessionId);
 		if (known && isExpiredRecord(known)) {
 			// An expired session with no snapshot legitimately has no transcript.
@@ -746,7 +1184,25 @@ export class CloudSessionManager {
 		}
 	}
 
+	async updateTitle(outerSessionId: string, title: string): Promise<void> {
+		await this.options.api.updateTitle(outerSessionId, title);
+		const record = this.knownSessions.get(outerSessionId);
+		if (record) {
+			record.title = title;
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.title = title;
+		}
+	}
+
 	async delete(outerSessionId: string): Promise<void> {
+		if (this.pendingCreates.has(outerSessionId)) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud session is still provisioning and cannot be deleted yet.",
+			);
+		}
 		await this.disposeConnection(outerSessionId);
 		await this.options.api.delete(outerSessionId);
 		this.knownSessions.delete(outerSessionId);
@@ -759,12 +1215,27 @@ export class CloudSessionManager {
 	}
 
 	async dispose(): Promise<void> {
+		this.disposed = true;
+		const sessionIds = new Set([
+			...this.connections.keys(),
+			...this.knownSessions.keys(),
+		]);
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
 				this.disposeConnection(sessionId),
 			),
 		);
+		for (const [requestId, pending] of this.ctx.pendingApprovals) {
+			if (sessionIds.has(pending.item.sessionId)) {
+				this.ctx.pendingApprovals.delete(requestId);
+			}
+		}
+		for (const sessionId of sessionIds) {
+			this.ctx.liveSessions.delete(sessionId);
+			this.sendApprovalSnapshot(sessionId);
+		}
 		this.knownSessions.clear();
+		this.pendingCreates.clear();
 	}
 
 	private async attachExpired(record: CloudSessionRecord): Promise<JsonRecord> {
@@ -782,11 +1253,16 @@ export class CloudSessionManager {
 			provider: "cline",
 			model: record.metadata.modelId ?? "",
 			repoUrl: record.repoContext.repoUrl ?? "",
+			branch: record.repoContext.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			metadata: {
 				origin: "cloud",
 				repoUrl: record.repoContext.repoUrl ?? "",
+				git: {
+					url: record.repoContext.repoUrl ?? "",
+					branch: record.repoContext.branch ?? "",
+				},
 			},
 		};
 	}
@@ -809,7 +1285,10 @@ export class CloudSessionManager {
 	private async refreshKnownSession(
 		outerSessionId: string,
 	): Promise<CloudSessionRecord | undefined> {
-		const sessions = await this.options.api.list().catch(() => undefined);
+		const organizationId = await this.resolveActiveOrganizationId();
+		const sessions = await this.options.api
+			.list(organizationId)
+			.catch(() => undefined);
 		if (!sessions) {
 			return this.knownSessions.get(outerSessionId);
 		}
@@ -822,6 +1301,12 @@ export class CloudSessionManager {
 	private async ensureKnownSession(
 		outerSessionId: string,
 	): Promise<CloudSessionRecord> {
+		if (this.pendingCreates.has(outerSessionId)) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud session is still provisioning — it will be ready shortly.",
+			);
+		}
 		const known = this.knownSessions.get(outerSessionId);
 		if (known) {
 			return known;
@@ -842,6 +1327,9 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		options: { createInner?: boolean } = {},
 	): Promise<CloudConnection> {
+		if (this.disposed) {
+			throw new Error("Cloud session manager was disposed");
+		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
 			if (options.createInner && !existing.innerSessionId) {
@@ -893,6 +1381,9 @@ export class CloudSessionManager {
 			});
 			try {
 				await client.connect();
+				if (this.disposed) {
+					throw new Error("Cloud session manager was disposed");
+				}
 				const listed = await client.command("session.list", { limit: 100 });
 				const newest = readSessionRows(listed.payload).sort(
 					(left, right) => updatedAt(right) - updatedAt(left),
@@ -901,6 +1392,9 @@ export class CloudSessionManager {
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
 					await this.ensureAttached(connection);
+				}
+				if (this.disposed) {
+					throw new Error("Cloud session manager was disposed");
 				}
 				this.connections.set(outerSessionId, connection);
 				if (options.createInner && !connection.innerSessionId) {
@@ -939,6 +1433,12 @@ export class CloudSessionManager {
 				systemPrompt: GITHUB_AUTH_SYSTEM_PROMPT,
 				mode: "act",
 				enableTools: true,
+				...(typeof live?.config.thinking === "boolean"
+					? { thinking: live.config.thinking }
+					: {}),
+				...(typeof live?.config.reasoningEffort === "string"
+					? { reasoningEffort: live.config.reasoningEffort }
+					: {}),
 			},
 			metadata: {
 				source: "desktop",
@@ -1023,24 +1523,17 @@ export class CloudSessionManager {
 		};
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
-			resolve: (result) => {
-				void (async () => {
-					await this.ensureAttached(connection);
-					await connection.client.command(
-						"approval.respond",
-						{
-							approvalId,
-							approved: result.approved,
-							reason: result.reason,
-						},
-						connection.innerSessionId,
-					);
-				})().catch((error) => {
-					this.ctx.logger?.error?.("Cloud approval response failed", {
-						outerSessionId,
-						error,
-					});
-				});
+			resolve: async (result) => {
+				await this.ensureAttached(connection);
+				await connection.client.command(
+					"approval.respond",
+					{
+						approvalId,
+						approved: result.approved,
+						reason: result.reason,
+					},
+					connection.innerSessionId,
+				);
 			},
 		});
 		this.sendApprovalSnapshot(outerSessionId);
@@ -1098,11 +1591,29 @@ export function getCloudSessionManager(
 		appBaseUrl: environment.appBaseUrl,
 		getAuthToken,
 	});
+	const accountService = new ClineAccountService({
+		apiBaseUrl: environment.apiBaseUrl,
+		getAuthToken,
+	});
+	const getActiveOrganizationId = async (): Promise<string | undefined> => {
+		const organizations = await accountService.fetchUserOrganizations();
+		return organizations?.find((organization) => organization.active)
+			?.organizationId;
+	};
 	const manager = new CloudSessionManager(ctx, {
 		api,
 		apiBaseUrl: environment.apiBaseUrl,
 		getAuthToken,
+		getActiveOrganizationId,
 	});
 	ctx.cloudSessionManager = manager;
 	return manager;
+}
+
+export async function resetCloudSessionManager(
+	ctx: SidecarContext,
+): Promise<void> {
+	const manager = ctx.cloudSessionManager;
+	ctx.cloudSessionManager = null;
+	await manager?.dispose();
 }

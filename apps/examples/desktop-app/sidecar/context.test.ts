@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -428,6 +433,37 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(
 			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
 		).toEqual([]);
+	});
+
+	it("keeps an approval visible when its remote acknowledgement fails", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.pendingApprovals.set("cloud-approval", {
+			item: {
+				requestId: "cloud-approval",
+				sessionId: "ses-cloud",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+			},
+			resolve: async () => {
+				throw new Error("hub disconnected");
+			},
+		});
+
+		await expect(
+			handleCommand(ctx, "respond_tool_approval", {
+				sessionId: "ses-cloud",
+				requestId: "cloud-approval",
+				approved: true,
+			}),
+		).rejects.toThrow("hub disconnected");
+		expect(
+			await handleCommand(ctx, "poll_tool_approvals", {
+				sessionId: "ses-cloud",
+			}),
+		).toEqual([expect.objectContaining({ requestId: "cloud-approval" })]);
 	});
 
 	it("routes routine commands through the connected shared Hub client", async () => {

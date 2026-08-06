@@ -1,7 +1,21 @@
-export const CLOUD_REPOSITORIES_STORAGE_KEY =
-	"cline.code.cloud-repositories.v1";
+export type CloudRepositoryOption = {
+	id: number;
+	name: string;
+	fullName: string;
+	url: string;
+	defaultBranch: string;
+};
 
-const MAX_RECENT_CLOUD_REPOSITORIES = 5;
+export type CloudRepositoryListResult = {
+	connected: boolean;
+	connectUrl: string;
+	repositories: CloudRepositoryOption[];
+};
+
+export type CloudBranchListResult = {
+	available: boolean;
+	branches: string[];
+};
 
 export function normalizeCloudRepositoryUrl(value: string): string {
 	return value.trim().replace(/\/+$/, "");
@@ -24,52 +38,13 @@ export function isGitHubRepositoryUrl(value: string): boolean {
 	}
 }
 
-export function parseRecentCloudRepositories(raw: string | null): string[] {
-	if (!raw) return [];
-	try {
-		const parsed = JSON.parse(raw);
-		if (!Array.isArray(parsed)) return [];
-		const seen = new Set<string>();
-		const repositories: string[] = [];
-		for (const value of parsed) {
-			if (typeof value !== "string") continue;
-			const normalized = normalizeCloudRepositoryUrl(value);
-			if (!isGitHubRepositoryUrl(normalized) || seen.has(normalized)) continue;
-			seen.add(normalized);
-			repositories.push(normalized);
-			if (repositories.length === MAX_RECENT_CLOUD_REPOSITORIES) break;
-		}
-		return repositories;
-	} catch {
-		return [];
-	}
-}
-
-export function readRecentCloudRepositories(): string[] {
-	if (typeof window === "undefined") return [];
-	try {
-		return parseRecentCloudRepositories(
-			window.localStorage.getItem(CLOUD_REPOSITORIES_STORAGE_KEY),
-		);
-	} catch {
-		return [];
-	}
-}
-
-export function rememberCloudRepository(value: string): string[] {
-	const normalized = normalizeCloudRepositoryUrl(value);
-	if (!isGitHubRepositoryUrl(normalized)) return readRecentCloudRepositories();
-	const repositories = [
-		normalized,
-		...readRecentCloudRepositories().filter((item) => item !== normalized),
-	].slice(0, MAX_RECENT_CLOUD_REPOSITORIES);
-	try {
-		window.localStorage.setItem(
-			CLOUD_REPOSITORIES_STORAGE_KEY,
-			JSON.stringify(repositories),
-		);
-	} catch {
-		// Recents are a convenience; selection still works without persistence.
-	}
-	return repositories;
+export function preferredCloudBranch(
+	branches: string[],
+	defaultBranch: string,
+): string {
+	const preferred = defaultBranch.trim();
+	if (preferred && branches.includes(preferred)) return preferred;
+	if (branches.includes("main")) return "main";
+	if (branches.includes("master")) return "master";
+	return branches[0]?.trim() ?? preferred;
 }

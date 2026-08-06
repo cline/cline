@@ -1,3 +1,4 @@
+import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
@@ -7,6 +8,7 @@ import {
 	CloudSessionManager,
 	type CloudSessionRecord,
 	cloudSessionToDiscoveryRecord,
+	resetCloudSessionManager,
 } from "./cloud-sessions";
 import type { SidecarContext } from "./types";
 
@@ -95,7 +97,7 @@ class FakeHubClient {
 		this.commands.push({ command, payload, sessionId, options });
 		if (command === "session.send_input" && this.failNextSend) {
 			this.failNextSend = false;
-			throw new Error("socket closed");
+			throw new HubTransportError("hub_connection_closed", "socket closed");
 		}
 		if (command === "session.list") {
 			return {
@@ -263,6 +265,29 @@ describe("CloudSessionApi", () => {
 		);
 	});
 
+	it("routes organization GitHub setup to organization integrations", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://staging-app.example/",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "GitHub is not connected" }, 412),
+		});
+
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				organizationId: "org-cline-bot",
+			})
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.connectUrl).toBe(
+			"https://staging-app.example/dashboard/organization/integrations",
+		);
+	});
+
 	it("surfaces a stable authentication error for REST requests", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -276,6 +301,115 @@ describe("CloudSessionApi", () => {
 
 		expect(error).toBeInstanceOf(CloudSessionError);
 		expect(error.code).toBe("authentication_required");
+	});
+
+	it("lists connected GitHub repositories and their branches", async () => {
+		const requestedPaths: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				const path = new URL(String(input)).pathname;
+				requestedPaths.push(path);
+				if (path.endsWith("/branches")) {
+					return jsonResponse({
+						success: true,
+						data: [{ name: "main" }, { name: "feature/cloud" }],
+					});
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: 42,
+							name: "cline",
+							full_name: "cline/cline",
+							html_url: "https://github.com/cline/cline",
+							clone_url: "https://github.com/cline/cline.git",
+							default_branch: "main",
+						},
+					],
+				});
+			},
+		});
+
+		expect(await api.listRepositories()).toEqual({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [
+				{
+					id: 42,
+					name: "cline",
+					fullName: "cline/cline",
+					url: "https://github.com/cline/cline",
+					defaultBranch: "main",
+				},
+			],
+		});
+		expect(await api.listBranches(42)).toEqual({
+			available: true,
+			branches: ["main", "feature/cloud"],
+		});
+		expect(requestedPaths).toEqual([
+			"/api/v1/integrations/github/repositories",
+			"/api/v1/integrations/github/repositories/42/branches",
+		]);
+	});
+
+	it("falls back to the repository default when the branch API is unavailable", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "route not found" }, 404),
+		});
+
+		expect(await api.listBranches(42)).toEqual({
+			available: false,
+			branches: [],
+		});
+	});
+
+	it("uses organization-scoped repository and branch endpoints", async () => {
+		const requestedPaths: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				const path = new URL(String(input)).pathname;
+				requestedPaths.push(path);
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+
+		expect(await api.listRepositories("org-cline-bot")).toMatchObject({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/organization/integrations",
+		});
+		await api.listBranches(42, "org-cline-bot");
+		expect(requestedPaths).toEqual([
+			"/api/v1/organizations/org-cline-bot/integrations/github/repositories",
+			"/api/v1/organizations/org-cline-bot/integrations/github/repositories/42/branches",
+		]);
+	});
+
+	it("returns the GitHub connection action when no integration exists", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example/",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "not connected" }, 404),
+		});
+
+		expect(await api.listRepositories()).toEqual({
+			connected: false,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [],
+		});
 	});
 });
 
@@ -326,13 +460,43 @@ describe("cloud agents feature flag", () => {
 
 describe("CloudSessionManager", () => {
 	it("projects the outer remote-session id as the desktop session id", () => {
-		expect(cloudSessionToDiscoveryRecord(REMOTE_SESSION)).toMatchObject({
+		expect(
+			cloudSessionToDiscoveryRecord({
+				...REMOTE_SESSION,
+				repoContext: {
+					...REMOTE_SESSION.repoContext,
+					branch: "feature/cloud",
+				},
+			}),
+		).toMatchObject({
 			sessionId: "ses-outer",
 			origin: "cloud",
 			executionTarget: "cloud",
 			repoUrl: "https://github.com/cline/test",
 			workspaceRoot: "/workspace",
+			branch: "feature/cloud",
+			metadata: {
+				git: {
+					url: "https://github.com/cline/test",
+					branch: "feature/cloud",
+				},
+			},
 		});
+	});
+
+	it("treats a live session's future expiredAt as a TTL, not an end time", () => {
+		// A future endedAt renders as "now" for every session in the sidebar.
+		const alive = cloudSessionToDiscoveryRecord({
+			...REMOTE_SESSION,
+			expiredAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+		});
+		expect(alive.endedAt).toBeUndefined();
+
+		const expired = cloudSessionToDiscoveryRecord({
+			...REMOTE_SESSION,
+			expiredAt: "2026-08-01T00:00:00.000Z",
+		});
+		expect(expired.endedAt).toBe("2026-08-01T00:00:00.000Z");
 	});
 
 	it("overlays live status and prompt-derived title on refreshed REST rows", async () => {
@@ -393,6 +557,37 @@ describe("CloudSessionManager", () => {
 		expect(hub.commands[1]).toMatchObject({
 			command: "session.attach",
 			sessionId: "inner-1",
+		});
+		expect(events.at(-1)).toEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
+	});
+
+	it("treats a Hub pending session as an active desktop run", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-pending",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { session: { status: "pending" } },
+		});
+
+		expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+			busy: true,
+			status: "running",
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
@@ -465,8 +660,7 @@ describe("CloudSessionManager", () => {
 		});
 		expect(events.at(-1)?.name).toBe("tool_approval_state");
 
-		pending?.resolve({ approved: true });
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await pending?.resolve({ approved: true });
 		expect(hub.commands.at(-1)).toMatchObject({
 			command: "approval.respond",
 			payload: { approvalId: "approval-1", approved: true },
@@ -492,6 +686,8 @@ describe("CloudSessionManager", () => {
 		const created = await manager.create({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
+			thinking: true,
+			reasoningEffort: "high",
 		});
 		const sent = await manager.send("ses-outer", "Fix it");
 
@@ -501,6 +697,10 @@ describe("CloudSessionManager", () => {
 				command: "session.create",
 				payload: expect.objectContaining({
 					workspaceRoot: "/workspace",
+					sessionConfig: expect.objectContaining({
+						thinking: true,
+						reasoningEffort: "high",
+					}),
 					modelSelection: {
 						provider: "cline",
 						model: "anthropic/claude-sonnet-5",
@@ -534,22 +734,22 @@ describe("CloudSessionManager", () => {
 		await manager.attach("ses-outer");
 		hub.failNextSend = true;
 
-		await expect(manager.send("ses-outer", "Do this once")).rejects.toThrow(
-			"socket closed",
-		);
+		await expect(
+			manager.send("ses-outer", "Do this once"),
+		).resolves.toMatchObject({
+			ok: true,
+			recoveredAfterDisconnect: true,
+			status: "running",
+		});
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
-
-		await manager.readMessages("ses-outer");
-		expect(hub.commands.at(-2)).toMatchObject({
-			command: "session.attach",
-			sessionId: "inner-1",
-		});
-		expect(hub.commands.at(-1)).toMatchObject({
-			command: "session.messages",
-			sessionId: "inner-1",
-		});
+		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
+			"session.attach",
+			"session.get",
+			"session.messages",
+			"session.pending_prompts",
+		]);
 	});
 
 	it("disposes the Hub connection before deleting the outer session", async () => {
@@ -574,6 +774,26 @@ describe("CloudSessionManager", () => {
 
 		expect(hub.disposed).toBe(true);
 		expect(deleted).toBe("ses-outer");
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("drops authenticated cloud connections when account context changes", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await resetCloudSessionManager(ctx);
+
+		expect(hub.disposed).toBe(true);
+		expect(ctx.cloudSessionManager).toBeNull();
 		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
 	});
 
@@ -831,6 +1051,268 @@ describe("CloudSessionManager", () => {
 
 		const messages = await manager.readMessages(REMOTE_SESSION.id);
 		expect(messages).toEqual([{ role: "assistant", content: "snapshot" }]);
+	});
+
+	it("shows a provisioning placeholder in the session list until create settles", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient(false);
+		let finishCreate:
+			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: () =>
+					new Promise((resolve) => {
+						finishCreate = resolve;
+					}),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const creating = manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		// Let create() register the placeholder before asserting.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const during = await manager.listForDiscovery();
+		const placeholder = during.find(
+			(session) => session.status === "provisioning",
+		);
+		expect(placeholder).toMatchObject({
+			origin: "cloud",
+			repoUrl: "https://github.com/cline/test",
+			metadata: expect.objectContaining({
+				title: "Provisioning cline/test…",
+			}),
+		});
+
+		// Opening the placeholder is benign (loading state), reads are empty,
+		// and only mutating actions fail with a clear message.
+		const placeholderId = String(placeholder?.sessionId);
+		await expect(manager.attach(placeholderId)).resolves.toMatchObject({
+			sessionId: placeholderId,
+			status: "provisioning",
+		});
+		await expect(manager.readMessages(placeholderId)).resolves.toEqual([]);
+		await expect(manager.send(placeholderId, "hello")).rejects.toThrow(
+			/still provisioning/,
+		);
+
+		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
+		await creating;
+
+		const after = await manager.listForDiscovery();
+		expect(after.some((session) => session.status === "provisioning")).toBe(
+			false,
+		);
+
+		// The webview swaps placeholder threads to the real session on this.
+		const provisioned = events.find(
+			(event) => event.name === "cloud_session_provisioned",
+		);
+		expect(provisioned?.payload).toMatchObject({
+			placeholderId,
+			sessionId: "ses-created",
+		});
+	});
+
+	it("uses only the active organization for billing and session listing", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const listCalls: Array<string | undefined> = [];
+		const repositoryScopes: Array<string | undefined> = [];
+		const branchScopes: Array<string | undefined> = [];
+		let createInput: Record<string, unknown> | undefined;
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org", title: undefined };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listCalls.push(organizationId);
+					return organizationId
+						? [orgSession]
+						: [{ ...REMOTE_SESSION, title: undefined }];
+				},
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+				listRepositories: async (organizationId?: string) => {
+					repositoryScopes.push(organizationId);
+					return { connected: true, connectUrl: "", repositories: [] };
+				},
+				listBranches: async (
+					_repositoryId: number,
+					organizationId?: string,
+				) => {
+					branchScopes.push(organizationId);
+					return { available: true, branches: [] };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => "org-cline-bot",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const scoped = await manager.list();
+		expect(listCalls).toEqual(["org-cline-bot"]);
+		expect(scoped.map((session) => session.id)).toEqual(["ses-org"]);
+		await manager.listRepositories();
+		await manager.listBranches(42);
+		expect(repositoryScopes).toEqual(["org-cline-bot"]);
+		expect(branchScopes).toEqual(["org-cline-bot"]);
+
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		expect(createInput).toMatchObject({ organizationId: "org-cline-bot" });
+	});
+
+	it("keeps refresh-after-connect-failure in the active organization", async () => {
+		const { ctx } = createContext();
+		const listCalls: Array<string | undefined> = [];
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org" };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listCalls.push(organizationId);
+					return organizationId === "org-cline-bot" ? [orgSession] : [];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => "org-cline-bot",
+			createHubClient: () =>
+				({
+					command: async () => ({ ok: true as const }),
+					connect: async () => {
+						throw new Error("pod offline");
+					},
+					dispose: async () => undefined,
+					getClientId: () => "code-cloud-ses-org",
+					subscribe: () => () => undefined,
+				}) as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await manager.list();
+		await expect(manager.attach("ses-org")).rejects.toThrow("pod offline");
+
+		expect(listCalls).toEqual(["org-cline-bot", "org-cline-bot"]);
+	});
+
+	it("does not silently bill personal credits when account scope lookup fails", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let createInput: Record<string, unknown> | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => {
+				throw new Error("account endpoint down");
+			},
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await expect(
+			manager.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("account endpoint down");
+		expect(createInput?.organizationId).toBeUndefined();
+	});
+
+	it("names the session from the first prompt and supports rename", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const titleUpdates: Array<{ id: string; title: string }> = [];
+		// Fresh record with no title: send() stamps titles onto the record
+		// object, so the shared fixture may carry one from earlier tests.
+		const record = { ...REMOTE_SESSION, title: undefined };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [record],
+				updateTitle: async (id: string, title: string) => {
+					titleUpdates.push({ id, title });
+					return { ...record, title };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await manager.send(
+			"ses-outer",
+			"Fix the login bug\nwith more detail below",
+		);
+		expect(titleUpdates).toEqual([
+			{ id: "ses-outer", title: "Fix the login bug" },
+		]);
+		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Fix the login bug");
+
+		// Second send must not rename again.
+		await manager.send("ses-outer", "another prompt");
+		expect(titleUpdates).toHaveLength(1);
+
+		// Explicit rename goes through REST and updates local state.
+		await manager.updateTitle("ses-outer", "Renamed");
+		expect(titleUpdates).toHaveLength(2);
+		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Renamed");
+	});
+
+	it("surfaces run.failed errors as a visible error message", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		hub.events?.({
+			version: "v1",
+			event: "run.failed",
+			sessionId: "inner-1",
+			payload: {
+				reason: "error",
+				error: "Insufficient balance. Your Cline Credits balance is $-1.55",
+			},
+		} as HubEventEnvelope);
+
+		const errorChunk = events.find(
+			(event) =>
+				event.name === "chat_event" &&
+				event.payload.stream === "chat_core_log" &&
+				String(event.payload.chunk).includes("Insufficient balance"),
+		);
+		expect(errorChunk).toBeDefined();
+		expect(events.some((event) => event.name === "chat_session_ended")).toBe(
+			true,
+		);
 	});
 
 	it("attaches instead of creating when start carries an existing outer id and the registry is cold", async () => {

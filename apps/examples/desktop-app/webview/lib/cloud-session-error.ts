@@ -5,6 +5,7 @@ export type CloudSessionError = {
 		| "github_not_connected"
 		| "authentication_required"
 		| "session_not_found"
+		| "session_expired"
 		| "request_failed";
 	message: string;
 	connectUrl?: string;
@@ -25,6 +26,7 @@ export function parseCloudSessionError(
 			parsed.code !== "github_not_connected" &&
 			parsed.code !== "authentication_required" &&
 			parsed.code !== "session_not_found" &&
+			parsed.code !== "session_expired" &&
 			parsed.code !== "request_failed"
 		) {
 			return null;
@@ -40,4 +42,14 @@ export function parseCloudSessionError(
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Human-readable form of any error string: strips the machine-readable
+ * CLOUD_SESSION_ERROR envelope when present, otherwise returns the input.
+ * Every user-facing error surface should render through this — the raw
+ * envelope must never reach the screen.
+ */
+export function humanizeCloudSessionError(value: string): string {
+	return parseCloudSessionError(value)?.message ?? value;
 }

@@ -157,6 +157,9 @@ export function normalizeDiscoveredStatus(
 	) {
 		return "cancelled";
 	}
+	if (normalized.includes("provision")) {
+		return "provisioning";
+	}
 	if (normalized.includes("fail") || normalized.includes("error")) {
 		return "failed";
 	}

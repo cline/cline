@@ -3,6 +3,7 @@ export type SessionHistoryStatus =
 	| "completed"
 	| "failed"
 	| "cancelled"
+	| "provisioning"
 	| "idle";
 
 export type SessionMetadata = {

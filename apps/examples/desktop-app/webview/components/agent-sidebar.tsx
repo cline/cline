@@ -1077,11 +1077,13 @@ function ThreadItem({
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
 		? "bg-yellow-400"
-		: thread.status === "running"
-			? "bg-green-500"
-			: unread
-				? "bg-blue-500"
-				: "";
+		: thread.status === "provisioning"
+			? "animate-pulse bg-yellow-400"
+			: thread.status === "running"
+				? "bg-green-500"
+				: unread
+					? "bg-blue-500"
+					: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {

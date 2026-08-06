@@ -36,6 +36,7 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -44,9 +45,10 @@ import {
 	type SessionFileDiff,
 	type SessionHookEvent,
 } from "@/lib/session-diff";
-import type {
-	SessionHistoryItem,
-	SessionHistoryStatus,
+import {
+	getSessionMetadataGitBranch,
+	type SessionHistoryItem,
+	type SessionHistoryStatus,
 } from "@/lib/session-history";
 import {
 	normalizeWorkspacePath,
@@ -95,7 +97,9 @@ function makeErrorChatMessage(
 		id: makeId("error"),
 		sessionId: sid,
 		role: "error",
-		content,
+		// Sidecar cloud errors arrive wrapped in a machine-readable envelope;
+		// only the human message belongs in the transcript.
+		content: humanizeCloudSessionError(content),
 		createdAt: Date.now(),
 	};
 }
@@ -1759,6 +1763,19 @@ export function useChatSession() {
 					payload.promptsInQueue.length > 0;
 				if (abortedRef.current) {
 					setStatus("cancelled");
+				} else if (payload.recoveredAfterDisconnect) {
+					if (payload.status === "failed" || payload.status === "error") {
+						setStatus("failed");
+					} else if (payload.status === "aborted") {
+						setStatus("cancelled");
+					} else if (
+						payload.status === "running" ||
+						payload.status === "pending"
+					) {
+						setStatus("running");
+					} else {
+						setStatus("completed");
+					}
 				} else if (result?.finishReason === "error") {
 					if (!resolvedAssistantText) {
 						const toolError = Array.isArray(result?.toolCalls)
@@ -1823,17 +1840,23 @@ export function useChatSession() {
 		async (requestId: string, approved: boolean) => {
 			const activeSessionId = activeSessionIdRef.current;
 			if (!activeSessionId) return;
-			await desktopClient.invoke("respond_tool_approval", {
-				sessionId: activeSessionId,
-				requestId,
-				approved,
-				reason: approved
-					? undefined
-					: "Tool call rejected from desktop approval prompt",
-			});
-			setPendingToolApprovals((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
-			);
+			try {
+				await desktopClient.invoke("respond_tool_approval", {
+					sessionId: activeSessionId,
+					requestId,
+					approved,
+					reason: approved
+						? undefined
+						: "Tool call rejected from desktop approval prompt",
+				});
+				setPendingToolApprovals((prev) =>
+					prev.filter((item) => item.requestId !== requestId),
+				);
+			} catch (error) {
+				// Keep the approval card actionable and surface the failed remote ack
+				// without marking the still-running agent session as failed.
+				setError(errorMessage(error));
+			}
 		},
 		[],
 	);
@@ -2007,6 +2030,10 @@ export function useChatSession() {
 				sessionId: session.sessionId,
 				executionTarget: session.origin === "cloud" ? "cloud" : "local",
 				repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
+				branch:
+					session.origin === "cloud"
+						? getSessionMetadataGitBranch(session.metadata)
+						: undefined,
 				provider: session.provider || prev.provider,
 				model: session.model || prev.model,
 				workspaceRoot: session.workspaceRoot || prev.workspaceRoot,
@@ -2060,6 +2087,7 @@ export function useChatSession() {
 						model?: string;
 						cwd?: string;
 						workspaceRoot?: string;
+						branch?: string;
 						prompt?: string;
 					}>("chat_session_command", {
 						request: {
@@ -2088,6 +2116,11 @@ export function useChatSession() {
 					sessionId: session.sessionId,
 					executionTarget: session.origin === "cloud" ? "cloud" : "local",
 					repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
+					branch:
+						attached?.branch ||
+						(session.origin === "cloud"
+							? getSessionMetadataGitBranch(session.metadata)
+							: undefined),
 					provider: attached?.provider || session.provider || prev.provider,
 					model: attached?.model || session.model || prev.model,
 					workspaceRoot:

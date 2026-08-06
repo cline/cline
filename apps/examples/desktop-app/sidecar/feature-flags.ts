@@ -22,14 +22,36 @@ const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 let desktopFeatureFlagsService: FeatureFlagsService | undefined;
 
+export function buildDesktopFeatureFlagsContext(
+	accountId?: string,
+): FeatureFlagsContext {
+	const normalizedAccountId = accountId?.trim();
+	return {
+		clientName: "cline-code",
+		distinctId: normalizedAccountId || resolveCoreDistinctId(),
+		userId: normalizedAccountId || null,
+	};
+}
+
 function buildContext(): FeatureFlagsContext {
 	const accountId = new ProviderSettingsManager().getProviderSettings("cline")
 		?.auth?.accountId;
-	return {
-		clientName: "cline-code",
-		distinctId: resolveCoreDistinctId(),
-		userId: accountId ?? null,
-	};
+	return buildDesktopFeatureFlagsContext(accountId);
+}
+
+/**
+ * Applies a targeting context without allowing one account's cached rollout
+ * value to become another account's network-failure fallback.
+ */
+export function applyDesktopFeatureFlagsContext(
+	service: FeatureFlagsService,
+	context: FeatureFlagsContext,
+): void {
+	service.setContext(context);
+	const userId = context.userId?.trim() || null;
+	if (service.getCacheSnapshot().userId !== userId) {
+		service.hydrateCache({ updateTime: 0, userId });
+	}
 }
 
 export function getDesktopFeatureFlagsService(options?: {
@@ -68,7 +90,7 @@ export async function refreshDesktopFeatureFlags(
 	logger?: BasicLogger,
 ): Promise<void> {
 	const service = getDesktopFeatureFlagsService({ logger });
-	service.setContext(buildContext());
+	applyDesktopFeatureFlagsContext(service, buildContext());
 	try {
 		await service.poll();
 	} catch (error) {

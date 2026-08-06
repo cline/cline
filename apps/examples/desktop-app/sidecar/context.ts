@@ -844,20 +844,43 @@ export function handleHubLiveEvent(
 				!Array.isArray(event.payload.session)
 					? (event.payload.session as Record<string, unknown>)
 					: undefined;
-			const status =
+			const runtimeStatus =
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
 					: event.event === "run.started"
 						? "running"
 						: session.status;
+			// Hub "pending" means the run is blocked on approval or otherwise
+			// still active. Desktop has no pending status, so expose it as running
+			// and keep later prompts on the queue path.
+			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			// Pods emit periodic session.updated snapshots; re-broadcasting an
+			// unchanged status marks the session unread in the sidebar every time.
+			const statusChanged = session.status !== status;
 			session.status = status;
 			session.busy = status === "running";
-			sendEvent(ctx, "chat_session_status", { sessionId, status });
+			if (statusChanged) {
+				sendEvent(ctx, "chat_session_status", { sessionId, status });
+			}
 			return;
 		}
 		case "run.completed":
 		case "run.failed":
 		case "run.aborted": {
+			// A failed run carries its reason in payload.error — surface it, or
+			// the user sees a silent no-op (e.g. "Insufficient balance").
+			const errorMessage =
+				event.event === "run.failed" && typeof event.payload?.error === "string"
+					? event.payload.error.trim()
+					: "";
+			if (errorMessage) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_core_log",
+					JSON.stringify({ level: "error", message: errorMessage }),
+				);
+			}
 			const reason =
 				typeof event.payload?.reason === "string"
 					? event.payload.reason

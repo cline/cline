@@ -7,19 +7,30 @@ import {
 	FilePlus2,
 	Folder,
 	GitBranch,
+	Github,
 	HardDrive,
+	LoaderCircle,
 	LogIn,
 	Plus,
+	RefreshCcw,
 	Search,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-	isGitHubRepositoryUrl,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
 	normalizeCloudRepositoryUrl,
-	readRecentCloudRepositories,
-	rememberCloudRepository,
+	preferredCloudBranch,
 } from "@/lib/cloud-repositories";
 import { cn } from "@/lib/utils";
 import { normalizeWorkspacePath } from "@/lib/workspace-paths";
@@ -98,32 +109,52 @@ function CloudRepositoryPicker({
 	onToggle,
 	onClose,
 	repoUrl,
-	onRepoUrlChange,
-	branch,
-	onBranchChange,
+	onSelect,
+	onRepositoriesLoaded,
+	onListRepositories,
+	onOpenExternalUrl,
 }: {
 	open: boolean;
 	onToggle: () => void;
 	onClose: () => void;
 	repoUrl: string;
-	onRepoUrlChange: (repoUrl: string) => void;
-	branch: string;
-	onBranchChange: (branch: string) => void;
+	onSelect: (repository: CloudRepositoryOption) => void;
+	onRepositoriesLoaded: (repositories: CloudRepositoryOption[]) => void;
+	onListRepositories: () => Promise<CloudRepositoryListResult>;
+	onOpenExternalUrl: (url: string) => Promise<void>;
 }) {
-	const [recentRepositories, setRecentRepositories] = useState<string[]>([]);
-	const valid = isGitHubRepositoryUrl(repoUrl);
+	const [query, setQuery] = useState("");
+	const [reloadKey, setReloadKey] = useState(0);
+	const [result, setResult] = useState<CloudRepositoryListResult>();
+	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 
 	useEffect(() => {
-		if (open) setRecentRepositories(readRecentCloudRepositories());
-	}, [open]);
+		if (!open) return;
+		void reloadKey;
+		let cancelled = false;
+		setStatus("loading");
+		void onListRepositories()
+			.then((next) => {
+				if (cancelled) return;
+				setResult(next);
+				onRepositoriesLoaded(next.repositories);
+				setStatus("idle");
+			})
+			.catch(() => {
+				if (!cancelled) setStatus("error");
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [onListRepositories, onRepositoriesLoaded, open, reloadKey]);
 
-	const confirmSelection = () => {
-		if (!valid) return;
-		const normalized = normalizeCloudRepositoryUrl(repoUrl);
-		onRepoUrlChange(normalized);
-		setRecentRepositories(rememberCloudRepository(normalized));
-		onClose();
-	};
+	const repositories = result?.repositories ?? [];
+	const normalizedQuery = query.trim().toLowerCase();
+	const filteredRepositories = repositories.filter((repository) =>
+		`${repository.fullName} ${repository.name}`
+			.toLowerCase()
+			.includes(normalizedQuery),
+	);
 
 	return (
 		<div className="relative min-w-0">
@@ -132,12 +163,15 @@ function CloudRepositoryPicker({
 				aria-haspopup="dialog"
 				className={cn(TRIGGER_CLASS, "min-w-0 max-w-full")}
 				onClick={onToggle}
-				title={repoUrl || "Choose a GitHub repository"}
+				title={repoUrl || "Select a connected GitHub repository"}
 				type="button"
 			>
-				<Cloud className="size-4 shrink-0 text-muted-foreground" />
+				<Github
+					aria-hidden="true"
+					className="size-4 shrink-0 text-muted-foreground"
+				/>
 				<span className="max-w-56 truncate">
-					{repoUrl ? repositoryName(repoUrl) : "Choose repository"}
+					{repoUrl ? repositoryName(repoUrl) : "Select repository…"}
 				</span>
 			</button>
 
@@ -147,86 +181,227 @@ function CloudRepositoryPicker({
 					role="dialog"
 					aria-label="Cloud repository"
 				>
-					<div className="space-y-2 p-3">
-						<label
-							className="block text-xs font-medium text-foreground"
-							htmlFor="cloud-repo-url"
-						>
-							GitHub repository URL
-						</label>
-						<Input
-							autoFocus
-							aria-invalid={repoUrl.trim().length > 0 && !valid}
-							id="cloud-repo-url"
-							onChange={(event) => onRepoUrlChange(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									event.preventDefault();
-									confirmSelection();
-								}
-								if (event.key === "Escape") onClose();
-							}}
-							placeholder="https://github.com/owner/repo"
-							value={repoUrl}
+					{result?.connected !== false ? (
+						<SearchInput
+							onChange={setQuery}
+							placeholder="Search repositories…"
+							value={query}
 						/>
-						{repoUrl.trim().length > 0 && !valid ? (
-							<p className="text-xs text-destructive">
-								Enter a GitHub repository URL.
-							</p>
-						) : null}
-						<label
-							className="block text-xs font-medium text-foreground"
-							htmlFor="cloud-repo-branch"
-						>
-							Branch (optional)
-						</label>
-						<Input
-							id="cloud-repo-branch"
-							onChange={(event) => onBranchChange(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									event.preventDefault();
-									confirmSelection();
-								}
-								if (event.key === "Escape") onClose();
-							}}
-							placeholder="repository default"
-							value={branch}
-						/>
-						<Button
-							className="w-full"
-							disabled={!valid}
-							onClick={confirmSelection}
-							size="sm"
-						>
-							Use repository
-						</Button>
-					</div>
-					{recentRepositories.length > 0 ? (
-						<div className="border-t border-border p-1.5">
-							<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-								Recent
-							</div>
-							{recentRepositories.map((repository) => (
+					) : null}
+					<div className="max-h-72 overflow-y-auto p-1.5">
+						{status === "loading" ? (
+							<PickerStatus icon="loading" message="Loading repositories…" />
+						) : status === "error" ? (
+							<PickerStatus message="Could not load repositories.">
 								<Button
-									className="w-full justify-start text-xs"
-									key={repository}
-									onClick={() => {
-										onRepoUrlChange(repository);
-										setRecentRepositories(rememberCloudRepository(repository));
-										onClose();
-									}}
-									title={repository}
+									onClick={() => setReloadKey((current) => current + 1)}
+									size="sm"
 									variant="ghost"
 								>
-									<Cloud className="size-3" />
-									<span className="truncate">{repositoryName(repository)}</span>
+									<RefreshCcw aria-hidden="true" className="size-3" />
+									Retry
 								</Button>
-							))}
-						</div>
-					) : null}
+							</PickerStatus>
+						) : result?.connected === false ? (
+							<PickerStatus message="Connect GitHub to select a repository.">
+								<Button
+									onClick={() => void onOpenExternalUrl(result.connectUrl)}
+									size="sm"
+									variant="ghost"
+								>
+									Connect GitHub
+								</Button>
+							</PickerStatus>
+						) : filteredRepositories.length === 0 ? (
+							<PickerStatus
+								message={
+									repositories.length === 0
+										? "No connected repositories."
+										: "No repositories found."
+								}
+							/>
+						) : (
+							filteredRepositories.map((repository) => (
+								<Button
+									className="w-full justify-start text-xs"
+									key={repository.id}
+									onClick={() => {
+										onSelect(repository);
+										onClose();
+									}}
+									title={repository.fullName}
+									variant="ghost"
+								>
+									<Github aria-hidden="true" className="size-3" />
+									<span className="truncate">{repository.fullName}</span>
+									{normalizeCloudRepositoryUrl(repoUrl) ===
+									normalizeCloudRepositoryUrl(repository.url) ? (
+										<Check aria-hidden="true" className="ml-auto size-3" />
+									) : null}
+								</Button>
+							))
+						)}
+					</div>
 				</div>
 			) : null}
+		</div>
+	);
+}
+
+function CloudBranchPicker({
+	open,
+	onToggle,
+	onClose,
+	repositoryId,
+	defaultBranch,
+	branch,
+	onBranchChange,
+	onListBranches,
+}: {
+	open: boolean;
+	onToggle: () => void;
+	onClose: () => void;
+	repositoryId?: number;
+	defaultBranch: string;
+	branch: string;
+	onBranchChange: (branch: string) => void;
+	onListBranches: (repositoryId: number) => Promise<CloudBranchListResult>;
+}) {
+	const [query, setQuery] = useState("");
+	const [reloadKey, setReloadKey] = useState(0);
+	const [branches, setBranches] = useState<string[]>([]);
+	const [status, setStatus] = useState<
+		"idle" | "loading" | "error" | "unavailable"
+	>("idle");
+	const branchRef = useRef(branch);
+	branchRef.current = branch;
+
+	useEffect(() => {
+		if (!repositoryId) return;
+		void reloadKey;
+		let cancelled = false;
+		setStatus("loading");
+		void onListBranches(repositoryId)
+			.then((result) => {
+				if (cancelled) return;
+				if (!result.available) {
+					setBranches([]);
+					onBranchChange(defaultBranch);
+					setStatus("unavailable");
+					return;
+				}
+				setBranches(result.branches);
+				if (
+					!branchRef.current ||
+					!result.branches.includes(branchRef.current)
+				) {
+					onBranchChange(preferredCloudBranch(result.branches, defaultBranch));
+				}
+				setStatus("idle");
+			})
+			.catch(() => {
+				if (!cancelled) setStatus("error");
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [defaultBranch, onBranchChange, onListBranches, reloadKey, repositoryId]);
+
+	const normalizedQuery = query.trim().toLowerCase();
+	const filteredBranches = branches.filter((item) =>
+		item.toLowerCase().includes(normalizedQuery),
+	);
+
+	return (
+		<div className="relative min-w-0">
+			<button
+				aria-expanded={open}
+				aria-haspopup="dialog"
+				className={cn(TRIGGER_CLASS, "min-w-0 max-w-full")}
+				disabled={!repositoryId || status === "unavailable"}
+				onClick={onToggle}
+				title={
+					status === "unavailable"
+						? `Using the repository default branch${branch ? `: ${branch}` : ""}`
+						: branch || "Select a branch"
+				}
+				type="button"
+			>
+				<GitBranch
+					aria-hidden="true"
+					className="size-4 shrink-0 text-muted-foreground"
+				/>
+				<span className="max-w-48 truncate">
+					{branch || "Select branch…"}
+					{status === "unavailable" ? " (default)" : ""}
+				</span>
+			</button>
+
+			{open && repositoryId && status !== "unavailable" ? (
+				<div className={PANEL_CLASS} role="dialog" aria-label="Cloud branch">
+					<SearchInput
+						onChange={setQuery}
+						placeholder="Search branches…"
+						value={query}
+					/>
+					<div className="max-h-72 overflow-y-auto p-1.5">
+						{status === "loading" ? (
+							<PickerStatus icon="loading" message="Loading branches…" />
+						) : status === "error" ? (
+							<PickerStatus message="Could not load branches.">
+								<Button
+									onClick={() => setReloadKey((current) => current + 1)}
+									size="sm"
+									variant="ghost"
+								>
+									<RefreshCcw aria-hidden="true" className="size-3" />
+									Retry
+								</Button>
+							</PickerStatus>
+						) : filteredBranches.length === 0 ? (
+							<PickerStatus message="No branches found." />
+						) : (
+							filteredBranches.map((item) => (
+								<Button
+									className="w-full justify-start text-xs"
+									key={item}
+									onClick={() => {
+										onBranchChange(item);
+										onClose();
+									}}
+									variant="ghost"
+								>
+									<GitBranch aria-hidden="true" className="size-3" />
+									<span className="truncate">{item}</span>
+									{branch === item ? (
+										<Check aria-hidden="true" className="ml-auto size-3" />
+									) : null}
+								</Button>
+							))
+						)}
+					</div>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function PickerStatus({
+	children,
+	icon,
+	message,
+}: {
+	children?: ReactNode;
+	icon?: "loading";
+	message: string;
+}) {
+	return (
+		<div className="flex min-h-20 flex-col items-center justify-center gap-2 px-3 py-4 text-center text-xs text-muted-foreground">
+			{icon === "loading" ? (
+				<LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+			) : null}
+			<span>{message}</span>
+			{children}
 		</div>
 	);
 }
@@ -247,7 +422,9 @@ function SearchInput({
 				{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
 				<Input
 					autoFocus
+					aria-label={placeholder}
 					className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
+					name={placeholder.toLowerCase().replaceAll(/[^a-z]+/g, "-")}
 					onChange={(event) => onChange(event.target.value)}
 					placeholder={placeholder}
 					value={value}
@@ -569,6 +746,9 @@ export function WelcomeWorkspaceControls({
 	signingIn,
 	onExecutionTargetChange,
 	onCloudBranchChange,
+	onListCloudRepositories,
+	onListCloudBranches,
+	onOpenExternalUrl,
 	onRepoUrlChange,
 	onSignIn,
 	workspaceRoot,
@@ -586,6 +766,9 @@ export function WelcomeWorkspaceControls({
 	repoUrl: string;
 	cloudBranch: string;
 	onCloudBranchChange: (branch: string) => void;
+	onListCloudRepositories: () => Promise<CloudRepositoryListResult>;
+	onListCloudBranches: (repositoryId: number) => Promise<CloudBranchListResult>;
+	onOpenExternalUrl: (url: string) => Promise<void>;
 	signedIn: boolean;
 	signingIn: boolean;
 	onExecutionTargetChange: (target: "local" | "cloud") => void;
@@ -602,11 +785,25 @@ export function WelcomeWorkspaceControls({
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
 	const [openMenu, setOpenMenu] = useState<
-		"workspace" | "branch" | "cloud" | null
+		"workspace" | "branch" | "cloud-repository" | "cloud-branch" | null
 	>(null);
+	const [cloudRepositoryId, setCloudRepositoryId] = useState<number>();
+	const [cloudDefaultBranch, setCloudDefaultBranch] = useState("");
 	const isChatWorkspace =
 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const handleCloudRepositoriesLoaded = useCallback(
+		(repositories: CloudRepositoryOption[]) => {
+			const selected = repositories.find(
+				(repository) =>
+					normalizeCloudRepositoryUrl(repository.url) ===
+					normalizeCloudRepositoryUrl(repoUrl),
+			);
+			setCloudRepositoryId(selected?.id);
+			setCloudDefaultBranch(selected?.defaultBranch ?? "");
+		},
+		[repoUrl],
+	);
 
 	// Close whichever menu is open when clicking outside the control row.
 	useEffect(() => {
@@ -639,17 +836,41 @@ export function WelcomeWorkspaceControls({
 			) : null}
 			{cloudEnabled && executionTarget === "cloud" ? (
 				signedIn ? (
-					<CloudRepositoryPicker
-						branch={cloudBranch}
-						onBranchChange={onCloudBranchChange}
-						onClose={() => setOpenMenu(null)}
-						onRepoUrlChange={onRepoUrlChange}
-						onToggle={() =>
-							setOpenMenu((current) => (current === "cloud" ? null : "cloud"))
-						}
-						open={openMenu === "cloud"}
-						repoUrl={repoUrl}
-					/>
+					<>
+						<CloudRepositoryPicker
+							onClose={() => setOpenMenu(null)}
+							onListRepositories={onListCloudRepositories}
+							onOpenExternalUrl={onOpenExternalUrl}
+							onRepositoriesLoaded={handleCloudRepositoriesLoaded}
+							onSelect={(repository) => {
+								setCloudRepositoryId(repository.id);
+								setCloudDefaultBranch(repository.defaultBranch);
+								onRepoUrlChange(normalizeCloudRepositoryUrl(repository.url));
+								onCloudBranchChange(repository.defaultBranch);
+							}}
+							onToggle={() =>
+								setOpenMenu((current) =>
+									current === "cloud-repository" ? null : "cloud-repository",
+								)
+							}
+							open={openMenu === "cloud-repository"}
+							repoUrl={repoUrl}
+						/>
+						<CloudBranchPicker
+							branch={cloudBranch}
+							defaultBranch={cloudDefaultBranch}
+							onBranchChange={onCloudBranchChange}
+							onClose={() => setOpenMenu(null)}
+							onListBranches={onListCloudBranches}
+							onToggle={() =>
+								setOpenMenu((current) =>
+									current === "cloud-branch" ? null : "cloud-branch",
+								)
+							}
+							open={openMenu === "cloud-branch"}
+							repositoryId={cloudRepositoryId}
+						/>
+					</>
 				) : (
 					<Button
 						disabled={signingIn}

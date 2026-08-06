@@ -55,7 +55,10 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { resolveFreshClineAuthToken } from "./cline-auth";
-import { getCloudSessionManager } from "./cloud-sessions";
+import {
+	getCloudSessionManager,
+	resetCloudSessionManager,
+} from "./cloud-sessions";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -1201,6 +1204,13 @@ export async function handleCommand(
 		await refreshDesktopFeatureFlags(ctx.logger);
 		return { cloudAgents: isCloudAgentsEnabled() };
 	}
+	if (command === "list_cloud_repositories") {
+		return await getCloudSessionManager(ctx).listRepositories();
+	}
+	if (command === "list_cloud_branches") {
+		const repositoryId = Number(args?.repositoryId);
+		return await getCloudSessionManager(ctx).listBranches(repositoryId);
+	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
 	}
@@ -1220,7 +1230,7 @@ export async function handleCommand(
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
 		if (pending) {
-			pending.resolve({
+			await pending.resolve({
 				approved: Boolean(args?.approved),
 				...(typeof args?.reason === "string" && args.reason.trim().length > 0
 					? { reason: args.reason.trim() }
@@ -1298,7 +1308,9 @@ export async function handleCommand(
 		const title = normalizeSessionTitle(String(args?.title ?? ""));
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
-			throw new Error("Cloud session titles cannot be changed yet");
+			if (!title) throw new Error("title is required");
+			await cloud.updateTitle(sessionId, title);
+			return true;
 		}
 		const backend = await resolveSessionBackend({ backendMode: "local" });
 		const result = await backend.updateSession({ sessionId, title });
@@ -1485,10 +1497,14 @@ export async function handleCommand(
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 			getAuthToken: async () => resolveFreshClineAuthToken(manager),
 		});
-		return await executeClineAccountAction(
+		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
+		}
+		return result;
 	}
 
 	// ── Provider management ────────────────────────────────────────────
@@ -1506,13 +1522,18 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
-		return saveLocalProviderSettings(manager, {
+		const providerId = String(args?.provider ?? "").trim();
+		const result = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
-			providerId: String(args?.provider ?? ""),
+			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		if (providerId === "cline") {
+			await resetCloudSessionManager(ctx);
+		}
+		return result;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();

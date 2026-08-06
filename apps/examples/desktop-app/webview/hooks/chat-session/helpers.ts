@@ -151,7 +151,7 @@ export function resolveCredentialError(
 		}
 		const repoUrl = config.repoUrl?.trim() ?? "";
 		if (!repoUrl) {
-			return "Enter a GitHub repository URL before starting a cloud session.";
+			return "Select a GitHub repository before starting a cloud session.";
 		}
 		// The picker validates as-you-type, but config accepts any keystroke —
 		// re-validate here so a half-typed URL can't reach the create call.

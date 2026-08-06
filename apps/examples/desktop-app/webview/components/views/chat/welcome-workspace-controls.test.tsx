@@ -60,6 +60,24 @@ function renderControls(
 		signingIn: false,
 		onExecutionTargetChange: vi.fn(),
 		onRepoUrlChange: vi.fn(),
+		onListCloudRepositories: vi.fn(async () => ({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [
+				{
+					id: 42,
+					name: "cline",
+					fullName: "cline/cline",
+					url: "https://github.com/cline/cline",
+					defaultBranch: "main",
+				},
+			],
+		})),
+		onListCloudBranches: vi.fn(async () => ({
+			available: true,
+			branches: ["main", "feature/cloud"],
+		})),
+		onOpenExternalUrl: vi.fn(async () => undefined),
 		onSignIn: vi.fn(),
 		workspaceRoot: "/projects/cline",
 		workspaces: ["/projects/cline"],
@@ -102,87 +120,122 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			signedIn: false,
 		});
 		expect(container.textContent).toContain("Sign in to use Cloud");
-		expect(container.textContent).not.toContain("Choose repository");
+		expect(container.textContent).not.toContain("Select repository");
 		await click(button("Sign in to use Cloud"));
 		expect(props.onSignIn).toHaveBeenCalledOnce();
 	});
 
-	it("accepts an HTTPS GitHub repository and remembers it", async () => {
+	it("selects a connected GitHub repository and its default branch", async () => {
 		const onRepoUrlChange = vi.fn();
-		renderControls({
+		const onCloudBranchChange = vi.fn();
+		const props = renderControls({
 			executionTarget: "cloud",
 			onRepoUrlChange,
+			onCloudBranchChange,
 		});
-		await click(button("Choose repository"));
-		const input = container.querySelector<HTMLInputElement>("#cloud-repo-url");
-		expect(input).not.toBeNull();
 		await act(async () => {
-			const setter = Object.getOwnPropertyDescriptor(
-				HTMLInputElement.prototype,
-				"value",
-			)?.set;
-			setter?.call(input, "https://github.com/cline/cline/");
-			input?.dispatchEvent(new Event("input", { bubbles: true }));
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
 		});
-		expect(onRepoUrlChange).toHaveBeenLastCalledWith(
-			"https://github.com/cline/cline/",
-		);
-
-		// The input is controlled: apply the parent state change so the confirm
-		// button actually enables, as it would in the real component tree.
-		onRepoUrlChange.mockClear();
-		renderControls({
-			executionTarget: "cloud",
-			onRepoUrlChange,
-			repoUrl: "https://github.com/cline/cline/",
-		});
-		const confirm = button("Use repository");
-		expect(confirm.disabled).toBe(false);
-		await click(confirm);
-
-		// Confirm normalizes (trailing slash dropped) and persists the recent.
+		expect(props.onListCloudRepositories).toHaveBeenCalledOnce();
+		await click(button("cline/cline"));
 		expect(onRepoUrlChange).toHaveBeenLastCalledWith(
 			"https://github.com/cline/cline",
 		);
-		expect(
-			window.localStorage.getItem("cline.code.cloud-repositories.v1"),
-		).toBe(JSON.stringify(["https://github.com/cline/cline"]));
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
 	});
 
-	it("captures an optional branch alongside the repository URL", async () => {
+	it("loads and selects a branch for the connected repository", async () => {
 		const onCloudBranchChange = vi.fn();
-		renderControls({
+		const props = renderControls({
 			executionTarget: "cloud",
 			onCloudBranchChange,
 		});
-		await click(button("Choose repository"));
-		const input =
-			container.querySelector<HTMLInputElement>("#cloud-repo-branch");
-		expect(input).not.toBeNull();
 		await act(async () => {
-			const setter = Object.getOwnPropertyDescriptor(
-				HTMLInputElement.prototype,
-				"value",
-			)?.set;
-			setter?.call(input, "feature/login-fix");
-			input?.dispatchEvent(new Event("input", { bubbles: true }));
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
 		});
-		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature/login-fix");
-	});
-
-	it("keeps the confirm button disabled for a partial or non-GitHub URL", async () => {
+		await click(button("cline/cline"));
 		renderControls({
 			executionTarget: "cloud",
-			repoUrl: "https://exa",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onCloudBranchChange,
+			onListCloudRepositories: props.onListCloudRepositories,
+			onListCloudBranches: props.onListCloudBranches,
 		});
-		const trigger = container.querySelector<HTMLButtonElement>(
-			'button[aria-haspopup="dialog"]',
+		await act(async () => {
+			button("main").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(props.onListCloudBranches).toHaveBeenCalledWith(42);
+		await click(button("feature/cloud"));
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature/cloud");
+	});
+
+	it("uses and labels the repository default when branch selection is unavailable", async () => {
+		const onCloudBranchChange = vi.fn();
+		const onListCloudBranches = vi.fn(async () => ({
+			available: false,
+			branches: [],
+		}));
+		const props = renderControls({
+			executionTarget: "cloud",
+			onCloudBranchChange,
+			onListCloudBranches,
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await click(button("cline/cline"));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onCloudBranchChange,
+			onListCloudRepositories: props.onListCloudRepositories,
+			onListCloudBranches,
+		});
+		await act(async () => {
+			await vi.waitFor(() => {
+				expect(onListCloudBranches).toHaveBeenCalledWith(42);
+				expect(container.textContent).toContain("main (default)");
+			});
+		});
+
+		const branchButton = button("main (default)");
+		expect(branchButton.disabled).toBe(true);
+		expect(branchButton.title).toBe(
+			"Using the repository default branch: main",
 		);
-		expect(trigger).not.toBeNull();
-		await click(trigger as HTMLButtonElement);
-		expect(button("Use repository").disabled).toBe(true);
-		expect(
-			window.localStorage.getItem("cline.code.cloud-repositories.v1"),
-		).toBeNull();
+		expect(container.textContent).not.toContain("Could not load branches.");
+	});
+
+	it("links to GitHub setup when no integration is connected", async () => {
+		const props = renderControls({
+			executionTarget: "cloud",
+			onListCloudRepositories: vi.fn(async () => ({
+				connected: false,
+				connectUrl: "https://app.example/dashboard/integrations",
+				repositories: [],
+			})),
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain(
+			"Connect GitHub to select a repository.",
+		);
+		await click(button("Connect GitHub"));
+		expect(props.onOpenExternalUrl).toHaveBeenCalledWith(
+			"https://app.example/dashboard/integrations",
+		);
 	});
 });

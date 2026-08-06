@@ -255,6 +255,8 @@ type ChatInputBarProps = {
 	gitBranch: string;
 	executionTarget?: "local" | "cloud";
 	repoUrl?: string;
+	cloudBranch?: string;
+	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -298,6 +300,8 @@ export function ChatInputBar({
 	gitBranch,
 	executionTarget = "local",
 	repoUrl,
+	cloudBranch,
+	hasActiveSession = false,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
@@ -372,12 +376,27 @@ export function ChatInputBar({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft;
+	const needsCloudRepository =
+		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const canSend = hasDraft && !needsCloudRepository;
+	const cloudContextLabel = useMemo(() => {
+		const repository = repoUrl
+			?.replace(/\.git$/i, "")
+			.replace(/\/+$/, "")
+			.split(/[/:]/)
+			.filter(Boolean)
+			.slice(-2)
+			.join("/");
+		return [repository || "Cloud", cloudBranch?.trim()]
+			.filter(Boolean)
+			.join(" / ");
+	}, [cloudBranch, repoUrl]);
 	const handleSend = useCallback(() => {
+		if (!canSend) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [canSend, onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
@@ -865,11 +884,13 @@ export function ChatInputBar({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								needsCloudRepository
+									? "Choose a repository"
+									: variant === "welcome"
+										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+										: isBusy
+											? "Agent is working... submit to queue another message"
+											: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
 							role="combobox"
@@ -881,6 +902,14 @@ export function ChatInputBar({
 							value={promptInput}
 						/>
 						<div className="flex shrink-0 items-center gap-2">
+							{needsCloudRepository ? (
+								<span
+									aria-live="polite"
+									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+								>
+									Repository required
+								</span>
+							) : null}
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
@@ -905,6 +934,9 @@ export function ChatInputBar({
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
+									title={
+										needsCloudRepository ? "Choose a repository" : undefined
+									}
 									type="button"
 								>
 									<ArrowUp className="size-2" />
@@ -1048,10 +1080,10 @@ export function ChatInputBar({
 								{executionTarget === "cloud" ? (
 									<span
 										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
-										title={repoUrl}
+										title={cloudContextLabel}
 									>
 										<Cloud className="size-3 shrink-0" />
-										<span className="truncate">Cloud</span>
+										<span className="truncate">{cloudContextLabel}</span>
 									</span>
 								) : (
 									<WorkspaceSelector

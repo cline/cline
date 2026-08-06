@@ -231,6 +231,99 @@ describe("useChatSession", () => {
 		).toBe(expected);
 	});
 
+	it("keeps a recovered cloud turn running after a transport reconnect", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "ses-cloud",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							recoveredAfterDisconnect: true,
+							status: "running",
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.start({
+				...current.config,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		);
+		await act(async () => current.sendPrompt("Keep working"));
+
+		expect(current.status).toBe("running");
+		expect(current.error).toBeNull();
+	});
+
+	it("restores a cloud session's persisted branch during hydration", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: "ses-cloud",
+							status: "completed",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: "ses-cloud",
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-05T00:00:00.000Z",
+				metadata: {
+					git: {
+						url: "https://github.com/cline/test",
+						branch: "feature/cloud",
+					},
+				},
+			});
+		});
+
+		expect(current.config.branch).toBe("feature/cloud");
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

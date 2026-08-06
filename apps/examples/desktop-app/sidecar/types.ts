@@ -80,7 +80,7 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	resolve: (result: ToolApprovalResult) => void;
+	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {

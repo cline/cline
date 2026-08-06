@@ -7,9 +7,13 @@ import {
 	AgentQuickActions,
 } from "@cline/ui";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
+import type {
+	CloudBranchListResult,
+	CloudRepositoryListResult,
+} from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
@@ -76,6 +80,27 @@ export function WelcomeScreen({
 	} = useWorkspace();
 	const actions =
 		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
+	const listCloudRepositories = useCallback(
+		() =>
+			desktopClient.invoke<CloudRepositoryListResult>(
+				"list_cloud_repositories",
+				{},
+			),
+		[],
+	);
+	const listCloudBranches = useCallback(async (repositoryId: number) => {
+		const result = await desktopClient.invoke<{
+			available?: boolean;
+			branches?: string[];
+		}>("list_cloud_branches", { repositoryId });
+		return {
+			available: result.available !== false,
+			branches: Array.isArray(result.branches) ? result.branches : [],
+		} satisfies CloudBranchListResult;
+	}, []);
+	const openExternalUrl = useCallback(async (url: string) => {
+		await desktopClient.invoke("open_external_url", { url });
+	}, []);
 
 	useEffect(() => {
 		if (active && executionTarget === "local") void refreshWorkspaces();
@@ -132,7 +157,10 @@ export function WelcomeScreen({
 									currentBranch={gitBranch}
 									executionTarget={executionTarget}
 									onCloudBranchChange={onCloudBranchChange}
+									onListCloudBranches={listCloudBranches}
+									onListCloudRepositories={listCloudRepositories}
 									onListGitBranches={onListGitBranches}
+									onOpenExternalUrl={openExternalUrl}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
 									onExecutionTargetChange={onExecutionTargetChange}

@@ -1536,10 +1536,17 @@ export async function handleChatSessionCommand(
 					throw new Error("repoUrl and model are required for a cloud session");
 				}
 				const branch = String(request.config?.branch ?? "").trim();
+				const reasoningEffort = readReasoningEffort(
+					request.config?.reasoningEffort,
+				);
 				return await cloud.create({
 					repoUrl,
 					modelId,
 					...(branch ? { branch } : {}),
+					...(typeof request.config?.thinking === "boolean"
+						? { thinking: request.config.thinking }
+						: {}),
+					...(reasoningEffort ? { reasoningEffort } : {}),
 					...(typeof requestedAutoApprove === "boolean"
 						? { autoApproveTools: requestedAutoApprove }
 						: {}),
