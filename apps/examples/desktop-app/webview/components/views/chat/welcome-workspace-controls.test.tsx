@@ -87,9 +87,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 		await clickButton("Open folder \u201c/home/user/personal-stuff\u201d");
 
-		expect(onSwitchWorkspace).toHaveBeenCalledWith(
-			"/home/user/personal-stuff",
-		);
+		expect(onSwitchWorkspace).toHaveBeenCalledWith("/home/user/personal-stuff");
 	});
 
 	it("shows a visible error when the typed path cannot be opened", async () => {
@@ -100,9 +98,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 		await clickButton("Open folder \u201c/does/not/exist\u201d");
 
-		expect(container.textContent).toContain(
-			'Couldn\'t open "/does/not/exist"',
-		);
+		expect(container.textContent).toContain('Couldn\'t open "/does/not/exist"');
 	});
 
 	it("does not offer path entry for plain search text", async () => {
@@ -146,9 +142,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 		await openWorkspaceMenu();
 		await typeInSearch("/does/not/exist");
 		await clickButton("Open folder \u201c/does/not/exist\u201d");
-		expect(container.textContent).toContain(
-			'Couldn\'t open "/does/not/exist"',
-		);
+		expect(container.textContent).toContain('Couldn\'t open "/does/not/exist"');
 
 		// Re-render with fresh callback identities, as the page does when the
 		// session history poll lands.
@@ -156,9 +150,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 		const input = container.querySelector<HTMLInputElement>("input");
 		expect(input?.value).toBe("/does/not/exist");
-		expect(container.textContent).toContain(
-			'Couldn\'t open "/does/not/exist"',
-		);
+		expect(container.textContent).toContain('Couldn\'t open "/does/not/exist"');
 	});
 
 	it("surfaces picker failures from Add project instead of a silent no-op", async () => {
