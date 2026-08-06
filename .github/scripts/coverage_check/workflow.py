@@ -275,7 +275,7 @@ def extract_pr_coverage_from_artifacts():
     
     # Check if the coverage files exist
     ext_file_path = "extension_coverage.txt"
-    web_file_path = "webview-ui/webview_coverage.txt"
+    web_file_path = "webview_coverage.txt"
     
     # Extract extension coverage
     log(f"Extracting extension coverage from {ext_file_path}")
