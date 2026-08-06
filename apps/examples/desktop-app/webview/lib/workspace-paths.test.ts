@@ -3,6 +3,7 @@ import {
 	filterWorkspacePaths,
 	isAbsoluteFilePath,
 	isExcludedWorkspacePath,
+	looksLikeFolderPath,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
@@ -12,6 +13,18 @@ import {
 } from "./workspace-paths";
 
 describe("workspace paths", () => {
+	it("recognizes typed folder paths for manual entry", () => {
+		expect(looksLikeFolderPath("/home/user/projects")).toBe(true);
+		expect(looksLikeFolderPath(" /home/user/projects/ ")).toBe(true);
+		expect(looksLikeFolderPath("~")).toBe(true);
+		expect(looksLikeFolderPath("~/documents")).toBe(true);
+		expect(looksLikeFolderPath("C:\\Users\\me\\code")).toBe(true);
+		expect(looksLikeFolderPath("D:/projects")).toBe(true);
+		expect(looksLikeFolderPath("my-project")).toBe(false);
+		expect(looksLikeFolderPath("search text")).toBe(false);
+		expect(looksLikeFolderPath("")).toBe(false);
+	});
+
 	it("normalizes trailing separators and Windows path casing", () => {
 		expect(normalizeWorkspacePath(" /workspace/cline/ ")).toBe(
 			"/workspace/cline",
