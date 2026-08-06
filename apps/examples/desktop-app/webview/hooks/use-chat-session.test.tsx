@@ -1213,6 +1213,91 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).toContain("Settings");
 	});
 
+	it("keeps the failure message when post-send hydration replaces the transcript", async () => {
+		// Real race: the runtime queues the first prompt of a fresh session, the
+		// turn fails fast (chat_done error appends the failure bubble), and only
+		// then the send RPC resolves — whose canonical-history hydration used to
+		// replace the transcript wholesale, wiping the UI-only error bubble.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "hist_user_1",
+							sessionId: args?.sessionId,
+							role: "user",
+							content: "First prompt",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<void> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(
+			current.messages.some((message) => message.role === "error"),
+		).toBe(true);
+
+		await act(async () => {
+			resolveSend?.({ ok: true });
+			await sendPromise;
+		});
+
+		// Canonical hydration replaced the transcript with persisted messages,
+		// which never contain UI-only error bubbles — the failure explanation
+		// must survive.
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages).toHaveLength(1);
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("The run failed");
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

@@ -494,6 +494,25 @@ export function useChatSession() {
 		[],
 	);
 
+	// Persisted history never contains UI-only error bubbles, so replacing the
+	// transcript with canonical messages wholesale would silently erase a
+	// failure explanation appended from chat_done moments earlier. Re-append
+	// the active session's error messages after the canonical history.
+	const applyCanonicalHistory = useCallback(
+		(sid: string, historyMessages: ChatMessage[]) => {
+			setMessages((prev) => {
+				const preservedErrors = prev.filter(
+					(message) => message.sessionId === sid && message.role === "error",
+				);
+				if (preservedErrors.length === 0) {
+					return historyMessages;
+				}
+				return sliceMessages([...historyMessages, ...preservedErrors]);
+			});
+		},
+		[],
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
@@ -1816,7 +1835,7 @@ export function useChatSession() {
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
 						if (historyMessages.length > 0) {
-							setMessages(historyMessages);
+							applyCanonicalHistory(activeSessionId, historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
@@ -1836,7 +1855,7 @@ export function useChatSession() {
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
 					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+						applyCanonicalHistory(activeSessionId, historyMessages);
 					}
 				} catch {
 					// Keep optimistic state if canonical hydration fails.
@@ -1951,6 +1970,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			appendTurnFailureMessage,
+			applyCanonicalHistory,
 			applyPromptsInQueue,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
