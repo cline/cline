@@ -188,6 +188,31 @@ describe("fetchClineRecommendedModels", () => {
 		expect(data.recommended[0]?.name).toBe("Claude Opus 5");
 	});
 
+	it("drops recommended/free entries whose id has no provider prefix, but keeps bare ClinePass slugs (cline/cline#12510)", async () => {
+		const data = await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: jsonResponse({
+				recommended: [
+					{ id: "anthropic/claude-opus-5", name: "claude-opus-5", description: "" },
+					// The gateway rejects bare ids with "invalid model format";
+					// picking this would fail no matter what the user does.
+					{ id: "gemini-3.6-flash", name: "gemini-3.6-flash", description: "" },
+				],
+				free: [{ id: "bare-free-id", name: "bare-free-id", description: "" }],
+				// ClinePass ids are legitimately bare (scoped to the fixed
+				// "cline-pass" modelType), so they must not be filtered.
+				clinePass: [{ id: "bare-pass-id", name: "bare-pass-id", description: "" }],
+			}),
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(data.recommended.map((m) => m.id)).toEqual([
+			"anthropic/claude-opus-5",
+		]);
+		expect(data.free).toEqual([]);
+		expect(data.clinePass.map((m) => m.id)).toEqual(["bare-pass-id"]);
+	});
+
 	it("returns the bundled fallback untouched when the endpoint fails", async () => {
 		const data = await fetchClineRecommendedModels({
 			baseUrl: BASE_URL,

@@ -97,10 +97,20 @@ function cloneRecommendedModels(
 	};
 }
 
-function normalizeModel(raw: unknown): ClineRecommendedModel | null {
+function normalizeModel(
+	raw: unknown,
+	requireProviderPrefix: boolean,
+): ClineRecommendedModel | null {
 	if (!raw || typeof raw !== "object") return null;
 	const data = raw as Record<string, unknown>;
 	if (typeof data.id !== "string" || data.id.length === 0) return null;
+	// `recommended` and `free` entries are meant to be full `modelType/model`
+	// ids; the gateway rejects anything else with "invalid model format"
+	// (cline/cline#12510). `clinePass` entries are legitimately bare slugs
+	// scoped to the fixed "cline-pass" modelType, so they're exempt. A bare id
+	// where one is required would otherwise be shown as a selectable entry
+	// and fail as soon as the user tries it, with no client-side recovery.
+	if (requireProviderPrefix && !data.id.includes("/")) return null;
 	return {
 		id: data.id,
 		name:
@@ -123,13 +133,13 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	const freeRaw = Array.isArray(data.free) ? data.free : [];
 	const clinePassRaw = Array.isArray(data.clinePass) ? data.clinePass : [];
 	const recommended = recommendedRaw
-		.map(normalizeModel)
+		.map((entry) => normalizeModel(entry, true))
 		.filter((model): model is ClineRecommendedModel => model !== null);
 	const free = freeRaw
-		.map(normalizeModel)
+		.map((entry) => normalizeModel(entry, true))
 		.filter((model): model is ClineRecommendedModel => model !== null);
 	const clinePass = clinePassRaw
-		.map(normalizeModel)
+		.map((entry) => normalizeModel(entry, false))
 		.filter((model): model is ClineRecommendedModel => model !== null);
 	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 		return null;

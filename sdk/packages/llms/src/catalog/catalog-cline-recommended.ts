@@ -25,6 +25,16 @@ type ModelCapabilities = Pick<
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const CLINE_PROVIDER_ID = "cline";
 
+// Free-bucket entries are meant to be full `modelType/model` ids (OpenRouter
+// ids or `cline-free/...`) — unlike ClinePass entries, which are legitimately
+// bare slugs scoped to the fixed "cline-pass" modelType. A bare id here means
+// the endpoint sent something malformed; the gateway rejects it with "invalid
+// model format" (cline/cline#12510), and the picker has no way to recover
+// once that id is already selected. Drop it before it becomes selectable.
+function hasProviderPrefix(entry: ClineRecommendedModelEntry): boolean {
+	return entry.id.includes("/");
+}
+
 const CLINE_PASS_MODEL_DEFAULTS = {
 	contextWindow: 128_000,
 	maxInputTokens: 128_000,
@@ -92,7 +102,7 @@ export function normalizeClineRecommendedProviderModels(
 	// underneath; they ride usage billing at $0 instead of the subscription quota).
 	// Unlike pass models their ids are full OpenRouter-style ids or cline-free ids,
 	// so look up capabilities by full id before falling back to the slug map.
-	(payload.free ?? []).forEach((entry) => {
+	(payload.free ?? []).filter(hasProviderPrefix).forEach((entry) => {
 		const capabilities =
 			openRouterModels?.[entry.id] ??
 			findORModelCapabilities(entry, openRouterModelsByName);
