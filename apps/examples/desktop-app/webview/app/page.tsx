@@ -32,6 +32,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { CloudView } from "@/components/views/cloud/cloud-view";
 import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import {
@@ -39,6 +40,7 @@ import {
 	SettingsView,
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
+import { DesktopSettingsProvider } from "@/contexts/desktop-settings-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -312,88 +314,99 @@ export default function Home() {
 
 	return (
 		<AccountProvider>
-			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
-				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+			<DesktopSettingsProvider>
+				<SidebarProvider>
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onNewThread={handleNewThread}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							{view === "sessions" ? (
+								<SessionsView
+									activeSessionId={activeHistorySessionId}
+									history={sessionHistory}
+								/>
+							) : view === "cloud" ? (
+								<CloudView
+									onOpenAccountSettings={() =>
+										handleSettingsSectionChange("Account")
 									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									parentSession={activeParentSession}
-									onThreadStarted={handleThreadStarted}
+									onOpenGeneralSettings={() =>
+										handleSettingsSectionChange("General")
+									}
 								/>
-							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
-			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView onComplete={completeOnboarding} />
-				</div>
-			) : null}
+							) : activeThread ? (
+								<div
+									aria-hidden={view === "settings" ? true : undefined}
+									className="flex min-h-0 flex-1 flex-col"
+									inert={view === "settings" ? true : undefined}
+								>
+									<ChatThreadPane
+										key={activeThread.id}
+										historySession={activeThread.historySession}
+										initialPromptDraft={activeThread.initialPromptDraft}
+										knownWorkspacePaths={historyWorkspacePaths}
+										onInitialPromptDraftConsumed={
+											handleInitialPromptDraftConsumed
+										}
+										onUpdateSessionMetadata={handleUpdateSessionMetadata}
+										threadId={activeThread.id}
+										onDeleteSession={handleDeleteSession}
+										onNewThread={handleNewThread}
+										onOpenSession={handleOpenSession}
+										onOpenSessionById={handleOpenSessionById}
+										parentSession={activeParentSession}
+										onThreadStarted={handleThreadStarted}
+									/>
+								</div>
+							) : null}
+							{view === "settings" ? (
+								<div className="absolute inset-0 z-30 bg-background text-foreground">
+									<SettingsView
+										onNavigateSection={handleSettingsSectionChange}
+										onOpenSession={handleOpenSessionById}
+										section={settingsSection}
+									/>
+								</div>
+							) : null}
+						</SidebarInset>
+					</div>
+				</SidebarProvider>
+				{showOnboarding ? (
+					<div className="fixed inset-0 z-50">
+						<OnboardingView onComplete={completeOnboarding} />
+					</div>
+				) : null}
+			</DesktopSettingsProvider>
 		</AccountProvider>
 	);
 }

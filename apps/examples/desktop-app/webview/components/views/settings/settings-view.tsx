@@ -1,7 +1,9 @@
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useDesktopSettings } from "@/contexts/desktop-settings-context";
 import {
 	APP_ICONS,
 	type AppIconId,
@@ -529,6 +531,29 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const {
+		settings: desktopSettings,
+		loaded: desktopSettingsLoaded,
+		setCloudSessionsEnabled,
+	} = useDesktopSettings();
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
+
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
+		try {
+			await setCloudSessionsEnabled(nextValue);
+		} catch (error) {
+			setCloudSessionsError(
+				error instanceof Error ? error.message : String(error),
+			);
+		} finally {
+			setCloudSessionsSaving(false);
+		}
+	};
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
@@ -733,6 +758,32 @@ function GeneralSettingsContent() {
 							</button>
 						))}
 					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="flex items-center gap-2 text-[17px] font-semibold text-foreground">
+							Cloud Sessions
+							<Badge variant="secondary">Beta</Badge>
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Run Cline on your repositories in secure cloud sandboxes. Adds a
+							Cloud Sessions page to the sidebar. Requires a Cline account with
+							GitHub connected on the dashboard.
+						</p>
+						{cloudSessionsError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update Cloud Sessions setting: {cloudSessionsError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Cloud Sessions"
+						checked={desktopSettings.cloudSessionsEnabled}
+						disabled={!desktopSettingsLoaded || cloudSessionsSaving}
+						onCheckedChange={(checked) =>
+							void updateCloudSessionsEnabled(checked)
+						}
+					/>
 				</div>
 				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div>

@@ -334,11 +334,33 @@ export async function readSessionMessages(
 		persisted && persisted.length > 0
 			? persisted
 			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
-	const max = Math.max(1, maxMessages);
+	return projectAgentMessages(sessionId, messages, {
+		maxMessages,
+		checkpointsByRunCount: readCheckpointEntriesByRunCount(sessionId),
+	});
+}
+
+/**
+ * Projects raw persisted agent messages (`MessageWithMetadata`-shaped records,
+ * the same format the hub's `session.messages` command returns) into the flat
+ * `ChatMessage` records the webview renders. Shared by local session history
+ * and cloud (remote) sessions, which stream the same message format over the
+ * sandbox hub connection.
+ */
+export function projectAgentMessages(
+	sessionId: string,
+	messages: unknown[],
+	options?: {
+		maxMessages?: number;
+		checkpointsByRunCount?: Map<number, StoredCheckpointEntry>;
+	},
+): unknown[] {
+	const max = Math.max(1, options?.maxMessages ?? 800);
 	const start = Math.max(0, messages.length - max);
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	const checkpointsByRunCount =
+		options?.checkpointsByRunCount ?? new Map<number, StoredCheckpointEntry>();
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {

@@ -57,6 +57,10 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import {
+	handleCloudSessionCommand,
+	isCloudSessionCommand,
+} from "./cloud-sessions";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -66,6 +70,10 @@ import {
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
 } from "./context";
+import {
+	readDesktopAppSettings,
+	updateDesktopAppSettings,
+} from "./desktop-settings";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -1154,6 +1162,11 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: object },
 ): Promise<unknown> {
+	// ── Cloud session commands ─────────────────────────────────────────
+	if (isCloudSessionCommand(command)) {
+		return await handleCloudSessionCommand(ctx, command, args);
+	}
+
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
 		const { handleChatSessionCommand } = await import("./chat-session");
@@ -1587,6 +1600,21 @@ export async function handleCommand(
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
+	}
+
+	// ── Desktop-app-only settings ──────────────────────────────────────
+	if (command === "get_desktop_app_settings") {
+		return readDesktopAppSettings();
+	}
+	if (command === "update_desktop_app_settings") {
+		const next = updateDesktopAppSettings({
+			cloudSessionsEnabled:
+				typeof args?.cloudSessionsEnabled === "boolean"
+					? args.cloudSessionsEnabled
+					: undefined,
+		});
+		broadcastEvent(ctx, "desktop_app_settings", next as unknown as JsonRecord);
+		return next;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────

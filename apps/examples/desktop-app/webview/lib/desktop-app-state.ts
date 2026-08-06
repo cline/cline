@@ -5,7 +5,7 @@ import {
 } from "./navigation-history";
 import type { SessionHistoryItem, SessionMetadata } from "./session-history";
 
-export type DesktopAppView = "chat" | "sessions" | "settings";
+export type DesktopAppView = "chat" | "sessions" | "settings" | "cloud";
 
 export type DesktopThread = {
 	id: string;

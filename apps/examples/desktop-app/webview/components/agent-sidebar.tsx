@@ -9,6 +9,7 @@ import {
 	ChevronRight,
 	CircleUserRound,
 	Clock3,
+	Cloud,
 	Code,
 	FileText,
 	Filter,
@@ -79,6 +80,7 @@ import {
 	type SettingsSection,
 } from "@/components/views/settings/settings-view";
 import { useAccount } from "@/contexts/account-context";
+import { useDesktopSettings } from "@/contexts/desktop-settings-context";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -100,7 +102,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type Thread = SessionThread;
-type AppView = "chat" | "sessions" | "settings";
+type AppView = "chat" | "sessions" | "settings" | "cloud";
 
 const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
@@ -233,6 +235,8 @@ export function AgentSidebar({
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
+	const { settings: desktopSettings } = useDesktopSettings();
+	const cloudSessionsEnabled = desktopSettings.cloudSessionsEnabled;
 	const { user, activeOrganization } = useAccount();
 	const { displayName, email } = user || {};
 	const username = displayName?.split(" ")?.[0] || email?.split("@")?.[0];
@@ -368,6 +372,10 @@ export function AgentSidebar({
 	}, [closeMobileSidebar, onHome]);
 	const openSessions = useCallback(() => {
 		setView("sessions");
+		closeMobileSidebar();
+	}, [closeMobileSidebar, setView]);
+	const openCloud = useCallback(() => {
+		setView("cloud");
 		closeMobileSidebar();
 	}, [closeMobileSidebar, setView]);
 	const openSettings = useCallback(() => {
@@ -705,6 +713,22 @@ export function AgentSidebar({
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
 						<AppUpdateIndicator className="mx-auto size-9" />
+						{cloudSessionsEnabled ? (
+							<Button
+								aria-label="Cloud Sessions"
+								className={cn(
+									"size-9 justify-center px-0",
+									view === "cloud" &&
+										"bg-sidebar-accent text-sidebar-accent-foreground",
+								)}
+								onClick={openCloud}
+								title="Cloud Sessions"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Cloud className="size-4" />
+							</Button>
+						) : null}
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
@@ -733,6 +757,26 @@ export function AgentSidebar({
 					</div>
 				) : (
 					<>
+						{cloudSessionsEnabled ? (
+							<div className="mt-3 shrink-0 px-3">
+								<Button
+									aria-current={view === "cloud" ? "page" : undefined}
+									aria-label="Cloud Sessions"
+									className={cn(
+										"w-full min-w-0 justify-start",
+										view === "cloud" &&
+											"bg-sidebar-accent text-sidebar-accent-foreground",
+									)}
+									onClick={openCloud}
+									title="Cloud Sessions"
+									type="button"
+									variant="sidebarItem"
+								>
+									<Cloud className="size-4 shrink-0" />
+									<span className="truncate">Cloud Sessions</span>
+								</Button>
+							</div>
+						) : null}
 						<div className="mt-5 shrink-0 px-3">
 							<div className="flex h-8 items-center justify-between gap-2">
 								<button

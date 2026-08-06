@@ -5,6 +5,7 @@ import {
 } from "@cline/core";
 import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
+import { disposeCloudConnections } from "./cloud-sessions";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
 	createSidecarContext,
@@ -81,6 +82,7 @@ async function main() {
 		await withTimeout(
 			(async () => {
 				try {
+					disposeCloudConnections();
 					await disposeSidecarContext(ctx, reason);
 				} finally {
 					await observability.dispose();
