@@ -82,7 +82,6 @@ describe("ChatInputBar", () => {
 
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
-		const onOpenRealtimeVoiceSettings = vi.fn();
 		const onOpenVoiceInputSettings = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
 			await act(async () => {
@@ -107,7 +106,6 @@ describe("ChatInputBar", () => {
 							onEditPromptInQueue={vi.fn()}
 							onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
-							onOpenRealtimeVoiceSettings={onOpenRealtimeVoiceSettings}
 							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
@@ -257,20 +255,8 @@ describe("ChatInputBar", () => {
 		const emptySpeechTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Record speech"]',
 		);
-		const emptyRealtimeTrigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Configure realtime voice"]',
-		);
 		expect(emptySpeechTrigger).not.toBeNull();
-		expect(emptyRealtimeTrigger).not.toBeNull();
 		expect(promptInput?.parentElement?.contains(emptySpeechTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(emptyRealtimeTrigger)).toBe(
-			true,
-		);
-		expect(
-			emptyRealtimeTrigger?.querySelector(".lucide-audio-waveform"),
-		).not.toBeNull();
-		await act(async () => emptyRealtimeTrigger?.click());
-		expect(onOpenRealtimeVoiceSettings).toHaveBeenCalledOnce();
 		expect(onOpenVoiceInputSettings).not.toHaveBeenCalled();
 
 		await act(async () => {

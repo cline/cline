@@ -100,7 +100,9 @@ vi.mock("@/hooks/use-toast", () => ({
 	toast: mocks.toast,
 }));
 
-let container: HTMLDivElement;
+let container: HTMLElement;
+let appRoot: HTMLDivElement;
+let portalRoot: HTMLDivElement;
 let root: Root;
 
 const target = {
@@ -162,14 +164,18 @@ beforeEach(() => {
 		configurable: true,
 		value: { getUserMedia: mocks.getUserMedia },
 	});
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
+	appRoot = document.createElement("div");
+	portalRoot = document.createElement("div");
+	portalRoot.id = "realtime-voice-portal-root";
+	document.body.append(appRoot, portalRoot);
+	container = document.body;
+	root = createRoot(appRoot);
 });
 
 afterEach(async () => {
 	await act(async () => root.unmount());
-	container.remove();
+	appRoot.remove();
+	portalRoot.remove();
 });
 
 function makeBridge(
@@ -527,10 +533,10 @@ describe("RealtimeVoiceOverlay", () => {
 			root.render(<RealtimeVoiceOverlay {...props} />);
 		});
 
-		const stopButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Stop realtime voice"]',
+		const activeOrbButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Realtime voice active"]',
 		);
-		act(() => stopButton?.click());
+		act(() => activeOrbButton?.click());
 		mocks.realtimeState.status = "disconnected";
 		mocks.realtimeState.isCapturing = false;
 		await act(async () => {

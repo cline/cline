@@ -102,6 +102,14 @@ export function hasRealtimeVoiceTransport(providerId: string): boolean {
 	);
 }
 
+export function defaultRealtimeVoice(providerId: string): string | undefined {
+	if (providerId === "gemini") return "Kore";
+	if (providerId === "openai" || providerId === "openai-native") {
+		return "alloy";
+	}
+	return undefined;
+}
+
 export function selectTranscriptionModel(
 	providers: Provider[],
 	selection: VoiceInputModeSettings | undefined,
@@ -171,7 +179,7 @@ export function selectRealtimeVoiceModel(
 				modelId: model.id,
 				modelName: model.name,
 				supportsTools: model.supportsTools === true,
-				voice: selection.voice,
+				voice: selection.voice?.trim() || defaultRealtimeVoice(provider.id),
 			}
 		: null;
 }

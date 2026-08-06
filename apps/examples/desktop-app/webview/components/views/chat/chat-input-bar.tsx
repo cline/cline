@@ -16,8 +16,6 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SpeechInput } from "@/components/ai-elements/speech-input";
-import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
-import { RealtimeVoiceOverlay } from "@/components/realtime-voice-overlay";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -40,7 +38,6 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 	MODE_SETTINGS_CHANGED_EVENT,
-	type RealtimeVoiceModelTarget,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 } from "@/lib/provider-model-catalog";
@@ -282,8 +279,6 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	realtimeBridge?: RealtimeChatBridge | null;
-	onOpenRealtimeVoiceSettings?: () => void;
 	onOpenVoiceInputSettings?: () => void;
 	summary: {
 		toolCalls: number;
@@ -318,8 +313,6 @@ export function ChatInputBar({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	realtimeBridge = null,
-	onOpenRealtimeVoiceSettings,
 	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
@@ -388,9 +381,6 @@ export function ChatInputBar({
 	} | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
-	const [realtimeVoiceTarget, setRealtimeVoiceTarget] =
-		useState<RealtimeVoiceModelTarget | null>(null);
-	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
 	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
 	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
@@ -443,19 +433,17 @@ export function ChatInputBar({
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
 						setTranscriptionTarget(catalog.modes.voiceInput);
-						setRealtimeVoiceTarget(catalog.modes.realtimeVoice);
 					}
 				})
 				.catch(() => {
 					if (!cancelled && currentLoadId === loadId) {
 						setTranscriptionTarget(null);
-						setRealtimeVoiceTarget(null);
 					}
 				});
 		};
 		const handleModeSettingsChanged = (event: Event) => {
 			const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
-			if (!mode || mode === "voiceInput" || mode === "realtimeVoice") {
+			if (!mode || mode === "voiceInput") {
 				loadModeSettings();
 			}
 		};
@@ -1116,15 +1104,7 @@ export function ChatInputBar({
 										: "Configure voice input in Settings → Models"
 								}
 							/>
-							{realtimeVoiceOpen || (!canAbort && !hasDraft) ? (
-								<RealtimeVoiceOverlay
-									bridge={realtimeBridge}
-									onConfigure={() => onOpenRealtimeVoiceSettings?.()}
-									onOpenChange={setRealtimeVoiceOpen}
-									open={realtimeVoiceOpen}
-									target={realtimeVoiceTarget}
-								/>
-							) : canAbort ? (
+							{canAbort ? (
 								<button
 									aria-label="Stop agent"
 									className={cn(
@@ -1138,7 +1118,7 @@ export function ChatInputBar({
 								>
 									<CircleStop className="size-2" />
 								</button>
-							) : (
+							) : hasDraft ? (
 								<button
 									aria-label="Send message"
 									className={cn(
@@ -1151,7 +1131,7 @@ export function ChatInputBar({
 								>
 									<ArrowRight className="size-4" />
 								</button>
-							)}
+							) : null}
 						</div>
 					</div>
 				</div>

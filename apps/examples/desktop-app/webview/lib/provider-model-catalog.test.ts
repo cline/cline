@@ -105,6 +105,33 @@ describe("transcription model selection", () => {
 		});
 	});
 
+	it("pins the Gemini realtime voice when the setting is blank", () => {
+		const provider: Provider = {
+			id: "gemini",
+			name: "Google Gemini",
+			models: 1,
+			color: "#000000",
+			letter: "GG",
+			enabled: true,
+			modelList: [
+				{
+					id: "gemini-live",
+					name: "Gemini Live",
+					inputModalities: ["text", "audio"],
+					outputModalities: ["text", "audio"],
+				},
+			],
+		};
+
+		expect(
+			selectRealtimeVoiceModel([provider], {
+				providerId: "gemini",
+				modelId: "gemini-live",
+				voice: " ",
+			}),
+		).toMatchObject({ voice: "Kore" });
+	});
+
 	it("keeps audio utility models out of the chat model selector", () => {
 		expect(
 			isChatModel({

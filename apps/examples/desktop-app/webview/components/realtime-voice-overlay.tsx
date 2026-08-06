@@ -19,6 +19,7 @@ import {
 	Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatedOrb } from "@/components/animated-orb";
 import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
 import { toast } from "@/hooks/use-toast";
@@ -151,7 +152,18 @@ function ConfiguredRealtimeVoiceOverlay({
 	const [microphoneMuted, setMicrophoneMuted] = useState(false);
 	const [hearingSpeech, setHearingSpeech] = useState(false);
 	const [voiceIntensity, setVoiceIntensity] = useState(0);
+	const [panelPosition, setPanelPosition] = useState({ left: 0, top: 0 });
 	const streamRef = useRef<MediaStream | null>(null);
+	const triggerRef = useRef<HTMLButtonElement | null>(null);
+	const panelCloseTimerRef = useRef<number | null>(null);
+	useEffect(
+		() => () => {
+			if (panelCloseTimerRef.current !== null) {
+				window.clearTimeout(panelCloseTimerRef.current);
+			}
+		},
+		[],
+	);
 	const voiceMeterContextRef = useRef<AudioContext | null>(null);
 	const voiceMeterFrameRef = useRef<number | null>(null);
 	const captureStartedRef = useRef(false);
@@ -1219,154 +1231,193 @@ function ConfiguredRealtimeVoiceOverlay({
 										: status === "connected"
 											? "Connected"
 											: "Ready";
+	const cancelPanelClose = () => {
+		if (panelCloseTimerRef.current !== null) {
+			window.clearTimeout(panelCloseTimerRef.current);
+			panelCloseTimerRef.current = null;
+		}
+	};
+	const showPanel = () => {
+		cancelPanelClose();
+		const trigger = triggerRef.current;
+		if (trigger) {
+			const rect = trigger.getBoundingClientRect();
+			setPanelPosition({
+				left: Math.min(rect.right + 8, Math.max(16, window.innerWidth - 336)),
+				top: Math.min(rect.top, Math.max(16, window.innerHeight - 280)),
+			});
+		}
+		setPanelVisible(true);
+	};
+	const schedulePanelClose = () => {
+		cancelPanelClose();
+		panelCloseTimerRef.current = window.setTimeout(() => {
+			panelCloseTimerRef.current = null;
+			setPanelVisible(false);
+		}, 150);
+	};
 
 	return (
 		<fieldset
 			className="relative m-0 flex shrink-0 items-center gap-1 border-0 p-0"
 			onMouseEnter={() => {
-				if (active) setPanelVisible(true);
+				if (active) showPanel();
 			}}
-			onMouseLeave={() => setPanelVisible(false)}
+			onMouseLeave={schedulePanelClose}
 		>
-			<div
-				aria-hidden={!panelVisible}
-				aria-live="polite"
-				className={cn(
-					"absolute bottom-full right-0 z-70 mb-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl transition-[opacity,visibility] duration-150",
-					panelVisible
-						? "visible opacity-100"
-						: "pointer-events-none invisible opacity-0",
-				)}
-				inert={!panelVisible ? true : undefined}
-			>
-				<div className="flex items-start gap-2 border-b border-border px-3 py-3">
-					<button
-						aria-label="Configure realtime voice"
-						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => {
-							stop();
-							onOpenChange(false);
-							onConfigure();
-						}}
-						type="button"
-					>
-						<Settings2 className="size-3.5" />
-					</button>
-					<div className="min-w-0 flex-1">
-						<div className="truncate text-sm font-semibold" title={modelName}>
-							{modelName}
-						</div>
-						<div className="mt-0.5 truncate text-xs text-muted-foreground">
-							{providerName}
-						</div>
-					</div>
-					<button
-						aria-label="Hide realtime voice"
-						className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setPanelVisible(false)}
-						title="Hide realtime voice panel"
-						type="button"
-					>
-						<Minus className="size-3.5" />
-					</button>
-				</div>
-				<div
-					aria-label="Realtime voice transcript"
-					className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
-					onWheel={(event) => event.stopPropagation()}
-					ref={transcriptViewportRef}
-					role="log"
-				>
-					{transcript.length > 0 ? (
-						transcript.map((message) => (
-							<div className="grid gap-0.5" key={message.id}>
-								<span
-									className={cn(
-										"font-medium text-muted-foreground",
-										message.role === "error" && "text-destructive",
-									)}
-								>
-									{message.role === "user"
-										? "You"
-										: message.role === "assistant"
-											? "Cline"
-											: "Error"}
-								</span>
-								<p
-									className={cn(
-										"whitespace-pre-wrap leading-relaxed",
-										message.role === "error" && "text-destructive",
-									)}
-								>
-									{message.text}
-								</p>
-							</div>
-						))
-					) : (
-						<p className="text-muted-foreground">
-							{status === "connected"
-								? "Speak to the same Cline agent as this chat."
-								: "Preparing the secure realtime connection…"}
-						</p>
-					)}
-				</div>
-				<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
-					<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+			{typeof document !== "undefined"
+				? createPortal(
 						<div
+							aria-hidden={!panelVisible}
+							aria-live="polite"
 							className={cn(
-								"size-2 shrink-0 rounded-full",
-								lastError
-									? "bg-destructive"
-									: needsAttention
-										? "animate-pulse bg-amber-500"
-										: isPlaying
-											? "animate-pulse bg-primary"
-											: status === "connected"
-												? "animate-pulse bg-emerald-500"
-												: "animate-pulse bg-amber-500",
+								"fixed z-[100] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl transition-[opacity,visibility] duration-150",
+								panelVisible
+									? "visible opacity-100"
+									: "pointer-events-none invisible opacity-0",
 							)}
-						/>
-						{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
-						<span className="truncate">{statusLabel}</span>
-					</div>
-					<div className="ml-auto flex items-center gap-1.5">
-						{active && microphone ? (
-							<button
-								aria-label={
-									microphoneMuted
-										? "Unmute realtime microphone"
-										: "Mute realtime microphone"
-								}
-								aria-pressed={microphoneMuted}
-								className={cn(
-									"inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-									microphoneMuted &&
-										"border-destructive/40 bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
-								)}
-								onClick={toggleMicrophoneMute}
-								title={
-									microphoneMuted ? "Unmute microphone" : "Mute microphone"
-								}
-								type="button"
-							>
-								{microphoneMuted ? "Unmute" : "Mute"}
-							</button>
-						) : null}
-						<button
-							aria-label="Stop realtime voice"
-							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 text-xs text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
-							onClick={() => {
-								stop();
-								onOpenChange(false);
-							}}
-							type="button"
+							inert={!panelVisible ? true : undefined}
+							onMouseEnter={cancelPanelClose}
+							onMouseLeave={schedulePanelClose}
+							style={panelPosition}
 						>
-							<CircleStop className="size-3.5" />
-							Stop
-						</button>
-					</div>
-				</div>
-			</div>
+							<div className="flex items-start gap-2 border-b border-border px-3 py-3">
+								<button
+									aria-label="Configure realtime voice"
+									className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onClick={() => {
+										stop();
+										onOpenChange(false);
+										onConfigure();
+									}}
+									type="button"
+								>
+									<Settings2 className="size-3.5" />
+								</button>
+								<div className="min-w-0 flex-1">
+									<div
+										className="truncate text-sm font-semibold"
+										title={modelName}
+									>
+										{modelName}
+									</div>
+									<div className="mt-0.5 truncate text-xs text-muted-foreground">
+										{providerName}
+									</div>
+								</div>
+								<button
+									aria-label="Hide realtime voice"
+									className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onClick={() => setPanelVisible(false)}
+									title="Hide realtime voice panel"
+									type="button"
+								>
+									<Minus className="size-3.5" />
+								</button>
+							</div>
+							<div
+								aria-label="Realtime voice transcript"
+								className="h-32 space-y-2 overflow-y-auto px-3 py-2.5 text-xs"
+								onWheel={(event) => event.stopPropagation()}
+								ref={transcriptViewportRef}
+								role="log"
+							>
+								{transcript.length > 0 ? (
+									transcript.map((message) => (
+										<div className="grid gap-0.5" key={message.id}>
+											<span
+												className={cn(
+													"font-medium text-muted-foreground",
+													message.role === "error" && "text-destructive",
+												)}
+											>
+												{message.role === "user"
+													? "You"
+													: message.role === "assistant"
+														? "Cline"
+														: "Error"}
+											</span>
+											<p
+												className={cn(
+													"whitespace-pre-wrap leading-relaxed",
+													message.role === "error" && "text-destructive",
+												)}
+											>
+												{message.text}
+											</p>
+										</div>
+									))
+								) : (
+									<p className="text-muted-foreground">
+										{status === "connected"
+											? "Speak to the same Cline agent as this chat."
+											: "Preparing the secure realtime connection…"}
+									</p>
+								)}
+							</div>
+							<div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
+								<div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+									<div
+										className={cn(
+											"size-2 shrink-0 rounded-full",
+											lastError
+												? "bg-destructive"
+												: needsAttention
+													? "animate-pulse bg-amber-500"
+													: isPlaying
+														? "animate-pulse bg-primary"
+														: status === "connected"
+															? "animate-pulse bg-emerald-500"
+															: "animate-pulse bg-amber-500",
+										)}
+									/>
+									{isPlaying ? <Volume2 className="size-3.5 shrink-0" /> : null}
+									<span className="truncate">{statusLabel}</span>
+								</div>
+								<div className="ml-auto flex items-center gap-1.5">
+									{active && microphone ? (
+										<button
+											aria-label={
+												microphoneMuted
+													? "Unmute realtime microphone"
+													: "Mute realtime microphone"
+											}
+											aria-pressed={microphoneMuted}
+											className={cn(
+												"inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+												microphoneMuted &&
+													"border-destructive/40 bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+											)}
+											onClick={toggleMicrophoneMute}
+											title={
+												microphoneMuted
+													? "Unmute microphone"
+													: "Mute microphone"
+											}
+											type="button"
+										>
+											{microphoneMuted ? "Unmute" : "Mute"}
+										</button>
+									) : null}
+									<button
+										aria-label="Stop realtime voice"
+										className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 text-xs text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+										onClick={() => {
+											stop();
+											onOpenChange(false);
+										}}
+										type="button"
+									>
+										<CircleStop className="size-3.5" />
+										Stop
+									</button>
+								</div>
+							</div>
+						</div>,
+						document.getElementById("realtime-voice-portal-root") ??
+							document.body,
+					)
+				: null}
 			<button
 				aria-label={active ? "Realtime voice active" : "Start realtime voice"}
 				aria-pressed={active}
@@ -1379,11 +1430,17 @@ function ConfiguredRealtimeVoiceOverlay({
 				)}
 				disabled={!tokenEndpoint}
 				onClick={() => {
-					if (!active) void start();
+					if (active) {
+						stop();
+						onOpenChange(false);
+					} else {
+						void start();
+					}
 				}}
 				onFocus={() => {
-					if (active) setPanelVisible(true);
+					if (active) showPanel();
 				}}
+				ref={triggerRef}
 				title={active ? "Realtime voice active" : "Start realtime voice"}
 				type="button"
 			>
