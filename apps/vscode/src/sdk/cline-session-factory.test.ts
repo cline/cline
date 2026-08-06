@@ -752,6 +752,7 @@ describe("buildSessionConfig", () => {
 		// the top level (manual compaction budgets).
 		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
+		expect((config.providerConfig as any).knownModels["custom-reasoner"].capabilities).toEqual([])
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
 	})

@@ -1003,4 +1003,18 @@ describe("createProviderConfigStore", () => {
 		// the SDK's writeModelsFileSync enforces.
 		expect(() => StoredModelEntrySchema.parse(entry)).not.toThrow()
 	})
+
+	it("preserves an explicitly empty capability set", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.commitSelection(providerId, "act", {
+			providerId,
+			modelId: "text-only-model",
+			overrides: { capabilities: [] },
+		})
+
+		expect(mocks.getModelsFile().providers["openai-compatible"]?.models?.["text-only-model"]?.capabilities).toEqual([])
+	})
 })

@@ -35,6 +35,7 @@ import {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { normalizeProviderId } from "./ids";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
@@ -441,26 +442,6 @@ function modelInfoToGateway(
 	providerId: string,
 	info: ModelInfo,
 ): GatewayModelDefinition {
-	const capabilities = new Set<GatewayModelCapability>(["text"]);
-	for (const cap of info.capabilities ?? []) {
-		switch (cap) {
-			case "tools":
-				capabilities.add("tools");
-				break;
-			case "reasoning":
-				capabilities.add("reasoning");
-				break;
-			case "prompt-cache":
-				capabilities.add("prompt-cache");
-				break;
-			case "images":
-				capabilities.add("images");
-				break;
-			case "structured_output":
-				capabilities.add("structured-output");
-				break;
-		}
-	}
 	const metadata: Record<string, JsonValue | undefined> = {};
 	if (info.family) {
 		metadata.family = info.family;
@@ -485,7 +466,7 @@ function modelInfoToGateway(
 		contextWindow: info.contextWindow,
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
-		capabilities: [...capabilities],
+		capabilities: toGatewayModelCapabilities(info.capabilities),
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};

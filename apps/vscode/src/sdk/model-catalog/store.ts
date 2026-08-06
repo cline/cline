@@ -204,7 +204,7 @@ function toStoredCapabilities(capabilities: readonly string[] | undefined): Stor
 			next.add(parsed.data)
 		}
 	}
-	return next.size > 0 ? [...next] : undefined
+	return next.size > 0 || capabilities.length === 0 ? [...next] : undefined
 }
 
 function toStoredApiFormat(apiFormat: ModelInfo["apiFormat"]): StoredModelEntry["apiFormat"] | undefined {

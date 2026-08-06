@@ -269,7 +269,7 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(maxTokens !== undefined ? { maxTokens } : {}),
 		...(contextWindow !== undefined ? { contextWindow } : {}),
 		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
-		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		capabilities: [...capabilities],
 		...(apiFormat !== undefined ? { apiFormat } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(hasPricing

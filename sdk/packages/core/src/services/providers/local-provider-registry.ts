@@ -308,6 +308,12 @@ function toStoredModelInfo(
 	model: StoredModelEntry | undefined,
 	fallbackCapabilities?: ModelInfo["capabilities"],
 ): ModelInfo {
+	const hasCapabilityMetadata =
+		model?.capabilities !== undefined ||
+		fallbackCapabilities !== undefined ||
+		model?.supportsVision !== undefined ||
+		model?.supportsAttachments !== undefined ||
+		model?.supportsReasoning !== undefined;
 	const capabilities = new Set<ModelCapability>(
 		model?.capabilities ?? fallbackCapabilities ?? [],
 	);
@@ -340,7 +346,7 @@ function toStoredModelInfo(
 		...(model?.maxInputTokens !== undefined
 			? { maxInputTokens: model.maxInputTokens }
 			: {}),
-		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(hasCapabilityMetadata ? { capabilities: [...capabilities] } : {}),
 		...(model?.temperature !== undefined
 			? { temperature: model.temperature }
 			: {}),
@@ -427,7 +433,7 @@ export function registerProviderSettingsProvider(
 	const generatedModels = getGeneratedModelsForProvider(providerId);
 	const modelCapabilities = toModelCapabilities(settings.capabilities);
 	const fallbackCapabilities =
-		modelCapabilities.length > 0 ? modelCapabilities : undefined;
+		settings.capabilities !== undefined ? modelCapabilities : undefined;
 	const modelId = settings.model?.trim();
 	const models: Record<string, ModelInfo> = {
 		...generatedModels,
@@ -500,8 +506,9 @@ export function registerCustomProvider(
 		registerCustomModels(providerId, storedModels);
 		return;
 	}
+	const provider = entry.provider;
 
-	const modelCapabilities = toModelCapabilities(entry.provider.capabilities);
+	const modelCapabilities = toModelCapabilities(provider.capabilities);
 	const modelEntries = Object.entries(storedModels)
 		.map(([modelKey, model]) => ({
 			id: model.id?.trim() || modelKey.trim(),
@@ -509,10 +516,10 @@ export function registerCustomProvider(
 		}))
 		.filter(({ id }) => id.length > 0);
 	const defaultModelId =
-		entry.provider.defaultModelId?.trim() || modelEntries[0]?.id || "default";
-	const protocol = resolveProviderProtocol(entry.provider.protocol, undefined);
+		provider.defaultModelId?.trim() || modelEntries[0]?.id || "default";
+	const protocol = resolveProviderProtocol(provider.protocol, undefined);
 	const client = resolveProviderClient(
-		entry.provider.client,
+		provider.client,
 		protocol,
 		undefined,
 	);
@@ -523,7 +530,9 @@ export function registerCustomProvider(
 				...toStoredModelInfo(
 					id,
 					model,
-					modelCapabilities.length > 0 ? modelCapabilities : undefined,
+					provider.capabilities !== undefined
+						? modelCapabilities
+						: undefined,
 				),
 				status: "active" as const,
 			},
@@ -533,13 +542,13 @@ export function registerCustomProvider(
 	LlmsModels.registerProvider({
 		provider: {
 			id: providerId,
-			name: entry.provider.name.trim() || titleCaseFromId(providerId),
+			name: provider.name.trim() || titleCaseFromId(providerId),
 			protocol,
 			client,
-			baseUrl: entry.provider.baseUrl,
-			modelsSourceUrl: entry.provider.modelsSourceUrl,
+			baseUrl: provider.baseUrl,
+			modelsSourceUrl: provider.modelsSourceUrl,
 			defaultModelId,
-			capabilities: toProviderCapabilities(entry.provider.capabilities),
+			capabilities: toProviderCapabilities(provider.capabilities),
 			source: "file",
 		},
 		models: normalizedModels,
