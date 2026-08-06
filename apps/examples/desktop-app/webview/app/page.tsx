@@ -100,11 +100,7 @@ type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 
-/**
- * Cycling status line for a cloud sandbox that is still being provisioned.
- * Shared by the originating thread (ChatMessages startingLabel) and the
- * placeholder pane so both loading states look identical.
- */
+/** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
 	const repoLabel = repoUrl
 		?.replace(/\.git$/i, "")
@@ -124,8 +120,7 @@ function useCloudProvisioningPhase(repoUrl?: string): string {
 	);
 	const [phaseIndex, setPhaseIndex] = useState(0);
 	useEffect(() => {
-		// Advance once and hold on the last phase — looping back to "spinning
-		// up" would read like provisioning started over.
+		// Hold the final phase so provisioning does not appear to restart.
 		const interval = window.setInterval(() => {
 			setPhaseIndex((current) => {
 				const next = Math.min(current + 1, phases.length - 1);
@@ -140,10 +135,7 @@ function useCloudProvisioningPhase(repoUrl?: string): string {
 	return `${phases[phaseIndex]}...`;
 }
 
-/**
- * Loading pane for a provisioning placeholder session — the same compact row
- * ChatMessages shows for a starting run, so both loading states match.
- */
+/** Matches the compact loading row shown inside a starting chat. */
 function CloudProvisioningPane({ phase }: { phase: string }) {
 	return (
 		<div className="px-6 py-6">
@@ -362,9 +354,7 @@ export default function Home() {
 		[handleOpenSession, sessionHistory.sessions],
 	);
 
-	// When a cloud sandbox finishes provisioning, its sidebar placeholder is
-	// replaced by the real session under a new id. Swap any thread that was
-	// showing the placeholder so "opens automatically once ready" holds.
+	// Replace an open provisioning placeholder with its real session.
 	useEffect(() => {
 		return desktopClient.subscribe("cloud_session_provisioned", (payload) => {
 			if (!payload || typeof payload !== "object") {
@@ -385,9 +375,7 @@ export default function Home() {
 			}
 			const swap = async () => {
 				if (placeholderThread.id === activeThreadId) {
-					// If the real session cannot be opened, keep the placeholder
-					// thread — deleting it would dump the user onto a blank
-					// fallback thread mid-provision.
+					// Keep the placeholder if the real session cannot open.
 					const opened = await handleOpenSessionById(sessionId);
 					if (!opened) {
 						return;
@@ -532,9 +520,7 @@ function ChatThreadPane({
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
-	/** Current status of historySession from the LIVE session list — the
-	 * snapshot in historySession goes stale (e.g. a provisioning placeholder
-	 * that has since resolved and vanished from the list). */
+	/** Current status from the live list; the history snapshot may be stale. */
 	liveHistoryStatus?: string;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
@@ -660,11 +646,7 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
-	// Belt and braces: the id prefix (minted in sidecar/cloud-sessions.ts) is
-	// available synchronously in the snapshot and survives any status
-	// normalization or list-refresh lag; the status covers everything else.
-	// Once provisioning resolves, cloud_session_provisioned swaps this thread
-	// out entirely, so neither signal can go stale.
+	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
 		liveHistoryStatus === "provisioning" ||
 		Boolean(historySession?.sessionId?.startsWith("cloud-provisioning-"));
@@ -700,8 +682,7 @@ function ChatThreadPane({
 	}, [knownWorkspacePaths]);
 
 	useEffect(() => {
-		// Cloud sessions clear/replace workspaceRoot with the sandbox's synthetic
-		// path — persisting that would clobber the remembered local workspace.
+		// Do not persist a sandbox's synthetic path as the local workspace.
 		if (config.executionTarget === "cloud") {
 			return;
 		}
@@ -1429,10 +1410,7 @@ function ChatThreadPane({
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
-	// The new-prompt hero is ONLY for genuinely fresh threads. Any thread
-	// opened from an existing session (historySession set) must never flash
-	// it — with zero messages that state is "loading" or an empty
-	// conversation, not "what would you like to build".
+	// Existing empty sessions are loading or empty, never a fresh prompt.
 	const isWelcomeState =
 		displayedMessages.length === 0 &&
 		!displayedIsSwitching &&

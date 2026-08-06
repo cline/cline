@@ -192,8 +192,9 @@ export class CloudSessionApi {
 		path: string,
 		init: RequestInit = {},
 		githubConnectUrl?: string,
+		authToken?: string,
 	): Promise<T> {
-		const token = await this.options.getAuthToken();
+		const token = authToken ?? (await this.options.getAuthToken());
 		if (!token?.trim()) {
 			throw new CloudSessionError(
 				"authentication_required",
@@ -226,12 +227,23 @@ export class CloudSessionApi {
 	}
 
 	async list(organizationId?: string): Promise<CloudSessionRecord[]> {
+		return await this.listWithToken(organizationId);
+	}
+
+	private async listWithToken(
+		organizationId?: string,
+		authToken?: string,
+	): Promise<CloudSessionRecord[]> {
 		const query = organizationId?.trim()
 			? `?organizationId=${encodeURIComponent(organizationId.trim())}`
 			: "";
 		return (
-			(await this.request<CloudSessionRecord[]>(`/api/v1/session${query}`)) ??
-			[]
+			(await this.request<CloudSessionRecord[]>(
+				`/api/v1/session${query}`,
+				{},
+				undefined,
+				authToken,
+			)) ?? []
 		);
 	}
 
@@ -327,12 +339,23 @@ export class CloudSessionApi {
 	async create(input: CreateCloudSessionInput): Promise<{
 		sessionId: string;
 		sandboxUrl: string;
+		cleanupAuthToken: string;
 	}> {
+		const creationAuthToken = (await this.options.getAuthToken())?.trim();
+		if (!creationAuthToken) {
+			throw new CloudSessionError(
+				"authentication_required",
+				"Sign in to Cline before starting a cloud session.",
+			);
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		const requestedAt = Date.now();
 		try {
-			return await this.request(
+			const created = await this.request<{
+				sessionId: string;
+				sandboxUrl: string;
+			}>(
 				"/api/v1/session",
 				{
 					method: "POST",
@@ -349,18 +372,21 @@ export class CloudSessionApi {
 				input.organizationId?.trim()
 					? `${this.appBaseUrl}/dashboard/organization/integrations`
 					: undefined,
+				creationAuthToken,
 			);
+			return { ...created, cleanupAuthToken: creationAuthToken };
 		} catch (error) {
-			// Provisioning may finish after the client-facing load balancer closes
-			// the synchronous create request. Recover the matching record instead of
-			// telling the user creation failed while a sandbox is still coming up.
+			// Provisioning may outlive the synchronous request; recover its record.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				(error instanceof CloudSessionError && error.code === "request_failed");
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
 				const recovered = (
-					await this.list(input.organizationId).catch(() => [])
+					await this.listWithToken(
+						input.organizationId,
+						creationAuthToken,
+					).catch(() => [])
 				)
 					.filter(
 						(session) =>
@@ -380,6 +406,7 @@ export class CloudSessionApi {
 					return {
 						sessionId: recovered.id,
 						sandboxUrl: recovered.sandboxUrl,
+						cleanupAuthToken: creationAuthToken,
 					};
 				}
 			}
@@ -389,10 +416,13 @@ export class CloudSessionApi {
 		}
 	}
 
-	async delete(sessionId: string): Promise<void> {
-		await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}`, {
-			method: "DELETE",
-		});
+	async delete(sessionId: string, authToken?: string): Promise<void> {
+		await this.request(
+			`/api/v1/session/${encodeURIComponent(sessionId)}`,
+			{ method: "DELETE" },
+			undefined,
+			authToken,
+		);
 	}
 
 	async updateTitle(
@@ -527,9 +557,7 @@ function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 		// running. Hub attach/events provide the authoritative busy state.
 		busy: false,
 		startedAt: Date.parse(record.createdAt) || Date.now(),
-		// expiredAt is a FUTURE TTL deadline while the session is alive — it only
-		// becomes an end time once it has passed. A future endedAt renders every
-		// session as "now" in the sidebar.
+		// A future TTL is not an end time.
 		endedAt:
 			isExpiredRecord(record) && record.expiredAt
 				? Date.parse(record.expiredAt)
@@ -553,9 +581,7 @@ export function cloudSessionToDiscoveryRecord(
 		workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		repoUrl: record.repoContext.repoUrl ?? "",
 		branch: record.repoContext.branch ?? "",
-		// createdAt, deliberately: the backend bumps updatedAt (and the TTL) on
-		// every WS connect — with auto-reconnecting clients that renders every
-		// visited session as "now" forever.
+		// updatedAt changes on every reconnect, so it is not a stable start time.
 		startedAt: record.createdAt,
 		endedAt: isExpiredRecord(record)
 			? (record.expiredAt ?? undefined)
@@ -801,10 +827,7 @@ export class CloudSessionManager {
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
 		const scoped = await this.options.api.list(organizationId);
-		// Upsert, never clear: the registry keeps every session seen this run
-		// so a thread opened under another scope (personal ⇄ org) stays
-		// routable after a switch. Display truth is lastListedSessions —
-		// only the ACTIVE scope shows in the sidebar.
+		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
 		}
@@ -956,7 +979,10 @@ export class CloudSessionManager {
 			);
 		}
 		if (this.disposed) {
-			await this.deleteProvisionedSessionAfterDispose(created.sessionId);
+			await this.deleteProvisionedSessionAfterDispose(
+				created.sessionId,
+				created.cleanupAuthToken,
+			);
 			throw new Error(
 				"Cline account changed while the cloud session was starting",
 			);
@@ -996,7 +1022,10 @@ export class CloudSessionManager {
 			);
 		}
 		if (this.disposed) {
-			await this.deleteProvisionedSessionAfterDispose(record.id);
+			await this.deleteProvisionedSessionAfterDispose(
+				record.id,
+				created.cleanupAuthToken,
+			);
 			throw new Error(
 				"Cline account changed while the cloud session was starting",
 			);
@@ -1017,10 +1046,11 @@ export class CloudSessionManager {
 
 	private async deleteProvisionedSessionAfterDispose(
 		outerSessionId: string,
+		authToken?: string,
 	): Promise<void> {
 		this.knownSessions.delete(outerSessionId);
 		this.ctx.liveSessions.delete(outerSessionId);
-		await this.options.api.delete(outerSessionId).catch((error) => {
+		await this.options.api.delete(outerSessionId, authToken).catch((error) => {
 			this.ctx.logger?.log(
 				"Failed to clean up a cloud session created during an account change",
 				{ sessionId: outerSessionId, error },

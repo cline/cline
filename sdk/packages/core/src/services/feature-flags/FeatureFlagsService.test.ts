@@ -1,7 +1,11 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FEATURE_FLAGS, type IFeatureFlagsProvider } from "@cline/shared";
+import {
+	FEATURE_FLAGS,
+	type FeatureFlagsAndPayloads,
+	type IFeatureFlagsProvider,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsService } from "./FeatureFlagsService";
 
@@ -80,12 +84,30 @@ describe("FeatureFlagsService", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
 
-		const provider = createProvider();
+		let resolveProvider:
+			| ((value: FeatureFlagsAndPayloads | undefined) => void)
+			| undefined;
+		const provider = createProvider({
+			getAllFlagsAndPayloads: vi.fn(
+				() =>
+					new Promise<FeatureFlagsAndPayloads | undefined>((resolve) => {
+						resolveProvider = resolve;
+					}),
+			),
+		});
 		const service = new FeatureFlagsService({ provider });
 
-		await Promise.all([service.poll("user-1"), service.poll("user-1")]);
+		const firstPoll = service.poll("user-1");
+		const secondPoll = service.poll("user-1");
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+		resolveProvider?.({
+			featureFlags: { [TEST_BOOLEAN_FLAG]: true },
+			featureFlagPayloads: {},
+		});
+		await Promise.all([firstPoll, secondPoll]);
 
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
 	});
 
 	it("re-polls when the user context changes within the cache ttl", async () => {

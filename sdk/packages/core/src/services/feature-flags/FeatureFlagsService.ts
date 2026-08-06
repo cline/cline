@@ -54,6 +54,7 @@ export class FeatureFlagsService {
 	private context: FeatureFlagsContext;
 	private cache: Map<FeatureFlag, FeatureFlagPayload | undefined> = new Map();
 	private cacheInfo: CacheInfo = { updateTime: 0, userId: null };
+	private inFlightPolls = new Map<string | null, Promise<void>>();
 
 	constructor(options: FeatureFlagsServiceOptions) {
 		this.provider = options.provider;
@@ -90,6 +91,11 @@ export class FeatureFlagsService {
 
 	async poll(userId?: string | null): Promise<void> {
 		const resolvedUserId = userId ?? this.context.userId ?? null;
+		const existingPoll = this.inFlightPolls.get(resolvedUserId);
+		if (existingPoll) {
+			return existingPoll;
+		}
+
 		const timeNow = Date.now();
 		if (timeNow - this.cacheInfo.updateTime < this.cacheTtlMs) {
 			if (this.cacheInfo.userId === resolvedUserId) {
@@ -100,31 +106,39 @@ export class FeatureFlagsService {
 		const previousCacheInfo = this.cacheInfo;
 		this.cacheInfo = { updateTime: timeNow, userId: resolvedUserId || null };
 
+		const pollPromise = (async () => {
+			try {
+				const values = await this.provider.getAllFlagsAndPayloads({
+					flagKeys: FEATURE_FLAGS.length > 0 ? FEATURE_FLAGS : undefined,
+					context: { ...this.context, userId: resolvedUserId },
+				});
+
+				if (this.cacheInfo.userId !== resolvedUserId) {
+					return;
+				}
+
+				this.cacheInfo.flagsPayload = values;
+				this.rebuildCacheFromSnapshot(values);
+				this.writePersistentCache();
+			} catch (error) {
+				if (this.cacheInfo.userId !== resolvedUserId) {
+					return;
+				}
+
+				this.cacheInfo = previousCacheInfo.updateTime
+					? previousCacheInfo
+					: { updateTime: 0, userId: null };
+				this.logger?.error?.("Error polling SDK feature flags", { error });
+				throw error;
+			}
+		})();
+		this.inFlightPolls.set(resolvedUserId, pollPromise);
 		try {
-			const values = await this.provider.getAllFlagsAndPayloads({
-				flagKeys: FEATURE_FLAGS.length > 0 ? FEATURE_FLAGS : undefined,
-				context: { ...this.context, userId: resolvedUserId },
-			});
-
-			if (this.cacheInfo.userId !== resolvedUserId) {
-				// A new poll has started with a different userId, so we should not update the cache with the results of this poll
-				return;
+			await pollPromise;
+		} finally {
+			if (this.inFlightPolls.get(resolvedUserId) === pollPromise) {
+				this.inFlightPolls.delete(resolvedUserId);
 			}
-
-			this.cacheInfo.flagsPayload = values;
-			this.rebuildCacheFromSnapshot(values);
-			this.writePersistentCache();
-		} catch (error) {
-			if (this.cacheInfo.userId !== resolvedUserId) {
-				// A new poll has started with a different userId, so we should not update the cache with the results of this poll
-				return;
-			}
-
-			this.cacheInfo = previousCacheInfo.updateTime
-				? previousCacheInfo
-				: { updateTime: 0, userId: null };
-			this.logger?.error?.("Error polling SDK feature flags", { error });
-			throw error;
 		}
 	}
 

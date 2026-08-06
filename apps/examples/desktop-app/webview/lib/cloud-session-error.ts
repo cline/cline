@@ -44,12 +44,7 @@ export function parseCloudSessionError(
 	}
 }
 
-/**
- * Human-readable form of any error string: strips the machine-readable
- * CLOUD_SESSION_ERROR envelope when present, otherwise returns the input.
- * Every user-facing error surface should render through this — the raw
- * envelope must never reach the screen.
- */
+/** Strips the machine-readable cloud error envelope for display. */
 export function humanizeCloudSessionError(value: string): string {
 	return parseCloudSessionError(value)?.message ?? value;
 }

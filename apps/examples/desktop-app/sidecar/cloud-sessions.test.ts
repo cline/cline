@@ -1509,36 +1509,56 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
-	it("deletes a sandbox that finishes provisioning after the manager is disposed", async () => {
+	it("deletes a late sandbox with the account that created it", async () => {
 		const { ctx } = createContext();
-		let finishCreate:
-			| ((value: { sessionId: string; sandboxUrl: string }) => void)
-			| undefined;
-		const deleted: string[] = [];
-		const manager = new CloudSessionManager(ctx, {
-			api: {
-				create: () =>
-					new Promise((resolve) => {
-						finishCreate = resolve;
-					}),
-				delete: async (sessionId: string) => {
-					deleted.push(sessionId);
-				},
-			} as unknown as CloudSessionApi,
+		let authToken = "workos:original";
+		let finishCreate: (() => void) | undefined;
+		const deleteAuthorizations: string[] = [];
+		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => authToken,
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return await new Promise<Response>((resolve) => {
+						finishCreate = () =>
+							resolve(
+								jsonResponse(
+									{
+										success: true,
+										data: {
+											sessionId: "ses-created-late",
+											sandboxUrl: "pod",
+										},
+									},
+									201,
+								),
+							);
+					});
+				}
+				deleteAuthorizations.push(
+					new Headers(init?.headers).get("Authorization") ?? "",
+				);
+				return new Response(null, { status: 204 });
+			},
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => authToken,
 		});
 		const creating = manager.create({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		authToken = "workos:new-account";
 		await manager.dispose();
 
-		finishCreate?.({ sessionId: "ses-created-late", sandboxUrl: "pod" });
+		finishCreate?.();
 
 		await expect(creating).rejects.toThrow(/account changed/i);
-		expect(deleted).toEqual(["ses-created-late"]);
+		expect(deleteAuthorizations).toEqual(["Bearer workos:original"]);
 		expect(ctx.liveSessions.has("ses-created-late")).toBe(false);
 	});
 
