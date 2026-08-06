@@ -246,14 +246,15 @@ export function AccountView() {
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
+			if (isClineAccountNotAuthenticatedResult(organizationBalanceData)) {
+				resetAccountData();
+				setSignedOut(true);
+				return;
+			}
 			setSignedOut(false);
 			setUser(userData);
 			setBalance(balanceData);
-			setOrganizationBalance(
-				isClineAccountNotAuthenticatedResult(organizationBalanceData)
-					? null
-					: organizationBalanceData,
-			);
+			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
 			resetAccountData();

@@ -55,6 +55,51 @@ describe("AccountView signed-out state", () => {
 		]);
 	});
 
+	it("signs out when the organization balance fetch reports the typed signed-out result", async () => {
+		// The token can expire between the initial account fetches and the
+		// organization-balance fetch; the typed result must sign the view out
+		// rather than being coerced into a signed-in view with no balance.
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						return {
+							id: "user-1",
+							email: "beatrix@cline.bot",
+							displayName: "Beatrix",
+							createdAt: "2024-01-01T00:00:00Z",
+							updatedAt: "2024-01-01T00:00:00Z",
+							organizations: [],
+						};
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [
+							{
+								organizationId: "org-1",
+								name: "Cline",
+								active: true,
+								roles: ["member"],
+							},
+						];
+					case "fetchOrganizationBalance":
+						return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+					default:
+						return {};
+				}
+			},
+		);
+
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Sign in to Cline");
+		});
+		expect(container.textContent).not.toContain("Beatrix");
+	});
+
 	it("renders account data when the session is signed in", async () => {
 		invoke.mockImplementation(
 			async (_command: string, args?: Record<string, unknown>) => {
