@@ -7,6 +7,7 @@ import {
 } from "@cline/shared";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
 	createMcpOAuthProviderContext,
@@ -88,6 +89,28 @@ function encodeFramedMessage(message: Record<string, unknown>): Buffer {
 		Buffer.from(`Content-Length: ${body.byteLength}\r\n\r\n`, "utf8"),
 		body,
 	]);
+}
+
+// Windows environment names are case-insensitive but object keys are not, so
+// keeping both the default `PATH` and a configured `Path` lets node's sort pick
+// the default and silently drop the configured value.
+function buildStdioEnv(
+	configured: Record<string, string>,
+): Record<string, string> {
+	const defaults = getDefaultEnvironment();
+	if (process.platform !== "win32") {
+		return { ...defaults, ...configured };
+	}
+
+	const configuredNames = new Set(
+		Object.keys(configured).map((name) => name.toLowerCase()),
+	);
+	const inherited = Object.fromEntries(
+		Object.entries(defaults).filter(
+			([name]) => !configuredNames.has(name.toLowerCase()),
+		),
+	);
+	return { ...inherited, ...configured };
 }
 
 type StdioProtocolMode = "newline" | "framed";
@@ -310,10 +333,7 @@ class StdioMcpClient implements McpServerClient {
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
 			cwd: transport.cwd,
-			env: {
-				...process.env,
-				...(transport.env ?? {}),
-			},
+			env: buildStdioEnv(transport.env ?? {}),
 			stdio: ["pipe", "pipe", "pipe"],
 			...platformOptions,
 		});
