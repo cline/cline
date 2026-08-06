@@ -1605,7 +1605,16 @@ export function useChatSession() {
 					result?.messages,
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
-				const resolvedAssistantText = rawAssistantText;
+				const turnFailed = result?.finishReason === "error";
+				// When the turn fails before any streamed output, the result text is
+				// the provider error (e.g. "invalid x-api-key"), not assistant prose.
+				// Keep it out of the assistant bubble so the failure branch below can
+				// surface it as error feedback instead.
+				const failedBeforeStreaming =
+					turnFailed && !activeAssistantMessageIdRef.current;
+				const resolvedAssistantText = failedBeforeStreaming
+					? ""
+					: rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1667,7 +1676,7 @@ export function useChatSession() {
 							},
 						]);
 					});
-				} else {
+				} else if (!turnFailed) {
 					// Recovery: load canonical messages if transport missed result text.
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
@@ -1689,16 +1698,21 @@ export function useChatSession() {
 					});
 				}
 
-				try {
-					const historyMessages = await desktopClient.invoke<ChatMessage[]>(
-						"read_session_messages",
-						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
-					);
-					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+				// Failed turns are never persisted server-side, so canonical
+				// hydration would wipe the local error feedback with a transcript
+				// that only contains the user prompt. Keep the optimistic state.
+				if (!turnFailed) {
+					try {
+						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
+							"read_session_messages",
+							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
+						);
+						if (historyMessages.length > 0) {
+							setMessages(historyMessages);
+						}
+					} catch {
+						// Keep optimistic state if canonical hydration fails.
 					}
-				} catch {
-					// Keep optimistic state if canonical hydration fails.
 				}
 
 				// Token / cost bookkeeping
@@ -1775,13 +1789,20 @@ export function useChatSession() {
 						const toolError = Array.isArray(result?.toolCalls)
 							? result.toolCalls.find((c) => c.error)?.error
 							: undefined;
-						addMessage(
-							makeErrorChatMessage(
-								activeSessionId,
-								toolError?.trim() ||
-									"Runtime turn failed before an assistant response was produced.",
-							),
-						);
+						const failureText =
+							(failedBeforeStreaming ? rawAssistantText : "") ||
+							toolError?.trim() ||
+							"Runtime turn failed before an assistant response was produced.";
+						setMessages((prev) => {
+							const last = prev.at(-1);
+							if (last?.role === "error" && last.content === failureText) {
+								return prev;
+							}
+							return sliceMessages([
+								...prev,
+								makeErrorChatMessage(activeSessionId, failureText),
+							]);
+						});
 					}
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {

@@ -143,16 +143,22 @@ describe("useChatSession", () => {
 	it.each([
 		{
 			finishReason: "completed",
+			// Successful turns render the result text as assistant prose.
+			role: "assistant" as const,
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 		{
 			finishReason: "error",
+			// Failed turns never streamed output, so the result text is the
+			// provider error and surfaces as error feedback instead.
+			role: "error" as const,
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 	])("handles schema-like assistant text for $finishReason responses", async ({
 		finishReason,
+		role,
 		expected,
 	}) => {
 		const schemaLikeText =
@@ -190,8 +196,7 @@ describe("useChatSession", () => {
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
 		expect(
-			current.messages.findLast((message) => message.role === "assistant")
-				?.content,
+			current.messages.findLast((message) => message.role === role)?.content,
 		).toBe(expected);
 	});
 
@@ -1159,6 +1164,71 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.filter((message) => message.role === "error"),
 		).toHaveLength(1);
+	});
+
+	it("keeps provider error feedback when a direct send fails before streaming", async () => {
+		const historyReads: string[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					// Core never persisted the failed turn: canonical history only
+					// has the user prompt. Hydrating from it would wipe the error.
+					historyReads.push(String(args?.sessionId ?? ""));
+					return [
+						{
+							id: "hist_user",
+							sessionId: String(args?.sessionId ?? ""),
+							role: "user",
+							content: "hello there",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-test",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "invalid x-api-key", finishReason: "error" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("hello there"));
+
+		expect(current.status).toBe("failed");
+		// The provider error is failure feedback, not assistant prose.
+		expect(
+			current.messages.some((message) => message.role === "assistant"),
+		).toBe(false);
+		const lastMessage = current.messages.at(-1);
+		expect(lastMessage?.role).toBe("error");
+		expect(lastMessage?.content).toBe("invalid x-api-key");
+		// The user's optimistic prompt bubble must survive the failed turn.
+		expect(
+			current.messages.some(
+				(message) =>
+					message.role === "user" && message.content.includes("hello there"),
+			),
+		).toBe(true);
+		// Canonical hydration is skipped for failed turns; it would replace the
+		// transcript with a history that has no record of the failure.
+		expect(historyReads).toHaveLength(0);
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {
