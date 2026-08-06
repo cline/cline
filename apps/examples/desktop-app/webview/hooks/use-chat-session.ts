@@ -1597,7 +1597,14 @@ export function useChatSession() {
 					setStatus("cancelled");
 					return;
 				}
-				const assistantText = (result?.text ?? "").trim();
+				// On a failed run the runtime reports the error string in
+				// result.text — it is not assistant content and must not be
+				// rendered as an assistant bubble (canonical rehydration would
+				// silently wipe it, leaving the user with a blank chat).
+				const isErrorResult = result?.finishReason === "error";
+				const assistantText = isErrorResult
+					? ""
+					: (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -1768,18 +1775,19 @@ export function useChatSession() {
 				if (abortedRef.current) {
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
-					if (!resolvedAssistantText) {
-						const toolError = Array.isArray(result?.toolCalls)
-							? result.toolCalls.find((c) => c.error)?.error
-							: undefined;
-						addMessage(
-							makeErrorChatMessage(
-								activeSessionId,
+					// Added after canonical rehydration so the error survives it.
+					const runError = (result?.text ?? "").trim();
+					const toolError = Array.isArray(result?.toolCalls)
+						? result.toolCalls.find((c) => c.error)?.error
+						: undefined;
+					addMessage(
+						makeErrorChatMessage(
+							activeSessionId,
+							runError ||
 								toolError?.trim() ||
-									"Runtime turn failed before an assistant response was produced.",
-							),
-						);
-					}
+								"Runtime turn failed before an assistant response was produced.",
+						),
+					);
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
 					setStatus("cancelled");

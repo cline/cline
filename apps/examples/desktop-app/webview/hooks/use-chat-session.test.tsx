@@ -141,18 +141,24 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
+		// On success result.text is assistant content; on a failed run it is
+		// the runtime's error string and must surface as an error message
+		// (assistant bubbles for unpersisted turns are wiped by rehydration).
 		{
 			finishReason: "completed",
+			expectedRole: "assistant",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 		{
 			finishReason: "error",
+			expectedRole: "error",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 	])("handles schema-like assistant text for $finishReason responses", async ({
 		finishReason,
+		expectedRole,
 		expected,
 	}) => {
 		const schemaLikeText =
@@ -190,7 +196,7 @@ describe("useChatSession", () => {
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
 		expect(
-			current.messages.findLast((message) => message.role === "assistant")
+			current.messages.findLast((message) => message.role === expectedRole)
 				?.content,
 		).toBe(expected);
 	});
