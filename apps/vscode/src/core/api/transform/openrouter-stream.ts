@@ -27,6 +27,8 @@ import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"
 
+export const IMAGE_UNSUPPORTED_PLACEHOLDER = "[image omitted: model does not support image input]"
+
 const openRouterExplicitCacheControlModelIds = new Set([
 	"deepseek/deepseek-v3.2",
 	"qwen/qwen-plus",
@@ -43,6 +45,34 @@ function needsExplicitCacheControl(modelId: string): boolean {
 	)
 }
 
+function replaceUnsupportedImages(messages: Anthropic.Messages.MessageParam[]): Anthropic.Messages.MessageParam[] {
+	return messages.map((message) => {
+		if (typeof message.content === "string") {
+			return message
+		}
+
+		return {
+			...message,
+			content: message.content.map((part) => {
+				if (part.type === "image") {
+					return { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
+				}
+				if (part.type !== "tool_result" || !Array.isArray(part.content)) {
+					return part
+				}
+				return {
+					...part,
+					content: part.content.map((resultPart) =>
+						resultPart.type === "image"
+							? { type: "text" as const, text: IMAGE_UNSUPPORTED_PLACEHOLDER }
+							: resultPart,
+					),
+				}
+			}),
+		}
+	})
+}
+
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
@@ -54,10 +84,15 @@ export async function createOpenRouterStream(
 	tools?: Array<ChatCompletionTool>,
 	enableParallelToolCalling?: boolean,
 ) {
+	// Capability changes take effect at the next request. Sanitize a request
+	// snapshot so model switches cannot send images already stored in history,
+	// while preserving that history for a later image-capable model.
+	const requestMessages = model.info.supportsImages === false ? replaceUnsupportedImages(messages) : messages
+
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
-		...convertToOpenAiMessages(messages),
+		...convertToOpenAiMessages(requestMessages),
 	]
 
 	const isClaude1m =
@@ -127,7 +162,7 @@ export async function createOpenRouterStream(
 		// Recommended values from DeepSeek
 		temperature = 0.7
 		topP = 0.95
-		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...requestMessages])
 	}
 	if (model.id.startsWith("google/gemini-3")) {
 		// Recommended value from google
