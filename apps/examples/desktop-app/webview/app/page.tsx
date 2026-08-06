@@ -69,6 +69,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
 	subscribeToProviderCatalogInvalidation,
@@ -610,7 +611,7 @@ function ChatThreadPane({
 				next[id] = {
 					apiKey: provider.apiKey?.trim() ?? "",
 				};
-				if (next[id].apiKey || provider.oauthAccessTokenPresent) {
+				if (isProviderConnected(provider)) {
 					anyConnected = true;
 				}
 				const contextWindows: Record<string, number> = {};
