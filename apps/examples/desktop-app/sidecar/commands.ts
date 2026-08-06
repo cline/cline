@@ -28,12 +28,15 @@ import {
 	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
+	listMcpServerOAuthStatuses,
 	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
+	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -42,6 +45,7 @@ import {
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	updateLocalProvider,
@@ -72,6 +76,11 @@ import {
 	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
+import {
+	cancelMcpOAuthAuthorization,
+	McpOAuthAuthorizationCancelledError,
+	runCancellableMcpOAuthAuthorization,
+} from "./mcp-oauth";
 import {
 	cancelProviderOAuthLogin,
 	runCancellableProviderOAuthLogin,
@@ -173,6 +182,17 @@ function readMcpServersResponse(): JsonRecord {
 	}
 	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
 	const servers = parsed.mcpServers as JsonRecord | undefined;
+	const registrations = new Map(
+		resolveMcpServerRegistrations({ filePath: settingsPath }).map(
+			(registration) => [registration.name, registration],
+		),
+	);
+	const oauthStatuses = new Map(
+		listMcpServerOAuthStatuses({ filePath: settingsPath }).map((status) => [
+			status.serverName,
+			status,
+		]),
+	);
 	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
 		const record = body as JsonRecord;
 		const transport =
@@ -181,52 +201,77 @@ function readMcpServersResponse(): JsonRecord {
 				: undefined;
 		const rawTransportType =
 			transport?.type ?? record.transportType ?? record.type;
+		const registration = registrations.get(name);
+		const resolvedTransport = registration?.transport;
 		const transportType = String(
-			rawTransportType ??
+			resolvedTransport?.type ??
+				rawTransportType ??
 				(typeof transport?.url === "string" || typeof record.url === "string"
 					? "sse"
 					: "stdio"),
 		).trim();
+		const oauthStatus = oauthStatuses.get(name);
 		return {
 			name,
 			transportType,
 			disabled: record.disabled === true,
 			command:
-				typeof transport?.command === "string"
-					? transport.command
-					: typeof record.command === "string"
-						? record.command
-						: undefined,
+				resolvedTransport?.type === "stdio"
+					? resolvedTransport.command
+					: typeof transport?.command === "string"
+						? transport.command
+						: typeof record.command === "string"
+							? record.command
+							: undefined,
 			args: Array.isArray(transport?.args)
 				? transport.args
-				: Array.isArray(record.args)
-					? record.args
-					: undefined,
+				: resolvedTransport?.type === "stdio"
+					? resolvedTransport.args
+					: Array.isArray(record.args)
+						? record.args
+						: undefined,
 			cwd:
-				typeof transport?.cwd === "string"
-					? transport.cwd
-					: typeof record.cwd === "string"
-						? record.cwd
-						: undefined,
+				resolvedTransport?.type === "stdio"
+					? resolvedTransport.cwd
+					: typeof transport?.cwd === "string"
+						? transport.cwd
+						: typeof record.cwd === "string"
+							? record.cwd
+							: undefined,
 			env:
-				transport?.env && typeof transport.env === "object"
-					? transport.env
-					: record.env && typeof record.env === "object"
-						? record.env
-						: undefined,
+				resolvedTransport?.type === "stdio"
+					? resolvedTransport.env
+					: transport?.env && typeof transport.env === "object"
+						? transport.env
+						: record.env && typeof record.env === "object"
+							? record.env
+							: undefined,
 			url:
-				typeof transport?.url === "string"
-					? transport.url
-					: typeof record.url === "string"
-						? record.url
-						: undefined,
+				resolvedTransport?.type !== "stdio" && resolvedTransport?.url
+					? resolvedTransport.url
+					: typeof transport?.url === "string"
+						? transport.url
+						: typeof record.url === "string"
+							? record.url
+							: undefined,
 			headers:
-				transport?.headers && typeof transport.headers === "object"
-					? transport.headers
-					: record.headers && typeof record.headers === "object"
-						? record.headers
-						: undefined,
-			metadata: record.metadata,
+				resolvedTransport?.type !== "stdio" && resolvedTransport?.headers
+					? resolvedTransport.headers
+					: transport?.headers && typeof transport.headers === "object"
+						? transport.headers
+						: record.headers && typeof record.headers === "object"
+							? record.headers
+							: undefined,
+			metadata: registration?.metadata ?? record.metadata,
+			oauthStatus: oauthStatus
+				? {
+						supported: oauthStatus.oauthSupported,
+						configured: oauthStatus.oauthConfigured,
+						authorizationRequired: oauthStatus.authorizationRequired,
+						lastError: oauthStatus.lastError,
+						lastAuthenticatedAt: oauthStatus.lastAuthenticatedAt,
+					}
+				: undefined,
 		};
 	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };
@@ -1604,22 +1649,61 @@ export async function handleCommand(
 	if (command === "list_mcp_servers") {
 		return readMcpServersResponse();
 	}
-	if (command === "set_mcp_server_disabled") {
-		const path = ensureMcpSettingsFile();
-		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-				{}) as JsonRecord;
-			const name = String(args?.name ?? "").trim();
-			const current = servers[name];
-			if (!current || typeof current !== "object") {
-				throw new Error(`unknown MCP server: ${name}`);
+	if (command === "authorize_mcp_server_oauth") {
+		const name = String(args?.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		const settingsPath = resolveMcpSettingsPath();
+		setMcpServerDisabled({ filePath: settingsPath, name, disabled: true });
+		try {
+			await runCancellableMcpOAuthAuthorization(
+				{
+					serverName: name,
+					filePath: settingsPath,
+					openUrl: openUrlInDefaultBrowser,
+				},
+				options?.connection,
+			);
+		} catch (error) {
+			if (!(error instanceof McpOAuthAuthorizationCancelledError)) {
+				throw error;
 			}
-			servers[name] = {
-				...(current as JsonRecord),
-				disabled: Boolean(args?.disabled),
-			};
-			settings.mcpServers = servers;
-		});
+			return readMcpServersResponse();
+		}
+		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
+		return readMcpServersResponse();
+	}
+	if (command === "cancel_mcp_server_oauth") {
+		const name = String(args?.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		cancelMcpOAuthAuthorization(name);
+		return readMcpServersResponse();
+	}
+	if (command === "set_mcp_server_disabled") {
+		const name = String(args?.name ?? "").trim();
+		const disabled = Boolean(args?.disabled);
+		const path = ensureMcpSettingsFile();
+		if (disabled) {
+			cancelMcpOAuthAuthorization(name);
+			setMcpServerDisabled({ filePath: path, name, disabled: true });
+			return readMcpServersResponse();
+		}
+		const registration = resolveMcpServerRegistrations({ filePath: path }).find(
+			(entry) => entry.name === name,
+		);
+		if (!registration) {
+			throw new Error(`unknown MCP server: ${name}`);
+		}
+		if (registration.transport.type !== "stdio") {
+			setMcpServerDisabled({ filePath: path, name, disabled: true });
+			const probe = await probeMcpServerConnection({
+				serverName: name,
+				filePath: path,
+			});
+			if (!probe.connected) {
+				return readMcpServersResponse();
+			}
+		}
+		setMcpServerDisabled({ filePath: path, name, disabled: false });
 		return readMcpServersResponse();
 	}
 	if (command === "upsert_mcp_server") {
@@ -1635,6 +1719,9 @@ export async function handleCommand(
 		const transportType = String(
 			input.transportType ?? input.transport_type ?? "",
 		).trim();
+		const requestedDisabled = Boolean(input.disabled);
+		const shouldProbeBeforeEnabling =
+			transportType !== "stdio" && !requestedDisabled;
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -1645,7 +1732,7 @@ export async function handleCommand(
 							cwd: input.cwd,
 							env: input.env,
 						},
-						disabled: Boolean(input.disabled),
+						disabled: requestedDisabled,
 						metadata: input.metadata,
 					}
 				: {
@@ -1654,21 +1741,31 @@ export async function handleCommand(
 							url: input.url,
 							headers: input.headers,
 						},
-						disabled: Boolean(input.disabled),
+						disabled: shouldProbeBeforeEnabling || requestedDisabled,
 						metadata: input.metadata,
 					};
 		const path = ensureMcpSettingsFile();
+		const sourceName = previousName || name;
+		const existingRegistration = resolveMcpServerRegistrations({
+			filePath: path,
+		}).find((entry) => entry.name === sourceName);
 		updateMcpSettingsFileSync(path, (settings) => {
 			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 				{}) as JsonRecord;
 			// Preserve machine-managed fields the editor dialog doesn't expose:
 			// oauth tokens for remote servers and plugin-ownership metadata.
-			const sourceName =
+			const existingName =
 				previousName && servers[previousName] ? previousName : name;
-			const existing = servers[sourceName];
+			const existing = servers[existingName];
 			const upserted = { ...next };
 			if (existing && typeof existing === "object") {
 				const record = existing as JsonRecord;
+				const existingTransportIdentity = existingRegistration
+					? mcpTransportIdentity({
+							transport:
+								existingRegistration.transport as unknown as JsonRecord,
+						})
+					: mcpTransportIdentity(record);
 				if (upserted.metadata === undefined && record.metadata !== undefined) {
 					upserted.metadata = record.metadata;
 				}
@@ -1677,9 +1774,15 @@ export async function handleCommand(
 				// credentials to a different endpoint.
 				if (
 					record.oauth !== undefined &&
-					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
+					existingTransportIdentity === mcpTransportIdentity(upserted)
 				) {
 					upserted.oauth = record.oauth;
+				}
+				if (
+					record.oauthClient !== undefined &&
+					existingTransportIdentity === mcpTransportIdentity(upserted)
+				) {
+					upserted.oauthClient = record.oauthClient;
 				}
 			}
 			if (previousName && previousName !== name) {
@@ -1688,6 +1791,15 @@ export async function handleCommand(
 			servers[name] = upserted;
 			settings.mcpServers = servers;
 		});
+		if (shouldProbeBeforeEnabling) {
+			const probe = await probeMcpServerConnection({
+				serverName: name,
+				filePath: path,
+			});
+			if (probe.connected) {
+				setMcpServerDisabled({ filePath: path, name, disabled: false });
+			}
+		}
 		return readMcpServersResponse();
 	}
 	if (command === "delete_mcp_server") {

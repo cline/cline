@@ -24,7 +24,11 @@ import {
 	updateMcpServerOAuthState,
 } from "./config-loader";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
-import type { McpServerOAuthState, McpServerRegistration } from "./types";
+import type {
+	McpServerOAuthClientConfig,
+	McpServerOAuthState,
+	McpServerRegistration,
+} from "./types";
 
 const DEFAULT_MCP_OAUTH_CALLBACK_PATH = "/mcp/oauth/callback";
 const DEFAULT_MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458];
@@ -48,6 +52,8 @@ export interface McpOAuthProviderContext {
 	getLastOAuthState(): string | undefined;
 	resetInteractiveState(): Promise<void>;
 	markError(errorMessage: string): Promise<void>;
+	markConnectionError(errorMessage: string): Promise<void>;
+	markAuthorizationRequired(errorMessage: string): Promise<void>;
 	clearError(): Promise<void>;
 }
 
@@ -65,6 +71,7 @@ export interface AuthorizeMcpServerOAuthOptions {
 	successHtml?: string;
 	onServerListening?: (info: OAuthServerListeningInfo) => void | Promise<void>;
 	onServerClose?: (info: OAuthServerCloseInfo) => void | Promise<void>;
+	signal?: AbortSignal;
 }
 
 export interface AuthorizeMcpServerOAuthResult {
@@ -91,6 +98,17 @@ function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {
 		response_types: ["code"],
 		token_endpoint_auth_method: "none",
 	};
+}
+
+export function createMcpOAuthClientInformation(
+	config: McpServerOAuthClientConfig | undefined,
+): OAuthClientInformationMixed | undefined {
+	return config
+		? {
+				client_id: config.clientId,
+				...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+			}
+		: undefined;
 }
 
 function isSameOAuthClient(
@@ -258,10 +276,25 @@ export function createMcpOAuthProviderContext(
 				lastError: errorMessage,
 			}));
 		},
+		markConnectionError: async (errorMessage) => {
+			await patch((current) => ({
+				...current,
+				lastError: errorMessage,
+				authorizationRequired: undefined,
+			}));
+		},
+		markAuthorizationRequired: async (errorMessage) => {
+			await patch((current) => ({
+				...current,
+				lastError: errorMessage,
+				authorizationRequired: true,
+			}));
+		},
 		clearError: async () => {
 			await patch((current) => ({
 				...current,
 				lastError: undefined,
+				authorizationRequired: undefined,
 			}));
 		},
 	};
@@ -284,18 +317,32 @@ export function createMcpSdkTransport(input: {
 				headers: transport.headers,
 			}
 		: undefined;
+	// The upstream transports only surface a typed UnauthorizedError for a 401
+	// when an OAuth provider is present. For passive connections without stored
+	// tokens, translate the response at the fetch boundary so callers can show
+	// an explicit sign-in action without starting discovery/registration/PKCE.
+	const transportFetch: FetchLike | undefined = input.oauthProvider
+		? input.fetch
+		: async (url, init) => {
+				const response = await (input.fetch ?? globalThis.fetch)(url, init);
+				if (response.status === 401) {
+					await response.body?.cancel().catch(() => undefined);
+					throw new UnauthorizedError("MCP server requires authorization");
+				}
+				return response;
+			};
 	if (transport.type === "sse") {
 		return new SSEClientTransport(new URL(transport.url), {
 			authProvider: input.oauthProvider,
 			requestInit,
-			fetch: input.fetch,
+			fetch: transportFetch,
 		});
 	}
 
 	return new StreamableHTTPClientTransport(new URL(transport.url), {
 		authProvider: input.oauthProvider,
 		requestInit,
-		fetch: input.fetch,
+		fetch: transportFetch,
 	});
 }
 
@@ -316,6 +363,11 @@ export async function authorizeMcpServerOAuth(
 	if (!serverName) {
 		throw new Error("MCP server name cannot be empty.");
 	}
+	if (options.signal?.aborted) {
+		throw new Error(
+			`MCP server "${serverName}" OAuth authorization was cancelled.`,
+		);
+	}
 
 	const { resolveMcpServerRegistrations } = await import("./config-loader");
 	const registration = resolveMcpServerRegistrations({
@@ -324,14 +376,18 @@ export async function authorizeMcpServerOAuth(
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
 	}
-	if (registration.disabled) {
-		throw new Error(
-			`MCP server "${serverName}" is disabled. Enable it before running OAuth.`,
-		);
-	}
 	if (registration.transport.type === "stdio") {
 		throw new Error(
 			`MCP server "${serverName}" uses stdio transport and does not support OAuth browser flow.`,
+		);
+	}
+	if (
+		Object.keys(registration.transport.headers ?? {}).some(
+			(name) => name.toLowerCase() === "authorization",
+		)
+	) {
+		throw new Error(
+			`MCP server "${serverName}" has a static Authorization header. Remove it before starting OAuth.`,
 		);
 	}
 	const requestTimeoutMs = resolveMcpRequestTimeoutMs(
@@ -352,19 +408,19 @@ export async function authorizeMcpServerOAuth(
 	if (!callbackServer.callbackUrl) {
 		throw new Error("Unable to bind local MCP OAuth callback server.");
 	}
+	const cancelCallbackWait = () => callbackServer.cancelWait();
+	options.signal?.addEventListener("abort", cancelCallbackWait, { once: true });
+	if (options.signal?.aborted) {
+		cancelCallbackWait();
+	}
 
 	const oauthContext = createMcpOAuthProviderContext({
 		settingsPath: options.filePath,
 		serverName,
 		redirectUrl: callbackServer.callbackUrl,
-		clientInformation: registration.oauthClient
-			? {
-					client_id: registration.oauthClient.clientId,
-					...(registration.oauthClient.clientSecret
-						? { client_secret: registration.oauthClient.clientSecret }
-						: {}),
-				}
-			: undefined,
+		clientInformation: createMcpOAuthClientInformation(
+			registration.oauthClient,
+		),
 		onAuthorizationUrl: async (url) => {
 			await options.openUrl?.(url);
 		},
@@ -380,8 +436,14 @@ export async function authorizeMcpServerOAuth(
 			fetch: options.fetch,
 		});
 		try {
-			await client.connect(transport, { timeout: requestTimeoutMs });
-			await client.listTools(undefined, { timeout: requestTimeoutMs });
+			await client.connect(transport, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
+			await client.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -392,6 +454,9 @@ export async function authorizeMcpServerOAuth(
 			if (!(error instanceof UnauthorizedError)) {
 				throw error;
 			}
+			await oauthContext.markAuthorizationRequired(
+				`MCP server "${serverName}" requires OAuth authorization.`,
+			);
 			const authUrl = oauthContext.getLastAuthorizationUrl();
 			if (!authUrl) {
 				throw new Error(
@@ -400,6 +465,11 @@ export async function authorizeMcpServerOAuth(
 			}
 			const callback = await callbackServer.waitForCallback();
 			if (!callback) {
+				if (options.signal?.aborted) {
+					throw new Error(
+						`MCP server "${serverName}" OAuth authorization was cancelled.`,
+					);
+				}
 				throw new Error(
 					"Timed out waiting for MCP OAuth authorization callback.",
 				);
@@ -431,8 +501,12 @@ export async function authorizeMcpServerOAuth(
 			});
 			await retryClient.connect(retryTransport, {
 				timeout: requestTimeoutMs,
+				signal: options.signal,
 			});
-			await retryClient.listTools(undefined, { timeout: requestTimeoutMs });
+			await retryClient.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -441,12 +515,18 @@ export async function authorizeMcpServerOAuth(
 			};
 		}
 	} catch (error) {
-		const message = toErrorMessage(
-			augmentMcpTimeoutError(error, serverName, requestTimeoutMs),
-		);
-		await oauthContext.markError(message);
+		const cancelled = options.signal?.aborted === true;
+		const message = cancelled
+			? `MCP server "${serverName}" OAuth authorization was cancelled.`
+			: toErrorMessage(
+					augmentMcpTimeoutError(error, serverName, requestTimeoutMs),
+				);
+		if (!cancelled) {
+			await oauthContext.markError(message);
+		}
 		throw new Error(message);
 	} finally {
+		options.signal?.removeEventListener("abort", cancelCallbackWait);
 		await client.close().catch(() => undefined);
 		await retryClient?.close().catch(() => undefined);
 		callbackServer.close();

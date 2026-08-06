@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { listMcpServerOAuthStatuses } from "./config-loader";
 import { createMcpOAuthProviderContext } from "./oauth";
 
 describe("mcp oauth", () => {
@@ -77,6 +78,40 @@ describe("mcp oauth", () => {
 		await expect(readFile(settingsPath, "utf8")).resolves.toBe(before);
 	});
 
+	it("exposes when a server requires interactive authorization", async () => {
+		const settingsPath = await createSettingsFile();
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+
+		await context.markAuthorizationRequired("OAuth authorization required");
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			oauthConfigured: false,
+			authorizationRequired: true,
+			lastError: "OAuth authorization required",
+		});
+
+		await context.resetInteractiveState();
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			authorizationRequired: true,
+			lastError: undefined,
+		});
+
+		await context.clearError();
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			authorizationRequired: false,
+			lastError: undefined,
+		});
+	});
+
 	it("does not reuse tokens after the configured OAuth client changes", async () => {
 		const settingsPath = await createSettingsFile();
 		const first = createMcpOAuthProviderContext({
@@ -93,7 +128,9 @@ describe("mcp oauth", () => {
 			refresh_token: "old-refresh-token",
 			token_type: "bearer",
 		});
-		expect((await first.provider.tokens())?.access_token).toBe("old-access-token");
+		expect((await first.provider.tokens())?.access_token).toBe(
+			"old-access-token",
+		);
 
 		const changedId = createMcpOAuthProviderContext({
 			settingsPath,
@@ -140,10 +177,14 @@ describe("mcp oauth", () => {
 			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
 		});
 
-		expect((await context.provider.tokens())?.access_token).toBe("legacy-access-token");
+		expect((await context.provider.tokens())?.access_token).toBe(
+			"legacy-access-token",
+		);
 
 		if (!context.provider.saveClientInformation) {
-			throw new Error("Expected OAuth provider to expose saveClientInformation.");
+			throw new Error(
+				"Expected OAuth provider to expose saveClientInformation.",
+			);
 		}
 		await context.provider.saveClientInformation({
 			client_id: "replacement-client",

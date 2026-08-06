@@ -81,6 +81,13 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	oauthStatus?: {
+		supported: boolean;
+		configured: boolean;
+		authorizationRequired: boolean;
+		lastError?: string;
+		lastAuthenticatedAt?: number;
+	};
 }
 
 interface McpServersResponse {
@@ -205,6 +212,9 @@ export function McpServersContent() {
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
+	const [authorizingServerName, setAuthorizingServerName] = useState<
+		string | null
+	>(null);
 	const [editorOpen, setEditorOpen] = useState(false);
 	const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
 	const [formState, setFormState] = useState<McpServerFormState>(() =>
@@ -243,6 +253,16 @@ export function McpServersContent() {
 	}, [refreshServers]);
 
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
+		if (
+			!disabled &&
+			server.oauthStatus?.authorizationRequired &&
+			!server.oauthStatus.configured
+		) {
+			setErrorMessage(
+				`Authorize OAuth for "${server.name}" using the sign-in icon before enabling it.`,
+			);
+			return;
+		}
 		setBusyServerName(server.name);
 		setErrorMessage(null);
 		try {
@@ -298,6 +318,40 @@ export function McpServersContent() {
 			setErrorMessage(message);
 		} finally {
 			setBusyServerName(null);
+		}
+	};
+
+	const authorizeOAuth = async (serverName: string) => {
+		setAuthorizingServerName(serverName);
+		setErrorMessage(null);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"authorize_mcp_server_oauth",
+				{ name: serverName },
+				{ timeoutMs: null },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			await refreshServers();
+			setErrorMessage(message);
+		} finally {
+			setAuthorizingServerName(null);
+		}
+	};
+
+	const cancelOAuth = async (serverName: string) => {
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"cancel_mcp_server_oauth",
+				{ name: serverName },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setErrorMessage(message);
+		} finally {
+			setAuthorizingServerName(null);
 		}
 	};
 
@@ -443,14 +497,34 @@ export function McpServersContent() {
 
 	const renderServerActions = (server: McpServer) => {
 		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
 		return (
 			<div className="flex items-center gap-1">
+				{server.oauthStatus?.authorizationRequired ? (
+					<Button
+						variant="outline"
+						size="sm"
+						aria-label={
+							isAuthorizing
+								? `Cancel OAuth for ${server.name}`
+								: `Connect ${server.name} with OAuth`
+						}
+						onClick={() =>
+							void (isAuthorizing
+								? cancelOAuth(server.name)
+								: authorizeOAuth(server.name))
+						}
+						disabled={isBusy}
+					>
+						{isAuthorizing ? "Cancel" : "Connect"}
+					</Button>
+				) : null}
 				<Button
 					variant="ghost"
 					size="icon-sm"
 					aria-label={`Edit ${server.name}`}
 					onClick={() => openEditDialog(server)}
-					disabled={isBusy}
+					disabled={isBusy || isAuthorizing}
 				>
 					<Pencil className="h-3.5 w-3.5" />
 				</Button>
@@ -459,7 +533,7 @@ export function McpServersContent() {
 					size="icon-sm"
 					aria-label={`Delete ${server.name}`}
 					onClick={() => setDeleteTarget(server)}
-					disabled={isBusy}
+					disabled={isBusy || isAuthorizing}
 				>
 					<Trash2 className="h-3.5 w-3.5" />
 				</Button>
@@ -542,7 +616,48 @@ export function McpServersContent() {
 				{renderServerActions(server)}
 			</div>
 			<div className="mt-2.5 ml-5.5 grid gap-2">
+				{server.oauthStatus?.authorizationRequired ? (
+					<div
+						className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+						role="alert"
+					>
+						<div className="grid gap-0.5">
+							<p className="text-xs font-medium text-foreground">
+								{authorizingServerName === server.name
+									? "Waiting for OAuth authorization"
+									: "OAuth authorization required"}
+							</p>
+							<p className="text-xs text-muted-foreground">
+								{authorizingServerName === server.name
+									? "Complete sign-in in your browser, or select Cancel to stop waiting."
+									: (server.oauthStatus.lastError ??
+										"Select Connect to sign in with your browser. The server will remain off until authorization succeeds.")}
+							</p>
+						</div>
+					</div>
+				) : null}
+				{server.oauthStatus?.lastError &&
+				!server.oauthStatus.authorizationRequired ? (
+					<div
+						className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+						role="alert"
+					>
+						<p className="text-xs font-medium text-destructive">
+							Connection failed
+						</p>
+						<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+							{server.oauthStatus.lastError}
+						</p>
+					</div>
+				) : null}
 				{renderServerDetails(server)}
+				{server.oauthStatus?.configured ? (
+					<div className="flex items-center gap-2 text-xs text-muted-foreground">
+						<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
+							OAuth connected
+						</span>
+					</div>
+				) : null}
 				{context?.matchedEntries?.length ? (
 					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 				) : null}

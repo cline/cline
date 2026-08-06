@@ -1,5 +1,12 @@
-export type { DefaultMcpServerClientFactoryOptions } from "./client";
-export { createDefaultMcpServerClientFactory } from "./client";
+export type {
+	DefaultMcpServerClientFactoryOptions,
+	ProbeMcpServerConnectionOptions,
+	ProbeMcpServerConnectionResult,
+} from "./client";
+export {
+	createDefaultMcpServerClientFactory,
+	probeMcpServerConnection,
+} from "./client";
 export type {
 	LoadMcpSettingsOptions,
 	McpSettingsFile,

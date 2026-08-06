@@ -19,6 +19,7 @@ import {
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
 	McpServerOAuthState,
@@ -48,6 +49,7 @@ const oauthStateSchema = z
 		redirectUrl: z.string().url().optional(),
 		lastError: z.string().optional(),
 		lastAuthenticatedAt: z.number().int().positive().optional(),
+		authorizationRequired: z.boolean().optional(),
 	})
 	.strip();
 const oauthClientSchema = z
@@ -694,6 +696,7 @@ export function normalizeMcpServerOAuthState(
 		...(value.lastAuthenticatedAt
 			? { lastAuthenticatedAt: value.lastAuthenticatedAt }
 			: {}),
+		...(value.authorizationRequired ? { authorizationRequired: true } : {}),
 	};
 	return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
@@ -722,7 +725,7 @@ export function resolveMcpServerRegistrations(
 	const config = loadMcpSettingsFile(options);
 	return Object.entries(config.mcpServers).map(([name, value]) => ({
 		name,
-		transport: value.transport,
+		transport: resolveNativeMcpTransport(value.transport),
 		disabled: value.disabled,
 		timeoutSeconds: value.timeoutSeconds,
 		metadata: value.metadata,
@@ -844,13 +847,26 @@ export function listMcpServerOAuthStatuses(
 		.map((registration) => {
 			const oauthSupported = registration.transport.type !== "stdio";
 			const accessToken = registration.oauth?.tokens?.access_token;
+			const tokenClientInformation = registration.oauth?.clientInformation;
+			const tokensMatchConfiguredClient = registration.oauthClient
+				? tokenClientInformation?.client_id ===
+						registration.oauthClient.clientId &&
+					tokenClientInformation?.client_secret ===
+						registration.oauthClient.clientSecret
+				: true;
+			const oauthConfigured =
+				oauthSupported &&
+				tokensMatchConfiguredClient &&
+				typeof accessToken === "string" &&
+				accessToken.trim().length > 0;
 			return {
 				serverName: registration.name,
 				oauthSupported,
-				oauthConfigured:
+				oauthConfigured,
+				authorizationRequired:
 					oauthSupported &&
-					typeof accessToken === "string" &&
-					accessToken.trim().length > 0,
+					!oauthConfigured &&
+					registration.oauth?.authorizationRequired === true,
 				lastError: registration.oauth?.lastError,
 				lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
 			};

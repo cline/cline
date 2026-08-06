@@ -297,6 +297,38 @@ describe("mcp config loader", () => {
 		]);
 	});
 
+	it("uses the native HTTP transport for an mcp-remote proxy entry", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						command: "npx",
+						args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+						disabled: true,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(resolveMcpServerRegistrations({ filePath })).toEqual([
+			{
+				name: "linear",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.linear.app/mcp",
+				},
+				disabled: true,
+				metadata: undefined,
+				oauth: undefined,
+			},
+		]);
+	});
+
 	it("accepts legacy flat url format and preserves explicit transportType", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -427,6 +459,7 @@ describe("mcp config loader", () => {
 				serverName: "linear",
 				oauthSupported: true,
 				oauthConfigured: true,
+				authorizationRequired: false,
 				lastError: undefined,
 				lastAuthenticatedAt: 123,
 			},

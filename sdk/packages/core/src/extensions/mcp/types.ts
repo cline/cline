@@ -69,6 +69,7 @@ export interface McpServerOAuthState {
 	redirectUrl?: string;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
+	authorizationRequired?: boolean;
 }
 
 export interface McpServerOAuthClientConfig {
@@ -123,6 +124,7 @@ export interface McpServerOAuthStatus {
 	serverName: string;
 	oauthSupported: boolean;
 	oauthConfigured: boolean;
+	authorizationRequired: boolean;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
 }
