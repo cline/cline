@@ -2,8 +2,23 @@ import type {
 	AgentSideConnection,
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import type { ContentBlock, Message, ToolResultContent } from "@cline/shared";
+import {
+	type ContentBlock,
+	formatDisplayUserInput,
+	type Message,
+	type ToolResultContent,
+} from "@cline/shared";
+import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
+
+/**
+ * The act-mode continuation prompt is runtime-generated, not typed by the
+ * user, so it must not replay as a user turn. Mirrors the TUI transcript
+ * hydration filter in tui/utils/hydrate-messages.ts.
+ */
+function isSyntheticUserText(text: string): boolean {
+	return text === ACT_MODE_CONTINUATION_PROMPT;
+}
 
 /**
  * Replay a persisted conversation to the client as session/update
@@ -35,12 +50,25 @@ export function translateHistoricalMessage(message: Message): SessionUpdate[] {
 		switch (block.type) {
 			case "text": {
 				if (!block.text) break;
-				const content = { type: "text" as const, text: block.text };
-				updates.push(
-					message.role === "user"
-						? { sessionUpdate: "user_message_chunk", content }
-						: { sessionUpdate: "agent_message_chunk", content },
-				);
+				if (message.role !== "user") {
+					updates.push({
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: block.text },
+					});
+					break;
+				}
+				// Display boundary: persisted user text keeps its runtime-generated
+				// <user_input mode="..."> wrapper and <mode_notice> elements (they are
+				// the durable record of the mode each turn was sent in). Replaying them
+				// verbatim leaks markup to the client, which renders the unknown
+				// element as bare text — so `s` shows up as `s` with the wrapper
+				// swallowed. Strip them the same way every other surface does.
+				const text = formatDisplayUserInput(block.text);
+				if (!text || isSyntheticUserText(text)) break;
+				updates.push({
+					sessionUpdate: "user_message_chunk",
+					content: { type: "text", text },
+				});
 				break;
 			}
 			case "thinking": {

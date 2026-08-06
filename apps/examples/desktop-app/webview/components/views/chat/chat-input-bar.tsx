@@ -1,31 +1,23 @@
 "use client";
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { SearchCombobox } from "@cline/ui";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
-	Check,
 	ChevronDown,
-	ChevronRight,
 	CircleStop,
-	Clock3,
-	Coins,
 	Cpu,
 	Paperclip,
-	Pencil,
-	Trash2,
 	X,
 } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
-	memo,
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -35,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -45,6 +38,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -69,6 +63,17 @@ type SlashCommand = {
 	description?: string;
 };
 
+type UserInstructionCommand = {
+	id: string;
+	name: string;
+	description?: string;
+	kind?: "skill" | "workflow";
+};
+
+type UserInstructionConfigResponse = {
+	runtimeCommands?: UserInstructionCommand[];
+};
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
@@ -76,6 +81,30 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+export function buildUserInstructionSlashCommands(
+	response: UserInstructionConfigResponse,
+): SlashCommand[] {
+	const commands = Array.isArray(response.runtimeCommands)
+		? response.runtimeCommands
+		: [];
+	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	return commands.flatMap((command) => {
+		const name = command.name;
+		if (!name || seen.has(name)) {
+			return [];
+		}
+		seen.add(name);
+		return [
+			{
+				name,
+				description:
+					command.description?.trim() ||
+					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
+			},
+		];
+	});
+}
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
@@ -112,7 +141,9 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Extra", value: "xhigh" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
-const PROMPT_INPUT_FOCUSED_ROWS = 5;
+const PROMPT_INPUT_EXPANDED_ROWS = 2;
+const PROMPT_INPUT_MAX_ROWS = 5;
+const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
@@ -216,6 +247,7 @@ type ChatInputBarProps = {
 	status: ChatSessionStatus;
 	provider: string;
 	model: string;
+	modelContextWindow?: number;
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
@@ -246,6 +278,8 @@ type ChatInputBarProps = {
 		toolCalls: number;
 		tokensIn: number;
 		tokensOut: number;
+		cacheReadTokens?: number;
+		totalCostUsd?: number;
 	};
 };
 
@@ -254,6 +288,7 @@ export function ChatInputBar({
 	status,
 	provider,
 	model,
+	modelContextWindow,
 	mode,
 	thinking,
 	reasoningEffort,
@@ -379,24 +414,7 @@ export function ChatInputBar({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-	const slashCommandsLoadedRef = useRef(false);
-	const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<
-		string | null
-	>(null);
-	const [editingQueuedPromptValue, setEditingQueuedPromptValue] = useState("");
-	const [queueActionPendingId, setQueueActionPendingId] = useState<
-		string | null
-	>(null);
-	const [queueExpanded, setQueueExpanded] = useState(false);
-	const queuedPromptsId = useId();
 
-	const tokensSummary = useMemo(() => {
-		const total = summary.tokensIn + summary.tokensOut;
-		if (total === 0) {
-			return undefined;
-		}
-		return `${total.toLocaleString()} tokens`;
-	}, [summary.tokensIn, summary.tokensOut]);
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
@@ -409,6 +427,10 @@ export function ChatInputBar({
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+	const promptInputRows =
+		variant === "welcome" || promptInputFocused
+			? PROMPT_INPUT_EXPANDED_ROWS
+			: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -445,75 +467,9 @@ export function ChatInputBar({
 		}
 	}, [promptInput, variant]);
 
-	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
-		setEditingQueuedPromptId(item.id);
-		setEditingQueuedPromptValue(item.prompt);
-	}, []);
-
-	const cancelQueuedPromptEdit = useCallback(() => {
-		setEditingQueuedPromptId(null);
-		setEditingQueuedPromptValue("");
-	}, []);
-
-	const submitQueuedPromptEdit = useCallback(
-		async (item: PromptInQueue) => {
-			const nextPrompt = editingQueuedPromptValue.trim();
-			if (!nextPrompt || queueActionPendingId) {
-				return;
-			}
-			setQueueActionPendingId(item.id);
-			try {
-				await onEditPromptInQueue(item.id, nextPrompt);
-				cancelQueuedPromptEdit();
-			} finally {
-				setQueueActionPendingId(null);
-			}
-		},
-		[
-			cancelQueuedPromptEdit,
-			editingQueuedPromptValue,
-			onEditPromptInQueue,
-			queueActionPendingId,
-		],
-	);
-
-	const triggerQueuedPromptAction = useCallback(
-		async (item: PromptInQueue, action: "steer" | "remove") => {
-			if (queueActionPendingId) {
-				return;
-			}
-			setQueueActionPendingId(item.id);
-			try {
-				if (action === "steer") {
-					await onSteerPromptInQueue(item.id);
-				} else {
-					await onRemovePromptInQueue(item.id);
-				}
-			} finally {
-				setQueueActionPendingId(null);
-			}
-		},
-		[onRemovePromptInQueue, onSteerPromptInQueue, queueActionPendingId],
-	);
-
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
 	}, [promptInput.length]);
-
-	useEffect(() => {
-		if (
-			editingQueuedPromptId &&
-			!promptsInQueue.some((item) => item.id === editingQueuedPromptId)
-		) {
-			cancelQueuedPromptEdit();
-		}
-	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
-
-	useEffect(() => {
-		if (promptsInQueue.length === 0) {
-			setQueueExpanded(false);
-		}
-	}, [promptsInQueue.length]);
 
 	useEffect(() => {
 		if (!mentionOpen || !activeMention) {
@@ -611,35 +567,22 @@ export function ChatInputBar({
 		}
 	}, [slashOpen]);
 
-	// Lazily load workflow commands from the sidecar the first time the slash
-	// menu opens, then merge with the built-in commands.
+	// Reload user commands whenever the slash menu opens so newly installed or
+	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
-		if (!slashOpen || slashCommandsLoadedRef.current) {
+		if (!slashOpen) {
 			return;
 		}
-		slashCommandsLoadedRef.current = true;
 		let cancelled = false;
 		setSlashLoading(true);
 		desktopClient
-			.invoke<{
-				workflows?: Array<{ id: string; name: string }>;
-			}>("list_user_instruction_configs")
-			.then((response: { workflows?: Array<{ id: string; name: string }> }) => {
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
+			.then((response) => {
 				if (cancelled) return;
-				const workflows = Array.isArray(response?.workflows)
-					? response.workflows
-					: [];
-				const workflowCommands: SlashCommand[] = workflows.map(
-					(w: { id: string; name: string }) => ({
-						name: w.name.toLowerCase().replace(/\s+/g, "-"),
-						description: "Workflow command",
-					}),
-				);
-				const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
-				const dedupedWorkflows = workflowCommands.filter(
-					(c) => !builtinNames.has(c.name),
-				);
-				setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...dedupedWorkflows]);
+				setSlashCommands([
+					...BUILTIN_SLASH_COMMANDS,
+					...buildUserInstructionSlashCommands(response),
+				]);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -700,161 +643,12 @@ export function ChatInputBar({
 		>
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
-				{promptsInQueue.length > 0 && (
-					<div className="mb-2">
-						<button
-							aria-controls={queuedPromptsId}
-							aria-expanded={queueExpanded}
-							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							onClick={() => setQueueExpanded((expanded) => !expanded)}
-							type="button"
-						>
-							{queueExpanded ? (
-								<ChevronDown className="size-3.5 shrink-0" />
-							) : (
-								<ChevronRight className="size-3.5 shrink-0" />
-							)}
-							<span>
-								{promptsInQueue.length} prompt
-								{promptsInQueue.length === 1 ? "" : "s"} queued
-							</span>
-						</button>
-						<div
-							className={cn(
-								"flex flex-col gap-0.5 pb-1 pt-1",
-								!queueExpanded && "hidden",
-							)}
-							hidden={!queueExpanded}
-							id={queuedPromptsId}
-						>
-							{promptsInQueue.map((item) => {
-								const isEditing = editingQueuedPromptId === item.id;
-								const isPending = queueActionPendingId === item.id;
-								const hasAttachments = (item.attachmentCount ?? 0) > 0;
-								return (
-									<div
-										className={cn(
-											"group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent/35",
-											item.steer && "bg-primary/5",
-										)}
-										key={item.id}
-									>
-										{item.steer ? (
-											<ArrowUp className="size-4 shrink-0 text-primary" />
-										) : (
-											<Clock3 className="size-4 shrink-0 text-muted-foreground" />
-										)}
-										<div className="min-w-0 flex-1">
-											{isEditing ? (
-												<textarea
-													aria-label="Edit queued prompt"
-													className="min-h-8 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-													disabled={isPending}
-													onChange={(event) =>
-														setEditingQueuedPromptValue(event.target.value)
-													}
-													onKeyDown={(event) => {
-														if (event.key === "Escape") {
-															event.preventDefault();
-															cancelQueuedPromptEdit();
-														}
-														if (event.key === "Enter" && !event.shiftKey) {
-															event.preventDefault();
-															void submitQueuedPromptEdit(item);
-														}
-													}}
-													rows={1}
-													value={editingQueuedPromptValue}
-												/>
-											) : (
-												<div className="flex min-w-0 items-center gap-2">
-													<span className="truncate text-xs text-foreground">
-														{item.prompt}
-													</span>
-													{hasAttachments ? (
-														<span className="shrink-0 text-[10px] text-muted-foreground">
-															{item.attachmentCount} attachment
-															{item.attachmentCount === 1 ? "" : "s"}
-														</span>
-													) : null}
-													{item.steer ? (
-														<span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-															Next turn
-														</span>
-													) : null}
-												</div>
-											)}
-										</div>
-										<div className="flex shrink-0 items-center gap-0.5">
-											{isEditing ? (
-												<>
-													<button
-														aria-label="Save queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={
-															isPending ||
-															editingQueuedPromptValue.trim().length === 0
-														}
-														onClick={() => void submitQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Check className="size-4" />
-													</button>
-													<button
-														aria-label="Cancel editing queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={cancelQueuedPromptEdit}
-														type="button"
-													>
-														<X className="size-4" />
-													</button>
-												</>
-											) : (
-												<>
-													{!item.steer ? (
-														<button
-															aria-label="Steer queued prompt"
-															className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-															disabled={isPending}
-															onClick={() =>
-																void triggerQueuedPromptAction(item, "steer")
-															}
-															title="Steer next"
-															type="button"
-														>
-															<ArrowUp className="size-4" />
-														</button>
-													) : null}
-													<button
-														aria-label="Edit queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={() => startQueuedPromptEdit(item)}
-														type="button"
-													>
-														<Pencil className="size-4" />
-													</button>
-													<button
-														aria-label="Remove queued prompt"
-														className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-														disabled={isPending}
-														onClick={() =>
-															void triggerQueuedPromptAction(item, "remove")
-														}
-														type="button"
-													>
-														<Trash2 className="size-4" />
-													</button>
-												</>
-											)}
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					</div>
-				)}
+				<AgentPromptQueue
+					items={promptsInQueue}
+					onEdit={onEditPromptInQueue}
+					onRemove={onRemovePromptInQueue}
+					onSteer={onSteerPromptInQueue}
+				/>
 				<div className="relative">
 					{slashOpen && (
 						<div
@@ -945,7 +739,7 @@ export function ChatInputBar({
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
-								"min-h-16 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
 						<textarea
@@ -967,10 +761,7 @@ export function ChatInputBar({
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
 							className={cn(
-								"max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								promptInput.includes("\n")
-									? "overflow-y-auto"
-									: "overflow-y-hidden",
+								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -1066,15 +857,44 @@ export function ChatInputBar({
 							}
 							ref={promptInputRef}
 							role="combobox"
-							rows={
-								variant === "welcome"
-									? 2
-									: promptInputFocused
-										? PROMPT_INPUT_FOCUSED_ROWS
-										: PROMPT_INPUT_COLLAPSED_ROWS
-							}
+							rows={promptInputRows}
+							style={{
+								maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+								minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+							}}
 							value={promptInput}
 						/>
+						<div className="flex shrink-0 items-center gap-2">
+							{canAbort && (
+								<button
+									aria-label="Stop agent"
+									className={cn(
+										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										variant === "welcome" ? "rounded-md" : "rounded-full",
+									)}
+									onClick={onAbort}
+									type="button"
+								>
+									<CircleStop className="size-2" />
+								</button>
+							)}
+							{(!isBusy || canSend) && (
+								<button
+									aria-label="Send message"
+									className={cn(
+										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										variant === "welcome"
+											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
+											: "rounded-full bg-primary text-background hover:bg-primary/80",
+									)}
+									disabled={!canSend}
+									onClick={handleSend}
+									type="button"
+								>
+									<ArrowUp className="size-2" />
+								</button>
+							)}
+						</div>
 					</div>
 				</div>
 				{attachments.length > 0 && (
@@ -1099,16 +919,16 @@ export function ChatInputBar({
 				)}
 			</div>
 
-			{/* Composer settings and submit */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			{/* Composer settings */}
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
-						<Paperclip className="h-4 w-4" />
+						<Paperclip className="size-3" />
 					</button>
 					<input
 						accept="*/*"
@@ -1122,7 +942,7 @@ export function ChatInputBar({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden flex shrink-0 items-center rounded-md bg-muted p-0.5">
+					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
@@ -1194,64 +1014,35 @@ export function ChatInputBar({
 							))}
 						</SelectContent>
 					</Select>
-					{tokensSummary ? (
-						<span className="max-[900px]:hidden">
-							<StatusItem
-								icon={Coins}
-								label={tokensSummary}
-								hasOption={false}
-							/>
-						</span>
-					) : null}
 				</div>
 
 				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
 					{variant === "conversation" ? (
-						<div className="min-w-0 overflow-visible">
-							<WorkspaceSelector
-								currentBranch={gitBranch}
-								disabled
-								onListGitBranches={onListGitBranches}
-								onRefreshWorkspaces={onRefreshWorkspaces}
-								onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-								onSwitchGitBranch={onSwitchGitBranch}
-								onSwitchWorkspace={onSwitchWorkspace}
-								workspaces={workspaces}
-								workspaceRoot={workspaceRoot}
+						<div className="flex min-w-0 items-center gap-0">
+							<div className="min-w-0 overflow-visible">
+								<WorkspaceSelector
+									currentBranch={gitBranch}
+									disabled
+									onListGitBranches={onListGitBranches}
+									onRefreshWorkspaces={onRefreshWorkspaces}
+									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+									onSwitchGitBranch={onSwitchGitBranch}
+									onSwitchWorkspace={onSwitchWorkspace}
+									workspaces={workspaces}
+									workspaceRoot={workspaceRoot}
+								/>
+							</div>
+							<TokenUsageRing
+								usage={{
+									contextWindow: modelContextWindow,
+									tokensIn: summary.tokensIn,
+									tokensOut: summary.tokensOut,
+									cacheReadTokens: summary.cacheReadTokens ?? 0,
+									totalCost: summary.totalCostUsd,
+								}}
 							/>
 						</div>
 					) : null}
-					<div className="flex shrink-0 items-center gap-2">
-						{canAbort && (
-							<button
-								aria-label="Stop agent"
-								className={cn(
-									"bg-foreground p-1.5 text-background transition-colors hover:bg-foreground/80",
-									variant === "welcome" ? "rounded-md" : "rounded-full",
-								)}
-								onClick={onAbort}
-								type="button"
-							>
-								<CircleStop className="h-4 w-4" />
-							</button>
-						)}
-						{(!isBusy || canSend) && (
-							<button
-								aria-label="Send message"
-								className={cn(
-									"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-									variant === "welcome"
-										? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-										: "rounded-full bg-foreground text-background hover:bg-foreground/80",
-								)}
-								disabled={!canSend}
-								onClick={handleSend}
-								type="button"
-							>
-								<ArrowUp className="h-4 w-4" />
-							</button>
-						)}
-					</div>
 				</div>
 			</div>
 		</div>
@@ -1345,7 +1136,7 @@ const ModelSelector = memo(function ModelSelector({
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
 
-		async function loadCatalog() {
+		async function loadCatalogAndActiveModels() {
 			try {
 				const payload = await loadProviderModelCatalog();
 				if (cancelled) {
@@ -1369,41 +1160,24 @@ const ModelSelector = memo(function ModelSelector({
 			} catch {
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [normalizedProvider]);
-
-	useEffect(() => {
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
 				setProviderModels((current) => ({
 					...current,
-					[normalizedProvider]: modelIds,
+					[normalizedProvider]: models.map((entry) => entry.id),
 				}));
 				setProviderReasoningModels((current) => ({
 					...current,
-					[normalizedProvider]: reasoningModelIds,
+					[normalizedProvider]: models
+						.filter((entry) => entry.supportsReasoning)
+						.map((entry) => entry.id),
 				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
@@ -1412,15 +1186,34 @@ const ModelSelector = memo(function ModelSelector({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalogAndActiveModels();
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider, providerModels]);
+	}, [normalizedProvider]);
+
+	useEffect(() => {
+		return subscribeToProviderModels((providerId, models) => {
+			const normalizedId = normalizeProviderId(providerId);
+			setProviderModels((current) => ({
+				...current,
+				[normalizedId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[normalizedId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(normalizedId) ? current : [...current, normalizedId],
+			);
+		});
+	}, []);
 
 	useEffect(() => {
 		setLastSelection((prev) => {
@@ -1612,40 +1405,171 @@ const ModelSelector = memo(function ModelSelector({
 	);
 });
 
-function StatusItem({
-	icon: Icon,
-	label,
-	onClick,
-	disabled,
-	hasOption = true,
-}: {
-	icon?: React.ComponentType<{ className?: string }>;
-	label: string;
-	onClick?: () => void;
-	disabled?: boolean;
-	hasOption?: boolean;
-}) {
-	const content = (
-		<>
-			{Icon ? <Icon className="h-3 w-3" /> : null}
-			<span className="max-[560px]:sr-only">{label}</span>
-			{hasOption ? <ChevronDown className="h-2.5 w-2.5" /> : null}
-		</>
-	);
-	if (!onClick) {
-		return <span className="flex items-center gap-1">{content}</span>;
+type TokenUsage = {
+	tokensIn: number;
+	tokensOut: number;
+	cacheReadTokens: number;
+	totalCost?: number;
+	contextWindow?: number;
+};
+
+/** Current model context relative to the selected model's context window. */
+function TokenUsageRing({ usage }: { usage: TokenUsage }) {
+	const contextWindow = usage.contextWindow;
+	const totalTokens = usage.tokensIn + usage.tokensOut;
+	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
+		return null;
 	}
-	return (
-		<button
-			className={cn(
-				"flex items-center gap-1 transition-colors",
-				disabled ? "cursor-not-allowed opacity-60" : "hover:text-foreground",
-			)}
-			disabled={disabled}
-			onClick={onClick}
-			type="button"
-		>
-			{content}
-		</button>
+
+	const ratio = Math.min(
+		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
+		1,
 	);
+	const percent = Math.round(ratio * 100);
+	const ringColorClass =
+		ratio >= 0.75
+			? "stroke-red-500"
+			: ratio >= 0.5
+				? "stroke-orange-500"
+				: "stroke-primary";
+	const cost = formatCostUsd(usage.totalCost);
+	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
+	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
+	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
+	const segmentScale =
+		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
+	const segmentWidth = (tokens: number) =>
+		`${(tokens / contextWindow) * segmentScale * 100}%`;
+	const radius = 8.5;
+	const circumference = 2 * Math.PI * radius;
+
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
+					id="token-usage"
+					size="icon-sm"
+					type="button"
+					variant="text"
+				>
+					<svg
+						aria-hidden="true"
+						className="-rotate-90 size-3.5"
+						height="22"
+						viewBox="0 0 22 22"
+						width="22"
+					>
+						<circle
+							className="stroke-muted-foreground/20"
+							cx="11"
+							cy="11"
+							fill="none"
+							r={radius}
+							strokeWidth="4"
+						/>
+						<circle
+							className={cn(
+								"transition-[stroke,stroke-dashoffset] duration-200",
+								ringColorClass,
+							)}
+							cx="11"
+							cy="11"
+							fill="none"
+							r={radius}
+							strokeDasharray={circumference}
+							strokeDashoffset={circumference * (1 - ratio)}
+							strokeLinecap="round"
+							strokeWidth="4"
+						/>
+					</svg>
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				className="w-80 p-0"
+				id="token-usage-panel"
+				side="top"
+				sideOffset={8}
+			>
+				<div className="px-3 py-3">
+					<div className="flex items-center justify-between gap-4 text-sm">
+						<span className="text-muted-foreground">Context window</span>
+						<span className="font-mono text-xs text-foreground">
+							{contextUsageLabel}
+						</span>
+					</div>
+					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							data-token-kind="uncached-input"
+							style={{ width: segmentWidth(uncachedInputTokens) }}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							data-token-kind="cached-input"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
+								width: segmentWidth(cachedTokens),
+							}}
+						/>
+						<div
+							aria-hidden="true"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							data-token-kind="output"
+							style={{
+								backgroundImage:
+									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
+								width: segmentWidth(usage.tokensOut),
+							}}
+						/>
+					</div>
+					<div className="mt-3 space-y-2 text-xs">
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Input tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensIn.toLocaleString()}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Output tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.tokensOut.toLocaleString()}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-muted-foreground">Cached tokens</span>
+							<span className="font-mono text-foreground">
+								{usage.cacheReadTokens.toLocaleString()}
+							</span>
+						</div>
+						{cost ? (
+							<div className="flex items-center justify-between gap-4">
+								<span className="text-muted-foreground">Cost</span>
+								<span className="font-mono text-foreground">{cost}</span>
+							</div>
+						) : null}
+					</div>
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+function formatCompactTokens(value: number): string {
+	if (value >= 1_000_000) {
+		return `${(value / 1_000_000).toFixed(1)}M`;
+	}
+	if (value >= 1_000) {
+		return `${formatCompactUnit(value / 1_000)}k`;
+	}
+	return value.toLocaleString();
+}
+
+function formatCompactUnit(value: number): string {
+	return value.toFixed(1).replace(/\.0$/, "");
 }

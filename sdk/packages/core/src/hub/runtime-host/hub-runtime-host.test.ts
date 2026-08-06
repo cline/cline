@@ -146,6 +146,10 @@ describe("HubRuntimeHost", () => {
 				source: SessionSource.CLI,
 				prompt: "Hey",
 				interactive: false,
+				sessionHistoryOrigin: {
+					mode: "user",
+					version: "3.0.38",
+				},
 			}),
 			runtimeOptions: {},
 			toolPolicies: undefined,

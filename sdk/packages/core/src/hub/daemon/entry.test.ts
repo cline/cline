@@ -57,10 +57,14 @@ const {
 	};
 });
 
-vi.mock("@cline/shared", () => ({
-	initVcr: mockInitVcr,
-	resolveClineBuildEnv: () => "production",
-}));
+vi.mock("@cline/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/shared")>();
+	return {
+		...actual,
+		initVcr: mockInitVcr,
+		resolveClineBuildEnv: () => "production",
+	};
+});
 
 vi.mock("@cline/agents", () => ({
 	AgentRuntimeAbortError: class AgentRuntimeAbortError extends Error {},

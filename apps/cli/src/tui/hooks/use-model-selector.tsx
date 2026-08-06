@@ -444,7 +444,6 @@ export function useModelSelector(opts: {
 								{...ctx}
 								currentModel={config.modelId}
 								currentProviderName={providerDisplayName}
-								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
 									buildFeaturedModelEntries(
 										featuredProviderId,

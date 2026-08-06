@@ -59,7 +59,6 @@ export interface SdkModeCoordinatorOptions {
 }
 
 export class SdkModeCoordinator {
-	private pendingModeChange: Mode | null = null
 	private rebuildInFlight: Promise<void> | undefined
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
@@ -121,26 +120,6 @@ export class SdkModeCoordinator {
 		}
 	}
 
-	queueSwitchToActMode(): void {
-		this.pendingModeChange = "act"
-	}
-
-	hasPendingModeChange(): boolean {
-		return this.pendingModeChange !== null
-	}
-
-	async applyPendingModeChange(): Promise<void> {
-		const target = this.pendingModeChange
-		if (!target) {
-			return
-		}
-		this.pendingModeChange = null
-		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target}`)
-		// The tool result told the model to proceed with the plan, so rebuild with
-		// act-mode tools and auto-continue rather than waiting for another user message.
-		await this.rebuildSessionForMode(target, { autoContinue: target === "act", source: "tool" })
-	}
-
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 		if (currentMode === "act") {
@@ -191,7 +170,6 @@ export class SdkModeCoordinator {
 				userContinuationPrompt: autoContinue ? userPrompt : undefined,
 				userImages: autoContinue ? userImages : undefined,
 				userFiles: autoContinue ? userFiles : undefined,
-				source: "ui",
 			})
 			// True tells the webview the composer content was consumed, so it clears it.
 			return continuationSent && hasUserContent
@@ -214,13 +192,6 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
-			/**
-			 * Who initiated the switch. Only "ui" toggles record a <mode_notice>
-			 * for the next outbound message; the model-initiated
-			 * switch_to_act_mode path ("tool") already announces itself via the
-			 * tool result and continuation prompt, matching the CLI's semantics.
-			 */
-			source?: "ui" | "tool"
 		} = {},
 	): Promise<boolean> {
 		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
@@ -241,7 +212,6 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
-			source?: "ui" | "tool"
 		},
 	): Promise<boolean> {
 		const previousMode = this.options.stateManager.getGlobalSettingsKey("mode")
@@ -340,9 +310,7 @@ export class SdkModeCoordinator {
 			// fails earlier rolls the mode setting back, and a notice for a switch
 			// that never took effect would lie to the model. Recording before the
 			// auto-continue send lets that send carry the notice.
-			if (options.source === "ui") {
-				this.recordModeSwitchNotice(startResult.sessionId, previousMode, newMode)
-			}
+			this.recordModeSwitchNotice(startResult.sessionId, previousMode, newMode)
 			if (options.autoContinue) {
 				const userPrompt = options.userContinuationPrompt
 				const userImages = options.userImages

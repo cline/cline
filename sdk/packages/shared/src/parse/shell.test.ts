@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getDefaultShell, getShellArgs, getShellKind } from "./shell";
+import {
+	getDefaultShell,
+	getShellArgs,
+	getShellInvocation,
+	getShellKind,
+} from "./shell";
 
 describe("shell helpers", () => {
 	it("selects PowerShell on Windows and bash elsewhere", () => {
@@ -8,19 +13,27 @@ describe("shell helpers", () => {
 		expect(getDefaultShell("linux")).toBe("/bin/bash");
 	});
 
-	it("uses PowerShell flags for PowerShell executables", () => {
+	it("uses an ASCII bootstrap with Unicode-safe PowerShell stdin", () => {
+		const command = "Write-Output '中文'";
+		for (const shell of [
+			"powershell",
+			"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+		]) {
+			const { args, input } = getShellInvocation(shell, command);
+			expect(args.slice(0, 3)).toEqual([
+				"-NoProfile",
+				"-NonInteractive",
+				"-Command",
+			]);
+			expect(
+				[...args[3]].every((character) => character.charCodeAt(0) <= 0x7f),
+			).toBe(true);
+			expect(input).toBe(command);
+		}
+	});
+
+	it("keeps getShellArgs self-contained for PowerShell callers", () => {
 		expect(getShellArgs("powershell", "Write-Output 'hi'")).toEqual([
-			"-NoProfile",
-			"-NonInteractive",
-			"-Command",
-			"Write-Output 'hi'",
-		]);
-		expect(
-			getShellArgs(
-				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-				"Write-Output 'hi'",
-			),
-		).toEqual([
 			"-NoProfile",
 			"-NonInteractive",
 			"-Command",
