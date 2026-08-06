@@ -58,6 +58,42 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("allows cloud provisioning to outlive the default desktop command timeout", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			}
+			if (command === "chat_session_command") {
+				return {
+					sessionId: "ses-cloud",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				};
+			}
+			return [];
+		});
+
+		await act(async () =>
+			current.start({
+				...current.config,
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				provider: "cline",
+			}),
+		);
+
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			{
+				request: expect.objectContaining({
+					action: "start",
+					config: expect.objectContaining({ executionTarget: "cloud" }),
+				}),
+			},
+			{ timeoutMs: null },
+		);
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {

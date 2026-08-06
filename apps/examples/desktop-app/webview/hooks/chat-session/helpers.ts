@@ -4,6 +4,7 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { isGitHubRepositoryUrl } from "@/lib/cloud-repositories";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
@@ -117,9 +118,15 @@ export function normalizeRuntimeConfig(
 ): ChatSessionConfig {
 	const normalizedWorkspaceRoot = config.workspaceRoot.trim();
 	const normalizedCwd = (config.cwd?.trim() || normalizedWorkspaceRoot).trim();
+	const executionTarget = config.executionTarget ?? "local";
+	const repoUrl = config.repoUrl?.trim();
+	const branch = config.branch?.trim();
 	const thinking = config.reasoningEffort ? true : config.thinking;
 	return {
 		...config,
+		executionTarget,
+		repoUrl: executionTarget === "cloud" ? repoUrl : undefined,
+		branch: executionTarget === "cloud" ? branch || undefined : undefined,
 		workspaceRoot: normalizedWorkspaceRoot,
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
 		thinking,
@@ -131,7 +138,28 @@ export function normalizeRuntimeConfig(
 
 export function resolveCredentialError(
 	config: ChatSessionConfig,
+	options?: { hasActiveSession?: boolean },
 ): string | null {
+	if (config.executionTarget === "cloud") {
+		if (config.provider.trim().toLowerCase() !== "cline") {
+			return "Cloud sessions require the Cline provider.";
+		}
+		// Sends into an existing cloud session need no repo URL — the sandbox
+		// was already provisioned with one.
+		if (options?.hasActiveSession) {
+			return null;
+		}
+		const repoUrl = config.repoUrl?.trim() ?? "";
+		if (!repoUrl) {
+			return "Enter a GitHub repository URL before starting a cloud session.";
+		}
+		// The picker validates as-you-type, but config accepts any keystroke —
+		// re-validate here so a half-typed URL can't reach the create call.
+		if (!isGitHubRepositoryUrl(repoUrl)) {
+			return "Enter a valid HTTPS GitHub repository URL (https://github.com/owner/repo).";
+		}
+		return null;
+	}
 	const providerId = config.provider.trim().toLowerCase();
 	if (!providerId) {
 		return "Provider is required before starting a chat session.";

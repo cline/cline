@@ -79,6 +79,78 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("constrains cloud sessions to the Cline provider and hides local file controls", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: {
+				anthropic: ["claude-test"],
+				cline: ["cline-test"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "",
+						workspaces: [],
+						listWorkspaces: vi.fn(async () => []),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						executionTarget="cloud"
+						gitBranch="no-git"
+						mode="act"
+						model="claude-test"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="anthropic"
+						reasoningEffort="low"
+						repoUrl="https://github.com/cline/cline"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="conversation"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+			expect(onModelChange).toHaveBeenCalledWith("cline-test");
+		});
+		expect(container.querySelector('[aria-label="Attach files"]')).toBeNull();
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.textContent).toContain("Cloud");
+	});
+
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
 		const render = async (status: ChatSessionStatus) => {

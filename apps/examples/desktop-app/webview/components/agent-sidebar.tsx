@@ -9,6 +9,7 @@ import {
 	ChevronRight,
 	CircleUserRound,
 	Clock3,
+	Cloud,
 	Code,
 	FileText,
 	Filter,
@@ -1123,8 +1124,14 @@ function ThreadItem({
 							onClick={onClick}
 							type="button"
 						>
-							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-								{title}
+							<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-sm font-normal leading-tight">
+								{thread.origin === "cloud" ? (
+									<Cloud
+										aria-label="Cloud session"
+										className="size-3 shrink-0 text-muted-foreground"
+									/>
+								) : null}
+								<span className="truncate">{title}</span>
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
@@ -1171,6 +1178,9 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				allowFavorite={thread.origin !== "cloud"}
+				allowFork={thread.origin !== "cloud"}
+				allowRename={thread.origin !== "cloud"}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
@@ -1193,8 +1203,10 @@ export function getSessionOverviewItems(
 	const workspacePath = thread.workspacePath || thread.codebase;
 	const items: Array<[string, string | null | undefined, string?]> = [
 		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
+			thread.origin === "cloud" ? "Repository" : "Workspace",
+			thread.origin === "cloud"
+				? thread.repoUrl
+				: workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
 		["Branch", thread.gitBranch],
@@ -1264,6 +1276,9 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	allowFavorite,
+	allowFork,
+	allowRename,
 	favorited,
 	onRename,
 	onToggleFavorite,
@@ -1271,6 +1286,9 @@ function SessionContextMenuContent({
 	onDelete,
 	pendingAction,
 }: {
+	allowFavorite: boolean;
+	allowFork: boolean;
+	allowRename: boolean;
 	favorited: boolean;
 	onRename: () => void;
 	onToggleFavorite: () => void;
@@ -1281,26 +1299,32 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
-				<Star className={cn("size-4", favorited && "fill-current")} />
-				{favorited ? "Unfavorite" : "Favorite"}
-			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onRename}>
-				{pendingAction === "rename" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<Pencil className="size-4" />
-				)}
-				{pendingAction === "rename" ? "Renaming..." : "Rename"}
-			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onFork}>
-				{pendingAction === "fork" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<GitFork className="size-4" />
-				)}
-				{pendingAction === "fork" ? "Forking..." : "Fork"}
-			</ContextMenuItem>
+			{allowFavorite ? (
+				<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+					<Star className={cn("size-4", favorited && "fill-current")} />
+					{favorited ? "Unfavorite" : "Favorite"}
+				</ContextMenuItem>
+			) : null}
+			{allowRename ? (
+				<ContextMenuItem disabled={pending} onSelect={onRename}>
+					{pendingAction === "rename" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<Pencil className="size-4" />
+					)}
+					{pendingAction === "rename" ? "Renaming..." : "Rename"}
+				</ContextMenuItem>
+			) : null}
+			{allowFork ? (
+				<ContextMenuItem disabled={pending} onSelect={onFork}>
+					{pendingAction === "fork" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<GitFork className="size-4" />
+					)}
+					{pendingAction === "fork" ? "Forking..." : "Fork"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem
 				disabled={pending}
 				onSelect={onDelete}

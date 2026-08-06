@@ -7,8 +7,11 @@ import {
 	AgentQuickActions,
 } from "@cline/ui";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { desktopClient } from "@/lib/desktop-client";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
@@ -36,6 +39,13 @@ export function WelcomeScreen({
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	executionTarget = "local",
+	repoUrl = "",
+	cloudBranch = "",
+	onExecutionTargetChange = () => undefined,
+	onRepoUrlChange = () => undefined,
+	onCloudBranchChange = () => undefined,
+	cloudAgentsEnabled = false,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -45,7 +55,17 @@ export function WelcomeScreen({
 	gitBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	onExecutionTargetChange?: (target: "local" | "cloud") => void;
+	onRepoUrlChange?: (repoUrl: string) => void;
+	onCloudBranchChange?: (branch: string) => void;
+	cloudAgentsEnabled?: boolean;
 }) {
+	const { user, refreshAccount } = useAccount();
+	const [signingIn, setSigningIn] = useState(false);
+	const [signInError, setSignInError] = useState<string | null>(null);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -58,8 +78,25 @@ export function WelcomeScreen({
 		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
 
 	useEffect(() => {
-		if (active) void refreshWorkspaces();
-	}, [active, refreshWorkspaces]);
+		if (active && executionTarget === "local") void refreshWorkspaces();
+	}, [active, executionTarget, refreshWorkspaces]);
+
+	const signIn = async () => {
+		if (signingIn) return;
+		setSigningIn(true);
+		setSignInError(null);
+		try {
+			await desktopClient.invoke("run_provider_oauth_login", {
+				provider: "cline",
+			});
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		} catch (error) {
+			setSignInError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setSigningIn(false);
+		}
+	};
 
 	return (
 		<div
@@ -90,16 +127,31 @@ export function WelcomeScreen({
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
+									cloudBranch={cloudBranch}
+									cloudEnabled={cloudAgentsEnabled}
 									currentBranch={gitBranch}
+									executionTarget={executionTarget}
+									onCloudBranchChange={onCloudBranchChange}
 									onListGitBranches={onListGitBranches}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
+									onExecutionTargetChange={onExecutionTargetChange}
+									onRepoUrlChange={onRepoUrlChange}
+									onSignIn={signIn}
 									onSelectChat={selectChat}
 									onSwitchGitBranch={onSwitchGitBranch}
 									onSwitchWorkspace={switchWorkspace}
+									repoUrl={repoUrl}
+									signedIn={Boolean(user)}
+									signingIn={signingIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
 								/>
+								{signInError ? (
+									<p className="mt-2 text-xs text-destructive">
+										Sign in failed: {signInError}
+									</p>
+								) : null}
 							</div>
 						</>
 					) : null}

@@ -161,7 +161,7 @@ export function serializeQueuedPromptStart(input: {
 	});
 }
 
-function sendPromptsInQueueSnapshot(
+export function sendPromptsInQueueSnapshot(
 	ctx: SidecarContext,
 	sessionId: string,
 ): void {
@@ -487,6 +487,7 @@ export function createSidecarContext(
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		cloudSessionManager: null,
 	};
 }
 
@@ -521,6 +522,12 @@ export async function disposeSidecarContext(
 		pending.reject(new Error(reason));
 	}
 	ctx.pendingQuestions.clear();
+
+	const cloudSessionManager = ctx.cloudSessionManager;
+	ctx.cloudSessionManager = null;
+	if (cloudSessionManager) {
+		cleanup.push(cloudSessionManager.dispose());
+	}
 
 	const hubClient = ctx.hubClient;
 	ctx.hubClient = null;
@@ -696,6 +703,94 @@ export function handleHubLiveEvent(
 				"chat_reasoning",
 				JSON.stringify({ text, redacted }),
 			);
+			return;
+		}
+		case "usage.updated": {
+			const delta =
+				event.payload?.delta &&
+				typeof event.payload.delta === "object" &&
+				!Array.isArray(event.payload.delta)
+					? (event.payload.delta as Record<string, unknown>)
+					: {};
+			const totals =
+				event.payload?.totals &&
+				typeof event.payload.totals === "object" &&
+				!Array.isArray(event.payload.totals)
+					? (event.payload.totals as Record<string, unknown>)
+					: {};
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_usage",
+				JSON.stringify({
+					inputTokens: delta.inputTokens,
+					outputTokens: delta.outputTokens,
+					cacheReadTokens: delta.cacheReadTokens,
+					cacheWriteTokens: delta.cacheWriteTokens,
+					cost: delta.totalCost,
+					totalInputTokens: totals.inputTokens,
+					totalOutputTokens: totals.outputTokens,
+					totalCost: totals.totalCost,
+				}),
+			);
+			return;
+		}
+		case "session.pending_prompts": {
+			const items = Array.isArray(event.payload?.prompts)
+				? (event.payload.prompts as Array<Record<string, unknown>>)
+				: [];
+			const mapped: PromptInQueue[] = items
+				.map((item) => ({
+					id: typeof item.id === "string" ? item.id : "",
+					prompt: typeof item.prompt === "string" ? item.prompt : "",
+					steer: item.delivery === "steer",
+					attachmentCount:
+						typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+					userImages: Array.isArray(item.userImages)
+						? (item.userImages as string[])
+						: undefined,
+				}))
+				.filter((item) => item.id && (item.prompt || item.attachmentCount > 0));
+			reconcileQueuedAttachments(
+				session,
+				mapped.map((item) => item.id),
+			);
+			const previous = session.promptsInQueue;
+			session.promptsInQueue = mapped;
+			if (
+				previous.length > mapped.length &&
+				previous[0] &&
+				previous[0].id !== mapped[0]?.id
+			) {
+				emitQueuedPromptStart(ctx, sessionId, session, {
+					promptId: previous[0].id,
+					prompt: previous[0].prompt,
+					attachmentCount: previous[0].attachmentCount ?? 0,
+					userImages: previous[0].userImages,
+				});
+			}
+			sendPromptsInQueueSnapshot(ctx, sessionId);
+			return;
+		}
+		case "session.pending_prompt_submitted": {
+			const item =
+				event.payload?.prompt && typeof event.payload.prompt === "object"
+					? (event.payload.prompt as Record<string, unknown>)
+					: undefined;
+			const promptId = typeof item?.id === "string" ? item.id : "";
+			if (!promptId) {
+				return;
+			}
+			markQueuedAttachmentsSubmitted(session, promptId);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId,
+				prompt: typeof item?.prompt === "string" ? item.prompt : "",
+				attachmentCount:
+					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
+				userImages: Array.isArray(item?.userImages)
+					? (item.userImages as string[])
+					: undefined,
+			});
 			return;
 		}
 		case "tool.started": {

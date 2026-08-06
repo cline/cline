@@ -3,15 +3,24 @@
 import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	Check,
+	Cloud,
 	FilePlus2,
 	Folder,
 	GitBranch,
+	HardDrive,
+	LogIn,
 	Plus,
 	Search,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	isGitHubRepositoryUrl,
+	normalizeCloudRepositoryUrl,
+	readRecentCloudRepositories,
+	rememberCloudRepository,
+} from "@/lib/cloud-repositories";
 import { cn } from "@/lib/utils";
 import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
@@ -39,6 +48,188 @@ const TRIGGER_CLASS =
 	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl";
+
+function repositoryName(repoUrl: string): string {
+	const normalized = normalizeCloudRepositoryUrl(repoUrl).replace(
+		/\.git$/i,
+		"",
+	);
+	const parts = normalized.split(/[/:]/).filter(Boolean);
+	return parts.slice(-2).join("/") || "Cloud repo";
+}
+
+function ExecutionTargetPicker({
+	executionTarget,
+	onChange,
+}: {
+	executionTarget: "local" | "cloud";
+	onChange: (target: "local" | "cloud") => void;
+}) {
+	return (
+		<fieldset className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-background/80 p-0.5">
+			<legend className="sr-only">Execution location</legend>
+			{(["local", "cloud"] as const).map((target) => {
+				const active = executionTarget === target;
+				const Icon = target === "local" ? HardDrive : Cloud;
+				return (
+					<button
+						aria-pressed={active}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
+							active
+								? "bg-accent text-foreground shadow-xs"
+								: "text-muted-foreground hover:text-foreground",
+						)}
+						key={target}
+						onClick={() => onChange(target)}
+						type="button"
+					>
+						<Icon className="size-3" />
+						{target === "local" ? "Local" : "Cloud"}
+					</button>
+				);
+			})}
+		</fieldset>
+	);
+}
+
+function CloudRepositoryPicker({
+	open,
+	onToggle,
+	onClose,
+	repoUrl,
+	onRepoUrlChange,
+	branch,
+	onBranchChange,
+}: {
+	open: boolean;
+	onToggle: () => void;
+	onClose: () => void;
+	repoUrl: string;
+	onRepoUrlChange: (repoUrl: string) => void;
+	branch: string;
+	onBranchChange: (branch: string) => void;
+}) {
+	const [recentRepositories, setRecentRepositories] = useState<string[]>([]);
+	const valid = isGitHubRepositoryUrl(repoUrl);
+
+	useEffect(() => {
+		if (open) setRecentRepositories(readRecentCloudRepositories());
+	}, [open]);
+
+	const confirmSelection = () => {
+		if (!valid) return;
+		const normalized = normalizeCloudRepositoryUrl(repoUrl);
+		onRepoUrlChange(normalized);
+		setRecentRepositories(rememberCloudRepository(normalized));
+		onClose();
+	};
+
+	return (
+		<div className="relative min-w-0">
+			<button
+				aria-expanded={open}
+				aria-haspopup="dialog"
+				className={cn(TRIGGER_CLASS, "min-w-0 max-w-full")}
+				onClick={onToggle}
+				title={repoUrl || "Choose a GitHub repository"}
+				type="button"
+			>
+				<Cloud className="size-4 shrink-0 text-muted-foreground" />
+				<span className="max-w-56 truncate">
+					{repoUrl ? repositoryName(repoUrl) : "Choose repository"}
+				</span>
+			</button>
+
+			{open ? (
+				<div
+					className={PANEL_CLASS}
+					role="dialog"
+					aria-label="Cloud repository"
+				>
+					<div className="space-y-2 p-3">
+						<label
+							className="block text-xs font-medium text-foreground"
+							htmlFor="cloud-repo-url"
+						>
+							GitHub repository URL
+						</label>
+						<Input
+							autoFocus
+							aria-invalid={repoUrl.trim().length > 0 && !valid}
+							id="cloud-repo-url"
+							onChange={(event) => onRepoUrlChange(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									event.preventDefault();
+									confirmSelection();
+								}
+								if (event.key === "Escape") onClose();
+							}}
+							placeholder="https://github.com/owner/repo"
+							value={repoUrl}
+						/>
+						{repoUrl.trim().length > 0 && !valid ? (
+							<p className="text-xs text-destructive">
+								Enter a GitHub repository URL.
+							</p>
+						) : null}
+						<label
+							className="block text-xs font-medium text-foreground"
+							htmlFor="cloud-repo-branch"
+						>
+							Branch (optional)
+						</label>
+						<Input
+							id="cloud-repo-branch"
+							onChange={(event) => onBranchChange(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									event.preventDefault();
+									confirmSelection();
+								}
+								if (event.key === "Escape") onClose();
+							}}
+							placeholder="repository default"
+							value={branch}
+						/>
+						<Button
+							className="w-full"
+							disabled={!valid}
+							onClick={confirmSelection}
+							size="sm"
+						>
+							Use repository
+						</Button>
+					</div>
+					{recentRepositories.length > 0 ? (
+						<div className="border-t border-border p-1.5">
+							<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+								Recent
+							</div>
+							{recentRepositories.map((repository) => (
+								<Button
+									className="w-full justify-start text-xs"
+									key={repository}
+									onClick={() => {
+										onRepoUrlChange(repository);
+										setRecentRepositories(rememberCloudRepository(repository));
+										onClose();
+									}}
+									title={repository}
+									variant="ghost"
+								>
+									<Cloud className="size-3" />
+									<span className="truncate">{repositoryName(repository)}</span>
+								</Button>
+							))}
+						</div>
+					) : null}
+				</div>
+			) : null}
+		</div>
+	);
+}
 
 function SearchInput({
 	value,
@@ -370,6 +561,16 @@ function BranchPicker({
 }
 
 export function WelcomeWorkspaceControls({
+	cloudEnabled,
+	executionTarget,
+	repoUrl,
+	cloudBranch,
+	signedIn,
+	signingIn,
+	onExecutionTargetChange,
+	onCloudBranchChange,
+	onRepoUrlChange,
+	onSignIn,
 	workspaceRoot,
 	workspaces,
 	onRefreshWorkspaces,
@@ -380,6 +581,16 @@ export function WelcomeWorkspaceControls({
 	onListGitBranches,
 	onSwitchGitBranch,
 }: {
+	cloudEnabled: boolean;
+	executionTarget: "local" | "cloud";
+	repoUrl: string;
+	cloudBranch: string;
+	onCloudBranchChange: (branch: string) => void;
+	signedIn: boolean;
+	signingIn: boolean;
+	onExecutionTargetChange: (target: "local" | "cloud") => void;
+	onRepoUrlChange: (repoUrl: string) => void;
+	onSignIn: () => void | Promise<void>;
 	workspaceRoot: string;
 	workspaces: string[];
 	onRefreshWorkspaces: () => Promise<void>;
@@ -390,7 +601,9 @@ export function WelcomeWorkspaceControls({
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
-	const [openMenu, setOpenMenu] = useState<"workspace" | "branch" | null>(null);
+	const [openMenu, setOpenMenu] = useState<
+		"workspace" | "branch" | "cloud" | null
+	>(null);
 	const isChatWorkspace =
 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -411,34 +624,76 @@ export function WelcomeWorkspaceControls({
 	}, [openMenu]);
 
 	return (
-		<div className="flex min-w-0 items-center gap-2" ref={containerRef}>
-			<WorkspacePicker
-				onClose={() => setOpenMenu(null)}
-				onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-				onRefreshWorkspaces={onRefreshWorkspaces}
-				onSelectChat={onSelectChat}
-				onSwitchWorkspace={onSwitchWorkspace}
-				onToggle={() =>
-					setOpenMenu((current) =>
-						current === "workspace" ? null : "workspace",
-					)
-				}
-				open={openMenu === "workspace"}
-				workspaceRoot={workspaceRoot}
-				workspaces={workspaces}
-			/>
-			{!isChatWorkspace ? (
-				<BranchPicker
-					currentBranch={currentBranch}
-					onClose={() => setOpenMenu(null)}
-					onListGitBranches={onListGitBranches}
-					onSwitchGitBranch={onSwitchGitBranch}
-					onToggle={() =>
-						setOpenMenu((current) => (current === "branch" ? null : "branch"))
-					}
-					open={openMenu === "branch"}
+		<div
+			className="flex min-w-0 flex-wrap items-center gap-2"
+			ref={containerRef}
+		>
+			{cloudEnabled ? (
+				<ExecutionTargetPicker
+					executionTarget={executionTarget}
+					onChange={(target) => {
+						setOpenMenu(null);
+						onExecutionTargetChange(target);
+					}}
 				/>
 			) : null}
+			{cloudEnabled && executionTarget === "cloud" ? (
+				signedIn ? (
+					<CloudRepositoryPicker
+						branch={cloudBranch}
+						onBranchChange={onCloudBranchChange}
+						onClose={() => setOpenMenu(null)}
+						onRepoUrlChange={onRepoUrlChange}
+						onToggle={() =>
+							setOpenMenu((current) => (current === "cloud" ? null : "cloud"))
+						}
+						open={openMenu === "cloud"}
+						repoUrl={repoUrl}
+					/>
+				) : (
+					<Button
+						disabled={signingIn}
+						onClick={() => void onSignIn()}
+						size="sm"
+						variant="outline"
+					>
+						<LogIn className="size-3.5" />
+						{signingIn ? "Waiting for browser..." : "Sign in to use Cloud"}
+					</Button>
+				)
+			) : (
+				<>
+					<WorkspacePicker
+						onClose={() => setOpenMenu(null)}
+						onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+						onRefreshWorkspaces={onRefreshWorkspaces}
+						onSelectChat={onSelectChat}
+						onSwitchWorkspace={onSwitchWorkspace}
+						onToggle={() =>
+							setOpenMenu((current) =>
+								current === "workspace" ? null : "workspace",
+							)
+						}
+						open={openMenu === "workspace"}
+						workspaceRoot={workspaceRoot}
+						workspaces={workspaces}
+					/>
+					{!isChatWorkspace ? (
+						<BranchPicker
+							currentBranch={currentBranch}
+							onClose={() => setOpenMenu(null)}
+							onListGitBranches={onListGitBranches}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onToggle={() =>
+								setOpenMenu((current) =>
+									current === "branch" ? null : "branch",
+								)
+							}
+							open={openMenu === "branch"}
+						/>
+					) : null}
+				</>
+			)}
 		</div>
 	);
 }

@@ -16,6 +16,14 @@ const OPTIONAL_SECRET_ENV_VARS = [
 ] as const;
 
 /**
+ * Feature toggles inlined only when set at build time. Unset keeps the
+ * runtime env override working (dev/normal builds); setting it bakes the
+ * value into the binary so a packaged dogfood build enables the feature
+ * when launched normally from Finder/the Dock.
+ */
+const OPTIONAL_FEATURE_ENV_VARS = ["CLINE_CODE_CLOUD_AGENTS"] as const;
+
+/**
  * Every env var `getTelemetryBuildTimeConfig` reads
  * (sdk/packages/shared/src/services/telemetry-config.ts). Always inlined,
  * defaulting to "", so a packaged binary never falls back to runtime env.
@@ -42,7 +50,10 @@ export function telemetryDefineArgs(
 	const define = (name: string, value: string) => {
 		args.push("--define", `process.env.${name}=${JSON.stringify(value)}`);
 	};
-	for (const name of OPTIONAL_SECRET_ENV_VARS) {
+	for (const name of [
+		...OPTIONAL_SECRET_ENV_VARS,
+		...OPTIONAL_FEATURE_ENV_VARS,
+	]) {
 		const value = env[name];
 		if (value) {
 			define(name, value);

@@ -11,6 +11,7 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import { disposeDesktopFeatureFlagsService } from "./feature-flags";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
@@ -64,6 +65,10 @@ async function main() {
 	});
 
 	prewarmWorkspaceMetadata(workspaceRoot);
+	// No boot-time flag poll: the SDK service marks its cache fresh before the
+	// provider answers, so a concurrent get_feature_flags poll would read
+	// defaults. The webview's awaited get_feature_flags query is the first and
+	// only poll trigger, which also warms the cache for the creation gate.
 	observability.logger.log(
 		"Login shell PATH resolution",
 		await shellPathPromise,
@@ -83,6 +88,7 @@ async function main() {
 				try {
 					await disposeSidecarContext(ctx, reason);
 				} finally {
+					await disposeDesktopFeatureFlagsService().catch(() => undefined);
 					await observability.dispose();
 				}
 			})(),

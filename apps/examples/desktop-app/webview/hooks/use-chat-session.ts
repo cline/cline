@@ -102,6 +102,7 @@ function makeErrorChatMessage(
 
 function validateConfig(
 	config: ChatSessionConfig,
+	options?: { hasActiveSession?: boolean },
 ):
 	| { parsed: ChatSessionConfig; error: null }
 	| { parsed: null; error: string } {
@@ -113,7 +114,7 @@ function validateConfig(
 			error: result.error.issues.map((i) => i.message).join(", "),
 		};
 	}
-	const credentialError = resolveCredentialError(result.data);
+	const credentialError = resolveCredentialError(result.data, options);
 	if (credentialError) {
 		return { parsed: null, error: credentialError };
 	}
@@ -447,7 +448,14 @@ export function useChatSession() {
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
 		const request = { request: body };
-		if (body.action === "send") {
+		const config =
+			body.config && typeof body.config === "object"
+				? (body.config as Record<string, unknown>)
+				: undefined;
+		const isLongRunningCommand =
+			body.action === "send" ||
+			(body.action === "start" && config?.executionTarget === "cloud");
+		if (isLongRunningCommand) {
 			return await desktopClient.invoke<ChatSessionCommandResponse>(
 				"chat_session_command",
 				request,
@@ -1303,7 +1311,9 @@ export function useChatSession() {
 
 	const start = useCallback(
 		async (nextConfig: ChatSessionConfig) => {
-			const validation = validateConfig(nextConfig);
+			const validation = validateConfig(nextConfig, {
+				hasActiveSession: Boolean(nextConfig.sessionId),
+			});
 			if (!validation.parsed) {
 				setErrorState(validation.error);
 				return;
@@ -1358,7 +1368,9 @@ export function useChatSession() {
 			const pendingSessionStart = sessionStartPromiseRef.current;
 			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
-			const validation = validateConfig(config);
+			const validation = validateConfig(config, {
+				hasActiveSession: Boolean(activeSessionId),
+			});
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
 				return;
@@ -1993,6 +2005,8 @@ export function useChatSession() {
 			setConfig((prev) => ({
 				...prev,
 				sessionId: session.sessionId,
+				executionTarget: session.origin === "cloud" ? "cloud" : "local",
+				repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
 				provider: session.provider || prev.provider,
 				model: session.model || prev.model,
 				workspaceRoot: session.workspaceRoot || prev.workspaceRoot,
@@ -2052,6 +2066,8 @@ export function useChatSession() {
 							action: "attach",
 							sessionId: session.sessionId,
 							config: {
+								executionTarget: session.origin === "cloud" ? "cloud" : "local",
+								repoUrl: session.repoUrl,
 								provider: session.provider,
 								model: session.model,
 								cwd: session.cwd,
@@ -2070,6 +2086,8 @@ export function useChatSession() {
 				setConfig((prev) => ({
 					...prev,
 					sessionId: session.sessionId,
+					executionTarget: session.origin === "cloud" ? "cloud" : "local",
+					repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
 					provider: attached?.provider || session.provider || prev.provider,
 					model: attached?.model || session.model || prev.model,
 					workspaceRoot:

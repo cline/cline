@@ -24,6 +24,8 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 
 export interface SessionThread {
 	id: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	title: string;
 	source?: string;
 	codebase: string;
@@ -248,9 +250,14 @@ function inferStatusFromMessages(
 }
 
 function toThread(session: SessionHistoryItem): SessionThread {
-	const workspacePath = (session.workspaceRoot || session.cwd).trim();
+	const workspacePath =
+		session.origin === "cloud" && session.repoUrl?.trim()
+			? session.repoUrl.trim()
+			: (session.workspaceRoot || session.cwd).trim();
 	return {
 		id: session.sessionId,
+		origin: session.origin,
+		repoUrl: session.repoUrl,
 		title: toTitle(session),
 		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
@@ -353,6 +360,8 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
@@ -387,6 +396,8 @@ function areThreadsEquivalent(
 		const b = next[i];
 		if (
 			a.id !== b.id ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			a.title !== b.title ||
 			a.source !== b.source ||
 			a.codebase !== b.codebase ||

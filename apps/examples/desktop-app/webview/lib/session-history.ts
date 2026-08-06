@@ -23,6 +23,8 @@ export const PINNED_METADATA_KEY = "pinned";
 
 export interface SessionHistoryItem {
 	sessionId: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	source?: string;
 	status: SessionHistoryStatus;
 	provider: string;

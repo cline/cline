@@ -31,9 +31,7 @@ import {
 	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
-	RuntimeOAuthTokenManager,
 	readGlobalSettings,
-	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -56,6 +54,8 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
+import { resolveFreshClineAuthToken } from "./cline-auth";
+import { getCloudSessionManager } from "./cloud-sessions";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -66,6 +66,10 @@ import {
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
 } from "./context";
+import {
+	isCloudAgentsEnabled,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -87,7 +91,10 @@ import {
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
-import { discoverChatSessions } from "./session-data/discovery";
+import {
+	discoverChatSessions,
+	mergeDiscoveredSessionLists,
+} from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
@@ -283,31 +290,6 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
-}
-
-// Cline access tokens expire between app launches, so account requests must
-// resolve through the refresh-aware OAuth manager instead of reading the
-// persisted token directly. A single shared instance keeps concurrent account
-// requests single-flight; the refresh token is single-use, so parallel
-// refreshes would invalidate each other.
-let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
-
-async function resolveFreshClineAuthToken(
-	manager: ProviderSettingsManager,
-): Promise<string | undefined> {
-	try {
-		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
-		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
-			providerId: "cline",
-		});
-		if (resolution?.apiKey) {
-			return resolution.apiKey;
-		}
-	} catch {
-		// Fall back to the persisted token; the account request surfaces the
-		// auth failure to the caller.
-	}
-	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
 }
 
 function mergePersistedSessionRecord(
@@ -1166,9 +1148,14 @@ export async function handleCommand(
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
+		const sessionId = String(args?.sessionId ?? "");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			await cloud.readMessages(sessionId);
+		}
 		return await readSessionMessages(
 			ctx,
-			String(args?.sessionId ?? ""),
+			sessionId,
 			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
 		);
 	}
@@ -1207,6 +1194,12 @@ export async function handleCommand(
 				error: ctx.hubClient?.getConnectionError()?.message ?? null,
 			},
 		};
+	}
+	if (command === "get_feature_flags") {
+		// Refresh first so a boot-time query reflects the provider (bounded by
+		// the provider timeout; falls back to cache/defaults on failure).
+		await refreshDesktopFeatureFlags(ctx.logger);
+		return { cloudAgents: isCloudAgentsEnabled() };
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -1260,10 +1253,14 @@ export async function handleCommand(
 
 	// ── Session discovery ─────────────────────────────────────────────
 	if (command === "list_chat_sessions") {
-		return discoverChatSessions(
-			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
-		);
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = discoverChatSessions(ctx, limit);
+		// Existing cloud sessions stay listed even when the flag is off — the
+		// flag gates NEW creation only, so a rollback never strands a session.
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery()
+			.catch(() => []);
+		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "list_cli_sessions") {
 		return await listSessionsFromSidecarManager(
@@ -1272,20 +1269,37 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_discovered_sessions") {
-		return await listSessionsFromSidecarManager(
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = (await listSessionsFromSidecarManager(
 			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
-		);
+			limit,
+		)) as JsonRecord[];
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery()
+			.catch(() => []);
+		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			return (
+				(await cloud.listForDiscovery()).find(
+					(session) => session.sessionId === sessionId,
+				) ?? null
+			);
+		}
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		const title = normalizeSessionTitle(String(args?.title ?? ""));
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			throw new Error("Cloud session titles cannot be changed yet");
+		}
 		const backend = await resolveSessionBackend({ backendMode: "local" });
 		const result = await backend.updateSession({ sessionId, title });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
@@ -1334,6 +1348,11 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			await cloud.delete(sessionId);
+			return true;
+		}
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);

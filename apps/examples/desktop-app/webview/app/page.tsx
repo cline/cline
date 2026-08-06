@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { ImagePlus } from "lucide-react";
 import {
 	useCallback,
@@ -38,7 +39,7 @@ import {
 	type SettingsSection,
 	SettingsView,
 } from "@/components/views/settings/settings-view";
-import { AccountProvider } from "@/contexts/account-context";
+import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -47,6 +48,7 @@ import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { parseCloudSessionError } from "@/lib/cloud-session-error";
 import {
 	createDesktopAppState,
 	type DesktopAppLocation,
@@ -87,6 +89,37 @@ import {
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Re-evaluates the cloud-agents feature flag whenever the signed-in account
+ * changes (the sidecar targets flags per user), including the initial mount.
+ * Rendered inside AccountProvider; renders nothing.
+ */
+function CloudAgentsFlagSync({
+	onChange,
+}: {
+	onChange: (enabled: boolean) => void;
+}) {
+	const { user } = useAccount();
+	const userId = user?.id ?? null;
+	useEffect(() => {
+		let cancelled = false;
+		desktopClient
+			.invoke("get_feature_flags", {})
+			.then((flags) => {
+				if (!cancelled) {
+					onChange(
+						Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+					);
+				}
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	}, [userId, onChange]);
+	return null;
 }
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
@@ -312,6 +345,7 @@ export default function Home() {
 
 	return (
 		<AccountProvider>
+			<CloudAgentsFlagSync onChange={setCloudAgentsEnabled} />
 			<SidebarProvider>
 				<div
 					aria-hidden={showOnboarding ? true : undefined}
@@ -485,6 +519,10 @@ function ChatThreadPane({
 		string | null
 	>(null);
 	const [gitBranch, setGitBranch] = useState("no-git");
+	// Cloud agents are feature-flagged; default off until the sidecar answers.
+	// Fetched by CloudAgentsFlagSync (inside AccountProvider) so a sign-in
+	// during onboarding re-evaluates per-user targeting without a restart.
+	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>({});
@@ -515,7 +553,23 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
-	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
+	const isCloudSession =
+		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const activeWorkspaceCwd = isCloudSession
+		? ""
+		: (config.cwd || config.workspaceRoot || "").trim();
+	const localConfigRef = useRef<
+		Pick<
+			ChatSessionConfig,
+			"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
+		>
+	>({
+		provider: config.provider,
+		model: config.model,
+		apiKey: config.apiKey,
+		workspaceRoot: config.workspaceRoot,
+		cwd: config.cwd,
+	});
 
 	useEffect(() => {
 		setWorkspaces((current) => {
@@ -530,12 +584,17 @@ function ChatThreadPane({
 	}, [knownWorkspacePaths]);
 
 	useEffect(() => {
+		// Cloud sessions clear/replace workspaceRoot with the sandbox's synthetic
+		// path — persisting that would clobber the remembered local workspace.
+		if (config.executionTarget === "cloud") {
+			return;
+		}
 		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
 		writeWorkspaceSelectionToWindow({
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
 		});
-	}, [config.cwd, config.workspaceRoot, workspaces]);
+	}, [config.cwd, config.workspaceRoot, config.executionTarget, workspaces]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -1088,6 +1147,66 @@ function ChatThreadPane({
 		});
 	}, []);
 
+	const handleExecutionTargetChange = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
+				return;
+			}
+			setConfig((prev) => {
+				if (target === prev.executionTarget) return prev;
+				if (target === "cloud") {
+					localConfigRef.current = {
+						provider: prev.provider,
+						model: prev.model,
+						apiKey: prev.apiKey,
+						workspaceRoot: prev.workspaceRoot,
+						cwd: prev.cwd,
+					};
+					return {
+						...prev,
+						executionTarget: "cloud",
+						provider: "cline",
+						model:
+							prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID,
+						apiKey: providerCredentials.cline?.apiKey ?? "",
+						workspaceRoot: "",
+						cwd: "",
+					};
+				}
+				return {
+					...prev,
+					...localConfigRef.current,
+					executionTarget: "local",
+					repoUrl: undefined,
+					branch: undefined,
+				};
+			});
+			if (target === "cloud") {
+				setPendingAttachments([]);
+				setShowDiffView(false);
+			}
+		},
+		[providerCredentials.cline?.apiKey, setConfig, cloudAgentsEnabled],
+	);
+
+	const handleCloudRepoUrlChange = useCallback(
+		(repoUrl: string) => {
+			setConfig((prev) =>
+				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
+			);
+		},
+		[setConfig],
+	);
+
+	const handleCloudBranchChange = useCallback(
+		(branch: string) => {
+			setConfig((prev) =>
+				prev.branch === branch ? prev : { ...prev, branch },
+			);
+		},
+		[setConfig],
+	);
+
 	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
 	// Tauri window — otherwise the native shell swallows OS file drags and these
 	// HTML5 events never fire.
@@ -1158,6 +1277,9 @@ function ChatThreadPane({
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
+	const cloudSessionError = isCloudSession
+		? parseCloudSessionError(displayedError)
+		: null;
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -1186,7 +1308,7 @@ function ChatThreadPane({
 		loading: agentsLoading,
 		error: agentsError,
 	} = useSessionAgents({
-		sessionId: displayedSessionId,
+		sessionId: isCloudSession ? null : displayedSessionId,
 		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
 	});
@@ -1339,6 +1461,8 @@ function ChatThreadPane({
 			}
 			onSend={(prompt) => void handleSend(prompt)}
 			gitBranch={gitBranch}
+			executionTarget={isCloudSession ? "cloud" : "local"}
+			repoUrl={config.repoUrl}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
@@ -1362,12 +1486,12 @@ function ChatThreadPane({
 						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
 						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				onDragEnter={isCloudSession ? undefined : handleDragEnter}
+				onDragLeave={isCloudSession ? undefined : handleDragLeave}
+				onDragOver={isCloudSession ? undefined : handleDragOver}
+				onDrop={isCloudSession ? undefined : handleDrop}
 			>
-				{isDraggingFiles ? (
+				{isDraggingFiles && !isCloudSession ? (
 					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
 						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
 							<ImagePlus className="h-8 w-8 text-primary" />
@@ -1383,21 +1507,25 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
+							agentActivity={isCloudSession ? undefined : agentActivity}
+							agents={isCloudSession ? undefined : agents}
 							agentsError={agentsError}
 							agentsLoading={agentsLoading}
 							onAgentsOpenChange={setAgentPanelOpen}
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenParentSession={onOpenSessionById}
 							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
+							canEditTitle={!isCloudSession && Boolean(activeSessionForTitle)}
 							canDeleteSession={Boolean(activeSessionToDelete)}
 							deletingSession={deletingSession}
-							diff={{
-								additions: summary.additions,
-								deletions: summary.deletions,
-							}}
+							diff={
+								isCloudSession
+									? undefined
+									: {
+											additions: summary.additions,
+											deletions: summary.deletions,
+										}
+							}
 							onDeleteSession={requestDeleteSession}
 							onNewThread={onNewThread}
 							onOpenDiff={() => {
@@ -1413,7 +1541,7 @@ function ChatThreadPane({
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						showDiffView ? (
+						showDiffView && !isCloudSession ? (
 							<DiffView
 								cwd={config.cwd || config.workspaceRoot}
 								fileDiffs={fileDiffs}
@@ -1425,11 +1553,27 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
-								error={displayedError}
+								error={cloudSessionError?.message ?? displayedError}
+								errorAction={
+									cloudSessionError?.code === "github_not_connected" &&
+									cloudSessionError.connectUrl
+										? {
+												label: "Connect GitHub",
+												url: cloudSessionError.connectUrl,
+											}
+										: undefined
+								}
 								messages={displayedMessages}
-								onEditMessage={handleEditMessage}
-								onRestoreCheckpoint={handleRestoreCheckpoint}
-								onForkSession={handleForkSession}
+								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									isCloudSession ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={isCloudSession ? undefined : handleForkSession}
+								startingLabel={
+									isCloudSession && !displayedSessionId
+										? "Provisioning cloud workspace..."
+										: undefined
+								}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -1444,6 +1588,13 @@ function ChatThreadPane({
 					onListGitBranches={listGitBranches}
 					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
+					executionTarget={isCloudSession ? "cloud" : "local"}
+					repoUrl={config.repoUrl ?? ""}
+					cloudBranch={config.branch ?? ""}
+					onExecutionTargetChange={handleExecutionTargetChange}
+					onRepoUrlChange={handleCloudRepoUrlChange}
+					onCloudBranchChange={handleCloudBranchChange}
+					cloudAgentsEnabled={cloudAgentsEnabled}
 					quickActions={[]}
 				/>
 			</div>
@@ -1465,7 +1616,9 @@ function ChatThreadPane({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This session will be removed from local history.
+							{isCloudSession
+								? "This cloud session and its workspace will be deleted."
+								: "This session will be removed from local history."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

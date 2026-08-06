@@ -64,6 +64,7 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { openExternalUrl } from "@/lib/desktop-client";
 import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
@@ -78,6 +79,8 @@ type ChatMessagesProps = {
 		| "connected"
 		| "unavailable";
 	isSessionSwitching?: boolean;
+	startingLabel?: string;
+	errorAction?: { label: string; url: string };
 	messages: ChatMessage[];
 	error: string | null;
 	streamingMessageId?: string | null;
@@ -297,6 +300,8 @@ function ChatMessagesImpl({
 	status,
 	chatTransportState = "connecting",
 	isSessionSwitching = false,
+	startingLabel = "Thinking...",
+	errorAction,
 	messages,
 	error,
 	streamingMessageId = null,
@@ -804,7 +809,7 @@ function ChatMessagesImpl({
 					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+							<span className={STREAMING_TITLE_CLASS}>{startingLabel}</span>
 						</div>
 					) : null}
 					{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
@@ -819,7 +824,17 @@ function ChatMessagesImpl({
 					) : null}
 					{shouldShowErrorBanner ? (
 						<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
+							<p>{error}</p>
+							{errorAction ? (
+								<Button
+									className="mt-2"
+									onClick={() => void openExternalUrl(errorAction.url)}
+									size="sm"
+									variant="outline"
+								>
+									{errorAction.label}
+								</Button>
+							) : null}
 						</div>
 					) : null}
 				</ConversationContent>

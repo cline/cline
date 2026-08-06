@@ -9,6 +9,7 @@ import {
 	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
+import NodeWebSocket from "ws";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -168,7 +169,15 @@ export interface HubClientOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
+	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
 	authToken?: string;
+	/**
+	 * Resolves HTTP headers for each new WebSocket, including reconnects.
+	 * This Node-only transport option is mutually exclusive with `authToken`.
+	 */
+	resolveConnectionHeaders?: () =>
+		| Readonly<Record<string, string>>
+		| Promise<Readonly<Record<string, string>>>;
 }
 
 export interface LocalHubResolutionOptions {
@@ -309,6 +318,11 @@ export class NodeHubClient {
 	private registered = false;
 
 	constructor(private readonly options: HubClientOptions) {
+		if (options.authToken?.trim() && options.resolveConnectionHeaders) {
+			throw new Error(
+				"Hub connection headers cannot be combined with authToken authentication.",
+			);
+		}
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
@@ -332,6 +346,9 @@ export class NodeHubClient {
 	}
 
 	async connect(): Promise<void> {
+		if (this.connectPromise) {
+			return this.connectPromise;
+		}
 		if (
 			this.socket &&
 			(this.socket.readyState === 1 || this.socket.readyState === 0)
@@ -345,15 +362,89 @@ export class NodeHubClient {
 		const authToken =
 			this.options.authToken?.trim() || resolveLocalHubAuthToken(url);
 		url.hash = "";
+		if (authToken && this.options.resolveConnectionHeaders) {
+			throw new Error(
+				"Hub connection headers cannot be combined with authToken authentication.",
+			);
+		}
 
-		const WebSocketImpl = getWebSocketCtor();
-		const socket = new WebSocketImpl(
-			url.toString(),
-			authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
-		);
+		const connectPromise = this.openSocket(url, authToken);
+		this.connectPromise = connectPromise.then(async () => {
+			await this.commandOnce(
+				"client.register",
+				{
+					clientId: this.clientId,
+					clientType: this.options.clientType ?? "core",
+					displayName: this.options.displayName ?? "core",
+					transport: "native",
+					actorKind: "client",
+					workspaceContext: {
+						workspaceRoot: this.options.workspaceRoot,
+						cwd: this.options.cwd,
+					},
+				} satisfies HubClientRegistration,
+				undefined,
+				undefined,
+				false,
+			);
+			this.registered = true;
+			for (const key of this.subscriptionCounts.keys()) {
+				this.sendSubscriptionFrame(
+					"stream.subscribe",
+					this.subscriptionSessionIdFromKey(key),
+				);
+			}
+			this.reconnectAttempt = 0;
+		});
+		const registrationPromise = this.connectPromise;
+		try {
+			await registrationPromise;
+		} catch (error) {
+			if (this.connectPromise === registrationPromise) {
+				this.connectPromise = undefined;
+			}
+			// A socket that opened but never registered must not survive: a later
+			// connect() would see it open and resolve without a registered client.
+			// Close it and let the close listener reset state / schedule reconnect.
+			if (!this.registered && this.socket) {
+				try {
+					this.socket.close();
+				} catch {
+					// best-effort close
+				}
+			}
+			throw error;
+		}
+	}
+
+	private async openSocket(url: URL, authToken?: string): Promise<void> {
+		const resolveHeaders = this.options.resolveConnectionHeaders;
+		const headers = resolveHeaders ? await resolveHeaders() : undefined;
+		if (this.closedByClient) {
+			throw this.lastCloseError;
+		}
+		if (
+			headers &&
+			Object.keys(headers).some(
+				(name) => name.toLowerCase() === "sec-websocket-protocol",
+			)
+		) {
+			throw new Error(
+				"Hub connection headers cannot set Sec-WebSocket-Protocol.",
+			);
+		}
+
+		const socket = headers
+			? (new NodeWebSocket(url.toString(), {
+					headers: { ...headers },
+				}) as unknown as WebSocketLike)
+			: new (getWebSocketCtor())(
+					url.toString(),
+					authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
+				);
 		this.socket = socket;
 		let suppressCloseMessage = false;
-		this.connectPromise = new Promise<void>((resolve, reject) => {
+		const opened = new Promise<void>((resolve, reject) => {
 			let settled = false;
 			const timeout = setTimeout(() => {
 				if (settled) {
@@ -434,26 +525,7 @@ export class NodeHubClient {
 			}
 		});
 
-		await this.connectPromise;
-		await this.command("client.register", {
-			clientId: this.clientId,
-			clientType: this.options.clientType ?? "core",
-			displayName: this.options.displayName ?? "core",
-			transport: "native",
-			actorKind: "client",
-			workspaceContext: {
-				workspaceRoot: this.options.workspaceRoot,
-				cwd: this.options.cwd,
-			},
-		} satisfies HubClientRegistration);
-		this.registered = true;
-		for (const key of this.subscriptionCounts.keys()) {
-			this.sendSubscriptionFrame(
-				"stream.subscribe",
-				this.subscriptionSessionIdFromKey(key),
-			);
-		}
-		this.reconnectAttempt = 0;
+		await opened;
 	}
 
 	subscribe(
@@ -502,8 +574,11 @@ export class NodeHubClient {
 		payload?: Record<string, unknown>,
 		sessionId?: string,
 		options?: { timeoutMs?: number | null },
+		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
-		await this.connect();
+		if (ensureConnected) {
+			await this.connect();
+		}
 		const requestId = createSessionId("hubreq_");
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
