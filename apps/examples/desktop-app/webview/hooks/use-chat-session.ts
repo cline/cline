@@ -1082,11 +1082,34 @@ export function useChatSession() {
 				// signal. Without it the composer stays on "Agent is working..."
 				// forever.
 				let doneReason = "";
+				let doneText = "";
 				try {
-					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					const parsed = JSON.parse(payload.chunk) as {
+						reason?: string;
+						text?: string;
+					};
 					doneReason = parsed.reason?.trim() ?? "";
+					doneText = typeof parsed.text === "string" ? parsed.text.trim() : "";
 				} catch {
 					// Missing reason still means the turn ended.
+				}
+				// Queued prompts resolve only through this event, so a failed turn
+				// would otherwise end with no transcript feedback at all. The done
+				// payload's text carries the provider error for these failures.
+				if (doneReason === "error" && !activeAssistantMessageIdRef.current) {
+					setMessages((prev) => {
+						if (prev.at(-1)?.role === "error") {
+							return prev;
+						}
+						return sliceMessages([
+							...prev,
+							makeErrorChatMessage(
+								listeningSessionId,
+								doneText ||
+									"Runtime turn failed before an assistant response was produced.",
+							),
+						]);
+					});
 				}
 				setStatus(
 					doneReason === "aborted"

@@ -1127,12 +1127,38 @@ describe("useChatSession", () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
 				stream: "chat_done",
-				chunk: JSON.stringify({ reason: "error" }),
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Anthropic API key is missing.",
+				}),
 				ts: Date.now(),
 				index: 2,
 			});
 		});
 		expect(current.status).toBe("failed");
+		// chat_done is the only signal for queued turns, so the failure must
+		// leave visible transcript feedback (the retry affordance hangs off it).
+		const lastMessage = current.messages.at(-1);
+		expect(lastMessage?.role).toBe("error");
+		expect(lastMessage?.content).toBe("Anthropic API key is missing.");
+
+		// A second error completion for the same failure must not stack
+		// duplicate error bubbles.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Anthropic API key is missing.",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(1);
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {
