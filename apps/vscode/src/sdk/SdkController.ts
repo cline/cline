@@ -371,6 +371,11 @@ export class Controller {
 				)
 				return true
 			},
+			// The mark_goal_complete call renders no dedicated tool row, so a
+			// successful completion is surfaced as an info row instead.
+			onGoalCompleted: (record) => {
+				this.emitGoalInfo(`Goal verified complete: ${record.goal}${record.summary ? ` — ${record.summary}` : ""}`)
+			},
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,

@@ -1,4 +1,5 @@
 import {
+	type CompletedGoalRecord,
 	createInteractiveGoalGuard,
 	formatGoalVerificationPrompt,
 	type InteractiveGoalGuard,
@@ -45,6 +46,12 @@ export interface SdkGoalCoordinatorOptions {
 	 * longer the active one, so the guard can roll the round back.
 	 */
 	sendVerificationTurn: (sessionId: string, prompt: string) => boolean
+	/**
+	 * Called once when the model marks the active goal complete. The tool
+	 * call itself has no dedicated chat row (custom extraTools render
+	 * nothing), so the controller surfaces this as an info row instead.
+	 */
+	onGoalCompleted?: (record: CompletedGoalRecord) => void
 }
 
 /**
@@ -69,6 +76,8 @@ export class SdkGoalCoordinator {
 	 * active past the cap, so the next completed run nudges again.
 	 */
 	private verificationRounds = 0
+	/** Completion timestamp already reported through onGoalCompleted. */
+	private lastReportedCompletionAt: string | undefined
 
 	constructor(private readonly options: SdkGoalCoordinatorOptions) {}
 
@@ -115,6 +124,7 @@ export class SdkGoalCoordinator {
 	 * verification turn (up to the round cap per user submission).
 	 */
 	handleTurnSettled(sessionId: string, result: AgentResult | undefined, _origin: SdkSendOrigin): void {
+		this.reportNewCompletion()
 		if (result?.finishReason !== "completed") {
 			this.guard.resetVerification()
 			return
@@ -140,5 +150,19 @@ export class SdkGoalCoordinator {
 			this.verificationRounds -= 1
 			this.guard.resetVerification()
 		}
+	}
+
+	/**
+	 * Surfaces a completion recorded since the last settle. The tool executes
+	 * mid-turn inside the SDK runtime, so the turn-settled callback is the
+	 * first host-side hook that can observe it.
+	 */
+	private reportNewCompletion(): void {
+		const completed = this.guard.getLastCompletedGoal()
+		if (!completed || completed.completedAt === this.lastReportedCompletionAt) {
+			return
+		}
+		this.lastReportedCompletionAt = completed.completedAt
+		this.options.onGoalCompleted?.(completed)
 	}
 }

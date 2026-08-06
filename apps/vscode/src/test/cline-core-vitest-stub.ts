@@ -122,6 +122,7 @@ export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../..
 // Real goal-guard implementation (dependency-light: only @cline/shared), so
 // the /goal coordinator tests exercise the same guard the CLI uses.
 export {
+	type CompletedGoalRecord,
 	createInteractiveGoalGuard,
 	formatGoalVerificationPrompt,
 	GOAL_COMMAND_USAGE,

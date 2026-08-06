@@ -10,8 +10,9 @@ const toolContext = { agentId: "agent", iteration: 0 }
 
 function makeCoordinator(sendResult = true) {
 	const sendVerificationTurn = vi.fn((_sessionId: string, _prompt: string) => sendResult)
-	const coordinator = new SdkGoalCoordinator({ sendVerificationTurn })
-	return { coordinator, sendVerificationTurn }
+	const onGoalCompleted = vi.fn()
+	const coordinator = new SdkGoalCoordinator({ sendVerificationTurn, onGoalCompleted })
+	return { coordinator, sendVerificationTurn, onGoalCompleted }
 }
 
 describe("parseGoalCommand", () => {
@@ -137,7 +138,7 @@ describe("SdkGoalCoordinator", () => {
 	})
 
 	it("accepts mark_goal_complete during a verification turn and stops nudging", async () => {
-		const { coordinator, sendVerificationTurn } = makeCoordinator()
+		const { coordinator, sendVerificationTurn, onGoalCompleted } = makeCoordinator()
 		coordinator.setGoal("fix tests")
 		coordinator.handleSendStart("user")
 		coordinator.handleTurnSettled("session-1", completed, "user")
@@ -152,6 +153,12 @@ describe("SdkGoalCoordinator", () => {
 		coordinator.handleTurnSettled("session-1", completed, "goal-verification")
 		expect(sendVerificationTurn).toHaveBeenCalledTimes(1)
 		expect(coordinator.formatStatus()).toContain("Last completed goal: fix tests — done")
+		// The completion is reported exactly once, when the verification turn
+		// that carried the tool call settles.
+		expect(onGoalCompleted).toHaveBeenCalledTimes(1)
+		expect(onGoalCompleted).toHaveBeenCalledWith(expect.objectContaining({ goal: "fix tests", summary: "done" }))
+		coordinator.handleTurnSettled("session-1", completed, "user")
+		expect(onGoalCompleted).toHaveBeenCalledTimes(1)
 	})
 
 	it("rolls the round back when the verification send is skipped", () => {
