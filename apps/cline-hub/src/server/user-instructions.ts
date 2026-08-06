@@ -140,9 +140,11 @@ export async function listUserInstructionConfigs(
 			cwd: targetWorkspaceRoot,
 		}),
 	]);
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const globalSettings = readGlobalSettings();
+	const disabledTools = new Set(globalSettings.disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		disabledToolIds: disabledTools,
+		enabledToolIds: new Set(globalSettings.enabledTools ?? []),
 	});
 
 	return {

@@ -46,6 +46,10 @@ export {
 	createWebFetchExecutor,
 	type WebFetchExecutorOptions,
 } from "./web-fetch";
+export {
+	type ClineWebSearchExecutorOptions,
+	createClineWebSearchExecutor,
+} from "./web-search";
 
 /**
  * Options for creating default executors

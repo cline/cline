@@ -121,6 +121,81 @@ describe("default skills tool", () => {
 	});
 });
 
+describe("default web_search tool", () => {
+	it("is excluded by default even when executor is provided", () => {
+		const tools = createDefaultTools({
+			executors: {
+				webSearch: async () => "results",
+			},
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("web_search");
+	});
+
+	it("is included only when enabled with a webSearch executor", () => {
+		const toolsWithoutExecutor = createDefaultTools({
+			executors: {},
+			enableWebSearch: true,
+		});
+		expect(toolsWithoutExecutor.map((tool) => tool.name)).not.toContain(
+			"web_search",
+		);
+
+		const toolsWithExecutor = createDefaultTools({
+			executors: {
+				webSearch: async () => "results",
+			},
+			enableWebSearch: true,
+		});
+		expect(toolsWithExecutor.map((tool) => tool.name)).toContain("web_search");
+	});
+
+	it("validates and executes web_search input", async () => {
+		const execute = vi.fn(async () => "Search completed (0 results found)");
+		const tools = createDefaultTools({
+			executors: {
+				webSearch: execute,
+			},
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: false,
+			enableWebFetch: false,
+			enableEditor: false,
+			enableSkills: false,
+			enableAskQuestion: false,
+			enableWebSearch: true,
+		});
+		const webSearchTool = tools.find((tool) => tool.name === "web_search");
+		expect(webSearchTool).toBeDefined();
+		if (!webSearchTool) {
+			return;
+		}
+
+		const result = await webSearchTool.execute(
+			{ query: "cline sdk release notes" },
+			{ sessionId: "session-1" } as never,
+		);
+		expect(result).toBe("Search completed (0 results found)");
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ query: "cline sdk release notes" }),
+			expect.anything(),
+		);
+
+		await expect(
+			webSearchTool.execute({}, { sessionId: "session-1" } as never),
+		).rejects.toThrow();
+		await expect(
+			webSearchTool.execute(
+				{
+					query: "conflicting filters",
+					allowed_domains: ["a.com"],
+					blocked_domains: ["b.com"],
+				},
+				{ sessionId: "session-1" } as never,
+			),
+		).rejects.toThrow(/allowed_domains and blocked_domains/);
+	});
+});
+
 describe("default ask_question tool", () => {
 	it("is enabled by default when executor is provided", () => {
 		const tools = createDefaultTools({

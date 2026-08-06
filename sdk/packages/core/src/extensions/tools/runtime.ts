@@ -22,6 +22,23 @@ export interface BuiltinToolAvailabilityContext {
 	enableSpawnAgent?: boolean;
 	enableAgentTeams?: boolean;
 	disabledToolIds?: ReadonlySet<string>;
+	/**
+	 * Opt-in tool ids the user explicitly enabled (e.g. from the
+	 * `enabledTools` global setting). Opt-in entries such as `web_search`
+	 * stay disabled unless listed here.
+	 */
+	enabledToolIds?: ReadonlySet<string>;
+}
+
+/** Providers whose sessions can use the Cline-account-backed web_search tool. */
+const WEB_SEARCH_PROVIDER_IDS = new Set(["cline"]);
+
+/**
+ * Whether sessions on this provider can register the web_search tool. The
+ * tool is backed by the Cline account API, so it requires the Cline provider.
+ */
+export function isWebSearchSupportedProvider(providerId: string): boolean {
+	return WEB_SEARCH_PROVIDER_IDS.has(providerId);
 }
 
 type RuntimeToolCatalogEntry = Omit<ToolCatalogEntry, "defaultEnabled">;
@@ -58,6 +75,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		headlessToolNames: ["fetch_web_content"],
 	},
 	{
+		id: "web_search",
+		description:
+			"Search the web and return result titles and URLs via the Cline account API. Off by default; requires the Cline provider.",
+		headlessToolNames: ["web_search"],
+	},
+	{
 		id: "skills",
 		description:
 			"Execute a configured skill within the main conversation when a matching skill exists for the task.",
@@ -92,6 +115,7 @@ const TOOL_NAME_TO_FLAG: Partial<
 			| "enableSearch"
 			| "enableBash"
 			| "enableWebFetch"
+			| "enableWebSearch"
 			| "enableApplyPatch"
 			| "enableEditor"
 			| "enableSkills"
@@ -104,6 +128,7 @@ const TOOL_NAME_TO_FLAG: Partial<
 	search_codebase: "enableSearch",
 	run_commands: "enableBash",
 	fetch_web_content: "enableWebFetch",
+	web_search: "enableWebSearch",
 	apply_patch: "enableApplyPatch",
 	editor: "enableEditor",
 	skills: "enableSkills",
@@ -122,6 +147,7 @@ type ResolvedToolFlags = Pick<
 	| "enableSearch"
 	| "enableBash"
 	| "enableWebFetch"
+	| "enableWebSearch"
 	| "enableApplyPatch"
 	| "enableEditor"
 	| "enableSkills"
@@ -165,6 +191,14 @@ function isEntryEnabledByDefault(
 ): boolean {
 	if (context.disabledToolIds?.has(entryId)) {
 		return false;
+	}
+
+	// web_search is opt-in: the toggle reflects only the user's explicit
+	// opt-in. The provider gate (Cline provider only) applies when the
+	// session runtime is built, mirroring the legacy extension where the
+	// setting was visible regardless of the active provider.
+	if (entryId === "web_search") {
+		return context.enabledToolIds?.has(entryId) === true;
 	}
 
 	const { flags } = resolvePresetFlags(context);

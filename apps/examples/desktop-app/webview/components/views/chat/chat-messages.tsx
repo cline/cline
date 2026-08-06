@@ -1455,9 +1455,13 @@ function classifyTool(
 ): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
 	const normalized = normalizeToolName(toolName);
 	if (
-		["search_codebase", "read_files", "fetch_web_content", "skills"].includes(
-			normalized,
-		)
+		[
+			"search_codebase",
+			"read_files",
+			"fetch_web_content",
+			"web_search",
+			"skills",
+		].includes(normalized)
 	)
 		return "exploration";
 	if (["editor", "apply_patch"].includes(normalized)) return "file-edit";
@@ -1480,6 +1484,7 @@ const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
 	skills: LibraryIcon,
 	spawn_agent: UserIcon,
 	submit_and_exit: SquareArrowRightIcon,
+	web_search: PanelsTopLeftIcon,
 };
 
 const TOOL_KIND_ICONS: Record<ReturnType<typeof classifyTool>, LucideIcon> = {
@@ -1694,6 +1699,19 @@ function buildToolSummary(
 				),
 			};
 		}
+	}
+
+	if (normalized === "web_search") {
+		const query =
+			typeof inputObject?.query === "string" ? inputObject.query : "";
+		return {
+			label: query
+				? `${inProgress ? "Searching the web for" : "Searched the web for"} "${query}"`
+				: inProgress
+					? "Searching the web"
+					: "Searched the web",
+			details: [],
+		};
 	}
 
 	if (normalized === "apply_patch") {

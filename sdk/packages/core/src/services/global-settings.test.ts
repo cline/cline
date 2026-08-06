@@ -5,21 +5,25 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isToolEnabledGlobally,
+	OPT_IN_TOOL_NAMES,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
+	resolveEnabledToolNames,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
-	readTuiThemeGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
 	setTuiThemeGlobally,
+	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./global-settings";
 
@@ -159,6 +163,57 @@ describe("global-settings", () => {
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
 			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("routes opt-in tools through the enabledTools allowlist", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(OPT_IN_TOOL_NAMES.has("web_search")).toBe(true);
+			expect(isToolEnabledGlobally("web_search")).toBe(false);
+
+			// "Enabling" an opt-in tool adds it to enabledTools, never touching
+			// disabledTools.
+			setDisabledTools(["web_search"], false);
+			expect(readGlobalSettings().enabledTools).toEqual(["web_search"]);
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
+			expect(isToolEnabledGlobally("web_search")).toBe(true);
+			expect(resolveEnabledToolNames().has("web_search")).toBe(true);
+
+			// "Disabling" removes the opt-in again.
+			setDisabledTools(["web_search"], true);
+			expect(readGlobalSettings().enabledTools).toBeUndefined();
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
+			expect(isToolEnabledGlobally("web_search")).toBe(false);
+
+			// Mixed batches route each name to the right list.
+			setDisabledTools(["web_search", "editor"], true);
+			expect(readGlobalSettings().disabledTools).toEqual(["editor"]);
+			expect(readGlobalSettings().enabledTools).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("toggles opt-in tools via toggleDisabledTool", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			// First toggle opts in (returns false: the tool is now enabled).
+			expect(toggleDisabledTool("web_search")).toBe(false);
+			expect(readGlobalSettings().enabledTools).toEqual(["web_search"]);
+
+			// Second toggle opts out again.
+			expect(toggleDisabledTool("web_search")).toBe(true);
+			expect(readGlobalSettings().enabledTools).toBeUndefined();
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

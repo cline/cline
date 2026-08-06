@@ -39,6 +39,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableSearch"
 		| "enableBash"
 		| "enableWebFetch"
+		| "enableWebSearch"
 		| "enableApplyPatch"
 		| "enableEditor"
 		| "enableSkills"
@@ -50,6 +51,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	search_codebase: "enableSearch",
 	run_commands: "enableBash",
 	fetch_web_content: "enableWebFetch",
+	web_search: "enableWebSearch",
 	apply_patch: "enableApplyPatch",
 	editor: "enableEditor",
 	skills: "enableSkills",

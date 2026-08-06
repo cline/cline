@@ -54,6 +54,7 @@ export const GlobalSettingsSchema = z
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		enabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
@@ -67,6 +68,7 @@ export const GlobalSettingsSchema = z
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
+			enabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
@@ -89,6 +91,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
+		}
+		if (settings.enabledTools?.length) {
+			normalized.enabledTools = settings.enabledTools;
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
@@ -122,6 +127,9 @@ function invalidateSettingsCache(): void {
 function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
+	}
+	if (value.enabledTools) {
+		Object.freeze(value.enabledTools);
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
@@ -287,10 +295,36 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
 }
 
+/**
+ * Built-in tools that are OFF by default and require an explicit opt-in via
+ * the `enabledTools` global setting. Toggling these tools through
+ * {@link toggleDisabledTool} / {@link setDisabledTools} writes to
+ * `enabledTools` instead of `disabledTools`, so every host's existing tool
+ * toggle UI works unchanged.
+ */
+export const OPT_IN_TOOL_NAMES: ReadonlySet<string> = new Set(["web_search"]);
+
+function isOptInTool(toolName: string): boolean {
+	return OPT_IN_TOOL_NAMES.has(toolName);
+}
+
 export function resolveDisabledToolNames(
 	disabledToolNames?: ReadonlyArray<string>,
 ): Set<string> {
 	return new Set(disabledToolNames ?? readGlobalSettings().disabledTools ?? []);
+}
+
+/**
+ * Opt-in tool names the user has explicitly enabled via global settings.
+ */
+export function resolveEnabledToolNames(
+	enabledToolNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(enabledToolNames ?? readGlobalSettings().enabledTools ?? []);
+}
+
+export function isToolEnabledGlobally(toolName: string): boolean {
+	return resolveEnabledToolNames().has(toolName);
 }
 
 export function resolveDisabledPluginPaths(
@@ -306,6 +340,19 @@ export function isToolDisabledGlobally(toolName: string): boolean {
 }
 
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isOptInTool(toolName)) {
+		const settings = readGlobalSettings();
+		const enabled = new Set(settings.enabledTools ?? []);
+		const wasEnabled = enabled.has(toolName);
+		if (wasEnabled) {
+			enabled.delete(toolName);
+		} else {
+			enabled.add(toolName);
+		}
+		writeGlobalSettings({ ...settings, enabledTools: [...enabled] });
+		return wasEnabled;
+	}
+
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -331,14 +378,29 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const enabled = resolveEnabledToolNames(settings.enabledTools);
 	for (const name of names) {
+		if (isOptInTool(name)) {
+			// Opt-in tools live in the enabledTools allowlist: "disabling" one
+			// simply drops the opt-in instead of polluting disabledTools.
+			if (disabledValue) {
+				enabled.delete(name);
+			} else {
+				enabled.add(name);
+			}
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({
+		...settings,
+		disabledTools: [...disabled],
+		enabledTools: [...enabled],
+	});
 }
 
 export function setToolDisabledGlobally(

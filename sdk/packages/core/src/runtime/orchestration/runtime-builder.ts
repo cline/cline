@@ -10,6 +10,7 @@ import {
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { getPersistedProviderApiKey } from "../../auth/provider-auth-registry";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
@@ -21,7 +22,9 @@ import {
 } from "../../extensions/mcp";
 import {
 	createBuiltinTools,
+	createClineWebSearchExecutor,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	isWebSearchSupportedProvider,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -42,7 +45,9 @@ import { createConfiguredAgentTools } from "../../extensions/tools/team/configur
 import {
 	filterDisabledTools,
 	resolveDisabledToolNames,
+	resolveEnabledToolNames,
 } from "../../services/global-settings";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
 import type {
@@ -146,6 +151,11 @@ function createBuiltinToolsList(
 		mode,
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
+	// web_search is opt-in (enabledTools global setting) and only works on
+	// providers backed by the Cline account API.
+	const enableWebSearch =
+		isWebSearchSupportedProvider(providerId) &&
+		resolveEnabledToolNames().has("web_search");
 
 	return filterAvailableTools(
 		createBuiltinTools({
@@ -154,6 +164,7 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
+			enableWebSearch,
 			executors: {
 				...(skillsExecutor
 					? {
@@ -361,6 +372,33 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		// Default web_search executor backed by the Cline account API. The
+		// token is resolved lazily per search so refreshed credentials are
+		// picked up; the session's own key is the fallback (for the cline
+		// provider that key is the account token). Hosts may still override
+		// the executor via input.toolExecutors.
+		const sessionToolExecutors: Partial<ToolExecutors> = {
+			webSearch: createClineWebSearchExecutor({
+				getAuthToken: async () => {
+					try {
+						const manager = new ProviderSettingsManager();
+						const persisted = getPersistedProviderApiKey(
+							"cline",
+							manager.getProviderSettings("cline"),
+						);
+						if (persisted) {
+							return persisted;
+						}
+					} catch {
+						// Fall back to the session key below.
+					}
+					return config.providerId === "cline"
+						? config.apiKey || undefined
+						: undefined;
+				},
+			}),
+			...toolExecutors,
+		};
 		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
 		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
@@ -433,7 +471,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				modelId: config.modelId,
 				toolRoutingRules: config.toolRoutingRules,
 				toolPolicies: effectiveToolPolicies,
-				toolExecutors,
+				toolExecutors: sessionToolExecutors,
 			});
 
 		const userInstructionPlugin =
@@ -478,7 +516,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.toolRoutingRules,
 					effectiveToolPolicies,
 					undefined,
-					toolExecutors,
+					sessionToolExecutors,
 					telemetry ?? config.telemetry,
 				),
 			);
@@ -551,7 +589,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 															agent.skills,
 														)
 													: undefined,
-												toolExecutors,
+												sessionToolExecutors,
 												telemetry ?? config.telemetry,
 											),
 											agent,
@@ -656,7 +694,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.toolRoutingRules,
 									effectiveToolPolicies,
 									undefined,
-									toolExecutors,
+									sessionToolExecutors,
 									telemetry ?? config.telemetry,
 								)
 						: undefined,
