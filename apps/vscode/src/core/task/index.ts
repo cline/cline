@@ -128,6 +128,7 @@ import type {
 	ClineToolResponseContent,
 	ClineUserContent,
 } from "@/shared/messages";
+import { prepareMessagesForImageSupport } from "@/shared/messages";
 import { ApiFormat } from "@/shared/proto/cline/models";
 import { ShowMessageType } from "@/shared/proto/index.host";
 import { Logger } from "@/shared/services/Logger";
@@ -2375,9 +2376,13 @@ export class Task {
 		// Cline-stored conversation history (ClineStorageMessage[]), so narrow it back for the provider boundary.
 		const truncatedConversationHistory =
 			contextManagementMetadata.truncatedConversationHistory as ClineStorageMessage[];
+		const requestConversationHistory = prepareMessagesForImageSupport(
+			truncatedConversationHistory,
+			providerInfo.model.info.supportsImages,
+		);
 		const stream = this.api.createMessage(
 			systemPrompt,
-			truncatedConversationHistory,
+			requestConversationHistory,
 			tools,
 		);
 

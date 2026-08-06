@@ -15,6 +15,14 @@ export type {
 	ClineToolResponseContent,
 	ClineUserContent,
 	ClineUserToolResultContentBlock,
-} from "./content"
-export { cleanContentBlock, convertClineStorageToAnthropicMessage, REASONING_DETAILS_PROVIDERS } from "./content"
-export type { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
+} from "./content";
+export {
+	cleanContentBlock,
+	convertClineStorageToAnthropicMessage,
+	REASONING_DETAILS_PROVIDERS,
+} from "./content";
+export {
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
+	prepareMessagesForImageSupport,
+} from "./image-support";
+export type { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics";
