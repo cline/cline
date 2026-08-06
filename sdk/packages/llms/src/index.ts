@@ -1,3 +1,4 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
 	ModelCollection,
 	ModelIdAliasRule,
@@ -59,11 +60,14 @@ export type {
 export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	classifyProviderError,
 	createHandler,
 	createHandlerAsync,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
@@ -72,17 +76,23 @@ export {
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isBuiltInProviderId,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitError,
 	isClinePassLimitMessage,
+	isProviderApiLine,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
 	type ProviderUsageCostDisplay,

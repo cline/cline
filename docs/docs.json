@@ -67,6 +67,7 @@
 							"getting-started/installing-cline",
 							"getting-started/cline-provider",
 							"getting-started/clinepass",
+							"getting-started/free-models",
 							{
 								"group": "Other Models & Providers",
 								"pages": [
@@ -91,6 +92,7 @@
 											"provider-config/openai",
 											"provider-config/openai-compatible",
 											"provider-config/openrouter",
+											"provider-config/poolside",
 											"provider-config/zai",
 											"provider-config/other-30-plus-providers"
 										]
@@ -122,6 +124,7 @@
 									}
 								]
 							},
+							"usage/acp",
 							{
 								"group": "Kanban",
 								"pages": [
@@ -630,7 +633,7 @@
 		},
 		{
 			"source": "/features/customization/opening-cline-in-sidebar",
-			"destination": "/getting-started/installing-cline"
+			"destination": "/usage/ide#move-cline-to-the-right-sidebar"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
@@ -766,7 +769,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/cli-reference"
+			"destination": "/usage/acp"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",

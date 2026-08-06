@@ -128,8 +128,11 @@ src/catalog/catalog-live.ts
 	v
 scripts/generate-models.ts
 	|
-	v
-src/catalog/catalog.generated.ts
+	+--> src/catalog/catalog.generated.ts
+	|
+	+--> src/providers/providers.generated.ts
+	|
+	+--> src/providers/provider-ids.generated.ts
 ```
 
 Use the package script when regenerating:
@@ -163,6 +166,8 @@ and observable.
 - `catalog-live.ts`: normalizes live `models.dev` data.
 - `catalog-live.test.ts`: tests catalog normalization behavior.
 - `catalog.generated.ts`: checked-in generated provider/model catalog.
+- `../providers/providers.generated.ts`: checked-in generated provider specs.
+- `../providers/provider-ids.generated.ts`: checked-in generated provider IDs.
 - `../../scripts/generate-models.ts`: writes generated catalog output.
 - `../providers/ai-sdk.ts`: conditionally passes `maxOutputTokens` into AI SDK.
 - `../providers/gateway.ts`: resolves per-request/default `maxTokens`.

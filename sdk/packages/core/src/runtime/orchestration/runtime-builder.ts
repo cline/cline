@@ -1,10 +1,14 @@
 import type {
 	AgentTool,
 	BasicLogger,
+	ITelemetryService,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	hasRuntimeConfigExtension,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
@@ -25,6 +29,7 @@ import {
 	ToolPresets,
 	type ToolRoutingRule,
 } from "../../extensions/tools";
+import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
@@ -132,6 +137,7 @@ function createBuiltinToolsList(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
+	telemetry?: ITelemetryService,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -144,6 +150,7 @@ function createBuiltinToolsList(
 	return filterAvailableTools(
 		createBuiltinTools({
 			cwd,
+			telemetry,
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
@@ -217,7 +224,13 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
-			createMcpTools({ serverName: r.name, provider: manager }),
+			createMcpTools({
+				serverName: r.name,
+				provider: manager,
+				// Keep the tool wrapper timeout in agreement with the MCP
+				// request timeout: both derive from the server's registration.
+				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
+			}),
 		),
 	);
 	const tools: AgentTool[] = [];
@@ -433,9 +446,27 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						allowedSkillNames: config.skills,
 					})
 				: undefined;
-		const runtimeExtensions = userInstructionPlugin
-			? [...(extensions ?? config.extensions ?? []), userInstructionPlugin]
-			: (extensions ?? config.extensions);
+		// Plan mode keeps run_commands for read-only investigation; this
+		// beforeTool hook is the hard backstop that rejects file-editing
+		// commands before approval/execution. Registered as an extension so it
+		// rides the shared hook merge for the lead agent, host-provided
+		// run_commands replacements (e.g. the VS Code terminal tool), and
+		// delegated sub-agents alike. Mode switches rebuild the runtime, so
+		// the guard appears/disappears with the mode.
+		const planModeCommandGuard =
+			normalized.mode === "plan" && normalized.enableTools
+				? createPlanModeCommandGuardExtension({
+						telemetry: telemetry ?? config.telemetry,
+					})
+				: undefined;
+		const injectedExtensions = [
+			userInstructionPlugin,
+			planModeCommandGuard,
+		].filter((extension) => extension !== undefined);
+		const runtimeExtensions =
+			injectedExtensions.length > 0
+				? [...(extensions ?? config.extensions ?? []), ...injectedExtensions]
+				: (extensions ?? config.extensions);
 
 		if (normalized.enableTools) {
 			tools.push(
@@ -448,6 +479,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					effectiveToolPolicies,
 					undefined,
 					toolExecutors,
+					telemetry ?? config.telemetry,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -520,6 +552,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 														)
 													: undefined,
 												toolExecutors,
+												telemetry ?? config.telemetry,
 											),
 											agent,
 										)
@@ -624,6 +657,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									effectiveToolPolicies,
 									undefined,
 									toolExecutors,
+									telemetry ?? config.telemetry,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

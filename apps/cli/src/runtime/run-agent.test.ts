@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 
 const sessionManagerMocks = vi.hoisted(() => ({
 	start: vi.fn(),
@@ -39,10 +40,8 @@ const sessionEventsMocks = vi.hoisted(() => ({
 
 const CLINE_PASS_SUBSCRIPTION_URL =
 	"https://app.cline.bot/dashboard/subscription?personal=true";
-const CLI_SUBSCRIPTION_URL =
-	"https://app.cline.bot/promo?code=CLI-8OFF&personal=true";
 const SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
-const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLI_SUBSCRIPTION_URL}`;
+const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getCliSubscriptionUrl()}`;
 const CLINE_PASS_LIMIT_DETAIL_MESSAGE =
 	"You have reached your 5-hour Clinepass limit. The limit resets in 5h, please try again later.";
 const CLI_CLINE_PASS_LIMIT_MESSAGE = [
@@ -55,54 +54,44 @@ const CLI_CLINE_PASS_LIMIT_MESSAGE = [
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
 
-vi.mock("@cline/core", () => ({
-	getClineOrgIndividualInferenceSubscriptionMessage: () =>
-		CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE,
-	getClinePassSubscriptionUrl: () => CLINE_PASS_SUBSCRIPTION_URL,
-	isClineNotSubscribedError: (error: unknown) =>
-		error instanceof Error && error.name === "ClineNotSubscribedError",
-	isClineNotSubscribedMessage: (text: string) =>
-		text
-			.toLowerCase()
-			.includes("the user is not subscribed to required model plan"),
-	isClineOrgIndividualInferenceSubscriptionError: (error: unknown) =>
-		error instanceof Error &&
-		error.name === "ClineOrgIndividualInferenceSubscriptionError",
-	isClineOrgIndividualInferenceSubscriptionMessage: (text: string) =>
-		text
-			.toLowerCase()
-			.includes(
-				"organization accounts cannot use individual model inference subscriptions",
-			),
-	isClinePassLimitError: (error: unknown) =>
-		error instanceof Error && error.name === "ClinePassLimitError",
-	extractClinePassLimitMessage: (text: string) => {
-		const normalized = text.toLowerCase();
-		const prefix = "you have reached your";
-		const suffix = "please try again later.";
-		const start = normalized.indexOf(prefix);
-		if (start === -1) return undefined;
-		const suffixStart = normalized.indexOf(suffix, start);
-		if (suffixStart === -1) return undefined;
-		const end = suffixStart + suffix.length;
-		if (!normalized.slice(start, end).includes("clinepass limit")) {
-			return undefined;
-		}
-		return text.slice(start, end);
-	},
-	isClinePassLimitMessage: (text: string) => {
-		const normalized = text.toLowerCase();
-		return (
-			normalized.includes("you have reached your") &&
-			normalized.includes("clinepass limit") &&
-			normalized.includes("please try again later.")
-		);
-	},
-	prewarmFileIndex: vi.fn(async () => undefined),
-	SessionSource: {
-		CLI: "cli",
-	},
-}));
+vi.mock(
+	"@cline/core",
+	async (importActual: () => Promise<typeof import("@cline/core")>) => ({
+		...(await importActual()),
+		getClineOrgIndividualInferenceSubscriptionMessage: () =>
+			CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE,
+		getClinePassSubscriptionUrl: () => CLINE_PASS_SUBSCRIPTION_URL,
+		isClineNotSubscribedError: (error: unknown) =>
+			error instanceof Error && error.name === "ClineNotSubscribedError",
+		isClineNotSubscribedMessage: (text: string) =>
+			text
+				.toLowerCase()
+				.includes("the user is not subscribed to required model plan"),
+		isClineOrgIndividualInferenceSubscriptionError: (error: unknown) =>
+			error instanceof Error &&
+			error.name === "ClineOrgIndividualInferenceSubscriptionError",
+		isClineOrgIndividualInferenceSubscriptionMessage: (text: string) =>
+			text
+				.toLowerCase()
+				.includes(
+					"organization accounts cannot use individual model inference subscriptions",
+				),
+		isClinePassLimitError: (error: unknown) =>
+			error instanceof Error && error.name === "ClinePassLimitError",
+		isClinePassLimitMessage: (text: string) => {
+			const normalized = text.toLowerCase();
+			return (
+				normalized.includes("you have reached your") &&
+				normalized.includes("clinepass limit") &&
+				normalized.includes("please try again later.")
+			);
+		},
+		prewarmFileIndex: vi.fn(async () => undefined),
+		SessionSource: {
+			CLI: "cli",
+		},
+	}),
+);
 
 vi.mock("../utils/approval", () => ({
 	askQuestionInTerminal: vi.fn(),

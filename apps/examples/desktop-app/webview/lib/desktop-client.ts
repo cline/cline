@@ -87,11 +87,27 @@ export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
 type PendingRequest = {
 	resolve: (value: unknown) => void;
 	reject: (error: Error) => void;
-	timeoutId: ReturnType<typeof setTimeout>;
+	timeoutId?: ReturnType<typeof setTimeout>;
 };
 
 type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
+
+export type DesktopInvokeOptions = {
+	/**
+	 * Override the default command deadline. Use `null` for commands whose
+	 * response represents completion of a legitimately long-running operation.
+	 */
+	timeoutMs?: number | null;
+};
+
+export type DesktopErrorReport = {
+	operation: string;
+	error: unknown;
+	handled?: boolean;
+	command?: string;
+	timeoutMs?: number;
+};
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
@@ -99,13 +115,18 @@ const RECONNECT_MAX_DELAY_MS = 4_000;
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
-function isTauriAvailable(): boolean {
+export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
+	"get_update_status",
+	"restart_to_apply_update",
+	"set_app_icon",
+	"drain_desktop_menu_actions",
+	"set_tray_status",
 ]);
 
 class DesktopClient {
@@ -120,6 +141,75 @@ class DesktopClient {
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
+	private recentErrorReports = new Map<string, number>();
+	private reportedErrorObjects = new WeakSet<object>();
+	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
+
+	reportError(report: DesktopErrorReport): void {
+		const error = report.error;
+		if (typeof error === "object" && error !== null) {
+			if (this.reportedErrorObjects.has(error)) {
+				return;
+			}
+			const pendingDelivery = this.errorObjectDeliveries.get(error);
+			if (pendingDelivery) {
+				void pendingDelivery.then((delivered) => {
+					if (!delivered) this.reportError(report);
+				});
+				return;
+			}
+		}
+
+		const delivery = this.deliverErrorReport(report);
+		if (typeof error === "object" && error !== null) {
+			this.errorObjectDeliveries.set(error, delivery);
+			void delivery.then((delivered) => {
+				if (delivered) this.reportedErrorObjects.add(error);
+				if (this.errorObjectDeliveries.get(error) === delivery) {
+					this.errorObjectDeliveries.delete(error);
+				}
+			});
+		}
+	}
+
+	private async deliverErrorReport(
+		report: DesktopErrorReport,
+	): Promise<boolean> {
+		const error = report.error;
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorType = error instanceof Error ? error.name : "Error";
+		const dedupeKey = `${report.operation}:${report.command ?? ""}:${errorType}:${errorMessage}`;
+		const now = Date.now();
+		if ((this.recentErrorReports.get(dedupeKey) ?? 0) > now - 10_000) {
+			return true;
+		}
+		for (const [key, timestamp] of this.recentErrorReports) {
+			if (timestamp <= now - 10_000) this.recentErrorReports.delete(key);
+		}
+
+		try {
+			const endpoint = await resolveDesktopBackendHttpEndpoint();
+			const response = await fetch(`${endpoint}/telemetry/error`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					operation: report.operation,
+					errorMessage,
+					errorType,
+					handled: report.handled ?? true,
+					command: report.command,
+					timeoutMs: report.timeoutMs,
+					transportState: this.transportState,
+				}),
+			});
+			if (!response.ok) return false;
+			this.recentErrorReports.set(dedupeKey, Date.now());
+			return true;
+		} catch {
+			// Error reporting must never affect the desktop UI error path.
+			return false;
+		}
+	}
 
 	private setTransportState(next: DesktopTransportState) {
 		this.transportState = next;
@@ -137,11 +227,29 @@ class DesktopClient {
 		return this.endpoint;
 	}
 
-	private rejectPending(errorMessage: string) {
-		for (const [requestId, pending] of this.pending.entries()) {
+	private takePending(requestId: string): PendingRequest | undefined {
+		const pending = this.pending.get(requestId);
+		if (!pending) {
+			return undefined;
+		}
+		if (pending.timeoutId !== undefined) {
 			clearTimeout(pending.timeoutId);
-			this.pending.delete(requestId);
-			pending.reject(new Error(errorMessage));
+		}
+		this.pending.delete(requestId);
+		return pending;
+	}
+
+	private rejectPending(errorMessage: string) {
+		// Only report closures that actually drop in-flight requests; a clean
+		// transport close (app quit, sidecar restart) is not an error.
+		if (this.pending.size > 0) {
+			this.reportError({
+				operation: "webview.transport_closed",
+				error: new Error(errorMessage),
+			});
+		}
+		for (const requestId of this.pending.keys()) {
+			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
 	}
 
@@ -159,7 +267,11 @@ class DesktopClient {
 		let parsed: DesktopTransportMessage;
 		try {
 			parsed = JSON.parse(raw) as DesktopTransportMessage;
-		} catch {
+		} catch (error) {
+			this.reportError({
+				operation: "webview.transport_message_parse",
+				error,
+			});
 			return;
 		}
 
@@ -169,12 +281,10 @@ class DesktopClient {
 		}
 
 		const response = parsed as DesktopTransportResponse;
-		const pending = this.pending.get(response.id);
+		const pending = this.takePending(response.id);
 		if (!pending) {
 			return;
 		}
-		clearTimeout(pending.timeoutId);
-		this.pending.delete(response.id);
 		if (!response.ok) {
 			pending.reject(new Error(response.error || "Desktop command failed"));
 			return;
@@ -248,6 +358,10 @@ class DesktopClient {
 			.catch((error) => {
 				const message = error instanceof Error ? error.message : String(error);
 				this.transportError = message;
+				this.reportError({
+					operation: "webview.transport_connect",
+					error,
+				});
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
@@ -260,18 +374,37 @@ class DesktopClient {
 		return this.connectPromise;
 	}
 
-	async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+	async invoke<T>(
+		command: string,
+		args?: Record<string, unknown>,
+		options?: DesktopInvokeOptions,
+	): Promise<T> {
 		// Route native OS commands (directory picker, file opener) through Tauri
 		// only when running inside the full Tauri app shell. In sidecar/web mode
 		// these are handled by the sidecar over WebSocket.
 		if (NATIVE_COMMANDS.has(command) && isTauriAvailable()) {
-			return await tryTauriInvoke<T>(command, args);
+			try {
+				return await tryTauriInvoke<T>(command, args);
+			} catch (error) {
+				this.reportError({
+					operation: "webview.native_command",
+					error,
+					command,
+				});
+				throw error;
+			}
 		}
 
 		await this.ensureConnected();
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
-			throw new Error("Desktop backend transport unavailable");
+			const error = new Error("Desktop backend transport unavailable");
+			this.reportError({
+				operation: "webview.transport_unavailable",
+				error,
+				command,
+			});
+			throw error;
 		}
 
 		const id = `desktop_${Date.now()}_${this.requestCounter++}`;
@@ -283,22 +416,45 @@ class DesktopClient {
 		};
 
 		return await new Promise<T>((resolve, reject) => {
-			const timeoutId = setTimeout(() => {
-				const pending = this.pending.get(id);
-				if (!pending) {
-					return;
-				}
-				this.pending.delete(id);
-				pending.reject(
-					new Error(`Desktop command timed out waiting for ${command}`),
-				);
-			}, REQUEST_TIMEOUT_MS);
+			const timeoutMs =
+				options?.timeoutMs === undefined
+					? REQUEST_TIMEOUT_MS
+					: options.timeoutMs;
+			const timeoutId =
+				timeoutMs === null
+					? undefined
+					: setTimeout(() => {
+							const pending = this.takePending(id);
+							if (!pending) {
+								return;
+							}
+							const error = new Error(
+								`Desktop command timed out waiting for ${command}`,
+							);
+							this.reportError({
+								operation: "webview.command_timeout",
+								error,
+								command,
+								timeoutMs,
+							});
+							pending.reject(error);
+						}, timeoutMs);
 			this.pending.set(id, {
 				resolve: (value) => resolve(value as T),
 				reject,
 				timeoutId,
 			});
-			socket.send(JSON.stringify(request));
+			try {
+				socket.send(JSON.stringify(request));
+			} catch (error) {
+				this.takePending(id);
+				this.reportError({
+					operation: "webview.command_send",
+					error,
+					command,
+				});
+				throw error;
+			}
 		});
 	}
 
@@ -342,3 +498,18 @@ class DesktopClient {
 }
 
 export const desktopClient = new DesktopClient();
+
+/**
+ * Open a URL in the user's default browser. Inside the Tauri shell,
+ * `target="_blank"` anchors are silently dropped (no window opener is
+ * configured), so external links must be routed through the sidecar, which
+ * runs on the host and can spawn the platform opener. In plain web mode the
+ * browser handles it directly.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+	if (isTauriAvailable()) {
+		await desktopClient.invoke("open_external_url", { url });
+		return;
+	}
+	window.open(url, "_blank", "noopener,noreferrer");
+}

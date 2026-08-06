@@ -13,6 +13,13 @@ function createHandler(onShutdown = vi.fn()) {
 	return createFetchHandler({} as SidecarContext, onShutdown);
 }
 
+function createTelemetryHandler(capture = vi.fn()) {
+	return {
+		handler: createFetchHandler({ telemetry: { capture } } as never),
+		capture,
+	};
+}
+
 describe("sidecar HTTP origin checks", () => {
 	it("rejects cross-origin shutdown preflight requests", async () => {
 		const server = createTestServer();
@@ -80,5 +87,61 @@ describe("sidecar HTTP origin checks", () => {
 		expect(response?.headers.get("access-control-allow-origin")).toBe(
 			"tauri://localhost",
 		);
+	});
+});
+
+describe("desktop error telemetry", () => {
+	it("captures sanitized webview error reports with structured context", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: {
+					origin: "tauri://localhost",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					operation: "webview.command_timeout",
+					errorMessage:
+						"Desktop command timed out waiting for get_process_context",
+					errorType: "Error",
+					command: "get_process_context",
+					timeoutMs: 120_000,
+					transportState: "connected",
+				}),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(202);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "desktop",
+				operation: "webview.command_timeout",
+				error_message:
+					"Desktop command timed out waiting for get_process_context",
+				command: "get_process_context",
+				timeoutMs: 120_000,
+				transportState: "connected",
+			}),
+		});
+	});
+
+	it("rejects error reports from untrusted origins", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: { origin: "https://attacker.example" },
+				body: JSON.stringify({ operation: "webview.uncaught_error" }),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(403);
+		expect(capture).not.toHaveBeenCalled();
 	});
 });

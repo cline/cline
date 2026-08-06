@@ -23,6 +23,26 @@ export function messageToAgentMessages(
 	const baseId = message.id ?? generateMessageId();
 	let nonToolSegmentCount = 0;
 	let nonToolBlocks: Exclude<ContentBlock, ToolResultContent>[] = [];
+	const storedUserRunSpan =
+		message.role === "user" &&
+		typeof message.metadata?.userRunSpan === "number" &&
+		Number.isInteger(message.metadata.userRunSpan) &&
+		message.metadata.userRunSpan >= 0
+			? message.metadata.userRunSpan
+			: undefined;
+	let userRunSpanAssigned = false;
+	const segmentMetadata = (
+		representsUserContent: boolean,
+	): MessageWithMetadata["metadata"] => {
+		if (storedUserRunSpan === undefined) {
+			return message.metadata;
+		}
+		if (representsUserContent && !userRunSpanAssigned) {
+			userRunSpanAssigned = true;
+			return message.metadata;
+		}
+		return { ...message.metadata, userRunSpan: 0 };
+	};
 
 	const flushNonToolBlocks = () => {
 		if (nonToolBlocks.length === 0) {
@@ -38,7 +58,7 @@ export function messageToAgentMessages(
 			role: message.role,
 			content: nonToolBlocks.map(contentBlockToAgentPart),
 			createdAt: message.ts ?? Date.now(),
-			metadata: message.metadata,
+			metadata: segmentMetadata(true),
 			modelInfo: message.modelInfo,
 			metrics: metricsToAgentMetrics(message.metrics),
 		});
@@ -58,18 +78,31 @@ export function messageToAgentMessages(
 		return out;
 	}
 
+	// A message that is already a single tool result needs no id
+	// disambiguation — the suffix only distinguishes the parts of a split
+	// message. Keeping the id verbatim makes restore/persist round-trips
+	// byte-stable; ids feed the compaction source-prefix hash, and a
+	// re-suffixed id silently invalidates saved compaction state (and grows
+	// without bound across restores).
+	const isPureToolResult =
+		blocks.length === 1 && blocks[0].type === "tool_result";
+
 	for (const block of blocks) {
 		if (block.type !== "tool_result") {
 			nonToolBlocks.push(block);
 			continue;
 		}
 		flushNonToolBlocks();
+		const toolIdSuffix = `_tool_${block.tool_use_id}`;
 		out.push({
-			id: `${baseId}_tool_${block.tool_use_id}`,
+			id:
+				isPureToolResult || baseId.endsWith(toolIdSuffix)
+					? baseId
+					: `${baseId}${toolIdSuffix}`,
 			role: "tool",
 			content: [toolResultContentToAgentPart(block)],
 			createdAt: message.ts ?? Date.now(),
-			metadata: message.metadata,
+			metadata: segmentMetadata(false),
 		});
 	}
 	flushNonToolBlocks();

@@ -60,7 +60,6 @@ export const StoredModelEntrySchema = z
 		cacheWritesPrice: OptionalNonNegativeFiniteNumberSchema,
 		temperature: OptionalNonNegativeFiniteNumberSchema,
 		apiFormat: ApiFormatSchema.optional(),
-		isR1FormatRequired: z.boolean().optional(),
 	})
 	.passthrough();
 
@@ -216,15 +215,17 @@ export async function writeModelsFile(
 
 export function toProviderModel(
 	modelId: string,
-	info: {
-		name?: string;
-		capabilities?: string[];
-		thinkingConfig?: unknown;
-	},
+	info: Pick<
+		ModelInfo,
+		"name" | "contextWindow" | "capabilities" | "thinkingConfig"
+	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.contextWindow !== undefined
+			? { contextWindow: info.contextWindow }
+			: {}),
 		supportsAttachments: info.capabilities?.includes("files"),
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
@@ -323,7 +324,7 @@ function toStoredModelInfo(
 		else capabilities.delete("reasoning");
 	}
 
-	const apiFormat = model?.isR1FormatRequired ? "r1" : model?.apiFormat;
+	const apiFormat = model?.apiFormat;
 	const hasPricing =
 		model?.inputPrice !== undefined ||
 		model?.outputPrice !== undefined ||

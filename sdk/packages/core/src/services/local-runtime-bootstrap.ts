@@ -4,6 +4,7 @@ import type {
 	AgentEvent,
 	AgentHooks,
 	AgentTool,
+	BasicLogger,
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
@@ -36,7 +37,7 @@ import type { RuntimeCapabilities } from "../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import type {
 	LocalRuntimeStartOptions,
-	StartSessionInput,
+	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import { SessionSource } from "../types/common";
@@ -51,8 +52,8 @@ import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
-import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
+import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
 import { emitWorkspaceLifecycleTelemetry } from "./workspace/workspace-telemetry";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
@@ -113,29 +114,10 @@ function hasConfigExtension(
 	return hasRuntimeConfigExtension(extensions, kind);
 }
 
-function countSeededRootRuns(
-	messages: StartSessionInput["initialMessages"],
-): number {
-	let count = 0;
-	for (const message of messages ?? []) {
-		if (message.role !== "user") continue;
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object" &&
-			!Array.isArray(message.metadata)
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") continue;
-		count += 1;
-	}
-	return count;
-}
-
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
-	source: StartSessionInput["source"],
+	source: ResolvedStartSessionInput["source"],
 	providerSettingsManager: ProviderSettingsManager,
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 	defaultFetch?: typeof fetch,
@@ -215,11 +197,12 @@ function buildProviderConfig(
 }
 
 export interface PrepareLocalRuntimeBootstrapOptions {
-	input: StartSessionInput;
+	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
+	defaultLogger?: BasicLogger;
 	defaultCapabilities?: RuntimeCapabilities;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
 	/**
@@ -242,7 +225,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 }
 
 export interface LocalRuntimeBootstrap {
-	effectiveInput: StartSessionInput;
+	effectiveInput: ResolvedStartSessionInput;
 	config: CoreSessionConfig;
 	providerConfig: ProviderConfig;
 	workspaceMetadata: string;
@@ -267,6 +250,7 @@ export async function prepareLocalRuntimeBootstrap(
 		sessionId,
 		providerSettingsManager,
 		defaultTelemetry,
+		defaultLogger,
 		defaultCapabilities,
 		defaultToolPolicies,
 		defaultFetch,
@@ -313,7 +297,10 @@ export async function prepareLocalRuntimeBootstrap(
 			...(configuredExtensionContext?.session ?? {}),
 			sessionId,
 		},
-		logger: configuredExtensionContext?.logger ?? localConfig?.logger,
+		logger:
+			configuredExtensionContext?.logger ??
+			localConfig?.logger ??
+			defaultLogger,
 		telemetry:
 			configuredExtensionContext?.telemetry ??
 			localConfig?.telemetry ??
@@ -398,6 +385,7 @@ export async function prepareLocalRuntimeBootstrap(
 		extensions,
 		extensionContext,
 		telemetry: extensionContext.telemetry,
+		logger: extensionContext.logger,
 	};
 	const providerConfig = buildProviderConfig(
 		baseConfig,
@@ -415,7 +403,6 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
-					initialRunCount: countSeededRootRuns(input.initialMessages),
 					readSessionMetadata,
 					writeSessionMetadata,
 				})

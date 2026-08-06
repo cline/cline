@@ -98,9 +98,32 @@ describe("MemoizedMarkdown interactions", () => {
 		});
 	});
 
-	test("requires confirmation before opening an external link", async () => {
+	test("opens honest external links directly in the default browser", async () => {
 		const url = "https://example.com/review?source=cline";
 		await renderMarkdown({ content: `[Review docs](${url})` });
+		const link = await vi.waitFor(() => {
+			const renderedLink = container.querySelector<HTMLAnchorElement>(
+				'[data-streamdown="link"]',
+			);
+			expect(renderedLink).not.toBeNull();
+			return renderedLink as HTMLAnchorElement;
+		});
+		expect(link.getAttribute("href")).toBe(url);
+		expect(link.getAttribute("title")).toBe(url);
+
+		await click(link);
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		expect(openWindow).toHaveBeenCalledTimes(1);
+		expect(openWindow).toHaveBeenCalledWith(
+			url,
+			"_blank",
+			"noopener,noreferrer",
+		);
+	});
+
+	test("requires confirmation before opening a deceptive external link", async () => {
+		const url = "https://example.com/review?source=cline";
+		await renderMarkdown({ content: `[github.com/cline](${url})` });
 		const link = await vi.waitFor(() => {
 			const renderedLink = container.querySelector<HTMLElement>(
 				'[data-streamdown="link"]',
@@ -140,10 +163,48 @@ describe("MemoizedMarkdown interactions", () => {
 		await click(getButton("Open link"));
 
 		expect(openWindow).toHaveBeenCalledTimes(1);
-		expect(openWindow).toHaveBeenCalledWith(url, "_blank", "noreferrer");
+		expect(openWindow).toHaveBeenCalledWith(
+			url,
+			"_blank",
+			"noopener,noreferrer",
+		);
 		await vi.waitFor(() => {
 			expect(document.querySelector('[role="alertdialog"]')).toBeNull();
 		});
+	});
+
+	// The open_external_url sidecar command only opens http(s)/mailto/tel, and
+	// relies on Streamdown's harden step blocking every other scheme before it
+	// reaches SafeMarkdownLink. If a Streamdown upgrade starts letting other
+	// schemes through, confirming those links would silently open nothing.
+	test("blocks link schemes the sidecar cannot open before they render", async () => {
+		for (const url of ["vscode://settings/editor", "ftp://example.com/f"]) {
+			await renderMarkdown({ content: `[Open app](${url})` });
+			await vi.waitFor(() => {
+				expect(container.textContent).toContain("Open app");
+			});
+			expect(container.querySelector('[data-streamdown="link"]')).toBeNull();
+		}
+	});
+
+	test("opens mailto links directly through the external opener", async () => {
+		await renderMarkdown({ content: "[Email us](mailto:hi@cline.bot)" });
+		const link = await vi.waitFor(() => {
+			const renderedLink = container.querySelector<HTMLElement>(
+				'[data-streamdown="link"]',
+			);
+			expect(renderedLink).not.toBeNull();
+			return renderedLink as HTMLElement;
+		});
+
+		expect(link.tagName).toBe("A");
+		await click(link);
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		expect(openWindow).toHaveBeenCalledWith(
+			"mailto:hi@cline.bot",
+			"_blank",
+			"noopener,noreferrer",
+		);
 	});
 
 	test("keeps same-document links navigable without a confirmation", async () => {

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "./agent";
-import type { ReasoningEffort } from "./agents/types";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
+import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
 export type HubProtocolVersion = "v1";
@@ -20,7 +20,10 @@ export type HubCapabilityName =
 	| "schedule.create"
 	| "schedule.list"
 	| "settings.get"
-	| "settings.set";
+	| "settings.set"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -34,6 +37,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"schedule.list",
 	"settings.get",
 	"settings.set",
+	"connector.start",
+	"connector.stop",
+	"connector.supervised",
 ];
 
 export interface HubProtocolMetadata {
@@ -326,6 +332,37 @@ export interface ScheduleExecutionRecord {
 	costUsd?: number;
 }
 
+export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
+export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
+
+export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
+export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];
+
+export function isHubScheduleMode(value: unknown): value is HubScheduleMode {
+	return HUB_SCHEDULE_MODES.some((mode) => mode === value);
+}
+
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent: HubScheduleMode,
+): HubScheduleMode;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+): HubScheduleMode | undefined;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent?: HubScheduleMode,
+): HubScheduleMode | undefined {
+	if (!payload || !Object.hasOwn(payload, "mode")) {
+		return defaultWhenAbsent;
+	}
+	const mode = payload.mode;
+	if (isHubScheduleMode(mode)) {
+		return mode;
+	}
+	throw new Error(`mode must be one of: ${HUB_SCHEDULE_MODES.join(", ")}`);
+}
+
 export interface HubScheduleCreateInput {
 	name: string;
 	cronPattern: string;
@@ -334,7 +371,7 @@ export interface HubScheduleCreateInput {
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;
@@ -354,7 +391,7 @@ export interface HubScheduleUpdateInput {
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string | null;
 	maxIterations?: number | null;
 	timeoutSeconds?: number | null;
@@ -424,6 +461,9 @@ export type HubCommandName =
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"

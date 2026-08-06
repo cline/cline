@@ -11,7 +11,11 @@
  */
 
 import { z } from "zod";
-import type { AgentRuntimeHooks, AgentTool } from "../agent";
+import type {
+	AgentRuntimeHooks,
+	AgentTool,
+	ProviderErrorClass,
+} from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -25,6 +29,19 @@ import type { HookControl } from "../hooks/contracts";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
+import {
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+} from "../llms/reasoning-options";
+
+export {
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "../llms/reasoning-options";
+
 import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -184,6 +201,8 @@ export interface AgentErrorEvent extends AgentEventMetadata {
 	type: "error";
 	/** The error that occurred */
 	error: Error;
+	/** Classification of the provider error, when known. */
+	errorClass?: ProviderErrorClass;
 	/** Whether the error is recoverable */
 	recoverable: boolean;
 	/** Current iteration when error occurred */
@@ -581,6 +600,12 @@ export interface AgentPrepareTurnContext {
 		provider: string;
 		info?: ModelInfo;
 	};
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -648,13 +673,6 @@ export const AgentResultSchema = z.object({
 // =============================================================================
 
 /**
- * Reasoning effort level for capable models
- */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-
-export const ReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
-
-/**
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
@@ -681,6 +699,14 @@ export interface AgentConfig {
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/**
+	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
+	 * access token that expired mid-run). Hosts refresh credentials and push
+	 * the new key into the runtime via `updateConnection`; returning `true`
+	 * makes the runtime retry the failed run once with the refreshed
+	 * connection.
+	 */
+	onAuthError?: () => Promise<boolean>;
 	/** Optional provider model catalog overrides */
 	knownModels?: Record<string, ModelInfo>;
 	/** Optional pre-resolved provider configuration (includes provider-specific fields like aws/gcp). */

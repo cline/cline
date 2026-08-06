@@ -38,9 +38,6 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "You can drag and drop images into the chat to share screenshots with Cline.",
 	},
 	{
-		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
-	},
-	{
 		text: 'You can disable these tips in Settings → Features → "Feature Tips".',
 	},
 ]

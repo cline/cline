@@ -59,7 +59,7 @@ export interface CoreRuntimeFeatures {
 	yolo?: boolean;
 }
 
-export type CoreCompactionMode = "auto" | "manual";
+export type CoreCompactionMode = "auto" | "manual" | "overflow_recovery";
 
 export interface CoreCompactionBudget {
 	request: {
@@ -99,6 +99,12 @@ export interface CoreCompactionContext {
 	};
 	mode: CoreCompactionMode;
 	budget: CoreCompactionBudget;
+	/**
+	 * Aborted when the turn is cancelled. Custom `compact` implementations
+	 * that call models or external services should observe it so a cancelled
+	 * or recovering turn is not blocked on a stalled compaction.
+	 */
+	abortSignal?: AbortSignal;
 }
 
 // Mirrors BudgetPolicyIntent in extensions/context/budget-projection/types.ts.
@@ -283,3 +289,12 @@ export interface CoreSessionConfig
 	skills?: string[];
 	workspaceMetadata?: string;
 }
+
+/**
+ * Public ClineCore start configuration. The execution host resolves `cwd`
+ * before constructing a runtime, assigning the shared chat workspace when both
+ * workspace paths are omitted.
+ */
+export type ClineCoreStartConfig = Omit<CoreSessionConfig, "cwd"> & {
+	cwd?: string;
+};

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
+import * as actualFs from "fs"
 import * as actualOs from "os"
 import * as vscode from "vscode"
 
@@ -15,13 +16,27 @@ const osMock = () => ({ ...osMockNamespace, default: osMockNamespace })
 mock.module("os", osMock)
 mock.module("node:os", osMock)
 
-import { getShell } from "@utils/shell"
+// getShell() probes the filesystem for PowerShell 7 when no Windows terminal
+// profile is configured. Route existsSync through a mutable delegate so tests
+// control which PowerShell installs "exist" regardless of the host machine.
+let existsSyncImpl: typeof actualFs.existsSync = actualFs.existsSync
+const existsSyncDelegate = ((path: unknown) => existsSyncImpl(path as string)) as typeof actualFs.existsSync
+let lstatSyncImpl: typeof actualFs.lstatSync = actualFs.lstatSync
+const lstatSyncDelegate = ((path: unknown) => lstatSyncImpl(path as string)) as typeof actualFs.lstatSync
+const fsMockNamespace = { ...actualFs, existsSync: existsSyncDelegate, lstatSync: lstatSyncDelegate }
+const fsMock = () => ({ ...fsMockNamespace, default: fsMockNamespace })
+mock.module("fs", fsMock)
+mock.module("node:fs", fsMock)
+
+import { getShell, getShellForProfile } from "@utils/shell"
 
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string
 	let originalEnv: NodeJS.ProcessEnv
 	let originalGetConfig: typeof vscode.workspace.getConfiguration
 	let originalUserInfo: typeof actualOs.userInfo
+	let originalExistsSync: typeof actualFs.existsSync
+	let originalLstatSync: typeof actualFs.lstatSync
 
 	// Helper to mock VS Code configuration
 	function mockVsCodeConfig(platformKey: string, defaultProfileName: string | null, profiles: Record<string, any>) {
@@ -45,6 +60,8 @@ describe("Shell Detection Tests", () => {
 		originalEnv = { ...process.env }
 		originalGetConfig = vscode.workspace.getConfiguration
 		originalUserInfo = userInfoImpl
+		originalExistsSync = existsSyncImpl
+		originalLstatSync = lstatSyncImpl
 
 		// Clear environment variables for a clean test
 		delete process.env.SHELL
@@ -52,6 +69,12 @@ describe("Shell Detection Tests", () => {
 
 		// Default userInfo() mock
 		userInfoImpl = (() => ({ shell: null })) as any
+		// Default: PowerShell 7 is not installed, so the Windows default
+		// resolves to legacy Windows PowerShell.
+		existsSyncImpl = (() => false) as any
+		lstatSyncImpl = (() => {
+			throw new Error("ENOENT")
+		}) as typeof actualFs.lstatSync
 	})
 
 	afterEach(() => {
@@ -60,6 +83,8 @@ describe("Shell Detection Tests", () => {
 		process.env = originalEnv
 		vscode.workspace.getConfiguration = originalGetConfig
 		userInfoImpl = originalUserInfo
+		existsSyncImpl = originalExistsSync
+		lstatSyncImpl = originalLstatSync
 	})
 
 	// --------------------------------------------------------------------------
@@ -71,17 +96,101 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses explicit PowerShell 7 path from VS Code config (profile path)", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: { path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
 			})
 			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
 		})
 
+		it("expands and selects the first configured profile path when it exists", () => {
+			process.env.windir = "C:\\Windows"
+			existsSyncImpl = (() => true) as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${env:windir}\\Sysnative\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\Sysnative\\cmd.exe")
+		})
+
+		it("falls through configured profile paths in order", () => {
+			process.env.windir = "C:\\Windows"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${env:windir}\\Sysnative\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
+		it("skips profile paths with variable references it cannot expand", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			process.env.windir = "C:\\Windows"
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": {
+					path: [`\${workspaceFolder}\\tools\\cmd.exe`, `\${env:windir}\\System32\\cmd.exe`],
+				},
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
+		it("resolves a configured executable name from PATH", () => {
+			process.env.PATH = "C:\\Tools;C:\\Windows\\System32"
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Windows\\System32\\cmd.exe") as typeof actualFs.existsSync
+			mockVsCodeConfig("windows", "Command Prompt", {
+				"Command Prompt": { path: "cmd.exe" },
+			})
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
 		it("uses PowerShell 7 path if source is 'PowerShell' but no explicit path", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: { source: "PowerShell" },
 			})
 			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("uses Store-installed pwsh for a source-based PowerShell profile", () => {
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			lstatSyncImpl = ((candidate: actualFs.PathLike) => {
+				if (candidate !== storePwsh) {
+					throw new Error("ENOENT")
+				}
+				return { isSymbolicLink: () => true } as actualFs.Stats
+			}) as typeof actualFs.lstatSync
+			mockVsCodeConfig("windows", "PowerShell", {
+				PowerShell: { source: "PowerShell" },
+			})
+
+			expect(getShell()).to.equal(storePwsh)
+		})
+
+		it("uses Store-installed pwsh for Cline's PowerShell 7 profile", () => {
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			lstatSyncImpl = ((candidate: actualFs.PathLike) => {
+				if (candidate !== storePwsh) {
+					throw new Error("ENOENT")
+				}
+				return { isSymbolicLink: () => true } as actualFs.Stats
+			}) as typeof actualFs.lstatSync
+
+			expect(getShellForProfile("powershell-7")).to.equal(storePwsh)
 		})
 
 		it("falls back to legacy PowerShell if profile includes 'powershell' but no path/source", () => {
@@ -117,18 +226,36 @@ describe("Shell Detection Tests", () => {
 			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
 		})
 
-		it("respects userInfo() if no VS Code config is available", () => {
+		it("defaults to PowerShell 7 when no profile is configured and pwsh is installed", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			userInfoImpl = () => ({ shell: "C:\\Custom\\PowerShell.exe" }) as any
+			process.env.ProgramW6432 = "C:\\Program Files"
+			existsSyncImpl = (() => true) as any
 
-			expect(getShell()).to.equal("C:\\Custom\\PowerShell.exe")
+			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
 		})
 
-		it("respects an odd COMSPEC if no userInfo shell is available", () => {
+		it("defaults to Store-installed pwsh when that is the only pwsh present", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = ((path: string) => path === storePwsh) as any
+
+			expect(getShell()).to.equal(storePwsh)
+		})
+
+		it("defaults to legacy Windows PowerShell when no profile is configured and pwsh is absent", () => {
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			existsSyncImpl = (() => false) as any
+
+			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+		})
+
+		it("ignores userInfo() and COMSPEC — VS Code's default terminal ignores them too", () => {
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			userInfoImpl = () => ({ shell: "C:\\Custom\\OtherShell.exe" }) as any
 			process.env.COMSPEC = "D:\\CustomCmd\\cmd.exe"
 
-			expect(getShell()).to.equal("D:\\CustomCmd\\cmd.exe")
+			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
 		})
 	})
 
@@ -141,10 +268,29 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses VS Code profile path if available", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/local/bin/fish") as typeof actualFs.existsSync
 			mockVsCodeConfig("osx", "MyCustomShell", {
 				MyCustomShell: { path: "/usr/local/bin/fish" },
 			})
 			expect(getShell()).to.equal("/usr/local/bin/fish")
+		})
+
+		it("expands and selects the first existing path in an array-valued profile", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/bin/zsh") as typeof actualFs.existsSync
+			mockVsCodeConfig("osx", "MyCustomShell", {
+				MyCustomShell: { path: ["/opt/homebrew/bin/zsh", "/bin/zsh"] },
+			})
+			expect(getShell()).to.equal("/bin/zsh")
+		})
+
+		it("falls back past a configured path that does not exist", () => {
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			mockVsCodeConfig("osx", "MyCustomShell", {
+				MyCustomShell: { path: "/missing/shell" },
+			})
+			userInfoImpl = () => ({ shell: "/opt/homebrew/bin/zsh" }) as any
+
+			expect(getShell()).to.equal("/opt/homebrew/bin/zsh")
 		})
 
 		it("falls back to userInfo().shell if no VS Code config is available", () => {
@@ -177,8 +323,26 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses VS Code profile path if available", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/bin/fish") as typeof actualFs.existsSync
 			mockVsCodeConfig("linux", "CustomProfile", {
 				CustomProfile: { path: "/usr/bin/fish" },
+			})
+			expect(getShell()).to.equal("/usr/bin/fish")
+		})
+
+		it("expands and selects the first existing path in an array-valued profile", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/bin/bash") as typeof actualFs.existsSync
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: ["/usr/bin/fish", "/bin/bash"] },
+			})
+			expect(getShell()).to.equal("/bin/bash")
+		})
+
+		it("resolves a bare executable name from PATH without PATHEXT probing", () => {
+			process.env.PATH = "/opt/tools:/usr/bin"
+			existsSyncImpl = ((candidate: actualFs.PathLike) => candidate === "/usr/bin/fish") as typeof actualFs.existsSync
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: "fish" },
 			})
 			expect(getShell()).to.equal("/usr/bin/fish")
 		})

@@ -302,6 +302,99 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("ends a resumed session without mutating a task selected while start was pending", async () => {
+		const task = makeTask("task-1")
+		const replacementTask = makeTask("task-2")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.sessions.startNewSession.mockImplementationOnce(async () => {
+			const sdkHost = { send: vi.fn() }
+			options.getTask.mockReturnValue(replacementTask)
+			options.sessions.getActiveSession.mockReturnValue({
+				sessionId: "resumed-session",
+				sdkHost,
+				isRunning: true,
+			})
+			return { startResult: { sessionId: "resumed-session" }, sdkHost }
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(replacementTask.taskId).toBe("task-2")
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("followupTargetChanged", { awaitStop: true })
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		// askResponse pre-set the streaming phase; abandoning must settle it.
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
+	})
+
+	it("delivers the follow-up when the same task was reloaded with a new proxy", async () => {
+		const task = makeTask("task-1")
+		// showTaskWithId allocates a fresh proxy for the same task id.
+		const reloadedProxy = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.loadInitialMessages.mockImplementationOnce(async () => {
+			options.getTask.mockReturnValue(reloadedProxy)
+			return [{ role: "user", content: "hello" }]
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.onFollowUpAbandoned).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("settles the turn phase when the task changes before the resume starts", async () => {
+		const task = makeTask("task-1")
+		const replacementTask = makeTask("task-2")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.loadInitialMessages.mockImplementationOnce(async () => {
+			options.getTask.mockReturnValue(replacementTask)
+			return [{ role: "user", content: "hello" }]
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalled()
+	})
+
+	it("holds transcript preparation and session start inside the rebuild scheduler", async () => {
+		const task = makeTask("task-1")
+		let runOperation: (() => Promise<void>) | undefined
+		const runExclusive = vi.fn(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve, reject) => {
+					runOperation = async () => {
+						try {
+							await operation()
+							resolve()
+						} catch (error) {
+							reject(error)
+						}
+					}
+				}),
+		)
+		const { coordinator, options } = makeCoordinator({ task, runExclusive })
+
+		const sendPromise = coordinator.askResponse("continue")
+		await vi.waitFor(() => expect(runExclusive).toHaveBeenCalledOnce())
+
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+
+		await runOperation?.()
+		await sendPromise
+
+		expect(options.loadInitialMessages).toHaveBeenCalledOnce()
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+	})
+
 	it("adds a legacy warning to initial messages when resuming a legacy task", async () => {
 		const task = makeTask("legacy-task")
 		const historyItem = {
@@ -413,7 +506,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
 		} as unknown as StateManager,
 		interactions: {
-			resolvePendingMistakeLimit: vi.fn(() => false),
 			resolvePendingToolApproval: vi.fn(() => false),
 			resolvePendingAskQuestion: vi.fn(() => false),
 		},
@@ -425,6 +517,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 				startResult: { sessionId: "resumed-session" },
 				sdkHost: { send: vi.fn() },
 			}),
+			endActiveSession: vi.fn().mockResolvedValue(undefined),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
@@ -451,10 +544,11 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
+		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
+		onFollowUpAbandoned: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
-			resolvePendingMistakeLimit: ReturnType<typeof vi.fn>
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
 			resolvePendingAskQuestion: ReturnType<typeof vi.fn>
 		}
@@ -463,6 +557,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			setRunning: ReturnType<typeof vi.fn>
 			fireAndForgetSend: ReturnType<typeof vi.fn>
 			startNewSession: ReturnType<typeof vi.fn>
+			endActiveSession: ReturnType<typeof vi.fn>
 		}
 		messages: SdkFollowupCoordinatorOptions["messages"] & {
 			appendAndEmit: ReturnType<typeof vi.fn>
@@ -485,7 +580,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>
+		onFollowUpAbandoned: ReturnType<typeof vi.fn>
 	}
 
 	return {
@@ -510,6 +607,7 @@ interface MakeCoordinatorInput {
 	mode: "act" | "plan"
 	isLegacyTask: boolean
 	waitForPendingRebuilds: () => Promise<void>
+	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {

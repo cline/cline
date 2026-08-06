@@ -1,6 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
+import { createTaskProxy } from "./task-proxy"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -30,6 +33,26 @@ describe("SdkTaskControlCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "cancelled" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("cancels a running Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
+
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("session-123")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+	})
+
+	it("does not cancel a non-Cline task when the user signs out", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(false)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
 	})
 
 	it("raises the cancel fence BEFORE aborting the session (so stragglers are fenced)", async () => {
@@ -76,12 +99,13 @@ describe("SdkTaskControlCoordinator", () => {
 			task: existingTask,
 			hasHistoryItem: true,
 			clineMessages: sdkClineMessages,
+			sessionStatus: "completed",
 		})
 
 		await coordinator.showTaskWithId("task-1")
 
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
-		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId")
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId", { awaitStop: false })
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
@@ -92,6 +116,58 @@ describe("SdkTaskControlCoordinator", () => {
 			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
 		])
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("clears a pending approval when switching tasks so the new task input is not consumed", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const approvalPromise = interactions.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: {},
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task switched" })
+		expect(interactions.resolvePendingToolApproval("next task input", "noButtonClicked")).toBe(false)
+	})
+
+	it("settles a pending question when switching tasks so the outgoing run can unwind", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], {})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(questionPromise).resolves.toBe("")
+		expect(interactions.resolvePendingAskQuestion("late answer")).toBe(false)
 	})
 
 	it("shows a legacy task with a warning and a resume ask", async () => {
@@ -123,6 +199,170 @@ describe("SdkTaskControlCoordinator", () => {
 
 		expect(options.setTask).not.toHaveBeenCalled()
 		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+	})
+
+	it("appends a resume ask and sets the resumable phase when showing an interrupted (cancelled) task", async () => {
+		// History rendering appends a synthetic trailing ask:"completion_result"
+		// to every reopened conversation, so the persisted session status — not
+		// the message tail — must decide the resume affordance.
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+		]
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+			sessionStatus: "cancelled",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(state.task?.messageStateHandler.getClineMessages().at(-1)).toEqual(
+			expect.objectContaining({ type: "ask", ask: "resume_task" }),
+		)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", expect.any(Number))
+	})
+
+	it("sets the turn phase to resumable when showing a failed task", async () => {
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "say", say: "text", text: "partial answer" },
+		]
+		const { coordinator, options } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+			sessionStatus: "failed",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", expect.any(Number))
+	})
+
+	it("sets the turn phase to completed when showing a completed task", async () => {
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+		]
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+			sessionStatus: "completed",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(state.task?.messageStateHandler.getClineMessages().at(-1)).toEqual(
+			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
+		)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("completed", expect.any(Number))
+	})
+
+	it("sets the turn phase to idle when showing a task with no messages", async () => {
+		const { coordinator, options } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("idle")
+	})
+
+	it("keeps the newest selection when an older open's history lookup resolves last", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		// Task A's preflight history lookup stalls. The view generation must be
+		// allocated BEFORE this await: when the lookup used to live in
+		// SdkController ahead of the coordinator, a stalled lookup re-entered
+		// with a NEWER generation than a later selection and replaced it.
+		let resolveLookup: ((item: unknown) => void) | undefined
+		options.taskHistory.findHistoryItem.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveLookup = resolve
+				}),
+		)
+
+		const staleOpen = coordinator.showTaskWithId("task-old")
+
+		// Task B is selected afterwards and loads successfully.
+		await coordinator.showTaskWithId("task-new")
+		expect(state.task?.taskId).toBe("task-new")
+		const endActiveSessionCalls = options.sessions.endActiveSession.mock.calls.length
+
+		// Task A's lookup finally resolves. It must neither stop the session the
+		// newer selection installed nor replace the selection.
+		resolveLookup?.({ id: "task-old", ts: 1, task: "old", tokensIn: 0, tokensOut: 0, totalCost: 0 })
+		const staleResult = await staleOpen
+
+		expect(staleResult).toBeDefined()
+		expect(state.task?.taskId).toBe("task-new")
+		expect(options.sessions.endActiveSession.mock.calls.length).toBe(endActiveSessionCalls)
+	})
+
+	it("abandons a superseded showTaskWithId so the newest selection wins", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		// Park the FIRST open on its message read so a second open can start
+		// and finish while the first is still in flight.
+		let resolveFirstRead: ((messages: ClineMessage[]) => void) | undefined
+		options.taskHistory.getClineMessages.mockImplementationOnce(
+			() =>
+				new Promise<ClineMessage[]>((resolve) => {
+					resolveFirstRead = resolve
+				}),
+		)
+
+		const firstOpen = coordinator.showTaskWithId("task-old")
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(resolveFirstRead).toBeDefined()
+
+		await coordinator.showTaskWithId("task-new")
+		expect(state.task?.taskId).toBe("task-new")
+		const phaseCallsAfterSecondOpen = options.setTurnPhase.mock.calls.length
+
+		resolveFirstRead?.([{ ts: 1, type: "say", say: "task", text: "stale" }])
+		await firstOpen
+
+		// The stale open must not replace the newer selection or its turn phase.
+		expect(state.task?.taskId).toBe("task-new")
+		expect(state.task?.messageStateHandler.getClineMessages().length).toBeGreaterThan(0)
+		expect(options.setTurnPhase.mock.calls.length).toBe(phaseCallsAfterSecondOpen)
+	})
+
+	it("abandons a superseded showTaskWithId when the user clears the task", async () => {
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "cancelled",
+		})
+
+		let resolveRead: ((messages: ClineMessage[]) => void) | undefined
+		options.taskHistory.getClineMessages.mockImplementationOnce(
+			() =>
+				new Promise<ClineMessage[]>((resolve) => {
+					resolveRead = resolve
+				}),
+		)
+
+		const open = coordinator.showTaskWithId("task-old")
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		await coordinator.clearTask()
+		resolveRead?.([{ ts: 1, type: "say", say: "task", text: "stale" }])
+		await open
+
+		expect(state.task).toBeUndefined()
 	})
 
 	it("does not install the new task proxy until its messages are loaded", async () => {
@@ -197,6 +437,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		taskHistory: {
 			getClineMessages: vi.fn().mockResolvedValue(input.clineMessages ?? []),
+			getSessionStatus: vi.fn().mockResolvedValue(input.sessionStatus),
 			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
 			findHistoryItem: vi.fn(() =>
 				input.hasHistoryItem === false
@@ -218,6 +459,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		onAskResponse: vi.fn().mockResolvedValue(undefined),
 		resetMessageTranslator: vi.fn(),
 		raiseCancelFence: vi.fn(),
+		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
@@ -240,6 +482,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: ReturnType<typeof vi.fn>
 		setTask: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
+		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
@@ -256,6 +499,7 @@ interface MakeCoordinatorInput {
 	hasHistoryItem: boolean
 	clineMessages: ClineMessage[]
 	isLegacyTask: boolean
+	sessionStatus: string
 }
 
 function makeActiveSession() {

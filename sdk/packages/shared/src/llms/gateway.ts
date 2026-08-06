@@ -6,6 +6,10 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type {
+	ModelReasoningOption,
+	ReasoningEffort,
+} from "./reasoning-options";
 
 export type JsonValue =
 	| string
@@ -35,7 +39,9 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
-export type GatewayPromptCacheFormat = "anthropic-cache-control";
+export type GatewayPromptCacheFormat =
+	| "anthropic-cache-control"
+	| "bedrock-cache-point";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
 	| "glm-thinking"
@@ -99,6 +105,7 @@ export interface GatewayModelDefinition {
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	capabilities?: readonly GatewayModelCapability[];
+	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;
 }
 
@@ -177,7 +184,7 @@ export interface GatewayStreamRequest {
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: ReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;
@@ -210,7 +217,7 @@ export interface GatewayModelHandleOptions {
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "low" | "medium" | "high";
+		effort?: ReasoningEffort;
 		budgetTokens?: number;
 	};
 	signal?: AbortSignal;

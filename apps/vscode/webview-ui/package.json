@@ -45,7 +45,7 @@
 		"lucide-react": "^0.511.0",
 		"magic-string": "^0.30.21",
 		"marked": "^15.0.12",
-		"mermaid": "11.12.3",
+		"mermaid": "11.16.0",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
@@ -65,7 +65,7 @@
 		"tailwindcss-animate": "^1.0.7",
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.0.0",
-		"uuid": "^9.0.1"
+		"uuid": "^11.1.1"
 	},
 	"devDependencies": {
 		"@storybook/react-vite": "^9.1.6",
@@ -92,7 +92,7 @@
 		"vitest": "^3.0.5"
 	},
 	"overrides": {
-		"protobufjs": "7.5.8"
+		"protobufjs": "7.6.5"
 	},
 	"optionalDependencies": {
 		"@rollup/rollup-linux-arm64-gnu": "^4.40.0",

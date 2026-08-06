@@ -1,6 +1,5 @@
 import { WebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { EditPreview } from "@/integrations/editor/EditPreview"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
@@ -12,15 +11,14 @@ import { HostBridgeClientProvider } from "./host-provider-types"
  * implementations in a platform-agnostic way.
  *
  * Usage:
- * - Initialize once: HostProvider.initialize(webviewCreator, diffCreator, hostBridge)
+ * - Initialize once: HostProvider.initialize(webviewCreator, editPreviewCreator, hostBridge)
  * - Access HostBridge services: HostProvider.window.showMessage()
- * - Access Host Provider factories: HostProvider.get().createDiffViewProvider()
+ * - Access Host Provider factories: HostProvider.get().createEditPreview()
  */
 export class HostProvider {
 	private static instance: HostProvider | null = null
 
 	createWebviewProvider: WebviewProviderCreator
-	createDiffViewProvider: DiffViewProviderCreator
 	createEditPreview: EditPreviewCreator
 	createCommentReviewController: CommentReviewControllerCreator
 	hostBridge: HostBridgeClientProvider
@@ -50,7 +48,6 @@ export class HostProvider {
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
-		createDiffViewProvider: DiffViewProviderCreator,
 		createEditPreview: EditPreviewCreator,
 		createCommentReviewController: CommentReviewControllerCreator,
 		hostBridge: HostBridgeClientProvider,
@@ -61,7 +58,6 @@ export class HostProvider {
 		globalStorageFsPath: string,
 	) {
 		this.createWebviewProvider = createWebviewProvider
-		this.createDiffViewProvider = createDiffViewProvider
 		this.createEditPreview = createEditPreview
 		this.createCommentReviewController = createCommentReviewController
 		this.hostBridge = hostBridge
@@ -74,7 +70,6 @@ export class HostProvider {
 
 	public static initialize(
 		webviewProviderCreator: WebviewProviderCreator,
-		diffViewProviderCreator: DiffViewProviderCreator,
 		editPreviewCreator: EditPreviewCreator,
 		commentReviewControllerCreator: CommentReviewControllerCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
@@ -89,7 +84,6 @@ export class HostProvider {
 		}
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
-			diffViewProviderCreator,
 			editPreviewCreator,
 			commentReviewControllerCreator,
 			hostBridgeProvider,
@@ -145,11 +139,6 @@ export class HostProvider {
  * A function that creates WebviewProvider instances
  */
 export type WebviewProviderCreator = () => WebviewProvider
-
-/**
- * A function that creates DiffViewProvider instances
- */
-export type DiffViewProviderCreator = () => DiffViewProvider
 
 /**
  * A function that creates EditPreview instances (read-only virtual diff previews)

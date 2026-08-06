@@ -146,11 +146,125 @@ describe("HubRuntimeHost", () => {
 				source: SessionSource.CLI,
 				prompt: "Hey",
 				interactive: false,
+				sessionHistoryOrigin: {
+					mode: "user",
+					version: "3.0.38",
+				},
 			}),
 			runtimeOptions: {},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
+	});
+
+	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-pathless",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: resolvedWorkspace,
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		const started = await host.startSession({
+			config: {
+				...createConfig(),
+				sessionId: "sess-pathless",
+				cwd: undefined,
+				workspaceRoot: undefined,
+			},
+			source: SessionSource.CORE,
+		});
+
+		expect(started.manifest.cwd).toBe(resolvedWorkspace);
+		expect(started.manifest.workspace_root).toBe(resolvedWorkspace);
+		const createPayload = commandMock.mock.calls[0]?.[1] as
+			| Record<string, unknown>
+			| undefined;
+		expect(createPayload?.cwd).toBeUndefined();
+		expect(createPayload?.workspaceRoot).toBeUndefined();
+		expect(createPayload?.sessionConfig).toMatchObject({
+			sessionId: "sess-pathless",
+		});
+		expect(createPayload?.sessionConfig).not.toHaveProperty("cwd");
+		expect(createPayload?.sessionConfig).not.toHaveProperty("workspaceRoot");
+	});
+
+	it("rejects a pathless reply without the execution host workspace", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-missing-workspace",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.startSession({
+				config: {
+					...createConfig(),
+					sessionId: "sess-missing-workspace",
+					cwd: undefined,
+					workspaceRoot: undefined,
+				},
+				source: SessionSource.CORE,
+			}),
+		).rejects.toThrow("Hub runtime did not return a resolved workspace path.");
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
+	});
+
+	it("cleans a restored session when its host workspace is missing", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-restored-missing-workspace",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+				},
+				checkpoint: {},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.restoreSession({
+				sessionId: "source-session",
+				checkpointRunCount: 1,
+				start: {
+					config: {
+						...createConfig(),
+						sessionId: "sess-restored-missing-workspace",
+						cwd: undefined,
+						workspaceRoot: undefined,
+					},
+					source: SessionSource.CORE,
+				},
+			}),
+		).rejects.toThrow("Hub runtime did not return a resolved workspace path.");
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
 	});
 
 	it("restarts an idle local hub and retries session.create after startup timeout", async () => {

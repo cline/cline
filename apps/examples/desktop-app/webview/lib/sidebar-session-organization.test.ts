@@ -48,4 +48,12 @@ describe("sidebar session organization", () => {
 			"cline",
 		);
 	});
+
+	it("labels chat workspace groups as Chat", () => {
+		const path = "/home/host/.cline/data/workspaces/chat";
+		expect(workspaceDisplayName(path)).toBe("Chat");
+		expect(groupThreadsByProject([thread("temp", path)])[0]?.label).toBe(
+			"Chat",
+		);
+	});
 });
