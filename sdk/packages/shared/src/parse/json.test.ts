@@ -11,6 +11,33 @@ describe("parseJsonStream", () => {
 				'find /Users/beatrix/dev/sdk -name "user-instruction-config-loader.ts" -o -name "rules.ts" | head -20',
 		});
 	});
+
+	it("repairs single-quoted JSON", () => {
+		expect(parseJsonStream("{'commands': ['ls']}")).toEqual({
+			commands: ["ls"],
+		});
+	});
+
+	it("repairs valid JSON with trailing commas", () => {
+		expect(parseJsonStream('{"name": "test",}')).toEqual({ name: "test" });
+	});
+
+	it("rejects truncated JSON with an unterminated string", () => {
+		const truncated = '{"path":"cfg.yml","content":"production:\\n  host: db';
+		expect(parseJsonStream(truncated)).toBe(truncated);
+	});
+
+	it("repairs unclosed containers with complete string values", () => {
+		expect(parseJsonStream('{"commands": ["ls"')).toEqual({
+			commands: ["ls"],
+		});
+	});
+
+	it("returns already-valid JSON unchanged", () => {
+		expect(parseJsonStream('{"commands": ["ls"]}')).toEqual({
+			commands: ["ls"],
+		});
+	});
 });
 
 describe("normalizeJsonLikeStringsForSchema", () => {
