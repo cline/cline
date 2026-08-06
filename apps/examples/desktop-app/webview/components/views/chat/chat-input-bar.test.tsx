@@ -8,22 +8,31 @@ import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	parseLocalSlashCommand,
 } from "./chat-input-bar";
 
 const {
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	subscribeToProviderModelsMock,
+	desktopClientInvokeMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+	desktopClientInvokeMock: vi.fn(),
 }));
 
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
+}));
+
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: {
+		invoke: desktopClientInvokeMock,
+	},
 }));
 
 let container: HTMLDivElement;
@@ -39,6 +48,7 @@ beforeEach(() => {
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
+	desktopClientInvokeMock.mockReset().mockResolvedValue({});
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -478,6 +488,169 @@ describe("ChatInputBar", () => {
 		});
 
 		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+	});
+});
+
+describe("ChatInputBar local slash commands", () => {
+	it("parses only bare local slash commands", () => {
+		expect(parseLocalSlashCommand("/settings")).toBe("settings");
+		expect(parseLocalSlashCommand("  /CLEAR  ")).toBe("clear");
+		expect(parseLocalSlashCommand("/export")).toBe("export");
+		expect(parseLocalSlashCommand("/help")).toBe("help");
+		// Extra text falls through to the agent.
+		expect(parseLocalSlashCommand("/settings please")).toBeNull();
+		// Unknown and runtime commands are not local actions.
+		expect(parseLocalSlashCommand("/fork")).toBeNull();
+		expect(parseLocalSlashCommand("/team")).toBeNull();
+		expect(parseLocalSlashCommand("hello")).toBeNull();
+		expect(parseLocalSlashCommand("")).toBeNull();
+	});
+
+	const renderComposer = async ({
+		onSend,
+		onLocalSlashCommand,
+		promptDraft,
+	}: {
+		onSend: ReturnType<typeof vi.fn>;
+		onLocalSlashCommand?: ReturnType<typeof vi.fn>;
+		promptDraft: { version: number; value: string };
+	}) => {
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onLocalSlashCommand={onLocalSlashCommand}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={promptDraft}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+	};
+
+	it("routes a bare local command to onLocalSlashCommand instead of sending", async () => {
+		const onSend = vi.fn();
+		const onLocalSlashCommand = vi.fn();
+		await renderComposer({
+			onSend,
+			onLocalSlashCommand,
+			promptDraft: { version: 1, value: "/settings" },
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Send message"]')
+				?.click();
+		});
+
+		expect(onLocalSlashCommand).toHaveBeenCalledWith("settings");
+		expect(onSend).not.toHaveBeenCalled();
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput?.value).toBe("");
+	});
+
+	it("sends prompts that merely start with a command name", async () => {
+		const onSend = vi.fn();
+		const onLocalSlashCommand = vi.fn();
+		await renderComposer({
+			onSend,
+			onLocalSlashCommand,
+			promptDraft: { version: 1, value: "/settings should open the panel" },
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Send message"]')
+				?.click();
+		});
+
+		expect(onSend).toHaveBeenCalledWith("/settings should open the panel");
+		expect(onLocalSlashCommand).not.toHaveBeenCalled();
+	});
+
+	it("sends local command names to the agent when no handler is wired", async () => {
+		const onSend = vi.fn();
+		await renderComposer({
+			onSend,
+			promptDraft: { version: 1, value: "/clear" },
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Send message"]')
+				?.click();
+		});
+
+		expect(onSend).toHaveBeenCalledWith("/clear");
+	});
+
+	it("reopens the command menu for /help instead of sending", async () => {
+		const onSend = vi.fn();
+		const onLocalSlashCommand = vi.fn();
+		await renderComposer({
+			onSend,
+			onLocalSlashCommand,
+			promptDraft: { version: 1, value: "/help" },
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Send message"]')
+				?.click();
+		});
+
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onLocalSlashCommand).not.toHaveBeenCalled();
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput?.value).toBe("/");
+		// The reopened menu lists the local system commands.
+		await vi.waitFor(() => {
+			const menu = container.querySelector("#slash-command-suggestions");
+			expect(menu?.textContent).toContain("/settings");
+			expect(menu?.textContent).toContain("/export");
+			expect(menu?.textContent).toContain("/clear");
+		});
 	});
 });
 

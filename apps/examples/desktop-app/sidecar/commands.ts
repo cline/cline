@@ -88,6 +88,10 @@ import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
 import { discoverChatSessions } from "./session-data/discovery";
+import {
+	exportChatSessionToFile,
+	type SessionExportFormat,
+} from "./session-data/export";
 import { readSessionMessages } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
@@ -1183,6 +1187,21 @@ export async function handleCommand(
 			String(args?.sessionId ?? ""),
 			typeof args?.limit === "number" ? args.limit : 200,
 		);
+	}
+	if (command === "export_chat_session") {
+		const format: SessionExportFormat =
+			args?.format === "json" ? "json" : "html";
+		const result = exportChatSessionToFile(ctx, {
+			sessionId: String(args?.sessionId ?? ""),
+			format,
+		});
+		// Hand the export to the OS default handler (browser for .html) so the
+		// user immediately sees what was produced, matching the CLI's flow of
+		// printing the path — here the desktop equivalent is opening it.
+		if (args?.open !== false) {
+			openFileInEditor(result.path);
+		}
+		return result;
 	}
 
 	// ── Process context ───────────────────────────────────────────────

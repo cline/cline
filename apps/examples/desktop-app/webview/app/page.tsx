@@ -28,7 +28,10 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
+import {
+	ChatInputBar,
+	type LocalSlashAction,
+} from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
@@ -238,6 +241,34 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// Composer slash commands that act on the app instead of the agent,
+	// mirroring the CLI TUI's system commands. `/export` is handled inside the
+	// chat pane (it needs the active session) and never reaches this handler.
+	const handleLocalSlashCommand = useCallback(
+		(action: Exclude<LocalSlashAction, "help" | "export">) => {
+			switch (action) {
+				case "clear":
+					handleNewThread();
+					break;
+				case "settings":
+					handleViewChange("settings");
+					break;
+				case "history":
+					handleViewChange("sessions");
+					break;
+				case "model":
+					handleSettingsSectionChange("Models");
+					break;
+				case "account":
+					handleSettingsSectionChange("Account");
+					break;
+				case "mcp":
+					handleSettingsSectionChange("MCP");
+					break;
+			}
+		},
+		[handleNewThread, handleSettingsSectionChange, handleViewChange],
+	);
 	useEffect(
 		() =>
 			subscribeToDesktopMenuActions((action) => {
@@ -369,6 +400,7 @@ export default function Home() {
 									onUpdateSessionMetadata={handleUpdateSessionMetadata}
 									threadId={activeThread.id}
 									onDeleteSession={handleDeleteSession}
+									onLocalSlashCommand={handleLocalSlashCommand}
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
 									onOpenSessionById={handleOpenSessionById}
@@ -406,6 +438,7 @@ function ChatThreadPane({
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
 	onDeleteSession,
+	onLocalSlashCommand,
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
@@ -422,6 +455,9 @@ function ChatThreadPane({
 		metadata: SessionMetadata,
 	) => void;
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
+	onLocalSlashCommand?: (
+		action: Exclude<LocalSlashAction, "help" | "export">,
+	) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (
 		session: SessionHistoryItem,
@@ -1003,6 +1039,50 @@ function ChatThreadPane({
 		setDeleteConfirmOpen(true);
 	}, [activeSessionToDelete, deletingSession]);
 
+	// `/export` writes a standalone HTML transcript via the sidecar (parity
+	// with `cline history export`) and reports where it landed.
+	const activeSessionToExport = hideDeletedSessionUi
+		? null
+		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
+	const handleExportSession = useCallback(async () => {
+		if (!activeSessionToExport) {
+			toast({
+				title: "Nothing to export",
+				description: "Start a conversation first, then run /export again.",
+			});
+			return;
+		}
+		try {
+			const result = await desktopClient.invoke<{ path?: string }>(
+				"export_chat_session",
+				{ sessionId: activeSessionToExport, format: "html" },
+			);
+			toast({
+				title: "Conversation exported",
+				description: result?.path
+					? `Saved to ${result.path}`
+					: "The export was saved.",
+			});
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Export failed",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}, [activeSessionToExport]);
+
+	const handleComposerLocalSlashCommand = useCallback(
+		(action: Exclude<LocalSlashAction, "help">) => {
+			if (action === "export") {
+				void handleExportSession();
+				return;
+			}
+			onLocalSlashCommand?.(action);
+		},
+		[handleExportSession, onLocalSlashCommand],
+	);
+
 	const handleDeleteSession = useCallback(async () => {
 		if (!activeSessionToDelete || deletingSession) {
 			return;
@@ -1338,6 +1418,7 @@ function ChatThreadPane({
 				})
 			}
 			onSend={(prompt) => void handleSend(prompt)}
+			onLocalSlashCommand={handleComposerLocalSlashCommand}
 			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}

@@ -74,12 +74,62 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
+/**
+ * Slash commands that act on the app UI instead of being sent to the agent,
+ * mirroring the CLI TUI's system commands (settings, model, account, mcp,
+ * clear, history, help). `/help` is handled inside the composer; the rest
+ * are routed to the page shell via `onLocalSlashCommand`.
+ */
+export type LocalSlashAction =
+	| "clear"
+	| "settings"
+	| "mcp"
+	| "model"
+	| "account"
+	| "history"
+	| "export"
+	| "help";
+
+const LOCAL_SLASH_COMMANDS: Array<{
+	name: LocalSlashAction;
+	description: string;
+}> = [
+	{ name: "settings", description: "Open settings" },
+	{ name: "model", description: "Manage models and providers" },
+	{ name: "account", description: "View Cline account" },
+	{ name: "mcp", description: "Manage MCP servers" },
+	{ name: "clear", description: "Start a new session" },
+	{ name: "history", description: "View session history" },
+	{ name: "export", description: "Export this conversation as HTML" },
+	{ name: "help", description: "Show available commands" },
+];
+
+const LOCAL_SLASH_ACTION_NAMES = new Set<string>(
+	LOCAL_SLASH_COMMANDS.map((command) => command.name),
+);
+
+/**
+ * Returns the local action when the submitted prompt is exactly one local
+ * slash command (e.g. "/settings"). Prompts with extra text fall through to
+ * the agent so a message that merely starts with a command name still sends.
+ */
+export function parseLocalSlashCommand(
+	prompt: string,
+): LocalSlashAction | null {
+	const match = /^\/([a-zA-Z0-9_.-]+)$/.exec(prompt.trim());
+	const name = match?.[1]?.toLowerCase();
+	return name && LOCAL_SLASH_ACTION_NAMES.has(name)
+		? (name as LocalSlashAction)
+		: null;
+}
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
+	...LOCAL_SLASH_COMMANDS,
 ];
 
 export function buildUserInstructionSlashCommands(
@@ -263,6 +313,12 @@ type ChatInputBarProps = {
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: (prompt: string) => void;
+	/**
+	 * Invoked instead of `onSend` when the submitted prompt is a single local
+	 * slash command (see `LOCAL_SLASH_COMMANDS`). `/help` never reaches this:
+	 * it reopens the command menu inside the composer.
+	 */
+	onLocalSlashCommand?: (action: Exclude<LocalSlashAction, "help">) => void;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
@@ -302,6 +358,7 @@ export function ChatInputBar({
 	onListGitBranches,
 	onSwitchGitBranch,
 	onSend,
+	onLocalSlashCommand,
 	onAbort,
 	promptsInQueue,
 	attachments,
@@ -368,11 +425,6 @@ export function ChatInputBar({
 		[model, provider],
 	);
 	const canSend = hasDraft;
-	const handleSend = useCallback(() => {
-		const prompt = promptInput.trim();
-		setPromptInput("");
-		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
@@ -414,6 +466,46 @@ export function ChatInputBar({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+
+	/** Replaces the composer text and puts the caret at the end. */
+	const replacePromptInput = useCallback(
+		(value: string) => {
+			setPromptInput(value);
+			requestAnimationFrame(() => {
+				const input = promptInputRef.current;
+				if (!input) return;
+				input.focus();
+				input.setSelectionRange(value.length, value.length);
+				setCursorIndex(value.length);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleSend = useCallback(() => {
+		const prompt = promptInput.trim();
+		const localAction = parseLocalSlashCommand(prompt);
+		if (localAction === "help") {
+			// Reopen the command menu with everything listed instead of sending
+			// "/help" to the agent.
+			setDismissedSlashKey(null);
+			replacePromptInput("/");
+			return;
+		}
+		if (localAction && onLocalSlashCommand) {
+			setPromptInput("");
+			onLocalSlashCommand(localAction);
+			return;
+		}
+		setPromptInput("");
+		onSend(prompt);
+	}, [
+		onLocalSlashCommand,
+		onSend,
+		promptInput,
+		replacePromptInput,
+		setPromptInput,
+	]);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
