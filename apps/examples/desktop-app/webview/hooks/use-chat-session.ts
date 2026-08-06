@@ -307,6 +307,11 @@ export function useChatSession() {
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
 	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
+	// Which optimistic bubble each queued user-message id re-keyed. The re-key
+	// updater consumes the outstanding set on its first run, so StrictMode's
+	// double-invoked updater needs this memo to reach the same result on its
+	// re-run instead of appending a duplicate bubble.
+	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -439,6 +444,7 @@ export function useChatSession() {
 	const setErrorState = useCallback(
 		(msg: string, sid: string | null = null) => {
 			outstandingOptimisticUserIdsRef.current.clear();
+			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
@@ -1087,10 +1093,12 @@ export function useChatSession() {
 					return next;
 				});
 				if (userLabel || userImages.length > 0) {
+					// Computed outside the updater: makeId() inside would mint a
+					// different id on each StrictMode re-invocation.
+					const userMessageId = promptId
+						? `queued_user_${promptId}`
+						: makeId("user");
 					setMessages((prev) => {
-						const userMessageId = promptId
-							? `queued_user_${promptId}`
-							: makeId("user");
 						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
@@ -1103,16 +1111,24 @@ export function useChatSession() {
 						// prompt is still in flight are eligible — a same-content
 						// message left over from an earlier (e.g. cancelled) turn
 						// must stay distinct from the new submission.
+						// The first run of this updater consumes the outstanding id, so
+						// a StrictMode re-run against the same `prev` must recognize the
+						// bubble it already re-keyed rather than fall through to append.
+						const priorRekeyedId =
+							rekeyedOptimisticIdByMessageIdRef.current[userMessageId];
 						for (let i = prev.length - 1; i >= 0; i--) {
 							const candidate = prev[i];
 							if (candidate.role !== "user") {
 								break;
 							}
 							if (
-								outstandingOptimisticUserIdsRef.current.has(candidate.id) &&
-								candidate.content === userLabel
+								candidate.content === userLabel &&
+								(outstandingOptimisticUserIdsRef.current.has(candidate.id) ||
+									candidate.id === priorRekeyedId)
 							) {
 								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
+								rekeyedOptimisticIdByMessageIdRef.current[userMessageId] =
+									candidate.id;
 								const next = [...prev];
 								next[i] = {
 									...candidate,
@@ -2098,6 +2114,8 @@ export function useChatSession() {
 		}));
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
+		outstandingOptimisticUserIdsRef.current.clear();
+		rekeyedOptimisticIdByMessageIdRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
@@ -2156,6 +2174,7 @@ export function useChatSession() {
 				sessionStatus: typeof session.status,
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
+				rekeyedOptimisticIdByMessageIdRef.current = {};
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
