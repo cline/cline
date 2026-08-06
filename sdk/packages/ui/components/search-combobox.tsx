@@ -43,6 +43,7 @@ export function SearchCombobox({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const containerRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (!open) {
@@ -76,6 +77,11 @@ export function SearchCombobox({
 		setOpen(false);
 	};
 
+	const closeAndRestoreFocus = () => {
+		setOpen(false);
+		triggerRef.current?.focus();
+	};
+
 	return (
 		<div
 			className="cline-ui-search-combobox relative min-w-0"
@@ -94,6 +100,7 @@ export function SearchCombobox({
 					.join(" ")}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
+				ref={triggerRef}
 				title={displayedValue}
 				type="button"
 			>
@@ -113,6 +120,13 @@ export function SearchCombobox({
 						align === "start" ? "left-0" : "right-0",
 						placement === "top" ? "bottom-full mb-2" : "top-full mt-2",
 					].join(" ")}
+					onKeyDown={(event) => {
+						if (event.key === "Escape") {
+							event.preventDefault();
+							event.stopPropagation();
+							closeAndRestoreFocus();
+						}
+					}}
 					role="dialog"
 				>
 					<div className="cline-ui-search-combobox__search-row border-cline-ui-border border-b p-2">

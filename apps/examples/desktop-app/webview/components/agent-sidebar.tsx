@@ -77,7 +77,7 @@ import {
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
-} from "@/components/views/settings/settings-view";
+} from "@/components/views/settings/sections";
 import { useAccount } from "@/contexts/account-context";
 import type {
 	SessionThread,

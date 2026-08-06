@@ -13,7 +13,7 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -62,7 +62,7 @@ type AgentHeaderProps = {
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
 };
 
-export function AgentHeader({
+function AgentHeaderImpl({
 	title,
 	canEditTitle,
 	renamingTitle,
@@ -278,6 +278,11 @@ export function AgentHeader({
 		</header>
 	);
 }
+
+// Memoized: the header sits above the streaming conversation and would
+// otherwise re-render on every stream flush; its props are kept
+// referentially stable by the chat pane.
+export const AgentHeader = memo(AgentHeaderImpl);
 
 /**
  * Route from a child agent run back to the session that spawned it, in the

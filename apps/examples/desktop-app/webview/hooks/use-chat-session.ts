@@ -254,15 +254,35 @@ const LOG_DISPATCH: Record<string, typeof console.info> = {
 	debug: console.debug,
 };
 
+// Core streams a steady flow of info/debug log chunks during a session.
+// Serializing them through the console on the streaming hot path costs real
+// CPU (DevTools keeps every entry alive), so anything below warn is dropped
+// unless the user opts in via `localStorage.setItem("cline:debug-logs", "1")`.
+let verboseCoreLogs: boolean | undefined;
+
+function shouldLogVerboseCoreLogs(): boolean {
+	if (verboseCoreLogs === undefined) {
+		try {
+			verboseCoreLogs = window.localStorage.getItem("cline:debug-logs") === "1";
+		} catch {
+			verboseCoreLogs = false;
+		}
+	}
+	return verboseCoreLogs;
+}
+
 function dispatchCoreLog(chunk: string): void {
 	let parsed: CoreLogChunk | undefined;
 	try {
 		parsed = JSON.parse(chunk) as CoreLogChunk;
 	} catch {
-		console.info("[core]", chunk);
+		if (shouldLogVerboseCoreLogs()) console.info("[core]", chunk);
 		return;
 	}
 	const level = parsed.level?.trim().toLowerCase() || "info";
+	if (level !== "error" && level !== "warn" && !shouldLogVerboseCoreLogs()) {
+		return;
+	}
 	const message = parsed.message?.trim() || chunk;
 	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
 }
