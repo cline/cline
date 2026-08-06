@@ -47,20 +47,21 @@ function agentErrorEvent(
 }
 
 describe("handleSessionEvent — agent error events", () => {
-	it("does not forward recoverable errors to peers (in-run notices, not turn outcomes)", () => {
+	it("forwards recoverable errors flagged as in-run notices, not turn outcomes", () => {
 		const { ctx, sent } = makeContextWithPeer("session-1");
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
 		handleSessionEvent(ctx, agentErrorEvent("session-1", true));
 
-		expect(sent).toEqual([]);
-		expect(warn).toHaveBeenCalledWith(
-			expect.stringContaining("Recoverable agent error"),
-		);
-		warn.mockRestore();
+		expect(sent).toEqual([
+			{
+				type: "error",
+				text: "1 tool call(s) failed: [run_commands] Command not executed",
+				recoverable: true,
+			},
+		]);
 	});
 
-	it("forwards non-recoverable errors to peers", () => {
+	it("forwards non-recoverable errors unflagged", () => {
 		const { ctx, sent } = makeContextWithPeer("session-1");
 
 		handleSessionEvent(ctx, agentErrorEvent("session-1", false));
@@ -69,6 +70,7 @@ describe("handleSessionEvent — agent error events", () => {
 			{
 				type: "error",
 				text: "1 tool call(s) failed: [run_commands] Command not executed",
+				recoverable: false,
 			},
 		]);
 	});
