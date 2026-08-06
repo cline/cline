@@ -6,7 +6,7 @@ import type {
 	RestoreResult,
 	StartSessionResult,
 } from "@cline/core"
-import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import { type AgentResult, type AgentTool, formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -42,7 +42,7 @@ export interface SdkSessionLifecycleOptions {
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
-	onSendStart?: (sessionId: string) => void
+	onSendStart?: (sessionId: string, origin: SdkSendOrigin) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 	/**
@@ -53,7 +53,25 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
+	/**
+	 * Host-lifetime custom tools registered on every session start (e.g. the
+	 * /goal guard's mark_goal_complete), so session rebuilds never drop them.
+	 */
+	extraTools?: AgentTool[]
+	/**
+	 * Called after a non-queued send settles successfully, with the turn's
+	 * AgentResult. Drives post-turn automation such as the /goal verification
+	 * loop. Runs after onSendComplete so state bookkeeping is finished first.
+	 */
+	onTurnSettled?: (sessionId: string, result: AgentResult | undefined, origin: SdkSendOrigin) => void
 }
+
+/**
+ * Classifies an outbound send for post-turn automation. "user" sends reset
+ * the /goal verification-round budget, "goal-verification" sends consume it,
+ * and "system" sends (plan -> act auto-continuation) do neither.
+ */
+export type SdkSendOrigin = "user" | "system" | "goal-verification"
 
 export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
@@ -343,6 +361,7 @@ export class SdkSessionLifecycle {
 				foregroundCommands: this.options.foregroundCommands,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
+				extraTools: this.options.extraTools,
 			})
 				.then((sdkHost) => {
 					this.ensureSharedHostSubscription(sdkHost)
@@ -363,6 +382,7 @@ export class SdkSessionLifecycle {
 		images?: string[],
 		files?: string[],
 		delivery?: "queue" | "steer",
+		origin: SdkSendOrigin = "user",
 	): void {
 		// Captured by object identity, not sessionId: rebuilds (mode change) reuse
 		// the same sessionId for the replacement session, so only reference
@@ -387,7 +407,7 @@ export class SdkSessionLifecycle {
 		// stripModeNotices.
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
-		this.options.onSendStart?.(sessionId)
+		this.options.onSendStart?.(sessionId, origin)
 		sdkHost
 			.send({
 				sessionId,
@@ -396,7 +416,7 @@ export class SdkSessionLifecycle {
 				userFiles: files,
 				delivery,
 			})
-			.then(async () => {
+			.then(async (result) => {
 				if (delivery === "queue" || delivery === "steer") {
 					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
 					return
@@ -407,6 +427,7 @@ export class SdkSessionLifecycle {
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				this.setRunning(false)
 				await this.options.onSendComplete(sessionId)
+				this.options.onTurnSettled?.(sessionId, result, origin)
 			})
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {

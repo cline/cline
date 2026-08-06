@@ -119,6 +119,16 @@ export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/sr
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+// Real goal-guard implementation (dependency-light: only @cline/shared), so
+// the /goal coordinator tests exercise the same guard the CLI uses.
+export {
+	createInteractiveGoalGuard,
+	formatGoalVerificationPrompt,
+	GOAL_COMMAND_USAGE,
+	type InteractiveGoalGuard,
+	isGoalVerificationPrompt,
+	MAX_GOAL_VERIFICATION_ROUNDS,
+} from "../../../../sdk/packages/core/src/session/goal-guard"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.

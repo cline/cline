@@ -154,6 +154,8 @@ describe("SdkModeCoordinator", () => {
 			"The user approved switching to act mode. Continue with the approved plan now.",
 			undefined,
 			undefined,
+			undefined,
+			"system",
 		)
 		// Canned prompt is not echoed as a user message.
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
@@ -189,6 +191,8 @@ describe("SdkModeCoordinator", () => {
 			"The user approved switching to act mode. Continue with the approved plan now.",
 			undefined,
 			undefined,
+			undefined,
+			"system",
 		)
 	})
 
@@ -214,6 +218,8 @@ describe("SdkModeCoordinator", () => {
 			"The user approved switching to act mode. Continue with the approved plan now.",
 			undefined,
 			undefined,
+			undefined,
+			"system",
 		)
 	})
 
@@ -242,6 +248,8 @@ describe("SdkModeCoordinator", () => {
 			"go ahead and implement step 1",
 			undefined,
 			undefined,
+			undefined,
+			"user",
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "user_feedback", text: "go ahead and implement step 1" })],
@@ -273,6 +281,8 @@ describe("SdkModeCoordinator", () => {
 			"use this screenshot",
 			["data:image/png;base64,abc"],
 			["/tmp/notes.md"],
+			undefined,
+			"user",
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[
@@ -312,6 +322,8 @@ describe("SdkModeCoordinator", () => {
 			"The user approved switching to act mode. Continue with the approved plan now.",
 			["data:image/png;base64,abc"],
 			undefined,
+			undefined,
+			"system",
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[
