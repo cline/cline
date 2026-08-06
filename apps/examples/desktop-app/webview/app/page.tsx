@@ -1445,7 +1445,7 @@ function ChatThreadPane({
 					</div>
 				) : null}
 				{!isWelcomeState ? (
-					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
 							agentActivity={agentActivity}
 							agents={agents}

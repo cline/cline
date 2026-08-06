@@ -134,10 +134,33 @@
 	}
 }
 
+/* Softens the welcome <-> conversation swap: the hero and the message grid
+ * replace each other in a single commit, which otherwise reads as a hard
+ * white flash. Plays whenever the element (re)becomes visible — display:none
+ * resets animations, so toggling Tailwind's `hidden` re-triggers it. */
+@keyframes cline-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.cline-view-enter {
+	animation: cline-view-enter 180ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.cline-chat-streaming-title {
 		background: none;
 		-webkit-text-fill-color: currentcolor;
+		animation: none;
+	}
+
+	.cline-view-enter {
 		animation: none;
 	}
 }
