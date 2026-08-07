@@ -577,11 +577,17 @@ function mergeAiSdkTools(
 	runtimeTools: ToolSet | undefined,
 	providerTools: ToolSet | undefined,
 ): ToolSet | undefined {
+	// Runtime tools carry the caller's executor contract, so they retain
+	// ownership when a provider happens to register the same public name.
 	const tools = {
-		...(runtimeTools ?? {}),
 		...(providerTools ?? {}),
+		...(runtimeTools ?? {}),
 	};
 	return Object.keys(tools).length > 0 ? tools : undefined;
+}
+
+function hasAiSdkTool(tools: ToolSet | undefined, toolName: string): boolean {
+	return tools !== undefined && Object.hasOwn(tools, toolName);
 }
 
 interface RepairableToolCall {
@@ -1592,15 +1598,19 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const tools = providerDisablesExternalToolExecution(context)
+				const runtimeTools = toAiSdkTools(request);
+				const externalToolExecutionDisabled =
+					providerDisablesExternalToolExecution(context);
+				const tools = externalToolExecutionDisabled
 					? undefined
-					: mergeAiSdkTools(toAiSdkTools(request), provider.providerTools);
+					: mergeAiSdkTools(runtimeTools, provider.providerTools);
 				const providerImageGenerationToolEnabled =
-					provider.providerTools !== undefined &&
-					Object.hasOwn(
+					!externalToolExecutionDisabled &&
+					hasAiSdkTool(
 						provider.providerTools,
 						OPENAI_IMAGE_GENERATION_TOOL_NAME,
-					);
+					) &&
+					!hasAiSdkTool(runtimeTools, OPENAI_IMAGE_GENERATION_TOOL_NAME);
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
