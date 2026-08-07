@@ -873,7 +873,7 @@ describe("SessionRuntime.run", () => {
 		expect(typeof result.durationMs).toBe("number");
 	});
 
-	it("disables tools and completion-tool policy for image-output models", async () => {
+	it("disables tools and completion-tool policy for dedicated image models", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
 		const modelId = "openai/gpt-5-image";
 		const session = new SessionRuntime(
@@ -884,7 +884,7 @@ describe("SessionRuntime.run", () => {
 						id: modelId,
 						modalities: {
 							input: ["text", "image"],
-							output: ["image", "text"],
+							output: ["image"],
 						},
 					},
 				},
@@ -906,6 +906,42 @@ describe("SessionRuntime.run", () => {
 		expect(configs).toHaveLength(1);
 		expect(configs[0]?.tools).toEqual([]);
 		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion-tool policy for mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text", "image"],
+							output: ["image", "text"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy,
+			}),
+			deps,
+		);
+
+		await session.run("Answer normally or generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
 	});
 
 	it("appends the user turn into the conversation store", async () => {

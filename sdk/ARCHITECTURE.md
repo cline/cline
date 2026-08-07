@@ -149,6 +149,40 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+### Generated Image Event Flow
+
+Image-output capability and image-only execution are separate routing decisions.
+A model whose output modalities contain both `text` and `image` remains a normal
+language-model session: it keeps runtime tools and the configured completion
+policy, and `@cline/llms` calls `streamText`. Only a dedicated image model whose
+output omits `text` bypasses the agent tool loop and calls `generateImage`.
+
+Generated images cross package boundaries as follows:
+
+1. `@cline/llms` validates generated image MIME types and base64 payloads. A
+   dedicated model's `generateImage` files become `AgentModelEvent` image events.
+   Mixed language models can produce the same event from AI SDK `file` parts.
+2. OpenAI Responses mixed-output models receive the provider-defined
+   `image_generation` tool alongside Cline runtime tools. Provider-executed tool
+   calls stay internal to the provider; results are correlated by tool-call ID,
+   preliminary previews are coalesced, and the final base64 PNG becomes one image
+   event rather than a user-approval tool call.
+3. `@cline/agents` appends each image event as an image part on the assistant
+   message. The final assistant message is the canonical source for persistence
+   and replay.
+4. `@cline/core`'s runtime event adapter projects assistant image parts as
+   `content_end(image)`. The hub projector publishes `assistant.image`, and hub
+   clients map it back to the canonical runtime image event.
+5. Host adapters render the structured image event while persisted message
+   hydration restores the same image from the assistant transcript. Hosts must
+   deduplicate live and hydration paths rather than publishing a second raw hub
+   image event.
+
+Image-edit inference is intentionally local: when a dedicated image model accepts
+image input and the current user message has no explicit image, only an image on
+the immediately preceding assistant message is reused. Older images are not
+implicitly attached across intervening turns.
+
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
 `core`, and so on), while top-level `StartSessionInput.mode` identifies how the

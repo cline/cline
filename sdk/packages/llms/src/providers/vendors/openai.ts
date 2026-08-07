@@ -3,6 +3,10 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import {
+	isDedicatedImageGenerationModel,
+	isImageGenerationModel,
+} from "@cline/shared";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
@@ -40,6 +44,16 @@ export async function createOpenAIProviderModule(
 	return {
 		model: (modelId) => provider.responses(modelId),
 		imageModel: (modelId) => provider.image(modelId),
+		...(isImageGenerationModel(context.model) &&
+		!isDedicatedImageGenerationModel(context.model)
+			? {
+					providerTools: {
+						image_generation: provider.tools.imageGeneration({
+							outputFormat: "png",
+						}),
+					},
+				}
+			: {}),
 		buildStreamConfig: (request) => ({
 			...(!isChatGptOAuth &&
 			request.maxTokens !== undefined &&
