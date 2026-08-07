@@ -157,7 +157,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 				<h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
 					Cline
 				</h1>
-				<p className="mt-2 text-[15px] text-muted-foreground">
+				<p className="mt-2 text-base text-muted-foreground">
 					Build software your way
 				</p>
 				<p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -166,7 +166,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 					machine.
 				</p>
 				<Button
-					className="mt-9 h-11 w-full rounded-full text-[15px]"
+					className="mt-9 h-11 w-full rounded-full text-base"
 					onClick={onContinue}
 					type="button"
 				>
@@ -407,7 +407,7 @@ function ConnectStep({
 				{/* Cline account */}
 				<div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
 					<div className="flex items-center gap-2">
-						<p className="text-[15px] font-semibold text-foreground">
+						<p className="text-base font-semibold text-foreground">
 							Sign in with Cline
 						</p>
 						<Badge className="bg-primary/15 text-primary" variant="secondary">
@@ -555,7 +555,7 @@ function ConnectStep({
 							<KeyRound className="size-4" />
 						</span>
 						<span className="min-w-0">
-							<span className="block text-[15px] font-semibold text-foreground">
+							<span className="block text-base font-semibold text-foreground">
 								Use your own API key
 							</span>
 							<span className="mt-0.5 block text-sm text-muted-foreground">
@@ -681,7 +681,7 @@ function DoneStep({
 						: "Your Cline account is connected. Pick a project and start your first session."}
 				</p>
 				<Button
-					className="mt-8 h-11 w-full rounded-full text-[15px]"
+					className="mt-8 h-11 w-full rounded-full text-base"
 					onClick={onFinish}
 					type="button"
 				>
