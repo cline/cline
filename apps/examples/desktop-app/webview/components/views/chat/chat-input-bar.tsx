@@ -2,14 +2,7 @@
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import {
-	ArrowUp,
-	Brain,
-	CircleStop,
-	Cpu,
-	Paperclip,
-	X,
-} from "lucide-react";
+import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,6 +73,11 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+// Last known user commands, kept across composer instances so reopening the
+// slash menu paints instantly (stale-while-revalidate); the fetch that
+// follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -282,7 +280,7 @@ type ChatInputBarProps = {
 	};
 };
 
-export function ChatInputBar({
+function ChatInputBarImpl({
 	variant = "conversation",
 	status,
 	provider,
@@ -409,7 +407,7 @@ export function ChatInputBar({
 		: null;
 	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -453,18 +451,22 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	// Focus the composer on mount/variant change and when text is injected
+	// from outside (quick actions, queue undo). Deliberately NOT on every
+	// keystroke: refocusing an already-focused textarea per keypress causes
+	// caret flicker and forced layout while typing.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input) return;
+		if (!input || document.activeElement === input) return;
+		// The textarea is controlled, so its live value mirrors promptInput;
+		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
 			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
+			(variant === "welcome" && input.value.trim().length > 0)
 		) {
 			input.focus();
 		}
-	}, [promptInput, variant]);
+	}, [variant]);
 
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
@@ -573,15 +575,18 @@ export function ChatInputBar({
 			return;
 		}
 		let cancelled = false;
-		setSlashLoading(true);
+		// Only show the loading row when there is nothing cached to show.
+		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
 			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
 			.then((response) => {
 				if (cancelled) return;
-				setSlashCommands([
+				const next = [
 					...BUILTIN_SLASH_COMMANDS,
 					...buildUserInstructionSlashCommands(response),
-				]);
+				];
+				cachedSlashCommands = next;
+				setSlashCommands(next);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -736,7 +741,7 @@ export function ChatInputBar({
 					)}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
@@ -1054,6 +1059,11 @@ export function ChatInputBar({
 		</div>
 	);
 }
+
+// Memoized: the chat pane re-renders on every stream flush (message deltas,
+// status, usage); the composer only cares about the props it receives, which
+// the pane keeps referentially stable.
+export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.

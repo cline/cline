@@ -125,9 +125,32 @@ export function subscribeToProviderCatalogInvalidation(
 
 export function invalidateProviderCatalogCache(): void {
 	providerCatalogCache = null;
+	// Credentials may have just changed: a pane remounting off the snapshot
+	// must not act on the old keys, so drop it until a fresh load lands.
+	providerCatalogSnapshot = null;
 	for (const listener of providerCatalogInvalidationListeners) {
 		listener();
 	}
+}
+
+// "+ new chat" remounts the chat pane, which otherwise blocks its first
+// paint on a full catalog fetch. The last successful load is kept here (not
+// in the pane module) so credential changes invalidate it with the cache.
+export type ProviderCatalogSnapshot = {
+	credentials: Record<string, { apiKey: string }>;
+	contextWindows: Record<string, Record<string, number>>;
+};
+
+let providerCatalogSnapshot: ProviderCatalogSnapshot | null = null;
+
+export function readProviderCatalogSnapshot(): ProviderCatalogSnapshot | null {
+	return providerCatalogSnapshot;
+}
+
+export function writeProviderCatalogSnapshot(
+	snapshot: ProviderCatalogSnapshot,
+): void {
+	providerCatalogSnapshot = snapshot;
 }
 
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
