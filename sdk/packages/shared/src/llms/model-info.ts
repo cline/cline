@@ -32,6 +32,7 @@ export const ModelCapabilitySchema = z.enum([
 	"structured_output",
 	"temperature",
 	"files",
+	"transcription-streaming",
 ]);
 
 export type ModelCapability = z.infer<typeof ModelCapabilitySchema>;
@@ -71,6 +72,23 @@ export const ModelMetadataSchema = z
 
 export type ModelMetadata = z.infer<typeof ModelMetadataSchema>;
 
+export const ModelModalitySchema = z.enum([
+	"text",
+	"image",
+	"audio",
+	"video",
+	"pdf",
+]);
+
+export type ModelModality = z.infer<typeof ModelModalitySchema>;
+
+export const ModelModalitiesSchema = z.object({
+	input: z.array(ModelModalitySchema),
+	output: z.array(ModelModalitySchema),
+});
+
+export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
@@ -91,6 +109,7 @@ export const ModelInfoSchema = z.object({
 	releaseDate: z.string().optional(),
 	deprecationDate: z.string().optional(),
 	family: z.string().optional(),
+	modalities: ModelModalitiesSchema.optional(),
 	metadata: ModelMetadataSchema.optional(),
 });
 

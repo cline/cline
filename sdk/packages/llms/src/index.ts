@@ -110,3 +110,15 @@ export {
 	resolveProviderRequestHeaders,
 } from "./providers/request-headers";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export {
+	type AudioTranscriptionRequest,
+	type AudioTranscriptionResult,
+	type AudioTranscriptionRoute,
+	createStreamingAudioTranscriptionSession,
+	DEFAULT_TRANSCRIPTION_TIMEOUT_MS,
+	isStreamingTranscriptionModelId,
+	resolveAudioTranscriptionRoute,
+	type StreamingAudioTranscriptionSession,
+	type StreamingAudioTranscriptionSessionRequest,
+	transcribeAudio,
+} from "./transcription";

@@ -16,12 +16,27 @@ export type ProviderModelCatalog = {
 };
 
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).map((model) => model.id);
+	return (models ?? [])
+		.filter(
+			(model) =>
+				(model.inputModalities === undefined ||
+					model.inputModalities.includes("text")) &&
+				(model.outputModalities === undefined ||
+					model.outputModalities.includes("text")),
+		)
+		.map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? [])
-		.filter((model) => model.supportsReasoning)
+		.filter(
+			(model) =>
+				(model.inputModalities === undefined ||
+					model.inputModalities.includes("text")) &&
+				(model.outputModalities === undefined ||
+					model.outputModalities.includes("text")) &&
+				model.supportsReasoning,
+		)
 		.map((model) => model.id);
 }
 
@@ -31,7 +46,10 @@ export function buildProviderModelCatalog(
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [
