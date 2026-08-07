@@ -158,19 +158,19 @@ export function ProviderListContent({
 				<div
 					className={cn(
 						"mb-8 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
-						isPanel ? "max-w-none" : "max-w-[42rem]",
+						isPanel ? "max-w-none" : "max-w-2xl",
 					)}
 				>
 					<div className="min-w-0">
 						<h1
 							className={cn(
 								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
-								isPanel ? "text-[24px]" : "text-[32px]",
+								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
 							Model Providers
 						</h1>
-						<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+						<p className="mt-3 text-base leading-6 text-muted-foreground">
 							{providers.length} available &middot; {enabledProviderCount}{" "}
 							enabled
 						</p>
@@ -198,7 +198,7 @@ export function ProviderListContent({
 				</div>
 
 				{providerSearchOpen ? (
-					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-[42rem]")}>
+					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-2xl")}>
 						<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
 							<Search className="size-4 shrink-0 text-muted-foreground" />
 							<Input
@@ -216,19 +216,19 @@ export function ProviderListContent({
 				<div
 					className={cn(
 						"overflow-hidden",
-						isPanel ? "max-w-none" : "max-w-[42rem]",
+						isPanel ? "max-w-none" : "max-w-2xl",
 					)}
 				>
 					{filteredProviders.length === 0 ? (
-						<div className="border-b px-2 py-6 text-[15px] text-muted-foreground">
+						<div className="border-b px-2 py-6 text-base text-muted-foreground">
 							No providers match "{providerSearch.trim()}".
 						</div>
 					) : null}
 					{filteredProviders.map((prov) => (
 						<div
 							className={cn(
-								"flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-accent/30",
-								selectedProviderId === prov.id && "bg-accent/45",
+								"flex min-h-11 items-center gap-4 border-b px-2 py-2 hover:bg-surface-hover-lighter",
+								selectedProviderId === prov.id && "bg-surface-hover",
 							)}
 							key={prov.id}
 						>
@@ -258,7 +258,7 @@ export function ProviderListContent({
 							/>
 							<button
 								aria-label={`Configure ${prov.name}`}
-								className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground  hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 								onClick={() => onConfigure(prov.id)}
 								type="button"
 							>
@@ -426,7 +426,7 @@ export function ProviderDetailContent({
 						aria-label={
 							isPanel ? "Close provider details" : "Back to providers"
 						}
-						className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 						onClick={onBack}
 						variant="ghost"
 					>
@@ -452,9 +452,7 @@ export function ProviderDetailContent({
 				</div>
 
 				{configFields.length > 0 ? (
-					<section
-						className={cn("mb-8", isPanel ? "max-w-none" : "max-w-[86rem]")}
-					>
+					<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
 						<div className="flex flex-col">
 							{configFields.map((field) => {
 								const value = localConfigValues[field.path];
@@ -471,7 +469,7 @@ export function ProviderDetailContent({
 												{field.label}
 											</h3>
 											{field.description ? (
-												<p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
+												<p className="mt-1 text-base leading-relaxed text-muted-foreground">
 													{field.description}
 												</p>
 											) : null}
@@ -550,7 +548,7 @@ export function ProviderDetailContent({
 															aria-label={
 																isShown ? "Hide secret" : "Show secret"
 															}
-															className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+															className="rounded-md p-1 text-muted-foreground hover:text-foreground "
 															onClick={() =>
 																setShownSecrets((current) => ({
 																	...current,
@@ -567,7 +565,7 @@ export function ProviderDetailContent({
 														</Button>
 														<Button
 															aria-label={`Copy ${field.label}`}
-															className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+															className="rounded-md p-1 text-muted-foreground hover:text-foreground "
 															onClick={() =>
 																navigator.clipboard.writeText(valueText)
 															}
@@ -709,7 +707,7 @@ export function ProviderDetailContent({
 								<div className="max-h-125 overflow-y-scroll border-t">
 									{filteredModelList.map((model) => (
 										<div
-											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 transition-colors hover:bg-accent/30"
+											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 hover:bg-surface-hover-lighter"
 											key={model.id}
 										>
 											<div className="min-w-0 flex-1 font-mono">
@@ -729,7 +727,7 @@ export function ProviderDetailContent({
 												</div>
 												<button
 													aria-label={`Copy model ID ${model.id}`}
-													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground  hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 													onClick={() => copyModelId(model.id)}
 													title="Copy model ID"
 													type="button"
@@ -751,7 +749,7 @@ export function ProviderDetailContent({
 														: `Favorite ${model.name}`
 												}
 												className={cn(
-													"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-accent hover:text-foreground",
+													"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-surface-hover hover:text-foreground",
 													favoriteModelIds.has(model.id)
 														? "text-amber-400"
 														: "text-muted-foreground",

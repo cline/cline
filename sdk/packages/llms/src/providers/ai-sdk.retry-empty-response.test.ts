@@ -194,6 +194,56 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		expect(events.some((event) => event.type === "text-delta")).toBe(false);
 		expect(finishEvents(events)).toHaveLength(1);
 	});
+
+	it("retries a pre-content mid-stream network death and recovers without surfacing an error", async () => {
+		// The exact failure mode the AI SDK's own retry (request
+		// initiation only) never covers: the connection was accepted and
+		// the response body then died. Shaped like undici's rejection
+		// (`terminated`, cause SocketError/UND_ERR_SOCKET).
+		const cause = new Error("other side closed");
+		cause.name = "SocketError";
+		(cause as Error & { code?: string }).code = "UND_ERR_SOCKET";
+		const dyingBody = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(new TypeError("terminated", { cause }));
+			},
+		});
+
+		let call = 0;
+		const fetchMock = vi.fn(async () => {
+			call++;
+			return call === 1
+				? new Response(dyingBody, {
+						status: 200,
+						headers: { "content-type": "text/event-stream" },
+					})
+				: new Response(textSse, {
+						status: 200,
+						headers: { "content-type": "text/event-stream" },
+					});
+		});
+		const config = {
+			providerId: "openai-compatible",
+			apiKey: "test-key",
+			baseUrl: "http://fake.local/v1",
+			fetch: fetchMock as unknown as typeof fetch,
+		};
+		const provider = await createOpenAICompatibleProvider(config);
+		const events = await collect(
+			await provider.stream(
+				streamRequest(),
+				providerContext("openai-compatible", config),
+			),
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(hasTextDelta(events, "hello")).toBe(true);
+		const finishes = finishEvents(events);
+		expect(finishes).toHaveLength(1);
+		// A successful retry is a non-event: no error-finish surfaces, so
+		// no task.provider_api_error is ever reported for it.
+		expect(finishes[0]).not.toMatchObject({ reason: "error" });
+	}, 15_000); // The retry waits out the real default backoff (2s).
 });
 
 describe("anthropic wire format", () => {
