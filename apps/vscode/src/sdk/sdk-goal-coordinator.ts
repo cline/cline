@@ -111,7 +111,7 @@ export class SdkGoalCoordinator {
 	handleTurnSettled(sessionId: string, result: AgentResult | undefined, _origin: SdkSendOrigin, sendId: number): void {
 		this.reportNewCompletion()
 		if (result?.finishReason !== "completed") {
-			this.guard.resetVerification()
+			this.closeVerificationWindow(sendId)
 			return
 		}
 		if (sendId < this.lastUserSendId) {
@@ -119,7 +119,7 @@ export class SdkGoalCoordinator {
 			// (e.g. queued it while this send was in flight). Opening a
 			// verification window now would authorize mark_goal_complete
 			// during that ordinary turn without a verification prompt.
-			this.guard.resetVerification()
+			this.closeVerificationWindow(sendId)
 			return
 		}
 		const pendingBefore = this.guard.getActiveGoal()
@@ -154,14 +154,20 @@ export class SdkGoalCoordinator {
 	 */
 	handleTurnAbandoned(sendId: number): void {
 		this.reportNewCompletion()
-		if (sendId < this.lastVerificationSendId) {
-			// Stale abandonment: a newer verification send has since armed the
-			// window, and this older send's late failure must not revoke it —
-			// the model answering the newer verification prompt could no
-			// longer complete the goal.
-			return
+		this.closeVerificationWindow(sendId)
+	}
+
+	/**
+	 * Revokes verification authorization, unless the reporting send predates
+	 * the newest goal-verification send: the window then belongs to a newer
+	 * verification sequence, and a stale callback (late settle, abandonment,
+	 * or error of an older send) revoking it would leave the model answering
+	 * the newer verification prompt unable to complete the goal.
+	 */
+	private closeVerificationWindow(sendId: number): void {
+		if (sendId >= this.lastVerificationSendId) {
+			this.guard.resetVerification()
 		}
-		this.guard.resetVerification()
 	}
 
 	/**

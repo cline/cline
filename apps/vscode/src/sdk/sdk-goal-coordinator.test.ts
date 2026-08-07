@@ -244,6 +244,35 @@ describe("SdkGoalCoordinator", () => {
 		expect(result).toMatchObject({ completed: true })
 	})
 
+	it("keeps a fresh verification window when an older verification send settles late", async () => {
+		const { coordinator } = makeCoordinator()
+		coordinator.setGoal("fix tests")
+		// First sequence: verification send (id 2) is still in flight when
+		// the user queues a new submission (id 3).
+		coordinator.handleSendStart("user", 1)
+		coordinator.handleTurnSettled("session-1", completed, "user", 1)
+		coordinator.handleSendStart("goal-verification", 2)
+		coordinator.handleSendStart("user", 3)
+
+		// The newer user turn completes and arms its own verification window
+		// (send id 4)...
+		coordinator.handleTurnSettled("session-1", completed, "user", 3)
+		coordinator.handleSendStart("goal-verification", 4)
+		expect(coordinator.formatStatus()).toContain("awaiting verification")
+
+		// ...then the older verification send settles late. It must not
+		// revoke the newer send's window, or the model answering the new
+		// verification prompt could no longer complete the goal.
+		coordinator.handleTurnSettled("session-1", completed, "goal-verification", 2)
+
+		expect(coordinator.formatStatus()).toContain("awaiting verification")
+		const result = (await coordinator.markGoalCompleteTool.execute?.({ summary: "done" }, toolContext as never)) as Record<
+			string,
+			unknown
+		>
+		expect(result).toMatchObject({ completed: true })
+	})
+
 	it("rolls the round back when the verification send is skipped", () => {
 		const { coordinator, sendVerificationTurn } = makeCoordinator(false)
 		coordinator.setGoal("fix tests")
