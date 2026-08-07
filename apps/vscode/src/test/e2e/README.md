@@ -140,9 +140,11 @@ await sidebar.getByTestId("send-button").click()
 
 #### Mode Switching
 ```typescript
-const actButton = sidebar.getByRole("switch", { name: "Act" })
-const planButton = sidebar.getByRole("switch", { name: "Plan" })
-await actButton.click() // Switch to Plan mode
+// The Plan/Act toggle is a single switch: aria-checked is true in Act mode
+// and false in Plan mode, and clicking it toggles between the two.
+const modeSwitch = sidebar.getByTestId("mode-switch")
+await expect(modeSwitch).toHaveAttribute("aria-checked", "true") // Act mode
+await modeSwitch.click() // Switch to Plan mode
 ```
 
 #### File Operations
