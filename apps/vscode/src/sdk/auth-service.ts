@@ -50,6 +50,15 @@ export interface ClineAuthInfo {
 	userInfo: ClineAccountUserInfo
 	provider: string
 	startedAt?: number
+	/**
+	 * How the user authenticated. "oauth" (default) uses WorkOS tokens with
+	 * refresh; "apiKey" uses a manually configured Cline API key from
+	 * providers.json (e.g. `cline auth --apikey` in the CLI), which never
+	 * expires and must be sent as a raw bearer token (no `workos:` prefix).
+	 */
+	authMethod?: "oauth" | "apiKey"
+	/** Provider entry in providers.json the manual API key was read from. */
+	apiKeyProviderId?: string
 }
 
 export interface ClineAccountUserInfo {
@@ -226,6 +235,52 @@ function clearClineCredentials(): void {
 	}
 }
 
+/**
+ * Read a manually configured Cline account API key from providers.json.
+ *
+ * The CLI's quick auth (`cline auth --apikey <key>`) stores the key at
+ * `providers.<id>.settings.apiKey` rather than under `auth` (which holds
+ * OAuth tokens). Both the `cline` and `cline-pass` providers bill against
+ * the same Cline account, so either key authenticates the account UI.
+ */
+function readClineManualApiKey(): { apiKey: string; providerId: string } | null {
+	try {
+		const manager = getProviderSettingsManager()
+		for (const providerId of ["cline", "cline-pass"]) {
+			const apiKey = manager.getProviderSettings(providerId)?.apiKey?.trim()
+			if (apiKey) {
+				sdkDebug(
+					`[SdkAuthService] readClineManualApiKey: found manual API key on "${providerId}" (keyHash=${hashSecret(apiKey)})`,
+				)
+				return { apiKey, providerId }
+			}
+		}
+	} catch (error) {
+		Logger.error("[SdkAuthService] Failed to read manual API key from providers.json:", error)
+	}
+	return null
+}
+
+/**
+ * Remove a manually configured Cline API key from providers.json.
+ * Used on logout when the session was authenticated via API key, so that
+ * signing out actually stops the account from being used.
+ */
+function clearClineManualApiKey(providerId: string): void {
+	try {
+		const manager = getProviderSettingsManager()
+		const existing = manager.getProviderSettings(providerId)
+		if (existing?.apiKey) {
+			sdkDebug(`[SdkAuthService] clearClineManualApiKey: clearing apiKey from "${providerId}"`)
+			manager.saveProviderSettings({ ...existing, provider: providerId, apiKey: undefined } as ProviderSettings, {
+				tokenSource: "manual",
+			})
+		}
+	} catch (error) {
+		Logger.error("[SdkAuthService] Failed to clear manual API key from providers.json:", error)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // AuthService
 // ---------------------------------------------------------------------------
@@ -297,14 +352,22 @@ export class AuthService {
 
 	/**
 	 * Fetch user info from the Cline API using an access token.
+	 *
+	 * OAuth access tokens are sent with the `workos:` prefix so the backend
+	 * routes verification to WorkOS. Manual API keys must be sent raw
+	 * (`options.rawBearerToken`) — prefixing them breaks verification.
 	 */
-	private async fetchUserInfoFromApi(accessToken: string): Promise<ClineAccountUserInfo | null> {
+	private async fetchUserInfoFromApi(
+		accessToken: string,
+		options?: { rawBearerToken?: boolean },
+	): Promise<ClineAccountUserInfo | null> {
 		try {
 			const apiBaseUrl = ClineEnv.config().apiBaseUrl
 			// Ensure the token has the workos: prefix for the API
-			const bearerToken = accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
-				? accessToken
-				: `${WORKOS_TOKEN_PREFIX}${accessToken}`
+			const bearerToken =
+				options?.rawBearerToken || accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
+					? accessToken
+					: `${WORKOS_TOKEN_PREFIX}${accessToken}`
 			sdkDebug(
 				`[SdkAuthService] fetchUserInfoFromApi: GET ${apiBaseUrl}/api/v1/users/me (tokenHash=${hashSecret(accessToken)})`,
 			)
@@ -361,6 +424,11 @@ export class AuthService {
 			return null
 		}
 
+		// Manual API keys never expire and are sent raw (no workos: prefix).
+		if (this._clineAuthInfo.authMethod === "apiKey") {
+			return this._clineAuthInfo.idToken
+		}
+
 		// Check if we need to refresh
 		const expiresAt = this._clineAuthInfo.expiresAt
 		if (expiresAt) {
@@ -388,6 +456,11 @@ export class AuthService {
 	 * Persists refreshed credentials to providers.json when credentials change.
 	 */
 	private async refreshAccessToken(): Promise<boolean> {
+		// Manual API keys have no refresh flow — they are always valid until revoked.
+		if (this._clineAuthInfo?.authMethod === "apiKey") {
+			return true
+		}
+
 		if (this._refreshPromise) {
 			await this._refreshPromise
 			return this._clineAuthInfo?.idToken !== undefined
@@ -821,9 +894,16 @@ export class AuthService {
 	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
 			telemetryService.captureAuthLoggedOut("cline", reason)
+			const previousAuthInfo = this._clineAuthInfo
 			this._clineAuthInfo = null
 			this._authenticated = false
 			clearClineCredentials()
+			// When the session was authenticated via a manual API key, logout
+			// must also remove that key — otherwise the next restore would
+			// silently sign the user back in from providers.json.
+			if (previousAuthInfo?.authMethod === "apiKey" && previousAuthInfo.apiKeyProviderId) {
+				clearClineManualApiKey(previousAuthInfo.apiKeyProviderId)
+			}
 			await this.sendAuthStatusUpdate()
 
 			// Notify BannerService of auth change (mirrors classic AuthService)
@@ -943,6 +1023,13 @@ export class AuthService {
 		try {
 			const creds = readClineCredentials()
 			if (!creds) {
+				// No OAuth session — fall back to a manually configured API key
+				// (e.g. provisioned via the CLI's `cline auth --apikey`). Without
+				// this, the account UI shows signed-out while inference happily
+				// bills against the key.
+				if (await this.restoreFromManualApiKey()) {
+					return
+				}
 				this._authenticated = false
 				this._clineAuthInfo = null
 				return
@@ -967,6 +1054,11 @@ export class AuthService {
 				this._authenticated = false
 				this._clineAuthInfo = null
 				clearClineCredentials()
+				// The OAuth session is unrecoverable, but a manual API key may
+				// still authenticate the account.
+				if (await this.restoreFromManualApiKey()) {
+					return
+				}
 				await this.sendAuthStatusUpdate()
 				return
 			}
@@ -1016,6 +1108,50 @@ export class AuthService {
 			this._authenticated = false
 			this._clineAuthInfo = null
 		}
+	}
+
+	/**
+	 * Authenticate from a manually configured Cline API key in providers.json.
+	 *
+	 * Validates the key by fetching the user profile from the Cline API; on
+	 * success the account UI shows the signed-in account exactly as it would
+	 * for an OAuth session. Returns false (leaving the signed-out state
+	 * untouched) when no key exists or the key cannot be validated.
+	 */
+	private async restoreFromManualApiKey(): Promise<boolean> {
+		const manual = readClineManualApiKey()
+		if (!manual) {
+			return false
+		}
+
+		const userInfo = await this.fetchUserInfoFromApi(manual.apiKey, { rawBearerToken: true })
+		if (!userInfo) {
+			Logger.warn(
+				`[SdkAuthService] Found a manual Cline API key on "${manual.providerId}" but could not fetch user info — account UI will show signed-out`,
+			)
+			return false
+		}
+
+		sdkDebug(
+			`[SdkAuthService] restoreFromManualApiKey: authenticated via manual API key on "${manual.providerId}" (keyHash=${hashSecret(manual.apiKey)})`,
+		)
+		this._clineAuthInfo = {
+			idToken: manual.apiKey,
+			userInfo,
+			provider: "cline",
+			authMethod: "apiKey",
+			apiKeyProviderId: manual.providerId,
+		}
+		this._authenticated = true
+
+		await this.sendAuthStatusUpdate()
+
+		// Notify BannerService of auth change (mirrors the OAuth restore path)
+		BannerService.onAuthUpdate(userInfo.id || null).catch((error) => {
+			Logger.error("[SdkAuthService] Banner update failed after API key restore", error)
+		})
+
+		return true
 	}
 
 	// ---- Streaming subscriptions ----
