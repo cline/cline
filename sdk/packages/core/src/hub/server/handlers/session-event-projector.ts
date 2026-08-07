@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { TeamProgressProjectionEvent } from "@cline/shared";
 import type { SessionUsageSummary } from "../../../runtime/host/runtime-host";
 import type {
@@ -10,6 +11,17 @@ import {
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
 } from "./context";
+
+function toHubArtifactReference(artifact: {
+	path: string;
+	mediaType: string;
+}): { artifactName: string; mediaType: string } | undefined {
+	const artifactName = basename(artifact.path);
+	if (!artifactName || artifactName === "." || artifactName === "..") {
+		return undefined;
+	}
+	return { artifactName, mediaType: artifact.mediaType };
+}
 
 /**
  * Translates internal `CoreSessionEvent`s emitted by the session host into the
@@ -237,13 +249,12 @@ async function projectAgentEvent(
 				break;
 			case "video":
 				if (agentEvent.video) {
-					ctx.publish(
-						ctx.buildEvent(
-							"assistant.video",
-							{ video: agentEvent.video },
-							sessionId,
-						),
-					);
+					const video = toHubArtifactReference(agentEvent.video);
+					if (video) {
+						ctx.publish(
+							ctx.buildEvent("assistant.video", { video }, sessionId),
+						);
+					}
 				}
 				break;
 			case "reasoning":
