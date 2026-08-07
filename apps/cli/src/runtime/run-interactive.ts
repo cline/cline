@@ -860,19 +860,18 @@ export async function runInteractive(
 		// directly. Ensuring a session first would mint an empty history entry
 		// when the TUI was launched through `cline history`.
 		onResumeSession: async (sessionId: string) => {
-			const resumed = await resumeInteractiveSession(sessionRuntime, sessionId);
-			// The resumed session is a different conversation than the one the
-			// goal was set in, so drop the goal — but only after the resume
-			// succeeds: resumeSession validates the target before touching the
-			// current session, so a failed resume leaves the current
-			// conversation (and its completion guard) intact. If a resume ever
-			// fails after stopping the old session, the runtime's
-			// missing-session recovery reseeds that same conversation, so the
-			// retained goal still refers to the conversation that keeps
-			// running. (Forks keep the goal: they continue the same
-			// conversation under a new session id.)
-			goalGuard.clearGoal();
-			return resumed;
+			// Resuming shows a different conversation than the one the goal
+			// was set in, and resumeSession can fail after it has already
+			// stopped the current session — so like the other session
+			// transitions, the goal is always dropped once a resume is
+			// attempted: a stale goal must never verify or complete against
+			// whichever conversation runs next. (Forks keep the goal: they
+			// continue the same conversation under a new session id.)
+			try {
+				return await resumeInteractiveSession(sessionRuntime, sessionId);
+			} finally {
+				goalGuard.clearGoal();
+			}
 		},
 		onExportHistorySession: async (sessionId, format) =>
 			await exportHistorySession({
