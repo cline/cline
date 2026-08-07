@@ -2105,7 +2105,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "openrouter",
-    "defaultModelId": "meta/muse-spark-1.2",
+    "defaultModelId": "inclusionai/ling-3.0-tiny:free",
     "apiKeyEnv": [
       "OPENROUTER_API_KEY"
     ],
@@ -2897,10 +2897,11 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
     "family": "openai-compatible",
     "capabilities": [
       "tools",
-      "reasoning"
+      "reasoning",
+      "prompt-cache"
     ],
     "modelsProviderId": "upstage",
-    "defaultModelId": "solar-pro3",
+    "defaultModelId": "solar-pro4",
     "apiKeyEnv": [
       "UPSTAGE_API_KEY"
     ],

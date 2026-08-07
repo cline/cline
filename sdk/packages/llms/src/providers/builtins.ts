@@ -406,6 +406,22 @@ const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
 ];
 
+function buildElevenLabsModels(): Record<string, ModelInfo> {
+	return {
+		scribe_v2: {
+			id: "scribe_v2",
+			name: "Scribe v2",
+			description:
+				"ElevenLabs speech recognition model for accurate multilingual transcription",
+			family: "elevenlabs",
+			modalities: {
+				input: ["audio"],
+				output: ["text"],
+			},
+		},
+	};
+}
+
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
 	// can return Vercel-style ids. Include those exact ids so runtime metadata
@@ -1007,6 +1023,18 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: { usageCostDisplay: "subscription" },
 	},
 	{
+		id: "elevenlabs",
+		name: "ElevenLabs",
+		description: "ElevenLabs speech-to-text and audio services",
+		family: "openai-compatible",
+		client: "fetch",
+		defaultModelId: "scribe_v2",
+		apiKeyEnv: ["ELEVENLABS_API_KEY"],
+		modelsFactory: buildElevenLabsModels,
+		docsUrl: "https://elevenlabs.io/docs/overview/capabilities/speech-to-text",
+		defaults: { baseUrl: "https://api.elevenlabs.io/v1" },
+	},
+	{
 		id: "anthropic",
 		name: "Anthropic",
 		description: "Creator of Claude, the AI assistant",
@@ -1159,8 +1187,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {

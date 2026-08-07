@@ -6,6 +6,7 @@ import type {
 	ProviderCatalogResponse,
 	ProviderModel,
 	ProviderModelsResponse,
+	VoiceInputSelection,
 } from "@/lib/provider-schema";
 
 export type ProviderModelCatalog = {
@@ -13,7 +14,56 @@ export type ProviderModelCatalog = {
 	enabledProviderIds: string[];
 	providerModels: Record<string, string[]>;
 	providerReasoningModels: Record<string, string[]>;
+	voiceInput: TranscriptionModelTarget | null;
 };
+
+export type TranscriptionModelTarget = {
+	providerId: string;
+	providerName: string;
+	modelId: string;
+	modelName: string;
+	supportsStreaming: boolean;
+};
+
+export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
+	return (
+		model.inputModalities?.length === 1 &&
+		model.inputModalities[0] === "audio" &&
+		model.outputModalities?.length === 1 &&
+		model.outputModalities[0] === "text"
+	);
+}
+
+export function supportsAudio(model: ProviderModel): boolean {
+	return (
+		model.inputModalities?.includes("audio") === true ||
+		model.outputModalities?.includes("audio") === true
+	);
+}
+
+export function selectTranscriptionModel(
+	providers: Provider[],
+	selection: VoiceInputSelection | undefined,
+): TranscriptionModelTarget | null {
+	if (!selection) return null;
+	const provider = providers.find(
+		(candidate) => candidate.enabled && candidate.id === selection.providerId,
+	);
+	const model = provider?.modelList?.find(
+		(candidate) =>
+			candidate.id === selection.modelId &&
+			isDedicatedTranscriptionModel(candidate),
+	);
+	return provider && model
+		? {
+				providerId: provider.id,
+				providerName: provider.name,
+				modelId: model.id,
+				modelName: model.name,
+				supportsStreaming: model.supportsStreamingTranscription === true,
+			}
+		: null;
+}
 
 function toModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? []).map((model) => model.id);
@@ -27,6 +77,7 @@ function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 
 export function buildProviderModelCatalog(
 	providers: Provider[],
+	voiceInput?: VoiceInputSelection,
 ): ProviderModelCatalog {
 	return {
 		providers,
@@ -45,6 +96,7 @@ export function buildProviderModelCatalog(
 				toReasoningModelIds(provider.modelList),
 			]),
 		),
+		voiceInput: selectTranscriptionModel(providers, voiceInput),
 	};
 }
 
@@ -53,6 +105,8 @@ export function buildProviderModelCatalog(
 // Deduplicate concurrent requests and keep the response briefly so the app
 // boot issues a single round-trip instead of one per consumer.
 const PROVIDER_CATALOG_CACHE_TTL_MS = 5_000;
+export const VOICE_INPUT_SETTINGS_CHANGED_EVENT =
+	"cline:voice-input-settings-changed";
 
 let providerCatalogCache: {
 	fetchedAt: number;
@@ -153,9 +207,16 @@ export function writeProviderCatalogSnapshot(
 	providerCatalogSnapshot = snapshot;
 }
 
+export function notifyVoiceInputSettingsChanged(): void {
+	invalidateProviderCatalogCache();
+	if (typeof window !== "undefined") {
+		window.dispatchEvent(new Event(VOICE_INPUT_SETTINGS_CHANGED_EVENT));
+	}
+}
+
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
 	const payload = await fetchProviderCatalog();
-	return buildProviderModelCatalog(payload.providers ?? []);
+	return buildProviderModelCatalog(payload.providers ?? [], payload.voiceInput);
 }
 
 export async function loadProviderModels(
