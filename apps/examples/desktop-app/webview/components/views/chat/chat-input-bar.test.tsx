@@ -377,6 +377,82 @@ describe("ChatInputBar", () => {
 		expect(onSend).toHaveBeenCalledWith("external replacement");
 	});
 
+	it("discards streaming updates after an equal-valued draft replacement", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({ onPromptInputChange });
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const onTranscript = (
+			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+
+		await renderVoiceComposer({
+			onPromptInputChange,
+			prompt: "",
+			promptVersion: 1,
+		});
+		expect(textarea?.value).toBe("");
+		await act(async () => onTranscript?.("stale transcript"));
+
+		expect(textarea?.value).toBe("");
+		expect(onPromptInputChange).not.toHaveBeenCalledWith("stale transcript");
+	});
+
+	it("keeps the streaming draft identity across internal transcript updates", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "alpha omega" });
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const onTranscript = (
+			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+
+		await act(async () => onTranscript?.("hello"));
+		expect(textarea?.value).toBe("alpha hello omega");
+		await act(async () => onTranscript?.("hello world"));
+		expect(textarea?.value).toBe("alpha hello world omega");
+	});
+
 	it("discards a batch transcript after the draft lifecycle is replaced", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({

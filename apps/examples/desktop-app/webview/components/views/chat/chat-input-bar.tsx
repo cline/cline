@@ -366,6 +366,8 @@ function ChatInputBarImpl({
 		start: number;
 		end: number;
 		expectedValue: string;
+		draftVersion: number;
+		generation: number;
 	} | null>(null);
 	const transcriptionGenerationRef = useRef(0);
 	const transcriptionTargetIdentityRef = useRef("unconfigured");
@@ -384,6 +386,7 @@ function ChatInputBarImpl({
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
 		batchTranscriptSessionRef.current = null;
+		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
@@ -586,6 +589,8 @@ function ChatInputBarImpl({
 			start,
 			end,
 			expectedValue: current,
+			draftVersion: latestDraftVersionRef.current,
+			generation: transcriptionGenerationRef.current,
 		};
 	}, []);
 
@@ -599,7 +604,11 @@ function ChatInputBarImpl({
 			// A live transcript range is only valid for the exact draft produced by
 			// its previous update. Refuse to apply stale numeric offsets if another
 			// writer changes the draft while the microphone is active.
-			if (current !== range.expectedValue) {
+			if (
+				range.generation !== transcriptionGenerationRef.current ||
+				range.draftVersion !== latestDraftVersionRef.current ||
+				current !== range.expectedValue
+			) {
 				streamingTranscriptRangeRef.current = null;
 				return;
 			}
@@ -614,6 +623,8 @@ function ChatInputBarImpl({
 				start: range.start,
 				end: nextEnd,
 				expectedValue: next,
+				draftVersion: range.draftVersion,
+				generation: range.generation,
 			};
 			setPromptInput(next);
 
