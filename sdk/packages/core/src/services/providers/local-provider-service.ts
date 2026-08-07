@@ -142,17 +142,6 @@ export function isDedicatedTranscriptionModel(
 	);
 }
 
-export function isChatProviderModel(
-	model: Pick<ProviderModel, "inputModalities" | "outputModalities">,
-): boolean {
-	return (
-		(model.inputModalities === undefined ||
-			model.inputModalities.includes("text")) &&
-		(model.outputModalities === undefined ||
-			model.outputModalities.includes("text"))
-	);
-}
-
 function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
 ): ProviderModel[] {
