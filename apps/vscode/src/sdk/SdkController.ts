@@ -479,6 +479,7 @@ export class Controller {
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			rebuilds: this.sessionRebuilds,
 			onAutoContinueStarting: () => {
