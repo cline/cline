@@ -30,12 +30,40 @@ describe("markdownCodeHighlighter", () => {
 			"markdown",
 			"python",
 			"shellscript",
+			"sql",
 			"tsx",
 			"typescript",
 			"yaml",
 		]);
 		expect(markdownCodeHighlighter.supportsLanguage("ts")).toBe(true);
 		expect(markdownCodeHighlighter.supportsLanguage("rust")).toBe(false);
+	});
+
+	test("supports SQL and aliases", () => {
+		expect(markdownCodeHighlighter.supportsLanguage("sql")).toBe(true);
+		expect(markdownCodeHighlighter.supportsLanguage("pgsql")).toBe(true);
+		expect(markdownCodeHighlighter.supportsLanguage("postgres")).toBe(true);
+		expect(markdownCodeHighlighter.supportsLanguage("postgresql")).toBe(true);
+	});
+
+	test("raw highlight preserves blank lines for unsupported languages", () => {
+		const result = markdownCodeHighlighter.highlight(
+			{
+				code: "line1\n\nline3",
+				language: "rust",
+				themes: ["github-light", "github-dark"],
+			},
+			undefined,
+		);
+
+		// rawHighlight returns synchronously (not null) for unsupported languages
+		expect(result).not.toBe(null);
+
+		// 3 lines: "line1", "", "line3" — the empty line must still have a token
+		const tokens = result?.tokens ?? [];
+		expect(tokens).toHaveLength(3);
+		expect(tokens[1]).toHaveLength(1);
+		expect(tokens[1][0].content).toBe("");
 	});
 
 	test("loads a supported grammar and returns themed tokens", async () => {
