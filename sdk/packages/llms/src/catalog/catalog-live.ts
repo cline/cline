@@ -89,6 +89,18 @@ const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/mistral": "mistral",
 } as const satisfies Record<string, ModelsDevGeneratedProviderSpec["family"]>;
 
+// Dedicated video models require a provider factory that exposes AI SDK's
+// VideoModel interface. Other providers may still expose mixed text/video
+// language models through their normal streaming endpoint.
+const DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
+	"gemini",
+	"vercel-ai-gateway",
+]);
+
+export function supportsDedicatedVideoEndpoint(providerId: string): boolean {
+	return DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS.has(providerId);
+}
+
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
 		return Number.NEGATIVE_INFINITY;
@@ -261,6 +273,13 @@ function isDedicatedImageModel(model: ModelsDevModel): boolean {
 	);
 }
 
+function isDedicatedVideoModel(model: ModelsDevModel): boolean {
+	return (
+		model.modalities?.output?.includes("video") === true &&
+		model.modalities.output.includes("text") !== true
+	);
+}
+
 function providerSupportsDedicatedImageModels(
 	provider: ModelsDevProviderPayload,
 ): boolean {
@@ -281,6 +300,15 @@ function isChatModel(model: ModelInfo): boolean {
 		(model.modalities === undefined ||
 			model.modalities.input.includes("text")) &&
 		(model.modalities === undefined || model.modalities.output.includes("text"))
+	);
+}
+
+function hasSupportedDedicatedVideoEndpoint(
+	providerId: string,
+	model: ModelsDevModel,
+): boolean {
+	return (
+		!isDedicatedVideoModel(model) || supportsDedicatedVideoEndpoint(providerId)
 	);
 }
 
@@ -357,6 +385,7 @@ export function normalizeModelsDevProviderModels(
 				(isDedicatedImageModel(model) &&
 					!providerSupportsDedicatedImageModels(source)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
+				!hasSupportedDedicatedVideoEndpoint(targetProviderId, model) ||
 				isDeprecatedModel(model)
 			) {
 				continue;
