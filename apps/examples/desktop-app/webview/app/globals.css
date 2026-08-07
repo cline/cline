@@ -14,10 +14,41 @@
 		height: 100%;
 		min-height: 100vh;
 		overflow: hidden;
+		/* Keep scroll momentum inside the app: without this, hitting the end
+		 * of an inner scroller rubber-bands the whole window like a web page. */
+		overscroll-behavior: none;
 	}
 
 	#__next {
 		height: 100%;
+	}
+
+	/*
+	 * Native-app chrome: labels, buttons, and panel text must not highlight
+	 * when the user drags across them. Content the user genuinely reads and
+	 * copies — chat messages, code, diffs, form fields — opts back in below.
+	 */
+	body {
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+
+	/* Selectable content surfaces: chat message bodies (incl. markdown and
+	 * code blocks), reasoning/tool panels, and diff text. */
+	.cline-chat-message-content,
+	.cline-markdown,
+	.cline-chat-selectable,
+	pre,
+	code {
+		-webkit-user-select: text;
+		user-select: text;
 	}
 }
 
@@ -103,10 +134,33 @@
 	}
 }
 
+/* Softens the welcome <-> conversation swap: the hero and the message grid
+ * replace each other in a single commit, which otherwise reads as a hard
+ * white flash. Plays whenever the element (re)becomes visible — display:none
+ * resets animations, so toggling Tailwind's `hidden` re-triggers it. */
+@keyframes cline-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.cline-view-enter {
+	animation: cline-view-enter 180ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.cline-chat-streaming-title {
 		background: none;
 		-webkit-text-fill-color: currentcolor;
+		animation: none;
+	}
+
+	.cline-view-enter {
 		animation: none;
 	}
 }

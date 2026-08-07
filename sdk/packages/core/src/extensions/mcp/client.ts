@@ -5,13 +5,13 @@ import {
 	formatMcpTimeoutErrorMessage,
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
 	createMcpSdkTransport,
+	isMcpUnauthorizedError,
 	type McpOAuthProviderContext,
 } from "./oauth";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
@@ -618,16 +618,11 @@ class SdkUrlMcpClient implements McpServerClient {
 				this.registration.name,
 				this.requestTimeoutMs,
 			);
-			const message =
-				error instanceof UnauthorizedError
-					? this.formatUnauthorizedMessage(
-							authContext.getLastAuthorizationUrl(),
-						)
-					: toErrorMessage(effectiveError);
-			if (
-				error instanceof UnauthorizedError &&
-				!this.hasStaticAuthorizationHeader()
-			) {
+			const unauthorized = isMcpUnauthorizedError(error);
+			const message = unauthorized
+				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
+				: toErrorMessage(effectiveError);
+			if (unauthorized && !this.hasStaticAuthorizationHeader()) {
 				await authContext.markAuthorizationRequired(message);
 			} else {
 				await authContext.markConnectionError(message);
@@ -736,14 +731,11 @@ class SdkUrlMcpClient implements McpServerClient {
 			this.registration.name,
 			this.requestTimeoutMs,
 		);
-		const message =
-			error instanceof UnauthorizedError
-				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
-				: toErrorMessage(effectiveError);
-		if (
-			error instanceof UnauthorizedError &&
-			!this.hasStaticAuthorizationHeader()
-		) {
+		const unauthorized = isMcpUnauthorizedError(error);
+		const message = unauthorized
+			? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
+			: toErrorMessage(effectiveError);
+		if (unauthorized && !this.hasStaticAuthorizationHeader()) {
 			await authContext.markAuthorizationRequired(message);
 		} else {
 			await authContext.markConnectionError(message);
