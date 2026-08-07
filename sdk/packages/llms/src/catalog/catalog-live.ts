@@ -247,8 +247,42 @@ function toModalities(
 }
 
 function isSpecializedMediaModel(model: ModelsDevModel): boolean {
-	return model.modalities?.output?.includes("image") === true;
+	return (
+		model.modalities?.input?.includes("text") === true &&
+		model.modalities.output?.includes("image") === true
+	);
 }
+
+function isDedicatedImageModel(model: ModelsDevModel): boolean {
+	return (
+		model.modalities?.output?.includes("image") === true &&
+		model.modalities.output.includes("text") !== true
+	);
+}
+
+function providerSupportsDedicatedImageModels(
+	provider: ModelsDevProviderPayload,
+): boolean {
+	// Current built-ins without a recognized models.dev SDK package use the
+	// OpenAI-compatible runtime family when their generated spec is normalized.
+	const family = supportedAiSdkProviderFamily(provider) ?? "openai-compatible";
+	return (
+		family === "openai-compatible" ||
+		family === "openai" ||
+		family === "google" ||
+		family === "vertex" ||
+		family === "bedrock"
+	);
+}
+
+function isChatModel(model: ModelInfo): boolean {
+	return (
+		(model.modalities === undefined ||
+			model.modalities.input.includes("text")) &&
+		(model.modalities === undefined || model.modalities.output.includes("text"))
+	);
+}
+
 function toStatus(status: string | undefined): ModelInfo["status"] {
 	if (
 		status === "active" ||
@@ -319,6 +353,8 @@ export function normalizeModelsDevProviderModels(
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
 			if (
+				(isDedicatedImageModel(model) &&
+					!providerSupportsDedicatedImageModels(source)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
 				isDeprecatedModel(model)
 			) {
@@ -385,6 +421,9 @@ export function normalizeModelsDevProviderSpecs(
 	)) {
 		const baseUrl = normalizeBaseUrl(source.api);
 		const models = providerModels[targetProviderId];
+		const defaultModelId =
+			Object.values(models ?? {}).find(isChatModel)?.id ??
+			Object.keys(models ?? {})[0];
 		const spec: ModelsDevGeneratedProviderSpec = {
 			id: targetProviderId,
 			name: source.name || targetProviderId,
@@ -392,7 +431,7 @@ export function normalizeModelsDevProviderSpecs(
 			family: toProviderFamily(source),
 			capabilities: toProviderCapabilities(models),
 			modelsProviderId: targetProviderId,
-			defaultModelId: Object.keys(models ?? {})[0],
+			defaultModelId,
 			apiKeyEnv: source.env?.length ? [...source.env] : undefined,
 			docsUrl: source.doc,
 			defaults: baseUrl ? { baseUrl } : undefined,

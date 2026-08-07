@@ -128,6 +128,7 @@ describe("models-dev-catalog", () => {
 			openai: {
 				id: "openai",
 				name: "OpenAI",
+				npm: "@ai-sdk/openai",
 				models: {
 					"chat-model": {
 						tool_call: true,
@@ -154,6 +155,132 @@ describe("models-dev-catalog", () => {
 		expect(providerModels["openai-native"]).not.toHaveProperty(
 			"embedding-model",
 		);
+	});
+
+	it("only admits dedicated image models for provider families with an image model factory", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			"extra-router": {
+				id: "extra-router",
+				name: "Extra Router",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"compatible-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"mixed-model": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "image"],
+						},
+					},
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+				},
+			},
+			xai: {
+				id: "xai",
+				name: "xAI",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"supported-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+				},
+			},
+			"extra-anthropic": {
+				id: "extra-anthropic",
+				name: "Extra Anthropic",
+				npm: "@ai-sdk/anthropic",
+				models: {
+					"unsupported-image": {
+						// Tool metadata must not make an image-only model usable via
+						// a language-model-only provider factory.
+						tool_call: true,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"mixed-model": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "image"],
+						},
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
+			"extra-mistral": {
+				id: "extra-mistral",
+				name: "Extra Mistral",
+				npm: "@ai-sdk/mistral",
+				models: {
+					"unsupported-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"supported-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["extra-router"]).toHaveProperty("compatible-image");
+		expect(providerModels["extra-router"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
+		expect(providerModels.xai).toHaveProperty("supported-image");
+		expect(providerModels["extra-anthropic"]).not.toHaveProperty(
+			"unsupported-image",
+		);
+		expect(providerModels["extra-anthropic"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-mistral"]).not.toHaveProperty(
+			"unsupported-image",
+		);
+		expect(providerModels.gemini).toHaveProperty("supported-image");
+	});
+
+	it("prefers a text-output model over a newer dedicated image default", () => {
+		const payload: ModelsDevPayload = {
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				npm: "@ai-sdk/openai",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						release_date: "2026-01-01",
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"new-image-model": {
+						tool_call: false,
+						release_date: "2026-02-01",
+						modalities: { input: ["text"], output: ["image"] },
+					},
+				},
+			},
+		};
+		const providerModels = normalizeModelsDevProviderModels(payload);
+
+		expect(Object.keys(providerModels["openai-native"] ?? {})[0]).toBe(
+			"new-image-model",
+		);
+		expect(
+			normalizeModelsDevProviderSpecs(payload, providerModels)["openai-native"]
+				?.defaultModelId,
+		).toBe("chat-model");
 	});
 
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
