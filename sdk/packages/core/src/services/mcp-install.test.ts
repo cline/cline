@@ -12,7 +12,19 @@ import {
 	buildMcpInstallTransport,
 	installMcpServer,
 	parseMcpInstallArgs,
+	uninstallMcpServer,
 } from "./mcp-install";
+
+function readSettings(settingsPath: string): Record<string, unknown> & {
+	mcpServers?: Record<string, { transport?: unknown }>;
+} {
+	return JSON.parse(readFileSync(settingsPath, "utf8")) as Record<
+		string,
+		unknown
+	> & {
+		mcpServers?: Record<string, { transport?: unknown }>;
+	};
+}
 
 describe("MCP install service", () => {
 	let root = "";
@@ -24,17 +36,6 @@ describe("MCP install service", () => {
 	afterEach(() => {
 		rmSync(root, { recursive: true, force: true });
 	});
-
-	function readSettings(settingsPath: string): Record<string, unknown> & {
-		mcpServers?: Record<string, { transport?: unknown }>;
-	} {
-		return JSON.parse(readFileSync(settingsPath, "utf8")) as Record<
-			string,
-			unknown
-		> & {
-			mcpServers?: Record<string, { transport?: unknown }>;
-		};
-	}
 
 	it("builds stdio installs without shell-joining command args", () => {
 		expect(
@@ -53,6 +54,22 @@ describe("MCP install service", () => {
 				type: "stdio",
 				command: "npx",
 				args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/my dir"],
+			},
+			warnings: [],
+		});
+	});
+
+	it("installs mcp-remote marketplace entries as native HTTP servers", () => {
+		expect(
+			buildMcpInstallTransport({
+				name: "linear",
+				targetArgs: ["npx", "-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			}),
+		).toEqual({
+			name: "linear",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
 			},
 			warnings: [],
 		});
@@ -203,5 +220,134 @@ describe("MCP install service", () => {
 			}),
 		).toThrow(/only http and https are supported/);
 		expect(existsSync(settingsPath)).toBe(false);
+	});
+});
+
+describe("MCP uninstall service", () => {
+	let root = "";
+
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), "core-mcp-uninstall-"));
+	});
+
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	function writeSettings(settings: unknown): string {
+		const settingsPath = join(root, "cline_mcp_settings.json");
+		writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+		return settingsPath;
+	}
+
+	function seededSettings(): Record<string, unknown> {
+		return {
+			mcpServers: {
+				docs: {
+					transport: {
+						type: "streamableHttp",
+						url: "https://example.com/mcp",
+						headers: { Authorization: "Bearer token" },
+					},
+				},
+				keep: {
+					transport: { type: "stdio", command: "node", args: ["server.js"] },
+					disabled: true,
+					autoApprove: ["read_file"],
+				},
+			},
+			customTopLevelKey: { nested: true },
+		};
+	}
+
+	it("removes only the requested server and preserves everything else", () => {
+		const settingsPath = writeSettings(seededSettings());
+
+		expect(uninstallMcpServer({ name: "docs", settingsPath })).toEqual({
+			name: "docs",
+			status: "uninstalled",
+		});
+
+		const written = readSettings(settingsPath);
+		expect(Object.keys(written.mcpServers ?? {})).toEqual(["keep"]);
+		expect(written.mcpServers?.keep).toEqual({
+			transport: { type: "stdio", command: "node", args: ["server.js"] },
+			disabled: true,
+			autoApprove: ["read_file"],
+		});
+		expect(written.customTopLevelKey).toEqual({ nested: true });
+	});
+
+	it("trims the requested server name", () => {
+		const settingsPath = writeSettings(seededSettings());
+
+		expect(uninstallMcpServer({ name: "  docs  ", settingsPath })).toEqual({
+			name: "docs",
+			status: "uninstalled",
+		});
+		expect(Object.keys(readSettings(settingsPath).mcpServers ?? {})).toEqual([
+			"keep",
+		]);
+	});
+
+	it("keeps an empty mcpServers map after removing the last server", () => {
+		const settingsPath = writeSettings({
+			mcpServers: { docs: { transport: { type: "stdio", command: "node" } } },
+		});
+
+		uninstallMcpServer({ name: "docs", settingsPath });
+
+		expect(readSettings(settingsPath).mcpServers).toEqual({});
+	});
+
+	it("rejects an unknown server without rewriting the settings file", () => {
+		const settingsPath = writeSettings(seededSettings());
+		const before = readFileSync(settingsPath, "utf8");
+
+		expect(() => uninstallMcpServer({ name: "missing", settingsPath })).toThrow(
+			'MCP server "missing" is not installed.',
+		);
+		expect(readFileSync(settingsPath, "utf8")).toBe(before);
+	});
+
+	it("rejects uninstalling from settings without an mcpServers map", () => {
+		const settingsPath = writeSettings({ customTopLevelKey: true });
+		const before = readFileSync(settingsPath, "utf8");
+
+		expect(() => uninstallMcpServer({ name: "docs", settingsPath })).toThrow(
+			/is not installed/,
+		);
+		expect(readFileSync(settingsPath, "utf8")).toBe(before);
+	});
+
+	it("does not create a settings file for an unknown server", () => {
+		const settingsPath = join(root, "nested", "settings.json");
+
+		expect(() => uninstallMcpServer({ name: "docs", settingsPath })).toThrow(
+			/is not installed/,
+		);
+		expect(existsSync(settingsPath)).toBe(false);
+	});
+
+	it("rejects a blank name before touching settings", () => {
+		const settingsPath = join(root, "nested", "settings.json");
+
+		expect(() => uninstallMcpServer({ name: "   ", settingsPath })).toThrow(
+			/MCP server name is required/,
+		);
+		expect(existsSync(settingsPath)).toBe(false);
+	});
+
+	it("round-trips an install followed by an uninstall", () => {
+		const settingsPath = join(root, "cline_mcp_settings.json");
+		installMcpServer({
+			name: "fs",
+			targetArgs: ["node", "server.js"],
+			settingsPath,
+		});
+
+		uninstallMcpServer({ name: "fs", settingsPath });
+
+		expect(readSettings(settingsPath).mcpServers).toEqual({});
 	});
 });
