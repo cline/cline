@@ -851,6 +851,7 @@ function BranchPicker({
 
 export function WelcomeWorkspaceControls({
 	cloudEnabled,
+	cloudControlsHidden = false,
 	executionTarget,
 	repoUrl,
 	cloudBranch,
@@ -874,6 +875,11 @@ export function WelcomeWorkspaceControls({
 	onSwitchGitBranch,
 }: {
 	cloudEnabled: boolean;
+	/**
+	 * Hides the repo/branch pickers and sign-in button while the cloud
+	 * onboarding panel owns those calls-to-action.
+	 */
+	cloudControlsHidden?: boolean;
 	executionTarget: "local" | "cloud";
 	repoUrl: string;
 	cloudBranch: string;
@@ -950,7 +956,7 @@ export function WelcomeWorkspaceControls({
 				/>
 			) : null}
 			{cloudEnabled && executionTarget === "cloud" ? (
-				signedIn ? (
+				cloudControlsHidden ? null : signedIn ? (
 					<>
 						<CloudRepositoryPicker
 							onClose={() => setOpenMenu(null)}

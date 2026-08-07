@@ -6,8 +6,9 @@ import {
 	type AgentQuickAction,
 	AgentQuickActions,
 } from "@cline/ui";
+import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type {
@@ -18,6 +19,10 @@ import type {
 import { desktopClient } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import {
+	CloudOnboardingCard,
+	type CloudOnboardingVariant,
+} from "./cloud-onboarding";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
@@ -34,6 +39,22 @@ const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
 		value: "Check this project for build errors and help me fix any failures.",
 	},
 ];
+
+const FALLBACK_CONNECT_URL = "https://app.cline.bot/dashboard/integrations";
+// The dashboard hand-off happens in the browser, so re-check often enough
+// that the panel flips to ready shortly after the user finishes there.
+const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
+
+type CloudSetupState = {
+	status:
+		| "unknown"
+		| "checking"
+		| "ready"
+		| "not_connected"
+		| "no_repositories"
+		| "error";
+	connectUrl: string;
+};
 
 export function WelcomeScreen({
 	active,
@@ -74,6 +95,12 @@ export function WelcomeScreen({
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
+	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
+		status: "unknown",
+		connectUrl: FALLBACK_CONNECT_URL,
+	});
+	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
+	const cloudSetupRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -112,6 +139,63 @@ export function WelcomeScreen({
 		await desktopClient.invoke("open_external_url", { url });
 	}, []);
 
+	const cloudModeActive =
+		active && cloudAgentsEnabled && executionTarget === "cloud";
+	const signedIn = Boolean(user);
+
+	const checkCloudSetup = useCallback(async () => {
+		const requestId = ++cloudSetupRequestRef.current;
+		setCloudSetupChecking(true);
+		try {
+			const result = await listCloudRepositories();
+			if (cloudSetupRequestRef.current !== requestId) return;
+			setCloudSetup({
+				status:
+					result.connected === false
+						? "not_connected"
+						: result.repositories.length === 0
+							? "no_repositories"
+							: "ready",
+				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+			});
+		} catch {
+			if (cloudSetupRequestRef.current !== requestId) return;
+			setCloudSetup((prev) => ({ ...prev, status: "error" }));
+		} finally {
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetupChecking(false);
+			}
+		}
+	}, [listCloudRepositories]);
+
+	// Check GitHub connectivity whenever the cloud composer becomes relevant,
+	// and keep watching while onboarding is on screen: the connect flow
+	// finishes in the browser, so the panel must notice on its own.
+	useEffect(() => {
+		if (!cloudModeActive || !signedIn) return;
+		setCloudSetup((prev) =>
+			prev.status === "unknown" ? { ...prev, status: "checking" } : prev,
+		);
+		void checkCloudSetup();
+		const handleFocus = () => void checkCloudSetup();
+		window.addEventListener("focus", handleFocus);
+		const interval = window.setInterval(() => {
+			setCloudSetup((prev) => {
+				if (
+					prev.status === "not_connected" ||
+					prev.status === "no_repositories"
+				) {
+					void checkCloudSetup();
+				}
+				return prev;
+			});
+		}, CLOUD_SETUP_POLL_INTERVAL_MS);
+		return () => {
+			window.removeEventListener("focus", handleFocus);
+			window.clearInterval(interval);
+		};
+	}, [checkCloudSetup, cloudModeActive, signedIn]);
+
 	useEffect(() => {
 		if (active && executionTarget === "local") void refreshWorkspaces();
 	}, [active, executionTarget, refreshWorkspaces]);
@@ -132,6 +216,19 @@ export function WelcomeScreen({
 			setSigningIn(false);
 		}
 	};
+
+	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
+		? null
+		: !signedIn
+			? "signed_out"
+			: cloudSetup.status === "not_connected"
+				? "not_connected"
+				: cloudSetup.status === "no_repositories"
+					? "no_repositories"
+					: cloudSetup.status === "error"
+						? "error"
+						: null;
+	const showCloudOnboarding = cloudOnboardingVariant !== null;
 
 	return (
 		<div
@@ -163,6 +260,7 @@ export function WelcomeScreen({
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
 									cloudBranch={cloudBranch}
+									cloudControlsHidden={showCloudOnboarding}
 									cloudEnabled={cloudAgentsEnabled}
 									currentBranch={gitBranch}
 									executionTarget={executionTarget}
@@ -180,7 +278,7 @@ export function WelcomeScreen({
 									onSwitchGitBranch={onSwitchGitBranch}
 									onSwitchWorkspace={switchWorkspace}
 									repoUrl={repoUrl}
-									signedIn={Boolean(user)}
+									signedIn={signedIn}
 									signingIn={signingIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
@@ -201,16 +299,40 @@ export function WelcomeScreen({
 						{body}
 					</div>
 
-					{active && notice ? notice : null}
+					{active && notice && !showCloudOnboarding ? notice : null}
+
+					{active && showCloudOnboarding ? (
+						<div className="mt-4 w-full">
+							<CloudOnboardingCard
+								checking={cloudSetupChecking}
+								onConnect={() => void openExternalUrl(cloudSetup.connectUrl)}
+								onRefresh={() => void checkCloudSetup()}
+								onSignIn={() => void signIn()}
+								signingIn={signingIn}
+								variant={cloudOnboardingVariant}
+							/>
+						</div>
+					) : null}
 
 					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						className={cn(
+							active ? "mt-4 w-full" : "z-20 shrink-0",
+							active && showCloudOnboarding && "hidden",
+						)}
 						key="persistent-composer"
 					>
 						{composer}
 					</div>
 
-					{active ? (
+					{active && cloudModeActive && !showCloudOnboarding ? (
+						<p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+							<Cloud aria-hidden="true" className="size-3 shrink-0" />
+							Cloud sessions run on a secure sandbox, work on a branch, and keep
+							going even when you close the app.
+						</p>
+					) : null}
+
+					{active && !showCloudOnboarding ? (
 						<AgentQuickActions
 							actions={actions}
 							className="mt-11"
