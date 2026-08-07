@@ -1,5 +1,20 @@
 # Cline Code Desktop Changelog
 
+## 0.0.10
+
+- Remote MCP servers can now authenticate with OAuth from Settings → MCP — authorize a server, see its auth status, and cancel or retry a pending authorization. Servers that require a pre-registered OAuth client (client ID/secret) instead of dynamic registration are now supported, and stored tokens are invalidated when a server's client configuration changes.
+- MCP errors are now shown on the individual server rather than as a page-level error, and a server with invalid configuration is surfaced with its error instead of silently disappearing from the list.
+- Failed turns no longer fail silently. Sending a message with no model credentials — or any queued turn that fails — now shows an error in the transcript, enriched with the underlying cause and a pointer to Settings → Models.
+- Fixed the first message of a chat (and some queued messages) rendering twice.
+- Fixed the composer getting stuck on "Agent is working…" after a turn already finished.
+- New "Connect a model" notice on the welcome screen when no provider has credentials, with one click to onboarding or model settings. It reacts live as you add credentials, and correctly recognizes Bedrock/Vertex and keyless local endpoints as already connected.
+- Added "Get an API key" links for popular providers in onboarding and Settings → Models, plus a link to the Cline dashboard from the Cline API key form.
+- The onboarding welcome step now explains what Cline is.
+- The stop button is now actually visible and clickable, Esc stops the current turn, and new shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for settings.
+- Reasoning controls now resolve consistently across AI SDK providers, including Ollama, so effort levels and thinking on/off are honored wherever the provider supports them.
+- Vertex AI: credential refreshes now use the configured fetch, fixing ADC authentication behind proxies and custom networking.
+- Refreshed the bundled provider and model catalog.
+
 ## 0.0.9
 
 - Cline Code now ships as a single universal macOS download that runs natively on both Apple Silicon and Intel — no more picking the right architecture. Existing per-architecture installs migrate to it automatically on their next update.
