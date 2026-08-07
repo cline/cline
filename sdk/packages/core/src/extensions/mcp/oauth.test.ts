@@ -293,9 +293,9 @@ describe("mcp oauth", () => {
 		expect(
 			isMcpUnauthorizedError(makeSseError(404, "Non-200 status code (404)")),
 		).toBe(false);
-		expect(isMcpUnauthorizedError(makeSseError(undefined, "fetch failed"))).toBe(
-			false,
-		);
+		expect(
+			isMcpUnauthorizedError(makeSseError(undefined, "fetch failed")),
+		).toBe(false);
 		expect(isMcpUnauthorizedError(new Error("Unauthorized"))).toBe(false);
 	});
 
