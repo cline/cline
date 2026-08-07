@@ -90,7 +90,7 @@ For generated catalog field semantics and token-limit behavior, see
 ## More Examples
 
 - Workspace overview: [README.md](https://github.com/cline/cline/blob/main/README.md)
-- API and architecture references: [DOC.md](https://github.com/cline/cline/blob/main/DOC.md), [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/ARCHITECTURE.md)
+- API and architecture references: [SDK reference](https://docs.cline.bot/sdk/reference/cline-core), [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/sdk/ARCHITECTURE.md)
 
 ## Live Provider Smoke Test
 

@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Cline SDK — Development Reference
 
-Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTING.md](./CONTRIBUTING.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see [DOC.md](./DOC.md).
+Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTING.md](./CONTRIBUTING.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see the SDK reference docs (source in [`../docs/sdk/`](../docs/sdk/), published at [docs.cline.bot/sdk](https://docs.cline.bot/sdk/overview)).
 
 ## Repository Scope
 
@@ -106,4 +106,4 @@ If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 - `CONTRIBUTING.md`: onboarding, workflow, publishing. Update when contributor setup or release process changes.
 - `AGENTS.md` (this file): development reference. Update when package boundaries, dependency rules, or change routing changes.
 - `ARCHITECTURE.md`: design, boundaries, runtime flows. Update when system design or architectural constraints change.
-- `DOC.md`: API and behavior reference. Update when exported surfaces, lifecycle semantics, or runtime behavior changes.
+- `../docs/sdk/` (published at docs.cline.bot/sdk): API and behavior reference. Update when exported surfaces, lifecycle semantics, or runtime behavior changes.
