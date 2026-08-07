@@ -1302,7 +1302,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("keeps a same-named non-provider image tool call on the runtime path", async () => {
+	it("keeps a same-named runtime image tool in control of composition and events", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{
@@ -1325,6 +1325,16 @@ describe("sdk-gateway", () => {
 				{
 					providerId: "openai-native",
 					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-mixed-test",
+							name: "GPT Image Mixed Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "image"],
+							},
+						},
+					],
 				},
 			],
 		});
@@ -1332,7 +1342,86 @@ describe("sdk-gateway", () => {
 		const events = await collect(
 			await gateway.stream({
 				providerId: "openai-native",
-				modelId: "gpt-5-mini",
+				modelId: "gpt-image-mixed-test",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "image_generation",
+						description: "A runtime-owned image tool",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(openaiImageGenerationToolSpy).toHaveBeenCalledWith({
+			outputFormat: "png",
+		});
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, unknown> }
+			| undefined;
+		expect(call?.tools?.image_generation).toEqual(
+			expect.objectContaining({
+				description: "A runtime-owned image tool",
+			}),
+		);
+		expect(call?.tools?.image_generation).not.toHaveProperty(
+			"id",
+			"openai.image_generation",
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "runtime_image_call",
+				toolName: "image_generation",
+			}),
+		);
+		expect(events.filter((event) => event.type === "image")).toHaveLength(0);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("does not classify a shadowed provider image tool as provider-owned", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "shadowed_image_call",
+					toolName: "image_generation",
+					providerExecuted: true,
+					input: { prompt: "Draw a bee" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "shadowed_image_call",
+					toolName: "image_generation",
+					result: { result: "c2hhZG93ZWQ=" },
+				},
+				{ type: "finish", finishReason: "tool-calls" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-mixed-test",
+							name: "GPT Image Mixed Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
 				tools: [
 					{
@@ -1347,7 +1436,7 @@ describe("sdk-gateway", () => {
 		expect(events).toContainEqual(
 			expect.objectContaining({
 				type: "tool-call-delta",
-				toolCallId: "runtime_image_call",
+				toolCallId: "shadowed_image_call",
 				toolName: "image_generation",
 			}),
 		);
