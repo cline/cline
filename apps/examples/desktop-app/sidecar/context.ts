@@ -446,9 +446,28 @@ function handleCoreSessionEvent(
 			const { sessionId, status } = event.payload;
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
-				session.status = status;
-				session.busy = status === "running";
-				if (status !== "running") {
+				if (status === "running") {
+					// Core seeds a fresh session's record status as "running" before
+					// any turn runs, and the session-creation lifecycle events echoing
+					// that record can arrive after handleStart registered the live
+					// session. No turn is in flight, so no later "idle" would clear
+					// the flag — trusting the echo would permanently mark the idle
+					// session busy and silently queue every send. Only treat
+					// "running" as a busy signal when this sidecar started the turn
+					// itself, a real turn boundary has been observed (a non-"running"
+					// status), or we attached to an already-live session.
+					if (
+						session.busy ||
+						session.sawNonRunningStatus ||
+						session.attachedViaHub
+					) {
+						session.status = status;
+						session.busy = true;
+					}
+				} else {
+					session.sawNonRunningStatus = true;
+					session.status = status;
+					session.busy = false;
 					// The turn that consumed submitted attachments has finished.
 					flushConsumedAttachments(sessionId, session);
 				}

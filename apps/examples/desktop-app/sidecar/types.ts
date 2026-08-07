@@ -55,6 +55,13 @@ export type LiveSession = {
 	startedAt: number;
 	endedAt?: number;
 	status: string;
+	/**
+	 * True once a non-"running" status event has been observed for this
+	 * session. Core seeds fresh session records as "running" before any turn
+	 * runs, so "running" is only a trustworthy busy signal after a real turn
+	 * boundary has been seen.
+	 */
+	sawNonRunningStatus?: boolean;
 	transitioningProvider?: boolean;
 	prompt?: string;
 	title?: string;
