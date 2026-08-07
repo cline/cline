@@ -1765,9 +1765,9 @@ describe("useChatSession", () => {
 				index: 1,
 			});
 		});
-		expect(
-			current.messages.some((message) => message.role === "error"),
-		).toBe(true);
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			true,
+		);
 
 		await act(async () => {
 			resolveSend?.({ ok: true });
@@ -1894,9 +1894,9 @@ describe("useChatSession", () => {
 				index: 1,
 			});
 		});
-		expect(
-			current.messages.some((message) => message.role === "error"),
-		).toBe(true);
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			true,
+		);
 
 		// A later turn appends new messages after the failure bubble; its
 		// hydration must not re-pin the stale error to the bottom of the

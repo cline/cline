@@ -653,12 +653,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														{thread.pinned ? "Unfavorite" : "Favorite"}
 													</DropdownMenuItem>
 												) : null}
-												{thread.origin !== "cloud" ? (
-													<DropdownMenuItem onClick={() => startRename(thread)}>
-														<Pencil className="size-4" />
-														Rename
-													</DropdownMenuItem>
-												) : null}
+												{/* Cloud sessions support rename (PATCH title), matching
+												    the sidebar and chat header affordances. */}
+												<DropdownMenuItem onClick={() => startRename(thread)}>
+													<Pencil className="size-4" />
+													Rename
+												</DropdownMenuItem>
 												{thread.origin !== "cloud" ? (
 													<DropdownMenuItem
 														onClick={() => void history.forkThread(thread.id)}
