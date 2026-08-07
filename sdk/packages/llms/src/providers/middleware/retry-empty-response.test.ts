@@ -576,6 +576,38 @@ describe("network interruption retry", () => {
 		expect(finishPart.usage.outputTokens.total).toBe(8);
 	});
 
+	it("scales network backoff by the network retry count, not the shared attempt number", async () => {
+		// Attempt 1: empty response (its own 250ms-class delay). Attempt 2:
+		// FIRST network interruption — its backoff must be the configured
+		// base delay, not doubled just because an empty retry came first.
+		const log = vi.fn();
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce(streamOf(emptyParts))
+			.mockResolvedValueOnce(
+				streamThatDies([streamStart], undiciSocketClosed()),
+			)
+			.mockResolvedValueOnce(
+				streamThatDies([streamStart], undiciSocketClosed()),
+			)
+			.mockResolvedValueOnce(streamOf(textParts));
+		const { error } = await collectWithError(
+			await run(doStream, {
+				maxAttempts: 4,
+				networkRetryDelayMs: 8,
+				logger: { log },
+			}),
+		);
+
+		expect(error).toBeUndefined();
+		expect(doStream).toHaveBeenCalledTimes(4);
+		const networkDelays = log.mock.calls
+			.filter(([message]) => String(message).includes("network interruption"))
+			.map(([, meta]) => (meta as { retryDelayMs?: number }).retryDelayMs);
+		// First network retry waits the base delay; the second doubles it.
+		expect(networkDelays).toEqual([8, 16]);
+	});
+
 	it("logs a warning on each network retry", async () => {
 		const log = vi.fn();
 		const doStream = vi

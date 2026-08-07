@@ -298,6 +298,10 @@ export function createRetryEmptyResponseMiddleware(
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
 					const discardedUsage: LanguageModelV4Usage[] = [];
+					// Counted separately from the shared attempt number so the
+					// first network retry always waits `networkRetryDelayMs`,
+					// regardless of any empty-response retries that came first.
+					let networkRetries = 0;
 
 					for (let attempt = 1; ; attempt++) {
 						const reader = result.stream.getReader();
@@ -366,7 +370,8 @@ export function createRetryEmptyResponseMiddleware(
 							if (pendingFinish) {
 								discardedUsage.push(pendingFinish.usage);
 							}
-							const delayMs = networkRetryDelayMs * 2 ** (attempt - 1);
+							const delayMs = networkRetryDelayMs * 2 ** networkRetries;
+							networkRetries++;
 							logger?.log?.(
 								"Transient network interruption before any model output; retrying",
 								{
