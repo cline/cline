@@ -7,12 +7,15 @@ import { SpeechInput } from "./speech-input";
 
 class FakeMediaRecorder extends EventTarget {
 	static instances: FakeMediaRecorder[] = [];
+	static deferStopEvents = false;
+	static stopError: unknown;
 	static recordedAudio: Blob | null = new Blob(["recorded audio"], {
 		type: "audio/webm",
 	});
 
 	readonly mimeType = "audio/webm";
 	state: RecordingState = "inactive";
+	private stopPending = false;
 
 	constructor(readonly stream: MediaStream) {
 		super();
@@ -24,7 +27,22 @@ class FakeMediaRecorder extends EventTarget {
 	}
 
 	stop(): void {
+		if (FakeMediaRecorder.stopError) throw FakeMediaRecorder.stopError;
 		this.state = "inactive";
+		if (FakeMediaRecorder.deferStopEvents) {
+			this.stopPending = true;
+			return;
+		}
+		this.dispatchStopEvents();
+	}
+
+	flushStopEvents(): void {
+		if (!this.stopPending) return;
+		this.stopPending = false;
+		this.dispatchStopEvents();
+	}
+
+	private dispatchStopEvents(): void {
 		if (FakeMediaRecorder.recordedAudio) {
 			const dataEvent = new Event("dataavailable");
 			Object.defineProperty(dataEvent, "data", {
@@ -52,6 +70,8 @@ let stopTrack: ReturnType<typeof vi.fn>;
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	FakeMediaRecorder.instances = [];
+	FakeMediaRecorder.deferStopEvents = false;
+	FakeMediaRecorder.stopError = undefined;
 	FakeMediaRecorder.recordedAudio = new Blob(["recorded audio"], {
 		type: "audio/webm",
 	});
@@ -99,6 +119,7 @@ afterEach(async () => {
 
 describe("SpeechInput", () => {
 	it("records audio and forwards the provider transcript", async () => {
+		FakeMediaRecorder.deferStopEvents = true;
 		let resolveTranscript: (transcript: string) => void = () => {};
 		const transcript = new Promise<string>((resolve) => {
 			resolveTranscript = resolve;
@@ -148,6 +169,18 @@ describe("SpeechInput", () => {
 
 		await act(async () => {
 			button?.click();
+			await Promise.resolve();
+		});
+
+		// Stopping is asynchronous in browsers. The component must stay active
+		// during the gap before MediaRecorder dispatches its stop event.
+		expect(onAudioRecorded).not.toHaveBeenCalled();
+		expect(onProcessingChange).toHaveBeenLastCalledWith(true);
+		expect(onActiveChange).toHaveBeenLastCalledWith(true);
+		expect(button?.disabled).toBe(true);
+
+		await act(async () => {
+			FakeMediaRecorder.instances[0]?.flushStopEvents();
 			await Promise.resolve();
 		});
 
@@ -208,6 +241,39 @@ describe("SpeechInput", () => {
 		});
 		expect(stop).toHaveBeenCalledOnce();
 		expect(onStreamingEnd).toHaveBeenCalledOnce();
+		expect(button?.getAttribute("aria-label")).toBe("Record speech");
+	});
+
+	it("returns to inactive when MediaRecorder rejects stop", async () => {
+		const stopError = new DOMException("Already stopped", "InvalidStateError");
+		const onActiveChange = vi.fn();
+		const onError = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<SpeechInput
+					onActiveChange={onActiveChange}
+					onAudioRecorded={vi.fn(async () => "unused")}
+					onError={onError}
+					recordingMode="media-recorder"
+				/>,
+			);
+		});
+		const button = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		await act(async () => {
+			button?.click();
+			await Promise.resolve();
+		});
+		FakeMediaRecorder.stopError = stopError;
+
+		await act(async () => button?.click());
+
+		expect(onError).toHaveBeenCalledWith(stopError);
+		expect(onActiveChange).toHaveBeenLastCalledWith(false);
+		expect(stopTrack).toHaveBeenCalledOnce();
+		expect(button?.disabled).toBe(false);
 		expect(button?.getAttribute("aria-label")).toBe("Record speech");
 	});
 

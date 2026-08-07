@@ -353,8 +353,29 @@ export function SpeechInput({
 			return;
 		}
 		if (mode === "media-recorder") {
-			if (isListening) mediaRecorderRef.current?.stop();
-			else void startMediaRecorder();
+			if (isListening) {
+				const recorder = mediaRecorderRef.current;
+				if (!recorder) return;
+				// Keep the recording operation active while MediaRecorder schedules its
+				// stop event and the completed audio is transcribed. Without this state
+				// transition, consumers briefly observe an inactive session and may
+				// discard the draft range needed by the asynchronous result.
+				setIsProcessing(true);
+				try {
+					recorder.stop();
+				} catch (error) {
+					operationIdRef.current += 1;
+					for (const track of streamRef.current?.getTracks() ?? [])
+						track.stop();
+					streamRef.current = null;
+					mediaRecorderRef.current = null;
+					setIsListening(false);
+					setIsProcessing(false);
+					onErrorRef.current?.(error);
+				}
+			} else {
+				void startMediaRecorder();
+			}
 			return;
 		}
 		if (mode === "streaming") {
