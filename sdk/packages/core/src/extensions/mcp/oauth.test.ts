@@ -1,6 +1,8 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	listMcpServerOAuthStatuses,
@@ -8,7 +10,11 @@ import {
 	updateMcpServerOAuthStateAsync,
 	updateMcpSettingsFile,
 } from "./config-loader";
-import { createMcpOAuthProviderContext } from "./oauth";
+import {
+	createMcpOAuthProviderContext,
+	createMcpSdkTransport,
+	isMcpUnauthorizedError,
+} from "./oauth";
 
 describe("mcp oauth", () => {
 	const tempRoots: string[] = [];
@@ -265,6 +271,74 @@ describe("mcp oauth", () => {
 		expect(written.mcpServers.linear.oauth.clientInformation).toEqual({
 			client_id: "client-b",
 		});
+	});
+
+	function makeSseError(code: number | undefined, message: string): SseError {
+		return new SseError(
+			code,
+			message,
+			new Event("error") as ConstructorParameters<typeof SseError>[2],
+		);
+	}
+
+	it("recognizes 401s in every transport error shape", () => {
+		expect(
+			isMcpUnauthorizedError(
+				new UnauthorizedError("MCP server requires authorization"),
+			),
+		).toBe(true);
+		expect(
+			isMcpUnauthorizedError(makeSseError(401, "Non-200 status code (401)")),
+		).toBe(true);
+		expect(
+			isMcpUnauthorizedError(makeSseError(404, "Non-200 status code (404)")),
+		).toBe(false);
+		expect(
+			isMcpUnauthorizedError(makeSseError(undefined, "fetch failed")),
+		).toBe(false);
+		expect(isMcpUnauthorizedError(new Error("Unauthorized"))).toBe(false);
+	});
+
+	it("surfaces a passive SSE stream 401 as a recognizable error", async () => {
+		const transport = createMcpSdkTransport({
+			registration: {
+				name: "linear",
+				transport: { type: "sse", url: "https://mcp.example.test/sse" },
+			},
+			fetch: async () => new Response(null, { status: 401 }),
+		});
+		try {
+			const error = await transport.start().then(
+				() => undefined,
+				(cause: unknown) => cause,
+			);
+			expect(error).toBeInstanceOf(SseError);
+			expect(isMcpUnauthorizedError(error)).toBe(true);
+		} finally {
+			await transport.close();
+		}
+	});
+
+	it("keeps typing passive streamable HTTP 401s at the fetch boundary", async () => {
+		const transport = createMcpSdkTransport({
+			registration: {
+				name: "linear",
+				transport: { type: "streamableHttp", url: "https://mcp.example.test" },
+			},
+			fetch: async () => new Response(null, { status: 401 }),
+		});
+		try {
+			const error = await transport
+				.send({ jsonrpc: "2.0", id: 1, method: "initialize" })
+				.then(
+					() => undefined,
+					(cause: unknown) => cause,
+				);
+			expect(error).toBeInstanceOf(UnauthorizedError);
+			expect(isMcpUnauthorizedError(error)).toBe(true);
+		} finally {
+			await transport.close();
+		}
 	});
 
 	it("reuses tokens persisted before client binding was introduced", async () => {

@@ -5,7 +5,10 @@ import type {
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import {
+	SSEClientTransport,
+	SseError,
+} from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
 	OAuthClientInformationMixed,
@@ -437,6 +440,13 @@ export function createMcpSdkTransport(input: {
 		return new SSEClientTransport(new URL(transport.url), {
 			authProvider: input.oauthProvider,
 			requestInit,
+			// The stream request must see the raw response: EventSource flattens
+			// a thrown fetch error into a status-less error event, while a
+			// passed-through 401 fails the connection with an SseError carrying
+			// the HTTP code that isMcpUnauthorizedError recognizes.
+			eventSourceInit: {
+				fetch: (url, init) => (input.fetch ?? globalThis.fetch)(url, init),
+			},
 			fetch: transportFetch,
 		});
 	}
@@ -446,6 +456,20 @@ export function createMcpSdkTransport(input: {
 		requestInit,
 		fetch: transportFetch,
 	});
+}
+
+/**
+ * Recognizes a 401 from a remote MCP server across transports. The streamable
+ * HTTP transport (and SSE message POSTs) reject with the typed
+ * UnauthorizedError raised at the fetch boundary, but the SSE stream request
+ * runs inside EventSource, which consumes the response and reports the HTTP
+ * status only through SseError's code.
+ */
+export function isMcpUnauthorizedError(error: unknown): boolean {
+	return (
+		error instanceof UnauthorizedError ||
+		(error instanceof SseError && error.code === 401)
+	);
 }
 
 function buildClient(input: {
@@ -554,7 +578,7 @@ export async function authorizeMcpServerOAuth(
 				message: `MCP server "${serverName}" is already authorized.`,
 			};
 		} catch (error) {
-			if (!(error instanceof UnauthorizedError)) {
+			if (!isMcpUnauthorizedError(error)) {
 				throw error;
 			}
 			await oauthContext.markAuthorizationRequired(
