@@ -58,6 +58,25 @@ describe("ProviderSettingsManager", () => {
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
 	});
 
+	it("reads an LM Studio credential written by another shared-storage client", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const extensionClient = new ProviderSettingsManager({ filePath });
+		const cliClient = new ProviderSettingsManager({ filePath });
+
+		cliClient.saveProviderSettings(
+			{ provider: "lmstudio", apiKey: "shared-lmstudio-key" },
+			{ setLastUsed: false },
+		);
+
+		expect(extensionClient.getProviderSettings("lmstudio")?.apiKey).toBe(
+			"shared-lmstudio-key",
+		);
+	});
+
 	it("writes atomically, leaving no temp file behind", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),

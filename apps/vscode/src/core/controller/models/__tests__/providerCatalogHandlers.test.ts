@@ -1,10 +1,19 @@
 import type { ApiConfiguration } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { fetch } from "@/shared/net"
 import { ApiFormat, ModelOverrides } from "@/shared/proto/cline/models"
+import type { Controller } from "../../index"
 import type { ProviderCatalogController } from "../providerCatalogShared"
+
+vi.mock("@/shared/net", () => ({
+	fetch: vi.fn(),
+}))
+
+const previousLmStudioApiKey = process.env.LMSTUDIO_API_KEY
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
@@ -13,11 +22,15 @@ type TestStateManager = {
 }
 
 function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
+	let currentConfig = { ...config }
 	return {
-		read: vi.fn(() => config),
+		read: vi.fn(() => ({ ...currentConfig })),
 		readSelection: vi.fn(() => undefined),
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
-		write: vi.fn(() => config),
+		write: vi.fn((providerId, patch) => {
+			currentConfig = { ...currentConfig, ...patch, providerId }
+			return { ...currentConfig }
+		}),
 		commitSelection: vi.fn(),
 	}
 }
@@ -49,6 +62,11 @@ function makeController(
 describe("provider model catalog handlers", () => {
 	afterEach(() => {
 		vi.clearAllMocks()
+		if (previousLmStudioApiKey === undefined) {
+			delete process.env.LMSTUDIO_API_KEY
+		} else {
+			process.env.LMSTUDIO_API_KEY = previousLmStudioApiKey
+		}
 	})
 
 	it("listProviders returns provider listings from the catalog singleton", async () => {
@@ -240,6 +258,58 @@ describe("provider model catalog handlers", () => {
 		})
 
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
+	})
+
+	it("getLmStudioModels uses the effective provider API key", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+		store.write(providerId, { apiKey: "provider-settings-key" })
+		vi.mocked(fetch).mockResolvedValue({
+			json: async () => ({ data: [{ id: "model-1" }] }),
+		} as Response)
+
+		const response = await getLmStudioModels(controller, StringRequest.create({ value: "http://localhost:1234" }))
+
+		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models", {
+			headers: { Authorization: "Bearer provider-settings-key" },
+		})
+		expect(response.values).toEqual(['{"id":"model-1"}'])
+	})
+
+	it("getLmStudioModels keeps unauthenticated local servers working", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
+		process.env.LMSTUDIO_API_KEY = ""
+		vi.mocked(fetch).mockResolvedValue({
+			json: async () => ({ data: [] }),
+		} as Response)
+
+		await getLmStudioModels(controller, StringRequest.create({ value: "http://localhost:1234" }))
+
+		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models")
+	})
+
+	it("getLmStudioModels falls back to LMSTUDIO_API_KEY", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId, apiKey: "provider-settings-key" })
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
+		process.env.LMSTUDIO_API_KEY = "environment-key"
+		store.write(providerId, { apiKey: "" })
+		vi.mocked(fetch).mockResolvedValue({
+			json: async () => ({ data: [] }),
+		} as Response)
+
+		await getLmStudioModels(controller, StringRequest.create({ value: "http://localhost:1234" }))
+
+		expect(fetch).toHaveBeenCalledWith("http://localhost:1234/api/v0/models", {
+			headers: { Authorization: "Bearer environment-key" },
+		})
 	})
 
 	it("commitModelSelection validates mode and commits model settings", async () => {
