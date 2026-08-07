@@ -1288,9 +1288,6 @@ export function useSessionHistory({
 		async (threadId: string) => {
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
-				console.error(
-					`[webview:delete] invoke delete_chat_session sessionId=${threadId}`,
-				);
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
@@ -1300,9 +1297,6 @@ export function useSessionHistory({
 					typeof deleteResult === "boolean"
 						? deleteResult
 						: deleteResult.deleted === true;
-				console.error(
-					`[webview:delete] invoke result sessionId=${threadId} deleted=${deleted}`,
-				);
 				if (!deleted) {
 					throw new Error(
 						"The session could not be removed from local history.",
