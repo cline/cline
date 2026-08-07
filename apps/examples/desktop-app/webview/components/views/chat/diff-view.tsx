@@ -323,7 +323,7 @@ function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
 	});
 
 	return (
-		<div className="overflow-x-auto rounded-md border border-border bg-background font-mono text-[11px] leading-5">
+		<div className="cline-chat-selectable overflow-x-auto rounded-md border border-border bg-background font-mono text-[11px] leading-5">
 			{oldLineEntries.map((entry) => (
 				<div className="flex bg-destructive/10" key={entry.key}>
 					<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">

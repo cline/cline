@@ -114,7 +114,15 @@ type DesktopClientErrorReport = {
 	command?: unknown;
 	timeoutMs?: unknown;
 	transportState?: unknown;
+	sourceUrl?: unknown;
+	lineno?: unknown;
+	colno?: unknown;
+	stack?: unknown;
 };
+
+// Bound for free-form attribution strings (source URLs, stack traces);
+// matches ERROR_REPORT_FIELD_LIMIT in webview/lib/desktop-client.ts.
+const ERROR_REPORT_FIELD_LIMIT = 500;
 
 function captureDesktopError(
 	ctx: SidecarContext,
@@ -254,6 +262,24 @@ export function createFetchHandler(
 				}
 				if (typeof report.transportState === "string") {
 					context.transportState = report.transportState.slice(0, 30);
+				}
+				if (typeof report.sourceUrl === "string" && report.sourceUrl.trim()) {
+					context.sourceUrl = report.sourceUrl.slice(
+						0,
+						ERROR_REPORT_FIELD_LIMIT,
+					);
+				}
+				if (
+					typeof report.lineno === "number" &&
+					Number.isFinite(report.lineno)
+				) {
+					context.lineno = report.lineno;
+				}
+				if (typeof report.colno === "number" && Number.isFinite(report.colno)) {
+					context.colno = report.colno;
+				}
+				if (typeof report.stack === "string" && report.stack.trim()) {
+					context.stack = report.stack.slice(0, ERROR_REPORT_FIELD_LIMIT);
 				}
 				captureDesktopError(
 					ctx,
