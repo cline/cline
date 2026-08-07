@@ -769,11 +769,11 @@ export async function probeMcpServerConnection(
 	if (!serverName) {
 		throw new Error("MCP server name cannot be empty.");
 	}
-	const { listMcpServerOAuthStatuses, resolveMcpServerRegistrations } =
+	const { getMcpServerOAuthStatus, resolveMcpServerRegistration } =
 		await import("./config-loader");
-	const registration = resolveMcpServerRegistrations({
+	const registration = resolveMcpServerRegistration(serverName, {
 		filePath: options.filePath,
-	}).find((entry) => entry.name === serverName);
+	});
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
 	}
@@ -798,9 +798,12 @@ export async function probeMcpServerConnection(
 		await client.disconnect().catch(() => undefined);
 	}
 
-	const oauthStatus = listMcpServerOAuthStatuses({
+	const updatedRegistration = resolveMcpServerRegistration(serverName, {
 		filePath: options.filePath,
-	}).find((status) => status.serverName === serverName);
+	});
+	const oauthStatus = updatedRegistration
+		? getMcpServerOAuthStatus(updatedRegistration)
+		: undefined;
 	return {
 		serverName,
 		connected: connectionError === undefined,

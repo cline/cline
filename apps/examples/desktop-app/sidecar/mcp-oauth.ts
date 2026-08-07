@@ -4,15 +4,32 @@ import {
 	authorizeMcpServerOAuth,
 } from "@cline/core";
 
+export type McpOAuthCancellationReason =
+	| "user"
+	| "server-disabled"
+	| "superseded"
+	| "owner-closed";
+
+export function shouldRestoreEnabledStateAfterOAuthCancellation(
+	wasDisabled: boolean,
+	reason: McpOAuthCancellationReason,
+): boolean {
+	return !wasDisabled && reason === "user";
+}
+
 type PendingMcpOAuthAuthorization = {
 	controller: AbortController;
 	owner?: object;
+	cancellationReason?: McpOAuthCancellationReason;
 };
 
 const pendingAuthorizations = new Map<string, PendingMcpOAuthAuthorization>();
 
 export class McpOAuthAuthorizationCancelledError extends Error {
-	constructor(serverName: string) {
+	constructor(
+		serverName: string,
+		readonly reason: McpOAuthCancellationReason,
+	) {
 		super(`MCP OAuth authorization was cancelled for "${serverName}".`);
 		this.name = "McpOAuthAuthorizationCancelledError";
 	}
@@ -43,7 +60,7 @@ export async function runCancellableMcpOAuthAuthorization(
 		throw new Error("MCP server name cannot be empty.");
 	}
 
-	cancelMcpOAuthAuthorization(serverName);
+	cancelMcpOAuthAuthorizationForReason(serverName, "superseded");
 	const entry: PendingMcpOAuthAuthorization = {
 		controller: new AbortController(),
 		owner,
@@ -59,7 +76,10 @@ export async function runCancellableMcpOAuthAuthorization(
 			});
 		} catch (error) {
 			if (entry.controller.signal.aborted) {
-				throw new McpOAuthAuthorizationCancelledError(serverName);
+				throw new McpOAuthAuthorizationCancelledError(
+					serverName,
+					entry.cancellationReason ?? "superseded",
+				);
 			}
 			throw error;
 		}
@@ -72,10 +92,18 @@ export async function runCancellableMcpOAuthAuthorization(
 
 /** Cancels the pending browser callback flow for one MCP server, if present. */
 export function cancelMcpOAuthAuthorization(serverName: string): boolean {
+	return cancelMcpOAuthAuthorizationForReason(serverName, "user");
+}
+
+export function cancelMcpOAuthAuthorizationForReason(
+	serverName: string,
+	reason: McpOAuthCancellationReason,
+): boolean {
 	const entry = pendingAuthorizations.get(serverName);
 	if (!entry) {
 		return false;
 	}
+	entry.cancellationReason = reason;
 	entry.controller.abort();
 	pendingAuthorizations.delete(serverName);
 	return true;
@@ -86,6 +114,7 @@ export function cancelMcpOAuthAuthorizationsForOwner(owner: object): number {
 	let cancelled = 0;
 	for (const [serverName, entry] of pendingAuthorizations) {
 		if (entry.owner === owner) {
+			entry.cancellationReason = "owner-closed";
 			entry.controller.abort();
 			pendingAuthorizations.delete(serverName);
 			cancelled += 1;

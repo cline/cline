@@ -17,7 +17,9 @@ import {
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
 	McpSettingsMutatorPurityError,
+	parseMcpServerRegistration,
 	registerMcpServersFromSettingsFile,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
@@ -260,6 +262,41 @@ describe("mcp config loader", () => {
 		);
 	});
 
+	it("resolves a valid server without requiring malformed siblings to parse", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://mcp.linear.app/mcp",
+						},
+					},
+					broken: {},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(resolveMcpServerRegistration("linear", { filePath })).toMatchObject({
+			name: "linear",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
+			},
+		});
+		expect(() => parseMcpServerRegistration("broken", {})).toThrow(
+			'Invalid MCP server "broken"',
+		);
+		expect(() => resolveMcpServerRegistrations({ filePath })).toThrow(
+			"Invalid MCP settings",
+		);
+	});
+
 	it("accepts legacy flat stdio format", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -327,6 +364,21 @@ describe("mcp config loader", () => {
 				oauth: undefined,
 			},
 		]);
+	});
+
+	it("keeps mcp-remote on stdio when proxy environment is configured", async () => {
+		const registration = parseMcpServerRegistration("linear", {
+			command: "npx",
+			args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			env: { HTTP_PROXY: "http://127.0.0.1:8080" },
+		});
+
+		expect(registration.transport).toEqual({
+			type: "stdio",
+			command: "npx",
+			args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			env: { HTTP_PROXY: "http://127.0.0.1:8080" },
+		});
 	});
 
 	it("accepts legacy flat url format and preserves explicit transportType", async () => {

@@ -27,6 +27,9 @@ export function resolveMcpRemoteProxyTransport(
 	if (executableName(transport.command) !== "npx") {
 		return undefined;
 	}
+	if (Object.keys(transport.env ?? {}).length > 0) {
+		return undefined;
+	}
 	const args = transport.args ?? [];
 	let index = 0;
 	while (args[index] === "-y" || args[index] === "--yes") {

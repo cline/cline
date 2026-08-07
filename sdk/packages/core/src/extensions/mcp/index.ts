@@ -18,6 +18,7 @@ export type {
 } from "./config-loader";
 export {
 	getMcpServerOAuthState,
+	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
@@ -25,8 +26,10 @@ export {
 	McpSettingsLockTimeoutError,
 	McpSettingsMutatorPurityError,
 	McpSettingsUpdateSkippedError,
+	parseMcpServerRegistration,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,

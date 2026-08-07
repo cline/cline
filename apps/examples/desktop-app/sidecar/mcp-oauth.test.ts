@@ -5,9 +5,11 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import {
 	cancelMcpOAuthAuthorization,
+	cancelMcpOAuthAuthorizationForReason,
 	cancelMcpOAuthAuthorizationsForOwner,
 	McpOAuthAuthorizationCancelledError,
 	runCancellableMcpOAuthAuthorization,
+	shouldRestoreEnabledStateAfterOAuthCancellation,
 } from "./mcp-oauth";
 
 function waitForAbort(
@@ -54,11 +56,26 @@ describe("desktop MCP OAuth authorization", () => {
 			{ authorize: waitForAbort },
 		);
 
-		expect(cancelMcpOAuthAuthorization("github")).toBe(true);
-		await expect(pending).rejects.toBeInstanceOf(
-			McpOAuthAuthorizationCancelledError,
-		);
+		expect(
+			cancelMcpOAuthAuthorizationForReason("github", "server-disabled"),
+		).toBe(true);
+		await expect(pending).rejects.toMatchObject({
+			name: "McpOAuthAuthorizationCancelledError",
+			reason: "server-disabled",
+		});
 		expect(cancelMcpOAuthAuthorization("github")).toBe(false);
+	});
+
+	it("restores a previously enabled server only for an explicit user cancel", () => {
+		expect(shouldRestoreEnabledStateAfterOAuthCancellation(false, "user")).toBe(
+			true,
+		);
+		expect(
+			shouldRestoreEnabledStateAfterOAuthCancellation(false, "server-disabled"),
+		).toBe(false);
+		expect(shouldRestoreEnabledStateAfterOAuthCancellation(true, "user")).toBe(
+			false,
+		);
 	});
 
 	it("cancels an abandoned flow when its webview connection closes", async () => {

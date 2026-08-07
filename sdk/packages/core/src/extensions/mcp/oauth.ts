@@ -471,11 +471,11 @@ export async function authorizeMcpServerOAuth(
 		);
 	}
 
-	const { resolveMcpServerRegistrations } = await import("./config-loader");
+	const { resolveMcpServerRegistration } = await import("./config-loader");
 	const settingsPath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	const registration = resolveMcpServerRegistrations({
+	const registration = resolveMcpServerRegistration(serverName, {
 		filePath: settingsPath,
-	}).find((entry) => entry.name === serverName);
+	});
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
 	}

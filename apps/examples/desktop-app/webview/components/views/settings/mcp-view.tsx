@@ -81,6 +81,7 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	configurationError?: string;
 	oauthStatus?: {
 		supported: boolean;
 		configured: boolean;
@@ -592,7 +593,8 @@ export function McpServersContent() {
 		const isBusy = busyServerName === server.name;
 		const isAuthorizing = authorizingServerName === server.name;
 		const serverError =
-			serverActionErrors[server.name] ?? server.oauthStatus?.lastError;
+			serverActionErrors[server.name] ??
+			(server.disabled ? undefined : server.oauthStatus?.lastError);
 
 		return (
 			<div
@@ -624,6 +626,19 @@ export function McpServersContent() {
 					{renderServerToggle(server)}
 				</div>
 				<div className="mt-2.5 grid gap-2">
+					{server.configurationError ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Invalid configuration
+							</p>
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{server.configurationError}
+							</p>
+						</div>
+					) : null}
 					{server.oauthStatus?.authorizationRequired ? (
 						<div
 							className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"

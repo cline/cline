@@ -742,7 +742,16 @@ export function resolveMcpServerRegistrations(
 	options: LoadMcpSettingsOptions = {},
 ): McpServerRegistration[] {
 	const config = loadMcpSettingsFile(options);
-	return Object.entries(config.mcpServers).map(([name, value]) => ({
+	return Object.entries(config.mcpServers).map(([name, value]) =>
+		toMcpServerRegistration(name, value),
+	);
+}
+
+function toMcpServerRegistration(
+	name: string,
+	value: Omit<McpServerRegistration, "name">,
+): McpServerRegistration {
+	return {
 		name,
 		transport: resolveNativeMcpTransport(value.transport),
 		disabled: value.disabled,
@@ -750,7 +759,51 @@ export function resolveMcpServerRegistrations(
 		metadata: value.metadata,
 		oauthClient: value.oauthClient,
 		oauth: value.oauth,
-	}));
+	};
+}
+
+/**
+ * Parses one raw MCP settings entry without requiring sibling entries to be
+ * valid. Hosts with an editable settings UI can use this to keep healthy and
+ * repairable entries visible when a hand-edited sibling is malformed.
+ */
+export function parseMcpServerRegistration(
+	name: string,
+	value: unknown,
+): McpServerRegistration {
+	const result = mcpRegistrationBodySchema.safeParse(value);
+	if (!result.success) {
+		const details = result.error.issues
+			.map((issue) => {
+				const path = issue.path.join(".");
+				return path ? `${path}: ${issue.message}` : issue.message;
+			})
+			.join("; ");
+		throw new Error(`Invalid MCP server "${name}": ${details}`);
+	}
+	return toMcpServerRegistration(name, result.data);
+}
+
+/** Resolves one configured server without requiring sibling entries to parse. */
+export function resolveMcpServerRegistration(
+	serverName: string,
+	options: LoadMcpSettingsOptions = {},
+): McpServerRegistration | undefined {
+	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	const settings = readJsonObject(filePath);
+	const serversValue = settings.mcpServers;
+	if (
+		!serversValue ||
+		typeof serversValue !== "object" ||
+		Array.isArray(serversValue)
+	) {
+		return undefined;
+	}
+	const server = getOwnServerRecord(
+		serversValue as Record<string, unknown>,
+		serverName,
+	);
+	return server ? parseMcpServerRegistration(serverName, server) : undefined;
 }
 
 export function setMcpServerDisabled(
@@ -877,34 +930,38 @@ export function listMcpServerOAuthStatuses(
 ): McpServerOAuthStatus[] {
 	const registrations = resolveMcpServerRegistrations(options);
 	return registrations
-		.map((registration) => {
-			const oauthSupported = registration.transport.type !== "stdio";
-			const accessToken = registration.oauth?.tokens?.access_token;
-			const tokenClientInformation = registration.oauth?.clientInformation;
-			const tokensMatchConfiguredClient = registration.oauthClient
-				? tokenClientInformation?.client_id ===
-						registration.oauthClient.clientId &&
-					tokenClientInformation?.client_secret ===
-						registration.oauthClient.clientSecret
-				: true;
-			const oauthConfigured =
-				oauthSupported &&
-				tokensMatchConfiguredClient &&
-				typeof accessToken === "string" &&
-				accessToken.trim().length > 0;
-			return {
-				serverName: registration.name,
-				oauthSupported,
-				oauthConfigured,
-				authorizationRequired:
-					oauthSupported &&
-					!oauthConfigured &&
-					registration.oauth?.authorizationRequired === true,
-				lastError: registration.oauth?.lastError,
-				lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
-			};
-		})
+		.map(getMcpServerOAuthStatus)
 		.sort((left, right) => left.serverName.localeCompare(right.serverName));
+}
+
+/** Calculates OAuth status for one already-parsed registration. */
+export function getMcpServerOAuthStatus(
+	registration: McpServerRegistration,
+): McpServerOAuthStatus {
+	const oauthSupported = registration.transport.type !== "stdio";
+	const accessToken = registration.oauth?.tokens?.access_token;
+	const tokenClientInformation = registration.oauth?.clientInformation;
+	const tokensMatchConfiguredClient = registration.oauthClient
+		? tokenClientInformation?.client_id === registration.oauthClient.clientId &&
+			tokenClientInformation?.client_secret ===
+				registration.oauthClient.clientSecret
+		: true;
+	const oauthConfigured =
+		oauthSupported &&
+		tokensMatchConfiguredClient &&
+		typeof accessToken === "string" &&
+		accessToken.trim().length > 0;
+	return {
+		serverName: registration.name,
+		oauthSupported,
+		oauthConfigured,
+		authorizationRequired:
+			oauthSupported &&
+			!oauthConfigured &&
+			registration.oauth?.authorizationRequired === true,
+		lastError: registration.oauth?.lastError,
+		lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
+	};
 }
 
 export async function registerMcpServersFromSettingsFile(

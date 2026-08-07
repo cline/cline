@@ -1,11 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import {
-	existsSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-} from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
@@ -28,15 +22,15 @@ import {
 	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
-	listMcpServerOAuthStatuses,
 	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	parseMcpServerRegistration,
 	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
-	resolveMcpServerRegistrations,
+	resolveMcpServerRegistration,
 	resolvePluginConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -77,9 +71,15 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
-	cancelMcpOAuthAuthorization,
+	ensureMcpSettingsFile,
+	readMcpServersResponse,
+	shouldProbeMcpServerAfterUpsert,
+} from "./mcp";
+import {
+	cancelMcpOAuthAuthorizationForReason,
 	McpOAuthAuthorizationCancelledError,
 	runCancellableMcpOAuthAuthorization,
+	shouldRestoreEnabledStateAfterOAuthCancellation,
 } from "./mcp-oauth";
 import {
 	cancelProviderOAuthLogin,
@@ -171,125 +171,21 @@ function readProviderSettingsUpdate(
 		: {};
 }
 
-// ---------------------------------------------------------------------------
-// MCP settings helpers
-// ---------------------------------------------------------------------------
-
-function readMcpServersResponse(): JsonRecord {
-	const settingsPath = resolveMcpSettingsPath();
-	if (!existsSync(settingsPath)) {
-		return { settingsPath, hasSettingsFile: false, servers: [] };
-	}
-	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
-	const servers = parsed.mcpServers as JsonRecord | undefined;
-	const registrations = new Map(
-		resolveMcpServerRegistrations({ filePath: settingsPath }).map(
-			(registration) => [registration.name, registration],
-		),
-	);
-	const oauthStatuses = new Map(
-		listMcpServerOAuthStatuses({ filePath: settingsPath }).map((status) => [
-			status.serverName,
-			status,
-		]),
-	);
-	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
-		const record = body as JsonRecord;
-		const transport =
-			record.transport && typeof record.transport === "object"
-				? (record.transport as JsonRecord)
-				: undefined;
-		const rawTransportType =
-			transport?.type ?? record.transportType ?? record.type;
-		const registration = registrations.get(name);
-		const resolvedTransport = registration?.transport;
-		const transportType = String(
-			resolvedTransport?.type ??
-				rawTransportType ??
-				(typeof transport?.url === "string" || typeof record.url === "string"
-					? "sse"
-					: "stdio"),
-		).trim();
-		const oauthStatus = oauthStatuses.get(name);
-		return {
-			name,
-			transportType,
-			disabled: record.disabled === true,
-			command: resolvedTransport
-				? resolvedTransport.type === "stdio"
-					? resolvedTransport.command
-					: undefined
-				: typeof transport?.command === "string"
-					? transport.command
-					: typeof record.command === "string"
-						? record.command
-						: undefined,
-			args: resolvedTransport
-				? resolvedTransport.type === "stdio"
-					? resolvedTransport.args
-					: undefined
-				: Array.isArray(transport?.args)
-					? transport.args
-					: Array.isArray(record.args)
-						? record.args
-						: undefined,
-			cwd: resolvedTransport
-				? resolvedTransport.type === "stdio"
-					? resolvedTransport.cwd
-					: undefined
-				: typeof transport?.cwd === "string"
-					? transport.cwd
-					: typeof record.cwd === "string"
-						? record.cwd
-						: undefined,
-			env: resolvedTransport
-				? resolvedTransport.type === "stdio"
-					? resolvedTransport.env
-					: undefined
-				: transport?.env && typeof transport.env === "object"
-					? transport.env
-					: record.env && typeof record.env === "object"
-						? record.env
-						: undefined,
-			url: resolvedTransport
-				? resolvedTransport.type !== "stdio"
-					? resolvedTransport.url
-					: undefined
-				: typeof transport?.url === "string"
-					? transport.url
-					: typeof record.url === "string"
-						? record.url
-						: undefined,
-			headers: resolvedTransport
-				? resolvedTransport.type !== "stdio"
-					? resolvedTransport.headers
-					: undefined
-				: transport?.headers && typeof transport.headers === "object"
-					? transport.headers
-					: record.headers && typeof record.headers === "object"
-						? record.headers
-						: undefined,
-			metadata: registration?.metadata ?? record.metadata,
-			oauthStatus: oauthStatus
-				? {
-						supported: oauthStatus.oauthSupported,
-						configured: oauthStatus.oauthConfigured,
-						authorizationRequired: oauthStatus.authorizationRequired,
-						lastError: oauthStatus.lastError,
-						lastAuthenticatedAt: oauthStatus.lastAuthenticatedAt,
-					}
-				: undefined,
-		};
-	});
-	return { settingsPath, hasSettingsFile: true, servers: entries };
-}
-
 /**
  * Transport type + URL a server record actually points at, tolerating both
  * the nested `transport` shape and legacy flat fields (mirrors
  * readMcpServersResponse).
  */
-function mcpTransportIdentity(record: JsonRecord): string {
+function mcpTransportIdentity(name: string, record: JsonRecord): string {
+	try {
+		const resolved = parseMcpServerRegistration(name, record).transport;
+		return resolved.type === "stdio"
+			? "stdio\u0000"
+			: `${resolved.type}\u0000${resolved.url}`;
+	} catch {
+		// Preserve a best-effort identity for malformed entries so the editor can
+		// still repair them without requiring the entire settings file to parse.
+	}
 	const transport =
 		record.transport && typeof record.transport === "object"
 			? (record.transport as JsonRecord)
@@ -307,20 +203,6 @@ function mcpTransportIdentity(record: JsonRecord): string {
 	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
 	const normalizedType = type === "http" ? "streamableHttp" : type;
 	return `${normalizedType}\u0000${url}`;
-}
-
-function writeMcpServersMap(servers: JsonRecord): void {
-	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
-		settings.mcpServers = servers;
-	});
-}
-
-function ensureMcpSettingsFile(): string {
-	const path = resolveMcpSettingsPath();
-	if (!existsSync(path)) {
-		writeMcpServersMap({});
-	}
-	return path;
 }
 
 function removePathIfExists(
@@ -1660,6 +1542,13 @@ export async function handleCommand(
 		const name = String(args?.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
 		const settingsPath = resolveMcpSettingsPath();
+		const registration = resolveMcpServerRegistration(name, {
+			filePath: settingsPath,
+		});
+		if (!registration) {
+			throw new Error(`unknown MCP server: ${name}`);
+		}
+		const wasDisabled = registration.disabled === true;
 		setMcpServerDisabled({ filePath: settingsPath, name, disabled: true });
 		try {
 			await runCancellableMcpOAuthAuthorization(
@@ -1674,6 +1563,18 @@ export async function handleCommand(
 			if (!(error instanceof McpOAuthAuthorizationCancelledError)) {
 				throw error;
 			}
+			if (
+				shouldRestoreEnabledStateAfterOAuthCancellation(
+					wasDisabled,
+					error.reason,
+				)
+			) {
+				setMcpServerDisabled({
+					filePath: settingsPath,
+					name,
+					disabled: false,
+				});
+			}
 			return readMcpServersResponse();
 		}
 		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
@@ -1682,7 +1583,7 @@ export async function handleCommand(
 	if (command === "cancel_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
-		cancelMcpOAuthAuthorization(name);
+		cancelMcpOAuthAuthorizationForReason(name, "user");
 		return readMcpServersResponse();
 	}
 	if (command === "set_mcp_server_disabled") {
@@ -1690,13 +1591,11 @@ export async function handleCommand(
 		const disabled = Boolean(args?.disabled);
 		const path = ensureMcpSettingsFile();
 		if (disabled) {
-			cancelMcpOAuthAuthorization(name);
+			cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
 			setMcpServerDisabled({ filePath: path, name, disabled: true });
 			return readMcpServersResponse();
 		}
-		const registration = resolveMcpServerRegistrations({ filePath: path }).find(
-			(entry) => entry.name === name,
-		);
+		const registration = resolveMcpServerRegistration(name, { filePath: path });
 		if (!registration) {
 			throw new Error(`unknown MCP server: ${name}`);
 		}
@@ -1727,8 +1626,7 @@ export async function handleCommand(
 			input.transportType ?? input.transport_type ?? "",
 		).trim();
 		const requestedDisabled = Boolean(input.disabled);
-		const shouldProbeBeforeEnabling =
-			transportType !== "stdio" && !requestedDisabled;
+		const isRemote = transportType !== "stdio";
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -1748,57 +1646,70 @@ export async function handleCommand(
 							url: input.url,
 							headers: input.headers,
 						},
-						disabled: shouldProbeBeforeEnabling || requestedDisabled,
+						disabled: requestedDisabled,
 						metadata: input.metadata,
 					};
 		const path = ensureMcpSettingsFile();
-		const sourceName = previousName || name;
-		const existingRegistration = resolveMcpServerRegistrations({
-			filePath: path,
-		}).find((entry) => entry.name === sourceName);
-		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-				{}) as JsonRecord;
-			// Preserve machine-managed fields the editor dialog doesn't expose:
-			// oauth tokens for remote servers and plugin-ownership metadata.
-			const existingName =
-				previousName && servers[previousName] ? previousName : name;
-			const existing = servers[existingName];
-			const upserted = { ...next };
-			if (existing && typeof existing === "object") {
-				const record = existing as JsonRecord;
-				const existingTransportIdentity = existingRegistration
-					? mcpTransportIdentity({
-							transport:
-								existingRegistration.transport as unknown as JsonRecord,
-						})
-					: mcpTransportIdentity(record);
-				if (upserted.metadata === undefined && record.metadata !== undefined) {
-					upserted.metadata = record.metadata;
+		const { shouldProbeAfterSave } = updateMcpSettingsFileSync(
+			path,
+			(settings) => {
+				const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+					{}) as JsonRecord;
+				// Preserve machine-managed fields the editor dialog doesn't expose:
+				// oauth tokens for remote servers and plugin-ownership metadata.
+				const existingName =
+					previousName && servers[previousName] ? previousName : name;
+				const existing = servers[existingName];
+				let existingTransportIdentity: string | undefined;
+				let existingWasEnabled = false;
+				if (existing && typeof existing === "object") {
+					const record = existing as JsonRecord;
+					existingTransportIdentity = mcpTransportIdentity(
+						existingName,
+						record,
+					);
+					existingWasEnabled = record.disabled !== true;
 				}
-				// OAuth tokens were issued for a specific endpoint; carrying them
-				// onto an edited transport or URL would send the old server's
-				// credentials to a different endpoint.
-				if (
-					record.oauth !== undefined &&
-					existingTransportIdentity === mcpTransportIdentity(upserted)
-				) {
-					upserted.oauth = record.oauth;
+				const nextTransportIdentity = mcpTransportIdentity(name, next);
+				const transportIdentityUnchanged =
+					existingTransportIdentity === nextTransportIdentity;
+				const shouldProbe = shouldProbeMcpServerAfterUpsert({
+					isRemote,
+					requestedDisabled,
+					existingWasEnabled,
+					transportIdentityUnchanged,
+				});
+				const upserted: JsonRecord = {
+					...next,
+					disabled: requestedDisabled || shouldProbe,
+				};
+				if (existing && typeof existing === "object") {
+					const record = existing as JsonRecord;
+					if (
+						upserted.metadata === undefined &&
+						record.metadata !== undefined
+					) {
+						upserted.metadata = record.metadata;
+					}
+					// OAuth tokens were issued for a specific endpoint; carrying them
+					// onto an edited transport or URL would send the old server's
+					// credentials to a different endpoint.
+					if (record.oauth !== undefined && transportIdentityUnchanged) {
+						upserted.oauth = record.oauth;
+					}
+					if (record.oauthClient !== undefined && transportIdentityUnchanged) {
+						upserted.oauthClient = record.oauthClient;
+					}
 				}
-				if (
-					record.oauthClient !== undefined &&
-					existingTransportIdentity === mcpTransportIdentity(upserted)
-				) {
-					upserted.oauthClient = record.oauthClient;
+				if (previousName && previousName !== name) {
+					delete servers[previousName];
 				}
-			}
-			if (previousName && previousName !== name) {
-				delete servers[previousName];
-			}
-			servers[name] = upserted;
-			settings.mcpServers = servers;
-		});
-		if (shouldProbeBeforeEnabling) {
+				servers[name] = upserted;
+				settings.mcpServers = servers;
+				return { shouldProbeAfterSave: shouldProbe };
+			},
+		);
+		if (shouldProbeAfterSave) {
 			const probe = await probeMcpServerConnection({
 				serverName: name,
 				filePath: path,
