@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -316,10 +317,15 @@ function ConnectStep({
 			// account context swallows errors, so an invalid key would
 			// otherwise onboard the user into a broken signed-in state.
 			try {
-				await desktopClient.invoke("cline_account", {
+				const verified = await desktopClient.invoke("cline_account", {
 					action: "clineAccount",
 					operation: "fetchMe",
 				});
+				// A typed not-authenticated result means the sidecar found no
+				// usable credential after the save — the key did not stick.
+				if (isClineAccountNotAuthenticatedResult(verified)) {
+					throw new Error("no Cline account credentials were found");
+				}
 			} catch (verifyError) {
 				// Roll back the persisted key so an unusable credential does
 				// not linger in provider settings.
