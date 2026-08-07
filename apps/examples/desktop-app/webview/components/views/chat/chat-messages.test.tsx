@@ -219,6 +219,131 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
 	});
 
+	it("summarizes spawned teammates and expands their agent IDs", async () => {
+		await renderMessages(
+			["reviewer", "tester", "writer"].map(
+				(agentId, index): ChatMessage => ({
+					id: `spawn-${agentId}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "team_spawn_teammate",
+						input: { agentId, rolePrompt: "Help the team" },
+						result: { agentId, status: "spawned" },
+					}),
+					createdAt: index + 1,
+				}),
+			),
+		);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Spawned 3 teammates"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("reviewer");
+		expect(container.textContent).toContain("tester");
+		expect(container.textContent).toContain("writer");
+	});
+
+	it("summarizes assigned team tasks with mode, agent, and status", async () => {
+		await renderMessages(
+			["reviewer", "tester"].map(
+				(agentId, index): ChatMessage => ({
+					id: `run-${agentId}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "team_run_task",
+						input: { agentId, runMode: "async", task: "Investigate" },
+						result: { agentId, mode: "async", status: "queued" },
+					}),
+					createdAt: index + 1,
+				}),
+			),
+		);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Assigned 2 team tasks"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("async reviewer queued");
+		expect(container.textContent).toContain("async tester queued");
+	});
+
+	it("summarizes awaited teammate reports with their statuses", async () => {
+		await renderMessages([
+			{
+				id: "await-runs",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_await_runs",
+					input: {},
+					result: [
+						{ id: "run-1", agentId: "reviewer", status: "completed" },
+						{ id: "run-2", agentId: "tester", status: "failed" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Waited for teammates"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("reviewer completed");
+		expect(container.textContent).toContain("tester failed");
+	});
+
+	it("counts every returned task in team task list summaries", async () => {
+		await renderMessages([
+			{
+				id: "list-team-tasks",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_task",
+					input: { action: "list" },
+					result: {
+						action: "list",
+						tasks: [
+							{ id: "task-1", title: "Review", status: "pending" },
+							{ id: "task-2", title: "Test", status: "in_progress" },
+							{ id: "task-3", title: "Document", status: "completed" },
+						],
+					},
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Listed 3 team tasks");
+	});
+
+	it("uses failure-oriented labels for failed team tools", async () => {
+		await renderMessages([
+			{
+				id: "failed-spawn",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_spawn_teammate",
+					input: { agentId: "reviewer", rolePrompt: "Review" },
+					result: { error: "already exists" },
+					isError: true,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Failed to spawn teammate");
+		expect(container.textContent).not.toContain("Spawned 1 teammate");
+	});
+
 	it("preserves interleaved tool activity order", async () => {
 		const read = (
 			id: string,
@@ -894,39 +1019,41 @@ describe("ChatMessages reasoning disclosure", () => {
 		const railClasses = (element: Element | null) =>
 			[...(element?.classList ?? [])]
 				.filter((name) =>
-					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max)-/.test(name),
+					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max-w)-/.test(name),
 				)
 				.sort();
 		expect(railClasses(reasoningContent).length).toBeGreaterThan(0);
 		expect(railClasses(toolContent)).toEqual(railClasses(reasoningContent));
 
-		// Both panels are capped on both axes so neither can stretch the column.
+		// Reasoning remains capped; tool output grows into the conversation scroller.
+		expect(
+			[...(reasoningContent?.classList ?? [])].some((name) =>
+				name.startsWith("max-h-"),
+			),
+		).toBe(true);
+		expect(
+			[...(toolContent?.classList ?? [])].some((name) =>
+				name.startsWith("max-h-"),
+			),
+		).toBe(false);
 		for (const panel of [reasoningContent, toolContent]) {
-			const classes = [...(panel?.classList ?? [])];
-			expect(classes.some((name) => name.startsWith("max-h-"))).toBe(true);
-			expect(classes.some((name) => name.startsWith("max-w-"))).toBe(true);
+			expect(
+				[...(panel?.classList ?? [])].some((name) => name.startsWith("max-w-")),
+			).toBe(true);
 		}
 
-		// Reasoning wraps, so it scrolls Y only; tool output scrolls both axes.
+		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
 		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
 		expect(reasoningContent?.classList.contains("overflow-x-hidden")).toBe(
 			true,
 		);
 		expect(reasoningContent?.classList.contains("overflow-auto")).toBe(false);
-		expect(toolContent?.classList.contains("overflow-auto")).toBe(true);
-		expect(toolContent?.classList.contains("overflow-x-hidden")).toBe(false);
+		expect(toolContent?.classList.contains("overflow-auto")).toBe(false);
 
-		// The X axis is only reachable if the detail rows keep their lines intact.
+		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.
 		const details = toolContent?.querySelector(".cline-chat-tool-details");
-		expect(details?.classList.contains("whitespace-pre")).toBe(true);
-
-		// The X axis stays live but loses its bar; reasoning has no X bar to hide.
-		expect(toolContent?.classList.contains("cline-chat-scroll-x-bare")).toBe(
-			true,
-		);
-		expect(
-			reasoningContent?.classList.contains("cline-chat-scroll-x-bare"),
-		).toBe(false);
+		expect(details?.classList.contains("whitespace-pre")).toBe(false);
+		expect(details?.classList.contains("whitespace-pre-wrap")).toBe(true);
 	});
 
 	it("keeps the reasoning panel inside the shape the hover-suppress rule targets", async () => {

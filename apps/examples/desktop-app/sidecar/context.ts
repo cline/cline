@@ -418,6 +418,18 @@ function handleCoreSessionEvent(
 				attachmentCount: attachmentCount ?? 0,
 				userImages,
 			});
+			// The prompt left the queue; without a fresh snapshot the webview
+			// keeps a stale busy queue and the composer never returns to idle
+			// after the turn completes.
+			if (session) {
+				const remaining = session.promptsInQueue.filter(
+					(item) => item.id !== id,
+				);
+				if (remaining.length !== session.promptsInQueue.length) {
+					session.promptsInQueue = remaining;
+					sendPromptsInQueueSnapshot(ctx, sessionId);
+				}
+			}
 			break;
 		}
 		case "ended": {
