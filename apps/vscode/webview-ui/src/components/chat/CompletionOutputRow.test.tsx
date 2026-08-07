@@ -21,10 +21,10 @@ describe("CompletionOutputRow", () => {
 		Object.assign(navigator, { clipboard: { writeText } })
 	})
 
-	it("shows a small Response header with a copy button", () => {
+	it("shows a small Completed header with a copy button", () => {
 		render(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
 
-		expect(screen.getByText("Response")).toBeInTheDocument()
+		expect(screen.getByText("Completed")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Copy response" })).toBeInTheDocument()
 	})
 
@@ -45,10 +45,10 @@ describe("PlanCompletionOutputRow", () => {
 		Object.assign(navigator, { clipboard: { writeText } })
 	})
 
-	it("shows a small Plan Response header with a copy button", () => {
+	it("shows a small Plan header with a copy button", () => {
 		render(<PlanCompletionOutputRow text="Here is the plan" />)
 
-		expect(screen.getByText("Plan Response")).toBeInTheDocument()
+		expect(screen.getByText("Plan")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Copy plan response" })).toBeInTheDocument()
 	})
 

@@ -12,16 +12,16 @@ interface CompletionOutputRowProps {
 
 /**
  * Quiet visual cue that the agent's turn ended on this response (act mode):
- * a green-tinted container with a small, muted "Response" label and a copy
- * button. The response might be a question or an interim summary rather than
- * a definitive task completion, so the header deliberately makes no
- * "Task Completed" claim.
+ * a green-tinted container with a small, muted "Completed" label and a copy
+ * button. Deliberately less prominent than the legacy bold "Task Completed"
+ * header, since the response might be a question or an interim summary
+ * rather than a definitive task completion.
  */
 export const CompletionOutputRow = memo(({ text, quoteButtonState, handleQuoteClick }: CompletionOutputRowProps) => {
 	return (
 		<div className="rounded-sm border border-success/20 overflow-visible bg-success/10">
 			<div className="flex items-center justify-between gap-2 pl-2 pr-1 pt-1 -mb-1.5">
-				<span className="text-xs font-medium uppercase tracking-wider text-success/70">Response</span>
+				<span className="text-xs font-medium uppercase tracking-wider text-success/70">Completed</span>
 				<CopyButton ariaLabel="Copy response" className="text-success/70" textToCopy={text} />
 			</div>
 			<div className="completion-output-content relative p-2 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm">
