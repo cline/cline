@@ -28,6 +28,7 @@ import { Conversation, Message } from "@cline/ui/components/agent-chat";
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/palette.css",
 	"@cline/ui/theme/scoped-tokens.css",
 ]) {
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {

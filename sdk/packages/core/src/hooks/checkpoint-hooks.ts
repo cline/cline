@@ -321,8 +321,12 @@ export function createCheckpointHooks(
 	let rootRunMessageStart: number | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
-		if (repoSupported !== undefined) {
-			return repoSupported;
+		// Only cache the positive answer: a cwd that is not a git repo can
+		// become one mid-session (the user runs `git init`), and this probe
+		// fires at most once per user turn, so re-checking is cheap. Once the
+		// repo is detected, checkpoints start applying from that turn onward.
+		if (repoSupported === true) {
+			return true;
 		}
 		try {
 			const result = await runGit(options.cwd, [
