@@ -2,6 +2,7 @@
 @import "@fontsource/azeret-mono/latin.css";
 @import "tailwindcss";
 @import "../theme/index.css";
+@import "../components.css";
 @import "../components/agent-chat/agent-chat.css";
 
 @source "../components";
