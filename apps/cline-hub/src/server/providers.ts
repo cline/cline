@@ -9,6 +9,7 @@ import {
 	normalizeOAuthProvider,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import { supportsChatModalities } from "@cline/shared";
 import type {
 	WebviewInboundMessage,
 	WebviewProviderModel,
@@ -86,12 +87,21 @@ export async function loadModels(
 		provider,
 		providerSettingsManager.getProviderConfig(provider),
 	);
-	const models: WebviewProviderModel[] = payload.models.map((model) => ({
-		id: model.id,
-		name: model.name,
-		supportsReasoning: model.supportsReasoning,
-		supportsThinking: model.supportsReasoning,
-	}));
+	const models: WebviewProviderModel[] = payload.models
+		.filter((model) =>
+			supportsChatModalities({
+				input: model.inputModalities,
+				output: model.outputModalities,
+			}),
+		)
+		.map((model) => ({
+			id: model.id,
+			name: model.name,
+			supportsReasoning: model.supportsReasoning,
+			supportsThinking: model.supportsReasoning,
+			inputModalities: model.inputModalities,
+			outputModalities: model.outputModalities,
+		}));
 	ctx.send(peer, { type: "models", providerId: provider, models });
 }
 

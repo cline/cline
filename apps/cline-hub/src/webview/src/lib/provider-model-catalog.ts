@@ -1,5 +1,6 @@
 "use client";
 
+import { supportsChatModalities } from "@cline/shared";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -16,12 +17,26 @@ export type ProviderModelCatalog = {
 };
 
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).map((model) => model.id);
+	return (models ?? [])
+		.filter((model) =>
+			supportsChatModalities({
+				input: model.inputModalities,
+				output: model.outputModalities,
+			}),
+		)
+		.map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? [])
-		.filter((model) => model.supportsReasoning)
+		.filter(
+			(model) =>
+				model.supportsReasoning &&
+				supportsChatModalities({
+					input: model.inputModalities,
+					output: model.outputModalities,
+				}),
+		)
 		.map((model) => model.id);
 }
 
@@ -31,7 +46,10 @@ export function buildProviderModelCatalog(
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [
