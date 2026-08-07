@@ -40,6 +40,7 @@ import {
 	createContributionRegistry,
 	type ITelemetryService,
 	isDedicatedImageGenerationModel,
+	isDedicatedVideoGenerationModel,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -847,11 +848,11 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const dedicatedImageGeneration = isDedicatedImageGenerationModel(
-			modelInfo ?? {},
-		);
+		const dedicatedMediaGeneration =
+			isDedicatedImageGenerationModel(modelInfo ?? {}) ||
+			isDedicatedVideoGenerationModel(modelInfo ?? {});
 		const toolCallingDisabled =
-			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+			dedicatedMediaGeneration || !modelSupportsToolCalling(modelInfo ?? {});
 		const tools = toolCallingDisabled
 			? []
 			: Array.from(mergedToolsByName.values());

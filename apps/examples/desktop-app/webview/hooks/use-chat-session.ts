@@ -34,6 +34,7 @@ import type {
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
+	ChatMessageVideoSchema,
 	type ChatSessionConfig,
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
@@ -68,6 +69,7 @@ const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
 	"chat_image",
+	"chat_video",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -1140,6 +1142,52 @@ export function useChatSession() {
 						};
 					}),
 				);
+				return;
+			}
+
+			if (payload.stream === "chat_video") {
+				let parsed: { mediaType?: string; artifactName?: string };
+				try {
+					parsed = JSON.parse(payload.chunk) as typeof parsed;
+				} catch {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				const video = ChatMessageVideoSchema.safeParse({
+					id: `${assistantId}_video_${parsed.artifactName ?? "artifact"}`,
+					mediaType: parsed.mediaType,
+					artifactName: parsed.artifactName,
+				});
+				if (!video.success) return;
+
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((prev) => {
+					const updated = updateMessageById(prev, assistantId, (message) => {
+						const videos = message.videos ?? [];
+						if (
+							videos.some(
+								(existing) => existing.artifactName === video.data.artifactName,
+							)
+						) {
+							return message;
+						}
+						return { ...message, videos: [...videos, video.data] };
+					});
+					if (updated !== prev) return updated;
+					return sliceMessages([
+						...prev,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							videos: [video.data],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
 				return;
 			}
 

@@ -1086,6 +1086,30 @@ export class AgentRuntime {
 					});
 					break;
 				}
+				case "video": {
+					const stored = this.config.storeGeneratedArtifact
+						? await this.config.storeGeneratedArtifact({
+								kind: "video",
+								data: event.data,
+								mediaType: event.mediaType,
+							})
+						: undefined;
+					sequence.push({
+						type: "part",
+						part: stored
+							? {
+									type: "video",
+									path: stored.path,
+									mediaType: event.mediaType,
+								}
+							: {
+									type: "video",
+									data: event.data,
+									mediaType: event.mediaType,
+								},
+					});
+					break;
+				}
 				case "reasoning-delta": {
 					accumulatedReasoning += event.text;
 					const last = sequence.at(-1);

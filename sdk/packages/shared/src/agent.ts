@@ -40,6 +40,15 @@ export interface AgentImagePart {
 	mediaType?: string;
 }
 
+export interface AgentVideoPart {
+	type: "video";
+	mediaType: string;
+	/** Base64 bytes for stateless runtimes; persistent hosts replace this with path. */
+	data?: string;
+	/** Absolute path to a host-persisted generated-video artifact. */
+	path?: string;
+}
+
 export interface AgentFilePart {
 	type: "file";
 	path: string;
@@ -66,6 +75,7 @@ export type AgentMessagePart =
 	| AgentTextPart
 	| AgentReasoningPart
 	| AgentImagePart
+	| AgentVideoPart
 	| AgentFilePart
 	| AgentToolCallPart
 	| AgentToolResultPart;
@@ -248,6 +258,7 @@ export type ProviderErrorClass = "context_window_exceeded" | "unknown";
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
 	| { type: "image"; data: string; mediaType: string }
+	| { type: "video"; data: string; mediaType: string }
 	| {
 			type: "reasoning-delta";
 			text: string;
@@ -476,6 +487,11 @@ export interface AgentRuntimeConfig {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	storeGeneratedArtifact?: (artifact: {
+		kind: "video";
+		data: string;
+		mediaType: string;
+	}) => Promise<{ path: string }>;
 	/**
 	 * Optional host-owned request projection hook invoked before each model call.
 	 *

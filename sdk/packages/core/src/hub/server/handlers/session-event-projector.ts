@@ -235,6 +235,17 @@ async function projectAgentEvent(
 					);
 				}
 				break;
+			case "video":
+				if (agentEvent.video) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.video",
+							{ video: agentEvent.video },
+							sessionId,
+						),
+					);
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

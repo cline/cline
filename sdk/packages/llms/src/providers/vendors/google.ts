@@ -20,5 +20,6 @@ export async function createGoogleProviderModule(
 	return {
 		model: (modelId) => provider(modelId),
 		imageModel: (modelId) => provider.image(modelId),
+		videoModel: (modelId) => provider.video(modelId),
 	};
 }

@@ -258,7 +258,7 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (!output.includes("image")) {
+	if (!output.includes("image") && !output.includes("video")) {
 		return undefined;
 	}
 	return { input, output };
@@ -267,7 +267,8 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("text") === true &&
-		model.modalities.output?.includes("image") === true
+		(model.modalities.output?.includes("image") === true ||
+			model.modalities.output?.includes("video") === true)
 	);
 }
 

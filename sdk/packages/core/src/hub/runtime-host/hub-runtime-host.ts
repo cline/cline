@@ -1742,6 +1742,35 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.video": {
+				const video =
+					event.payload?.video &&
+					typeof event.payload.video === "object" &&
+					!Array.isArray(event.payload.video)
+						? (event.payload.video as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof video?.path !== "string" ||
+					typeof video.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "video",
+							video: {
+								path: video.path,
+								mediaType: video.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",
