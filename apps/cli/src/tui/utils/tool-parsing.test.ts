@@ -48,6 +48,20 @@ describe("extractFullOutputText", () => {
 		expect(extractFullOutputText(raw)).toBe("# Memory\n\nline one\nline two");
 	});
 
+	it("keeps placeholders for non-text blocks in mixed MCP content", () => {
+		const raw = {
+			content: [
+				{ type: "text", text: "before" },
+				{ type: "image", data: "...", mimeType: "image/png" },
+				{ type: "resource", resource: { uri: "file:///a.md" } },
+				{ type: "text", text: "after" },
+			],
+		};
+		expect(extractFullOutputText(raw)).toBe(
+			"before\n[image]\n[resource]\nafter",
+		);
+	});
+
 	it("falls back to pretty JSON for objects without text content", () => {
 		const raw = { structuredContent: { ok: true } };
 		expect(extractFullOutputText(raw)).toBe(JSON.stringify(raw, null, 2));
