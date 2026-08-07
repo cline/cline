@@ -1,4 +1,7 @@
-import { estimateRequestInputTokens } from "@cline/shared";
+import {
+	estimateRequestInputTokens,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
@@ -10,6 +13,7 @@ import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
+import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -21,18 +25,16 @@ import type {
 import type { ProviderConfig } from "../../types/provider-settings";
 import { runAgenticCompaction } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
+import { buildBudgetProjection } from "./budget-projection";
 import {
 	COMPACTION_TRIGGER_RATIO,
 	createTokenEstimator,
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
+	isTurnStartMessage,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
-import {
-	OVERFLOW_RECOVERY_WINDOW_RATIO,
-	runOverflowTruncation,
-} from "./overflow-truncation";
 
 export interface ContextPipelinePrepareTurnInput {
 	agentId: string;
@@ -241,6 +243,102 @@ function countUserAssistantPairs(
 		}
 	}
 	return pairs;
+}
+
+/**
+ * Overflow recovery aims this far below the input limit. Recovery only runs
+ * after the provider proved the request did not fit — i.e. the token
+ * estimate undercounted (token-dense scripts like CJK can be ~3-4x under) —
+ * so only a deep margin makes the run's single retry trustworthy.
+ */
+const OVERFLOW_RECOVERY_WINDOW_RATIO = 0.2;
+
+/**
+ * Starting the kept tail here cannot orphan half of a tool_use/tool_result
+ * pair: an assistant's tool_use keeps its results in the user message that
+ * follows it, and typed user turns carry no pairs (same rule as
+ * compaction-shared's findCutIndex).
+ */
+function isSafeKeepBoundary(message: MessageWithMetadata): boolean {
+	return message.role === "assistant" || isTurnStartMessage(message);
+}
+
+/**
+ * Deterministic overflow recovery: the provider rejected the request as
+ * exceeding the context window, so keep only the newest messages that fit
+ * the recovery budget and replace everything older with a short notice. No
+ * summarizer call, and no trust in the (already disproven) estimate: at
+ * least one message is always dropped. When even the newest messages exceed
+ * the budget — a single massive tool output can outweigh the whole window —
+ * the kept tail runs through the budget projection, which truncates
+ * oversized text while keeping tool pairs and the live typed prompt intact.
+ */
+export function runOverflowTruncation(options: {
+	context: CoreCompactionContext;
+	estimateMessageTokens: EstimateMessageTokens;
+}): CoreCompactionResult | undefined {
+	const messages = options.context.messages;
+	const estimate = options.estimateMessageTokens;
+	const targetTokens = Math.max(
+		1,
+		options.context.budget.messages.targetTokens,
+	);
+	const buildNotice = (
+		dropped: MessageWithMetadata[],
+	): MessageWithMetadata => ({
+		role: "user",
+		content: [
+			{
+				type: "text",
+				text: `<SYSTEM_NOTICE>\nThe conversation exceeded the model's context window (this often happens when a tool call returns a very large output), so the oldest ${dropped.length} message(s) were removed and oversized content may have been truncated to make room. If you need those earlier details, re-read the relevant files or re-run the commands.\n</SYSTEM_NOTICE>`,
+			},
+		],
+		metadata: {
+			kind: "overflow_truncation",
+			displayRole: "system",
+			// The notice stands in for the dropped user turns so checkpoint
+			// run counting stays aligned.
+			userRunSpan: countUserRunMessages(dropped),
+		},
+	});
+	// Keep the newest messages that fit the budget alongside the notice.
+	// Index 0 is never kept: the provider rejected this transcript, so at
+	// least one message must go.
+	let cut = messages.length;
+	for (
+		let kept = estimate(buildNotice(messages)), index = messages.length - 1;
+		index >= 1;
+		index -= 1
+	) {
+		kept += estimate(messages[index]);
+		if (kept > targetTokens) {
+			break;
+		}
+		cut = index;
+	}
+	while (cut < messages.length && !isSafeKeepBoundary(messages[cut])) {
+		cut += 1;
+	}
+	if (cut >= messages.length) {
+		// Nothing fits — the newest message itself is over budget. Keep the
+		// tail from the last safe boundary; the projection below shrinks it.
+		cut = messages.length - 1;
+		while (cut >= 1 && !isSafeKeepBoundary(messages[cut])) {
+			cut -= 1;
+		}
+	}
+	if (cut < 1) {
+		// A lone message cannot be dropped without erasing the request.
+		return undefined;
+	}
+	return {
+		messages: buildBudgetProjection({
+			messages: [buildNotice(messages.slice(0, cut)), ...messages.slice(cut)],
+			targetTokens,
+			policyIntent: "basic_compaction_projection",
+			estimateMessageTokens: estimate,
+		}).messages,
+	};
 }
 
 /**
@@ -520,7 +618,6 @@ export function createContextCompactionPrepareTurn(
 				result = runOverflowTruncation({
 					context: compactionContext,
 					estimateMessageTokens,
-					logger: config.logger,
 				});
 			}
 		} else if (userCompaction?.compact) {

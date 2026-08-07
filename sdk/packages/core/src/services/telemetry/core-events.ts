@@ -749,7 +749,7 @@ export function captureHookDiscovery(
  * - `custom`  — user-supplied `compaction.compact()` callback on
  *   `CoreSessionConfig`.
  * - `truncation` — deterministic drop-oldest overflow recovery
- *   (see `extensions/context/overflow-truncation.ts`).
+ *   (`runOverflowTruncation` in `extensions/context/compaction.ts`).
  */
 export type TelemetryCompactionStrategy =
 	| "basic"
