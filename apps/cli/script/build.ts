@@ -76,6 +76,8 @@ const optionsError = validateBuildOptions({
 	options: buildOptions,
 	opentuiVersion,
 	targetCount: targets.length,
+	buildsDarwin: targets.some((item) => item.os === "darwin"),
+	platform: process.platform,
 });
 if (optionsError) {
 	console.error(optionsError);
@@ -222,6 +224,19 @@ async function buildCompiledBinary(input: {
 	await $`rm -rf ${tmpDir}`;
 }
 
+async function signDarwinBinary(outfile: string): Promise<void> {
+	if (process.platform !== "darwin") {
+		console.warn(
+			`  Warning: not codesigning ${outfile} on ${process.platform}. This binary will not launch on macOS.`,
+		);
+		return;
+	}
+
+	console.log(`  Codesigning: ${outfile}`);
+	await $`codesign --force --sign - ${outfile}`;
+	await $`codesign --verify --verbose=2 ${outfile}`;
+}
+
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
@@ -237,6 +252,9 @@ for (const item of targets) {
 	const outfile = join(outDir, binaryName);
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
+	if (item.os === "darwin") {
+		await signDarwinBinary(outfile);
+	}
 
 	// Smoke test: only run on current platform
 	if (item.os === process.platform && item.arch === process.arch) {
