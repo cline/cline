@@ -275,8 +275,6 @@ function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
 const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
-/** Keeps a scroller's X axis live while hiding its horizontal bar (globals.css). */
-const SCROLL_X_BARE_CLASS = "cline-chat-scroll-x-bare";
 
 /**
  * Expanded reasoning and tool panels hang off a shared left rail: the border
@@ -285,12 +283,11 @@ const SCROLL_X_BARE_CLASS = "cline-chat-scroll-x-bare";
  * use this verbatim, and it overrides the panel chrome (border box, radius,
  * background, inset) that `agent-chat.css` gives each of them by default.
  *
- * Both panels are capped on both axes so a long thought or a wide command list
- * can never stretch the conversation column; each panel then picks which axes
- * scroll (reasoning wraps and scrolls Y only, tools scroll both).
+ * Reasoning stays capped and scrollable, while tool output grows into the
+ * conversation scroller and wraps to avoid a nested scrolling region.
  */
 const EXPANDED_PANEL_RAIL_CLASS =
-	"ml-1 mt-0 max-h-48 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
+	"ml-1 mt-0 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
 
 function ChatMessagesImpl({
 	sessionId,
@@ -1326,7 +1323,7 @@ function ReasoningBlock({
 					// Prose reflows, so the X axis is pinned shut: `overflow-y-auto`
 					// alone would compute overflow-x to `auto` and let a long
 					// unbreakable token add a horizontal scrollbar.
-					"overflow-x-hidden overflow-y-auto",
+					"max-h-48 overflow-x-hidden overflow-y-auto",
 					"text-sm leading-relaxed text-muted-foreground",
 				)}
 			>
@@ -1966,21 +1963,9 @@ const ToolMessageBlock = memo(
 					showDisclosureIcon={false}
 					status={hasError ? "error" : isRunning ? "running" : "success"}
 				/>
-				{/* `overflow-auto` (not just `-y`) overrides the `overflow-x: hidden`
-				    that agent-chat.css pins on this panel; the bare-scrollbar class
-				    then hides the horizontal bar without disabling the axis. */}
-				<ToolActivityContent
-					className={cn(
-						EXPANDED_PANEL_RAIL_CLASS,
-						"overflow-auto",
-						SCROLL_X_BARE_CLASS,
-					)}
-				>
+				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
 					{details.length > 0 ? (
-						// Commands and paths stay on one line and scroll with the panel;
-						// the stylesheet's `overflow-wrap: anywhere` would otherwise break
-						// them mid-token and leave the X axis unreachable.
-						<ToolActivityDetails className="w-max whitespace-pre">
+						<ToolActivityDetails className="whitespace-pre-wrap">
 							{details.map(({ detail, key }) => (
 								<div key={key}>{detail}</div>
 							))}
@@ -1993,16 +1978,14 @@ const ToolMessageBlock = memo(
 									? `${preview.toolName} input`
 									: "Input"}
 							</div>
-							{/* Drop the stylesheet's own 13rem scroller so the panel above
-							    is the single scroll container on both axes. */}
-							<ToolActivityCode className="max-h-none overflow-visible text-sm">
+							<ToolActivityCode className="text-sm">
 								{preview.value}
 							</ToolActivityCode>
 						</div>
 					))}
 					{resultPreviews.map((preview) => (
 						<div
-							className="mt-1 text-destructive"
+							className="mt-1 break-words text-destructive"
 							key={`result_${preview.key}`}
 						>
 							{presentations.length > 1 ? `${preview.toolName}: ` : null}

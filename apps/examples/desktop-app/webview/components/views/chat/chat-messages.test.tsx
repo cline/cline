@@ -894,39 +894,41 @@ describe("ChatMessages reasoning disclosure", () => {
 		const railClasses = (element: Element | null) =>
 			[...(element?.classList ?? [])]
 				.filter((name) =>
-					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max)-/.test(name),
+					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max-w)-/.test(name),
 				)
 				.sort();
 		expect(railClasses(reasoningContent).length).toBeGreaterThan(0);
 		expect(railClasses(toolContent)).toEqual(railClasses(reasoningContent));
 
-		// Both panels are capped on both axes so neither can stretch the column.
+		// Reasoning remains capped; tool output grows into the conversation scroller.
+		expect(
+			[...(reasoningContent?.classList ?? [])].some((name) =>
+				name.startsWith("max-h-"),
+			),
+		).toBe(true);
+		expect(
+			[...(toolContent?.classList ?? [])].some((name) =>
+				name.startsWith("max-h-"),
+			),
+		).toBe(false);
 		for (const panel of [reasoningContent, toolContent]) {
-			const classes = [...(panel?.classList ?? [])];
-			expect(classes.some((name) => name.startsWith("max-h-"))).toBe(true);
-			expect(classes.some((name) => name.startsWith("max-w-"))).toBe(true);
+			expect(
+				[...(panel?.classList ?? [])].some((name) => name.startsWith("max-w-")),
+			).toBe(true);
 		}
 
-		// Reasoning wraps, so it scrolls Y only; tool output scrolls both axes.
+		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
 		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
 		expect(reasoningContent?.classList.contains("overflow-x-hidden")).toBe(
 			true,
 		);
 		expect(reasoningContent?.classList.contains("overflow-auto")).toBe(false);
-		expect(toolContent?.classList.contains("overflow-auto")).toBe(true);
-		expect(toolContent?.classList.contains("overflow-x-hidden")).toBe(false);
+		expect(toolContent?.classList.contains("overflow-auto")).toBe(false);
 
-		// The X axis is only reachable if the detail rows keep their lines intact.
+		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.
 		const details = toolContent?.querySelector(".cline-chat-tool-details");
-		expect(details?.classList.contains("whitespace-pre")).toBe(true);
-
-		// The X axis stays live but loses its bar; reasoning has no X bar to hide.
-		expect(toolContent?.classList.contains("cline-chat-scroll-x-bare")).toBe(
-			true,
-		);
-		expect(
-			reasoningContent?.classList.contains("cline-chat-scroll-x-bare"),
-		).toBe(false);
+		expect(details?.classList.contains("whitespace-pre")).toBe(false);
+		expect(details?.classList.contains("whitespace-pre-wrap")).toBe(true);
 	});
 
 	it("keeps the reasoning panel inside the shape the hover-suppress rule targets", async () => {
