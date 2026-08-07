@@ -58,9 +58,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	text: string;
 	reasoning: string;
 	reasoningRedacted: boolean;
+	images: Array<{ data: string; mediaType: string }>;
 } {
 	if (!Array.isArray(messages)) {
-		return { text: "", reasoning: "", reasoningRedacted: false };
+		return { text: "", reasoning: "", reasoningRedacted: false, images: [] };
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
@@ -68,6 +69,7 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			continue;
 		}
 		const reasoningParts: string[] = [];
+		const images: Array<{ data: string; mediaType: string }> = [];
 		let reasoningRedacted = false;
 		if (Array.isArray(message.content)) {
 			for (const block of message.content) {
@@ -85,6 +87,14 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 				}
 				if (obj.type === "redacted_thinking") {
 					reasoningRedacted = true;
+					continue;
+				}
+				if (
+					obj.type === "image" &&
+					typeof obj.data === "string" &&
+					typeof obj.mediaType === "string"
+				) {
+					images.push({ data: obj.data, mediaType: obj.mediaType });
 				}
 			}
 		}
@@ -92,9 +102,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			text: stringifyRpcMessageContent(message.content).trim(),
 			reasoning: reasoningParts.join("\n").trim(),
 			reasoningRedacted,
+			images,
 		};
 	}
-	return { text: "", reasoning: "", reasoningRedacted: false };
+	return { text: "", reasoning: "", reasoningRedacted: false, images: [] };
 }
 
 export function buildToolPayloadString(options: {

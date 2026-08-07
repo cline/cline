@@ -14,11 +14,15 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	isDedicatedImageGenerationModel,
+	isImageGenerationModel,
 	parseJsonStream,
 	sanitizeSurrogates,
+	validateImageMedia,
 } from "@cline/shared";
 import {
 	type CallSettings,
+	generateImage,
 	jsonSchema,
 	NoSuchToolError,
 	streamText,
@@ -69,6 +73,140 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+const OPENAI_IMAGE_GENERATION_TOOL_NAME = "image_generation";
+
+type ImageGenerationInput = string | Uint8Array | ArrayBuffer;
+type ImageGenerationPrompt =
+	| string
+	| {
+			images: ImageGenerationInput[];
+			text?: string;
+	  };
+
+function normalizeImageGenerationInput(
+	part: Extract<AgentMessage["content"][number], { type: "image" }>,
+): ImageGenerationInput {
+	if (part.image instanceof URL) {
+		return part.image.href;
+	}
+	if (typeof part.image !== "string") {
+		return part.image;
+	}
+	if (part.image.startsWith("http://") || part.image.startsWith("https://")) {
+		return part.image;
+	}
+	const validation = validateImageMedia(part.mediaType, part.image);
+	if (!validation.ok) {
+		throw new Error(validation.message);
+	}
+	return `data:${validation.mediaType};base64,${validation.base64}`;
+}
+
+function resolveImageGenerationPrompt(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): ImageGenerationPrompt {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (!text) continue;
+		if (context.model.modalities?.input.includes("image") !== true) {
+			return text;
+		}
+
+		const explicitImages = message.content
+			.filter((part) => part.type === "image")
+			.map(normalizeImageGenerationInput);
+		if (explicitImages.length > 0) {
+			return { text, images: explicitImages };
+		}
+
+		// Only infer an edit from the immediately preceding assistant turn. Looking
+		// farther back can silently turn a new generation request into an edit of a
+		// stale image from an unrelated part of the conversation.
+		const previousMessage = request.messages[index - 1];
+		if (previousMessage?.role === "assistant") {
+			const firstGeneratedImage = previousMessage.content.find(
+				(part) => part.type === "image",
+			);
+			if (firstGeneratedImage) {
+				return {
+					text,
+					images: [normalizeImageGenerationInput(firstGeneratedImage)],
+				};
+			}
+		}
+		return text;
+	}
+	throw new Error("Image generation requires a text prompt");
+}
+
+function extractGeneratedImage(
+	file: unknown,
+): { data: string; mediaType: string } | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith("image/") ||
+		typeof record.base64 !== "string"
+	) {
+		return undefined;
+	}
+	const validation = validateImageMedia(record.mediaType, record.base64);
+	if (!validation.ok) {
+		throw new Error(validation.message);
+	}
+	return {
+		data: validation.base64,
+		mediaType: validation.mediaType,
+	};
+}
+
+function hasOpenAiImageGenerationToolName(part: AiSdkStreamPart): boolean {
+	return (
+		part.toolName === OPENAI_IMAGE_GENERATION_TOOL_NAME ||
+		part.name === OPENAI_IMAGE_GENERATION_TOOL_NAME
+	);
+}
+
+function extractOpenAiImageGenerationToolResult(
+	part: AiSdkStreamPart,
+): { data: string; mediaType: string } | undefined {
+	if (part.type !== "tool-result") {
+		return undefined;
+	}
+	const output =
+		part.output &&
+		typeof part.output === "object" &&
+		!Array.isArray(part.output)
+			? (part.output as Record<string, unknown>)
+			: part.result &&
+					typeof part.result === "object" &&
+					!Array.isArray(part.result)
+				? (part.result as Record<string, unknown>)
+				: undefined;
+	if (typeof output?.result !== "string" || output.result.length === 0) {
+		throw new Error(
+			"OpenAI image generation tool returned no supported image output",
+		);
+	}
+	const image = extractGeneratedImage({
+		base64: output.result,
+		mediaType: "image/png",
+	});
+	if (!image) {
+		throw new Error(
+			"OpenAI image generation tool returned no supported image output",
+		);
+	}
+	return image;
+}
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
@@ -433,6 +571,23 @@ function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 		};
 	}
 	return tools;
+}
+
+function mergeAiSdkTools(
+	runtimeTools: ToolSet | undefined,
+	providerTools: ToolSet | undefined,
+): ToolSet | undefined {
+	// Runtime tools carry the caller's executor contract, so they retain
+	// ownership when a provider happens to register the same public name.
+	const tools = {
+		...(providerTools ?? {}),
+		...(runtimeTools ?? {}),
+	};
+	return Object.keys(tools).length > 0 ? tools : undefined;
+}
+
+function hasAiSdkTool(tools: ToolSet | undefined, toolName: string): boolean {
+	return tools !== undefined && Object.hasOwn(tools, toolName);
 }
 
 interface RepairableToolCall {
@@ -963,6 +1118,7 @@ async function* emitAiSdkEvents(
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
 	capturedError?: { current: CapturedStreamError | undefined },
+	providerImageGenerationToolEnabled = false,
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
@@ -970,6 +1126,12 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	let streamAborted = false;
+	const openAiImageGenerationToolCallIds = new Set<string>();
+	const openAiImageGenerationToolResults = new Map<
+		string,
+		{ data: string; mediaType: string }
+	>();
 
 	try {
 		if (stream.fullStream) {
@@ -1001,11 +1163,12 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
-					// Model-generated file (e.g. image-output models). Convert it
-					// so a file-only turn reaches the assistant message instead of
-					// being dropped and failing as "Model returned empty response"
-					// — the retry middleware counts `file` parts as content on the
-					// same premise (see stream-part-classification.ts).
+					const image = extractGeneratedImage(part.file);
+					if (image) {
+						yield { type: "image", ...image };
+						continue;
+					}
+					// Preserve non-image model files on the generic event path.
 					const file = part.file as
 						| { base64?: string; mediaType?: string }
 						| undefined;
@@ -1018,6 +1181,54 @@ async function* emitAiSdkEvents(
 						};
 					}
 					continue;
+				}
+
+				if (
+					providerImageGenerationToolEnabled &&
+					part.type === "tool-call" &&
+					part.providerExecuted === true &&
+					hasOpenAiImageGenerationToolName(part)
+				) {
+					const toolCallId = part.toolCallId ?? part.id;
+					if (typeof toolCallId !== "string" || toolCallId.length === 0) {
+						throw new Error(
+							"OpenAI image generation tool call is missing a valid tool-call ID",
+						);
+					}
+					openAiImageGenerationToolCallIds.add(toolCallId);
+					continue;
+				}
+
+				if (
+					providerImageGenerationToolEnabled &&
+					part.type === "tool-result" &&
+					hasOpenAiImageGenerationToolName(part) &&
+					typeof part.toolCallId === "string" &&
+					openAiImageGenerationToolCallIds.has(part.toolCallId)
+				) {
+					// OpenAI can send one or more preliminary image previews before the
+					// final result. Buffer the latest non-preliminary candidate by call ID
+					// and emit once after the stream so provider/SDK variants that omit the
+					// preliminary marker still cannot create duplicate assistant images.
+					if (part.preliminary !== true) {
+						const image = extractOpenAiImageGenerationToolResult(part);
+						if (image) {
+							openAiImageGenerationToolResults.set(part.toolCallId, image);
+						}
+					}
+					continue;
+				}
+
+				if (
+					providerImageGenerationToolEnabled &&
+					part.type === "tool-error" &&
+					hasOpenAiImageGenerationToolName(part) &&
+					typeof part.toolCallId === "string" &&
+					openAiImageGenerationToolCallIds.has(part.toolCallId)
+				) {
+					throw new Error(
+						`OpenAI image generation tool failed: ${extractErrorMessage(part.error)}`,
+					);
 				}
 
 				if (part.type === "tool-call") {
@@ -1102,7 +1313,7 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "abort") {
-					// abort
+					streamAborted = true;
 					break;
 				}
 			}
@@ -1115,6 +1326,25 @@ async function* emitAiSdkEvents(
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
 		streamError = capturedError?.current ?? captureStreamError(error);
+	}
+
+	if (!streamError && !streamAborted) {
+		const missingResult = [...openAiImageGenerationToolCallIds].some(
+			(toolCallId) => !openAiImageGenerationToolResults.has(toolCallId),
+		);
+		if (missingResult) {
+			streamError = captureStreamError(
+				new Error(
+					"OpenAI image generation tool completed without a final image output",
+				),
+			);
+		}
+	}
+
+	if (!streamError) {
+		for (const image of openAiImageGenerationToolResults.values()) {
+			yield { type: "image", ...image };
+		}
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -1283,12 +1513,99 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 					context,
 				);
+				const composedProviderOptions = composeAiSdkProviderOptions(
+					request,
+					context,
+					kind,
+				);
+				const providerOptions =
+					context.provider.metadata?.imageTransport === "openrouter" &&
+					isImageGenerationModel(context.model)
+						? {
+								...composedProviderOptions,
+								openrouter: {
+									...((composedProviderOptions[
+										request.providerId as keyof typeof composedProviderOptions
+									] ??
+										composedProviderOptions.openaiCompatible ??
+										{}) as Record<string, unknown>),
+									// OpenRouter-compatible image generation uses chat
+									// completions under the hood and requires explicit output
+									// modalities.
+									modalities: ["image", "text"],
+								},
+							}
+						: kind === "google" &&
+								isImageGenerationModel(context.model) &&
+								!isDedicatedImageGenerationModel(context.model)
+							? {
+									...composedProviderOptions,
+									google: {
+										...((composedProviderOptions.google ?? {}) as Record<
+											string,
+											unknown
+										>),
+										responseModalities: ["TEXT", "IMAGE"],
+									},
+								}
+							: composedProviderOptions;
+				if (isDedicatedImageGenerationModel(context.model)) {
+					if (!provider.imageModel) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support image generation models`,
+						);
+					}
+					const prompt = resolveImageGenerationPrompt(request, context);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: {
+							operation: "generate_image",
+							prompt:
+								typeof prompt === "string"
+									? prompt
+									: {
+											text: prompt.text,
+											imageCount: prompt.images.length,
+										},
+							providerOptions,
+						},
+					});
+					const result = await generateImage({
+						model: provider.imageModel(context.model.id) as never,
+						prompt,
+						abortSignal: request.signal,
+						providerOptions: providerOptions as never,
+					});
+					let emittedImages = 0;
+					for (const file of result.images) {
+						const image = extractGeneratedImage(file);
+						if (!image) continue;
+						emittedImages += 1;
+						yield { type: "image", ...image };
+					}
+					if (emittedImages === 0) {
+						throw new Error("Image model returned no supported images");
+					}
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const tools = providerDisablesExternalToolExecution(context)
+				const runtimeTools = toAiSdkTools(request);
+				const externalToolExecutionDisabled =
+					providerDisablesExternalToolExecution(context);
+				const tools = externalToolExecutionDisabled
 					? undefined
-					: toAiSdkTools(request);
+					: mergeAiSdkTools(runtimeTools, provider.providerTools);
+				const providerImageGenerationToolEnabled =
+					!externalToolExecutionDisabled &&
+					hasAiSdkTool(
+						provider.providerTools,
+						OPENAI_IMAGE_GENERATION_TOOL_NAME,
+					) &&
+					!hasAiSdkTool(runtimeTools, OPENAI_IMAGE_GENERATION_TOOL_NAME);
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
@@ -1299,11 +1616,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					messagesSystemPrompt,
 				);
 				const portableReasoning = resolvePortableReasoning(request);
-				const providerOptions = composeAiSdkProviderOptions(
-					request,
-					context,
-					kind,
-				) as never;
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
@@ -1333,7 +1645,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
-					providerOptions,
+					providerOptions: providerOptions as never,
 					...requestConfig,
 					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {
@@ -1380,6 +1692,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					context.model.metadata?.pricing,
 					capturedError,
+					providerImageGenerationToolEnabled,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);

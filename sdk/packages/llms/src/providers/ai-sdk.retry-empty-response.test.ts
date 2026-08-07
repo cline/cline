@@ -384,7 +384,7 @@ describe("ollama (central wrap replaces the old vendor-level wrap)", () => {
 });
 
 describe("full path: model output classes through emitAiSdkEvents", () => {
-	it("converts a file-only turn into a file event instead of retrying or dropping it", async () => {
+	it("converts an image-file-only turn into an image event instead of retrying or dropping it", async () => {
 		const events = await streamThroughOllama([
 			[
 				{ type: "stream-start", warnings: [] },
@@ -404,9 +404,9 @@ describe("full path: model output classes through emitAiSdkEvents", () => {
 		// Not retried (a generated file is content)...
 		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(1);
 		// ...and converted, so the assistant message will not be empty.
-		const fileEvent = events.find((event) => event.type === "file");
-		expect(fileEvent).toMatchObject({
-			type: "file",
+		const imageEvent = events.find((event) => event.type === "image");
+		expect(imageEvent).toMatchObject({
+			type: "image",
 			mediaType: "image/png",
 			data: "aGVsbG8=",
 		});
