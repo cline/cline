@@ -204,7 +204,12 @@ function toStoredCapabilities(capabilities: readonly string[] | undefined): Stor
 			next.add(parsed.data)
 		}
 	}
-	return next.size > 0 ? [...next] : undefined
+	if (next.size > 0) {
+		return [...next]
+	}
+	// Preserve an explicitly empty capability set, but continue dropping a
+	// non-empty user list when every entry failed schema validation.
+	return capabilities.length === 0 ? [] : undefined
 }
 
 function toStoredApiFormat(apiFormat: ModelInfo["apiFormat"]): StoredModelEntry["apiFormat"] | undefined {
