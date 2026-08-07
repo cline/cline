@@ -18,6 +18,14 @@ type FetchWithOptionalPreconnect = typeof fetch & {
 	preconnect?: (...args: unknown[]) => unknown;
 };
 
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) {
+		end -= 1;
+	}
+	return value.slice(0, end);
+}
+
 function readAzureApiVersion(
 	config: GatewayResolvedProviderConfig,
 ): string | undefined {
@@ -87,14 +95,14 @@ function resolveVercelGatewayImageBaseUrl(
 		const url = new URL(baseUrl);
 		if (
 			url.hostname === "ai-gateway.vercel.sh" &&
-			url.pathname.replace(/\/+$/, "") === "/v1"
+			trimTrailingSlashes(url.pathname) === "/v1"
 		) {
 			// The provider's generic OpenAI-compatible endpoint is not the AI SDK
 			// Gateway endpoint. Let @ai-sdk/gateway select its current versioned
 			// `/ai` base instead of producing `/v1/image-model`.
 			return undefined;
 		}
-		return url.toString().replace(/\/+$/, "");
+		return trimTrailingSlashes(url.toString());
 	} catch {
 		return baseUrl;
 	}
@@ -158,10 +166,23 @@ export function withMaxCompletionTokensForReasoningModels(
 	};
 }
 
+function isOpenRouterImageGenerationRequest(input: FetchInput): boolean {
+	try {
+		const url = new URL(
+			input instanceof Request ? input.url : input.toString(),
+		);
+		return trimTrailingSlashes(url.pathname).endsWith("/images");
+	} catch {
+		return false;
+	}
+}
+
 function createSuccessDataResponseFetch(baseFetch: typeof fetch): typeof fetch {
 	const responseEnvelopeFetch = (async (requestInput, init) => {
 		const response = await baseFetch(requestInput, init);
-		if (!response.ok) return response;
+		if (!response.ok || !isOpenRouterImageGenerationRequest(requestInput)) {
+			return response;
+		}
 
 		const text = await response.text();
 		let unwrapped = text;
