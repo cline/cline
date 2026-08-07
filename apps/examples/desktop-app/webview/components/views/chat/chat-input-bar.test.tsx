@@ -34,6 +34,7 @@ type MockSpeechInputProps = {
 	onStartStreaming?: () => Promise<unknown>;
 	onStreamingEnd?: () => void;
 	onStreamingStart?: () => void;
+	onTranscriptionChange?: (transcript: string) => void;
 	recordingMode?: "auto" | "media-recorder" | "streaming";
 };
 
@@ -313,6 +314,135 @@ describe("ChatInputBar", () => {
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
 		expect(onSend).toHaveBeenCalledWith("external replacement");
+	});
+
+	it("discards a batch transcript after the draft lifecycle is replaced", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({
+			onPromptInputChange,
+			prompt: "alpha omega",
+		});
+
+		await vi.waitFor(() => {
+			expect(
+				container
+					.querySelector("[data-initial-recording-mode]")
+					?.getAttribute("data-initial-recording-mode"),
+			).toBe("media-recorder");
+		});
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+
+		await renderVoiceComposer({
+			onPromptInputChange,
+			prompt: "external replacement",
+			promptVersion: 1,
+		});
+		expect(textarea?.value).toBe("external replacement");
+
+		await act(async () => {
+			speechInputMockState.current?.onTranscriptionChange?.("late transcript");
+		});
+		expect(textarea?.value).toBe("external replacement");
+		expect(onPromptInputChange).toHaveBeenLastCalledWith(
+			"external replacement",
+		);
+	});
+
+	it("inserts a batch transcript only into its captured draft range", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "alpha omega" });
+
+		await vi.waitFor(() => {
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			);
+		});
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+			speechInputMockState.current?.onTranscriptionChange?.("hello");
+		});
+
+		expect(textarea?.value).toBe("alpha hello omega");
+		await act(async () => {
+			speechInputMockState.current?.onTranscriptionChange?.("replayed");
+		});
+		expect(textarea?.value).toBe("alpha hello omega");
+	});
+
+	it("discards a pending batch transcript when the voice target changes", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "alpha omega" });
+
+		await vi.waitFor(() => {
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			);
+		});
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+		const staleBatchResult =
+			speechInputMockState.current?.onTranscriptionChange;
+
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		await act(async () => {
+			window.dispatchEvent(
+				new Event("cline:test-voice-input-settings-changed"),
+			);
+		});
+		await vi.waitFor(() => {
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming");
+		});
+
+		await act(async () => staleBatchResult?.("late transcript"));
+		expect(textarea?.value).toBe("alpha omega");
 	});
 
 	it("ignores stale voice catalog responses and remounts when the recording mode changes", async () => {
