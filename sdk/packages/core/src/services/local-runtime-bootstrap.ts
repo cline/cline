@@ -12,7 +12,10 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	hasRuntimeConfigExtension,
+} from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
 	resolveAndLoadAgentPlugins,
@@ -112,6 +115,27 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
+}
+
+function resolveBootstrapSystemPrompt(
+	config: CoreSessionConfig,
+	workspaceInfo: WorkspaceInfo,
+	workspaceMetadata: string,
+): string {
+	if (config.systemPrompt?.trim()) {
+		return config.systemPrompt;
+	}
+
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: workspaceInfo.rootPath,
+		workspaceName: workspaceInfo.hint,
+		metadata: workspaceMetadata,
+		rules: config.rules,
+		mode: config.mode,
+		providerId: config.providerId,
+		platform: process.platform || "unknown",
+	});
 }
 
 function buildProviderConfig(
@@ -412,6 +436,11 @@ export async function prepareLocalRuntimeBootstrap(
 		...baseConfig,
 		providerConfig,
 		workspaceMetadata,
+		systemPrompt: resolveBootstrapSystemPrompt(
+			baseConfig,
+			workspaceInfo,
+			workspaceMetadata,
+		),
 		hooks,
 	};
 	const toolPolicies =

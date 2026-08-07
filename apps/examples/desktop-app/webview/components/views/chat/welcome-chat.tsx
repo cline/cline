@@ -31,6 +31,7 @@ export function WelcomeScreen({
 	active,
 	body,
 	composer,
+	environmentSelector,
 	onStartChat,
 	quickActions,
 	gitBranch,
@@ -40,6 +41,7 @@ export function WelcomeScreen({
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
+	environmentSelector: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: AgentQuickAction[];
 	gitBranch: string;
@@ -88,7 +90,8 @@ export function WelcomeScreen({
 						<>
 							<AgentHeroHeading />
 
-							<div className="mt-11 flex min-w-0 items-center">
+							<div className="mt-11 flex min-w-0 items-center gap-2">
+								{environmentSelector}
 								<WelcomeWorkspaceControls
 									currentBranch={gitBranch}
 									onListGitBranches={onListGitBranches}

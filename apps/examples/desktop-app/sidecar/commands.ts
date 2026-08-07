@@ -1,7 +1,13 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+	existsSync,
+	readdirSync,
+	realpathSync,
+	rmSync,
+	statSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, posix } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -61,7 +67,11 @@ import {
 } from "./connectors";
 import {
 	broadcastEvent,
+	connectRemoteSessionRuntime,
+	disconnectRemoteSessionRuntime,
 	ensureSharedHubClient,
+	findSessionRuntimeBinding,
+	getRuntimeBinding,
 	resolveSidecarAskQuestion,
 } from "./context";
 import {
@@ -93,6 +103,11 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import type {
+	RemoteEnvironmentConnection,
+	RemoteEnvironmentInput,
+} from "./remote-environments";
+import { RemoteEnvironmentService } from "./remote-environments";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -104,12 +119,133 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 // All child processes in this module run asynchronously: the sidecar is a
 // single event loop shared by every UI command and streaming chat session, so
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
+const remoteEnvironmentTransitionTails = new WeakMap<
+	SidecarContext,
+	Promise<void>
+>();
+
+function withRemoteEnvironmentTransition<T>(
+	ctx: SidecarContext,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previous =
+		remoteEnvironmentTransitionTails.get(ctx) ?? Promise.resolve();
+	const result = previous.then(operation, operation);
+	const tail = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	remoteEnvironmentTransitionTails.set(ctx, tail);
+	void tail.finally(() => {
+		if (remoteEnvironmentTransitionTails.get(ctx) === tail) {
+			remoteEnvironmentTransitionTails.delete(ctx);
+		}
+	});
+	return result;
+}
+
+function activeRemoteEnvironmentState(ctx: SidecarContext): {
+	activeEnvironmentId: string;
+	activeProfileId: string | null;
+} {
+	const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
+	if (binding?.kind === "ssh") {
+		return {
+			activeEnvironmentId: binding.environmentId,
+			activeProfileId: binding.environmentId,
+		};
+	}
+	return {
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		activeProfileId: null,
+	};
+}
+
+function broadcastLocalEnvironment(
+	ctx: SidecarContext,
+	details: { reason?: string; message?: string } = {},
+): void {
+	broadcastEvent(ctx, "remote_environment_changed", {
+		status: "disconnected",
+		activeProfileId: null,
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		workspaceRoot: ctx.localWorkspaceRoot,
+		...details,
+	});
+}
+
+function getRemoteEnvironmentService(
+	ctx: SidecarContext,
+): RemoteEnvironmentService {
+	if (!ctx.remoteEnvironments) {
+		ctx.remoteEnvironments = new RemoteEnvironmentService({
+			onStatusChange: (status) => {
+				broadcastEvent(ctx, "remote_environment_status", status);
+			},
+			onConnectionLost: (status) => {
+				const binding = ctx.runtimeBindings.get(status.profileId);
+				if (binding?.kind !== "ssh") return;
+				const wasActive = ctx.activeEnvironmentId === status.profileId;
+				void disconnectRemoteSessionRuntime(ctx, status.profileId)
+					.catch((error) => {
+						ctx.logger?.log("Failed to dispose dead SSH runtime", {
+							error,
+							environmentId: status.profileId,
+							severity: "warn",
+						});
+					})
+					.finally(() => {
+						if (
+							!wasActive ||
+							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
+						) {
+							return;
+						}
+						broadcastLocalEnvironment(ctx, {
+							reason: "tunnel_error",
+							message: status.message,
+						});
+					});
+			},
+		});
+	}
+	return ctx.remoteEnvironments;
+}
+
+function requestedEnvironmentId(
+	args: Record<string, unknown> | undefined,
+): string | undefined {
+	if (typeof args?.environmentId !== "string") return undefined;
+	const environmentId = args.environmentId.trim();
+	return environmentId || undefined;
+}
+
+function getCommandRuntimeBinding(
+	ctx: SidecarContext,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+async function getCommandSessionBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args);
+	return environmentId
+		? getRuntimeBinding(ctx, environmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
+}
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
 // anything broader (file:, custom app schemes) would let webview content
@@ -245,11 +381,10 @@ async function resolveFreshClineAuthToken(
 }
 
 function mergePersistedSessionRecord(
-	store: SqliteSessionStore,
 	sessionId: string,
 	record: JsonRecord,
+	persisted?: JsonRecord,
 ): JsonRecord {
-	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
 	const metadata =
 		record.metadata && typeof record.metadata === "object"
 			? (record.metadata as JsonRecord)
@@ -292,42 +427,46 @@ function mergePersistedSessionRecord(
 async function getSessionFromSidecarManager(
 	ctx: SidecarContext,
 	sessionId: string,
+	environmentId?: string,
 ): Promise<JsonRecord | undefined> {
 	const store = new SqliteSessionStore();
-	if (ctx.sessionManager) {
-		const session = await ctx.sessionManager.get(sessionId);
+	const binding = environmentId
+		? getRuntimeBinding(ctx, environmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
+	if (binding) {
+		const session = await binding.sessionManager.get(sessionId);
 		if (session) {
-			return mergePersistedSessionRecord(
-				store,
+			const merged = mergePersistedSessionRecord(
 				sessionId,
 				session as unknown as JsonRecord,
+				binding.kind === "local"
+					? (store.get(sessionId) as unknown as JsonRecord | undefined)
+					: undefined,
 			);
+			return {
+				...merged,
+				environmentId: binding.environmentId,
+				remoteEnvironment:
+					binding.kind === "ssh"
+						? {
+								id: binding.environmentId,
+								name: binding.remote?.profile.name,
+								host: binding.remote?.profile.host,
+							}
+						: undefined,
+			};
 		}
 	}
 
-	if (ctx.hubClient) {
-		try {
-			const reply = await ctx.hubClient.command(
-				"session.get",
-				undefined,
-				sessionId,
-			);
-			const session = reply.payload?.session;
-			if (session && typeof session === "object") {
-				return mergePersistedSessionRecord(
-					store,
-					sessionId,
-					session as JsonRecord,
-				);
-			}
-		} catch {
-			// Fall through to the local SQLite index.
-		}
-	}
-
-	const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+	const persisted =
+		!environmentId || environmentId === LOCAL_ENVIRONMENT_ID
+			? (store.get(sessionId) as unknown as JsonRecord | undefined)
+			: undefined;
 	return persisted
-		? mergePersistedSessionRecord(store, sessionId, persisted)
+		? {
+				...mergePersistedSessionRecord(sessionId, persisted, persisted),
+				environmentId: LOCAL_ENVIRONMENT_ID,
+			}
 		: undefined;
 }
 
@@ -336,37 +475,51 @@ async function listSessionsFromSidecarManager(
 	limit: number,
 ): Promise<unknown> {
 	const max = Math.max(1, Math.floor(limit));
-	if (ctx.sessionManager) {
-		return await ctx.sessionManager.list(max, { hydrate: false });
-	}
-
 	const byId = new Map<string, JsonRecord>();
 	const store = new SqliteSessionStore();
 
-	if (ctx.hubClient) {
+	for (const binding of ctx.runtimeBindings.values()) {
 		try {
-			const reply = await ctx.hubClient.command("session.list", { limit: max });
-			const sessions = Array.isArray(reply.payload?.sessions)
-				? reply.payload.sessions
-				: [];
+			const sessions = await binding.sessionManager.list(max, {
+				hydrate: false,
+			});
 			for (const item of sessions) {
 				if (!item || typeof item !== "object") continue;
-				const record = item as JsonRecord;
+				const record = item as unknown as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
-				if (sessionId)
-					byId.set(
-						sessionId,
-						mergePersistedSessionRecord(store, sessionId, record),
-					);
+				if (!sessionId) continue;
+				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				const merged = mergePersistedSessionRecord(
+					sessionId,
+					record,
+					binding.kind === "local"
+						? (store.get(sessionId) as unknown as JsonRecord | undefined)
+						: undefined,
+				);
+				byId.set(sessionId, {
+					...merged,
+					environmentId: binding.environmentId,
+					remoteEnvironment:
+						binding.kind === "ssh"
+							? {
+									id: binding.environmentId,
+									name: binding.remote?.profile.name,
+									host: binding.remote?.profile.host,
+								}
+							: undefined,
+				});
 			}
 		} catch {
-			// Fall through to the local SQLite index.
+			// Keep history available from the other connected environments.
 		}
 	}
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
-			byId.set(session.sessionId, session as unknown as JsonRecord);
+			byId.set(session.sessionId, {
+				...(session as unknown as JsonRecord),
+				environmentId: LOCAL_ENVIRONMENT_ID,
+			});
 		}
 	}
 
@@ -375,6 +528,10 @@ async function listSessionsFromSidecarManager(
 		byId.set(sessionId, {
 			...(existing ?? {}),
 			sessionId,
+			environmentId:
+				session.environmentId ??
+				ctx.sessionEnvironmentIds.get(sessionId) ??
+				LOCAL_ENVIRONMENT_ID,
 			status: session.status,
 			provider: session.config.provider ?? existing?.provider ?? "",
 			model: session.config.model ?? existing?.model ?? "",
@@ -422,9 +579,36 @@ async function listSessionsFromSidecarManager(
 
 async function listGitBranches(
 	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
 	cwd?: string,
 ): Promise<{ current?: string; branches?: string[] }> {
-	const targetCwd = cwd?.trim() || ctx.workspaceRoot;
+	const targetCwd = cwd?.trim() || binding.workspaceRoot;
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const [currentResult, branchesResult] = await Promise.all([
+			remote
+				.run(binding.environmentId, {
+					command: "git",
+					args: ["branch", "--show-current"],
+					cwd: targetCwd,
+				})
+				.catch(() => undefined),
+			remote
+				.run(binding.environmentId, {
+					command: "git",
+					args: ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+					cwd: targetCwd,
+				})
+				.catch(() => undefined),
+		]);
+		const current = currentResult?.stdout.trim() ?? "";
+		const branches = (branchesResult?.stdout ?? "")
+			.split("\n")
+			.map((value) => value.trim())
+			.filter(Boolean);
+		return { current: current || undefined, branches };
+	}
 	const [currentResult, branchesResult] = await Promise.all([
 		execFileAsync("git", ["branch", "--show-current"], {
 			cwd: targetCwd,
@@ -445,6 +629,195 @@ async function listGitBranches(
 		.map((v) => v.trim())
 		.filter(Boolean);
 	return { current: current || undefined, branches };
+}
+
+async function searchRemoteWorkspaceFiles(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	args?: Record<string, unknown>,
+): Promise<string[]> {
+	if (binding.kind !== "ssh" || !ctx.remoteEnvironments) {
+		return await searchWorkspaceFiles(
+			{ localWorkspaceRoot: binding.workspaceRoot },
+			args,
+		);
+	}
+	const root =
+		typeof args?.workspaceRoot === "string" && args.workspaceRoot.trim()
+			? args.workspaceRoot.trim()
+			: binding.workspaceRoot;
+	const query =
+		typeof args?.query === "string" ? args.query.trim().toLowerCase() : "";
+	const limit =
+		typeof args?.limit === "number" && Number.isFinite(args.limit)
+			? Math.max(1, Math.min(50, Math.trunc(args.limit)))
+			: 10;
+	let output = "";
+	try {
+		output = (
+			await ctx.remoteEnvironments.run(binding.environmentId, {
+				command: "git",
+				args: ["ls-files", "--cached", "--others", "--exclude-standard"],
+				cwd: root,
+			})
+		).stdout;
+	} catch {
+		output = (
+			await ctx.remoteEnvironments.run(binding.environmentId, {
+				command: "find",
+				args: [
+					".",
+					"-type",
+					"f",
+					"-not",
+					"-path",
+					"./.git/*",
+					"-not",
+					"-path",
+					"./node_modules/*",
+				],
+				cwd: root,
+			})
+		).stdout;
+	}
+	const rank = (path: string): number => {
+		if (!query) return 3;
+		const lower = path.toLowerCase();
+		if (lower.startsWith(query)) return 0;
+		if (lower.includes(`/${query}`)) return 1;
+		if (lower.includes(query)) return 2;
+		return Number.POSITIVE_INFINITY;
+	};
+	return output
+		.split("\n")
+		.map((path) => path.trim().replace(/^\.\//, ""))
+		.filter(Boolean)
+		.map((path) => ({ path, rank: rank(path) }))
+		.filter((entry) => Number.isFinite(entry.rank))
+		.sort((left, right) =>
+			left.rank === right.rank
+				? left.path.localeCompare(right.path)
+				: left.rank - right.rank,
+		)
+		.slice(0, limit)
+		.map((entry) => entry.path);
+}
+
+// Directory browsing is intentionally bounded at both the entry and transport
+// levels. Remote directory names are NUL-delimited so whitespace and shell
+// metacharacters remain data, and the selected path is passed as a positional
+// argument through RemoteEnvironmentService.run rather than interpolated into
+// the static shell program.
+const WORKSPACE_DIRECTORY_ENTRY_LIMIT = 200;
+const REMOTE_DIRECTORY_OUTPUT_LIMIT_BYTES = 256 * 1024;
+const REMOTE_DIRECTORY_LIST_SCRIPT =
+	`find -L "$1" -mindepth 1 -maxdepth 1 -type d -print0 | ` +
+	`head -c ${REMOTE_DIRECTORY_OUTPUT_LIMIT_BYTES}`;
+
+type WorkspaceDirectoryListResult = {
+	environmentId: string;
+	currentPath: string;
+	parentPath: string | null;
+	entries: Array<{ name: string; path: string }>;
+	truncated: boolean;
+};
+
+function parentLocalPath(path: string): string | null {
+	const parent = dirname(path);
+	return parent === path ? null : parent;
+}
+
+function parentRemotePath(path: string): string | null {
+	const parent = posix.dirname(path);
+	return parent === path ? null : parent;
+}
+
+async function listWorkspaceDirectories(
+	ctx: SidecarContext,
+	environmentId: string,
+	path?: string,
+): Promise<WorkspaceDirectoryListResult> {
+	const binding = getRuntimeBinding(ctx, environmentId);
+	const requestedPath = path && path.trim().length > 0 ? path : undefined;
+	if (binding.kind === "local") {
+		const currentPath = realpathSync(requestedPath || homedir());
+		if (!statSync(currentPath).isDirectory()) {
+			throw new Error(`Workspace path is not a directory: ${currentPath}`);
+		}
+		const directories = readdirSync(currentPath, { withFileTypes: true })
+			.filter((entry) => {
+				if (entry.isDirectory()) return true;
+				if (!entry.isSymbolicLink()) return false;
+				try {
+					return statSync(join(currentPath, entry.name)).isDirectory();
+				} catch {
+					return false;
+				}
+			})
+			.map((entry) => ({
+				name: entry.name,
+				path: join(currentPath, entry.name),
+			}))
+			.sort(
+				(left, right) =>
+					left.name.localeCompare(right.name) ||
+					left.path.localeCompare(right.path),
+			);
+		return {
+			environmentId: binding.environmentId,
+			currentPath,
+			parentPath: parentLocalPath(currentPath),
+			entries: directories.slice(0, WORKSPACE_DIRECTORY_ENTRY_LIMIT),
+			truncated: directories.length > WORKSPACE_DIRECTORY_ENTRY_LIMIT,
+		};
+	}
+
+	const remote = ctx.remoteEnvironments;
+	if (!remote) throw new Error("Remote environment service is unavailable");
+	const home = binding.remote?.homeDir ?? binding.workspaceRoot;
+	const canonicalResult = await remote.run(binding.environmentId, {
+		command: "pwd",
+		args: ["-P"],
+		cwd: requestedPath || home,
+	});
+	const currentPath = canonicalResult.stdout.replace(/\r?\n$/, "");
+	if (!currentPath.startsWith("/") || /[\0\r\n]/.test(currentPath)) {
+		throw new Error("SSH host returned an invalid canonical directory path");
+	}
+	const listResult = await remote.run(binding.environmentId, {
+		command: "sh",
+		args: [
+			"-c",
+			REMOTE_DIRECTORY_LIST_SCRIPT,
+			"cline-list-workspace-directories",
+			currentPath,
+		],
+	});
+	const outputEndedAtBoundary =
+		listResult.stdout.length === 0 || listResult.stdout.endsWith("\0");
+	const encodedPaths = listResult.stdout.split("\0");
+	if (encodedPaths.at(-1) === "" || !outputEndedAtBoundary) {
+		encodedPaths.pop();
+	}
+	const paths = Array.from(new Set(encodedPaths.filter(Boolean))).sort((a, b) =>
+		a.localeCompare(b),
+	);
+	return {
+		environmentId: binding.environmentId,
+		currentPath,
+		parentPath: parentRemotePath(currentPath),
+		entries: paths
+			.slice(0, WORKSPACE_DIRECTORY_ENTRY_LIMIT)
+			.map((entryPath) => ({
+				name: posix.basename(entryPath),
+				path: entryPath,
+			})),
+		truncated:
+			paths.length > WORKSPACE_DIRECTORY_ENTRY_LIMIT ||
+			!outputEndedAtBoundary ||
+			Buffer.byteLength(listResult.stdout) >=
+				REMOTE_DIRECTORY_OUTPUT_LIMIT_BYTES,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -1088,6 +1461,189 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: object },
 ): Promise<unknown> {
+	// ── SSH remote environments ──────────────────────────────────────
+	if (command === "list_remote_environments") {
+		const service = getRemoteEnvironmentService(ctx);
+		return {
+			profiles: await service.list(),
+			...activeRemoteEnvironmentState(ctx),
+			statuses: service.getStatuses(),
+		};
+	}
+	if (command === "upsert_remote_environment") {
+		const profile = args?.profile;
+		if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+			throw new Error("profile is required");
+		}
+		return {
+			profile: await getRemoteEnvironmentService(ctx).upsert(
+				profile as RemoteEnvironmentInput,
+			),
+		};
+	}
+	if (command === "test_remote_environment") {
+		const id = String(args?.id ?? "").trim();
+		if (!id) {
+			throw new Error("remote environment id is required");
+		}
+		const service = getRemoteEnvironmentService(ctx);
+		const profile = (await service.list()).find((item) => item.id === id);
+		const result = await service.test(id);
+		return {
+			profile,
+			status: result.state === "available" ? "passed" : "failed",
+			message: result.message,
+			remotePlatform: result.remotePlatform,
+			remoteArch: result.remoteArch,
+		};
+	}
+	if (command === "connect_remote_environment") {
+		const id = String(args?.id ?? "").trim();
+		if (!id) {
+			throw new Error("remote environment id is required");
+		}
+		return await withRemoteEnvironmentTransition(ctx, async () => {
+			const service = getRemoteEnvironmentService(ctx);
+			const previousEnvironmentId = ctx.activeEnvironmentId;
+			const previousServiceProfileId = service.getActive()?.profileId;
+			const previousRuntimeProfileId =
+				ctx.runtimeBindings.get(previousEnvironmentId)?.kind === "ssh"
+					? previousEnvironmentId
+					: undefined;
+			const targetWasConnected = Boolean(service.getConnection(id));
+			let connection: RemoteEnvironmentConnection | undefined;
+			let runtimeCommitted = false;
+
+			try {
+				connection = await service.connect(id);
+				await connectRemoteSessionRuntime(ctx, connection);
+				runtimeCommitted = true;
+				const currentConnection = service.getConnection(id);
+				if (
+					!currentConnection ||
+					currentConnection.endpoint !== connection.endpoint
+				) {
+					throw new Error(
+						`Remote environment ${id} disconnected during initialization.`,
+					);
+				}
+			} catch (error) {
+				if (runtimeCommitted && previousEnvironmentId !== id) {
+					await disconnectRemoteSessionRuntime(ctx, id);
+				}
+				if (!targetWasConnected && service.getConnection(id)) {
+					await service.disconnect(id).catch((disconnectError) => {
+						ctx.logger?.log("Failed to roll back SSH connection", {
+							error: disconnectError,
+							environmentId: id,
+							severity: "warn",
+						});
+					});
+				}
+				const rollbackProfileId =
+					previousRuntimeProfileId &&
+					service.getConnection(previousRuntimeProfileId)
+						? previousRuntimeProfileId
+						: previousServiceProfileId;
+				if (rollbackProfileId) {
+					service.activateConnection(rollbackProfileId);
+				}
+				ctx.activeEnvironmentId = ctx.runtimeBindings.has(previousEnvironmentId)
+					? previousEnvironmentId
+					: LOCAL_ENVIRONMENT_ID;
+				throw error;
+			}
+
+			if (!connection) {
+				throw new Error(`Remote environment ${id} failed to connect.`);
+			}
+
+			const previousProfileIds = new Set(
+				[previousRuntimeProfileId, previousServiceProfileId].filter(
+					(profileId): profileId is string =>
+						Boolean(profileId) && profileId !== id,
+				),
+			);
+			for (const previousProfileId of previousProfileIds) {
+				await disconnectRemoteSessionRuntime(ctx, previousProfileId);
+				await service.disconnect(previousProfileId).catch((disconnectError) => {
+					ctx.logger?.log("Failed to clean up previous SSH connection", {
+						error: disconnectError,
+						environmentId: previousProfileId,
+						severity: "warn",
+					});
+				});
+			}
+
+			const result = {
+				profile: connection.profile,
+				status: "connected" as const,
+				environmentId: id,
+				activeEnvironmentId: id,
+				activeProfileId: id,
+				workspaceRoot: connection.workspaceRoot,
+				homeDir: connection.homeDir,
+				remotePlatform: connection.platform,
+				remoteArch: connection.arch,
+			};
+			broadcastEvent(ctx, "remote_environment_changed", result);
+			return result;
+		});
+	}
+	if (command === "disconnect_remote_environment") {
+		return await withRemoteEnvironmentTransition(ctx, async () => {
+			const service = getRemoteEnvironmentService(ctx);
+			const requestedId = String(args?.id ?? "").trim();
+			const activeBefore = activeRemoteEnvironmentState(ctx);
+			const id =
+				requestedId ||
+				activeBefore.activeProfileId ||
+				service.getActive()?.profileId;
+			if (id) {
+				await disconnectRemoteSessionRuntime(ctx, id);
+				await service.disconnect(id);
+			}
+			const active = activeRemoteEnvironmentState(ctx);
+			const result = {
+				status: "disconnected" as const,
+				disconnectedProfileId: id ?? null,
+				...active,
+			};
+			if (id && activeBefore.activeProfileId === id) {
+				broadcastLocalEnvironment(ctx);
+			}
+			return result;
+		});
+	}
+	if (command === "delete_remote_environment") {
+		const id = String(args?.id ?? "").trim();
+		if (!id) {
+			throw new Error("remote environment id is required");
+		}
+		return await withRemoteEnvironmentTransition(ctx, async () => {
+			const service = getRemoteEnvironmentService(ctx);
+			const wasActive = ctx.activeEnvironmentId === id;
+			await disconnectRemoteSessionRuntime(ctx, id);
+			const deleted = await service.delete(id);
+			const active = activeRemoteEnvironmentState(ctx);
+			if (deleted && wasActive) {
+				broadcastLocalEnvironment(ctx, { reason: "profile_deleted" });
+			}
+			return { deleted, ...active };
+		});
+	}
+	if (command === "list_workspace_directories") {
+		const environmentId = requestedEnvironmentId(args);
+		if (!environmentId) {
+			throw new Error("environmentId is required");
+		}
+		return await listWorkspaceDirectories(
+			ctx,
+			environmentId,
+			typeof args?.path === "string" ? args.path : undefined,
+		);
+	}
+
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
 		const { handleChatSessionCommand } = await import("./chat-session");
@@ -1100,45 +1656,84 @@ export async function handleCommand(
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		const remoteMessages =
+			binding?.kind === "ssh"
+				? await binding.sessionManager.readMessages(sessionId)
+				: undefined;
 		return await readSessionMessages(
 			ctx,
-			String(args?.sessionId ?? ""),
+			sessionId,
 			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
+			remoteMessages,
 		);
 	}
 	if (command === "read_session_hooks") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (binding?.kind === "ssh") {
+			throw new Error(
+				"Remote session hook artifacts are not available through the SSH runtime yet.",
+			);
+		}
 		return await readSessionHooks(
-			String(args?.sessionId ?? ""),
+			sessionId,
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
 	if (command === "list_session_agents") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (binding?.kind === "ssh") {
+			throw new Error(
+				"Remote session agent artifacts are not available through the SSH runtime yet.",
+			);
+		}
 		return listSessionAgents(
-			String(args?.sessionId ?? ""),
+			sessionId,
 			typeof args?.limit === "number" ? args.limit : 200,
 		);
 	}
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
+		const binding = getCommandRuntimeBinding(ctx, args);
 		const hubUrl =
-			ctx.hubClient?.getUrl() ??
-			ctx.sessionManager?.runtimeAddress?.trim() ??
+			binding.hubClient.getUrl() ??
+			binding.sessionManager.runtimeAddress?.trim() ??
 			null;
-		const runningSessionCount = Array.from(ctx.liveSessions.values()).filter(
-			(session) => session.busy || session.status === "running",
+		const runningSessionCount = Array.from(ctx.liveSessions.entries()).filter(
+			([sessionId, session]) =>
+				(session.busy || session.status === "running") &&
+				(session.environmentId ??
+					ctx.sessionEnvironmentIds.get(sessionId) ??
+					LOCAL_ENVIRONMENT_ID) === binding.environmentId,
 		).length;
 		return {
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-			homeDir: homedir(),
-			platform: process.platform,
+			environmentId: binding.environmentId,
+			workspaceRoot: binding.workspaceRoot,
+			cwd: binding.workspaceRoot,
+			homeDir: binding.remote?.homeDir ?? homedir(),
+			platform: binding.remote?.platform ?? process.platform,
 			appVersion: packageJson.version,
 			runningSessionCount,
+			activeEnvironmentId: ctx.activeEnvironmentId,
+			remoteEnvironment:
+				binding.kind === "ssh"
+					? {
+							id: binding.environmentId,
+							name: binding.remote?.profile.name,
+							host: binding.remote?.profile.host,
+							workspaceRoot: binding.workspaceRoot,
+							platform: binding.remote?.platform,
+							arch: binding.remote?.arch,
+						}
+					: null,
 			hub: {
-				status: ctx.hubClient?.isConnected() ? "connected" : "disconnected",
+				status: binding.hubClient.isConnected() ? "connected" : "disconnected",
 				url: hubUrl,
-				error: ctx.hubClient?.getConnectionError()?.message ?? null,
+				error: binding.hubClient.getConnectionError()?.message ?? null,
 			},
 		};
 	}
@@ -1214,14 +1809,21 @@ export async function handleCommand(
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+		return (
+			(await getSessionFromSidecarManager(
+				ctx,
+				sessionId,
+				requestedEnvironmentId(args),
+			)) ?? null
+		);
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		const title = normalizeSessionTitle(String(args?.title ?? ""));
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		const result = await backend.updateSession({ sessionId, title });
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (!binding) throw new Error(`Session ${sessionId} not found`);
+		const result = await binding.sessionManager.update(sessionId, { title });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		const liveSession = ctx.liveSessions.get(sessionId);
 		if (liveSession) liveSession.title = title;
@@ -1237,27 +1839,35 @@ export async function handleCommand(
 		// updateSession replaces metadata wholesale in both the session row and
 		// the manifest, so merge over what each already holds. A null value
 		// removes the key, which is how callers clear a flag.
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const store = new SqliteSessionStore();
 		const asRecord = (value: unknown): JsonRecord =>
 			value && typeof value === "object" && !Array.isArray(value)
 				? (value as JsonRecord)
 				: {};
-		const existing = store.get(sessionId);
+		const existingSession = await binding.sessionManager.get(sessionId);
+		const existing =
+			binding.kind === "local" ? store.get(sessionId) : undefined;
 		const merged: JsonRecord = {
-			...asRecord(readSessionManifest(sessionId)?.metadata),
+			...(binding.kind === "local"
+				? asRecord(readSessionManifest(sessionId)?.metadata)
+				: {}),
+			...asRecord(existingSession?.metadata),
 			...asRecord(existing?.metadata),
 		};
 		for (const [key, value] of Object.entries(patch as JsonRecord)) {
 			if (value === null) delete merged[key];
 			else merged[key] = value;
 		}
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		const result = await backend.updateSession({ sessionId, metadata: merged });
+		const result = await binding.sessionManager.update(sessionId, {
+			metadata: merged,
+		});
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
 		// updated_at, which clients sort and label rows by, so a favorite would
 		// otherwise make an old session look like it just ran.
-		if (existing?.updatedAt) {
+		if (binding.kind === "local" && existing?.updatedAt) {
 			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
 				existing.updatedAt,
 				sessionId,
@@ -1272,11 +1882,12 @@ export async function handleCommand(
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
-			if (ctx.sessionManager) {
-				deleted = await ctx.sessionManager.delete(sessionId);
+			if (binding) {
+				deleted = await binding.sessionManager.delete(sessionId);
 			} else {
 				const backend = await resolveSessionBackend({ backendMode: "local" });
 				const deleteSession = (
@@ -1296,10 +1907,22 @@ export async function handleCommand(
 		} catch (error) {
 			deleteError = error instanceof Error ? error : new Error(String(error));
 		}
-		if (store.delete(sessionId, true)) {
+		if (binding?.kind !== "ssh" && store.delete(sessionId, true)) {
 			deleted = true;
 		}
 		ctx.liveSessions.delete(sessionId);
+		ctx.sessionEnvironmentIds.delete(sessionId);
+		if (binding?.kind === "ssh") {
+			if (!deleted && deleteError) throw deleteError;
+			if (deleted) {
+				broadcastEvent(ctx, "session_deleted", {
+					sessionId,
+					command,
+					deleted: true,
+				});
+			}
+			return deleted;
+		}
 		const directoryCandidates = new Set<string>([
 			join(sharedSessionDataDir(), sessionId),
 		]);
@@ -1368,7 +1991,8 @@ export async function handleCommand(
 
 	// ── Workspace file search ─────────────────────────────────────────
 	if (command === "search_workspace_files") {
-		return await searchWorkspaceFiles(ctx, args);
+		const binding = getCommandRuntimeBinding(ctx, args);
+		return await searchRemoteWorkspaceFiles(ctx, binding, args);
 	}
 
 	// ── External links ─────────────────────────────────────────────────
@@ -1528,10 +2152,10 @@ export async function handleCommand(
 		return connectorChannelsPayload();
 	}
 	if (command === "start_connector_channel") {
-		return await startConnectorChannel(ctx.workspaceRoot, args);
+		return await startConnectorChannel(ctx.localWorkspaceRoot, args);
 	}
 	if (command === "stop_connector_channel") {
-		return await stopConnectorChannel(ctx.workspaceRoot, args);
+		return await stopConnectorChannel(ctx.localWorkspaceRoot, args);
 	}
 
 	// ── MCP server management ─────────────────────────────────────────
@@ -1736,33 +2360,51 @@ export async function handleCommand(
 
 	// ── Git operations ─────────────────────────────────────────────────
 	if (command === "get_git_branch") {
+		const binding = getCommandRuntimeBinding(ctx, args);
 		const cwd =
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
-				: ctx.workspaceRoot;
-		const branches = await listGitBranches(ctx, cwd);
-		const { prewarmWorkspaceMetadata } = await import("./chat-session");
-		prewarmWorkspaceMetadata(cwd);
-		return { branch: branches.current };
+				: binding.workspaceRoot;
+		const branches = await listGitBranches(ctx, binding, cwd);
+		if (binding.kind === "local") {
+			const { prewarmWorkspaceMetadata } = await import("./chat-session");
+			prewarmWorkspaceMetadata(cwd);
+		}
+		return { environmentId: binding.environmentId, branch: branches.current };
 	}
 	if (command === "list_git_branches") {
-		return await listGitBranches(
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const branches = await listGitBranches(
 			ctx,
+			binding,
 			typeof args?.cwd === "string" ? args.cwd : undefined,
 		);
+		return { environmentId: binding.environmentId, ...branches };
 	}
 	if (command === "checkout_git_branch") {
 		const cwd = typeof args?.cwd === "string" ? args.cwd : undefined;
 		const branch = String(args?.branch ?? "").trim();
 		if (!branch) throw new Error("branch is required");
-		const targetCwd = cwd?.trim() || ctx.workspaceRoot;
-		await execFileAsync("git", ["checkout", branch], {
-			cwd: targetCwd,
-			encoding: "utf8",
-		});
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const targetCwd = cwd?.trim() || binding.workspaceRoot;
+		if (binding.kind === "ssh") {
+			if (!ctx.remoteEnvironments) {
+				throw new Error("Remote environment service is unavailable");
+			}
+			await ctx.remoteEnvironments.run(binding.environmentId, {
+				command: "git",
+				args: ["checkout", branch],
+				cwd: targetCwd,
+			});
+		} else {
+			await execFileAsync("git", ["checkout", branch], {
+				cwd: targetCwd,
+				encoding: "utf8",
+			});
+		}
 		const { refreshWorkspaceMetadata } = await import("./chat-session");
-		refreshWorkspaceMetadata(targetCwd);
-		return { branch };
+		if (binding.kind === "local") refreshWorkspaceMetadata(targetCwd);
+		return { environmentId: binding.environmentId, branch };
 	}
 
 	// ── Routine schedules ─────────────────────────────────────────────
@@ -1780,12 +2422,12 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx.localWorkspaceRoot);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
-			await listUserInstructionConfigs(ctx.workspaceRoot),
+			await listUserInstructionConfigs(ctx.localWorkspaceRoot),
 		);
 	}
 	if (command === "install_marketplace_entry") {
@@ -1798,7 +2440,7 @@ export async function handleCommand(
 	}
 	if (command === "uninstall_local_primitive") {
 		const result = await uninstallLocalPrimitive(args, {
-			workspaceRoot: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
 		});
 		return result;
 	}
@@ -1808,7 +2450,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		toggleDisabledTool(toolName);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx.localWorkspaceRoot);
 	}
 	if (command === "set_tool_disabled") {
 		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
@@ -1819,7 +2461,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		setDisabledTools(toolNames, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx.localWorkspaceRoot);
 	}
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
@@ -1827,20 +2469,41 @@ export async function handleCommand(
 			throw new Error("plugin path is required");
 		}
 		setDisabledPlugin(pluginPath, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx.localWorkspaceRoot);
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
 	if (command === "validate_workspace_directory") {
+		const binding = getCommandRuntimeBinding(ctx, args);
 		const workspacePath = String(args?.path ?? "").trim();
-		if (!workspacePath) return { valid: false };
+		if (!workspacePath) {
+			return { environmentId: binding.environmentId, valid: false };
+		}
+		if (binding.kind === "ssh") {
+			try {
+				if (!ctx.remoteEnvironments) {
+					throw new Error("Remote environment service is unavailable");
+				}
+				await ctx.remoteEnvironments.run(binding.environmentId, {
+					command: "test",
+					args: ["-d", workspacePath],
+				});
+				return { environmentId: binding.environmentId, valid: true };
+			} catch {
+				return { environmentId: binding.environmentId, valid: false };
+			}
+		}
 		try {
-			return { valid: statSync(workspacePath).isDirectory() };
+			return {
+				environmentId: binding.environmentId,
+				valid: statSync(workspacePath).isDirectory(),
+			};
 		} catch {
-			return { valid: false };
+			return { environmentId: binding.environmentId, valid: false };
 		}
 	}
 	if (command === "pick_workspace_directory") {
+		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") return null;
 		return await pickWorkspaceDirectory();
 	}
 	if (command === "open_mcp_settings_file") {
@@ -1852,12 +2515,17 @@ export async function handleCommand(
 		return await listAvailableCodeEditors();
 	}
 	if (command === "open_file_in_editor") {
+		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") {
+			throw new Error(
+				"Opening remote files in a local editor is not available in the SSH proof of concept yet.",
+			);
+		}
 		const rawPath = String(args?.path ?? "").trim();
 		if (!rawPath) throw new Error("path is required");
 		const baseDir =
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
-				: ctx.workspaceRoot;
+				: ctx.localWorkspaceRoot;
 		const filePath = isAbsolute(rawPath) ? rawPath : join(baseDir, rawPath);
 		if (!existsSync(filePath)) {
 			throw new Error(`File not found: ${filePath}`);

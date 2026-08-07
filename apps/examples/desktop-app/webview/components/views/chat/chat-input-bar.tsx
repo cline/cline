@@ -2,15 +2,7 @@
 
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import {
-	ArrowUp,
-	Brain,
-	ChevronDown,
-	CircleStop,
-	Cpu,
-	Paperclip,
-	X,
-} from "lucide-react";
+import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -242,7 +234,16 @@ export type PromptDraft = {
 	value: string;
 };
 
+export function buildWorkspaceFileSearchKey(
+	environmentId: string,
+	workspaceRoot: string,
+	query: string,
+): string {
+	return JSON.stringify([environmentId, workspaceRoot, query]);
+}
+
 type ChatInputBarProps = {
+	environmentId: string;
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
 	provider: string;
@@ -284,6 +285,7 @@ type ChatInputBarProps = {
 };
 
 export function ChatInputBar({
+	environmentId,
 	variant = "conversation",
 	status,
 	provider,
@@ -479,7 +481,11 @@ export function ChatInputBar({
 			return;
 		}
 
-		const requestKey = `${workspaceRoot}::${activeMention.query}`;
+		const requestKey = buildWorkspaceFileSearchKey(
+			environmentId,
+			workspaceRoot,
+			activeMention.query,
+		);
 		if (mentionLastRequestKeyRef.current === requestKey) {
 			return;
 		}
@@ -501,6 +507,7 @@ export function ChatInputBar({
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
+						environmentId,
 						workspaceRoot,
 						query: activeMention.query,
 						limit: 10,
@@ -531,7 +538,13 @@ export function ChatInputBar({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [activeMention, mentionOpen, workspaceRoot, mentionFiles.length]);
+	}, [
+		activeMention,
+		environmentId,
+		mentionOpen,
+		workspaceRoot,
+		mentionFiles.length,
+	]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {

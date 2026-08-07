@@ -3,7 +3,7 @@ import {
 	createClineTelemetryServiceConfig,
 	setHomeDirIfUnset,
 } from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
+import { captureSdkError } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -13,6 +13,7 @@ import {
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
+import { runRemoteHelperEntrypoint } from "./remote-helper";
 import { startServer } from "./server";
 import { ensureLoginShellPath } from "./shell-path";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
@@ -169,10 +170,7 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
-	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
-	// from handing it to every process they spawn.
-	if (claimHubDaemonProcess()) {
-		await import("@cline/core/hub/daemon-entry");
+	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}
 	await main();

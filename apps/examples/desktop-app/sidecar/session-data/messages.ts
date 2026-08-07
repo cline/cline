@@ -323,22 +323,31 @@ export async function readSessionMessages(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
+	remoteMessages?: unknown[],
 ): Promise<unknown[]> {
-	const persisted =
-		readPersistedChatMessages(sessionId) ??
-		// A child agent's transcript is not stored under its own session
-		// directory — it lives beside the root session's artifacts — so opening a
-		// subagent session has to resolve the path recorded on its row.
-		readChildSessionMessages(sessionId);
+	const isRemoteRead = remoteMessages !== undefined;
+	const persisted = isRemoteRead
+		? remoteMessages
+		: (readPersistedChatMessages(sessionId) ??
+			// A child agent's transcript is not stored under its own session
+			// directory — it lives beside the root session's artifacts — so opening a
+			// subagent session has to resolve the path recorded on its row.
+			readChildSessionMessages(sessionId));
 	const messages =
 		persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+			: isRemoteRead
+				? []
+				: (ctx.liveSessions.get(sessionId)?.messages ?? []);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	// Remote artifacts belong to the SSH host. Never decorate them with a
+	// same-id local session's live transcript or checkpoint metadata.
+	const checkpointsByRunCount = isRemoteRead
+		? new Map<number, StoredCheckpointEntry>()
+		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {

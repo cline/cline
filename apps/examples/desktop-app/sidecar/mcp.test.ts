@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { handleCommand } from "./commands";
+import { createSidecarContext } from "./context";
 import {
 	buildMcpServersResponse,
 	shouldProbeMcpServerAfterUpsert,
@@ -10,18 +11,7 @@ import {
 import type { JsonRecord, SidecarContext } from "./types";
 
 function createContext(workspaceRoot: string): SidecarContext {
-	return {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		wsClients: new Set(),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
-		unsubscribeSessionEvents: null,
-	};
+	return createSidecarContext(workspaceRoot);
 }
 
 describe("desktop MCP settings", () => {

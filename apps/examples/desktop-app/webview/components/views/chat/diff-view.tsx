@@ -29,6 +29,7 @@ import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 import { EditorIcon } from "./editor-icons";
 
 type DiffViewProps = {
+	environmentId: string;
 	fileDiffs: SessionFileDiff[];
 	cwd?: string;
 	onClose: () => void;
@@ -39,7 +40,12 @@ type EditorOption = {
 	label: string;
 };
 
-export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
+export function DiffView({
+	environmentId,
+	fileDiffs,
+	cwd,
+	onClose,
+}: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 	const [editors, setEditors] = useState<EditorOption[]>([]);
 
@@ -121,6 +127,7 @@ export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 								collapsed={collapsedFiles.has(file.path)}
 								cwd={cwd}
 								editors={editors}
+								environmentId={environmentId}
 								file={file}
 								key={file.path}
 								onToggle={() => toggleFileCollapse(file.path)}
@@ -138,12 +145,14 @@ function DiffFileSection({
 	collapsed,
 	cwd,
 	editors,
+	environmentId,
 	onToggle,
 }: {
 	file: SessionFileDiff;
 	collapsed: boolean;
 	cwd?: string;
 	editors: EditorOption[];
+	environmentId: string;
 	onToggle: () => void;
 }) {
 	const [copied, setCopied] = useState(false);
@@ -176,6 +185,7 @@ function DiffFileSection({
 			setOpening(true);
 			try {
 				await desktopClient.invoke("open_file_in_editor", {
+					environmentId,
 					path: file.path,
 					...(cwd?.trim() ? { cwd } : {}),
 					...(editor ? { editor } : {}),
@@ -193,7 +203,7 @@ function DiffFileSection({
 				setOpening(false);
 			}
 		},
-		[file.path, cwd],
+		[cwd, environmentId, file.path],
 	);
 
 	return (

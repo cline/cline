@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
@@ -30,6 +30,7 @@ afterEach(async () => {
 async function renderWelcomeScreen({
 	workspaceRoot,
 	workspaces,
+	environmentSelector = null,
 	onStartChat = vi.fn(),
 	selectChat = vi.fn(async () => true),
 	onListGitBranches = vi.fn(async () => ({
@@ -39,6 +40,7 @@ async function renderWelcomeScreen({
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
+	environmentSelector?: ReactNode;
 	onStartChat?: (prompt: string) => void;
 	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
@@ -63,6 +65,7 @@ async function renderWelcomeScreen({
 					active
 					body={null}
 					composer={null}
+					environmentSelector={environmentSelector}
 					gitBranch="main"
 					onListGitBranches={onListGitBranches}
 					onStartChat={onStartChat}
@@ -88,6 +91,31 @@ async function clickButton(text: string, last = false): Promise<void> {
 }
 
 describe("WelcomeScreen", () => {
+	it("places the environment selector before the workspace selector", async () => {
+		await renderWelcomeScreen({
+			environmentSelector: (
+				<button data-testid="environment-selector" type="button">
+					Local
+				</button>
+			),
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		const environmentSelector = container.querySelector(
+			'[data-testid="environment-selector"]',
+		);
+		const workspaceSelector = container.querySelector(
+			'button[title="project-1"]',
+		);
+		expect(environmentSelector).not.toBeNull();
+		expect(workspaceSelector).not.toBeNull();
+		expect(
+			environmentSelector?.compareDocumentPosition(workspaceSelector as Node) ??
+				0,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	});
+
 	it("starts chat with the selected quick-action prompt", async () => {
 		const onStartChat = vi.fn();
 		await renderWelcomeScreen({

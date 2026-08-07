@@ -253,4 +253,25 @@ describe("readSessionMessages", () => {
 			meta: { runCount: 5 },
 		});
 	});
+
+	it("does not fall back to a same-id local live transcript for an empty remote read", async () => {
+		const sessionId = "same-id-on-local-and-remote";
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [{ role: "user", content: "local-only prompt" }],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+				800,
+				[],
+			),
+		).resolves.toEqual([]);
+	});
 });
