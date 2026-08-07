@@ -1,8 +1,11 @@
 import { writeErr } from "../../utils/output";
 import type { Config } from "../../utils/types";
 
-export function assertInteractivePreflight(config: Config): void {
-	if (config.outputMode === "json") {
+export function assertInteractivePreflight(
+	config: Config,
+	{ allowJson = false } = {},
+): void {
+	if (!allowJson && config.outputMode === "json") {
 		writeErr("interactive mode is not supported with --json");
 		process.exit(1);
 	}
