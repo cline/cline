@@ -8,6 +8,25 @@ import { ensureFetch, resolveApiKey } from "../http";
 import { isClaudeModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
+type VertexProviderSettings = NonNullable<Parameters<typeof createVertex>[0]>;
+type VertexGoogleAuthOptions = NonNullable<
+	VertexProviderSettings["googleAuthOptions"]
+>;
+
+function createGoogleAuthOptions(
+	projectId: string | undefined,
+	fetchImplementation: typeof fetch,
+): VertexGoogleAuthOptions {
+	return {
+		...(projectId ? { projectId } : {}),
+		clientOptions: {
+			transporterOptions: {
+				fetchImplementation,
+			},
+		},
+	};
+}
+
 function readStringOption(
 	options: Record<string, unknown> | undefined,
 	key: string,
@@ -49,11 +68,13 @@ export async function createVertexProviderModule(
 		"us-central1";
 	const googleAuthProjectId = project || undefined;
 	const fetch = ensureFetch(config.fetch);
+	const googleAuthOptions = createGoogleAuthOptions(googleAuthProjectId, fetch);
 
 	if (isClaudeModelId(context.model.id)) {
 		const provider = createVertexAnthropic({
 			project,
 			location,
+			googleAuthOptions,
 			baseURL: config.baseUrl,
 			headers: config.headers,
 			fetch,
@@ -65,11 +86,7 @@ export async function createVertexProviderModule(
 		project,
 		location,
 		apiKey: googleAuthProjectId ? undefined : await resolveApiKey(config),
-		googleAuthOptions: googleAuthProjectId
-			? {
-					projectId: googleAuthProjectId,
-				}
-			: undefined,
+		googleAuthOptions: googleAuthProjectId ? googleAuthOptions : undefined,
 		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch,

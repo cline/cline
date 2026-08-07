@@ -836,6 +836,11 @@ export function ChatInputBar({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
+								if (e.key === "Escape" && canAbort) {
+									e.preventDefault();
+									onAbort();
+									return;
+								}
 								if (e.key === "Enter" && !e.shiftKey) {
 									e.preventDefault();
 									if (canSend) {
@@ -869,13 +874,14 @@ export function ChatInputBar({
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										"bg-foreground p-1.5 text-background transition-colors hover:bg-destructive",
 										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
+									title="Stop the agent (Esc)"
 									type="button"
 								>
-									<CircleStop className="size-2" />
+									<CircleStop className="size-3" />
 								</button>
 							)}
 							{(!isBusy || canSend) && (
@@ -889,9 +895,10 @@ export function ChatInputBar({
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
+									title="Send (Enter)"
 									type="button"
 								>
-									<ArrowUp className="size-2" />
+									<ArrowUp className="size-3" />
 								</button>
 							)}
 						</div>
