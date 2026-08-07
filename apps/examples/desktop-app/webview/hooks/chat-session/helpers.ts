@@ -124,8 +124,6 @@ export function normalizeRuntimeConfig(
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
 		thinking,
 		reasoningEffort: thinking === false ? undefined : config.reasoningEffort,
-		enableSpawn: false,
-		enableTeams: false,
 	};
 }
 

@@ -817,7 +817,12 @@ async function listUserInstructionConfigs(
 	}
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	// Pin spawn/teams availability so this listing matches the hub's
+	// (apps/cline-hub/src/server/user-instructions.ts) even if the preset
+	// defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
 	});
 

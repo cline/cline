@@ -106,7 +106,11 @@ export async function listUserInstructionConfigs(
 		}),
 	]);
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	// Pin spawn/teams availability so this listing matches the desktop
+	// sidecar's (sidecar/commands.ts) even if the preset defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
 	});
 
