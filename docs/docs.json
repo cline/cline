@@ -1092,6 +1092,10 @@
 			"destination": "/provider-config/other-30-plus-providers#sap-ai-core"
 		},
 		{
+			"source": "/provider-config/saladcloud",
+			"destination": "/provider-config/other-30-plus-providers#saladcloud-ai-gateway"
+		},
+		{
 			"source": "/provider-config/together",
 			"destination": "/provider-config/other-30-plus-providers#together"
 		},
