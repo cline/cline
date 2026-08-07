@@ -29,6 +29,7 @@ import {
 } from "@/lib/model-selection";
 import {
 	CLINE_DASHBOARD_URL,
+	getProviderApiKeyLinkLabel,
 	getProviderApiKeyUrl,
 } from "@/lib/provider-key-urls";
 import {
@@ -622,7 +623,7 @@ function ConnectStep({
 										type="button"
 									>
 										{selectedProvider?.docLabel ||
-											`Get ${selectedProvider ? `a ${selectedProvider.name}` : "an"} API key`}
+											getProviderApiKeyLinkLabel(selectedProvider?.name)}
 										<ExternalLink className="size-3.5" />
 									</button>
 								) : (

@@ -37,3 +37,17 @@ export function getProviderApiKeyUrl(provider: {
 	}
 	return PROVIDER_API_KEY_URLS[provider.id.trim().toLowerCase()] ?? null;
 }
+
+/**
+ * Label for a "get an API key" link: picks "a"/"an" by the provider name's
+ * leading vowel (OpenAI, Anthropic, …) and falls back to the generic
+ * "Get an API key" when no provider is selected.
+ */
+export function getProviderApiKeyLinkLabel(name?: string): string {
+	const trimmed = name?.trim();
+	if (!trimmed) {
+		return "Get an API key";
+	}
+	const article = /^[aeiou]/i.test(trimmed) ? "an" : "a";
+	return `Get ${article} ${trimmed} API key`;
+}

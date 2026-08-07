@@ -24,7 +24,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/desktop-client";
-import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
+import {
+	getProviderApiKeyLinkLabel,
+	getProviderApiKeyUrl,
+} from "@/lib/provider-key-urls";
 import type {
 	Provider,
 	ProviderConfigField,
@@ -482,7 +485,7 @@ export function ProviderDetailContent({
 													type="button"
 												>
 													{provider.docLabel ||
-														`Get a ${provider.name} API key`}
+														getProviderApiKeyLinkLabel(provider.name)}
 													<ExternalLink className="size-3.5" />
 												</button>
 											) : null}
