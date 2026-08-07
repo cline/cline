@@ -236,6 +236,10 @@ function handleAgentEvent(
 			if (event.contentType === "text" || event.contentType === "reasoning") {
 				break;
 			}
+			if (event.contentType === "image" && event.image) {
+				emitChunk(ctx, sessionId, "chat_image", JSON.stringify(event.image));
+				break;
+			}
 			if (event.contentType === "tool") {
 				emitChunk(
 					ctx,
@@ -698,6 +702,12 @@ export function handleHubLiveEvent(
 			if (text) {
 				emitChunk(ctx, sessionId, "chat_text", text);
 			}
+			return;
+		}
+		case "assistant.image": {
+			// HubRuntimeHost projects this raw Hub event into Core's canonical
+			// content_end(image) event, which handleAgentEvent relays. Emitting it
+			// here too briefly renders the same image twice until history reloads.
 			return;
 		}
 		case "reasoning.delta": {

@@ -222,6 +222,24 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("declares OpenRouter image transport for Cline-compatible gateways", async () => {
+		await expect(getProvider("cline")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("cline-pass")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("openrouter")).resolves.toMatchObject({
+			metadata: { imageTransport: "openrouter" },
+		});
+	});
+
 	it("merges generated provider specs with handwritten built-in overrides", async () => {
 		const generatedIds = new Set(
 			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
@@ -424,9 +442,7 @@ describe("regional API line base URLs", () => {
 	it("returns undefined for unknown lines and non-regional providers", () => {
 		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
 		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
-		expect(
-			resolveProviderApiLineBaseUrl("anthropic", "china"),
-		).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("anthropic", "china")).toBeUndefined();
 	});
 
 	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {

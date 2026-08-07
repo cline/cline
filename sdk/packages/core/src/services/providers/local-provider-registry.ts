@@ -217,7 +217,7 @@ export function toProviderModel(
 	modelId: string,
 	info: Pick<
 		ModelInfo,
-		"name" | "contextWindow" | "capabilities" | "thinkingConfig"
+		"name" | "contextWindow" | "capabilities" | "thinkingConfig" | "modalities"
 	>,
 ): ProviderModel {
 	return {
@@ -230,6 +230,8 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		inputModalities: info.modalities?.input,
+		outputModalities: info.modalities?.output,
 	};
 }
 

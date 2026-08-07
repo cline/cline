@@ -21,6 +21,7 @@ export interface ProviderFactoryResult {
 	 * middleware. Leave unset for the defaults.
 	 */
 	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
+	imageModel?: (modelId: string) => unknown;
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,

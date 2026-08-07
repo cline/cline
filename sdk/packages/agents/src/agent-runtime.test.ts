@@ -107,6 +107,31 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("persists generated images in assistant message content", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a lighthouse");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "image",
+					image: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			],
+		});
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),

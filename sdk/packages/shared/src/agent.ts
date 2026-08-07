@@ -247,6 +247,7 @@ export type ProviderErrorClass = "context_window_exceeded" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
+	| { type: "image"; data: string; mediaType: string }
 	| {
 			type: "reasoning-delta";
 			text: string;

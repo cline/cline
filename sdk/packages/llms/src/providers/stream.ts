@@ -15,6 +15,7 @@ export type ApiStream = AsyncGenerator<ApiStreamChunk> & { id?: string };
  */
 export type ApiStreamChunk =
 	| ApiStreamTextChunk
+	| ApiStreamImageChunk
 	| ApiStreamReasoningChunk
 	| ApiStreamUsageChunk
 	| ApiStreamToolCallsChunk
@@ -31,6 +32,19 @@ export interface ApiStreamTextChunk {
 	id: string;
 	/** Thought signature (used by Gemini) */
 	signature?: string;
+}
+
+/**
+ * Generated image content chunk
+ */
+export interface ApiStreamImageChunk {
+	type: "image";
+	/** Base64-encoded image bytes, without a data URL prefix */
+	data: string;
+	/** Image MIME type */
+	mediaType: string;
+	/** Response ID associated with this chunk */
+	id: string;
 }
 
 /**

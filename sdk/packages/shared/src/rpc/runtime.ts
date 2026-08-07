@@ -1,5 +1,6 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
+import type { ModelModality } from "../llms/model-info";
 import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
@@ -149,6 +150,8 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =

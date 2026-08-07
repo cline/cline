@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -293,6 +298,36 @@ describe("Code sidecar runtime capabilities", () => {
 						"chat_queued_prompt_start",
 			),
 		).toHaveLength(2);
+	});
+
+	it("leaves attached-session assistant image projection to the Core event stream", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.image",
+			sessionId: "session-image",
+			payload: {
+				image: {
+					data: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([]);
 	});
 
 	it("resolves askQuestion through the websocket request/response protocol", async () => {

@@ -71,6 +71,38 @@ export const ModelMetadataSchema = z
 
 export type ModelMetadata = z.infer<typeof ModelMetadataSchema>;
 
+export const ModelModalitySchema = z.enum([
+	"text",
+	"image",
+	"audio",
+	"video",
+	"pdf",
+]);
+
+export type ModelModality = z.infer<typeof ModelModalitySchema>;
+
+export const ModelModalitiesSchema = z.object({
+	input: z.array(ModelModalitySchema),
+	output: z.array(ModelModalitySchema),
+});
+
+export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
+
+export function isImageGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("image")
+	);
+}
+
+export function isDedicatedImageGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isImageGenerationModel(model) && output?.includes("text") !== true;
+}
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
@@ -79,6 +111,7 @@ export const ModelInfoSchema = z.object({
 	contextWindow: z.number().optional(),
 	maxInputTokens: z.number().optional(),
 	capabilities: z.array(ModelCapabilitySchema).optional(),
+	modalities: ModelModalitiesSchema.optional(),
 	reasoningOptions: z.array(ModelReasoningOptionSchema).optional(),
 	apiFormat: ApiFormatSchema.optional(),
 	systemRole: z.enum(["system", "developer"]).optional(),

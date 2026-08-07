@@ -224,6 +224,17 @@ async function projectAgentEvent(
 					),
 				);
 				break;
+			case "image":
+				if (agentEvent.image) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.image",
+							{ image: agentEvent.image },
+							sessionId,
+						),
+					);
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

@@ -517,6 +517,7 @@ function modelInfoToGateway(
 		contextWindow: info.contextWindow,
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
+		modalities: info.modalities,
 		capabilities: [...capabilities],
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
@@ -602,6 +603,8 @@ function createClineLikeSpec(
 		},
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			imageTransport: "openrouter",
+			responseEnvelope: "success-data",
 			...input.metadata,
 		},
 	};
@@ -933,6 +936,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 			...OPENROUTER_STICKY_SESSION_METADATA,
+			imageTransport: "openrouter",
 		},
 	},
 	{
@@ -1192,8 +1196,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {
