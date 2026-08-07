@@ -7,9 +7,10 @@ export function resolveWorkspaceRootPath(paths: readonly string[] | undefined, n
  *
  * Returns the host's non-empty workspace folder paths when available. When the
  * host reports no workspace folders (e.g. an empty VS Code window), falls back
- * to `noWorkspaceFallback` so callers still get a usable single-root manager.
- * This mirrors the legacy Controller, whose setupWorkspaceManager() always
- * seeded the manager via getCwd(getDesktopDir()). Without the fallback,
+ * to `noWorkspaceFallback` (the session's working directory / shared chat
+ * workspace) so callers still get a usable single-root manager. The legacy
+ * Controller likewise always seeded its manager with a fallback root via
+ * setupWorkspaceManager() → getCwd(getDesktopDir()). Without the fallback,
  * @-mention file search in an empty window returns zero results and emits
  * task.mention_failed (workspace_unavailable) — see searchFiles.ts.
  */
