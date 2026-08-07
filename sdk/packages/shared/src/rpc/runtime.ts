@@ -1,5 +1,6 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
+import type { ModelModality } from "../llms/model-info";
 import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
@@ -149,6 +150,9 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	supportsStreamingTranscription?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =
@@ -200,9 +204,15 @@ export interface ProviderListItem {
 	family?: string;
 }
 
+export interface VoiceInputSelection {
+	providerId: string;
+	modelId: string;
+}
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
 }
 
 export interface ProviderModelsResponse {

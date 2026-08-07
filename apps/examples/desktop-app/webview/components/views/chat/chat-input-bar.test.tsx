@@ -24,6 +24,7 @@ vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
+	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
 
 let container: HTMLDivElement;
@@ -36,6 +37,7 @@ beforeEach(() => {
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
+		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
@@ -81,6 +83,7 @@ describe("ChatInputBar", () => {
 
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
+		const onOpenVoiceInputSettings = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
 			await act(async () => {
 				root.render(
@@ -109,6 +112,7 @@ describe("ChatInputBar", () => {
 							}))}
 							onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
+							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
 							onReasoningChange={onReasoningChange}
@@ -214,6 +218,9 @@ describe("ChatInputBar", () => {
 		const attachTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Attach files"]',
 		);
+		const speechTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
 		const thinkingTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Thinking level"]',
 		);
@@ -221,6 +228,7 @@ describe("ChatInputBar", () => {
 		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
+		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);
 
 		expect(workspaceTrigger?.disabled).toBe(true);
 		expect(workspaceTrigger?.className).toContain("max-[560px]:size-7");
@@ -234,13 +242,22 @@ describe("ChatInputBar", () => {
 		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
 		const rightControls = workspaceFooterSlot?.parentElement?.parentElement;
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
-		const sendTrigger = container.querySelector('[aria-label="Send message"]');
-		const stopTrigger = container.querySelector('[aria-label="Stop agent"]');
+		const sendTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const stopTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop agent"]',
+		);
 		expect(promptInput?.parentElement?.className).toContain("items-end");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		expect(promptInput?.parentElement?.contains(speechTrigger)).toBe(true);
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
+		expect(rightControls?.contains(speechTrigger ?? null)).toBe(false);
+		expect(speechTrigger?.parentElement?.nextElementSibling).toBe(sendTrigger);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
+		await act(async () => speechTrigger?.click());
+		expect(onOpenVoiceInputSettings).toHaveBeenCalledOnce();
 	});
 
 	it("selects High from the supported model thinking menu", async () => {

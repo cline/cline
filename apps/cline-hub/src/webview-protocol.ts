@@ -14,7 +14,7 @@ export type WebviewUsage = {
 
 export type WebviewProviderModel = Pick<
 	ProviderModel,
-	"id" | "name" | "supportsReasoning"
+	"id" | "name" | "supportsReasoning" | "inputModalities" | "outputModalities"
 > & {
 	supportsThinking?: boolean;
 };
