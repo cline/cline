@@ -104,6 +104,7 @@ describe("createInteractiveGoalGuard", () => {
 			completed: true,
 			goal: "fix tests",
 			summary: "all tests pass",
+			message: expect.stringContaining("brief closing summary"),
 		});
 		expect(guard.getActiveGoal()).toBeUndefined();
 		expect(guard.getLastCompletedGoal()).toEqual({

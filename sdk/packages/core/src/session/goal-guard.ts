@@ -24,13 +24,6 @@ export type CompletedGoalRecord = {
 	summary?: string;
 };
 
-export const GOAL_COMMAND_USAGE = [
-	"Usage:",
-	"/goal <task> - set a goal and start working on it",
-	"/goal status - show the active goal",
-	"/goal off - clear the active goal",
-].join("\n");
-
 /**
  * Upper bound on automatic verification turns per user submission. The goal
  * stays active when the cap is reached, so the next completed run nudges
@@ -113,7 +106,8 @@ export function createInteractiveGoalGuard() {
 		name: "mark_goal_complete",
 		description:
 			"Mark the active goal complete only after the follow-up verification prompt explicitly asks whether the goal is complete. " +
-			"Never call this during the initial work run; it only succeeds while a verification prompt is pending.",
+			"Never call this during the initial work run; it only succeeds while a verification prompt is pending. " +
+			"After a successful call, always reply with a brief closing message for the user.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -148,10 +142,15 @@ export function createInteractiveGoalGuard() {
 				...(summary ? { summary } : {}),
 			};
 			active = undefined;
+			// The instruction matters: some models consider the conversation
+			// over once this tool succeeds and generate an empty follow-up,
+			// which the agent loop fails as "Model returned empty response".
 			return {
 				completed: true,
 				goal: lastCompleted.goal,
 				summary: lastCompleted.summary ?? "",
+				message:
+					"Goal verified complete. Finish by replying with a brief closing summary for the user.",
 			};
 		},
 	});

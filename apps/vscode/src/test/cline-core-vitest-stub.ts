@@ -125,7 +125,6 @@ export {
 	type CompletedGoalRecord,
 	createInteractiveGoalGuard,
 	formatGoalVerificationPrompt,
-	GOAL_COMMAND_USAGE,
 	type InteractiveGoalGuard,
 	isGoalVerificationPrompt,
 	MAX_GOAL_VERIFICATION_ROUNDS,

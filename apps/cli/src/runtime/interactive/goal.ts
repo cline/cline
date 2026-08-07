@@ -10,7 +10,6 @@ export {
 	createInteractiveGoalGuard,
 	formatGoalTaskPrompt,
 	formatGoalVerificationPrompt,
-	GOAL_COMMAND_USAGE,
 	type InteractiveGoalGuard,
 	type InteractiveGoalRecord,
 	isGoalVerificationPrompt,
