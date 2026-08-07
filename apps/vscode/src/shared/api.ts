@@ -1,3 +1,4 @@
+import type { ModelModalities } from "@cline/shared"
 import { ApiFormat } from "./proto/cline/models"
 import type { ApiHandlerSettings } from "./storage/state-keys"
 
@@ -96,6 +97,7 @@ export interface ModelInfo {
 	}[]
 	temperature?: number
 	apiFormat?: ApiFormat // The API format used by this model
+	modalities?: ModelModalities
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

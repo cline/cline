@@ -35,6 +35,7 @@ import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
+import { filterChatModels } from "../utils/chat-models";
 import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
@@ -185,7 +186,9 @@ export class AcpAgent implements Agent {
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
+		const providerModels = filterChatModels(
+			await Llms.getModelsForProvider(providerId),
+		);
 		// Model ids are provider-scoped, so the default must come from the
 		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
 		// nothing to `cline`, and vice versa.
@@ -256,7 +259,9 @@ export class AcpAgent implements Agent {
 				// provider's own catalog just like newSession.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-				const providerModels = await Llms.getModelsForProvider(providerId);
+				const providerModels = filterChatModels(
+					await Llms.getModelsForProvider(providerId),
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
@@ -287,8 +292,8 @@ export class AcpAgent implements Agent {
 		// session/update notifications before this request resolves.
 		await replaySessionHistory(this.conn, params.sessionId, messages);
 
-		const providerModels = await Llms.getModelsForProvider(
-			session.currentProviderId,
+		const providerModels = filterChatModels(
+			await Llms.getModelsForProvider(session.currentProviderId),
 		);
 		const availableModels = Object.entries(providerModels).map(
 			([availableModelId, info]) => ({
@@ -473,7 +478,9 @@ export class AcpAgent implements Agent {
 				// current one when it's offered there too, otherwise fall back to the
 				// provider's declared default rather than whichever model happens to
 				// be listed first (for cline-pass that is an unrelated free model).
-				const providerModels = await Llms.getModelsForProvider(value);
+				const providerModels = filterChatModels(
+					await Llms.getModelsForProvider(value),
+				);
 				session.currentModelId = await resolveDefaultModelId(
 					value,
 					session.currentModelId,
@@ -907,7 +914,7 @@ async function buildAllConfigOptions(
 ): Promise<SessionConfigOption[]> {
 	const [providerOption, providerModels] = await Promise.all([
 		buildProviderConfigOption(session.currentProviderId),
-		Llms.getModelsForProvider(session.currentProviderId),
+		Llms.getModelsForProvider(session.currentProviderId).then(filterChatModels),
 	]);
 	return [
 		providerOption,

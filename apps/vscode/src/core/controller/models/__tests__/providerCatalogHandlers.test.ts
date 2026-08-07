@@ -116,8 +116,16 @@ describe("provider model catalog handlers", () => {
 						apiFormat: ApiFormat.OPENAI_CHAT,
 					},
 				],
+				[
+					"whisper-large-v3",
+					{
+						name: "Whisper Large V3",
+						supportsPromptCache: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				],
 			]),
-			defaultModelId: "deepseek-v4-flash",
+			defaultModelId: "whisper-large-v3",
 			source: "sdk-dynamic",
 			fetchedAt: 99,
 		})
@@ -141,6 +149,8 @@ describe("provider model catalog handlers", () => {
 			temperature: 0.2,
 			apiFormat: ApiFormat.OPENAI_CHAT,
 		})
+		expect(response.models["whisper-large-v3"]).toBeUndefined()
+		expect(response.defaultModelId).toBe("deepseek-v4-flash")
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
 	})
 

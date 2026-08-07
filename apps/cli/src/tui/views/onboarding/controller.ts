@@ -11,6 +11,7 @@ import {
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isChatProviderModel } from "../../../utils/chat-models";
 import {
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
@@ -233,7 +234,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const ids = new Set<string>();
 			for (const result of results) {
 				if (result.status !== "fulfilled") continue;
-				for (const m of result.value.models) {
+				for (const m of result.value.models.filter(isChatProviderModel)) {
 					if (m.supportsReasoning) ids.add(m.id);
 				}
 			}
@@ -283,7 +284,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						providerId,
 						providerConfig,
 					);
-					return models.map(toModelEntry);
+					return models.filter(isChatProviderModel).map(toModelEntry);
 				})
 				.then((models) => {
 					setModelEntries(models);

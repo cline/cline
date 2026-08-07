@@ -13,6 +13,7 @@
  *   contextWindow?: number,
  *   maxTokens?: number,
  *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
+ *   modalities?: { input: string[], output: string[] },
  *   pricing?: { input?, output?, cacheRead?, cacheWrite? },
  *   description?: string,
  *   releaseDate?: string,        // not mapped — see "Unmapped SDK fields" below
@@ -37,6 +38,7 @@
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
+ * | modalities | `sdk.modalities` when present and valid | omitted (undefined) |
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
  * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
@@ -75,6 +77,7 @@ const IMAGE_CAPABILITIES = new Set(["images", "vision"])
 const PROMPT_CACHE_CAPABILITY = "prompt-cache"
 const REASONING_CAPABILITY = "reasoning"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
+const MODEL_MODALITIES = new Set(["text", "image", "audio", "video", "pdf"])
 
 interface NormalizedPricing {
 	input?: number
@@ -82,6 +85,8 @@ interface NormalizedPricing {
 	cacheRead?: number
 	cacheWrite?: number
 }
+
+type ModelModalityList = NonNullable<ModelInfo["modalities"]>["input"]
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -134,6 +139,37 @@ function readPricing(value: unknown): NormalizedPricing | undefined {
 		result[key] = raw
 	}
 	return result
+}
+
+function readModalityList(value: unknown, field: "input" | "output"): ModelModalityList {
+	if (!Array.isArray(value)) {
+		throw new CatalogShapeError(`SDK model-info \`modalities.${field}\` must be an array when modalities are present.`, {
+			details: { field, receivedType: typeof value },
+		})
+	}
+	for (const entry of value) {
+		if (typeof entry !== "string" || !MODEL_MODALITIES.has(entry)) {
+			throw new CatalogShapeError(`SDK model-info \`modalities.${field}\` contains an unsupported modality.`, {
+				details: { field, value: entry },
+			})
+		}
+	}
+	return [...value] as ModelModalityList
+}
+
+function readModalities(value: unknown): ModelInfo["modalities"] {
+	if (value === undefined) {
+		return undefined
+	}
+	if (!isPlainObject(value)) {
+		throw new CatalogShapeError("SDK model-info `modalities` must be an object when present.", {
+			details: { receivedType: typeof value },
+		})
+	}
+	return {
+		input: readModalityList(value.input, "input"),
+		output: readModalityList(value.output, "output"),
+	}
 }
 
 /**
@@ -193,6 +229,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 
 	const capabilities = readStringArray(input.capabilities)
 	const pricing = readPricing(input.pricing)
+	const modalities = readModalities(input.modalities)
 
 	const result: ModelInfo = {
 		name: rawName ?? id,
@@ -222,6 +259,9 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (rawDescription !== undefined) {
 		result.description = rawDescription
+	}
+	if (modalities !== undefined) {
+		result.modalities = modalities
 	}
 
 	return result
