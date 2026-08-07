@@ -27,6 +27,7 @@ import {
 
 const streamTextSpy = vi.fn();
 const generateImageSpy = vi.fn();
+const generateSpeechSpy = vi.fn();
 const generateVideoSpy = vi.fn();
 const vercelGatewayFactorySpy = vi.fn();
 const vercelGatewayImageSpy = vi.fn((modelId: string) => ({
@@ -36,6 +37,10 @@ const vercelGatewayImageSpy = vi.fn((modelId: string) => ({
 const vercelGatewayVideoSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "vercel-gateway-video",
+}));
+const vercelGatewaySpeechSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "vercel-gateway-speech",
 }));
 const openaiCompatibleFactorySpy = vi.fn();
 const openaiCompatibleSpy = vi.fn((modelId: string) => ({
@@ -49,6 +54,10 @@ const openaiResponsesSpy = vi.fn((modelId: string) => ({
 const openaiImageSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "openai-image",
+}));
+const openaiSpeechSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "openai-speech",
 }));
 const openaiImageGenerationToolSpy = vi.fn((options: unknown) => ({
 	type: "provider-tool",
@@ -69,6 +78,10 @@ const anthropicSpy = vi.fn((modelId: string) => ({
 	family: "anthropic",
 }));
 const googleSpy = vi.fn((modelId: string) => ({ modelId, family: "google" }));
+const googleSpeechSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "google-speech",
+}));
 const codexExecFactorySpy = vi.fn();
 const codexExecSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -94,6 +107,7 @@ vi.mock("ai", () => ({
 		...(options && typeof options === "object" ? options : {}),
 	}),
 	generateImage: (input: unknown) => generateImageSpy(input),
+	generateSpeech: (input: unknown) => generateSpeechSpy(input),
 	experimental_generateVideo: (input: unknown) => generateVideoSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
@@ -110,6 +124,7 @@ vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
 		responses: (modelId: string) => openaiResponsesSpy(modelId),
 		image: (modelId: string) => openaiImageSpy(modelId),
+		speech: (modelId: string) => openaiSpeechSpy(modelId),
 		tools: {
 			imageGeneration: (options: unknown) =>
 				openaiImageGenerationToolSpy(options),
@@ -122,6 +137,7 @@ vi.mock("@ai-sdk/gateway", () => ({
 		vercelGatewayFactorySpy(config);
 		return {
 			imageModel: (modelId: string) => vercelGatewayImageSpy(modelId),
+			speechModel: (modelId: string) => vercelGatewaySpeechSpy(modelId),
 			videoModel: (modelId: string) => vercelGatewayVideoSpy(modelId),
 		};
 	},
@@ -149,7 +165,10 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }));
 
 vi.mock("@ai-sdk/google", () => ({
-	createGoogleGenerativeAI: () => (modelId: string) => googleSpy(modelId),
+	createGoogleGenerativeAI: () =>
+		Object.assign((modelId: string) => googleSpy(modelId), {
+			speech: (modelId: string) => googleSpeechSpy(modelId),
+		}),
 }));
 
 vi.mock("ai-sdk-provider-codex-cli", () => ({
@@ -289,20 +308,24 @@ describe("sdk-gateway", () => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		generateImageSpy.mockReset();
+		generateSpeechSpy.mockReset();
 		generateVideoSpy.mockReset();
 		vercelGatewayFactorySpy.mockReset();
 		vercelGatewayImageSpy.mockReset();
+		vercelGatewaySpeechSpy.mockReset();
 		vercelGatewayVideoSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
 		openaiResponsesSpy.mockReset();
 		openaiImageSpy.mockReset();
+		openaiSpeechSpy.mockReset();
 		openaiImageGenerationToolSpy.mockReset();
 		openRouterFactorySpy.mockReset();
 		openRouterChatSpy.mockReset();
 		openRouterImageSpy.mockReset();
 		anthropicSpy.mockReset();
 		googleSpy.mockReset();
+		googleSpeechSpy.mockReset();
 		codexExecFactorySpy.mockReset();
 		codexExecSpy.mockReset();
 		googleSpy.mockImplementation((modelId: string) => ({
@@ -321,6 +344,10 @@ describe("sdk-gateway", () => {
 			modelId,
 			family: "openai-image",
 		}));
+		openaiSpeechSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "openai-speech",
+		}));
 		openaiImageGenerationToolSpy.mockImplementation((options: unknown) => ({
 			type: "provider-tool",
 			id: "openai.image_generation",
@@ -338,6 +365,10 @@ describe("sdk-gateway", () => {
 			modelId,
 			family: "vercel-gateway-image",
 		}));
+		vercelGatewaySpeechSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "vercel-gateway-speech",
+		}));
 		vercelGatewayVideoSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "vercel-gateway-video",
@@ -345,6 +376,10 @@ describe("sdk-gateway", () => {
 		anthropicSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "anthropic",
+		}));
+		googleSpeechSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "google-speech",
 		}));
 		codexExecSpy.mockImplementation((modelId: string) => ({
 			modelId,
@@ -839,9 +874,10 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("emits generated audio files from multimodal model streams", async () => {
+	it("preserves tools and emits audio for mixed text-and-audio models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Here is the narration" },
 				{
 					type: "file",
 					file: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
@@ -850,22 +886,98 @@ describe("sdk-gateway", () => {
 			]),
 		});
 		const gateway = createGateway({
-			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-audio-model",
+							name: "Mixed Audio Model",
+							modalities: {
+								input: ["text"],
+								output: ["text", "audio"],
+							},
+						},
+					],
+				},
+			],
 		});
 
 		const events = await collect(
 			await gateway.stream({
 				providerId: "openai-native",
-				modelId: "audio-model",
+				modelId: "mixed-audio-model",
 				messages: baseMessages,
+				tools: [
+					{
+						name: "lookup",
+						description: "Lookup a term",
+						inputSchema: { type: "object" },
+					},
+				],
 			}),
 		);
 
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, unknown> }
+			| undefined;
+		expect(call?.tools).toEqual(
+			expect.objectContaining({ lookup: expect.any(Object) }),
+		);
+		expect(generateSpeechSpy).not.toHaveBeenCalled();
+		expect(events).toContainEqual({
+			type: "text-delta",
+			text: "Here is the narration",
+		});
 		expect(events).toContainEqual({
 			type: "audio",
 			data: "YXVkaW8=",
 			mediaType: "audio/mpeg",
 		});
+	});
+
+	it("preserves text-only responses from mixed text-and-audio models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Audio is unavailable" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-audio-model",
+							name: "Mixed Audio Model",
+							modalities: {
+								input: ["text"],
+								output: ["text", "audio"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "mixed-audio-model",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(generateSpeechSpy).not.toHaveBeenCalled();
+		expect(events).toContainEqual({
+			type: "text-delta",
+			text: "Audio is unavailable",
+		});
+		expect(events.at(-1)).toMatchObject({ type: "finish" });
+		expect(events.at(-1)).not.toMatchObject({ reason: "error" });
 	});
 
 	it("uses generateImage for dedicated text-to-image models", async () => {
@@ -951,6 +1063,90 @@ describe("sdk-gateway", () => {
 			{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
 			{ type: "finish", reason: "stop" },
 		]);
+	});
+
+	it.each([
+		["openai-native", "tts-test", openaiSpeechSpy],
+		["gemini", "gemini-tts-test", googleSpeechSpy],
+		["vercel-ai-gateway", "openai/tts-test", vercelGatewaySpeechSpy],
+	] as const)("uses generateSpeech for dedicated audio models through %s", async (providerId, modelId, speechModelSpy) => {
+		generateSpeechSpy.mockResolvedValue({
+			audio: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
+		});
+		const abortController = new AbortController();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: "test",
+					models: [
+						{
+							id: modelId,
+							name: "Speech Test",
+							modalities: { input: ["text"], output: ["audio"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+				signal: abortController.signal,
+			}),
+		);
+
+		expect(speechModelSpy).toHaveBeenCalledWith(modelId);
+		expect(generateSpeechSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({ modelId }),
+				text: "Hello",
+				abortSignal: abortController.signal,
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ type: "audio", data: "YXVkaW8=", mediaType: "audio/mpeg" },
+			{ type: "finish", reason: "stop" },
+		]);
+	});
+
+	it("fails clearly when a dedicated audio provider has no speech model", async () => {
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test",
+					models: [
+						{
+							id: "unsupported-audio-model",
+							name: "Unsupported Audio Model",
+							modalities: { input: ["text"], output: ["audio"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "unsupported-audio-model",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(generateSpeechSpy).not.toHaveBeenCalled();
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: 'Provider "openrouter" does not support speech generation models',
+			errorClass: "unknown",
+		});
 	});
 
 	it("streams generated video files for mixed text-and-video models", async () => {

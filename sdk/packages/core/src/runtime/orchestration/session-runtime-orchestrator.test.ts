@@ -1082,7 +1082,7 @@ describe("SessionRuntime.run", () => {
 		await session.run("Use a tool and return narrated text");
 
 		expect(configs).toHaveLength(1);
-		expect(configs[0]?.tools.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
 		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
 	});
 

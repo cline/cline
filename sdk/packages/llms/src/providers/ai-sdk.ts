@@ -14,6 +14,7 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	isDedicatedAudioGenerationModel,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
 	isImageGenerationModel,
@@ -24,6 +25,7 @@ import {
 import {
 	type CallSettings,
 	generateImage,
+	generateSpeech,
 	experimental_generateVideo as generateVideo,
 	jsonSchema,
 	NoSuchToolError,
@@ -266,6 +268,20 @@ function extractGeneratedAudio(
 		return undefined;
 	}
 	return { data: record.base64, mediaType: record.mediaType };
+}
+
+function resolveSpeechGenerationText(request: GatewayStreamRequest): string {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (text) return text;
+	}
+	throw new Error("Speech generation requires text input");
 }
 
 export function buildAiSdkStreamConfig(
@@ -1696,6 +1712,36 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					if (emittedVideos === 0) {
 						throw new Error("Video model returned no supported videos");
 					}
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
+				if (isDedicatedAudioGenerationModel(context.model)) {
+					if (!provider.speechModel) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support speech generation models`,
+						);
+					}
+					const text = resolveSpeechGenerationText(request);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: {
+							operation: "generate_speech",
+							text,
+							providerOptions,
+						},
+					});
+					const result = await generateSpeech({
+						model: provider.speechModel(context.model.id) as never,
+						text,
+						abortSignal: request.signal,
+						providerOptions: providerOptions as never,
+					});
+					const audio = extractGeneratedAudio(result.audio);
+					if (!audio) {
+						throw new Error("Speech model returned no supported audio");
+					}
+					yield { type: "audio", ...audio };
 					yield { type: "finish", reason: "stop" };
 					return;
 				}

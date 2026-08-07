@@ -377,6 +377,24 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(serialized).not.toContain(artifactPath);
 	});
 
+	it("does not disclose generated audio artifact paths to the summarizer", () => {
+		const artifactPath =
+			"/Users/example/.cline/data/sessions/session-1/artifacts/private-audio.mp3";
+		const serialized = serializeMessage({
+			role: "assistant",
+			content: [
+				{
+					type: "audio",
+					path: artifactPath,
+					mediaType: "audio/mpeg",
+				},
+			],
+		});
+
+		expect(serialized).toBe("[Bot generated audio]: audio/mpeg");
+		expect(serialized).not.toContain(artifactPath);
+	});
+
 	it("returns no result when the transcript has no typed user prompt", () => {
 		// The whole-history fold anchors on typed user prompts; a transcript
 		// of pure tool traffic has nothing to fold around.

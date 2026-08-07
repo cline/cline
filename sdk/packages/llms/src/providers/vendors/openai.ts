@@ -44,6 +44,7 @@ export async function createOpenAIProviderModule(
 	return {
 		model: (modelId) => provider.responses(modelId),
 		imageModel: (modelId) => provider.image(modelId),
+		speechModel: (modelId) => provider.speech(modelId),
 		...(isImageGenerationModel(context.model) &&
 		!isDedicatedImageGenerationModel(context.model)
 			? {

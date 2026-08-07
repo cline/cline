@@ -718,7 +718,7 @@ export function formatMessagesForAiSdk(
 				case "audio":
 					messageParts.push({
 						type: "text",
-						text: `[Generated audio artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
+						text: `[Generated audio artifact: ${sanitizeSurrogates(part.mediaType)}]`,
 					});
 					break;
 				case "file":
