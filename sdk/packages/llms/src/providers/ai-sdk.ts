@@ -543,6 +543,15 @@ function toAiSdkMessages(
 				continue;
 			}
 
+			if (part.type === "video") {
+				content.push({
+					type: "video",
+					path: part.path,
+					mediaType: part.mediaType,
+				});
+				continue;
+			}
+
 			if (part.type === "tool-call") {
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
