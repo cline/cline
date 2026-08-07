@@ -264,18 +264,24 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
+		// On success result.text is assistant content; on a failed run it is
+		// the runtime's error string and must surface as an error message
+		// (assistant bubbles for unpersisted turns are wiped by rehydration).
 		{
 			finishReason: "completed",
+			expectedRole: "assistant",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 		{
 			finishReason: "error",
+			expectedRole: "error",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 	])("handles schema-like assistant text for $finishReason responses", async ({
 		finishReason,
+		expectedRole,
 		expected,
 	}) => {
 		const schemaLikeText =
@@ -312,10 +318,13 @@ describe("useChatSession", () => {
 
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
+		// Error-role content goes through the turn-failure reporter, which
+		// wraps the detail in user-facing copy — assert containment, not
+		// equality, so the schema text is preserved either way.
 		expect(
-			current.messages.findLast((message) => message.role === "assistant")
+			current.messages.findLast((message) => message.role === expectedRole)
 				?.content,
-		).toBe(expected);
+		).toContain(expected);
 	});
 
 	it("keeps a recovered cloud turn running after a transport reconnect", async () => {
