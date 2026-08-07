@@ -32,7 +32,11 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
-import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
+import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import {
+	type OnboardingStep,
+	OnboardingView,
+} from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
 import {
 	type SettingsSection,
@@ -65,7 +69,11 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
-import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
+import { isProviderConnected } from "@/lib/provider-connection";
+import {
+	fetchProviderCatalog,
+	subscribeToProviderCatalogInvalidation,
+} from "@/lib/provider-model-catalog";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
@@ -113,6 +121,11 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	// "welcome" for the full first-run flow; "connect" when re-entered from
+	// the in-app "connect a model" notice, which should land directly on the
+	// provider setup step.
+	const [onboardingInitialStep, setOnboardingInitialStep] =
+		useState<OnboardingStep>("welcome");
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 
@@ -167,10 +180,16 @@ export default function Home() {
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
 		setShowOnboarding(false);
+		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
 		// the provider/model selection configured during onboarding.
 		handleNewThread();
 	}, [handleNewThread]);
+
+	const handleOpenSetup = useCallback(() => {
+		setOnboardingInitialStep("connect");
+		setShowOnboarding(true);
+	}, []);
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
@@ -252,6 +271,27 @@ export default function Home() {
 			}),
 		[handleNewThread, handleViewChange],
 	);
+	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
+	// settings — matching the tray menu actions.
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (showOnboarding) {
+				return;
+			}
+			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+				return;
+			}
+			if (event.key === "n" || event.key === "N") {
+				event.preventDefault();
+				handleNewThread();
+			} else if (event.key === ",") {
+				event.preventDefault();
+				handleViewChange("settings");
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [handleNewThread, handleViewChange, showOnboarding]);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		dispatchApp({ type: "thread-started", threadId });
 	}, []);
@@ -372,6 +412,10 @@ export default function Home() {
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
 									onOpenSessionById={handleOpenSessionById}
+									onOpenSetup={handleOpenSetup}
+									onOpenModelSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
 									parentSession={activeParentSession}
 									onThreadStarted={handleThreadStarted}
 								/>
@@ -391,7 +435,10 @@ export default function Home() {
 			</SidebarProvider>
 			{showOnboarding ? (
 				<div className="fixed inset-0 z-50">
-					<OnboardingView onComplete={completeOnboarding} />
+					<OnboardingView
+						initialStep={onboardingInitialStep}
+						onComplete={completeOnboarding}
+					/>
 				</div>
 			) : null}
 		</AccountProvider>
@@ -409,6 +456,8 @@ function ChatThreadPane({
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
+	onOpenSetup,
+	onOpenModelSettings,
 	parentSession,
 	onThreadStarted,
 }: {
@@ -428,6 +477,8 @@ function ChatThreadPane({
 		initialPromptDraft?: string,
 	) => void;
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	onOpenSetup?: () => void;
+	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string) => void;
 }) {
@@ -491,6 +542,10 @@ function ChatThreadPane({
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>({});
 	const [providersLoaded, setProvidersLoaded] = useState(false);
+	// null = unknown (catalog unavailable): never nag in that case.
+	const [hasConnectedProvider, setHasConnectedProvider] = useState<
+		boolean | null
+	>(null);
 	// History paths lead each merge: they are ordered by session recency, so
 	// stored or stale entries only append after them.
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
@@ -537,52 +592,62 @@ function ChatThreadPane({
 		});
 	}, [config.cwd, config.workspaceRoot, workspaces]);
 
-	useEffect(() => {
-		let cancelled = false;
-
-		async function loadProviderCredentials() {
-			try {
-				const payload = await fetchProviderCatalog();
-				if (cancelled) {
-					return;
+	const providerCredentialsRequestRef = useRef(0);
+	const loadProviderCredentials = useCallback(async () => {
+		const requestId = ++providerCredentialsRequestRef.current;
+		try {
+			const payload = await fetchProviderCatalog();
+			if (providerCredentialsRequestRef.current !== requestId) {
+				return;
+			}
+			const next: Record<string, { apiKey: string }> = {};
+			const nextContextWindows: Record<string, Record<string, number>> = {};
+			let anyConnected = false;
+			for (const provider of payload.providers ?? []) {
+				const id = provider.id?.trim();
+				if (!id) {
+					continue;
 				}
-				const next: Record<string, { apiKey: string }> = {};
-				const nextContextWindows: Record<string, Record<string, number>> = {};
-				for (const provider of payload.providers ?? []) {
-					const id = provider.id?.trim();
-					if (!id) {
-						continue;
-					}
-					next[id] = {
-						apiKey: provider.apiKey?.trim() ?? "",
-					};
-					const contextWindows: Record<string, number> = {};
-					for (const model of provider.modelList ?? []) {
-						if (
-							model.id &&
-							typeof model.contextWindow === "number" &&
-							Number.isFinite(model.contextWindow) &&
-							model.contextWindow > 0
-						) {
-							contextWindows[model.id] = model.contextWindow;
-						}
-					}
-					nextContextWindows[id] = contextWindows;
+				next[id] = {
+					apiKey: provider.apiKey?.trim() ?? "",
+				};
+				if (isProviderConnected(provider)) {
+					anyConnected = true;
 				}
-				setProviderCredentials(next);
-				setProviderModelContextWindows(nextContextWindows);
-			} catch {
-				// Keep current config if provider catalog cannot be read.
-			} finally {
-				if (!cancelled) setProvidersLoaded(true);
+				const contextWindows: Record<string, number> = {};
+				for (const model of provider.modelList ?? []) {
+					if (
+						model.id &&
+						typeof model.contextWindow === "number" &&
+						Number.isFinite(model.contextWindow) &&
+						model.contextWindow > 0
+					) {
+						contextWindows[model.id] = model.contextWindow;
+					}
+				}
+				nextContextWindows[id] = contextWindows;
+			}
+			setProviderCredentials(next);
+			setProviderModelContextWindows(nextContextWindows);
+			setHasConnectedProvider(anyConnected);
+		} catch {
+			// Keep current config if provider catalog cannot be read.
+		} finally {
+			if (providerCredentialsRequestRef.current === requestId) {
+				setProvidersLoaded(true);
 			}
 		}
-
-		void loadProviderCredentials();
-		return () => {
-			cancelled = true;
-		};
 	}, []);
+
+	useEffect(() => {
+		void loadProviderCredentials();
+		// Credentials saved elsewhere (settings, onboarding, OAuth) invalidate
+		// the catalog cache; reload so the setup notice reflects reality
+		// without waiting for a pane remount.
+		return subscribeToProviderCatalogInvalidation(() => {
+			void loadProviderCredentials();
+		});
+	}, [loadProviderCredentials]);
 
 	const modelContextWindow =
 		providerModelContextWindows[config.provider.trim()]?.[config.model.trim()];
@@ -1009,17 +1074,11 @@ function ChatThreadPane({
 		}
 		setDeletingSession(true);
 		try {
-			console.error(
-				`[webview:delete] invoke delete_chat_session sessionId=${activeSessionToDelete}`,
-			);
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
 					sessionId: activeSessionToDelete,
 				},
-			);
-			console.error(
-				`[webview:delete] invoke result sessionId=${activeSessionToDelete} deleted=${deleted}`,
 			);
 			if (!deleted) {
 				toast({
@@ -1046,9 +1105,6 @@ function ChatThreadPane({
 			setShowDiffView(false);
 			void reset();
 		} catch (error) {
-			console.error(
-				`[webview:delete] invoke error sessionId=${activeSessionToDelete} error=${error instanceof Error ? error.message : String(error)}`,
-			);
 			const description =
 				error instanceof Error
 					? error.message
@@ -1441,6 +1497,17 @@ function ChatThreadPane({
 					}
 					composer={composer}
 					gitBranch={gitBranch}
+					notice={
+						providersLoaded &&
+						hasConnectedProvider === false &&
+						onOpenSetup &&
+						onOpenModelSettings ? (
+							<WelcomeSetupNotice
+								onOpenModelSettings={onOpenModelSettings}
+								onOpenSetup={onOpenSetup}
+							/>
+						) : undefined
+					}
 					onListGitBranches={listGitBranches}
 					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
@@ -1452,11 +1519,6 @@ function ChatThreadPane({
 				onOpenChange={(open) => {
 					if (deletingSession) {
 						return;
-					}
-					if (!open) {
-						console.error(
-							`[webview:delete] cancelled sessionId=${activeSessionToDelete ?? "null"}`,
-						);
 					}
 					setDeleteConfirmOpen(open);
 				}}

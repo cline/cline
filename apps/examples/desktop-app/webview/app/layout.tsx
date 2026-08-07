@@ -1,4 +1,3 @@
-import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { DesktopErrorTelemetry } from "@/components/desktop-error-telemetry";
 import { Toaster } from "@/components/ui/toaster";
@@ -50,7 +49,6 @@ export default function RootLayout({
 				<DesktopErrorTelemetry />
 				{children}
 				<Toaster />
-				<Analytics />
 			</body>
 		</html>
 	);

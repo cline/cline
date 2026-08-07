@@ -239,6 +239,62 @@ describe("DesktopClient command deadlines", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("forwards bounded source attribution for uncaught errors", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("Unexpected token '<'");
+		error.name = "SyntaxError";
+		error.stack = `SyntaxError: Unexpected token '<'\n${"x".repeat(600)}`;
+
+		desktopClient.reportError({
+			operation: "webview.uncaught_error",
+			error,
+			handled: false,
+			sourceUrl: `tauri://localhost/_vercel/insights/script.js?${"q".repeat(600)}`,
+			lineno: 1,
+			colno: 1,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+			sourceUrl: string;
+			stack: string;
+		};
+		expect(body).toMatchObject({
+			operation: "webview.uncaught_error",
+			errorType: "SyntaxError",
+			errorMessage: "Unexpected token '<'",
+			handled: false,
+			lineno: 1,
+			colno: 1,
+		});
+		expect(body.sourceUrl).toHaveLength(500);
+		expect(
+			body.sourceUrl.startsWith("tauri://localhost/_vercel/insights/script.js"),
+		).toBe(true);
+		expect(body.stack).toHaveLength(500);
+	});
+
+	it("omits source attribution fields when they are not provided", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("plain failure");
+		error.stack = undefined;
+
+		desktopClient.reportError({
+			operation: "webview.uncaught_error",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		const body = JSON.parse(
+			String(fetchMock.mock.calls[0]?.[1]?.body),
+		) as Record<string, unknown>;
+		expect("sourceUrl" in body).toBe(false);
+		expect("lineno" in body).toBe(false);
+		expect("colno" in body).toBe(false);
+		expect("stack" in body).toBe(false);
+	});
+
 	it("removes an unbounded request when WebSocket.send throws", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const invocation = desktopClient.invoke(
