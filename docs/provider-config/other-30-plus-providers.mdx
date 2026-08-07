@@ -31,6 +31,7 @@ Use this page for providers that follow the same setup pattern.
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
   - [Together](#together)
+  - [TokenMix](#tokenmix)
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
   - [xAI (Grok)](#xai-grok)
@@ -287,6 +288,17 @@ Together provides hosted inference for many popular open models.
 1. Create/sign in to Together account.
 2. Generate an API key.
 3. In Cline, choose **Together** and paste the key.
+
+### TokenMix
+TokenMix is an OpenAI-compatible gateway that exposes 300+ models from 17 vendors behind one base URL and one key, including Chinese models that are otherwise hard to access from outside China (Qwen, DeepSeek, Doubao, GLM, Kimi, Hunyuan).
+
+**Website:** [https://tokenmix.ai/](https://tokenmix.ai/)
+
+#### Basic Setup
+
+1. Create/sign in to your TokenMix account at [tokenmix.ai](https://tokenmix.ai/) and generate an API key.
+2. In Cline, select **OpenAI Compatible** as the API Provider and set the Base URL to `https://api.tokenmix.ai/v1`.
+3. Paste your TokenMix API key, then set the Model ID to any catalog model, e.g. `deepseek/deepseek-v3.2`, `qwen/qwen3.7-max`, or `anthropic/claude-opus-4.8`.
 
 ### Vercel AI Gateway
 Vercel AI Gateway gives one API for multiple upstream model providers.
