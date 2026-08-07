@@ -519,6 +519,15 @@ type CloudRehydrationSnapshot = {
 	prompts?: PromptInQueue[];
 };
 
+type CloudSendResult = {
+	sessionId: string;
+	ok: true;
+	queued?: boolean;
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
+	result?: unknown;
+};
+
 type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
@@ -790,6 +799,7 @@ function streamedAssistantText(events: HubEventEnvelope[]): string {
 export function reconcileBufferedCloudEvents(
 	events: HubEventEnvelope[],
 	snapshotMessages: unknown[],
+	options: { queueSnapshotReceived?: boolean } = {},
 ): HubEventEnvelope[] {
 	const snapshotAssistantTexts = assistantTexts(snapshotMessages);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
@@ -806,8 +816,11 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// The separately fetched queue snapshot is newer than buffered copies.
-			if (event.event === "session.pending_prompts") {
+			// Supersede queue events only when the separate queue read succeeded.
+			if (
+				event.event === "session.pending_prompts" &&
+				options.queueSnapshotReceived !== false
+			) {
 				continue;
 			}
 			// Keep terminal events: run.failed may carry the only error detail.
@@ -836,6 +849,7 @@ export class CloudSessionManager {
 		string,
 		Promise<CloudConnection>
 	>();
+	private readonly sendTails = new Map<string, Promise<void>>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
@@ -867,6 +881,9 @@ export class CloudSessionManager {
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
 		const scoped = await this.options.api.list(organizationId);
+		if (this.disposed) {
+			throw new Error("Cloud session manager was disposed");
+		}
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
@@ -937,8 +954,16 @@ export class CloudSessionManager {
 				return projected;
 			}
 			const title = live.title?.trim() || record.title?.trim();
+			const modelId =
+				typeof live.config.modelId === "string"
+					? live.config.modelId.trim()
+					: "";
+			const model =
+				modelId ||
+				(typeof live.config.model === "string" ? live.config.model.trim() : "");
 			return {
 				...projected,
+				model: model || projected.model,
 				status: live.status,
 				prompt: live.prompt,
 				endedAt:
@@ -947,6 +972,7 @@ export class CloudSessionManager {
 						: projected.endedAt,
 				metadata: {
 					...((projected.metadata ?? {}) as JsonRecord),
+					...(model ? { modelId: model } : {}),
 					title: resolveSessionListTitle({
 						sessionId: record.id,
 						metadata: title ? { title } : undefined,
@@ -1154,14 +1180,33 @@ export class CloudSessionManager {
 		prompt: string,
 		delivery?: "queue" | "steer",
 		modelId?: string,
-	): Promise<{
-		sessionId: string;
-		ok: true;
-		queued?: boolean;
-		recoveredAfterDisconnect?: boolean;
-		status?: string;
-		result?: unknown;
-	}> {
+	): Promise<CloudSendResult> {
+		const preceding = this.sendTails.get(outerSessionId) ?? Promise.resolve();
+		const run = preceding
+			.catch(() => undefined)
+			.then(() =>
+				this.sendUnserialized(outerSessionId, prompt, delivery, modelId),
+			);
+		const tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.sendTails.set(outerSessionId, tail);
+		try {
+			return await run;
+		} finally {
+			if (this.sendTails.get(outerSessionId) === tail) {
+				this.sendTails.delete(outerSessionId);
+			}
+		}
+	}
+
+	private async sendUnserialized(
+		outerSessionId: string,
+		prompt: string,
+		delivery?: "queue" | "steer",
+		modelId?: string,
+	): Promise<CloudSendResult> {
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(
@@ -1422,6 +1467,7 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
+				{ queueSnapshotReceived: Boolean(queueReply) },
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
@@ -1626,6 +1672,7 @@ export class CloudSessionManager {
 
 	async dispose(): Promise<void> {
 		this.disposed = true;
+		this.sendTails.clear();
 		const sessionIds = new Set([
 			...this.connections.keys(),
 			...this.knownSessions.keys(),
@@ -1944,6 +1991,7 @@ export class CloudSessionManager {
 			connection.bufferedEvents.push(event);
 			if (connection.bufferedEvents.length > MAX_BUFFERED_SYNC_EVENTS) {
 				connection.bufferedEvents.shift();
+				connection.rehydrationRerunRequested = true;
 				this.ctx.logger?.log("Cloud sync event buffer reached its limit", {
 					sessionId: outerSessionId,
 					severity: "warn",
@@ -2111,15 +2159,18 @@ export function getCloudSessionManager(
 	}
 	const environment = getClineEnvironmentConfig();
 	const providerSettingsManager = new ProviderSettingsManager();
+	const apiBaseUrl =
+		providerSettingsManager.getProviderSettings("cline")?.baseUrl?.trim() ||
+		environment.apiBaseUrl;
 	const getAuthToken = () =>
 		resolveFreshClineAuthToken(providerSettingsManager);
 	const api = new CloudSessionApi({
-		apiBaseUrl: environment.apiBaseUrl,
+		apiBaseUrl,
 		appBaseUrl: environment.appBaseUrl,
 		getAuthToken,
 	});
 	const accountService = new ClineAccountService({
-		apiBaseUrl: environment.apiBaseUrl,
+		apiBaseUrl,
 		getAuthToken,
 	});
 	// Cache successful org lookups across sidebar polls; never cache failures.
@@ -2137,7 +2188,7 @@ export function getCloudSessionManager(
 	};
 	const manager = new CloudSessionManager(ctx, {
 		api,
-		apiBaseUrl: environment.apiBaseUrl,
+		apiBaseUrl,
 		getAuthToken,
 		getActiveOrganizationId,
 	});

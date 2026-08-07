@@ -595,6 +595,19 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["assistant.delta"]);
 	});
 
+	it("keeps buffered queue snapshots when the authoritative queue read failed", () => {
+		const buffered = [
+			event("session.pending_prompts", "q-1", {
+				prompts: [{ id: "queued-1", prompt: "keep me" }],
+			}),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [], {
+				queueSnapshotReceived: false,
+			}).map((item) => item.event),
+		).toEqual(["session.pending_prompts"]);
+	});
+
 	it("supersedes content independently across two terminal run segments", () => {
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "first tail" }),
@@ -1371,6 +1384,47 @@ describe("CloudSessionManager", () => {
 		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
 	});
 
+	it("reruns rehydration after the buffered-event limit is reached", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		let releaseFirstSnapshot!: () => void;
+		const firstSnapshotGate = new Promise<void>((resolve) => {
+			releaseFirstSnapshot = resolve;
+		});
+		let messageReads = 0;
+		hub.commandHook = (command) => {
+			if (command === "session.messages" && ++messageReads === 1) {
+				return firstSnapshotGate;
+			}
+		};
+
+		const reading = manager.readMessages("ses-outer");
+		await vi.waitFor(() => expect(messageReads).toBe(1));
+		for (let index = 0; index <= 2_000; index += 1) {
+			hub.events?.({
+				version: "v1",
+				event: "assistant.delta",
+				eventId: `overflow-${index}`,
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: { text: String(index) },
+			});
+		}
+		releaseFirstSnapshot();
+		await reading;
+
+		expect(messageReads).toBe(2);
+	});
+
 	it("reopens an existing outer session instead of provisioning a duplicate", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -1964,6 +2018,69 @@ describe("CloudSessionManager", () => {
 			(entry) => entry.command === "session.create",
 		);
 		expect(innerCreates).toHaveLength(1);
+	});
+
+	it("serializes complete sends for the same cloud session", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		let releaseFirstSend!: () => void;
+		const firstSendGate = new Promise<void>((resolve) => {
+			releaseFirstSend = resolve;
+		});
+		let sendCount = 0;
+		hub.commandHook = (command) => {
+			if (command === "session.send_input" && ++sendCount === 1) {
+				return firstSendGate;
+			}
+		};
+
+		const first = manager.send("ses-outer", "first");
+		await vi.waitFor(() => {
+			expect(
+				hub.commands.filter((entry) => entry.command === "session.send_input"),
+			).toHaveLength(1);
+		});
+		const second = manager.send("ses-outer", "second");
+		await Promise.resolve();
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.send_input"),
+		).toHaveLength(1);
+
+		releaseFirstSend();
+		await Promise.all([first, second]);
+		expect(
+			hub.commands
+				.filter((entry) => entry.command === "session.send_input")
+				.map((entry) => entry.payload?.prompt),
+		).toEqual(["first", "second"]);
+	});
+
+	it("discards a list result that completes after manager disposal", async () => {
+		const { ctx } = createContext();
+		let resolveList!: (sessions: CloudSessionRecord[]) => void;
+		const listResult = new Promise<CloudSessionRecord[]>((resolve) => {
+			resolveList = resolve;
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => await listResult } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+
+		const listing = manager.list();
+		await manager.dispose();
+		resolveList([REMOTE_SESSION]);
+
+		await expect(listing).rejects.toThrow("disposed");
 	});
 
 	it("re-scopes the visible list on org change but keeps open sessions routable", async () => {

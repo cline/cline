@@ -1146,7 +1146,7 @@ export function RoutineSchedulesContent({
 						return (
 							<div
 								key={schedule.scheduleId}
-								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-surface-hover-lighter"
 							>
 								<div className="flex items-center gap-3">
 									<Circle
@@ -1426,7 +1426,7 @@ export function RoutineSchedulesContent({
 											);
 											return (
 												<button
-													className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-accent/40 disabled:cursor-default disabled:hover:bg-transparent"
+													className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent"
 													disabled={!execution.sessionId || !onOpenSession}
 													key={execution.executionId}
 													onClick={() => {

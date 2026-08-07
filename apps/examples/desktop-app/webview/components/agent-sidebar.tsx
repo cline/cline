@@ -78,7 +78,7 @@ import {
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
-} from "@/components/views/settings/settings-view";
+} from "@/components/views/settings/sections";
 import { useAccount } from "@/contexts/account-context";
 import type {
 	SessionThread,
@@ -164,7 +164,7 @@ function SettingsSectionNavigation({
 				className={cn(
 					"min-w-0 justify-start",
 					activeSection === section &&
-						"bg-sidebar-accent text-sidebar-accent-foreground",
+						"bg-surface-hover text-sidebar-foreground",
 					collapsed && "size-9 justify-center px-0",
 				)}
 				key={section}
@@ -183,7 +183,7 @@ function SettingsSectionNavigation({
 		<nav
 			aria-label="Settings sections"
 			className={cn(
-				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
+				"flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden",
 				collapsed ? "w-full items-start" : "w-full",
 			)}
 		>
@@ -480,7 +480,7 @@ export function AgentSidebar({
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label="Filter sessions"
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 					variant="ghost"
 					size="icon"
 				>
@@ -534,7 +534,7 @@ export function AgentSidebar({
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 					size="icon"
 					title={sortMode === "time" ? "Sort by time" : "Sort by project"}
 					variant="ghost"
@@ -590,7 +590,7 @@ export function AgentSidebar({
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
 				<div
 					className={cn(
-						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-[4.75rem]",
+						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-19",
 						isCollapsed && "px-0",
 					)}
 					data-tauri-drag-region
@@ -599,7 +599,7 @@ export function AgentSidebar({
 						<>
 							<Button
 								aria-label="Previous page"
-								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								className="size-7 text-muted-foreground hover:bg-surface-hover"
 								disabled={!canNavigateBack}
 								onClick={navigateBack}
 								size="icon"
@@ -627,7 +627,7 @@ export function AgentSidebar({
 
 				<div
 					className={cn(
-						"flex h-10 shrink-0 items-center justify-between px-3",
+						"flex h-10 shrink-0 items-center justify-between px-2",
 						isCollapsed && "px-1.5",
 					)}
 				>
@@ -645,7 +645,7 @@ export function AgentSidebar({
 								<button
 									aria-label="Cline home"
 									className={cn(
-										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 										isCollapsed && "size-9",
 									)}
 									onClick={openHome}
@@ -734,11 +734,11 @@ export function AgentSidebar({
 					</div>
 				) : (
 					<>
-						<div className="mt-5 shrink-0 px-3">
+						<div className="mt-5 shrink-0 pl-4 pr-2">
 							<div className="flex h-8 items-center justify-between gap-2">
 								<button
 									className={cn(
-										"min-w-0 truncate text-sm font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground",
+										"min-w-0 truncate text-sm font-medium text-muted-foreground",
 										view === "sessions" && "text-sidebar-foreground",
 									)}
 									onClick={openSessions}
@@ -749,7 +749,7 @@ export function AgentSidebar({
 								<div className="flex shrink-0 items-center gap-0.5">
 									<Button
 										aria-label="Search sessions"
-										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
+										className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
 										onClick={() => setSearchOpen((current) => !current)}
 										size="icon"
 										title="Search sessions"
@@ -778,7 +778,7 @@ export function AgentSidebar({
 
 						<div className="mt-1 min-h-0 w-full flex-1">
 							<ScrollArea className="h-full min-h-0 w-full min-w-0">
-								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-3">
+								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
 									{isLoadingHistory && threads.length === 0 ? (
 										<div className="p-4 text-xs text-muted-foreground">
 											Loading session history...
@@ -900,16 +900,16 @@ export function AgentSidebar({
 							<button
 								aria-label="Account settings"
 								className={cn(
-									"flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									"flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-2 text-left text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 									view === "settings" &&
 										settingsSection === "Account" &&
-										"bg-sidebar-accent text-sidebar-accent-foreground",
+										"bg-surface-hover text-sidebar-foreground",
 								)}
 								onClick={() => openSettingsSection("Account")}
 								title={user.email || undefined}
 								type="button"
 							>
-								<span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+								<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
 									{accountInitial}
 								</span>
 								<span className="flex min-w-0 flex-col leading-tight">
@@ -929,7 +929,7 @@ export function AgentSidebar({
 									"size-9 shrink-0 justify-center px-0",
 									view === "settings" &&
 										settingsSection !== "Account" &&
-										"bg-sidebar-accent text-sidebar-accent-foreground",
+										"bg-surface-hover text-sidebar-foreground",
 								)}
 								onClick={openSettings}
 								title="Settings"
@@ -946,7 +946,7 @@ export function AgentSidebar({
 								"min-w-0 justify-start",
 								isCollapsed && "size-9 justify-center px-0",
 								view === "settings" &&
-									"bg-sidebar-accent text-sidebar-accent-foreground",
+									"bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openSettings}
 							title="Settings"
@@ -971,9 +971,9 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "
-							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
-							from local history.
+							{deleteConfirmThread?.origin === "cloud"
+								? "This cloud session and its workspace will be deleted."
+								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1023,7 +1023,7 @@ function ProjectSection({
 		<div className="mb-1 min-w-0">
 			<button
 				aria-expanded={!collapsed}
-				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground hover:bg-surface-hover-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 				onClick={onToggle}
 				title={label}
 				type="button"
@@ -1084,6 +1084,15 @@ function ThreadItem({
 				: unread
 					? "bg-blue-500"
 					: "";
+	const statusLabel = pending
+		? "Action in progress"
+		: thread.status === "provisioning"
+			? "Provisioning"
+			: thread.status === "running"
+				? "Running"
+				: unread
+					? "Unread activity"
+					: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
@@ -1092,7 +1101,7 @@ function ThreadItem({
 				className={cn(
 					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2",
 					isActive
-						? "bg-sidebar-accent text-sidebar-accent-foreground"
+						? "bg-surface-hover text-sidebar-foreground"
 						: "text-sidebar-foreground/80",
 				)}
 			>
@@ -1117,10 +1126,10 @@ function ThreadItem({
 					<HoverCardTrigger asChild>
 						<button
 							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal transition-colors",
+								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
 								isActive
-									? "bg-sidebar-accent text-sidebar-accent-foreground"
-									: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
+									? "bg-surface-hover text-sidebar-foreground"
+									: "text-sidebar-foreground/80 hover:bg-surface-hover",
 							)}
 							disabled={pending}
 							onClick={onClick}
@@ -1146,6 +1155,9 @@ function ThreadItem({
 										aria-hidden="true"
 										className={cn("size-1.5 rounded-full", statusDotClass)}
 									/>
+								) : null}
+								{statusLabel ? (
+									<span className="sr-only">{statusLabel}</span>
 								) : null}
 								<span>{thread.time}</span>
 							</span>

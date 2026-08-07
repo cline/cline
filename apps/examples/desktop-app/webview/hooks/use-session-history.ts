@@ -752,7 +752,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -970,6 +973,13 @@ export function useSessionHistory({
 		const unsubscribeCloudScope = desktopClient.subscribe(
 			"cloud_sessions_changed",
 			() => {
+				const inFlight = refreshPromiseRef.current;
+				if (inFlight) {
+					void inFlight.finally(() => {
+						scheduleRefresh(0, { force: true });
+					});
+					return;
+				}
 				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 			},
 		);
@@ -1040,7 +1050,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -1318,9 +1331,6 @@ export function useSessionHistory({
 		async (threadId: string) => {
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
-				console.error(
-					`[webview:delete] invoke delete_chat_session sessionId=${threadId}`,
-				);
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
@@ -1330,9 +1340,6 @@ export function useSessionHistory({
 					typeof deleteResult === "boolean"
 						? deleteResult
 						: deleteResult.deleted === true;
-				console.error(
-					`[webview:delete] invoke result sessionId=${threadId} deleted=${deleted}`,
-				);
 				if (!deleted) {
 					throw new Error(
 						"The session could not be removed from local history.",

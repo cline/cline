@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -18,7 +17,12 @@ import {
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
+
+function stringValue(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
 
 function resolveImportedModelSelection(parsed: Record<string, unknown>): {
 	provider: string;
@@ -30,19 +34,16 @@ function resolveImportedModelSelection(parsed: Record<string, unknown>): {
 		!Array.isArray(parsed.modelSelection)
 			? (parsed.modelSelection as Record<string, unknown>)
 			: undefined;
-	const provider = String(
-		modelSelection?.providerId ??
-			parsed.providerId ??
-			parsed.provider ??
-			"cline",
-	).trim();
-	const model = String(
-		modelSelection?.modelId ??
-			parsed.modelId ??
-			parsed.model ??
-			CLINE_DEFAULT_MODEL_ID,
-	).trim();
-	return { provider, model };
+	return resolveScheduleModelSelection({
+		provider:
+			stringValue(modelSelection?.providerId) ??
+			stringValue(parsed.providerId) ??
+			stringValue(parsed.provider),
+		model:
+			stringValue(modelSelection?.modelId) ??
+			stringValue(parsed.modelId) ??
+			stringValue(parsed.model),
+	});
 }
 
 export function registerScheduleExportCommand(

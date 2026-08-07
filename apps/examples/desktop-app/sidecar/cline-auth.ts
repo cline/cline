@@ -1,4 +1,7 @@
 import {
+	type BasicLogger,
+	captureAuthRefreshSoftFailure,
+	type ITelemetryService,
 	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
 	resolveLocalClineAuthToken,
@@ -9,7 +12,13 @@ let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
 export async function resolveFreshClineAuthToken(
 	manager: ProviderSettingsManager,
+	options: {
+		prefixPersistedToken?: boolean;
+		logger?: BasicLogger;
+		telemetry?: ITelemetryService;
+	} = {},
 ): Promise<string | undefined> {
+	let refreshError: Error | undefined;
 	try {
 		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
 		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
@@ -18,12 +27,27 @@ export async function resolveFreshClineAuthToken(
 		if (resolution?.apiKey) {
 			return resolution.apiKey;
 		}
-	} catch {
-		// Let the request surface any persisted-token authentication failure.
+	} catch (error) {
+		refreshError = error instanceof Error ? error : new Error(String(error));
 	}
-	return withProviderPrefix(
-		resolveLocalClineAuthToken(manager.getProviderSettings("cline")),
+	const persisted = resolveLocalClineAuthToken(
+		manager.getProviderSettings("cline"),
 	);
+	if (!persisted && refreshError) {
+		options.logger?.error?.(
+			"Cline auth token refresh failed with no fallback",
+			{
+				error: refreshError,
+			},
+		);
+		captureAuthRefreshSoftFailure(options.telemetry, "cline", {
+			errorName: refreshError.name,
+			errorCode: "desktop_refresh_failed_no_fallback_token",
+		});
+	}
+	return options.prefixPersistedToken === false
+		? persisted
+		: withProviderPrefix(persisted);
 }
 
 // Persisted OAuth tokens omit the `workos:` prefix required by core-platform.
