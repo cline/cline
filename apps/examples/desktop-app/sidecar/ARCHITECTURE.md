@@ -151,6 +151,8 @@ Supported commands:
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession` |
 | `list_mcp_servers` | Direct file I/O |
+| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
+| `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
 | `get_git_branch` | async `execFile("git", ...)` |
