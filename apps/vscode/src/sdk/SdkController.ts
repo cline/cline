@@ -72,6 +72,7 @@ import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { parseGoalCommand, SdkGoalCoordinator } from "./sdk-goal-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -165,6 +166,7 @@ export class Controller {
 	private messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
 	private messages: SdkMessageCoordinator
+	private goal: SdkGoalCoordinator
 	private sessions: SdkSessionLifecycle
 	private sessionRebuilds: SdkSessionRebuildScheduler
 	private interactions: SdkInteractionCoordinator
@@ -343,6 +345,38 @@ export class Controller {
 			},
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
+		this.goal = new SdkGoalCoordinator({
+			sendVerificationTurn: (sessionId, prompt) => {
+				const activeSession = this.sessions.getActiveSession()
+				if (!activeSession || activeSession.sessionId !== sessionId) {
+					return false
+				}
+				// Mirror the plan -> act auto-continuation: flip the running flag and
+				// phase before sending, and never echo the synthetic prompt as
+				// user_feedback so no bubble shows in chat.
+				this.sessions.setRunning(true)
+				this.turnStateTracker.set("streaming")
+				this.messageTranslatorState.clearTurnOutcome()
+				this.postStateToWebview().catch((error) => {
+					Logger.error("[SdkController] Failed to post state before goal verification turn:", error)
+				})
+				this.sessions.fireAndForgetSend(
+					activeSession.sdkHost,
+					sessionId,
+					prompt,
+					undefined,
+					undefined,
+					undefined,
+					"goal-verification",
+				)
+				return true
+			},
+			// The mark_goal_complete call renders no dedicated tool row, so a
+			// successful completion is surfaced as an info row instead.
+			onGoalCompleted: (record) => {
+				this.emitGoalInfo(`Goal verified complete: ${record.goal}${record.summary ? ` — ${record.summary}` : ""}`)
+			},
+		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
 			telemetry: this.sdkTelemetry.telemetry,
@@ -376,9 +410,17 @@ export class Controller {
 				}
 				return this._terminalManager
 			},
-			onSendStart: () => {
+			onSendStart: (_sessionId, origin) => {
 				this.beginProviderFailureTelemetryTurn()
+				this.goal.handleSendStart(origin)
 			},
+			onTurnSettled: (sessionId, result, origin) => {
+				this.goal.handleTurnSettled(sessionId, result, origin)
+			},
+			// Host-lifetime registration: session rebuilds (mode/provider/MCP
+			// changes) rebuild extraTools from scratch, and the guard must
+			// survive them the same way it does in the CLI.
+			extraTools: [this.goal.markGoalCompleteTool],
 			// this.mode is assigned later in this constructor; the closure only
 			// runs at send time, long after construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
@@ -580,6 +622,9 @@ export class Controller {
 			createHistoryItemFromSession,
 			clearTask: async () => {
 				this.pendingClineAuthRetryPrompt = undefined
+				// A new task is a new conversation; a leftover goal must never
+				// verify or complete against it.
+				this.goal.clearGoal()
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -1217,6 +1262,18 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
+		// History resumes replay a persisted prompt; only fresh user input can
+		// invoke the /goal command.
+		const goalCommand = !historyItem && prompt ? parseGoalCommand(prompt) : undefined
+		if (goalCommand && goalCommand.kind !== "set") {
+			// No conversation is open to attach the reply to, so surface it as
+			// a host notification instead of a chat row.
+			const reply = goalCommand.kind === "status" ? this.goal.formatStatus() : this.goal.clearGoal()
+			HostProvider.window
+				.showMessage({ type: ShowMessageType.INFORMATION, message: reply })
+				.catch((error) => Logger.error("[SdkController] Failed to show goal reply:", error))
+			return undefined
+		}
 		// Fire-and-forget: ensure we have the latest remote config (enterprise
 		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
 		// blocking the UI.
@@ -1225,7 +1282,17 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
+		const effectivePrompt = goalCommand ? goalCommand.goal : prompt
+		const taskId = await this.taskStart.initTask(effectivePrompt, images, files, historyItem, taskSettings)
+		if (goalCommand && taskId) {
+			// Arm the guard only after the task started: taskStart clears any
+			// previous task (which drops the previous goal), and a start that
+			// failed must not leave a goal armed for whichever task runs next.
+			// The first turn is still in flight here (sends are
+			// fire-and-forget), so the guard is active well before it settles.
+			this.emitGoalInfo(this.goal.setGoal(goalCommand.goal))
+		}
+		return taskId
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
@@ -1293,8 +1360,29 @@ export class Controller {
 		await this.compaction.compactTask()
 	}
 
+	/**
+	 * Surfaces a /goal command reply. With an open conversation it renders as
+	 * a compact divider row (like compaction progress); with no task open it
+	 * falls back to a host notification.
+	 */
+	private emitGoalInfo(text: string): void {
+		const sessionId = this.sessions.getActiveSession()?.sessionId ?? this.task?.taskId
+		if (!sessionId || !this.task) {
+			HostProvider.window
+				.showMessage({ type: ShowMessageType.INFORMATION, message: text })
+				.catch((error) => Logger.error("[SdkController] Failed to show goal reply:", error))
+			return
+		}
+		this.messages.appendAndEmit([{ ts: Date.now(), type: "say", say: "goal", text, partial: false }], {
+			type: "status",
+			payload: { sessionId, status: "running" },
+		})
+	}
+
 	async clearTask(): Promise<void> {
 		this.pendingClineAuthRetryPrompt = undefined
+		// The conversation is going away; drop its completion guard with it.
+		this.goal.clearGoal()
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
@@ -1320,6 +1408,23 @@ export class Controller {
 			this.pendingClineAuthRetryPrompt = undefined
 			await this.initTask(retryPrompt, images, files)
 			return
+		}
+
+		// /goal chat command: status and clear are local (no model turn);
+		// setting a goal arms the guard and submits the goal text as an
+		// ordinary follow-up turn below.
+		const goalCommand = prompt ? parseGoalCommand(prompt) : undefined
+		if (goalCommand?.kind === "status") {
+			this.emitGoalInfo(this.goal.formatStatus())
+			return
+		}
+		if (goalCommand?.kind === "clear") {
+			this.emitGoalInfo(this.goal.clearGoal())
+			return
+		}
+		if (goalCommand) {
+			this.emitGoalInfo(this.goal.setGoal(goalCommand.goal))
+			prompt = goalCommand.goal
 		}
 
 		const turnStateBefore = this.turnStateTracker.get()
@@ -1606,6 +1711,10 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		// Navigating to a task shows a different conversation than the one the
+		// goal was set in (same-task reloads included: taskControl treats them
+		// as a fresh view), so the guard is always dropped here.
+		this.goal.clearGoal()
 		const historyItem = await this.taskControl.showTaskWithId(taskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)

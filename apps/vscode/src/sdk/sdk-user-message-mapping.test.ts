@@ -1,3 +1,4 @@
+import { formatGoalVerificationPrompt } from "@cline/core"
 import { describe, expect, it } from "vitest"
 import {
 	ACT_MODE_CONTINUATION_PROMPT,
@@ -20,6 +21,12 @@ describe("isSyntheticUserPrompt", () => {
 	it("flags the wrapped persisted shape of synthetic prompts", () => {
 		expect(isSyntheticUserPrompt(wrapped(ACT_MODE_CONTINUATION_PROMPT))).toBe(true)
 		expect(isSyntheticUserPrompt(wrapped("[TASK RESUMPTION] Please continue where you left off.", "plan"))).toBe(true)
+	})
+
+	it("flags the /goal verification prompt, raw and wrapped", () => {
+		const prompt = formatGoalVerificationPrompt("fix the failing tests")
+		expect(isSyntheticUserPrompt(prompt)).toBe(true)
+		expect(isSyntheticUserPrompt(wrapped(prompt))).toBe(true)
 	})
 
 	it("does not flag ordinary user messages, wrapped or raw", () => {

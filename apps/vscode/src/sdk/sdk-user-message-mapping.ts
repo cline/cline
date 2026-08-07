@@ -1,3 +1,4 @@
+import { isGoalVerificationPrompt } from "@cline/core"
 import { normalizeUserInput, stripModeNotices } from "@cline/shared"
 
 /**
@@ -43,9 +44,9 @@ export function extractSdkUserText(message: SdkUserMessage): string {
 
 /**
  * Prompts sent to the SDK without a visible user_feedback echo (task
- * resumption, plan -> act auto-continue). They exist in SDK history but not
- * in the visible transcript, so ordinal mapping between the two must skip
- * them or every later user message maps one slot too early.
+ * resumption, plan -> act auto-continue, /goal verification). They exist in
+ * SDK history but not in the visible transcript, so ordinal mapping between
+ * the two must skip them or every later user message maps one slot too early.
  */
 export function isSyntheticUserPrompt(text: string): boolean {
 	// Persisted prompts are wrapped by formatModePrompt as
@@ -55,7 +56,11 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
 	const normalized = stripModeNotices(normalizeUserInput(text))
-	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
+	return (
+		normalized.startsWith("[TASK RESUMPTION]") ||
+		normalized === ACT_MODE_CONTINUATION_PROMPT ||
+		isGoalVerificationPrompt(normalized)
+	)
 }
 
 function hasAttachmentBlocks(message: SdkUserMessage): boolean {

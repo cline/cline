@@ -260,6 +260,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "goal" // /goal completion-guard reply (plain text, rendered as a divider row)
 
 export interface ClineSayTool {
 	tool:

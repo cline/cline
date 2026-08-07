@@ -191,7 +191,7 @@ describe("SdkSessionLifecycle", () => {
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 		await vi.waitFor(() => expect(send).toHaveBeenCalled())
 
-		expect(onSendStart).toHaveBeenCalledWith("session-123")
+		expect(onSendStart).toHaveBeenCalledWith("session-123", "user")
 		expect(onSendStart.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0])
 	})
 
