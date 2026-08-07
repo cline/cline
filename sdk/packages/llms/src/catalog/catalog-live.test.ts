@@ -123,6 +123,39 @@ describe("models-dev-catalog", () => {
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
 	});
 
+	it("keeps dedicated image models without tool calling", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"image-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"embedding-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).toMatchObject({
+			"chat-model": expect.any(Object),
+			"image-model": {
+				modalities: { input: ["text"], output: ["image"] },
+			},
+		});
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"embedding-model",
+		);
+	});
+
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{

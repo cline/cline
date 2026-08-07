@@ -1075,6 +1075,17 @@ export class AgentRuntime {
 					});
 					break;
 				}
+				case "image": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "image",
+							image: event.data,
+							mediaType: event.mediaType,
+						},
+					});
+					break;
+				}
 				case "reasoning-delta": {
 					accumulatedReasoning += event.text;
 					const last = sequence.at(-1);

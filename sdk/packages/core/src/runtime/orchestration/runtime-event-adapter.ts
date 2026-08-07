@@ -31,7 +31,9 @@
  *   assistant-message → one content_end { contentType:"text", text }
  *                        if any text parts; one
  *                        content_end { contentType:"reasoning", reasoning }
- *                        if any reasoning parts
+ *                        if any reasoning parts; and one
+ *                        content_end { contentType:"image", image } per
+ *                        generated image
  *                        (turn-processor.ts:157-170).
  *
  * --- STATEFUL BOOK-KEEPING ------------------------------------------------
@@ -53,6 +55,7 @@
 import type {
 	AgentEvent,
 	AgentFinishReason,
+	AgentImagePart,
 	AgentMessage,
 	AgentReasoningPart,
 	AgentRuntimeEvent,
@@ -104,6 +107,20 @@ function extractReasoningPart(
 		reasoning: parts.map((part) => part.text).join(""),
 		redacted: parts.some((part) => part.redacted === true),
 	};
+}
+
+function extractImageParts(
+	message: AgentMessage,
+): Array<{ data: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentImagePart & { image: string } =>
+				part.type === "image" && typeof part.image === "string",
+		)
+		.map((part) => ({
+			data: part.image,
+			mediaType: part.mediaType ?? "image/png",
+		}));
 }
 
 function extractToolResultPart(
@@ -288,6 +305,13 @@ export class RuntimeEventAdapter {
 				type: "content_end",
 				contentType: "reasoning",
 				reasoning: reasoning.reasoning,
+			});
+		}
+		for (const image of extractImageParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "image",
+				image,
 			});
 		}
 		return out;

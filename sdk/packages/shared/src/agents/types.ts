@@ -71,7 +71,7 @@ export type AgentEvent =
 	| AgentDoneEvent
 	| AgentErrorEvent;
 
-export type AgentContentType = "text" | "reasoning" | "tool";
+export type AgentContentType = "text" | "reasoning" | "image" | "tool";
 
 export interface AgentEventMetadata {
 	/** Current ID */
@@ -119,6 +119,11 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	text?: string;
 	/** Final reasoning/thinking text generated for this turn */
 	reasoning?: string;
+	/** Generated image returned by the model */
+	image?: {
+		data: string;
+		mediaType: string;
+	};
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */

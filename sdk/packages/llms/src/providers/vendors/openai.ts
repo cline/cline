@@ -39,6 +39,7 @@ export async function createOpenAIProviderModule(
 	const isChatGptOAuth = isChatGptOAuthBaseUrl(config.baseUrl);
 	return {
 		model: (modelId) => provider.responses(modelId),
+		imageModel: (modelId) => provider.image(modelId),
 		buildStreamConfig: (request) => ({
 			...(!isChatGptOAuth &&
 			request.maxTokens !== undefined &&

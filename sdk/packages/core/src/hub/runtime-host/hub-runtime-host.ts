@@ -1713,6 +1713,35 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.image": {
+				const image =
+					event.payload?.image &&
+					typeof event.payload.image === "object" &&
+					!Array.isArray(event.payload.image)
+						? (event.payload.image as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof image?.data !== "string" ||
+					typeof image.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "image",
+							image: {
+								data: image.data,
+								mediaType: image.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",

@@ -6,6 +6,7 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type { ModelModalities } from "./model-info";
 import type {
 	ModelReasoningOption,
 	ReasoningEffort,
@@ -87,6 +88,17 @@ export interface GatewayProviderMetadata {
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
 	stickySession?: GatewayStickySessionMetadata;
+	/**
+	 * Provider-specific transport used for models whose output includes images.
+	 * OpenRouter-compatible image responses require a richer schema than the
+	 * generic OpenAI-compatible adapter exposes.
+	 */
+	imageTransport?: "openrouter";
+	/**
+	 * Successful JSON responses are wrapped by the provider before reaching
+	 * the protocol adapter. `success-data` represents `{ success, data }`.
+	 */
+	responseEnvelope?: "success-data";
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
@@ -104,6 +116,7 @@ export interface GatewayModelDefinition {
 	contextWindow?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
+	modalities?: ModelModalities;
 	capabilities?: readonly GatewayModelCapability[];
 	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;

@@ -7,7 +7,7 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
-import type { ModelInfo } from "./types";
+import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
 	name?: string;
@@ -31,6 +31,7 @@ export interface ModelsDevModel {
 	};
 	modalities?: {
 		input?: string[];
+		output?: string[];
 	};
 	status?: string;
 }
@@ -210,6 +211,44 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	return Array.from(new Set(capabilities));
 }
 
+const KNOWN_MODEL_MODALITIES = new Set<ModelModality>([
+	"text",
+	"image",
+	"audio",
+	"video",
+	"pdf",
+]);
+
+function toModalities(
+	modalities: ModelsDevModel["modalities"],
+): ModelInfo["modalities"] {
+	if (!modalities) {
+		return undefined;
+	}
+	const normalize = (values: string[] | undefined): ModelModality[] =>
+		Array.from(
+			new Set(
+				(values ?? []).filter((value): value is ModelModality =>
+					KNOWN_MODEL_MODALITIES.has(value as ModelModality),
+				),
+			),
+		);
+	const input = normalize(modalities.input);
+	const output = normalize(modalities.output);
+	// A one-sided declaration is incomplete and must not turn an otherwise
+	// usable chat model into an input- or output-incompatible model.
+	if (input.length === 0 || output.length === 0) {
+		return undefined;
+	}
+	if (!output.includes("image")) {
+		return undefined;
+	}
+	return { input, output };
+}
+
+function isSpecializedMediaModel(model: ModelsDevModel): boolean {
+	return model.modalities?.output?.includes("image") === true;
+}
 function toStatus(status: string | undefined): ModelInfo["status"] {
 	if (
 		status === "active" ||
@@ -238,6 +277,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
+	const modalities = toModalities(model.modalities);
 
 	return {
 		id: modelId,
@@ -256,6 +296,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
+		...(modalities !== undefined ? { modalities } : {}),
 	};
 }
 
@@ -277,7 +318,10 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
-			if (model.tool_call !== true || isDeprecatedModel(model)) {
+			if (
+				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
+				isDeprecatedModel(model)
+			) {
 				continue;
 			}
 			models[modelId] = toModelInfo(modelId, model);

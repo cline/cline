@@ -14,11 +14,14 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	isImageGenerationModel,
 	parseJsonStream,
 	sanitizeSurrogates,
+	validateImageMedia,
 } from "@cline/shared";
 import {
 	type CallSettings,
+	generateImage,
 	jsonSchema,
 	NoSuchToolError,
 	streamText,
@@ -69,6 +72,97 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+type ImageGenerationInput = string | Uint8Array | ArrayBuffer;
+type ImageGenerationPrompt =
+	| string
+	| {
+			images: ImageGenerationInput[];
+			text?: string;
+	  };
+
+function normalizeImageGenerationInput(
+	part: Extract<AgentMessage["content"][number], { type: "image" }>,
+): ImageGenerationInput {
+	if (part.image instanceof URL) {
+		return part.image.href;
+	}
+	if (typeof part.image !== "string") {
+		return part.image;
+	}
+	if (part.image.startsWith("http://") || part.image.startsWith("https://")) {
+		return part.image;
+	}
+	const validation = validateImageMedia(part.mediaType, part.image);
+	if (!validation.ok) {
+		throw new Error(validation.message);
+	}
+	return `data:${validation.mediaType};base64,${validation.base64}`;
+}
+
+function resolveImageGenerationPrompt(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): ImageGenerationPrompt {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (!text) continue;
+		if (context.model.modalities?.input.includes("image") !== true) {
+			return text;
+		}
+
+		const explicitImages = message.content
+			.filter((part) => part.type === "image")
+			.map(normalizeImageGenerationInput);
+		if (explicitImages.length > 0) {
+			return { text, images: explicitImages };
+		}
+
+		for (let historyIndex = index - 1; historyIndex >= 0; historyIndex -= 1) {
+			const historyMessage = request.messages[historyIndex];
+			if (historyMessage?.role !== "assistant") continue;
+			const firstGeneratedImage = historyMessage.content.find(
+				(part) => part.type === "image",
+			);
+			if (firstGeneratedImage) {
+				return {
+					text,
+					images: [normalizeImageGenerationInput(firstGeneratedImage)],
+				};
+			}
+		}
+		return text;
+	}
+	throw new Error("Image generation requires a text prompt");
+}
+
+function extractGeneratedImage(
+	file: unknown,
+): { data: string; mediaType: string } | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith("image/") ||
+		typeof record.base64 !== "string"
+	) {
+		return undefined;
+	}
+	const validation = validateImageMedia(record.mediaType, record.base64);
+	if (!validation.ok) {
+		throw new Error(validation.message);
+	}
+	return {
+		data: validation.base64,
+		mediaType: validation.mediaType,
+	};
+}
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
@@ -970,6 +1064,7 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	let emittedImages = 0;
 
 	try {
 		if (stream.fullStream) {
@@ -1001,11 +1096,13 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
-					// Model-generated file (e.g. image-output models). Convert it
-					// so a file-only turn reaches the assistant message instead of
-					// being dropped and failing as "Model returned empty response"
-					// — the retry middleware counts `file` parts as content on the
-					// same premise (see stream-part-classification.ts).
+					const image = extractGeneratedImage(part.file);
+					if (image) {
+						emittedImages += 1;
+						yield { type: "image", ...image };
+						continue;
+					}
+					// Preserve non-image model files on the generic event path.
 					const file = part.file as
 						| { base64?: string; mediaType?: string }
 						| undefined;
@@ -1115,6 +1212,18 @@ async function* emitAiSdkEvents(
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
 		streamError = capturedError?.current ?? captureStreamError(error);
+	}
+
+	if (
+		!streamError &&
+		isImageGenerationModel(context.model) &&
+		emittedImages === 0
+	) {
+		streamError = captureStreamError(
+			new Error(
+				"Image model completed without returning a supported image output",
+			),
+		);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -1283,6 +1392,70 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 					context,
 				);
+				const composedProviderOptions = composeAiSdkProviderOptions(
+					request,
+					context,
+					kind,
+				);
+				const providerOptions =
+					context.provider.metadata?.imageTransport === "openrouter" &&
+					isImageGenerationModel(context.model)
+						? {
+								...composedProviderOptions,
+								openrouter: {
+									...((composedProviderOptions[
+										request.providerId as keyof typeof composedProviderOptions
+									] ??
+										composedProviderOptions.openaiCompatible ??
+										{}) as Record<string, unknown>),
+									// OpenRouter-compatible image generation uses chat
+									// completions under the hood and requires explicit output
+									// modalities.
+									modalities: ["image", "text"],
+								},
+							}
+						: composedProviderOptions;
+				if (isImageGenerationModel(context.model)) {
+					if (!provider.imageModel) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support image generation models`,
+						);
+					}
+					const prompt = resolveImageGenerationPrompt(request, context);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: {
+							operation: "generate_image",
+							prompt:
+								typeof prompt === "string"
+									? prompt
+									: {
+											text: prompt.text,
+											imageCount: prompt.images.length,
+										},
+							providerOptions,
+						},
+					});
+					const result = await generateImage({
+						model: provider.imageModel(context.model.id) as never,
+						prompt,
+						abortSignal: request.signal,
+						providerOptions: providerOptions as never,
+					});
+					let emittedImages = 0;
+					for (const file of result.images) {
+						const image = extractGeneratedImage(file);
+						if (!image) continue;
+						emittedImages += 1;
+						yield { type: "image", ...image };
+					}
+					if (emittedImages === 0) {
+						throw new Error("Image model returned no supported images");
+					}
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
@@ -1299,11 +1472,6 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					messagesSystemPrompt,
 				);
 				const portableReasoning = resolvePortableReasoning(request);
-				const providerOptions = composeAiSdkProviderOptions(
-					request,
-					context,
-					kind,
-				) as never;
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
@@ -1333,7 +1501,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
-					providerOptions,
+					providerOptions: providerOptions as never,
 					...requestConfig,
 					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {

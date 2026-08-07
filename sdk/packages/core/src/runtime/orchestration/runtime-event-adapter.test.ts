@@ -380,7 +380,34 @@ describe("RuntimeEventAdapter — assistant-message → content_end", () => {
 		});
 	});
 
-	it("fires NO content_end events when the message has no text/reasoning", () => {
+	it("fires content_end(image) for each generated image", () => {
+		const out = adapter.translate({
+			type: "assistant-message",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			message: makeMessage({}, [
+				{
+					type: "image",
+					image: "aGVsbG8=",
+					mediaType: "image/webp",
+				},
+				{ type: "text", text: "Generated it." },
+			]),
+			finishReason: "stop",
+		});
+		expect(out).toContainEqual({
+			type: "content_end",
+			contentType: "image",
+			image: { data: "aGVsbG8=", mediaType: "image/webp" },
+		});
+		expect(out).toContainEqual({
+			type: "content_end",
+			contentType: "text",
+			text: "Generated it.",
+		});
+	});
+
+	it("fires NO content_end events when the message has no renderable content", () => {
 		const out = adapter.translate({
 			type: "assistant-message",
 			snapshot: makeSnapshot(),

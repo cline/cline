@@ -235,6 +235,7 @@ export async function createBedrockProviderModule(
 	return {
 		model: (modelId) =>
 			provider(resolveBedrockModelId(modelId, modelIdOptions)),
+		imageModel: (modelId) => provider.image(modelId),
 	};
 }
 
