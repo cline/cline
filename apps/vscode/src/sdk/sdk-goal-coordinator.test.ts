@@ -1,7 +1,8 @@
 import { formatGoalVerificationPrompt, MAX_GOAL_VERIFICATION_ROUNDS } from "@cline/core"
 import type { AgentResult } from "@cline/shared"
+import { parseGoalCommand } from "@shared/slashCommands"
 import { describe, expect, it, vi } from "vitest"
-import { parseGoalCommand, SdkGoalCoordinator } from "./sdk-goal-coordinator"
+import { SdkGoalCoordinator } from "./sdk-goal-coordinator"
 
 const completed = { finishReason: "completed" } as AgentResult
 const aborted = { finishReason: "aborted" } as AgentResult

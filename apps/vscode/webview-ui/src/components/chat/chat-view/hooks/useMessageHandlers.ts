@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { IntentEvent } from "@shared/proto/cline/ui"
+import { parseGoalCommand } from "@shared/slashCommands"
 import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -72,6 +73,37 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				}
 				return
 			}
+
+			// /goal status and /goal off (and aliases) are answered locally by the
+			// controller: no model turn starts and no user echo is emitted. They
+			// must bypass the optimistic-send machinery below — an optimistic
+			// bubble or pending-response loader would never be confirmed and
+			// would linger (stuck "Thinking..."), and with no task open the
+			// optimistic task row would fabricate a phantom task view.
+			const goalCommand = parseGoalCommand(messageToSend)
+			if (goalCommand && goalCommand.kind !== "set") {
+				setInputValue("")
+				setActiveQuote(null)
+				const send =
+					messages.length === 0
+						? // The controller intercepts before starting a task and
+							// surfaces the reply as a host notification.
+							TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend }))
+						: TaskServiceClient.askResponse(
+								AskResponseRequest.create({ responseType: "messageResponse", text: messageToSend }),
+							)
+				await send.catch((error) => console.error("Failed to send /goal command:", error))
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+				return
+			}
+			// A goal-setting submission is echoed by the controller with the
+			// "/goal " prefix stripped (the bare goal text becomes the task /
+			// follow-up prompt). The optimistic bubble must carry that same
+			// stripped text or its backend confirmation never matches and the
+			// raw "/goal ..." row lingers in the transcript forever.
+			const optimisticText = goalCommand?.kind === "set" ? goalCommand.goal : undefined
 
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
@@ -149,7 +181,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 									ts: Date.now(),
 									type: "say",
 									say: "user_feedback",
-									text: request.text ?? "",
+									text: optimisticText ?? request.text ?? "",
 									images: request.images,
 									files: request.files,
 									partial: false,
@@ -177,7 +209,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						ts: Date.now(),
 						type: "say",
 						say: "task",
-						text: messageToSend,
+						text: optimisticText ?? messageToSend,
 						images,
 						files,
 						partial: false,

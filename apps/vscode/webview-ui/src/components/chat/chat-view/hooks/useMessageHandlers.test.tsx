@@ -125,6 +125,98 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
+	it("sends /goal status locally without an optimistic bubble or loader", async () => {
+		// The controller answers status/clear without starting a turn or echoing
+		// a user message, so any optimistic UI would never be confirmed.
+		mockTurnState = { phase: "completed", seq: 7 }
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const setInputValue = vi.fn()
+		const setSendingDisabled = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				completedConversation,
+				makeChatState(completedConversation, {
+					setPendingUserMessage,
+					setPendingResponse,
+					setInputValue,
+					setSendingDisabled,
+				}),
+			),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("/goal status", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "/goal status" }),
+		)
+		expect(setInputValue).toHaveBeenCalledWith("")
+		expect(setPendingUserMessage).not.toHaveBeenCalled()
+		expect(setPendingResponse).not.toHaveBeenCalled()
+		// The input must stay enabled: no turn starts, so nothing would re-enable it.
+		expect(setSendingDisabled).not.toHaveBeenCalled()
+	})
+
+	it("routes /goal off with no task through newTask without a phantom task view", async () => {
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers([], makeChatState([], { setPendingUserMessage, setPendingResponse })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("/goal off", [], [])
+		})
+
+		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "/goal off" }))
+		expect(setPendingUserMessage).not.toHaveBeenCalled()
+		expect(setPendingResponse).not.toHaveBeenCalled()
+	})
+
+	it("strips the /goal prefix from the optimistic task row when setting a goal", async () => {
+		// The controller strips "/goal " before creating the task, so the backend
+		// say:"task" confirmation carries the bare goal text. The optimistic row
+		// must match it or it lingers in the transcript forever.
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([], { setPendingUserMessage })))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/goal ship the feature", [], [])
+		})
+
+		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "/goal ship the feature" }))
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: expect.objectContaining({ say: "task", text: "ship the feature" }),
+			}),
+		)
+	})
+
+	it("strips the /goal prefix from the optimistic follow-up bubble when setting a goal", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(completedConversation, makeChatState(completedConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("/goal ship the feature", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "/goal ship the feature" }),
+		)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: expect.objectContaining({ say: "user_feedback", text: "ship the feature" }),
+			}),
+		)
+	})
+
 	it("routes the /smol alias to the condense RPC as well", async () => {
 		mockTurnState = { phase: "completed", seq: 7 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))

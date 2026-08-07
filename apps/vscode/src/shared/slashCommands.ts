@@ -47,3 +47,38 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 
 // VS Code-only slash commands
 export const VSCODE_ONLY_COMMANDS: SlashCommand[] = []
+
+/**
+ * A leading "/goal ..." chat message parsed into its subcommand. Mirrors the
+ * CLI's /goal chat command: no arguments (or "status") reports the active
+ * goal, the off aliases clear it, anything else sets a new goal.
+ *
+ * Shared between the controller (which answers the command) and the webview
+ * (which must know that status/clear replies are local — no turn starts, no
+ * user echo arrives — and that a set submission is echoed with the "/goal "
+ * prefix stripped, so its optimistic bubble has to match that).
+ */
+export type GoalCommand = { kind: "status" } | { kind: "clear" } | { kind: "set"; goal: string }
+
+const GOAL_CLEAR_KEYWORDS = new Set(["off", "clear", "stop", "disable"])
+
+/**
+ * Parses a chat message that invokes the /goal slash command. Returns
+ * undefined for anything else (including messages that merely mention
+ * "/goal" mid-text), so ordinary prompts are never hijacked.
+ */
+export function parseGoalCommand(text: string): GoalCommand | undefined {
+	const match = /^\/goal(?=$|\s)([\s\S]*)$/i.exec(text.trim())
+	if (!match) {
+		return undefined
+	}
+	const args = (match[1] ?? "").trim()
+	const keyword = args.toLowerCase()
+	if (!args || keyword === "status") {
+		return { kind: "status" }
+	}
+	if (GOAL_CLEAR_KEYWORDS.has(keyword)) {
+		return { kind: "clear" }
+	}
+	return { kind: "set", goal: args }
+}
