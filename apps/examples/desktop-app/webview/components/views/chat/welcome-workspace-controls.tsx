@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+	type CloudBranchListOptions,
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
 	type CloudRepositoryOption,
@@ -265,25 +266,49 @@ function CloudBranchPicker({
 	defaultBranch: string;
 	branch: string;
 	onBranchChange: (branch: string) => void;
-	onListBranches: (repositoryId: number) => Promise<CloudBranchListResult>;
+	onListBranches: (
+		repositoryId: number,
+		options?: CloudBranchListOptions,
+	) => Promise<CloudBranchListResult>;
 }) {
 	const [query, setQuery] = useState("");
+	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const [reloadKey, setReloadKey] = useState(0);
 	const [branches, setBranches] = useState<string[]>([]);
+	const [nextToken, setNextToken] = useState("");
+	const [loadingMore, setLoadingMore] = useState(false);
+	const [loadMoreError, setLoadMoreError] = useState(false);
 	const [status, setStatus] = useState<
 		"idle" | "loading" | "error" | "unavailable"
 	>("idle");
 	const branchRef = useRef(branch);
+	const listRef = useRef<HTMLDivElement>(null);
+	const loadMoreRef = useRef<HTMLDivElement>(null);
+	const requestKeyRef = useRef("");
 	branchRef.current = branch;
 
 	useEffect(() => {
+		const timeout = window.setTimeout(
+			() => setDebouncedQuery(query.trim()),
+			250,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [query]);
+	const searchPending = query.trim() !== debouncedQuery;
+
+	useEffect(() => {
 		if (!repositoryId) return;
-		void reloadKey;
+		const requestKey = `${repositoryId}:${debouncedQuery}:${reloadKey}`;
+		requestKeyRef.current = requestKey;
 		let cancelled = false;
 		setStatus("loading");
-		void onListBranches(repositoryId)
+		setLoadMoreError(false);
+		const request = debouncedQuery
+			? onListBranches(repositoryId, { query: debouncedQuery })
+			: onListBranches(repositoryId);
+		void request
 			.then((result) => {
-				if (cancelled) return;
+				if (cancelled || requestKeyRef.current !== requestKey) return;
 				if (!result.available) {
 					setBranches([]);
 					onBranchChange(defaultBranch);
@@ -291,26 +316,72 @@ function CloudBranchPicker({
 					return;
 				}
 				setBranches(result.branches);
-				if (
-					!branchRef.current ||
-					!result.branches.includes(branchRef.current)
-				) {
+				setNextToken(result.nextToken ?? "");
+				if (!branchRef.current) {
 					onBranchChange(preferredCloudBranch(result.branches, defaultBranch));
 				}
 				setStatus("idle");
 			})
 			.catch(() => {
-				if (!cancelled) setStatus("error");
+				if (!cancelled && requestKeyRef.current === requestKey) {
+					setStatus("error");
+				}
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [defaultBranch, onBranchChange, onListBranches, reloadKey, repositoryId]);
+	}, [
+		debouncedQuery,
+		defaultBranch,
+		onBranchChange,
+		onListBranches,
+		reloadKey,
+		repositoryId,
+	]);
 
-	const normalizedQuery = query.trim().toLowerCase();
-	const filteredBranches = branches.filter((item) =>
-		item.toLowerCase().includes(normalizedQuery),
-	);
+	const loadMore = useCallback(async () => {
+		if (!repositoryId || !nextToken || loadingMore) return;
+		const requestKey = requestKeyRef.current;
+		setLoadingMore(true);
+		setLoadMoreError(false);
+		try {
+			const result = await onListBranches(repositoryId, {
+				cursor: nextToken,
+				query: debouncedQuery || undefined,
+			});
+			if (requestKeyRef.current !== requestKey) return;
+			setBranches((current) => [...new Set([...current, ...result.branches])]);
+			setNextToken(result.nextToken ?? "");
+		} catch {
+			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
+		} finally {
+			if (requestKeyRef.current === requestKey) setLoadingMore(false);
+		}
+	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);
+
+	useEffect(() => {
+		const root = listRef.current;
+		const target = loadMoreRef.current;
+		if (
+			!open ||
+			!root ||
+			!target ||
+			!nextToken ||
+			loadingMore ||
+			loadMoreError ||
+			searchPending
+		) {
+			return;
+		}
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+			},
+			{ root, rootMargin: "0px 0px 96px 0px" },
+		);
+		observer.observe(target);
+		return () => observer.disconnect();
+	}, [loadMore, loadMoreError, loadingMore, nextToken, open, searchPending]);
 
 	return (
 		<div className="relative min-w-0">
@@ -347,9 +418,15 @@ function CloudBranchPicker({
 						placeholder="Search branches…"
 						value={query}
 					/>
-					<div className="max-h-72 overflow-y-auto p-1.5">
-						{status === "loading" ? (
-							<PickerStatus icon="loading" message="Loading branches…" />
+					<div
+						className="max-h-72 overflow-y-auto overscroll-contain p-1.5"
+						ref={listRef}
+					>
+						{status === "loading" || searchPending ? (
+							<PickerStatus
+								icon="loading"
+								message={query.trim() ? "Searching…" : "Loading branches…"}
+							/>
 						) : status === "error" ? (
 							<PickerStatus message="Could not load branches.">
 								<Button
@@ -361,12 +438,12 @@ function CloudBranchPicker({
 									Retry
 								</Button>
 							</PickerStatus>
-						) : filteredBranches.length === 0 ? (
+						) : branches.length === 0 ? (
 							<PickerStatus message="No branches found." />
 						) : (
-							filteredBranches.map((item) => (
+							branches.map((item) => (
 								<Button
-									className="w-full justify-start text-xs"
+									className="w-full justify-start text-xs [content-visibility:auto]"
 									key={item}
 									onClick={() => {
 										onBranchChange(item);
@@ -382,6 +459,25 @@ function CloudBranchPicker({
 								</Button>
 							))
 						)}
+						{status === "idle" && nextToken ? (
+							<div
+								aria-live="polite"
+								className="px-3 py-2 text-center text-xs text-muted-foreground"
+								ref={loadMoreRef}
+							>
+								{loadingMore ? "Loading more branches…" : null}
+							</div>
+						) : null}
+						{loadMoreError ? (
+							<Button
+								aria-live="polite"
+								className="w-full justify-start text-xs"
+								onClick={() => void loadMore()}
+								variant="ghost"
+							>
+								Could not load more branches — Retry
+							</Button>
+						) : null}
 					</div>
 				</div>
 			) : null}
@@ -399,9 +495,15 @@ function PickerStatus({
 	message: string;
 }) {
 	return (
-		<div className="flex min-h-20 flex-col items-center justify-center gap-2 px-3 py-4 text-center text-xs text-muted-foreground">
+		<div
+			aria-live="polite"
+			className="flex min-h-20 flex-col items-center justify-center gap-2 px-3 py-4 text-center text-xs text-muted-foreground"
+		>
 			{icon === "loading" ? (
-				<LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+				<LoaderCircle
+					aria-hidden="true"
+					className="size-4 animate-spin motion-reduce:animate-none"
+				/>
 			) : null}
 			<span>{message}</span>
 			{children}
@@ -421,15 +523,20 @@ function SearchInput({
 	return (
 		<div className="border-b border-border p-2">
 			<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5">
-				<Search className="size-3 shrink-0 text-muted-foreground" />
+				<Search
+					aria-hidden="true"
+					className="size-3 shrink-0 text-muted-foreground"
+				/>
 				{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
 				<Input
 					autoFocus
 					aria-label={placeholder}
+					autoComplete="off"
 					className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
 					name={placeholder.toLowerCase().replaceAll(/[^a-z]+/g, "-")}
 					onChange={(event) => onChange(event.target.value)}
 					placeholder={placeholder}
+					spellCheck={false}
 					value={value}
 				/>
 			</div>
@@ -770,7 +877,10 @@ export function WelcomeWorkspaceControls({
 	cloudBranch: string;
 	onCloudBranchChange: (branch: string) => void;
 	onListCloudRepositories: () => Promise<CloudRepositoryListResult>;
-	onListCloudBranches: (repositoryId: number) => Promise<CloudBranchListResult>;
+	onListCloudBranches: (
+		repositoryId: number,
+		options?: CloudBranchListOptions,
+	) => Promise<CloudBranchListResult>;
 	onOpenExternalUrl: (url: string) => Promise<void>;
 	signedIn: boolean;
 	signingIn: boolean;

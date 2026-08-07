@@ -95,6 +95,12 @@ export type CloudRepositoryListResult = {
 export type CloudBranchListResult = {
 	available: boolean;
 	branches: string[];
+	nextToken?: string;
+};
+
+export type CloudBranchListOptions = {
+	cursor?: string;
+	query?: string;
 };
 
 type CloudSessionApiOptions = {
@@ -304,6 +310,7 @@ export class CloudSessionApi {
 	async listBranches(
 		repositoryId: number,
 		organizationId?: string,
+		options: CloudBranchListOptions = {},
 	): Promise<CloudBranchListResult> {
 		if (!Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
 			throw new CloudSessionError(
@@ -315,15 +322,40 @@ export class CloudSessionApi {
 		const path = normalizedOrganizationId
 			? `/api/v1/organizations/${encodeURIComponent(normalizedOrganizationId)}/integrations/github/repositories/${repositoryId}/branches`
 			: `/api/v1/integrations/github/repositories/${repositoryId}/branches`;
+		const search = new URLSearchParams();
+		const query = options.query?.trim();
+		const cursor = options.cursor?.trim();
+		if (query) search.set("query", query);
+		if (cursor) search.set("cursor", cursor);
+		const requestPath = search.size > 0 ? `${path}?${search}` : path;
 		try {
-			const branches =
-				(await this.request<Array<{ name?: unknown }>>(path)) ?? [];
+			const payload = await this.request<
+				| Array<{ name?: unknown }>
+				| {
+						items?: Array<{ name?: unknown }>;
+						nextToken?: unknown;
+				  }
+			>(requestPath);
+			const branches = Array.isArray(payload)
+				? payload
+				: Array.isArray(payload?.items)
+					? payload.items
+					: [];
+			const normalizedQuery = query?.toLowerCase();
 			return {
 				available: true,
 				branches: branches.flatMap((branch) => {
 					const name = String(branch.name ?? "").trim();
-					return name ? [name] : [];
+					return name &&
+						(!Array.isArray(payload) ||
+							!normalizedQuery ||
+							name.toLowerCase().includes(normalizedQuery))
+						? [name]
+						: [];
 				}),
+				nextToken: Array.isArray(payload)
+					? ""
+					: String(payload?.nextToken ?? "").trim(),
 			};
 		} catch (error) {
 			if (
@@ -853,10 +885,14 @@ export class CloudSessionManager {
 		);
 	}
 
-	async listBranches(repositoryId: number): Promise<CloudBranchListResult> {
+	async listBranches(
+		repositoryId: number,
+		options: CloudBranchListOptions = {},
+	): Promise<CloudBranchListResult> {
 		return await this.options.api.listBranches(
 			repositoryId,
 			await this.resolveActiveOrganizationId(),
+			options,
 		);
 	}
 

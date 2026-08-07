@@ -30,6 +30,7 @@ afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 function button(text: string): HTMLButtonElement {
@@ -174,6 +175,113 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		expect(props.onListCloudBranches).toHaveBeenCalledWith(42);
 		await click(button("feature/cloud"));
 		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature/cloud");
+	});
+
+	it("loads additional branch pages as the user scrolls", async () => {
+		let intersectionCallback:
+			| ((entries: IntersectionObserverEntry[]) => void)
+			| undefined;
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+					intersectionCallback = callback;
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
+		const onListCloudBranches = vi.fn(
+			async (_repositoryId: number, options?: { cursor?: string }) =>
+				options?.cursor
+					? { available: true, branches: ["feature/cloud"], nextToken: "" }
+					: { available: true, branches: ["main"], nextToken: "2" },
+		);
+		const props = renderControls({
+			executionTarget: "cloud",
+			onListCloudBranches,
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await click(button("cline/cline"));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onListCloudRepositories: props.onListCloudRepositories,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		await click(button("main"));
+		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await act(async () => {
+			intersectionCallback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]);
+		});
+
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42, { cursor: "2" }),
+		);
+		await vi.waitFor(() =>
+			expect(container.textContent).toContain("feature/cloud"),
+		);
+	});
+
+	it("searches branches through the server", async () => {
+		const onListCloudBranches = vi.fn(
+			async (_repositoryId: number, options?: { query?: string }) =>
+				options?.query
+					? { available: true, branches: ["feature/cloud"] }
+					: { available: true, branches: ["main"] },
+		);
+		const props = renderControls({
+			executionTarget: "cloud",
+			onListCloudBranches,
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await click(button("cline/cline"));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onListCloudRepositories: props.onListCloudRepositories,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		await click(button("main"));
+		const search = container.querySelector<HTMLInputElement>(
+			'input[placeholder="Search branches…"]',
+		);
+		expect(search).not.toBeNull();
+		await act(async () => {
+			const valueSetter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			valueSetter?.call(search, "feature");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42, {
+				query: "feature",
+			}),
+		);
+		await vi.waitFor(() =>
+			expect(container.textContent).toContain("feature/cloud"),
+		);
 	});
 
 	it("uses and labels the repository default when branch selection is unavailable", async () => {

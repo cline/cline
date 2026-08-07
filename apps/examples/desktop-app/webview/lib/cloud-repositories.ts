@@ -15,6 +15,12 @@ export type CloudRepositoryListResult = {
 export type CloudBranchListResult = {
 	available: boolean;
 	branches: string[];
+	nextToken?: string;
+};
+
+export type CloudBranchListOptions = {
+	cursor?: string;
+	query?: string;
 };
 
 export function normalizeCloudRepositoryUrl(value: string): string {

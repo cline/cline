@@ -1210,7 +1210,10 @@ export async function handleCommand(
 	}
 	if (command === "list_cloud_branches") {
 		const repositoryId = Number(args?.repositoryId);
-		return await getCloudSessionManager(ctx).listBranches(repositoryId);
+		return await getCloudSessionManager(ctx).listBranches(repositoryId, {
+			cursor: typeof args?.cursor === "string" ? args.cursor : undefined,
+			query: typeof args?.query === "string" ? args.query : undefined,
+		});
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";

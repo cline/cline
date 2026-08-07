@@ -379,11 +379,69 @@ describe("CloudSessionApi", () => {
 		expect(await api.listBranches(42)).toEqual({
 			available: true,
 			branches: ["main", "feature/cloud"],
+			nextToken: "",
 		});
 		expect(requestedPaths).toEqual([
 			"/api/v1/integrations/github/repositories",
 			"/api/v1/integrations/github/repositories/42/branches",
 		]);
+	});
+
+	it("reads paginated branch responses and forwards search cursors", async () => {
+		let requestedUrl = "";
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				requestedUrl = String(input);
+				return jsonResponse({
+					success: true,
+					data: {
+						items: [{ name: "feature/cloud" }],
+						nextToken: "next/page",
+					},
+				});
+			},
+		});
+
+		expect(
+			await api.listBranches(42, undefined, {
+				cursor: "search cursor",
+				query: "feature/cloud",
+			}),
+		).toEqual({
+			available: true,
+			branches: ["feature/cloud"],
+			nextToken: "next/page",
+		});
+		const url = new URL(requestedUrl);
+		expect(url.pathname).toBe(
+			"/api/v1/integrations/github/repositories/42/branches",
+		);
+		expect(url.searchParams.get("query")).toBe("feature/cloud");
+		expect(url.searchParams.get("cursor")).toBe("search cursor");
+	});
+
+	it("filters legacy branch responses while backends roll out", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({
+					success: true,
+					data: [{ name: "main" }, { name: "feature/cloud" }],
+				}),
+		});
+
+		expect(await api.listBranches(42, undefined, { query: "FEATURE" })).toEqual(
+			{
+				available: true,
+				branches: ["feature/cloud"],
+				nextToken: "",
+			},
+		);
 	});
 
 	it("falls back to the repository default when the branch API is unavailable", async () => {

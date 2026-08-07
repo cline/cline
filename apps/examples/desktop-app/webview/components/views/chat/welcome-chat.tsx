@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type {
+	CloudBranchListOptions,
 	CloudBranchListResult,
 	CloudRepositoryListResult,
 } from "@/lib/cloud-repositories";
@@ -88,16 +89,22 @@ export function WelcomeScreen({
 			),
 		[],
 	);
-	const listCloudBranches = useCallback(async (repositoryId: number) => {
-		const result = await desktopClient.invoke<{
-			available?: boolean;
-			branches?: string[];
-		}>("list_cloud_branches", { repositoryId });
-		return {
-			available: result.available !== false,
-			branches: Array.isArray(result.branches) ? result.branches : [],
-		} satisfies CloudBranchListResult;
-	}, []);
+	const listCloudBranches = useCallback(
+		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
+			const result = await desktopClient.invoke<{
+				available?: boolean;
+				branches?: string[];
+				nextToken?: string;
+			}>("list_cloud_branches", { repositoryId, ...options });
+			return {
+				available: result.available !== false,
+				branches: Array.isArray(result.branches) ? result.branches : [],
+				nextToken:
+					typeof result.nextToken === "string" ? result.nextToken : undefined,
+			} satisfies CloudBranchListResult;
+		},
+		[],
+	);
 	const openExternalUrl = useCallback(async (url: string) => {
 		await desktopClient.invoke("open_external_url", { url });
 	}, []);
