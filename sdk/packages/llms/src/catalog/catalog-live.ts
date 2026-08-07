@@ -79,6 +79,23 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
+
+// Non-tool models are only useful to the voice-input catalog when the current
+// runtime can send them through its OpenAI-compatible (or provider-specific)
+// transcription transport. Keep this list intentionally explicit: a provider
+// advertising audio modalities does not imply that its chat base URL exposes
+// POST /audio/transcriptions.
+const TRANSCRIPTION_TRANSPORT_PROVIDER_IDS = new Set([
+	"evroc",
+	"groq",
+	"mistral",
+	"nearai",
+	"openai-native",
+	"privatemode-ai",
+	"scaleway",
+	"vercel-ai-gateway",
+]);
+
 const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/openai": "openai",
 	"@ai-sdk/openai-compatible": "openai-compatible",
@@ -179,16 +196,20 @@ function getSelectedModelsDevProviders(
 	return selected;
 }
 
+function isDedicatedTranscriptionModel(model: ModelsDevModel): boolean {
+	return (
+		model.modalities?.input?.length === 1 &&
+		model.modalities.input[0] === "audio" &&
+		model.modalities.output?.length === 1 &&
+		model.modalities.output[0] === "text"
+	);
+}
+
 function isStreamingTranscriptionModel(
 	modelId: string,
 	model: ModelsDevModel,
 ): boolean {
-	const isDedicatedTranscriptionModel =
-		model.modalities?.input?.length === 1 &&
-		model.modalities.input[0] === "audio" &&
-		model.modalities.output?.length === 1 &&
-		model.modalities.output[0] === "text";
-	if (!isDedicatedTranscriptionModel) {
+	if (!isDedicatedTranscriptionModel(model)) {
 		return false;
 	}
 
@@ -265,13 +286,6 @@ function toModalities(
 		return undefined;
 	}
 	return { input, output };
-}
-
-function isAudioModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.input?.includes("audio") === true ||
-		model.modalities?.output?.includes("audio") === true
-	);
 }
 
 function isChatModel(model: ModelInfo): boolean {
@@ -351,8 +365,11 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
+			const hasSupportedTranscriptionTransport =
+				isDedicatedTranscriptionModel(model) &&
+				TRANSCRIPTION_TRANSPORT_PROVIDER_IDS.has(targetProviderId);
 			if (
-				(model.tool_call !== true && !isAudioModel(model)) ||
+				(model.tool_call !== true && !hasSupportedTranscriptionTransport) ||
 				isDeprecatedModel(model)
 			) {
 				continue;
