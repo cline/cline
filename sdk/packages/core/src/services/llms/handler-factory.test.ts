@@ -13,13 +13,17 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", () => ({
-	createGateway: gatewayMock.createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
-	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
-	createHandlerAsync: gatewayMock.createHandlerAsync,
-	normalizeProviderId: (id: string) => id,
-}));
+vi.mock("@cline/llms", async (importOriginal) => {
+	const original = await importOriginal<typeof import("@cline/llms")>();
+	return {
+		createGateway: gatewayMock.createGateway,
+		MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+		hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
+		createHandlerAsync: gatewayMock.createHandlerAsync,
+		normalizeProviderId: (id: string) => id,
+		toGatewayModelCapabilities: original.toGatewayModelCapabilities,
+	};
+});
 
 describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {

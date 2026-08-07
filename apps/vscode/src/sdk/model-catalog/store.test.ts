@@ -221,6 +221,23 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
+	it("preserves an explicit empty capability override", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+
+		store.commitSelection(providerId, "act", {
+			providerId,
+			modelId: "text-only-model",
+			overrides: { capabilities: [] },
+		})
+
+		expect(mocks.getModelsFile().providers.openrouter?.models?.["text-only-model"]).toMatchObject({
+			capabilities: [],
+		})
+		expect(store.readSelection(providerId, "act")?.overrides?.capabilities).toEqual([])
+	})
+
 	it("round-trips generic provider selections using the in-process modelInfo envelope", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()

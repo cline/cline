@@ -175,6 +175,29 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("temperature");
 	});
 
+	it("preserves an explicitly empty model capability set", async () => {
+		const entry = parseModelsFile({
+			version: 1,
+			providers: {
+				"text-only-provider": {
+					provider: {
+						name: "Text Only Provider",
+						baseUrl: "https://text-only.example.invalid/v1",
+					},
+					models: { alpha: { capabilities: [] } },
+				},
+			},
+		}).providers["text-only-provider"];
+		if (!entry) {
+			throw new Error("expected parsed provider entry");
+		}
+
+		registerCustomProvider("text-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider("text-only-provider");
+		expect(models.alpha?.capabilities).toEqual([]);
+	});
+
 	it("skips malformed provider entries while preserving valid providers", () => {
 		expect(
 			parseModelsFile({
