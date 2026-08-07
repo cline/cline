@@ -175,6 +175,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
 
+		if (request.enableXmlToolCalling !== undefined) {
+			controller.stateManager.setGlobalState("enableXmlToolCalling", request.enableXmlToolCalling)
+		}
+
 		if (request.compactionStrategy !== undefined) {
 			const strategy = request.compactionStrategy
 			if (strategy !== "basic" && strategy !== "agentic") {

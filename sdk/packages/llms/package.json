@@ -50,6 +50,7 @@
 		}
 	},
 	"dependencies": {
+		"@ai-sdk-tool/parser": "^5",
 		"@ai-sdk/amazon-bedrock": "^5",
 		"@ai-sdk/anthropic": "^4",
 		"@ai-sdk/google": "^4",

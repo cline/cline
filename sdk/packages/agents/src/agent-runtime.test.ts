@@ -454,6 +454,106 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	describe("XML tool-calling correction reminders", () => {
+		const xmlOptions = { modelOptions: { toolCallingMode: "xml" } };
+
+		it("re-prompts when an XML-mode turn mentions a tool without calling it", async () => {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "I will now use echo to do this." },
+					{ type: "finish", reason: "stop" },
+				],
+				(request) => {
+					const reminder = request.messages.at(-1) as AgentMessage;
+					expect(reminder.role).toBe("user");
+					expect(JSON.stringify(reminder.content)).toContain(
+						"did not include a runnable tool call",
+					);
+					return [
+						{
+							type: "tool-call-delta",
+							toolCallId: "call_1",
+							toolName: "echo",
+							inputText: '{"text":"hi"}',
+						},
+						{ type: "finish", reason: "tool-calls" },
+					];
+				},
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({
+				model,
+				tools: [createEchoTool()],
+				...xmlOptions,
+			});
+
+			const result = await runtime.run("Start");
+
+			expect(result.status).toBe("completed");
+			expect(model.requests).toHaveLength(3);
+			expect(
+				result.messages.filter((message) => message.role === "tool"),
+			).toHaveLength(1);
+		});
+
+		it("completes normally when the XML-mode reply mentions no tool", async () => {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "All finished, nothing else to do." },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({
+				model,
+				tools: [createEchoTool()],
+				...xmlOptions,
+			});
+
+			const result = await runtime.run("Start");
+
+			expect(result.status).toBe("completed");
+			expect(model.requests).toHaveLength(1);
+		});
+
+		it("never re-prompts in native mode", async () => {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "I will now use echo to do this." },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+			const result = await runtime.run("Start");
+
+			expect(result.status).toBe("completed");
+			expect(model.requests).toHaveLength(1);
+		});
+
+		it("caps consecutive corrections and then completes", async () => {
+			const turn = () =>
+				[
+					{ type: "text-delta", text: "echo is what I plan to use." },
+					{ type: "finish", reason: "stop" },
+				] as const;
+			const model = new ScriptedModel([turn, turn, turn]);
+			const runtime = new AgentRuntime({
+				model,
+				tools: [createEchoTool()],
+				...xmlOptions,
+			});
+
+			const result = await runtime.run("Start");
+
+			expect(result.status).toBe("completed");
+			// First turn + two capped corrections.
+			expect(model.requests).toHaveLength(3);
+		});
+	});
+
 	it("injects a pending user message after tool results and before the next model request", async () => {
 		const consumePendingUserMessage = vi.fn(() => "steer now");
 		const model = new ScriptedModel([

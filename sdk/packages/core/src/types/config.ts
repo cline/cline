@@ -49,6 +49,12 @@ export interface CoreModelConfig {
 	 * Sampling temperature per API call.
 	 */
 	temperature?: number;
+	/**
+	 * Tool wire format. `"xml"` drives tools through XML tags in plain
+	 * assistant text for models without reliable native tool calling; the
+	 * gateway translates to/from native tool calls. Defaults to `"native"`.
+	 */
+	toolCallingMode?: "native" | "xml";
 }
 
 export interface CoreRuntimeFeatures {

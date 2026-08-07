@@ -1076,6 +1076,28 @@ describe("buildSessionConfig", () => {
 		expect(config.compaction).toBeUndefined()
 	})
 
+	it("sets toolCallingMode to xml when the XML Tool Calling setting is enabled", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "enableXmlToolCalling") {
+				return true
+			}
+			if (key === "subagentsEnabled" || key === "useAutoCondense") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.toolCallingMode).toBe("xml")
+	})
+
+	it("leaves toolCallingMode unset (native) by default", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.toolCallingMode).toBeUndefined()
+	})
+
 	it("lets task useAutoCondense override the global setting", async () => {
 		let globalUseAutoCondense = true
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
