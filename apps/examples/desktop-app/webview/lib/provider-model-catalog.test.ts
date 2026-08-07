@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildProviderModelCatalog,
-	isChatModel,
 	isDedicatedTranscriptionModel,
 	selectTranscriptionModel,
 	supportsAudio,
@@ -63,33 +62,6 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
-	it("keeps audio utility models out of the chat model selector", () => {
-		expect(
-			isChatModel({
-				id: "chat",
-				name: "Chat",
-				inputModalities: ["text", "audio"],
-				outputModalities: ["text"],
-			}),
-		).toBe(true);
-		expect(
-			isChatModel({
-				id: "whisper",
-				name: "Whisper",
-				inputModalities: ["audio"],
-				outputModalities: ["text"],
-			}),
-		).toBe(false);
-		expect(
-			isChatModel({
-				id: "tts",
-				name: "TTS",
-				inputModalities: ["text"],
-				outputModalities: ["audio"],
-			}),
-		).toBe(false);
-	});
-
 	it("selects only the explicitly configured enabled model", () => {
 		const providers: Provider[] = [
 			{
@@ -141,7 +113,7 @@ describe("transcription model selection", () => {
 		expect(selectTranscriptionModel(providers, undefined)).toBeNull();
 	});
 
-	it("keeps an enabled audio-only provider out of the chat provider list", () => {
+	it("keeps voice selection in the provider catalog", () => {
 		const elevenLabs: Provider = {
 			id: "elevenlabs",
 			name: "ElevenLabs",
@@ -164,8 +136,6 @@ describe("transcription model selection", () => {
 			modelId: "scribe_v2",
 		};
 		const catalog = buildProviderModelCatalog([elevenLabs], selection);
-		expect(catalog.enabledProviderIds).toEqual([]);
-		expect(catalog.providerModels.elevenlabs).toEqual([]);
 		expect(catalog.voiceInput).toMatchObject({
 			providerId: "elevenlabs",
 			modelId: "scribe_v2",

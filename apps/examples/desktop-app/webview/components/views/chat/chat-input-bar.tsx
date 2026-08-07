@@ -34,7 +34,6 @@ import {
 } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
-	isChatModel,
 	loadProviderModelCatalog,
 	loadProviderModels,
 	subscribeToProviderModels,
@@ -1537,9 +1536,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const chatModels = models.filter(isChatModel);
-				const modelIds = chatModels.map((entry) => entry.id);
-				const reasoningModelIds = chatModels
+				const modelIds = models.map((entry) => entry.id);
+				const reasoningModelIds = models
 					.filter((entry) => entry.supportsReasoning)
 					.map((entry) => entry.id);
 				setProviderModels((current) => ({

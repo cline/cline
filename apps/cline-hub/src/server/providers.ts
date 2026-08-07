@@ -2,7 +2,6 @@ import process from "node:process";
 import {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	isChatProviderModel,
 	Llms,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
@@ -87,16 +86,12 @@ export async function loadModels(
 		provider,
 		providerSettingsManager.getProviderConfig(provider),
 	);
-	const models: WebviewProviderModel[] = payload.models
-		.filter(isChatProviderModel)
-		.map((model) => ({
-			id: model.id,
-			name: model.name,
-			supportsReasoning: model.supportsReasoning,
-			supportsThinking: model.supportsReasoning,
-			inputModalities: model.inputModalities,
-			outputModalities: model.outputModalities,
-		}));
+	const models: WebviewProviderModel[] = payload.models.map((model) => ({
+		id: model.id,
+		name: model.name,
+		supportsReasoning: model.supportsReasoning,
+		supportsThinking: model.supportsReasoning,
+	}));
 	ctx.send(peer, { type: "models", providerId: provider, models });
 }
 
