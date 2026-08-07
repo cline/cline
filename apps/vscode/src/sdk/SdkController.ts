@@ -80,7 +80,7 @@ import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
-import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
+import { readSessionMessagesPreferringLive, SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
@@ -1416,7 +1416,7 @@ export class Controller {
 		let tempHost: VscodeSessionHost | undefined
 		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
 		try {
-			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
+			sdkMessages = (await readSessionMessagesPreferringLive(sessionHost, sourceSessionId)) as SdkUserMessage[]
 			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkTargetIndex === -1) {
 				throw new Error("Could not map edited message to persisted conversation history")
