@@ -337,6 +337,10 @@ export function SettingsView({
 						: provider,
 				),
 			);
+			// The shared catalog cache (composer selector, welcome setup notice)
+			// must learn about the new OAuth connection too, not just this
+			// view's local provider state.
+			invalidateProviderCatalogCache();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

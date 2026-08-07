@@ -3,6 +3,7 @@ import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
 	BunRuntime,
@@ -331,10 +332,11 @@ function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
-			// OAuth logins are interactive: if the connection that started one
-			// goes away (webview reload, transport drop), cancel it so the
-			// abandoned browser flow can never persist credentials later.
+			// Browser OAuth flows are interactive: if the connection that started
+			// one goes away (webview reload, transport drop), cancel its callback
+			// wait so the sidecar cannot retain an abandoned authorization attempt.
 			cancelProviderOAuthLoginsForOwner(ws);
+			cancelMcpOAuthAuthorizationsForOwner(ws);
 		},
 	};
 }

@@ -7,8 +7,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDefaultMcpServerClientFactory } from "./client";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+	createDefaultMcpServerClientFactory,
+	probeMcpServerConnection,
+} from "./client";
 import { resolveMcpServerRegistrations } from "./config-loader";
 import type { McpServerRegistration } from "./types";
 
@@ -421,4 +424,93 @@ describe("mcp client request timeout", () => {
 			await client.disconnect();
 		}
 	}, 30_000);
+});
+
+describe("remote MCP OAuth connection", () => {
+	it("reports authorization required without starting an interactive OAuth flow", async () => {
+		const settingsPath = join(tempRoot, "remote-oauth-settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					github: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://api.githubcopilot.com/mcp/",
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+		const fetchMock = vi.fn(async () =>
+			Promise.resolve(
+				new Response(null, {
+					status: 401,
+					headers: { "www-authenticate": "Bearer" },
+				}),
+			),
+		);
+		const result = await probeMcpServerConnection({
+			serverName: "github",
+			filePath: settingsPath,
+			fetch: fetchMock,
+		});
+
+		expect(result).toMatchObject({
+			serverName: "github",
+			connected: false,
+			authorizationRequired: true,
+			error: expect.stringMatching(
+				/MCP server "github" requires OAuth authorization/,
+			),
+		});
+
+		const written = JSON.parse(readFileSync(settingsPath, "utf8"));
+		expect(written.mcpServers.github.oauth).toMatchObject({
+			authorizationRequired: true,
+		});
+		expect(written.mcpServers.github.oauth).not.toHaveProperty("codeVerifier");
+		expect(written.mcpServers.github.oauth).not.toHaveProperty(
+			"discoveryState",
+		);
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
+	it("surfaces a rejected static Authorization header as a connection error", async () => {
+		const settingsPath = join(tempRoot, "remote-static-auth-settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					notion: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://mcp.notion.com/mcp",
+							headers: { Authorization: "Bearer token" },
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await probeMcpServerConnection({
+			serverName: "notion",
+			filePath: settingsPath,
+			fetch: async () =>
+				new Response(null, {
+					status: 401,
+					headers: { "www-authenticate": "Bearer" },
+				}),
+		});
+
+		expect(result).toEqual({
+			serverName: "notion",
+			connected: false,
+			authorizationRequired: false,
+			error:
+				'MCP server "notion" rejected its configured Authorization header. Update or remove that header before connecting with OAuth.',
+		});
+	});
 });
