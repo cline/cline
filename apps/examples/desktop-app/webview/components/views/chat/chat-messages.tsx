@@ -307,17 +307,34 @@ function ChatMessagesImpl({
 	onForkSession,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
-	const lastErrorMessage = [...messages]
-		.reverse()
-		.find((message) => message.role === "error");
+	// Scanned from the tail without copying: this component re-renders on
+	// every stream flush, so a reversed array clone per render would churn
+	// with transcript length.
+	const { lastConversationMessage, lastErrorMessage } = useMemo(() => {
+		let conversationMessage: ChatMessage | undefined;
+		let errorMessage: ChatMessage | undefined;
+		for (let index = messages.length - 1; index >= 0; index--) {
+			const message = messages[index];
+			if (!conversationMessage && message.role !== "status") {
+				conversationMessage = message;
+			}
+			if (!errorMessage && message.role === "error") {
+				errorMessage = message;
+			}
+			if (conversationMessage && errorMessage) {
+				break;
+			}
+		}
+		return {
+			lastConversationMessage: conversationMessage,
+			lastErrorMessage: errorMessage,
+		};
+	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
 	// Core reports "running" as soon as the turn is dispatched, well before the
 	// first streamed chunk arrives, so keep the thinking indicator up until the
 	// model produces output (or something else needs the user's attention).
-	const lastConversationMessage = [...messages]
-		.reverse()
-		.find((message) => message.role !== "status");
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
@@ -370,6 +387,31 @@ function ChatMessagesImpl({
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
+	// Built once per pendingAskQuestions change instead of per render: the
+	// list re-renders on every stream flush and these rows carry JSX.
+	const askQuestionItems = useMemo(
+		() =>
+			pendingAskQuestions.map((item) => ({
+				description: (
+					<>
+						Request {item.requestId}
+						{item.context?.iteration != null
+							? ` · Iteration ${item.context.iteration}`
+							: ""}
+					</>
+				),
+				id: item.requestId,
+				meta: (
+					<>
+						<Clock3 className="h-3 w-3" />
+						{formatApprovalTimestamp(item.createdAt)}
+					</>
+				),
+				options: item.options,
+				question: item.question,
+			})),
+		[pendingAskQuestions],
+	);
 	const previousTimestampByMessage = useMemo(
 		() => buildPreviousTimestampMap(messages),
 		[messages],
@@ -580,6 +622,14 @@ function ChatMessagesImpl({
 		},
 		[],
 	);
+	// Stable identity so memoized MessageBubbles skip re-rendering on stream
+	// flushes; an inline lambda here would invalidate every bubble per flush.
+	const requestRestoreCheckpoint = useCallback(
+		(messageId: string, runCount: number) => {
+			setCheckpointConfirmation({ messageId, runCount });
+		},
+		[],
+	);
 
 	const handleExpandImage = useCallback(
 		(image: ChatMessageImage) => {
@@ -655,28 +705,10 @@ function ChatMessagesImpl({
 									requestErrors={toolApprovalErrors}
 								/>
 							) : null}
-							{pendingAskQuestions.length > 0 ? (
+							{askQuestionItems.length > 0 ? (
 								<AgentAskQuestion
 									errors={askQuestionErrors}
-									items={pendingAskQuestions.map((item) => ({
-										description: (
-											<>
-												Request {item.requestId}
-												{item.context?.iteration != null
-													? ` · Iteration ${item.context.iteration}`
-													: ""}
-											</>
-										),
-										id: item.requestId,
-										meta: (
-											<>
-												<Clock3 className="h-3 w-3" />
-												{formatApprovalTimestamp(item.createdAt)}
-											</>
-										),
-										options: item.options,
-										question: item.question,
-									}))}
+									items={askQuestionItems}
 									onAnswer={handleAskQuestionAnswer}
 									pendingAnswers={askQuestionActions}
 								/>
@@ -724,13 +756,7 @@ function ChatMessagesImpl({
 										editError={editErrors[message.id]}
 										editPending={editingMessageId === message.id}
 										onRestoreCheckpoint={
-											onRestoreCheckpoint
-												? (messageId, runCount) =>
-														setCheckpointConfirmation({
-															messageId,
-															runCount,
-														})
-												: undefined
+											onRestoreCheckpoint ? requestRestoreCheckpoint : undefined
 										}
 										restoreDisabled={
 											!onRestoreCheckpoint ||
@@ -815,7 +841,7 @@ function ChatMessagesImpl({
 						</div>
 					) : null}
 					{shouldShowErrorBanner ? (
-						<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+						<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 							{error}
 						</div>
 					) : null}

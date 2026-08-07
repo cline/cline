@@ -135,6 +135,35 @@ describe("hydrateSessionMessages", () => {
 		]);
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/13036:
+	// persisted sessions with malformed tool inputs must stay resumable.
+	it("hydrates tool calls with malformed inputs without throwing", () => {
+		const messages = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-1",
+						name: "run_commands",
+						input: { command: null },
+					},
+				],
+			},
+		] as Message[];
+
+		expect(hydrateSessionMessages(messages)).toEqual([
+			{
+				kind: "tool_call",
+				toolName: "run_commands",
+				inputSummary: "",
+				rawInput: { command: null },
+				streaming: false,
+				mode: undefined,
+			},
+		]);
+	});
+
 	it("leaves mode undefined for transcripts without user_input wrappers", () => {
 		const messages = [
 			{ role: "user", content: "plain old message" },
