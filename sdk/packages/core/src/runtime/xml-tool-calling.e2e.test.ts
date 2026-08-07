@@ -314,6 +314,11 @@ describe("XML tool calling end to end", () => {
 			]),
 		});
 
+		// Image bytes never leak into the serialized `<tool_response>` text:
+		// the middleware keeps the image as a real structured image part next
+		// to the textual tool result, so image support is unchanged from
+		// native mode (and models without image input get the usual upstream
+		// placeholder substitution instead).
 		const parts = (run.requests[1]?.messages ?? []).flatMap((message) =>
 			Array.isArray(message.content)
 				? (message.content as Array<{ type: string }>)
@@ -322,11 +327,12 @@ describe("XML tool calling end to end", () => {
 		const textParts = JSON.stringify(
 			parts.filter((part) => part.type === "text"),
 		);
-		// Image bytes never leak into the serialized tool result; the
-		// middleware replaces them with a typed placeholder. (XML mode targets
-		// text-only local models — vision users should stay on native mode.)
-		expect(textParts).toContain("[Image: image/png]");
+		expect(textParts).toContain("Successfully read image");
+		expect(textParts).toContain("<tool_response>");
 		expect(textParts).not.toContain("iVBORw0KGgo");
+		expect(
+			parts.filter((part) => part.type === "image_url"),
+		).toHaveLength(1);
 	});
 
 	it("passes XML mode down to spawned subagents", async () => {
