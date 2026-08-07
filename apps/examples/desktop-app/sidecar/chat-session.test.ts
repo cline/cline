@@ -14,7 +14,7 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
-	copySessionGeneratedVideoArtifacts,
+	copySessionGeneratedArtifacts,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -273,9 +273,9 @@ describe("pathless session starts", () => {
 });
 
 describe("session forks", () => {
-	it("atomically copies only generated video artifacts", async () => {
+	it("atomically copies only generated media artifacts", async () => {
 		await withTemporarySessionDataDir(
-			"desktop-video-fork-",
+			"desktop-media-fork-",
 			async (sessionsDir) => {
 				writeSessionArtifact(
 					sessionsDir,
@@ -290,7 +290,8 @@ describe("session forks", () => {
 					"webm-video",
 				);
 				writeSessionArtifact(sessionsDir, "source", "generated.mp3", "audio");
-				await copySessionGeneratedVideoArtifacts("source", "target");
+				writeSessionArtifact(sessionsDir, "source", "notes.txt", "unrelated");
+				await copySessionGeneratedArtifacts("source", "target");
 
 				const targetArtifactsDir = join(sessionsDir, "target", "artifacts");
 				expect(
@@ -299,12 +300,13 @@ describe("session forks", () => {
 				expect(
 					readFileSync(join(targetArtifactsDir, "generated.webm"), "utf8"),
 				).toBe("webm-video");
-				expect(existsSync(join(targetArtifactsDir, "generated.mp3"))).toBe(
-					false,
-				);
+				expect(
+					readFileSync(join(targetArtifactsDir, "generated.mp3"), "utf8"),
+				).toBe("audio");
+				expect(existsSync(join(targetArtifactsDir, "notes.txt"))).toBe(false);
 				expect(
 					readdirSync(join(sessionsDir, "target")).filter((name) =>
-						name.startsWith(".video-artifacts-"),
+						name.startsWith(".media-artifacts-"),
 					),
 				).toEqual([]);
 			},
@@ -417,7 +419,7 @@ describe("session forks", () => {
 					},
 				}),
 			).rejects.toThrow(
-				`Generated video artifact destination already exists for session ${targetSessionId}`,
+				`Generated media artifact destination already exists for session ${targetSessionId}`,
 			);
 			expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
 			expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);

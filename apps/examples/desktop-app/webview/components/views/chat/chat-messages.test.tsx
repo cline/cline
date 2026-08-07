@@ -924,7 +924,16 @@ describe("ChatMessages generated audio", () => {
 			expect(audio?.src).toBe(
 				"http://127.0.0.1:3126/api/session-artifacts/session-1/audio%20result.mp3",
 			);
-			expect(audio?.controls).toBe(true);
+			expect(audio?.controls).toBe(false);
+			expect(
+				container.querySelector('[data-slot="audio-player"]'),
+			).not.toBeNull();
+			expect(
+				container.querySelector('[data-slot="audio-player-play-button"]'),
+			).not.toBeNull();
+			expect(
+				container.querySelector('[data-slot="audio-player-time-range"]'),
+			).not.toBeNull();
 		});
 	});
 });
