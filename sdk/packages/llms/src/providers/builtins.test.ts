@@ -76,6 +76,16 @@ describe("cline builtin models", () => {
 		});
 		expect(models["z-ai/glm-5.2"]).toBeUndefined();
 	});
+
+	it("includes Vercel-only allowlisted models the OpenRouter catalog lacks", async () => {
+		const models = await getModelsForProvider("cline");
+
+		expect(models["meta/muse-spark-1.2-contributor"]).toMatchObject({
+			id: "meta/muse-spark-1.2-contributor",
+			contextWindow: 1_048_576,
+			pricing: expect.objectContaining({ input: 0.1, output: 0.2 }),
+		});
+	});
 });
 
 describe("baked anthropic catalog reasoning options", () => {

@@ -222,10 +222,11 @@ async function captureReasoningOptions({
 
 	const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 		| {
+				reasoning?: unknown;
 				providerOptions?: Record<string, { reasoning?: unknown }>;
 		  }
 		| undefined;
-	return call?.providerOptions?.[providerId]?.reasoning;
+	return call?.reasoning ?? call?.providerOptions?.[providerId]?.reasoning;
 }
 
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
@@ -2929,14 +2930,11 @@ describe("sdk-gateway", () => {
 						instructions: "You are helpful.",
 						store: false,
 					}),
-					"openai-codex": expect.objectContaining({
-						store: false,
-						reasoningEffort: "high",
-					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -2947,13 +2945,15 @@ describe("sdk-gateway", () => {
 			| undefined;
 		expect(call).not.toHaveProperty("maxOutputTokens");
 		expect(call?.providerOptions?.openai).not.toHaveProperty("truncation");
-		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
-			"truncation",
+		expect(call?.providerOptions?.openai).not.toHaveProperty("reasoningEffort");
+		expect(call?.providerOptions?.["openai-codex"]).toBeUndefined();
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty(
+			"reasoningEffort",
 		);
-		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty(
 			"reasoningSummary",
 		);
-		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
 	});
 
 	it("passes object JSON schemas unchanged to the OpenAI Codex tool adapter", async () => {
@@ -3009,7 +3009,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("passes reasoning effort through to Anthropic provider options", async () => {
+	it("passes reasoning effort through the AI SDK top-level option", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -3047,13 +3047,11 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					anthropic: expect.objectContaining({
-						thinking: expect.objectContaining({ type: "enabled" }),
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(call?.providerOptions?.anthropic).not.toHaveProperty("thinking");
 	});
 
 	it("does not enable adaptive thinking for Anthropic when reasoning is not requested", async () => {
@@ -3149,24 +3147,15 @@ describe("sdk-gateway", () => {
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							enabled: true,
-						}),
 					}),
 					openrouter: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						reasoning: expect.objectContaining({
-							effort: "high",
-						}),
 					}),
-					// Unknown Claude ids default to adaptive thinking
-					// (forward-compatible: new Claude models reject the
-					// manual budget shape).
 					anthropic: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						thinking: expect.objectContaining({ type: "adaptive" }),
 					}),
 				}),
+				reasoning: "high",
 			}),
 		);
 	});
@@ -3748,26 +3737,16 @@ describe("sdk-gateway", () => {
 			providerId: "cline",
 			modelId: "qwen/qwen3.6-plus",
 			providerOptionsKey: "cline",
-			aliasKey: undefined,
-			// Unlisted on the cline catalog: no advertised controls, so
-			// gateway reasoning stays suppressed for Qwen ids.
-			expectedReasoning: undefined,
 		},
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
-			providerOptionsKey: "vercel-ai-gateway",
-			aliasKey: "vercelAiGateway",
-			// models.dev advertises toggle + budget_tokens controls, so the
-			// high-effort request is translated into a derived token budget.
-			expectedReasoning: { max_tokens: 25_600 },
+			providerOptionsKey: "vercelAiGateway",
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
 		modelId,
 		providerOptionsKey,
-		aliasKey,
-		expectedReasoning,
 	}) => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -3831,22 +3810,19 @@ describe("sdk-gateway", () => {
 				[providerOptionsKey]: expect.objectContaining(expectedCacheControl),
 			}),
 		);
-		if (aliasKey) {
-			expect(qwenCall.providerOptions?.[aliasKey]).toEqual(
-				expect.objectContaining(expectedCacheControl),
-			);
+		if (providerId === "vercel-ai-gateway") {
+			const messageProviderOptions = qwenCall.messages?.[0]?.content[0]
+				?.providerOptions;
+			expect(messageProviderOptions?.[providerId]).toBeUndefined();
+			expect(qwenCall.providerOptions?.[providerId]).toBeUndefined();
 		}
-		if (expectedReasoning) {
-			expect(qwenCall.providerOptions?.[providerOptionsKey]).toEqual(
-				expect.objectContaining({ reasoning: expectedReasoning }),
-			);
-		} else {
-			expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
-				expect.objectContaining({
-					reasoning: expect.anything(),
-				}),
-			);
-		}
+		// Portable effort rides the top-level reasoning option, so no
+		// reasoning provider options are forwarded for either provider.
+		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
+			expect.objectContaining({
+				reasoning: expect.anything(),
+			}),
+		);
 		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
 			expect.objectContaining({
 				thinking: expect.anything(),
@@ -3964,18 +3940,7 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoningEffort: "high",
-					}),
-					cline: expect.objectContaining({
-						reasoning: expect.objectContaining({
-							enabled: true,
-							effort: "high",
-						}),
-						reasoningEffort: "high",
-					}),
-				}),
+				reasoning: "high",
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
@@ -4029,11 +3994,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					zai: expect.objectContaining({
-						thinking: { type: "enabled" },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
@@ -4173,9 +4134,16 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		// Explicit enablement rides the portable top-level reasoning option.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				reasoning: "medium",
+			}),
+		);
 		// The openrouter catalog advertises an explicitly empty
 		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
-		// so no reasoning options are forwarded either way.
+		// so no reasoning provider options are forwarded either way.
 		for (const callIndex of [0, 1]) {
 			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
 				providerOptions?: Record<string, Record<string, unknown> | undefined>;
@@ -4216,20 +4184,25 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
-		// Unlisted GLM ids keep the routed include shape.
+		// Unlisted GLM ids route explicit enablement through the portable
+		// top-level reasoning option instead of the routed include shape.
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			5,
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openaiCompatible: expect.objectContaining({
-						reasoning: { enabled: true },
-					}),
-					cline: expect.objectContaining({
-						reasoning: { enabled: true },
-					}),
-				}),
+				reasoning: "medium",
 			}),
 		);
+		{
+			const call = streamTextSpy.mock.calls[4]?.[0] as {
+				providerOptions?: Record<string, Record<string, unknown> | undefined>;
+			};
+			expect(call.providerOptions?.cline).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+			expect(call.providerOptions?.openaiCompatible).not.toEqual(
+				expect.objectContaining({ reasoning: expect.anything() }),
+			);
+		}
 	});
 
 	it("maps legacy model thinking options into gateway reasoning", async () => {
@@ -4290,7 +4263,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "preserves structured enabled while filling an invalid effort",
@@ -4298,7 +4271,7 @@ describe("sdk-gateway", () => {
 				reasoning: { enabled: true, effort: "unsupported" },
 				reasoningEffort: "high",
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a non-finite legacy budget",
@@ -4306,12 +4279,12 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: Number.POSITIVE_INFINITY,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a fractional structured budget",
 			options: { reasoning: { effort: "high", budgetTokens: 0.5 } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "drops a zero legacy budget",
@@ -4319,7 +4292,7 @@ describe("sdk-gateway", () => {
 				reasoning: { effort: "high" },
 				thinkingBudgetTokens: 0,
 			},
-			expected: { effort: "high" },
+			expected: "high",
 		},
 		{
 			name: "validates handle defaults before merging requested reasoning",
@@ -4330,7 +4303,7 @@ describe("sdk-gateway", () => {
 				},
 			} as unknown as GatewayModelHandleOptions,
 			options: { reasoning: { effort: "high" } },
-			expected: { effort: "high" },
+			expected: "high",
 		},
 	])("$name", async ({ options, defaults, expected }) => {
 		expect(

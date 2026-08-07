@@ -22,7 +22,7 @@ async function collect(
 }
 
 describe("OpenRouter image transport", () => {
-	it("decodes generated message images into gateway image events", async () => {
+	it("decodes generated message images into gateway file events", async () => {
 		let requestBody: Record<string, unknown> | undefined;
 		const imageBase64 =
 			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -107,7 +107,7 @@ describe("OpenRouter image transport", () => {
 			modalities: ["image", "text"],
 		});
 		expect(events).toContainEqual({
-			type: "image",
+			type: "file",
 			data: imageBase64,
 			mediaType: "image/png",
 		});

@@ -54,6 +54,7 @@ import {
 	applyBedrockCachePointToLastUserMessage,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
+import { resolvePortableReasoning } from "./routing/portable-reasoning";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -265,11 +266,13 @@ export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
 	_context: GatewayProviderContext,
 ): Partial<CallSettings> {
+	const reasoning = resolvePortableReasoning(request);
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
 			: {}),
 		temperature: request.temperature,
+		...(reasoning ? { reasoning } : {}),
 	};
 }
 
@@ -1688,6 +1691,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					messagesSystemPrompt,
 				);
+				const portableReasoning = resolvePortableReasoning(request);
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
@@ -1700,6 +1704,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						tools,
 						providerOptions,
 						...requestConfig,
+						...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					},
 				});
 				stream = streamText({
@@ -1718,6 +1723,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 					providerOptions: providerOptions as never,
 					...requestConfig,
+					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {
 						const captured = captureStreamError(streamError);
 						const msg = captured.message;

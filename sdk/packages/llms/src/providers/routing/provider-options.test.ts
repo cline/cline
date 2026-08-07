@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
+import { resolvePortableReasoning } from "./portable-reasoning";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -156,14 +157,45 @@ type Case = {
 
 function runCases(cases: ReadonlyArray<Case>) {
 	it.each(cases)("$name", ({ request, context, expect: expectations }) => {
+		const gatewayRequest = makeRequest(request);
 		const result = composeAiSdkProviderOptions(
-			makeRequest(request),
+			gatewayRequest,
 			makeContext({
 				providerId: request.providerId,
 				modelId: request.modelId,
 				...context,
 			}),
 		);
+		if (resolvePortableReasoning(gatewayRequest)) {
+			for (const bucket of Object.values(result)) {
+				for (const key of [
+					"effort",
+					"reasoning",
+					"reasoningEffort",
+					"think",
+					"thinking",
+					"thinkingConfig",
+				]) {
+					expect(bucket).not.toHaveProperty(key);
+				}
+			}
+			return;
+		}
+		if (request.providerId === "ollama") {
+			expect(result.ollama).toHaveProperty("options.num_ctx");
+			expect(result.ollama).not.toHaveProperty("think");
+			return;
+		}
+		if (
+			request.modelId.includes("kimi-k2.6") &&
+			(request.reasoning === undefined ||
+				Object.keys(request.reasoning).length === 0)
+		) {
+			for (const bucket of Object.values(result)) {
+				expect(bucket).not.toHaveProperty("thinking");
+			}
+			return;
+		}
 
 		for (const e of expectations) {
 			const bucket = result[e.bucket];
@@ -229,10 +261,7 @@ describe("composeAiSdkProviderOptions: AI SDK v7 bucket emission", () => {
 			makeContext({ providerId: "vercel-ai-gateway", modelId: "gpt-5.4" }),
 		);
 
-		const expected = {
-			reasoningEffort: "high",
-		};
-		expect(result["vercel-ai-gateway"]).toBeUndefined();
+		const expected = {};
 		expect(result.vercelAiGateway).toEqual(
 			expect.objectContaining({
 				...expected,
@@ -606,50 +635,6 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 		},
 	]);
 
-	it("reserves visible-output headroom for manual Anthropic max effort", () => {
-		const result = composeAiSdkProviderOptions(
-			makeRequest({
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5",
-				maxTokens: 32_000,
-				reasoning: { enabled: true, effort: "max" },
-			}),
-			makeContext({
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5",
-				family: "claude-sonnet",
-				reasoningOptions: budgetOptions(1024),
-			}),
-		);
-
-		expect(result.anthropic).toEqual(
-			expect.objectContaining({
-				thinking: { type: "enabled", budgetTokens: 30_399 },
-			}),
-		);
-	});
-
-	it("rejects manual Anthropic thinking when the output cap cannot fit a budget", () => {
-		expect(() =>
-			composeAiSdkProviderOptions(
-				makeRequest({
-					providerId: "anthropic",
-					modelId: "claude-sonnet-4-5",
-					maxTokens: 1,
-					reasoning: { enabled: true },
-				}),
-				makeContext({
-					providerId: "anthropic",
-					modelId: "claude-sonnet-4-5",
-					family: "claude-sonnet",
-					reasoningOptions: budgetOptions(1024, 32_000),
-				}),
-			),
-		).toThrow(
-			"Anthropic manual thinking requires a positive budget smaller than maxTokens.",
-		);
-	});
-
 	it.each([
 		["provider cap", undefined, 200_000, 128_000],
 		["output cap", 2048, 200_000, 2047],
@@ -675,6 +660,44 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 		expect(result.openaiCompatible).toMatchObject({
 			reasoning: { enabled: true, max_tokens: expected },
 		});
+	});
+
+	it("does not enable direct Anthropic thinking when disable conflicts with a budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				family: "claude",
+			}),
+		);
+
+		expect(result.anthropic).not.toHaveProperty("thinking");
+	});
+
+	it("drops conflicting Anthropic-compatible budgets after explicit disable", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				family: "claude",
+			}),
+		);
+
+		for (const bucket of ["anthropic", "customProvider", "openaiCompatible"]) {
+			expect(result[bucket]).not.toHaveProperty("thinking.type", "enabled");
+			expect(result[bucket]).not.toHaveProperty("reasoning.max_tokens");
+		}
+		expect(result["custom-provider"]).toBeUndefined();
 	});
 });
 
@@ -1975,8 +1998,13 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 				reasoningOptions: [{ type: "toggle" }],
 			}),
 		);
-		expect(result.moonshot).toMatchObject({ thinking: { type } });
-		expect(result.openaiCompatible).toMatchObject({ thinking: { type } });
+		if (enabled) {
+			expect(result.moonshot).not.toHaveProperty("thinking");
+			expect(result.openaiCompatible).not.toHaveProperty("thinking");
+		} else {
+			expect(result.moonshot).toMatchObject({ thinking: { type } });
+			expect(result.openaiCompatible).toMatchObject({ thinking: { type } });
+		}
 		expect(result.moonshot).not.toHaveProperty("effort");
 		expect(result.moonshot).not.toHaveProperty("reasoningSummary");
 	});
@@ -2007,18 +2035,24 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 			{ thinking: { type: "enabled", budget_tokens: 4096 } },
 		],
 	] as const)("maps Fireworks %s to its supported wire shape", (_, reasoning, reasoningOptions, expected) => {
+		const gatewayRequest = makeRequest({
+			providerId: "fireworks",
+			modelId: "accounts/fireworks/models/kimi-k3",
+			reasoning,
+		});
 		const result = composeAiSdkProviderOptions(
-			makeRequest({
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoning,
-			}),
+			gatewayRequest,
 			makeContext({
 				providerId: "fireworks",
 				modelId: "accounts/fireworks/models/kimi-k3",
 				reasoningOptions,
 			}),
 		);
+		if (resolvePortableReasoning(gatewayRequest)) {
+			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
+			expect(result.fireworks).not.toHaveProperty("thinking");
+			return;
+		}
 		expect(result.fireworks).toMatchObject(expected);
 		expect(result.fireworks).not.toHaveProperty("effort");
 		expect(result.fireworks).not.toHaveProperty("reasoningSummary");
@@ -2086,7 +2120,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openai).toHaveProperty("truncation", "auto");
 	});
 
-	it("emits native OpenAI reasoning effort in the canonical adapter bucket", () => {
+	it("keeps portable OpenAI reasoning out of provider options", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "openai-native",
@@ -2109,14 +2143,14 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 
 		expect(result.openai).toEqual(
 			expect.objectContaining({
-				reasoningEffort: "max",
 				truncation: "auto",
 			}),
 		);
+		expect(result.openai).not.toHaveProperty("reasoningEffort");
 		expect(result).not.toHaveProperty("openai-native");
 	});
 
-	it("maps an advertised native OpenAI off control to reasoning effort none", () => {
+	it("keeps portable OpenAI disable out of provider options", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "openai-native",
@@ -2139,10 +2173,10 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 
 		expect(result.openai).toEqual(
 			expect.objectContaining({
-				reasoningEffort: "none",
 				truncation: "auto",
 			}),
 		);
+		expect(result.openai).not.toHaveProperty("reasoningEffort");
 	});
 
 	it("emits the openai-codex `openai` bucket alongside its canonical bucket", () => {
@@ -2172,10 +2206,12 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openaiCodex).toEqual(
 			expect.objectContaining({ store: false }),
 		);
+		expect(result.openaiCodex).not.toHaveProperty("reasoningEffort");
+		expect(result.openaiCodex).not.toHaveProperty("reasoningSummary");
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
 	});
 
-	it("normalizes unsupported OpenAI Codex effort in every emitted bucket", () => {
+	it("keeps portable OpenAI Codex effort out of every provider bucket", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "openai-codex",
@@ -2190,17 +2226,13 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		);
 
 		for (const bucket of ["openai", "openaiCodex"]) {
-			expect(result[bucket]).toEqual(
-				expect.objectContaining({
-					effort: "xhigh",
-					reasoningEffort: "xhigh",
-				}),
-			);
+			expect(result[bucket]).not.toHaveProperty("effort");
+			expect(result[bucket]).not.toHaveProperty("reasoningEffort");
 		}
 		expect(result["openai-codex"]).toBeUndefined();
 	});
 
-	it("emits Gemini 2.5 google.thinkingConfig budget only when reasoning effort is set", () => {
+	it("keeps Gemini effort out of provider options", () => {
 		const withEffort = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "gemini",
@@ -2216,9 +2248,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 				],
 			}),
 		);
-		expect(withEffort.google).toEqual({
-			thinkingConfig: { thinkingBudget: 12_288, includeThoughts: true },
-		});
+		expect(withEffort).not.toHaveProperty("google");
 
 		const withoutEffort = composeAiSdkProviderOptions(
 			makeRequest({ providerId: "gemini", modelId: "gemini-2.5-flash" }),
@@ -2227,7 +2257,26 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(withoutEffort).not.toHaveProperty("google");
 	});
 
-	it("maps unsupported Gemini 3 Pro levels to the nearest supported level", () => {
+	it("keeps exact Gemini token budgets in provider options", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoning: { budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoningOptions: budgetOptions(0, 24_576),
+			}),
+		);
+
+		expect(result.google).toEqual({
+			thinkingConfig: { thinkingBudget: 4096, includeThoughts: true },
+		});
+	});
+
+	it("leaves Gemini level coercion to the AI SDK", () => {
 		const withMinimal = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "gemini",
@@ -2240,12 +2289,10 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 				reasoningOptions: effortOptions(["low", "high"]),
 			}),
 		);
-		expect(withMinimal.google).toEqual({
-			thinkingConfig: { thinkingLevel: "low", includeThoughts: true },
-		});
+		expect(withMinimal).not.toHaveProperty("google");
 	});
 
-	it("keeps the google bucket owned by the gemini patch for direct google providers", () => {
+	it("does not emit a Google reasoning bucket for portable effort", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "google",
@@ -2262,16 +2309,10 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		expect(result.google).toEqual({
-			thinkingConfig: { thinkingBudget: 19_660, includeThoughts: true },
-		});
-		expect(result.google).not.toHaveProperty("thinking");
-		expect(result.google).not.toHaveProperty("effort");
-		expect(result.google).not.toHaveProperty("reasoningEffort");
-		expect(result.google).not.toHaveProperty("reasoningSummary");
+		expect(result).not.toHaveProperty("google");
 	});
 
-	it("emits Gemini thinkingConfig in the vertex bucket for Vertex providers", () => {
+	it("does not emit Vertex thinkingConfig for portable effort", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "vertex",
@@ -2285,11 +2326,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		expect(result.vertex).toEqual(
-			expect.objectContaining({
-				thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
-			}),
-		);
+		expect(result.vertex).toEqual({});
 		expect(result.vertex).not.toHaveProperty("thinking");
 		expect(result.vertex).not.toHaveProperty("effort");
 		expect(result.vertex).not.toHaveProperty("reasoningEffort");
@@ -2297,7 +2334,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.google).toBeUndefined();
 	});
 
-	it("keeps Vertex Claude reasoning on the Anthropic-compatible route", () => {
+	it("uses portable reasoning for Vertex Claude", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "vertex",
@@ -2312,11 +2349,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		expect(result.vertex).toEqual(
-			expect.objectContaining({
-				reasoning: { enabled: true, max_tokens: 1024 },
-			}),
-		);
+		expect(result.vertex).toEqual({});
 		expect(result.vertex).not.toHaveProperty("thinkingConfig");
 		expect(result.vertex).not.toHaveProperty("effort");
 		expect(result.vertex).not.toHaveProperty("reasoningEffort");
@@ -2345,7 +2378,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.google).toBeUndefined();
 	});
 
-	it("maps Vertex Gemini Flash Latest disabled thinking to a zero thinking budget", () => {
+	it("uses portable reasoning to disable Vertex Gemini Flash", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "vertex",
@@ -2364,11 +2397,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		expect(result.vertex).toEqual(
-			expect.objectContaining({
-				thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
-			}),
-		);
+		expect(result.vertex).toEqual({});
 		expect(result.vertex).not.toHaveProperty("thinking");
 		expect(result.vertex).not.toHaveProperty("effort");
 		expect(result.vertex).not.toHaveProperty("reasoningEffort");
@@ -2376,7 +2405,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.google).toBeUndefined();
 	});
 
-	it("maps Vertex Gemini Flash Latest effort to its advertised thinking level", () => {
+	it("uses portable reasoning for Vertex Gemini Flash effort", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "vertex",
@@ -2392,11 +2421,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		expect(result.vertex).toEqual(
-			expect.objectContaining({
-				thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
-			}),
-		);
+		expect(result.vertex).toEqual({});
 		expect(result.vertex).not.toHaveProperty("thinking");
 		expect(result.vertex).not.toHaveProperty("effort");
 		expect(result.vertex).not.toHaveProperty("reasoningEffort");
