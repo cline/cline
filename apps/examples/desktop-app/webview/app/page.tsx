@@ -599,19 +599,36 @@ function ChatThreadPane({
 	const accountUserId = accountUser?.id ?? null;
 	useEffect(() => {
 		void accountUserId;
+		// Retry until the sidecar answers: the webview can load while the
+		// sidecar is still starting (or restarting), and a one-shot fetch that
+		// fails there would hide Cloud until the next account change — which
+		// never comes for a signed-out user.
 		let cancelled = false;
-		desktopClient
-			.invoke("get_feature_flags", {})
-			.then((flags) => {
-				if (!cancelled) {
-					setCloudAgentsEnabled(
-						Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			})
-			.catch(() => undefined);
+		let timeout: number | undefined;
+		let attempt = 0;
+		const fetchFlags = () => {
+			desktopClient
+				.invoke("get_feature_flags", {})
+				.then((flags) => {
+					if (!cancelled) {
+						setCloudAgentsEnabled(
+							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+						);
+					}
+				})
+				.catch(() => {
+					attempt += 1;
+					if (!cancelled && attempt < 10) {
+						timeout = window.setTimeout(fetchFlags, 2_000);
+					}
+				});
+		};
+		fetchFlags();
 		return () => {
 			cancelled = true;
+			if (timeout) {
+				window.clearTimeout(timeout);
+			}
 		};
 	}, [accountUserId]);
 	const [providerCredentials, setProviderCredentials] = useState<
