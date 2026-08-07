@@ -154,6 +154,8 @@ postinstall script runs:
   - Detects platform/arch
   - Finds the installed platform package
   - Creates a cached hard link for fast startup
+  - If npm skipped the platform package (optional dependency install
+    failure), downloads the tarball directly from the registry instead
   |
   v
 User runs: cline
@@ -161,9 +163,10 @@ User runs: cline
   v
 bin/cline (Node.js resolver) executes:
   1. Check CLINE_BIN_PATH env var override
-  2. Check cached binary at bin/.cline
+  2. Check cached binary at bin/.cline (bin/.cline.exe on Windows)
   3. Walk up node_modules for the platform package
-  4. Execute the compiled binary
+  4. Last resort: download the platform package from the registry
+  5. Execute the compiled binary
 ```
 
 ## File Layout
@@ -172,10 +175,12 @@ bin/cline (Node.js resolver) executes:
 apps/cli/
   bin/
     cline                   # Node.js resolver script (npm entry point)
+    binary-install.cjs      # Shared platform lookup + registry download fallback
+    ca-certs.cjs            # OS trust store harvesting for the Bun child
   script/
     build.ts                # Cross-compile for all platforms
     publish-npm.ts          # npm publish orchestration
-    postinstall.mjs         # Post-install binary caching
+    postinstall.mjs         # Post-install binary caching + download fallback
 ```
 
 ## Scripts Reference
@@ -232,16 +237,17 @@ The shebang is `#!/usr/bin/env node` because Node.js is guaranteed to be availab
 
 Resolution chain:
 1. `CLINE_BIN_PATH` env var (for development or custom deployments)
-2. `bin/.cline` cached hard link (created by postinstall for fast startup)
+2. `bin/.cline` (`bin/.cline.exe` on Windows) cached hard link (created by postinstall for fast startup)
 3. Walk up `node_modules` from the script directory to find the platform package
+4. Last resort: download the platform package tarball from the npm registry into the cache (covers installs where npm silently skipped the optional dependency and `--ignore-scripts` prevented postinstall from repairing it)
 
 ## Postinstall (`script/postinstall.mjs`)
 
-Runs after `npm install cline`. Creates a hard link from the platform binary to `bin/.cline` for fast startup on subsequent runs. Falls back to file copy if hard linking fails (NFS, cross-device, network-mounted filesystems).
+Runs after `npm install cline`. Creates a hard link from the platform binary to `bin/.cline` (`bin/.cline.exe` on Windows) for fast startup on subsequent runs. Falls back to file copy if hard linking fails (NFS, cross-device, network-mounted filesystems).
+
+If the platform package is missing entirely, postinstall downloads its tarball directly from the npm registry (honoring `npm_config_registry`) and extracts the binary into the cache. npm treats `optionalDependencies` as best-effort and silently skips them when the download or extraction fails (registry mirrors that have not synced the platform package, `omit=optional` config, antivirus interference on Windows), so this fallback is what keeps `cline` runnable on such installs. The shared logic lives in `bin/binary-install.cjs`.
 
 The postinstall is defensive: it wraps everything in try/catch and always exits 0 (the `|| true` in the npm script). If postinstall fails, the resolver script has its own fallback logic to find the binary at runtime, so the cached binary is just an optimization.
-
-On Windows, the postinstall is a no-op because npm handles `.cmd` shim generation from the `bin` field.
 
 ## Development vs Distribution
 

@@ -14,14 +14,20 @@ import { describe, expect, it } from "vitest";
 const sourceWrapperPath = fileURLToPath(
 	new URL("../../bin/cline", import.meta.url),
 );
+const sourceBinaryInstallPath = fileURLToPath(
+	new URL("../../bin/binary-install.cjs", import.meta.url),
+);
 
-function createWrapperCopy(): string {
+function createWrapperCopy(options?: { withBinaryInstall?: boolean }): string {
 	const dir = mkdtempSync(join(tmpdir(), "cline-bin-package-"));
 	const binDir = join(dir, "bin");
 	mkdirSync(binDir, { recursive: true });
 	const wrapperPath = join(binDir, "cline");
 	copyFileSync(sourceWrapperPath, wrapperPath);
 	chmodSync(wrapperPath, 0o755);
+	if (options?.withBinaryInstall) {
+		copyFileSync(sourceBinaryInstallPath, join(binDir, "binary-install.cjs"));
+	}
 	return wrapperPath;
 }
 
@@ -84,4 +90,45 @@ setTimeout(() => {}, 1000);
 			expect(result.signal).toBe("SIGTERM");
 		},
 	);
+
+	it("stays functional without the download helper", () => {
+		// Damaged install: no platform package, no cache, no helper module.
+		const wrapperPath = createWrapperCopy();
+
+		const result = spawnSync(process.execPath, [wrapperPath, "--version"], {
+			encoding: "utf8",
+		});
+
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain(
+			"Could not find the Cline CLI binary for your platform.",
+		);
+		expect(result.stderr).toContain("npm install -g cline --force");
+	});
+
+	it("attempts a registry download when the platform package is missing", () => {
+		const wrapperPath = createWrapperCopy({ withBinaryInstall: true });
+		const packageDir = join(wrapperPath, "..", "..");
+		writeFileSync(
+			join(packageDir, "package.json"),
+			JSON.stringify({ name: "cline", version: "9.9.9" }),
+		);
+
+		// Unreachable registry so the download fails fast; asserts the
+		// fallback is wired up and surfaces actionable guidance.
+		const result = spawnSync(process.execPath, [wrapperPath, "--version"], {
+			env: {
+				...process.env,
+				npm_config_registry: "http://127.0.0.1:1",
+			},
+			encoding: "utf8",
+		});
+
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain(
+			"is missing from this install; downloading v9.9.9",
+		);
+		expect(result.stderr).toContain("Download failed:");
+		expect(result.stderr).toContain("npm install -g cline --force");
+	});
 });

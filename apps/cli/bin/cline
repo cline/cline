@@ -8,8 +8,12 @@
 //
 // Resolution order:
 // 1. CLINE_BIN_PATH env var override
-// 2. Cached binary at bin/.cline (created by postinstall)
+// 2. Cached binary at bin/.cline (bin/.cline.exe on Windows), created by
+//    postinstall
 // 3. Walk up node_modules to find the platform-specific package
+// 4. Download the platform package from the npm registry (last resort, for
+//    installs where npm silently skipped the optional dependency and the
+//    postinstall script did not run)
 
 const childProcess = require("child_process");
 const fs = require("fs");
@@ -90,13 +94,7 @@ if (envPath) {
 	run(envPath);
 }
 
-// 2. Check cached binary
-const cached = path.join(scriptDir, ".cline");
-if (fs.existsSync(cached)) {
-	run(cached);
-}
-
-// 3. Detect platform and architecture
+// 2. Detect platform and check the cached binary
 const platformMap = {
 	darwin: "darwin",
 	linux: "linux",
@@ -116,23 +114,26 @@ if (!arch) {
 	arch = os.arch();
 }
 
-const base = "@cline/cli-" + platform + "-" + arch;
+const packageName = "@cline/cli-" + platform + "-" + arch;
 const binary = platform === "windows" ? "cline.exe" : "cline";
+const cached = path.join(
+	scriptDir,
+	platform === "windows" ? ".cline.exe" : ".cline",
+);
+if (fs.existsSync(cached)) {
+	run(cached);
+}
 
-// Build fallback chain of package names to try
-const names = [base];
-
+// 3. Walk up node_modules to find the platform-specific package
 function findBinary(startDir) {
 	let current = startDir;
 	for (;;) {
 		const modules = path.join(current, "node_modules");
 		if (fs.existsSync(modules)) {
-			for (const name of names) {
-				// Scoped package: @cline/cli-darwin-arm64 lives at
-				// node_modules/@cline/cli-darwin-arm64
-				const candidate = path.join(modules, name, "bin", binary);
-				if (fs.existsSync(candidate)) return candidate;
-			}
+			// Scoped package: @cline/cli-darwin-arm64 lives at
+			// node_modules/@cline/cli-darwin-arm64
+			const candidate = path.join(modules, packageName, "bin", binary);
+			if (fs.existsSync(candidate)) return candidate;
 		}
 		const parent = path.dirname(current);
 		if (parent === current) {
@@ -143,7 +144,17 @@ function findBinary(startDir) {
 }
 
 const resolved = findBinary(scriptDir);
-if (!resolved) {
+if (resolved) {
+	run(resolved);
+}
+
+// 4. Last resort: npm treats optionalDependencies as best-effort and
+// silently skips them when the download or extraction fails (registry
+// mirrors that have not synced the platform package, omit=optional config,
+// antivirus interference on Windows). If postinstall did not repair the
+// install either (e.g. --ignore-scripts), download the platform package
+// tarball from the registry into the cache, then run it.
+function fail(message) {
 	console.error(
 		"Could not find the Cline CLI binary for your platform.\n" +
 			"Your platform: " +
@@ -151,14 +162,62 @@ if (!resolved) {
 			" " +
 			os.arch() +
 			"\n" +
-			"Looked for: " +
-			names.map(function (n) {
-				return '"' + n + '"';
-			}).join(" or ") +
-			"\n\n" +
-			"Try reinstalling: npm install -g cline",
+			'Looked for: "' +
+			packageName +
+			'"\n\n' +
+			message,
 	);
 	process.exit(1);
 }
 
-run(resolved);
+// Loaded defensively: the resolver must stay functional even if the helper
+// is missing from a damaged install.
+let binaryInstall;
+try {
+	binaryInstall = require("./binary-install.cjs");
+} catch {
+	fail("Try reinstalling: npm install -g cline --force");
+}
+
+function readWrapperVersion() {
+	try {
+		const pkg = JSON.parse(
+			fs.readFileSync(path.join(scriptDir, "..", "package.json"), "utf8"),
+		);
+		return (pkg.optionalDependencies || {})[packageName] || pkg.version;
+	} catch {
+		return undefined;
+	}
+}
+
+const version = readWrapperVersion();
+if (!version) {
+	fail(binaryInstall.missingBinaryHelp(packageName));
+}
+
+console.error(
+	"[cline] " +
+		packageName +
+		" is missing from this install; downloading v" +
+		version +
+		" from the npm registry...",
+);
+binaryInstall
+	.installBinaryFromRegistry({
+		packageName: packageName,
+		version: version,
+		binaryName: binary,
+		destPath: cached,
+		env: process.env,
+	})
+	.then(function (destPath) {
+		run(destPath);
+	})
+	.catch(function (error) {
+		fail(
+			"Download failed: " +
+				error.message +
+				"\n\n" +
+				binaryInstall.missingBinaryHelp(packageName),
+		);
+	});
