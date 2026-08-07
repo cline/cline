@@ -88,7 +88,7 @@ export function WelcomeScreen({
 					)}
 				>
 					{active ? (
-						<>
+						<div className="cline-view-enter">
 							<AgentHeroHeading />
 
 							<div className="mt-11 flex min-w-0 items-center">
@@ -104,11 +104,15 @@ export function WelcomeScreen({
 									workspaces={workspaces}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 
 					<div
-						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						className={
+							active
+								? "hidden"
+								: "cline-view-enter h-full min-h-0 overflow-hidden"
+						}
 						key="conversation-body"
 					>
 						{body}
@@ -126,7 +130,7 @@ export function WelcomeScreen({
 					{active ? (
 						<AgentQuickActions
 							actions={actions}
-							className="mt-11"
+							className="cline-view-enter mt-11"
 							onSelect={(action) => onStartChat(action.value)}
 						/>
 					) : null}
