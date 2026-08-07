@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
 	ClineAccountService,
 	isHubReconnectableTransportError,
@@ -186,6 +187,12 @@ export class CloudSessionApi {
 	private readonly appBaseUrl: string;
 	private readonly fetchImpl: FetchLike;
 	private readonly createTimeoutMs: number;
+	// Session ids already owned by a create() call in this process. The
+	// create API has no request-specific identifier, so timeout recovery
+	// matches by repo/model/branch/time; without claims, two identical
+	// overlapping requests could both adopt the same record and orphan the
+	// other sandbox.
+	private readonly claimedSessionIds = new Set<string>();
 
 	constructor(private readonly options: CloudSessionApiOptions) {
 		this.apiBaseUrl = trimTrailingSlash(options.apiBaseUrl);
@@ -406,6 +413,9 @@ export class CloudSessionApi {
 					: undefined,
 				creationAuthToken,
 			);
+			if (created?.sessionId?.trim()) {
+				this.claimedSessionIds.add(created.sessionId.trim());
+			}
 			return { ...created, cleanupAuthToken: creationAuthToken };
 		} catch (error) {
 			// Provisioning may outlive the synchronous request; recover its record.
@@ -422,6 +432,8 @@ export class CloudSessionApi {
 				)
 					.filter(
 						(session) =>
+							// Skip records another concurrent create already owns.
+							!this.claimedSessionIds.has(session.id) &&
 							session.repoContext.repoUrl === input.repoUrl &&
 							session.metadata.modelId === input.modelId &&
 							// The backend may resolve an omitted branch to the repo default,
@@ -435,6 +447,7 @@ export class CloudSessionApi {
 							Date.parse(right.createdAt) - Date.parse(left.createdAt),
 					)[0];
 				if (recovered) {
+					this.claimedSessionIds.add(recovered.id);
 					return {
 						sessionId: recovered.id,
 						sandboxUrl: recovered.sandboxUrl,
@@ -790,9 +803,24 @@ function streamedAssistantText(events: HubEventEnvelope[]): string {
 export function reconcileBufferedCloudEvents(
 	events: HubEventEnvelope[],
 	snapshotMessages: unknown[],
+	options: {
+		/**
+		 * Whether a fresh queue snapshot was fetched and applied during
+		 * rehydration. When it was, buffered queue events are stale and
+		 * dropped; when the fetch failed, the newest buffered queue event is
+		 * the best queue state available and must be replayed instead of
+		 * silently losing queued/steered prompts.
+		 */
+		queueSnapshotApplied?: boolean;
+	} = {},
 ): HubEventEnvelope[] {
+	const queueSnapshotApplied = options.queueSnapshotApplied !== false;
 	const snapshotAssistantTexts = assistantTexts(snapshotMessages);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
+	// Queue events are full snapshots, so only the newest one matters.
+	const lastQueueEvent = queueSnapshotApplied
+		? undefined
+		: events.findLast((event) => event.event === "session.pending_prompts");
 	const reconciled: HubEventEnvelope[] = [];
 	let segment: HubEventEnvelope[] = [];
 
@@ -806,8 +834,12 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// The separately fetched queue snapshot is newer than buffered copies.
-			if (event.event === "session.pending_prompts") {
+			// The separately fetched queue snapshot is newer than buffered
+			// copies; without one, replay the newest buffered snapshot.
+			if (
+				event.event === "session.pending_prompts" &&
+				event !== lastQueueEvent
+			) {
 				continue;
 			}
 			// Keep terminal events: run.failed may carry the only error detail.
@@ -964,7 +996,7 @@ export class CloudSessionManager {
 			throw new Error("Cloud session manager was disposed");
 		}
 		// Keep the session visible while the blocking create request provisions it.
-		const placeholderId = `cloud-provisioning-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+		const placeholderId = `cloud-provisioning-${randomUUID()}`;
 		const startedAt = new Date().toISOString();
 		this.pendingCreates.set(placeholderId, {
 			sessionId: placeholderId,
@@ -1422,6 +1454,7 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
+				{ queueSnapshotApplied: Boolean(queueReply) },
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;

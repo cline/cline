@@ -483,6 +483,95 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
+	it("recovers distinct sessions for overlapping identical create requests", async () => {
+		const now = new Date().toISOString();
+		const record = (id: string, createdAt: string) => ({
+			id,
+			status: "running",
+			sandboxUrl: `pod-${id}`,
+			repoContext: { repoUrl: "https://github.com/cline/test" },
+			metadata: { modelId: "anthropic/claude-sonnet-5" },
+			createdAt,
+			updatedAt: createdAt,
+		});
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) =>
+				init?.method === "POST"
+					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
+					: jsonResponse({
+							success: true,
+							data: [
+								record("ses-newer", now),
+								record("ses-older", new Date(Date.now() - 1_000).toISOString()),
+							],
+						}),
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		// Two identical requests fail over to list-based recovery; each must
+		// claim a different record or one sandbox is orphaned.
+		const first = await api.create(input);
+		const second = await api.create(input);
+
+		expect(first.sessionId).toBe("ses-newer");
+		expect(second.sessionId).toBe("ses-older");
+	});
+
+	it("never adopts a session that a successful concurrent create already owns", async () => {
+		const now = new Date().toISOString();
+		let posts = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					posts += 1;
+					return posts === 1
+						? jsonResponse(
+								{
+									success: true,
+									data: { sessionId: "ses-owned", sandboxUrl: "pod" },
+								},
+								201,
+							)
+						: jsonResponse({ success: false, error: "gateway timeout" }, 500);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-owned",
+							status: "running",
+							sandboxUrl: "pod",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "anthropic/claude-sonnet-5" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		await expect(api.create(input)).resolves.toMatchObject({
+			sessionId: "ses-owned",
+		});
+		// The only listed candidate is already owned; surface the failure
+		// instead of silently attaching to the first request's session.
+		await expect(api.create(input)).rejects.toThrow();
+	});
+
 	it("returns the GitHub connection action when no integration exists", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -585,7 +674,7 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["run.completed"]);
 	});
 
-	it("always drops buffered queue snapshots (older than the synced queue)", () => {
+	it("drops buffered queue snapshots when a fresh queue snapshot was applied", () => {
 		const buffered = [
 			event("session.pending_prompts", "q-1", { prompts: [] }),
 			event("assistant.delta", "a-1", { text: "live tail" }),
@@ -593,6 +682,23 @@ describe("reconcileBufferedCloudEvents", () => {
 		expect(
 			reconcileBufferedCloudEvents(buffered, []).map((item) => item.event),
 		).toEqual(["assistant.delta"]);
+	});
+
+	it("replays the newest buffered queue snapshot when the queue fetch failed", () => {
+		// Dropping the buffer here would silently lose queued/steered prompts
+		// until some later change produces another queue snapshot.
+		const buffered = [
+			event("session.pending_prompts", "q-1", { prompts: [] }),
+			event("session.pending_prompts", "q-2", {
+				prompts: [{ id: "p-1", prompt: "queued work" }],
+			}),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [], {
+				queueSnapshotApplied: false,
+			}).map((item) => item.eventId),
+		).toEqual(["q-2", "a-1"]);
 	});
 
 	it("supersedes content independently across two terminal run segments", () => {
