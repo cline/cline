@@ -326,14 +326,16 @@ export function captureSdkError(
 export function buildSdkErrorProperties(
 	input: CaptureSdkErrorInput,
 ): TelemetryProperties {
-	return {
+	// Strip undefined values (matching the other capture helpers here) — the
+	// OTel adapter would otherwise export them as literal "undefined" strings.
+	return stripUndefinedTelemetryProperties({
 		...(input.context ?? {}),
 		component: input.component,
 		operation: input.operation,
 		severity: input.severity ?? "error",
 		handled: input.handled ?? true,
 		...normalizeSdkError(input.error, input.messageLimit, input.errorMessage),
-	};
+	});
 }
 
 function stripUndefinedTelemetryProperties(
