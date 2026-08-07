@@ -11,7 +11,10 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import {
+	looksLikeFolderPath,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -58,6 +61,7 @@ export function WorkspaceSelector({
 	const [pickingWorkspace, setPickingWorkspace] = useState(false);
 	const [showWorkspacePathInput, setShowWorkspacePathInput] = useState(false);
 	const [workspacePathInput, setWorkspacePathInput] = useState("");
+	const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 	const [showCreateBranch, setShowCreateBranch] = useState(false);
 	const [newBranchName, setNewBranchName] = useState("");
 
@@ -85,6 +89,7 @@ export function WorkspaceSelector({
 		setSearch("");
 		setShowWorkspacePathInput(false);
 		setWorkspacePathInput("");
+		setWorkspaceError(null);
 		setShowCreateBranch(false);
 		setNewBranchName("");
 		setLoadingBranches(true);
@@ -125,19 +130,25 @@ export function WorkspaceSelector({
 		) {
 			return;
 		}
+		setWorkspaceError(null);
 		setSwitchingWorkspace(true);
 		const switched = await onSwitchWorkspace(next);
 		setSwitchingWorkspace(false);
 		if (switched) {
 			setOpen(false);
 			setSearch("");
+			return;
 		}
+		setWorkspaceError(
+			`Couldn't open "${next}". Check that the folder exists and try again.`,
+		);
 	};
 
 	const handleSwitchWorkspacePath = async () => {
 		if (pickingWorkspace || switchingWorkspace) {
 			return;
 		}
+		setWorkspaceError(null);
 		if (onPickWorkspaceDirectory) {
 			setPickingWorkspace(true);
 			try {
@@ -145,10 +156,17 @@ export function WorkspaceSelector({
 				if (picked?.trim()) {
 					await handleWorkspaceSelect(picked.trim());
 				}
+				return;
+			} catch (pickError) {
+				// No usable native picker — fall through to manual path entry.
+				setWorkspaceError(
+					pickError instanceof Error && pickError.message.trim()
+						? pickError.message
+						: "The folder picker could not be opened. Type a folder path instead.",
+				);
 			} finally {
 				setPickingWorkspace(false);
 			}
-			return;
 		}
 		setShowWorkspacePathInput(true);
 		setWorkspacePathInput(workspaceRoot);
@@ -291,10 +309,27 @@ export function WorkspaceSelector({
 									<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 										Workspaces
 									</div>
+									{looksLikeFolderPath(search) && (
+										<Button
+											variant="ghost"
+											disabled={switchingWorkspace}
+											onClick={() => {
+												void handleWorkspaceSelect(search);
+											}}
+											className="mb-0.5 flex h-auto w-full items-center justify-start gap-2 rounded-md p-2 text-left"
+										>
+											<FolderCode className="size-3 shrink-0 text-muted-foreground" />
+											<span className="truncate text-xs text-foreground">
+												Open folder “{search.trim()}”
+											</span>
+										</Button>
+									)}
 									<div className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
 										{filteredWorkspaces.length === 0 ? (
 											<div className="px-2 py-2 text-xs text-muted-foreground">
-												No workspaces found
+												{looksLikeFolderPath(search)
+													? "Press the option above to open this folder"
+													: "No workspaces found — type a full folder path to add one"}
 											</div>
 										) : (
 											filteredWorkspaces.map((wp) => {
@@ -376,6 +411,11 @@ export function WorkspaceSelector({
 											</Button>
 										</div>
 									) : null}
+									{workspaceError && (
+										<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+											{workspaceError}
+										</div>
+									)}
 								</div>
 
 								{/* Branches section */}

@@ -13,7 +13,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import {
+	looksLikeFolderPath,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -91,6 +94,7 @@ function WorkspacePicker({
 	const [switching, setSwitching] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [selectingChat, setSelectingChat] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const isChatWorkspace =
 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 
@@ -100,11 +104,20 @@ function WorkspacePicker({
 	);
 
 	// Refresh the catalog and clear the filter each time the menu opens.
+	// The refresh callback lives in a ref: its identity changes whenever the
+	// workspace catalog re-derives (e.g. periodic session-history refresh), and
+	// re-running this effect mid-open would wipe the user's typed path and any
+	// visible error message.
+	const refreshWorkspacesRef = useRef(onRefreshWorkspaces);
+	useEffect(() => {
+		refreshWorkspacesRef.current = onRefreshWorkspaces;
+	}, [onRefreshWorkspaces]);
 	useEffect(() => {
 		if (!open) return;
 		setSearch("");
-		void onRefreshWorkspaces();
-	}, [open, onRefreshWorkspaces]);
+		setError(null);
+		void refreshWorkspacesRef.current();
+	}, [open]);
 
 	// The active workspace can be an excluded path (restored session, process
 	// cwd fallback); register it explicitly so it stays visible while active.
@@ -131,20 +144,34 @@ function WorkspacePicker({
 			return;
 		}
 		if (switching) return;
+		setError(null);
 		setSwitching(true);
 		const switched = await onSwitchWorkspace(next);
 		setSwitching(false);
-		if (switched) onClose();
+		if (switched) {
+			onClose();
+			return;
+		}
+		setError(
+			`Couldn't open "${next}". Check that the folder exists and try again.`,
+		);
 	};
 
 	const handleAddWorkspace = async () => {
 		if (picking || selectingChat || switching) return;
+		setError(null);
 		setPicking(true);
 		try {
 			const picked = await onPickWorkspaceDirectory(
 				isChatWorkspace ? undefined : workspaceRoot || undefined,
 			);
 			if (picked?.trim()) await handleSelect(picked.trim());
+		} catch (pickError) {
+			setError(
+				pickError instanceof Error && pickError.message.trim()
+					? pickError.message
+					: "The folder picker could not be opened. Type a folder path above instead.",
+			);
 		} finally {
 			setPicking(false);
 		}
@@ -181,15 +208,33 @@ function WorkspacePicker({
 			{open && (
 				<div className={PANEL_CLASS}>
 					<SearchInput
-						onChange={setSearch}
-						placeholder="Search workspaces"
+						onChange={(value) => {
+							setSearch(value);
+							setError(null);
+						}}
+						placeholder="Search workspaces, or type a folder path"
 						value={search}
 					/>
 					<div className="p-1.5">
+						{looksLikeFolderPath(search) && (
+							<Button
+								className="mb-0.5 flex h-auto w-full items-center justify-start gap-2 rounded-md p-2 text-left"
+								disabled={switching}
+								onClick={() => void handleSelect(search)}
+								variant="ghost"
+							>
+								<Folder className="size-3 shrink-0 text-muted-foreground" />
+								<span className="truncate text-xs text-foreground">
+									Open folder “{search.trim()}”
+								</span>
+							</Button>
+						)}
 						<div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
 							{filteredWorkspaces.length === 0 ? (
 								<div className="px-2 py-2 text-xs text-muted-foreground">
-									No workspaces found
+									{looksLikeFolderPath(search)
+										? "Press the option above to open this folder"
+										: "No workspaces found — type a full folder path to add one"}
 								</div>
 							) : (
 								filteredWorkspaces.map((path) => {
@@ -242,6 +287,11 @@ function WorkspacePicker({
 							<FilePlus2 className="size-3" />
 							{selectingChat ? "Switching to chat..." : "Just chat"}
 						</Button>
+						{error && (
+							<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+								{error}
+							</div>
+						)}
 					</div>
 				</div>
 			)}
