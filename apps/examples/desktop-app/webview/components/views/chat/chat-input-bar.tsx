@@ -80,6 +80,7 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
+	{ name: "goal", description: "Start the task with a goal completion guard" },
 ];
 
 export function buildUserInstructionSlashCommands(

@@ -1,7 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { getUserRunSpan, resolveMessageDisplayRole } from "@cline/core";
-import { validateImageMedia } from "@cline/shared";
+import {
+	getUserRunSpan,
+	isGoalVerificationPrompt,
+	resolveMessageDisplayRole,
+} from "@cline/core";
+import {
+	normalizeUserInput,
+	stripModeNotices,
+	validateImageMedia,
+} from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
@@ -257,6 +265,27 @@ function buildToolPayloadJson(
 	});
 }
 
+/**
+ * Detects a persisted user message that carries the runtime-generated /goal
+ * verification prompt. Persisted user content may be a plain string or text
+ * blocks, wrapped in the <user_input mode="..."> envelope and possibly
+ * prefixed by a mode notice, so both are stripped before matching.
+ */
+function isGoalVerificationUserMessage(content: unknown): boolean {
+	const text = Array.isArray(content)
+		? content
+				.map((block) =>
+					block &&
+					typeof block === "object" &&
+					(block as JsonRecord).type === "text"
+						? String((block as JsonRecord).text ?? "")
+						: "",
+				)
+				.join("\n")
+		: stringifyMessageContent(content);
+	return isGoalVerificationPrompt(stripModeNotices(normalizeUserInput(text)));
+}
+
 function normalizeRole(role: unknown): string {
 	switch (role) {
 		case "user":
@@ -378,6 +407,13 @@ export async function readSessionMessages(
 			role: normalizeRole(message.role),
 			metadata,
 		});
+		// The /goal verification prompt is runtime-generated, not typed by the
+		// user, so it must not replay as a user bubble (mirrors the CLI's
+		// transcript hydration filter). It still counts as a user run above,
+		// keeping checkpoint run-count alignment intact.
+		if (role === "user" && isGoalVerificationUserMessage(message.content)) {
+			continue;
+		}
 		if (role === "user" && userRunSpan !== 1) {
 			textMeta = {
 				...(textMeta ?? {}),

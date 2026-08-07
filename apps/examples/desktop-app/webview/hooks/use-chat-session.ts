@@ -1,5 +1,6 @@
 "use client";
 
+import { parseGoalCommand } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -1351,6 +1352,51 @@ export function useChatSession() {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return;
 
+			// /goal status and /goal off are answered by the sidecar without a
+			// model turn, so they bypass the send machinery below: no queueing,
+			// no status flips, no assistant-turn bookkeeping. The typed command
+			// and the reply render as an ordinary user bubble + a system row.
+			const goalCommand = parseGoalCommand(trimmed);
+			if (goalCommand && goalCommand.kind !== "set") {
+				setError(null);
+				const goalSessionId = sessionId ?? activeSessionIdRef.current;
+				const now = Date.now();
+				addMessage({
+					id: makeId("user"),
+					sessionId: goalSessionId,
+					role: "user",
+					content: trimmed,
+					createdAt: now,
+				});
+				let goalReply =
+					goalCommand.kind === "status"
+						? "No goal is active. Use /goal <task> to set one."
+						: "No goal is active.";
+				if (goalSessionId) {
+					try {
+						const payload = await postSession({
+							action: "send",
+							sessionId: goalSessionId,
+							prompt: trimmed,
+						});
+						if (payload.goalReply) {
+							goalReply = payload.goalReply;
+						}
+					} catch (err) {
+						setErrorState(errorMessage(err), goalSessionId);
+						return;
+					}
+				}
+				addMessage({
+					id: makeId("goal"),
+					sessionId: goalSessionId,
+					role: "system",
+					content: goalReply,
+					createdAt: now + 1,
+				});
+				return;
+			}
+
 			setError(null);
 			setIsHydratingSession(false);
 			abortedRef.current = false;
@@ -1432,6 +1478,19 @@ export function useChatSession() {
 					content: userLabel,
 					createdAt: now,
 				});
+				if (goalCommand?.kind === "set") {
+					// Immediate confirmation that the guard armed; the sidecar's
+					// send response only settles after the whole turn (and its
+					// verification rounds). Copy mirrors the shared guard's
+					// setGoal reply in @cline/core session/goal-guard.ts.
+					addMessage({
+						id: makeId("goal"),
+						sessionId: plannedSessionId,
+						role: "system",
+						content: `Goal set: ${goalCommand.goal}\nI'll keep nudging until it is verified complete. Use /goal off to clear it.`,
+						createdAt: now + 1,
+					});
+				}
 				activeSessionIdRef.current = plannedSessionId;
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);

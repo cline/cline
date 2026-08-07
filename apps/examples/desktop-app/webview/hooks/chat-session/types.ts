@@ -109,6 +109,8 @@ export type ChatSessionCommandResponse = {
 	prompt?: PromptInQueue;
 	updated?: boolean;
 	removed?: boolean;
+	/** Local reply to a /goal status or /goal off command (no turn ran). */
+	goalReply?: string;
 };
 
 export type ChatWsResponseEvent = {

@@ -6,6 +6,7 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	createInteractiveGoalGuard,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	projectSessionCompactionState,
@@ -13,11 +14,12 @@ import {
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
+	sendTurnWithGoalVerification,
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { Message } from "@cline/llms";
-import { buildClineSystemPrompt } from "@cline/shared";
+import { buildClineSystemPrompt, parseGoalCommand } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -25,6 +27,7 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
+import { goalExtraTools, goalGuardFor } from "./goal";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
 	ChatSessionCommandRequest,
@@ -94,7 +97,7 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team", "goal"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -601,9 +604,16 @@ async function handleStart(
 			: requestedSessionId
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
+	// Resolve the /goal guard before start so its mark_goal_complete tool can
+	// be registered with the session; restarting an existing conversation
+	// (follow-up on a hydrated history session) reuses that session's guard.
+	const goalGuard = requestedSessionId
+		? goalGuardFor(ctx, requestedSessionId)
+		: createInteractiveGoalGuard();
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(request.config),
 		systemPrompt,
+		extraTools: [goalGuard.markGoalCompleteTool],
 		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
@@ -626,6 +636,7 @@ async function handleStart(
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
+	ctx.goalGuards.set(sessionId, goalGuard);
 	const workspaceRoot = startResult.manifest.workspace_root;
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
@@ -722,6 +733,7 @@ async function handleAttach(
 }
 
 async function startRebuiltSession(
+	ctx: SidecarContext,
 	manager: ClineCore,
 	sessionId: string,
 	config: JsonRecord,
@@ -733,13 +745,16 @@ async function startRebuiltSession(
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
 	const restarted = await manager.start({
-		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
+		...splitCoreSessionConfig({
+			...buildCoreSessionConfig({
 				...config,
 				sessionId,
 				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
-		),
+			}),
+			// The rebuild keeps the same conversation, so the same guard's
+			// mark_goal_complete tool must survive it (as on other surfaces).
+			extraTools: goalExtraTools(ctx, sessionId),
+		} as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		initialMessages: messages,
@@ -787,6 +802,7 @@ async function rebuildSessionForProviderChange(
 	let replacementStarted = false;
 	try {
 		await startRebuiltSession(
+			ctx,
 			manager,
 			sessionId,
 			nextConfig,
@@ -808,6 +824,7 @@ async function rebuildSessionForProviderChange(
 				await manager.stop(sessionId);
 			}
 			await startRebuiltSession(
+				ctx,
 				manager,
 				sessionId,
 				previousConfig,
@@ -842,6 +859,20 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	// /goal status and the off aliases are answered locally, without a model
+	// turn; setting a goal arms this session's guard and submits the goal
+	// text (wrapped in the /goal user-command envelope, so transcripts
+	// display it as "/goal <task>" like the CLI).
+	const goalCommand = parseGoalCommand(prompt);
+	if (goalCommand && goalCommand.kind !== "set") {
+		const guard = ctx.goalGuards.get(sessionId);
+		const goalReply =
+			goalCommand.kind === "status"
+				? (guard?.formatStatus() ??
+					"No goal is active. Use /goal <task> to set one.")
+				: (guard?.clearGoal() ?? "No goal is active.");
+		return { sessionId, ok: true, goalReply };
+	}
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
 	const lockedWorkspaceKey = workspacePathKey(
@@ -858,11 +889,16 @@ async function handleSend(
 	}
 	// Dispatch the expanded instructions, but keep the raw `/command` token as
 	// the session's display prompt.
-	const expandedPrompt = await expandRuntimeSlashCommand(
+	let expandedPrompt = await expandRuntimeSlashCommand(
 		ctx,
 		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
 		prompt,
 	);
+	if (goalCommand?.kind === "set") {
+		expandedPrompt = goalGuardFor(ctx, sessionId).setGoal(
+			goalCommand.goal,
+		).submitPrompt;
+	}
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -951,13 +987,27 @@ async function handleSend(
 		});
 		let result: Awaited<ReturnType<ClineCore["send"]>>;
 		try {
-			result = await manager.send({
-				sessionId,
-				prompt: expandedPrompt,
-				delivery,
-				userImages: request.attachments?.userImages,
-				userFiles,
-			});
+			const sendInitialTurn = () =>
+				manager.send({
+					sessionId,
+					prompt: expandedPrompt,
+					delivery,
+					userImages: request.attachments?.userImages,
+					userFiles,
+				});
+			const goalGuard = ctx.goalGuards.get(sessionId);
+			// While this session has a goal guard, a turn that finishes
+			// "completed" is followed by hidden verification turns (bounded by
+			// the shared round cap) — the same awaited wrapper the CLI uses.
+			// Sessions that never used /goal have no guard and send directly.
+			result = goalGuard
+				? await sendTurnWithGoalVerification({
+						goalGuard,
+						sendInitialTurn,
+						sendVerificationTurn: (verificationPrompt) =>
+							manager.send({ sessionId, prompt: verificationPrompt }),
+					})
+				: await sendInitialTurn();
 		} catch (error) {
 			deleteMaterializedAttachments(sessionId, userFiles);
 			throw error;
@@ -1198,13 +1248,22 @@ async function handleForkUnlocked(
 		},
 	};
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
+	// A plain fork continues the same conversation under a new session id, so
+	// it carries the source's goal guard (like CLI forks). A message-edit
+	// fork (forkBeforeRunCount) rewinds the conversation, so it starts with a
+	// fresh guard and the source's goal is dropped below.
+	const forkGoalGuard =
+		forkBeforeRunCount === undefined
+			? goalGuardFor(ctx, sourceSessionId)
+			: createInteractiveGoalGuard();
 	const startInput = {
-		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
+		...splitCoreSessionConfig({
+			...buildCoreSessionConfig({
 				...forkConfig,
 				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
-		),
+			}),
+			extraTools: [forkGoalGuard.markGoalCompleteTool],
+		} as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		sessionMetadata: forkMetadata,
@@ -1254,6 +1313,8 @@ async function handleForkUnlocked(
 		ctx.liveSessions.get(sourceSessionId),
 	);
 	ctx.liveSessions.delete(sourceSessionId);
+	ctx.goalGuards.delete(sourceSessionId);
+	ctx.goalGuards.set(newSessionId, forkGoalGuard);
 	ctx.liveSessions.set(
 		newSessionId,
 		createLiveSession(forkConfig, {
@@ -1289,6 +1350,8 @@ async function handleReset(
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
+		// The conversation is going away; drop its completion guard with it.
+		ctx.goalGuards.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
 	return { sessionId: request.sessionId, ok: true };
@@ -1316,18 +1379,22 @@ async function handleRestoreCheckpoint(
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const manager = getSessionManager(ctx);
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		// A checkpoint restore rewinds the conversation, so the source's goal
+		// is dropped (below) and the restored session starts a fresh guard.
+		const restoreGoalGuard = createInteractiveGoalGuard();
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
 			checkpointRunCount: runCount,
 			cwd,
 			restore: { messages: true, workspace: true },
 			start: {
-				...splitCoreSessionConfig(
-					buildCoreSessionConfig({
+				...splitCoreSessionConfig({
+					...buildCoreSessionConfig({
 						...config,
 						systemPrompt: await resolveSystemPrompt(config),
-					}) as unknown as ClineCoreStartConfig,
-				),
+					}),
+					extraTools: [restoreGoalGuard.markGoalCompleteTool],
+				} as unknown as ClineCoreStartConfig),
 				source: SessionSource.DESKTOP,
 				interactive: true,
 				toolPolicies: resolveToolPolicies(config),
@@ -1343,6 +1410,8 @@ async function handleRestoreCheckpoint(
 			ctx.liveSessions.get(sourceSessionId),
 		);
 		ctx.liveSessions.delete(sourceSessionId);
+		ctx.goalGuards.delete(sourceSessionId);
+		ctx.goalGuards.set(sessionId, restoreGoalGuard);
 		ctx.liveSessions.set(
 			sessionId,
 			createLiveSession(config, {

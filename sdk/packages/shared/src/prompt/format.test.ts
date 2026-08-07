@@ -6,10 +6,40 @@ import {
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
+	parseGoalCommand,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
 	stripModeNotices,
 } from "./format";
+
+describe("parseGoalCommand", () => {
+	it("parses set, status, and clear subcommands", () => {
+		expect(parseGoalCommand("/goal fix the tests")).toEqual({
+			kind: "set",
+			goal: "fix the tests",
+		});
+		expect(parseGoalCommand("/goal")).toEqual({ kind: "status" });
+		expect(parseGoalCommand("/goal status")).toEqual({ kind: "status" });
+		expect(parseGoalCommand("/goal STATUS")).toEqual({ kind: "status" });
+		for (const alias of ["off", "clear", "stop", "disable", "OFF"]) {
+			expect(parseGoalCommand(`/goal ${alias}`)).toEqual({ kind: "clear" });
+		}
+	});
+
+	it("keeps multi-line goal text", () => {
+		expect(parseGoalCommand("/goal fix the tests\nand the lints")).toEqual({
+			kind: "set",
+			goal: "fix the tests\nand the lints",
+		});
+	});
+
+	it("ignores ordinary prompts and mid-text mentions", () => {
+		expect(parseGoalCommand("what does /goal do?")).toBeUndefined();
+		expect(parseGoalCommand("goal: fix tests")).toBeUndefined();
+		expect(parseGoalCommand("/goals are great")).toBeUndefined();
+		expect(parseGoalCommand("")).toBeUndefined();
+	});
+});
 
 describe("prompt format helpers", () => {
 	it("parses a user command wrapper", () => {

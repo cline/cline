@@ -1,7 +1,53 @@
+import { formatGoalVerificationPrompt } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import { readSessionMessages } from "./messages";
 
 describe("readSessionMessages", () => {
+	it("hides runtime-generated goal verification prompts but keeps run counts aligned", async () => {
+		const sessionId = `goal-verification-filter-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "task",
+							role: "user",
+							content: '<user_input mode="act">ship the feature</user_input>',
+						},
+						{ id: "work", role: "assistant", content: "done" },
+						{
+							id: "verification",
+							role: "user",
+							content: `<user_input mode="act">${formatGoalVerificationPrompt("ship the feature")}</user_input>`,
+						},
+						{ id: "confirmation", role: "assistant", content: "verified" },
+						{
+							id: "followup",
+							role: "user",
+							content: '<user_input mode="act">now add tests</user_input>',
+						},
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+		)) as Array<{ id: string; role: string; meta?: { runCount?: number } }>;
+
+		expect(projected.map((message) => message.id)).toEqual([
+			"task",
+			"work",
+			"confirmation",
+			"followup",
+		]);
+		// The hidden verification prompt still counts as a user run, so the
+		// later user message keeps its absolute run count.
+		expect(projected.at(-1)?.meta?.runCount).toBe(3);
+	});
+
 	it("preserves each stored message timestamp across projected blocks", async () => {
 		const sessionId = `timestamp-projection-${Date.now()}`;
 		const userTimestamp = 1_781_041_621_282;

@@ -154,6 +154,7 @@ describe("pathless session starts", () => {
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: { start },
 		} as unknown as SidecarContext;
 
@@ -179,6 +180,172 @@ describe("pathless session starts", () => {
 			cwd: "/home/host/.cline/data/workspaces/chat",
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
+	});
+
+	it("registers the /goal guard's mark_goal_complete tool on session start", async () => {
+		const start = vi.fn(
+			async (input: {
+				localRuntime?: { extraTools?: Array<{ name: string }> };
+			}) => {
+				expect(
+					input.localRuntime?.extraTools?.map((tool) => tool.name),
+				).toEqual(["mark_goal_complete"]);
+				return {
+					sessionId: "session-goal-tool",
+					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },
+				};
+			},
+		);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				enableTools: true,
+			},
+		});
+
+		expect(start).toHaveBeenCalledTimes(1);
+		// The guard is keyed under the SDK-resolved session id, so later
+		// sends and /goal commands find it.
+		expect(ctx.goalGuards.has("session-goal-tool")).toBe(true);
+	});
+});
+
+describe("/goal chat command", () => {
+	function createGoalContext() {
+		const sessionId = "session-goal";
+		const send = vi.fn(async (_input?: unknown) => ({
+			text: "done",
+			finishReason: "completed",
+			iterations: 1,
+			messages: [],
+		}));
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: { provider: "cline", model: "m" },
+						messages: [],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				send,
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+		return { ctx, send, sessionId };
+	}
+
+	it("answers /goal status locally without running a turn", async () => {
+		const { ctx, send, sessionId } = createGoalContext();
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal status",
+		})) as { goalReply?: string };
+
+		expect(result.goalReply).toContain("No goal is active");
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("arms the guard, submits the /goal envelope, and follows up with capped verification turns", async () => {
+		const { ctx, send, sessionId } = createGoalContext();
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal ship the feature",
+		});
+
+		// Initial turn plus MAX_GOAL_VERIFICATION_ROUNDS hidden verification
+		// turns: every mocked turn completes but the goal is never marked
+		// complete, so the shared wrapper stops at the round cap.
+		expect(send).toHaveBeenCalledTimes(4);
+		expect(send.mock.calls[0]?.[0]).toMatchObject({
+			sessionId,
+			prompt: '<user_command slash="goal">ship the feature</user_command>',
+		});
+		for (const call of send.mock.calls.slice(1)) {
+			expect((call?.[0] as { prompt: string }).prompt).toContain(
+				"Are you sure you've completed the goal: ship the feature",
+			);
+		}
+		// The cap keeps the goal active so the next completed run nudges again.
+		const statusResult = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal status",
+		})) as { goalReply?: string };
+		expect(statusResult.goalReply).toContain("Active goal: ship the feature");
+	});
+
+	it("clears the goal with /goal off", async () => {
+		const { ctx, sessionId } = createGoalContext();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal ship the feature",
+		});
+
+		const offResult = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal off",
+		})) as { goalReply?: string };
+
+		expect(offResult.goalReply).toBe("Goal cleared.");
+		const statusResult = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal status",
+		})) as { goalReply?: string };
+		expect(statusResult.goalReply).toContain("No goal is active");
+	});
+
+	it("sends ordinary prompts unwrapped and without verification turns", async () => {
+		const { ctx, send, sessionId } = createGoalContext();
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "hello there",
+		});
+
+		expect(send).toHaveBeenCalledTimes(1);
+		expect(send.mock.calls[0]?.[0]).toMatchObject({ prompt: "hello there" });
+	});
+
+	it("drops the goal guard when the session is reset", async () => {
+		const { ctx, sessionId } = createGoalContext();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal ship the feature",
+		});
+		expect(ctx.goalGuards.has(sessionId)).toBe(true);
+
+		await handleChatSessionCommand(ctx, { action: "reset", sessionId });
+
+		expect(ctx.goalGuards.has(sessionId)).toBe(false);
 	});
 });
 
@@ -221,6 +388,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -346,6 +514,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -427,6 +596,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -478,6 +648,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: { restore },
 		} as unknown as SidecarContext;
 
@@ -509,6 +680,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -559,6 +731,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -599,6 +772,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(["/workspace/project"]),
+			goalGuards: new Map(),
 			sessionManager: { send },
 		} as unknown as SidecarContext;
 
@@ -657,6 +831,7 @@ describe("first-send connection updates", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
@@ -1370,6 +1545,7 @@ Follow the desktop send skill instructions.`,
 			workspaceRoot: workspace,
 			liveSessions: new Map([[sessionId, session]]),
 			restoringWorkspacePaths: new Set(),
+			goalGuards: new Map(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {

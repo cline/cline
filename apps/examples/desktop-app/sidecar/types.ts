@@ -2,6 +2,7 @@ import type {
 	AgentToolContext,
 	BasicLogger,
 	ClineCore,
+	InteractiveGoalGuard,
 	ITelemetryService,
 	NodeHubClient,
 	ToolApprovalResult,
@@ -108,6 +109,8 @@ export type SidecarWebSocketClient = {
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
+	/** Per-session /goal completion guards; see sidecar/goal.ts. */
+	goalGuards: Map<string, InteractiveGoalGuard>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
 	wsClients: Set<SidecarWebSocketClient>;

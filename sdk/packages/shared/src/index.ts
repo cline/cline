@@ -284,6 +284,7 @@ export {
 	processWorkspaceInfo,
 } from "./prompt/cline";
 export type {
+	GoalCommand,
 	ModeSwitchNotice,
 	ModeSwitchNoticeTracker,
 } from "./prompt/format";
@@ -295,6 +296,7 @@ export {
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
+	parseGoalCommand,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
 	stripModeNotices,

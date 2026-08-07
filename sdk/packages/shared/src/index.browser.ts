@@ -258,6 +258,7 @@ export {
 	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 } from "./prompt/cline";
 export type {
+	GoalCommand,
 	ModeSwitchNotice,
 	ModeSwitchNoticeTracker,
 } from "./prompt/format";
@@ -269,6 +270,7 @@ export {
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
+	parseGoalCommand,
 	parseUserCommandEnvelope,
 	stripModeNotices,
 	xmlTagsRemoval,

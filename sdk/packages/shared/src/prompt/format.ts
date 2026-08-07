@@ -131,6 +131,44 @@ export function parseUserCommandEnvelope(
 	};
 }
 
+/**
+ * A leading "/goal ..." chat message parsed into its subcommand: no arguments
+ * (or "status") reports the active goal, the off aliases clear it, anything
+ * else sets a new goal. Shared by the hosts that implement the native /goal
+ * completion guard (the CLI, the desktop app's sidecar and webview).
+ *
+ * The VS Code extension keeps a mirrored copy in its own shared layer
+ * (apps/vscode/src/shared/slashCommands.ts) because its webview bundle
+ * cannot import workspace packages.
+ */
+export type GoalCommand =
+	| { kind: "status" }
+	| { kind: "clear" }
+	| { kind: "set"; goal: string };
+
+const GOAL_CLEAR_KEYWORDS = new Set(["off", "clear", "stop", "disable"]);
+
+/**
+ * Parses a chat message that invokes the /goal slash command. Returns
+ * undefined for anything else (including messages that merely mention
+ * "/goal" mid-text), so ordinary prompts are never hijacked.
+ */
+export function parseGoalCommand(text: string): GoalCommand | undefined {
+	const match = /^\/goal(?=$|\s)([\s\S]*)$/i.exec(text.trim());
+	if (!match) {
+		return undefined;
+	}
+	const args = (match[1] ?? "").trim();
+	const keyword = args.toLowerCase();
+	if (!args || keyword === "status") {
+		return { kind: "status" };
+	}
+	if (GOAL_CLEAR_KEYWORDS.has(keyword)) {
+		return { kind: "clear" };
+	}
+	return { kind: "set", goal: args };
+}
+
 export function normalizeUserInput(input?: string): string {
 	if (!input?.trim()) return "";
 	let next = input.trim();
