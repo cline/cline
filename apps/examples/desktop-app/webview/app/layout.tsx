@@ -1,5 +1,5 @@
-import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
+import { DesktopErrorTelemetry } from "@/components/desktop-error-telemetry";
 import { Toaster } from "@/components/ui/toaster";
 import { HUB_THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
 import "./globals.css";
@@ -46,9 +46,9 @@ export default function RootLayout({
 				/>
 			</head>
 			<body className="h-full min-h-screen font-sans antialiased">
+				<DesktopErrorTelemetry />
 				{children}
 				<Toaster />
-				<Analytics />
 			</body>
 		</html>
 	);

@@ -1,5 +1,60 @@
 # Cline Code Desktop Changelog
 
+## 0.0.10
+
+- Remote MCP servers can now authenticate with OAuth from Settings → MCP — authorize a server, see its auth status, and cancel or retry a pending authorization. Servers that require a pre-registered OAuth client (client ID/secret) instead of dynamic registration are now supported, and stored tokens are invalidated when a server's client configuration changes.
+- MCP errors are now shown on the individual server rather than as a page-level error, and a server with invalid configuration is surfaced with its error instead of silently disappearing from the list.
+- Failed turns no longer fail silently. Sending a message with no model credentials — or any queued turn that fails — now shows an error in the transcript, enriched with the underlying cause and a pointer to Settings → Models.
+- Fixed the first message of a chat (and some queued messages) rendering twice.
+- Fixed the composer getting stuck on "Agent is working…" after a turn already finished.
+- New "Connect a model" notice on the welcome screen when no provider has credentials, with one click to onboarding or model settings. It reacts live as you add credentials, and correctly recognizes Bedrock/Vertex and keyless local endpoints as already connected.
+- Added "Get an API key" links for popular providers in onboarding and Settings → Models, plus a link to the Cline dashboard from the Cline API key form.
+- The onboarding welcome step now explains what Cline is.
+- The stop button is now actually visible and clickable, Esc stops the current turn, and new shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for settings.
+- Reasoning controls now resolve consistently across AI SDK providers, including Ollama, so effort levels and thinking on/off are honored wherever the provider supports them.
+- Vertex AI: credential refreshes now use the configured fetch, fixing ADC authentication behind proxies and custom networking.
+- Refreshed the bundled provider and model catalog.
+
+## 0.0.9
+
+- Cline Code now ships as a single universal macOS download that runs natively on both Apple Silicon and Intel — no more picking the right architecture. Existing per-architecture installs migrate to it automatically on their next update.
+- Session history can now be filtered by where a session came from — Desktop, CLI, extension, or scheduled — from a new filter control in the sidebar.
+- The composer now shows a token usage ring for the active model's context window, with cumulative cost, and it changes color as you approach the limit.
+- Skills now appear in the slash command menu alongside workflows, and commands that share a name are disambiguated instead of shadowing each other.
+- Installed plugins now show their real package names instead of all appearing as "index".
+- The agent header can be dragged to move the window again, including on read-only titles.
+- Chat message actions (copy, fork, edit, restore) no longer collide with the descenders of the message's last line.
+- Application errors are now reported in diagnostics, and the packaged app's telemetry configuration is baked into the sidecar at build time — previously the packaged build shipped with it empty, so no diagnostics were ever sent.
+- Plan mode now hard-blocks file-editing shell commands rather than relying on prompting alone; read-only investigation still works.
+- Running out of context is now recovered from automatically — the run compacts and retries once instead of failing with a raw provider error.
+- Empty model responses are now retried on every provider, not just Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Claude 4.6+ and 5.x models are no longer rejected with "thinking.type.enabled is not supported".
+- Bedrock prompt caching works again — cache reads and writes were always 0 — and Bedrock foundation models now route through geo inference profiles.
+- Reasoning models on OpenAI-compatible endpoints now get the correct token parameter, and models without image support substitute image content instead of failing.
+- Refreshed the bundled provider and model catalog, adding Infomaniak and SCX.ai.
+- Upgraded the model layer to AI SDK 7 and switched Ollama to the native provider.
+
+## 0.0.8
+
+- Edit any earlier message in a conversation — the app forks the session at that point, rewinds the workspace to that run's checkpoint, and re-runs from your edited prompt. Restores are transactional and workspace-atomic, so a failed restore won't leave you half-rewound.
+- Fixed long-running chat turns timing out mid-response.
+- Checkpoints are now created reliably — including after a restart, after compaction, and on the first turn of a resumed session — and restoring one rewinds the whole workspace, not just the conversation.
+- Fixed checkpoint restores failing after you closed and reopened a session.
+- Reasoning controls (effort, thinking budget, on/off) now come from the shared model catalog, so each model gets exactly the reasoning options it actually supports instead of provider-specific guesses.
+- Errors from upstream providers forwarded through the gateway now show the real message (e.g. "This model's maximum context length is 40960 tokens…") instead of a raw validation dump or `[object Object]`.
+- Ollama: empty responses are retried automatically, and the response-start timeout is raised to 5 minutes so cold model loads don't error out.
+- OpenRouter now defaults to Anthropic Claude Sonnet 5.
+- Model pickers show proper display names for Cline free models and recommended models.
+- MCP servers now honor their configured per-server timeout.
+- Fixed API keys for several providers being lost when migrating from an older install — all secret-backed providers now migrate correctly.
+- Unknown or removed legacy model IDs now fall back to the default Cline model instead of failing.
+- Fixed agentic compaction not persisting reliably, so long conversations resume in the right state.
+- Fixed a `.clinerules` single file (the older format) aborting the whole rules and config scan.
+- Fixed video input being dropped for models that support it.
+- Fixed the workspace hint being sent for filesystem-root paths.
+- Custom model info for OpenAI-Compatible providers now carries over into the seeded model catalog.
+- Removed the "Enable R1 messages format" option from the OpenAI-Compatible provider.
+
 ## 0.0.7
 
 - New system tray icon showing app status and how many agent sessions are currently running.

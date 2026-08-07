@@ -29,6 +29,8 @@ export interface HubSessionClientOptions {
 export interface HubSessionRow {
 	sessionId: string;
 	parentSessionId?: string;
+	/** Hub runtime status when the server provided one. */
+	status?: string;
 	metadata?: Record<string, unknown>;
 	messagesPath?: string;
 }
@@ -97,6 +99,7 @@ function extractSessionRow(
 			typeof metadata?.parentSessionId === "string"
 				? metadata.parentSessionId
 				: undefined,
+		status: typeof session.status === "string" ? session.status : undefined,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath

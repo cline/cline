@@ -68,12 +68,19 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 	}
 
 	try {
-		const [{ LangfuseSpanProcessor }, { trace }, { NodeTracerProvider }] =
-			await Promise.all([
-				import("@langfuse/otel"),
-				import("@opentelemetry/api"),
-				import("@opentelemetry/sdk-trace-node"),
-			]);
+		const [
+			{ OpenTelemetry },
+			{ LangfuseSpanProcessor },
+			{ registerTelemetry },
+			{ trace },
+			{ NodeTracerProvider },
+		] = await Promise.all([
+			import("@ai-sdk/otel"),
+			import("@langfuse/otel"),
+			import("ai"),
+			import("@opentelemetry/api"),
+			import("@opentelemetry/sdk-trace-node"),
+		]);
 
 		const spanProcessor = new LangfuseSpanProcessor({
 			baseUrl: config.baseUrl,
@@ -86,6 +93,9 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 		if (typeof tracerProvider?.addSpanProcessor === "function") {
 			tracerProvider.addSpanProcessor(spanProcessor);
 			const hasDelegate = hasActiveTracerDelegate(trace);
+			if (hasDelegate) {
+				registerTelemetry(new OpenTelemetry());
+			}
 			debugLangfuse(
 				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
 			);
@@ -106,6 +116,9 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 		} as unknown as ConstructorParameters<typeof NodeTracerProvider>[0]);
 		nodeTracerProvider.register();
 		const hasDelegate = hasActiveTracerDelegate(trace);
+		if (hasDelegate) {
+			registerTelemetry(new OpenTelemetry());
+		}
 		debugLangfuse(
 			`registered NodeTracerProvider delegateReady=${String(hasDelegate)}`,
 		);

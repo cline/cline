@@ -47,6 +47,11 @@ import {
 	isAcpAuthMethodId,
 } from "./auth";
 import {
+	AUTO_APPROVE_CONFIG_ID,
+	buildAutoApproveConfigOption,
+	parseAutoApproveValue,
+} from "./auto-approve";
+import {
 	buildOrganizationConfigOption,
 	fetchClineOrganizations,
 	getAcpOrgSubscriptionMessage,
@@ -75,6 +80,8 @@ interface SessionState {
 	currentProviderId: string;
 	/** Current model id for the session. */
 	currentModelId: string;
+	/** When true, all tool calls are approved without asking the client. */
+	autoApproveTools: boolean;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -100,12 +107,17 @@ export class AcpAgent implements Agent {
 	private sessions = new Map<string, SessionState>();
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly defaultAutoApproveTools: boolean;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
-	constructor(conn: AgentSideConnection) {
+	constructor(
+		conn: AgentSideConnection,
+		options?: { autoApproveTools?: boolean },
+	) {
 		this.conn = conn;
+		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -172,8 +184,16 @@ export class AcpAgent implements Agent {
 		const defaultMode = "act";
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-		const defaultModelId =
-			process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6";
+
+		const providerModels = await Llms.getModelsForProvider(providerId);
+		// Model ids are provider-scoped, so the default must come from the
+		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
+		// nothing to `cline`, and vice versa.
+		const defaultModelId = await resolveDefaultModelId(
+			providerId,
+			process.env.CLINE_MODEL,
+			providerModels,
+		);
 
 		this.sessions.set(sessionId, {
 			id: sessionId,
@@ -182,9 +202,9 @@ export class AcpAgent implements Agent {
 			currentMode: defaultMode,
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
+			autoApproveTools: this.defaultAutoApproveTools,
 		});
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
 		const availableModels = Object.entries(providerModels).map(
 			([modelId, info]) => ({
 				modelId,
@@ -210,6 +230,7 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
 				...(organizationOption ? [organizationOption] : []),
 			],
 		};
@@ -231,18 +252,23 @@ export class AcpAgent implements Agent {
 			if (!session) {
 				// Provider/model are not persisted per session — a session
 				// loaded on a fresh connection starts from the same defaults
-				// as a new session.
+				// as a new session, with the model resolved against the
+				// provider's own catalog just like newSession.
+				const providerId =
+					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+				const providerModels = await Llms.getModelsForProvider(providerId);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
 					mcpServers: params.mcpServers,
 					currentMode: "act",
-					currentProviderId:
-						process.env.CLINE_PROVIDER ??
-						this.authResult?.providerId ??
-						"cline",
-					currentModelId:
-						process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6",
+					currentProviderId: providerId,
+					currentModelId: await resolveDefaultModelId(
+						providerId,
+						process.env.CLINE_MODEL,
+						providerModels,
+					),
+					autoApproveTools: this.defaultAutoApproveTools,
 				};
 				this.sessions.set(params.sessionId, session);
 			}
@@ -443,16 +469,16 @@ export class AcpAgent implements Agent {
 				// creates a fresh one with the new provider on the next prompt().
 				await this.teardownSessionManager(session);
 
-				// If current model doesn't exist in new provider, reset to first available
+				// Re-resolve the model against the new provider's catalog: keep the
+				// current one when it's offered there too, otherwise fall back to the
+				// provider's declared default rather than whichever model happens to
+				// be listed first (for cline-pass that is an unrelated free model).
 				const providerModels = await Llms.getModelsForProvider(value);
-				const modelIds = Object.keys(providerModels);
-				const fallbackModelId = modelIds[0];
-				if (
-					!modelIds.includes(session.currentModelId) &&
-					fallbackModelId !== undefined
-				) {
-					session.currentModelId = fallbackModelId;
-				}
+				session.currentModelId = await resolveDefaultModelId(
+					value,
+					session.currentModelId,
+					providerModels,
+				);
 				break;
 			}
 
@@ -497,6 +523,18 @@ export class AcpAgent implements Agent {
 				}
 				session.currentMode = value;
 				sendCurrentModeUpdate(this.conn, params.sessionId, value);
+				break;
+			}
+
+			case AUTO_APPROVE_CONFIG_ID: {
+				const autoApprove = parseAutoApproveValue(params.value);
+				if (autoApprove === undefined) {
+					throw RequestError.invalidParams(
+						undefined,
+						`Invalid auto-approve value: ${String(params.value)} (must be a boolean)`,
+					);
+				}
+				session.autoApproveTools = autoApprove;
 				break;
 			}
 
@@ -649,7 +687,9 @@ export class AcpAgent implements Agent {
 			toolPolicies: config.toolPolicies,
 			capabilities: {
 				requestToolApproval: (request) =>
-					requestAcpToolApproval(this.conn, acpSessionId, request),
+					session.autoApproveTools
+						? Promise.resolve({ approved: true })
+						: requestAcpToolApproval(this.conn, acpSessionId, request),
 			},
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
@@ -755,6 +795,23 @@ export class AcpAgent implements Agent {
 	}
 }
 
+async function resolveDefaultModelId(
+	providerId: string,
+	preferredModelId: string | undefined,
+	providerModels: Record<string, unknown>,
+): Promise<string> {
+	const modelIds = Object.keys(providerModels);
+	const preferred = preferredModelId?.trim();
+	if (preferred && modelIds.includes(preferred)) {
+		return preferred;
+	}
+	const providerDefault = (await Llms.getProvider(providerId))?.defaultModelId;
+	if (providerDefault && modelIds.includes(providerDefault)) {
+		return providerDefault;
+	}
+	return modelIds[0] ?? "";
+}
+
 /**
  * Convert a fatal agent error into a JSON-RPC error for the prompt response.
  *
@@ -856,6 +913,7 @@ async function buildAllConfigOptions(
 		providerOption,
 		buildModelConfigOption(session.currentModelId, providerModels),
 		buildModeConfigOption(session.currentMode),
+		buildAutoApproveConfigOption(session.autoApproveTools),
 	];
 }
 
