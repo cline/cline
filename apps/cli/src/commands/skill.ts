@@ -1,4 +1,5 @@
 import { type SpawnOptions, spawn } from "node:child_process";
+import { resolveNpxInvocation } from "@cline/shared/node";
 
 export interface SkillCommandIo {
 	writeln: (text?: string) => void;
@@ -117,17 +118,24 @@ export async function runSkillCommand(
 	io: SkillCommandIo,
 ): Promise<number> {
 	const args = buildSkillsArgs(userArgs);
-	const isWindows = process.platform === "win32";
+	const invocation = resolveNpxInvocation(args);
+	if (!invocation) {
+		io.writeErr(
+			'npx was not found. Install Node.js (which includes npx) to use "cline skill".',
+		);
+		return 1;
+	}
 	const options: SpawnOptions = {
 		stdio: "inherit",
 		env: process.env,
 		// Prevent a console window from flashing on Windows.
 		windowsHide: true,
-		...(isWindows ? { shell: true } : {}),
+		// Never route forwarded skill arguments through a command shell.
+		shell: false,
 	};
 
 	return new Promise<number>((resolve) => {
-		const child = spawn("npx", args, options);
+		const child = spawn(invocation.command, invocation.args, options);
 
 		const forward = (signal: NodeJS.Signals) => {
 			child.kill(signal);

@@ -25,6 +25,7 @@ import {
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
+import { resolveShellFreeInvocation } from "@cline/shared/node";
 import { resolveClineDir } from "@cline/shared/storage";
 import { deleteMcpServer, readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
@@ -291,13 +292,27 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 	new Promise<SpawnResult>((resolve, reject) => {
 		let settled = false;
 		let timedOut = false;
-		const child = spawn(command, args, {
+		// Prefer a shell-free invocation so catalog arguments (e.g. an npm semver
+		// range like `mongodb-mcp-server@<3`) reach the child as literal argv
+		// rather than being reinterpreted by cmd.exe. `npx` always resolves this
+		// way on a real Node install; fall back to a shell only when Windows
+		// exposes the command exclusively as a `.cmd`/`.bat` shim (e.g. a global
+		// `cline.cmd`), which spawn() cannot execute directly.
+		const invocation = resolveShellFreeInvocation(command, args);
+		const useShellFallback =
+			options.shell ?? (platform() === "win32" && !invocation);
+		const spawnOptions: SpawnOptions = {
 			...options,
 			env: options.env ?? process.env,
-			shell: options.shell ?? platform() === "win32",
+			shell: useShellFallback,
 			stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
 			windowsHide: true,
-		});
+		};
+		const child = spawn(
+			invocation?.command ?? command,
+			invocation?.args ?? args,
+			spawnOptions,
+		);
 		let stdout = "";
 		let stderr = "";
 		const forceKillTimeout = setTimeout(() => {
