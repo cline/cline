@@ -980,6 +980,79 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).not.toMatchObject({ reason: "error" });
 	});
 
+	it("preserves generated audio history without disclosing artifact paths", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Continuing" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const artifactPath =
+			"/Users/example/.cline/data/sessions/session-1/artifacts/private-audio.mp3";
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-audio-model",
+							name: "Mixed Audio Model",
+							modalities: {
+								input: ["text"],
+								output: ["text", "audio"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "mixed-audio-model",
+				messages: [
+					{
+						id: "assistant_audio",
+						role: "assistant",
+						content: [
+							{
+								type: "audio",
+								path: artifactPath,
+								mediaType: "audio/mpeg",
+							},
+						],
+						createdAt: 1,
+					},
+					{
+						id: "user_continue",
+						role: "user",
+						content: [{ type: "text", text: "Continue" }],
+						createdAt: 2,
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "[Generated audio artifact: audio/mpeg]" },
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "Continue" }],
+			},
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain(artifactPath);
+	});
+
 	it("uses generateImage for dedicated text-to-image models", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/webp", base64: "aGVsbG8=" }],
