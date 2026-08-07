@@ -410,7 +410,7 @@ function buildCoralBricksModels(): Record<string, ModelInfo> {
 			contextWindow: 1_048_576,
 			maxTokens: 32_768,
 			capabilities: ["tools", "reasoning", "prompt-cache"],
-			pricing: { input: 1.4, output: 4.4, cacheRead: 0 },
+			pricing: { input: 1.12, output: 4.4, cacheRead: 0 },
 		},
 		"kimi-k3": {
 			id: "kimi-k3",
@@ -426,7 +426,7 @@ function buildCoralBricksModels(): Record<string, ModelInfo> {
 			contextWindow: 131_072,
 			maxTokens: 32_768,
 			capabilities: ["tools", "reasoning", "prompt-cache"],
-			pricing: { input: 0.15, output: 0.6, cacheRead: 0 },
+			pricing: { input: 0.12, output: 0.6, cacheRead: 0 },
 		},
 	};
 }
