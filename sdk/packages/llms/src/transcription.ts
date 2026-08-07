@@ -1,6 +1,10 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { experimental_transcribe as transcribe } from "ai";
 import type { ProviderConfig } from "./providers/config";
+import {
+	resolveVercelAiGatewayBaseUrl,
+	trimTrailingSlashes,
+} from "./providers/url";
 
 export const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 120_000;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
@@ -43,23 +47,6 @@ export interface AudioTranscriptionRoute {
 	endpoint: string;
 }
 
-function trimTrailingSlashes(value: string): string {
-	return value.replace(/\/+$/, "");
-}
-
-function resolveVercelAIGatewayTranscriptionBaseUrl(
-	configuredBaseUrl: string | undefined,
-): string {
-	const baseUrl = trimTrailingSlashes(
-		configuredBaseUrl ?? DEFAULT_VERCEL_AI_GATEWAY_BASE_URL,
-	);
-	if (baseUrl.endsWith("/v4/ai")) return baseUrl;
-	if (/\/v\d+(?:\/ai)?$/.test(baseUrl)) {
-		return baseUrl.replace(/\/v\d+(?:\/ai)?$/, "/v4/ai");
-	}
-	return `${baseUrl}/v4/ai`;
-}
-
 /**
  * Resolve the provider-specific transport used for audio transcription.
  *
@@ -81,7 +68,10 @@ export function resolveAudioTranscriptionRoute(
 	}
 
 	if (config.providerId === "vercel-ai-gateway") {
-		const baseUrl = resolveVercelAIGatewayTranscriptionBaseUrl(config.baseUrl);
+		const baseUrl = resolveVercelAiGatewayBaseUrl(
+			config.baseUrl,
+			DEFAULT_VERCEL_AI_GATEWAY_BASE_URL,
+		);
 		return {
 			kind: "vercel-ai-gateway",
 			baseUrl,

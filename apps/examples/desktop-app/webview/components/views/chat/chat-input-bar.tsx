@@ -21,6 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
@@ -368,6 +369,8 @@ function ChatInputBarImpl({
 		status === "starting" || status === "running" || status === "stopping";
 	const canAbort = status === "running" || status === "stopping";
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
+	const [speechInputActive, setSpeechInputActive] = useState(false);
+	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
 		provider: string;
@@ -394,20 +397,38 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft;
+	const canSend = hasDraft && !speechInputActive;
 	const handleSend = useCallback(() => {
+		if (speechInputActive) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [onSend, promptInput, setPromptInput, speechInputActive]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
+		expectedValue: string;
 	} | null>(null);
+	const transcriptionGenerationRef = useRef(0);
+	const transcriptionTargetIdentityRef = useRef("unconfigured");
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
+	const updateTranscriptionTarget = useCallback(
+		(target: TranscriptionModelTarget | null) => {
+			const identity = target
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
+				: "unconfigured";
+			if (identity !== transcriptionTargetIdentityRef.current) {
+				transcriptionTargetIdentityRef.current = identity;
+				transcriptionGenerationRef.current += 1;
+				streamingTranscriptRangeRef.current = null;
+			}
+			setTranscriptionTarget(target);
+		},
+		[],
+	);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	// Mention/slash detection is derived synchronously from the input +
@@ -450,25 +471,32 @@ function ChatInputBarImpl({
 
 	useEffect(() => {
 		let cancelled = false;
+		let loadId = 0;
 		const loadVoiceInput = () => {
+			const currentLoadId = ++loadId;
 			loadProviderModelCatalog()
 				.then((catalog) => {
-					if (!cancelled) setTranscriptionTarget(catalog.voiceInput);
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(catalog.voiceInput);
+					}
 				})
 				.catch(() => {
-					if (!cancelled) setTranscriptionTarget(null);
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(null);
+					}
 				});
 		};
 		loadVoiceInput();
 		window.addEventListener(VOICE_INPUT_SETTINGS_CHANGED_EVENT, loadVoiceInput);
 		return () => {
 			cancelled = true;
+			loadId += 1;
 			window.removeEventListener(
 				VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 				loadVoiceInput,
 			);
 		};
-	}, []);
+	}, [updateTranscriptionTarget]);
 
 	const handleTranscriptionChange = useCallback(
 		(transcript: string) => {
@@ -503,7 +531,11 @@ function ChatInputBarImpl({
 		const input = promptInputRef.current;
 		const start = input?.selectionStart ?? current.length;
 		const end = input?.selectionEnd ?? start;
-		streamingTranscriptRangeRef.current = { start, end };
+		streamingTranscriptRangeRef.current = {
+			start,
+			end,
+			expectedValue: current,
+		};
 	}, []);
 
 	const handleStreamingTranscriptionChange = useCallback(
@@ -513,6 +545,13 @@ function ChatInputBarImpl({
 			if (!text || !range) return;
 
 			const current = promptInputValueRef.current;
+			// A live transcript range is only valid for the exact draft produced by
+			// its previous update. Refuse to apply stale numeric offsets if another
+			// writer changes the draft while the microphone is active.
+			if (current !== range.expectedValue) {
+				streamingTranscriptRangeRef.current = null;
+				return;
+			}
 			const before = current.slice(0, range.start);
 			const after = current.slice(range.end);
 			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
@@ -523,6 +562,7 @@ function ChatInputBarImpl({
 			streamingTranscriptRangeRef.current = {
 				start: range.start,
 				end: nextEnd,
+				expectedValue: next,
 			};
 			setPromptInput(next);
 
@@ -540,13 +580,16 @@ function ChatInputBarImpl({
 		streamingTranscriptRangeRef.current = null;
 	}, []);
 
-	const handleStartStreamingTranscription = useCallback(
-		() =>
-			startVercelStreamingTranscription({
-				onTranscript: handleStreamingTranscriptionChange,
-			}),
-		[handleStreamingTranscriptionChange],
-	);
+	const handleStartStreamingTranscription = useCallback(() => {
+		const generation = transcriptionGenerationRef.current;
+		return startVercelStreamingTranscription({
+			onTranscript: (transcript) => {
+				if (generation === transcriptionGenerationRef.current) {
+					handleStreamingTranscriptionChange(transcript);
+				}
+			},
+		});
+	}, [handleStreamingTranscriptionChange]);
 
 	const handleAudioRecorded = useCallback(
 		async (audioBlob: Blob): Promise<string> => {
@@ -953,6 +996,15 @@ function ChatInputBarImpl({
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
+						{speechInputProcessing && (
+							<output
+								aria-live="polite"
+								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
+							>
+								<Spinner className="size-3.5" />
+								<span className="sr-only">Transcribing voice input</span>
+							</output>
+						)}
 						<textarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
@@ -975,6 +1027,7 @@ function ChatInputBarImpl({
 								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
 							)}
 							onChange={(e) => {
+								if (speechInputActive) return;
 								setPromptInput(e.target.value);
 								setCursorIndex(
 									e.target.selectionStart ?? e.target.value.length,
@@ -1065,12 +1118,15 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: variant === "welcome"
+										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+										: isBusy
+											? "Agent is working... submit to queue another message"
+											: "Enter your question or type / for commands or @ for context"
 							}
+							readOnly={speechInputActive}
 							ref={promptInputRef}
 							role="combobox"
 							rows={promptInputRows}
@@ -1097,6 +1153,12 @@ function ChatInputBarImpl({
 							)}
 							<SpeechInput
 								allowUnavailableClick={!transcriptionTarget}
+								key={
+									transcriptionTarget
+										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`
+										: "unconfigured"
+								}
+								onActiveChange={setSpeechInputActive}
 								onAudioRecorded={handleAudioRecorded}
 								onClick={(event) => {
 									if (!transcriptionTarget) {
@@ -1105,6 +1167,7 @@ function ChatInputBarImpl({
 									}
 								}}
 								onError={handleSpeechInputError}
+								onProcessingChange={setSpeechInputProcessing}
 								onStartStreaming={
 									transcriptionTarget?.supportsStreaming
 										? handleStartStreamingTranscription
