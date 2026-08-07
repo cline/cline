@@ -27,10 +27,15 @@ import {
 
 const streamTextSpy = vi.fn();
 const generateImageSpy = vi.fn();
+const generateVideoSpy = vi.fn();
 const vercelGatewayFactorySpy = vi.fn();
 const vercelGatewayImageSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "vercel-gateway-image",
+}));
+const vercelGatewayVideoSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "vercel-gateway-video",
 }));
 const openaiCompatibleFactorySpy = vi.fn();
 const openaiCompatibleSpy = vi.fn((modelId: string) => ({
@@ -89,6 +94,7 @@ vi.mock("ai", () => ({
 		...(options && typeof options === "object" ? options : {}),
 	}),
 	generateImage: (input: unknown) => generateImageSpy(input),
+	experimental_generateVideo: (input: unknown) => generateVideoSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
 	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
@@ -116,6 +122,7 @@ vi.mock("@ai-sdk/gateway", () => ({
 		vercelGatewayFactorySpy(config);
 		return {
 			imageModel: (modelId: string) => vercelGatewayImageSpy(modelId),
+			videoModel: (modelId: string) => vercelGatewayVideoSpy(modelId),
 		};
 	},
 }));
@@ -282,8 +289,10 @@ describe("sdk-gateway", () => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		generateImageSpy.mockReset();
+		generateVideoSpy.mockReset();
 		vercelGatewayFactorySpy.mockReset();
 		vercelGatewayImageSpy.mockReset();
+		vercelGatewayVideoSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
 		openaiResponsesSpy.mockReset();
@@ -328,6 +337,10 @@ describe("sdk-gateway", () => {
 		vercelGatewayImageSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "vercel-gateway-image",
+		}));
+		vercelGatewayVideoSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "vercel-gateway-video",
 		}));
 		anthropicSpy.mockImplementation((modelId: string) => ({
 			modelId,
@@ -865,6 +878,48 @@ describe("sdk-gateway", () => {
 		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
 		expect(events).toEqual([
 			{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" },
+			{ type: "finish", reason: "stop" },
+		]);
+	});
+
+	it("uses generateVideo for dedicated text-to-video models", async () => {
+		generateVideoSpy.mockResolvedValue({
+			videos: [{ mediaType: "video/mp4", base64: "dmlkZW8=" }],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "google/veo-test",
+							name: "Veo Test",
+							modalities: { input: ["text"], output: ["video"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/veo-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(vercelGatewayVideoSpy).toHaveBeenCalledWith("google/veo-test");
+		expect(generateVideoSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({ modelId: "google/veo-test" }),
+				prompt: "Hello",
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
 			{ type: "finish", reason: "stop" },
 		]);
 	});

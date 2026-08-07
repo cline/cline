@@ -40,6 +40,7 @@ import {
 	createContributionRegistry,
 	type ITelemetryService,
 	isDedicatedImageGenerationModel,
+	isDedicatedVideoGenerationModel,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -846,10 +847,10 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const dedicatedImageGeneration = isDedicatedImageGenerationModel(
-			modelInfo ?? {},
-		);
-		const tools = dedicatedImageGeneration
+		const dedicatedMediaGeneration =
+			isDedicatedImageGenerationModel(modelInfo ?? {}) ||
+			isDedicatedVideoGenerationModel(modelInfo ?? {});
+		const tools = dedicatedMediaGeneration
 			? []
 			: Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
@@ -879,7 +880,7 @@ export class SessionRuntime {
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
-			completionPolicy: dedicatedImageGeneration ? null : undefined,
+			completionPolicy: dedicatedMediaGeneration ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);

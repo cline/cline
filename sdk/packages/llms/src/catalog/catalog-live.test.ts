@@ -123,7 +123,7 @@ describe("models-dev-catalog", () => {
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
 	});
 
-	it("keeps dedicated image models without tool calling", () => {
+	it("keeps dedicated generated-media models without tool calling", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			openai: {
 				id: "openai",
@@ -138,6 +138,10 @@ describe("models-dev-catalog", () => {
 						tool_call: false,
 						modalities: { input: ["text"], output: ["image"] },
 					},
+					"video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
 					"embedding-model": {
 						tool_call: false,
 						modalities: { input: ["text"], output: ["text"] },
@@ -150,6 +154,9 @@ describe("models-dev-catalog", () => {
 			"chat-model": expect.any(Object),
 			"image-model": {
 				modalities: { input: ["text"], output: ["image"] },
+			},
+			"video-model": {
+				modalities: { input: ["text"], output: ["video"] },
 			},
 		});
 		expect(providerModels["openai-native"]).not.toHaveProperty(
