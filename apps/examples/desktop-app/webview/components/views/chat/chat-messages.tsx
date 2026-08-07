@@ -1629,8 +1629,35 @@ function teamSummary(
 	input: unknown,
 	result: unknown,
 	inProgress: boolean,
+	isError: boolean,
 ): ToolSummary | null {
 	if (!toolName.startsWith("team_")) return null;
+	if (isError) {
+		const failureLabels: Record<string, string> = {
+			team_attach_outcome_fragment: "Failed to attach outcome fragment",
+			team_await_runs: "Failed while waiting for teammates",
+			team_broadcast: "Failed to broadcast message to teammates",
+			team_cancel_run: "Failed to cancel teammate run",
+			team_cleanup: "Failed to clean up team",
+			team_create_outcome: "Failed to create team outcome",
+			team_finalize_outcome: "Failed to finalize team outcome",
+			team_list_outcomes: "Failed to list team outcomes",
+			team_list_runs: "Failed to list teammate runs",
+			team_mission_log: "Failed to update mission log",
+			team_read_mailbox: "Failed to read team mailbox",
+			team_review_outcome_fragment: "Failed to review outcome fragment",
+			team_run_task: "Failed to assign team task",
+			team_send_message: "Failed to send message",
+			team_shutdown_teammate: "Failed to stop teammate",
+			team_spawn_teammate: "Failed to spawn teammate",
+			team_status: "Failed to check team status",
+			team_task: "Failed to update team task",
+		};
+		return {
+			label: failureLabels[toolName] ?? `Failed ${toolName}`,
+			details: [],
+		};
+	}
 	const inputRecord = asRecord(input);
 	const records = resultRecords(result);
 	const resultRecord = records[0];
@@ -1641,11 +1668,16 @@ function teamSummary(
 		progressVerb: string,
 		details: string[],
 		pluralNoun?: string,
+		count = 1,
 	): ToolSummary => ({
-		label: `${inProgress ? progressVerb : completedVerb} ${pluralize(1, noun)}`,
+		label: `${inProgress ? progressVerb : completedVerb} ${pluralize(
+			count,
+			noun,
+			pluralNoun,
+		)}`,
 		aggregate: {
 			key,
-			count: 1,
+			count,
 			noun,
 			pluralNoun,
 			completedVerb,
@@ -1762,6 +1794,8 @@ function teamSummary(
 				completedVerb,
 				progressVerb,
 				details,
+				undefined,
+				action === "list" ? tasks.length : 1,
 			);
 		}
 		case "team_list_runs":
@@ -1944,10 +1978,17 @@ function buildToolSummary(
 	input: unknown,
 	result: unknown,
 	inProgress: boolean,
+	isError = false,
 ): ToolSummary {
 	const normalized = normalizeToolName(toolName);
 	const inputObject = asRecord(input);
-	const teamToolSummary = teamSummary(normalized, input, result, inProgress);
+	const teamToolSummary = teamSummary(
+		normalized,
+		input,
+		result,
+		inProgress,
+		isError,
+	);
 	if (teamToolSummary) return teamToolSummary;
 
 	if (normalized === "read_files") {
@@ -2171,7 +2212,13 @@ function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
 	const summary = payload
-		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
+		? buildToolSummary(
+				toolName,
+				payload.input,
+				payload.result,
+				inProgress,
+				Boolean(payload.isError),
+			)
 		: buildToolSummaryFromMeta(toolName, kind, inProgress);
 	return { message, payload, toolName, kind, inProgress, summary };
 }

@@ -299,6 +299,51 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent).toContain("tester failed");
 	});
 
+	it("counts every returned task in team task list summaries", async () => {
+		await renderMessages([
+			{
+				id: "list-team-tasks",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_task",
+					input: { action: "list" },
+					result: {
+						action: "list",
+						tasks: [
+							{ id: "task-1", title: "Review", status: "pending" },
+							{ id: "task-2", title: "Test", status: "in_progress" },
+							{ id: "task-3", title: "Document", status: "completed" },
+						],
+					},
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Listed 3 team tasks");
+	});
+
+	it("uses failure-oriented labels for failed team tools", async () => {
+		await renderMessages([
+			{
+				id: "failed-spawn",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_spawn_teammate",
+					input: { agentId: "reviewer", rolePrompt: "Review" },
+					result: { error: "already exists" },
+					isError: true,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Failed to spawn teammate");
+		expect(container.textContent).not.toContain("Spawned 1 teammate");
+	});
+
 	it("preserves interleaved tool activity order", async () => {
 		const read = (
 			id: string,
