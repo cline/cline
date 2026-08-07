@@ -1121,6 +1121,79 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).not.toMatchObject({ reason: "error" });
 	});
 
+	it("preserves generated video history without disclosing artifact paths", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Continuing" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const artifactPath =
+			"/Users/example/.cline/data/sessions/session-1/artifacts/private-video.mp4";
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: [
+					{
+						id: "assistant_video",
+						role: "assistant",
+						content: [
+							{
+								type: "video",
+								path: artifactPath,
+								mediaType: "video/mp4",
+							},
+						],
+						createdAt: 1,
+					},
+					{
+						id: "user_continue",
+						role: "user",
+						content: [{ type: "text", text: "Continue" }],
+						createdAt: 2,
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "[Generated video artifact: video/mp4]" },
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "Continue" }],
+			},
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain(artifactPath);
+	});
+
 	it("passes the first generated image into a follow-up image edit", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/png", base64: "ZWRpdGVk" }],
