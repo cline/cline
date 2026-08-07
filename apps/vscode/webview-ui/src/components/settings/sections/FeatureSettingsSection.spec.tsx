@@ -17,6 +17,7 @@ const mockExtensionState = vi.hoisted(() => ({
 		focusChainSettings: { enabled: false, remindClineInterval: 6 },
 		remoteConfigSettings: {},
 		backgroundEditEnabled: false,
+		webSearchEnabled: false,
 	},
 }))
 
@@ -87,6 +88,20 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(hooksSwitch as Element)
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
+	})
+
+	it("renders the Web Search toggle in the Agent section and updates the setting", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByText("Web Search")).toBeTruthy()
+
+		const agentSection = container.querySelector("#agent-features")
+		const webSearchSwitch = agentSection?.querySelector('[id="Web Search"]')
+		expect(webSearchSwitch).toBeTruthy()
+
+		fireEvent.click(webSearchSwitch as Element)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("webSearchEnabled", true)
 	})
 
 	it("calls updateSetting with showFeatureTips when toggled", () => {
