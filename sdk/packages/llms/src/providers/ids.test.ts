@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	createOpenAICompatibleProvider,
-	createOpenAIProvider,
 	createSapAiCoreProvider,
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
@@ -147,19 +146,19 @@ describe("provider-ids", () => {
 		});
 	});
 
-	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
+	it("routes LiteLLM through the OpenAI-compatible provider factory", async () => {
 		const provider = await getProvider("litellm");
 		expect(provider).toMatchObject({
 			id: "litellm",
-			protocol: "openai-responses",
-			client: "openai",
+			protocol: "openai-chat",
+			client: "openai-compatible",
 		});
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "litellm",
 		);
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
-			createProvider: createOpenAIProvider,
+			createProvider: createOpenAICompatibleProvider,
 		});
 	});
 
