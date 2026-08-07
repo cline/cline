@@ -106,8 +106,28 @@ export function fetchProviderCatalog(options?: {
 	return promise;
 }
 
+type ProviderCatalogInvalidationListener = () => void;
+const providerCatalogInvalidationListeners =
+	new Set<ProviderCatalogInvalidationListener>();
+
+/**
+ * Notifies when the provider catalog cache is invalidated (credentials
+ * saved, providers toggled, OAuth completed) so long-lived consumers — e.g.
+ * the chat pane's "connect a model" notice — can refetch instead of showing
+ * stale connection state until they happen to remount.
+ */
+export function subscribeToProviderCatalogInvalidation(
+	listener: ProviderCatalogInvalidationListener,
+): () => void {
+	providerCatalogInvalidationListeners.add(listener);
+	return () => providerCatalogInvalidationListeners.delete(listener);
+}
+
 export function invalidateProviderCatalogCache(): void {
 	providerCatalogCache = null;
+	for (const listener of providerCatalogInvalidationListeners) {
+		listener();
+	}
 }
 
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {

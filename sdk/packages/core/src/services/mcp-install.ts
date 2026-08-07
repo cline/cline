@@ -3,6 +3,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	updateMcpSettingsFileSync,
 } from "../extensions/mcp";
+import { resolveNativeMcpTransport } from "../extensions/mcp/remote-proxy";
 
 export interface McpInstallOptions {
 	name: string;
@@ -170,13 +171,14 @@ export function buildMcpInstallTransport(options: {
 				"Stdio MCP install requires a command after the server name, for example: cline mcp install fs --yes -- npx -y @modelcontextprotocol/server-filesystem /tmp",
 			);
 		}
+		const stdioTransport = resolveNativeMcpTransport({
+			type,
+			command,
+			args: args.length > 0 ? args : undefined,
+		});
 		return {
 			name,
-			transport: {
-				type,
-				command,
-				args: args.length > 0 ? args : undefined,
-			},
+			transport: stdioTransport,
 			warnings,
 		};
 	}
