@@ -61,19 +61,46 @@ export function truncate(str: string, maxLen: number): string {
 	return `${oneLine.slice(0, maxLen - 3)}...`;
 }
 
+function stringifyForDisplay(value: unknown): string {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (value === null || value === undefined) {
+		return "";
+	}
+
+	try {
+		const serialized = JSON.stringify(value);
+		if (typeof serialized === "string") {
+			return serialized;
+		}
+	} catch {
+		// Fall through to best-effort string conversion.
+	}
+
+	try {
+		return String(value);
+	} catch {
+		return "";
+	}
+}
+
 export function formatStructuredCommand(cmd: unknown): string {
 	if (typeof cmd === "string") {
 		return cmd;
 	}
 	if (cmd && typeof cmd === "object" && "command" in cmd) {
-		const structured = cmd as { command: string; args?: unknown };
-		const args = Array.isArray(structured.args) ? structured.args : [];
+		const structured = cmd as { command: unknown; args?: unknown };
+		const command = stringifyForDisplay(structured.command);
+		const args = Array.isArray(structured.args)
+			? structured.args.map(stringifyForDisplay)
+			: [];
 		if (args.length === 0) {
-			return structured.command;
+			return command;
 		}
-		return `${structured.command} ${args.join(" ")}`;
+		return [command, ...args].filter(Boolean).join(" ");
 	}
-	return String(cmd);
+	return stringifyForDisplay(cmd);
 }
 
 function summarizeRunCommandsInput(input: unknown): string {
@@ -286,7 +313,7 @@ export function formatToolInput(toolName: string, input: unknown): string {
 			return "list";
 	}
 
-	return truncate(JSON.stringify(input), 60);
+	return truncate(stringifyForDisplay(input), 60);
 }
 
 export function formatToolOutput(output: unknown): string {
@@ -333,7 +360,7 @@ export function formatToolOutput(output: unknown): string {
 						: String(result ?? "");
 					return truncate(resultStr, 80);
 				}
-				return truncate(JSON.stringify(item), 80);
+				return truncate(stringifyForDisplay(item), 80);
 			})
 			.filter((s) => s.length > 0);
 
@@ -346,7 +373,7 @@ export function formatToolOutput(output: unknown): string {
 		return `${results[0]} (+${results.length - 1} more)`;
 	}
 
-	return truncate(JSON.stringify(output), 100);
+	return truncate(stringifyForDisplay(output), 100);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
