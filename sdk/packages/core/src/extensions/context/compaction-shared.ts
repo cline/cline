@@ -2,6 +2,7 @@ import type { ModelInfo, ToolResultContent } from "@cline/llms";
 import {
 	CHARS_PER_TOKEN,
 	estimateTokens,
+	type Message,
 	type MessageWithMetadata,
 } from "@cline/shared";
 
@@ -176,6 +177,17 @@ export function serializeConversation(messages: MessageWithMetadata[]): string {
 	return messages.map(serializeMessage).join("\n\n").trim();
 }
 
+/**
+ * Reduce a stored message to the shape that actually reaches the provider.
+ *
+ * `MessageWithMetadata` extends `Message` with storage/history fields (`id`,
+ * `sessionId`, `metadata`, `modelInfo`, `metrics`, `ts`) that are stripped
+ * before the request is built, so token accounting must ignore them.
+ */
+export function toPayloadMessage(message: MessageWithMetadata): Message {
+	return { role: message.role, content: message.content };
+}
+
 export function createTokenEstimator(): EstimateMessageTokens {
 	const cache = new WeakMap<object, number>();
 	return (message) => {
@@ -186,7 +198,7 @@ export function createTokenEstimator(): EstimateMessageTokens {
 		}
 		let serialized: string;
 		try {
-			serialized = JSON.stringify(message);
+			serialized = JSON.stringify(toPayloadMessage(message));
 		} catch {
 			serialized = serializeMessage(message);
 		}

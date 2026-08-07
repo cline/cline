@@ -16,6 +16,7 @@ import {
 	createContextCompactionPrepareTurn,
 } from "./compaction";
 import {
+	buildSummaryMessage,
 	createTokenEstimator,
 	estimateTokens,
 	resolveEffectiveMaxInputTokens,
@@ -118,9 +119,25 @@ describe("createTokenEstimator", () => {
 				outputTokens: 7,
 			},
 		};
+		const heavierMetrics: MessageWithMetadata = {
+			role: "assistant",
+			content: "short",
+			metrics: {
+				inputTokens: 900_000,
+				cacheReadTokens: 800_000,
+				outputTokens: 70_000,
+			},
+		};
 
 		expect(estimateMessageTokens(message)).toBe(
-			Math.ceil(JSON.stringify(message).length / 3),
+			Math.ceil(
+				JSON.stringify({ role: "assistant", content: "short" }).length / 3,
+			),
+		);
+		// The contract is content, not metrics: identical content costs the same
+		// no matter what usage numbers the message happens to carry.
+		expect(estimateMessageTokens(heavierMetrics)).toBe(
+			estimateMessageTokens(message),
 		);
 	});
 
@@ -133,9 +150,45 @@ describe("createTokenEstimator", () => {
 				inputTokens: 12,
 			},
 		};
+		const withoutMetrics: MessageWithMetadata = {
+			role: "assistant",
+			content: "short",
+		};
 
 		expect(estimateMessageTokens(message)).toBe(
-			Math.ceil(JSON.stringify(message).length / 3),
+			Math.ceil(
+				JSON.stringify({ role: "assistant", content: "short" }).length / 3,
+			),
+		);
+		expect(estimateMessageTokens(withoutMetrics)).toBe(
+			estimateMessageTokens(message),
+		);
+	});
+
+	it("bills a compaction summary once, not twice via its metadata copy", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const summary = "## Goal\nShip the fix\n\n## Files\nsrc/index.ts";
+		const summaryMessage = buildSummaryMessage({
+			summary,
+			fileOps: { readFiles: ["src/index.ts"], modifiedFiles: [] },
+			tokensBefore: 4_096,
+			userRunSpan: 3,
+		});
+
+		// buildSummaryMessage writes the summary into content[0].text and copies
+		// the same string into metadata.summary. Only the content half is sent to
+		// the provider, so charging for both inflates tokensAfter and can report
+		// a compaction as growth.
+		expect(estimateMessageTokens(summaryMessage)).toBe(
+			Math.ceil(
+				JSON.stringify({
+					role: summaryMessage.role,
+					content: summaryMessage.content,
+				}).length / 3,
+			),
+		);
+		expect(estimateMessageTokens(summaryMessage)).toBeLessThan(
+			Math.ceil(JSON.stringify(summaryMessage).length / 3),
 		);
 	});
 });
@@ -3351,6 +3404,85 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted manually" },
 		]);
+	});
+
+	it("keeps request overhead free of message metadata", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted manually" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "anthropic",
+				modelId: "mock-model",
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "mock-model",
+				} as LlmsProviders.ProviderConfig,
+				compaction: { enabled: true, compact },
+				logger: undefined,
+			},
+			{ mode: "manual" },
+		);
+
+		// Mirrors apps/vscode/src/sdk/sdk-compaction.ts, which compacts with an
+		// empty system prompt and no tools. Overhead is the difference between
+		// the whole-request estimate and the summed per-message estimates, so
+		// both sides have to measure the same thing or storage-only fields land
+		// in the overhead term and shrink the message budget.
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "Review the attached file",
+				id: "msg-1",
+				sessionId: "session-1",
+				ts: 1_753_000_000_000,
+				metadata: { source: "at-mention", path: "src/index.ts" },
+			},
+			{
+				role: "assistant",
+				content: "Reviewed it.",
+				id: "msg-2",
+				sessionId: "session-1",
+				ts: 1_753_000_000_001,
+				modelInfo: { id: "mock-model", provider: "anthropic" },
+				metrics: {
+					inputTokens: 2_800,
+					outputTokens: 120,
+					cacheReadTokens: 2_400,
+				},
+			},
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		// With no system prompt and no tools, the only honest remainder is the
+		// JSON framing around an empty request, plus at most one rounding token
+		// per message.
+		const framingOnly = estimateRequestInputTokens({
+			systemPrompt: "",
+			messages: [],
+			tools: [],
+		});
+		expect(context?.budget.request.overheadTokens).toBeLessThanOrEqual(
+			framingOnly + messages.length,
+		);
 	});
 
 	it("manual mode lowers the agentic preserve budget below the default floor", async () => {
