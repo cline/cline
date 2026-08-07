@@ -761,7 +761,7 @@ export async function runCli(): Promise<void> {
 
 	if (args.invalidThinkingLevel) {
 		writeErr(
-			`invalid thinking level "${args.invalidThinkingLevel}" (expected "none", "low", "medium", "high", or "xhigh")`,
+			`invalid thinking level "${args.invalidThinkingLevel}" (expected "none", "low", "medium", "high", "xhigh", or "max")`,
 		);
 		process.exitCode = 1;
 		return;

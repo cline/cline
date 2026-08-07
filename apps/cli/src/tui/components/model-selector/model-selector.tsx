@@ -310,7 +310,13 @@ export function ModelSelectorContent(
 
 // -- Thinking level dialog content --
 
-export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
+export type ThinkingLevel =
+	| "none"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max";
 
 const THINKING_LEVELS: { value: ThinkingLevel; label: string; desc: string }[] =
 	[
@@ -318,7 +324,8 @@ const THINKING_LEVELS: { value: ThinkingLevel; label: string; desc: string }[] =
 		{ value: "low", label: "Low", desc: "Minimal reasoning" },
 		{ value: "medium", label: "Medium", desc: "Balanced reasoning" },
 		{ value: "high", label: "High", desc: "Deep reasoning" },
-		{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
+		{ value: "xhigh", label: "Extra High", desc: "Very deep reasoning" },
+		{ value: "max", label: "Max", desc: "Maximum reasoning" },
 	];
 
 export function ThinkingLevelContent(
