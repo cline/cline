@@ -4,10 +4,13 @@ import {
 	installMcpServer,
 	type McpInstallResult,
 	type McpServerTransportConfig,
+	type McpUninstallOptions as CoreMcpUninstallOptions,
+	type McpUninstallResult as CoreMcpUninstallResult,
+	uninstallMcpServer,
 } from "@cline/core";
 import type { McpAddDefaults } from "../wizards/mcp";
 
-export { buildMcpInstallTransport } from "@cline/core";
+export { buildMcpInstallTransport, uninstallMcpServer } from "@cline/core";
 
 export interface McpCommandIo {
 	writeln?: (text: string) => void;
@@ -104,6 +107,45 @@ export async function runMcpInstallCommand(
 		}
 		const defaults = buildMcpInstallDefaults(options);
 		return await (options.runWizard ?? runPrefilledWizard)(defaults);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		options.io?.writeErr(message);
+		return 1;
+	}
+}
+
+export interface McpUninstallOptions extends CoreMcpUninstallOptions {
+	io?: McpCommandIo;
+	json?: boolean;
+}
+
+export interface McpUninstallDirectResult extends CoreMcpUninstallResult {}
+
+export function uninstallMcpServerDirect(
+	options: McpUninstallOptions,
+): McpUninstallDirectResult {
+	const result: CoreMcpUninstallResult = uninstallMcpServer(options);
+	return {
+		name: result.name,
+		status: result.status,
+	};
+}
+
+export async function runMcpUninstallCommand(
+	options: McpUninstallOptions,
+): Promise<number> {
+	try {
+		const name = options.name?.trim() ?? "";
+		if (!name) {
+			throw new Error("MCP server name is required");
+		}
+		const result = uninstallMcpServerDirect({ ...options, name });
+		if (options.json) {
+			options.io?.writeln?.(JSON.stringify(result));
+		} else {
+			options.io?.writeln?.(`Uninstalled MCP server ${result.name}.`);
+		}
+		return 0;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		options.io?.writeErr(message);
