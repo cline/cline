@@ -928,6 +928,7 @@ describe("ChatMessages reasoning disclosure", () => {
 		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.
 		const details = toolContent?.querySelector(".cline-chat-tool-details");
 		expect(details?.classList.contains("whitespace-pre")).toBe(false);
+		expect(details?.classList.contains("whitespace-pre-wrap")).toBe(true);
 	});
 
 	it("keeps the reasoning panel inside the shape the hover-suppress rule targets", async () => {

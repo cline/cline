@@ -1965,7 +1965,7 @@ const ToolMessageBlock = memo(
 				/>
 				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
 					{details.length > 0 ? (
-						<ToolActivityDetails>
+						<ToolActivityDetails className="whitespace-pre-wrap">
 							{details.map(({ detail, key }) => (
 								<div key={key}>{detail}</div>
 							))}
