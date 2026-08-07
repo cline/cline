@@ -1790,16 +1790,8 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "assistant.audio": {
-				const audio =
-					event.payload?.audio &&
-					typeof event.payload.audio === "object" &&
-					!Array.isArray(event.payload.audio)
-						? (event.payload.audio as Record<string, unknown>)
-						: undefined;
-				if (
-					typeof audio?.path !== "string" ||
-					typeof audio.mediaType !== "string"
-				) {
+				const audio = readHubArtifactReference(event.payload, "audio");
+				if (!audio) {
 					return;
 				}
 				this.events.emit({
@@ -1810,7 +1802,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							type: "content_end",
 							contentType: "audio",
 							audio: {
-								path: audio.path,
+								path: audio.artifactName,
 								mediaType: audio.mediaType,
 							},
 						},
