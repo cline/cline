@@ -5,6 +5,7 @@ import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
+	CoreSettingsSnapshot,
 	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
@@ -15,15 +16,12 @@ import {
 	ClineAccountService,
 	captureAuthRefreshSoftFailure,
 	createUserInstructionConfigService,
-	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
-	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
-	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
@@ -32,17 +30,13 @@ import {
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
-	resolvePluginConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
-	setDisabledPlugin,
-	setDisabledTools,
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
-	toggleDisabledTool,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
@@ -686,9 +680,51 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
 }
 
+async function listHubSettings(
+	ctx: SidecarContext,
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.list", {
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.list",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
+async function toggleHubSetting(
+	ctx: SidecarContext,
+	input: {
+		type: "plugins" | "tools";
+		path?: string;
+		name?: string;
+		enabled?: boolean;
+	},
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.toggle", {
+		...input,
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.toggle",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
 async function listUserInstructionConfigs(
-	workspaceRoot: string,
+	ctx: SidecarContext,
+	settingsSnapshot?: CoreSettingsSnapshot,
 ): Promise<JsonRecord> {
+	const workspaceRoot = ctx.workspaceRoot;
+	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -759,40 +795,6 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const loadPlugins = (): Array<{
-		name: string;
-		path: string;
-		enabled: boolean;
-	}> => {
-		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
-		const pluginsByPath = new Map<
-			string,
-			{ name: string; path: string; enabled: boolean }
-		>();
-		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
-			(d) => existsSync(d),
-		);
-		for (const directory of directories) {
-			try {
-				for (const filePath of discoverPluginModulePaths(directory)) {
-					if (pluginsByPath.has(filePath)) {
-						continue;
-					}
-					pluginsByPath.set(filePath, {
-						name: getPluginDisplayName(filePath, directory),
-						path: filePath,
-						enabled: !disabledPlugins.has(filePath),
-					});
-				}
-			} catch {
-				// best-effort
-			}
-		}
-		return [...pluginsByPath.values()].sort((a, b) =>
-			a.name.localeCompare(b.name),
-		);
-	};
-
 	try {
 		await userInstructionService.start();
 	} catch (error) {
@@ -813,10 +815,6 @@ async function listUserInstructionConfigs(
 	} finally {
 		userInstructionService.stop();
 	}
-	const pluginTools = await listPluginTools({
-		workspacePath: workspaceRoot,
-		cwd: workspaceRoot,
-	});
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
@@ -830,7 +828,12 @@ async function listUserInstructionConfigs(
 		skills,
 		runtimeCommands,
 		agents: loadAgents(),
-		plugins: loadPlugins(),
+		plugins: hubSettings.plugins.map((plugin) => ({
+			name: plugin.name,
+			path: plugin.path,
+			enabled: plugin.enabled !== false,
+			contributions: plugin.contributions,
+		})),
 		tools: [
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
@@ -842,11 +845,11 @@ async function listUserInstructionConfigs(
 				source: "builtin",
 				headlessToolNames: tool.headlessToolNames,
 			})),
-			...pluginTools.map((tool) => ({
-				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
+			...hubSettings.tools.map((tool) => ({
+				id: tool.id,
 				name: tool.name,
 				description: tool.description,
-				enabled: tool.enabled,
+				enabled: tool.enabled !== false,
 				source: tool.source,
 				path: tool.path,
 				pluginName: tool.pluginName,
@@ -1809,12 +1812,12 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
-			await listUserInstructionConfigs(ctx.workspaceRoot),
+			await listUserInstructionConfigs(ctx),
 		);
 	}
 	if (command === "install_marketplace_entry") {
@@ -1836,8 +1839,11 @@ export async function handleCommand(
 		if (!toolName) {
 			throw new Error("tool name is required");
 		}
-		toggleDisabledTool(toolName);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "tools",
+			name: toolName,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_tool_disabled") {
 		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
@@ -1847,16 +1853,27 @@ export async function handleCommand(
 		if (toolNames.length === 0) {
 			throw new Error("tool name is required");
 		}
-		setDisabledTools(toolNames, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		let snapshot: CoreSettingsSnapshot | undefined;
+		for (const name of toolNames) {
+			snapshot = await toggleHubSetting(ctx, {
+				type: "tools",
+				name,
+				enabled: args?.disabled !== true,
+			});
+		}
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
 		if (!pluginPath) {
 			throw new Error("plugin path is required");
 		}
-		setDisabledPlugin(pluginPath, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "plugins",
+			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
