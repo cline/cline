@@ -250,7 +250,9 @@ describe("SdkSessionLifecycle", () => {
 			"goal-verification",
 		)
 
-		await vi.waitFor(() => expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "goal-verification"))
+		await vi.waitFor(() =>
+			expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "goal-verification", expect.any(Number)),
+		)
 	})
 
 	it("notifies turn abandonment when a send is aborted", async () => {
@@ -267,7 +269,7 @@ describe("SdkSessionLifecycle", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 
-		await vi.waitFor(() => expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "user"))
+		await vi.waitFor(() => expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "user", expect.any(Number)))
 		expect(onSendError).not.toHaveBeenCalled()
 	})
 

@@ -418,8 +418,8 @@ export class Controller {
 			onTurnSettled: (sessionId, result, origin, sendId) => {
 				this.goal.handleTurnSettled(sessionId, result, origin, sendId)
 			},
-			onTurnAbandoned: () => {
-				this.goal.handleTurnAbandoned()
+			onTurnAbandoned: (_sessionId, _origin, sendId) => {
+				this.goal.handleTurnAbandoned(sendId)
 			},
 			// Host-lifetime registration: session rebuilds (mode/provider/MCP
 			// changes) rebuild extraTools from scratch, and the guard must

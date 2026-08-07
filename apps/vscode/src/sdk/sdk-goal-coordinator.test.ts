@@ -170,7 +170,7 @@ describe("SdkGoalCoordinator", () => {
 		expect(coordinator.formatStatus()).toContain("awaiting verification")
 
 		// The verification send rejected or was aborted before settling.
-		coordinator.handleTurnAbandoned()
+		coordinator.handleTurnAbandoned(2)
 
 		expect(coordinator.formatStatus()).not.toContain("awaiting verification")
 		const result = (await coordinator.markGoalCompleteTool.execute?.({}, toolContext as never)) as Record<string, unknown>
@@ -186,7 +186,7 @@ describe("SdkGoalCoordinator", () => {
 		await coordinator.markGoalCompleteTool.execute?.({ summary: "done" }, toolContext as never)
 
 		// e.g. the user aborted the verification turn right after the tool call.
-		coordinator.handleTurnAbandoned()
+		coordinator.handleTurnAbandoned(2)
 
 		expect(onGoalCompleted).toHaveBeenCalledTimes(1)
 		expect(onGoalCompleted).toHaveBeenCalledWith(expect.objectContaining({ goal: "fix tests", summary: "done" }))
@@ -214,6 +214,34 @@ describe("SdkGoalCoordinator", () => {
 		const result = (await coordinator.markGoalCompleteTool.execute?.({}, toolContext as never)) as Record<string, unknown>
 		expect(result).toMatchObject({ completed: false })
 		expect(coordinator.hasActiveGoal()).toBe(true)
+	})
+
+	it("ignores a stale abandonment once a newer verification send is armed", async () => {
+		const { coordinator } = makeCoordinator()
+		coordinator.setGoal("fix tests")
+		// First sequence: verification send (id 2) goes out but is superseded
+		// (e.g. by a session rebuild) while in flight.
+		coordinator.handleSendStart("user", 1)
+		coordinator.handleTurnSettled("session-1", completed, "user", 1)
+		coordinator.handleSendStart("goal-verification", 2)
+
+		// Second sequence arms a fresh window and its own verification send.
+		coordinator.handleSendStart("user", 3)
+		coordinator.handleTurnSettled("session-1", completed, "user", 3)
+		coordinator.handleSendStart("goal-verification", 4)
+		expect(coordinator.formatStatus()).toContain("awaiting verification")
+
+		// The old send's late abandonment must not revoke the fresh window:
+		// the model answering the new verification prompt could no longer
+		// complete the goal.
+		coordinator.handleTurnAbandoned(2)
+
+		expect(coordinator.formatStatus()).toContain("awaiting verification")
+		const result = (await coordinator.markGoalCompleteTool.execute?.({ summary: "done" }, toolContext as never)) as Record<
+			string,
+			unknown
+		>
+		expect(result).toMatchObject({ completed: true })
 	})
 
 	it("rolls the round back when the verification send is skipped", () => {

@@ -54,6 +54,11 @@ export class SdkGoalCoordinator {
 	 * open a verification window.
 	 */
 	private lastUserSendId = 0
+	/**
+	 * sendId of the newest goal-verification send. Abandonments whose sendId
+	 * predates it are stale and must not revoke the window that send carries.
+	 */
+	private lastVerificationSendId = 0
 
 	constructor(private readonly options: SdkGoalCoordinatorOptions) {}
 
@@ -92,6 +97,9 @@ export class SdkGoalCoordinator {
 			this.lastUserSendId = sendId
 			this.verificationRounds = 0
 			this.guard.resetVerification()
+		}
+		if (origin === "goal-verification") {
+			this.lastVerificationSendId = sendId
 		}
 	}
 
@@ -144,8 +152,15 @@ export class SdkGoalCoordinator {
 	 * mark_goal_complete armed for a later ordinary work turn, and still
 	 * surfaces a completion the tool recorded before the interruption.
 	 */
-	handleTurnAbandoned(): void {
+	handleTurnAbandoned(sendId: number): void {
 		this.reportNewCompletion()
+		if (sendId < this.lastVerificationSendId) {
+			// Stale abandonment: a newer verification send has since armed the
+			// window, and this older send's late failure must not revoke it —
+			// the model answering the newer verification prompt could no
+			// longer complete the goal.
+			return
+		}
 		this.guard.resetVerification()
 	}
 

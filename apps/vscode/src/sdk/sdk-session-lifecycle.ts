@@ -76,7 +76,7 @@ export interface SdkSessionLifecycleOptions {
 	 * settled must not leave mark_goal_complete armed for a later ordinary
 	 * work turn.
 	 */
-	onTurnAbandoned?: (sessionId: string, origin: SdkSendOrigin) => void
+	onTurnAbandoned?: (sessionId: string, origin: SdkSendOrigin, sendId: number) => void
 }
 
 /**
@@ -438,7 +438,7 @@ export class SdkSessionLifecycle {
 					return
 				}
 				if (isSuperseded("completion")) {
-					this.options.onTurnAbandoned?.(sessionId, origin)
+					this.options.onTurnAbandoned?.(sessionId, origin, sendId)
 					return
 				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
@@ -449,17 +449,17 @@ export class SdkSessionLifecycle {
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {
 					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
-					this.options.onTurnAbandoned?.(sessionId, origin)
+					this.options.onTurnAbandoned?.(sessionId, origin, sendId)
 					return
 				}
 				if (isSuperseded("failure")) {
-					this.options.onTurnAbandoned?.(sessionId, origin)
+					this.options.onTurnAbandoned?.(sessionId, origin, sendId)
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.setRunning(false)
 				await this.options.onSendError(error, sessionId)
-				this.options.onTurnAbandoned?.(sessionId, origin)
+				this.options.onTurnAbandoned?.(sessionId, origin, sendId)
 			})
 	}
 }
