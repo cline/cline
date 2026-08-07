@@ -1,6 +1,7 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import { LoaderCircleIcon } from "lucide-react"
 import { memo, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -194,15 +195,19 @@ export const CommandOutputRow = memo(
 					{command && (
 						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-sm rounded-b-none overflow-hidden">
 							<div className="flex items-center gap-2 flex-1 m-w-0">
-								<div
-									className={cn("bg-description rounded-full w-2 h-2 shrink-0", {
-										"bg-success animate-pulse": isCommandExecuting,
-										"bg-editor-warning-foreground": isCommandPending,
-									})}
-								/>
+								{isCommandExecuting ? (
+									<LoaderCircleIcon aria-label="Command running" className="size-3 shrink-0 animate-spin text-success" />
+								) : (
+									<div
+										className={cn("bg-description rounded-full w-2 h-2 shrink-0", {
+											"bg-editor-warning-foreground": isCommandPending,
+											"bg-success": isCommandCompleted,
+										})}
+									/>
+								)}
 								<span
 									className={cn("text-description font-medium text-base shrink-0", {
-										"text-success": isCommandExecuting,
+										"text-success": isCommandExecuting || isCommandCompleted,
 										"text-editor-warning-foreground": isCommandPending,
 									})}>
 									{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}
