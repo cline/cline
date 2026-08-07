@@ -50,7 +50,7 @@ import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
 import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
-import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
+import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial, isTaskLifecycleToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -1514,7 +1514,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// turn-final response — drop the retag candidate.
 					state.clearTurnFinalText()
 
-					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
+					if (
+						state.checkDeniedToolApproval(event.toolCallId) ||
+						isKnownToolApprovalDenial(event.error) ||
+						isTaskLifecycleToolApprovalDenial(event.error)
+					) {
 						state.clearStreamingTool()
 						break
 					}

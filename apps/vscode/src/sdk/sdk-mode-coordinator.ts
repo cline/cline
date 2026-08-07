@@ -13,6 +13,7 @@ import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler
 import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-user-message-mapping"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
+import { MODE_CHANGED_DENIAL_REASON } from "./tool-approval-denial"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
@@ -393,7 +394,7 @@ export class SdkModeCoordinator {
 	}
 
 	private async cancelRunningTurnForModeChange(oldManager: SdkSessionHost, oldSessionId: string): Promise<void> {
-		this.options.interactions.clearPending("Mode changed")
+		this.options.interactions.clearPending(MODE_CHANGED_DENIAL_REASON)
 		this.options.messages.cancelPendingSave()
 		try {
 			await oldManager.abort(oldSessionId)

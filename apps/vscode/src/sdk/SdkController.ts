@@ -100,6 +100,7 @@ import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
+import { MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON } from "./tool-approval-denial"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -1486,7 +1487,7 @@ export class Controller {
 			// approval / ask_question exactly like cancelTask does. Without this,
 			// the old run stays suspended forever on a promise nothing can
 			// resolve, and the stale parked resolver intercepts later responses.
-			this.interactions.clearPending("Superseded by an edited message")
+			this.interactions.clearPending(MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON)
 
 			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 
