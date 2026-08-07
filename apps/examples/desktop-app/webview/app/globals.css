@@ -111,15 +111,6 @@
 	}
 }
 
-/* Tool panels scroll on both axes, but a horizontal thumb inside a short
- * disclosure eats a whole detail row. Keep the axis scrollable (wheel, trackpad,
- * keyboard, drag-select) and hide only its bar; the vertical one stays visible.
- * `:horizontal` is the one selector that separates the two axes — the standard
- * `scrollbar-width: none` would take out both. */
-.cline-chat-scroll-x-bare::-webkit-scrollbar:horizontal {
-	display: none;
-}
-
 /* The shared reveal rule is `.cline-chat-message:hover`, so hovering anywhere in
  * the message pops the action row — including the reasoning disclosure nested in
  * the message content. The actions act on the message body, so suppress the

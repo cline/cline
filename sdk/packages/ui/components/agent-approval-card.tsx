@@ -19,7 +19,7 @@ function Spinner() {
 	return (
 		<svg
 			aria-hidden="true"
-			className="cline-ui-agent-approval-card__spinner mr-1 size-3.5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]"
+			className="cline-ui-agent-approval-card__spinner mr-1 size-3.5 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] stroke-2"
 			viewBox="0 0 24 24"
 		>
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -65,16 +65,14 @@ export function AgentApprovalCard({
 				</div>
 			) : null}
 			{detail != null ? (
-				<pre className="cline-ui-agent-approval-card__detail max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-cline-ui-md border border-cline-ui-border/70 bg-cline-ui-background p-2 font-cline-ui-mono text-cline-ui-muted-foreground text-cline-ui-xs">
+				<pre className="cline-ui-agent-approval-card__detail max-h-44 max-w-full">
 					{detail}
 				</pre>
 			) : null}
 			{error ? (
-				<div className="cline-ui-agent-approval-card__error mt-2 text-cline-ui-destructive text-cline-ui-xs">
-					{error}
-				</div>
+				<div className="cline-ui-agent-approval-card__error">{error}</div>
 			) : null}
-			<div className="cline-ui-agent-approval-card__actions mt-2 flex items-center gap-2">
+			<div className="cline-ui-agent-approval-card__actions">
 				<button
 					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-cline-ui-md border-0 bg-cline-ui-primary px-3 font-cline-ui-medium text-cline-ui-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-cline-ui-primary/90 focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50"
 					disabled={isPending}

@@ -12,7 +12,10 @@ import {
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
-import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
+import {
+	invalidateProviderCatalogCache,
+	publishProviderModels,
+} from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -276,6 +279,7 @@ export function SettingsView({
 							: provider,
 					),
 				);
+				publishProviderModels(id, payload.models);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setModelsErrorByProvider((prev) => ({ ...prev, [id]: message }));
@@ -284,6 +288,26 @@ export function SettingsView({
 			}
 		},
 		[setProvidersWithCache],
+	);
+
+	const updateProviderModels = useCallback(
+		async (id: string, models: string[]) => {
+			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
+			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
+			try {
+				await desktopClient.invoke("update_provider_models", {
+					provider: id,
+					models,
+				});
+				await loadProviderModels(id);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setModelsErrorByProvider((prev) => ({ ...prev, [id]: message }));
+			} finally {
+				setModelsLoadingByProvider((prev) => ({ ...prev, [id]: false }));
+			}
+		},
+		[loadProviderModels],
 	);
 
 	const selectedProvider = selectedProviderId
@@ -313,6 +337,10 @@ export function SettingsView({
 						: provider,
 				),
 			);
+			// The shared catalog cache (composer selector, welcome setup notice)
+			// must learn about the new OAuth connection too, not just this
+			// view's local provider state.
+			invalidateProviderCatalogCache();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -331,17 +359,11 @@ export function SettingsView({
 		if (!selectedProviderId) {
 			return;
 		}
-		const selected = providers.find(
-			(provider) => provider.id === selectedProviderId,
-		);
-		if (!selected || (selected.modelList?.length ?? 0) > 0) {
-			return;
-		}
 		const timeoutId = window.setTimeout(() => {
 			void loadProviderModels(selectedProviderId);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [loadProviderModels, providers, selectedProviderId]);
+	}, [loadProviderModels, selectedProviderId]);
 
 	const backToProviderList = () => {
 		onNavigateSection("Models");
@@ -410,6 +432,9 @@ export function SettingsView({
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
 					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onUpdateModels={(models) =>
+						void updateProviderModels(selectedProvider.id, models)
+					}
 					onOAuthLogin={
 						usesOAuth(selectedProvider)
 							? () => void runOAuthProviderLogin(selectedProvider.id)
@@ -619,13 +644,11 @@ function GeneralSettingsContent() {
 				description="Manage desktop preferences for this browser and CLI environment."
 				title="Settings"
 			/>
-			<section className="max-w-[86rem]">
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							Dark mode
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+			<section className="max-w-344">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Dark mode</p>
+						<p className="text-sm text-muted-foreground">
 							Keep the desktop interface in dark mode on this browser.
 						</p>
 					</div>
@@ -635,16 +658,16 @@ function GeneralSettingsContent() {
 						onCheckedChange={updateTheme}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							Accent color
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Tint buttons, links, and highlights across the app.
 						</p>
 					</div>
-					<div className="flex shrink-0 items-center gap-2.5">
+					<div className="flex shrink-0 items-center gap-2">
 						{ACCENT_OPTIONS.map((option) => (
 							<button
 								aria-label={option.label}
@@ -663,12 +686,10 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							App icon
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">App icon</p>
+						<p className="text-sm text-muted-foreground">
 							Pick the icon Cline shows in the Dock.
 						</p>
 						{appIconError ? (
@@ -677,12 +698,12 @@ function GeneralSettingsContent() {
 							</p>
 						) : null}
 					</div>
-					<div className="flex shrink-0 items-start gap-4">
+					<div className="flex shrink-0 items-start gap-2.5">
 						{APP_ICONS.map((icon) => (
 							<button
 								aria-label={icon.label}
 								aria-pressed={appIcon === icon.id}
-								className="group flex flex-col items-center gap-1.5"
+								className="group flex flex-col items-center gap-2"
 								key={icon.id}
 								onClick={() => void updateAppIcon(icon.id)}
 								type="button"
@@ -713,12 +734,12 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							Keep CLI up to date
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Automatically update the cline terminal command, which shares your
 							sessions and settings with this app. The app itself updates
 							separately.
@@ -736,12 +757,10 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							Telemetry
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Telemetry</p>
+						<p className="text-sm text-muted-foreground">
 							Enable error and usage reports to help improve Cline.
 						</p>
 						{telemetryError ? (
@@ -757,12 +776,12 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							New user experience
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Replay the first-run experience new users see when they open Cline
 							for the first time.
 						</p>
@@ -770,10 +789,11 @@ function GeneralSettingsContent() {
 					<Button
 						className="shrink-0"
 						onClick={replayOnboarding}
+						size="sm"
 						type="button"
 						variant="outline"
 					>
-						<RotateCcw className="size-3.5" />
+						<RotateCcw className="size-3" />
 						Replay
 					</Button>
 				</div>

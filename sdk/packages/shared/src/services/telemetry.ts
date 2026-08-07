@@ -143,6 +143,96 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+// `sdk.error` is a diagnostic firehose: a process stuck in a retry loop
+// (e.g. an unattended agent re-hitting a rate-limited provider) can emit the
+// same failure thousands of times and drown the signal. Identical failures
+// are therefore capped per process: the first few per hour emit normally,
+// the rest are only counted, and the count surfaces as `suppressed_count` on
+// the next emission once the window rolls over — a hot loop stays visible
+// without flooding. State is in-memory only and the cap never throws.
+
+/** Identical `sdk.error` emissions allowed per key per window. */
+export const SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW = 5;
+/** Suppression window for identical `sdk.error` emissions. */
+export const SDK_ERROR_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+/** Bound on distinct failure keys tracked; the oldest key is evicted. */
+const SDK_ERROR_RATE_LIMIT_MAX_TRACKED_KEYS = 512;
+
+interface SdkErrorWindow {
+	startMs: number;
+	emitted: number;
+	suppressed: number;
+}
+
+const sdkErrorWindows = new Map<string, SdkErrorWindow>();
+
+/**
+ * Clear per-process `sdk.error` rate-limit state (test isolation).
+ *
+ * @internal Exported only so package test suites can isolate the
+ * process-wide suppression state between tests; not a supported runtime API.
+ */
+export function resetSdkErrorRateLimiterForTests(): void {
+	sdkErrorWindows.clear();
+}
+
+/**
+ * One key per distinct failure. Structured discriminators (`error_status`,
+ * `error_code`) participate in the key so an HTTP 429 and an HTTP 401 never
+ * share a budget, while the message is normalized (digit runs collapsed,
+ * whitespace folded, case-insensitive, bounded) so messages that differ only
+ * by counters or ids — `"iteration 14"` vs `"iteration 99"` — coalesce
+ * instead of each getting a fresh budget.
+ */
+function sdkErrorRateLimitKey(
+	event: string,
+	properties: TelemetryProperties,
+): string {
+	const message =
+		typeof properties.error_message === "string"
+			? properties.error_message
+			: "";
+	return [
+		event,
+		properties.component,
+		properties.operation,
+		properties.error_type,
+		properties.error_code ?? "",
+		properties.error_status ?? "",
+		message
+			.replace(/\d+/g, "#")
+			.replace(/\s+/g, " ")
+			.trim()
+			.toLowerCase()
+			.slice(0, 256),
+	].join("\u0000");
+}
+
+function admitSdkError(key: string): { emit: boolean; suppressed: number } {
+	const now = Date.now();
+	const window = sdkErrorWindows.get(key);
+	if (window && now - window.startMs < SDK_ERROR_RATE_LIMIT_WINDOW_MS) {
+		if (window.emitted < SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW) {
+			window.emitted += 1;
+			return { emit: true, suppressed: 0 };
+		}
+		window.suppressed += 1;
+		return { emit: false, suppressed: window.suppressed };
+	}
+	// New key or expired window: emit, carrying forward the count of
+	// emissions suppressed in the previous window.
+	const suppressed = window?.suppressed ?? 0;
+	sdkErrorWindows.delete(key);
+	if (sdkErrorWindows.size >= SDK_ERROR_RATE_LIMIT_MAX_TRACKED_KEYS) {
+		const oldest = sdkErrorWindows.keys().next();
+		if (!oldest.done) {
+			sdkErrorWindows.delete(oldest.value);
+		}
+	}
+	sdkErrorWindows.set(key, { startMs: now, emitted: 1, suppressed: 0 });
+	return { emit: true, suppressed };
+}
+
 export function captureAgentUnexpectedReasoningTokens(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureAgentUnexpectedReasoningTokensInput,
@@ -193,30 +283,59 @@ export function captureTaskLifecycleEvent(
 	});
 }
 
+/**
+ * Report an SDK error, subject to the per-process volume cap on identical
+ * failures described above.
+ *
+ * Returns `true` when the failure is recorded — emitted, or counted toward
+ * `suppressed_count` by the volume cap — and `false` when telemetry is
+ * unavailable. Reporters that sit on a layer boundary forward the return
+ * value (see `errorReported` on the model stream's `finish` event) so outer
+ * layers know the failure is already accounted for and one underlying
+ * failure produces one event, not one per layer it propagates through.
+ */
 export function captureSdkError(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureSdkErrorInput,
-): void {
+): boolean {
 	if (!telemetry) {
-		return;
+		return false;
+	}
+	const event = input.event ?? SDK_ERROR_TELEMETRY_EVENT;
+	const properties = buildSdkErrorProperties(input);
+	let suppressed = 0;
+	try {
+		const decision = admitSdkError(sdkErrorRateLimitKey(event, properties));
+		if (!decision.emit) {
+			return true;
+		}
+		suppressed = decision.suppressed;
+	} catch {
+		// The volume cap must never block error reporting.
 	}
 	telemetry.capture({
-		event: input.event ?? SDK_ERROR_TELEMETRY_EVENT,
-		properties: buildSdkErrorProperties(input),
+		event,
+		properties:
+			suppressed > 0
+				? { ...properties, suppressed_count: suppressed }
+				: properties,
 	});
+	return true;
 }
 
 export function buildSdkErrorProperties(
 	input: CaptureSdkErrorInput,
 ): TelemetryProperties {
-	return {
+	// Strip undefined values (matching the other capture helpers here) — the
+	// OTel adapter would otherwise export them as literal "undefined" strings.
+	return stripUndefinedTelemetryProperties({
 		...(input.context ?? {}),
 		component: input.component,
 		operation: input.operation,
 		severity: input.severity ?? "error",
 		handled: input.handled ?? true,
 		...normalizeSdkError(input.error, input.messageLimit, input.errorMessage),
-	};
+	});
 }
 
 function stripUndefinedTelemetryProperties(

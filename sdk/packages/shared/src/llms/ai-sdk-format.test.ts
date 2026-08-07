@@ -5,6 +5,7 @@ import {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
+import { IMAGE_UNSUPPORTED_PLACEHOLDER } from "./media";
 
 describe("formatMessagesForAiSdk", () => {
 	const imageData = (byteLength: number, fill = 1) =>
@@ -207,7 +208,7 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
-	it("forwards image content blocks as AI SDK content/image-data parts", () => {
+	it("forwards image content blocks as AI SDK content file parts", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
 				role: "user",
@@ -242,8 +243,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -258,7 +259,7 @@ describe("formatMessagesForAiSdk", () => {
 		// `read_files` returns its output as a `ToolOperationResult[]` whose
 		// `result` is a content-block array `[{type:'text'}, {type:'image'}]`.
 		// `formatMessagesForAiSdk` (via `toAiSdkToolResultOutput`) must walk
-		// the tree, hoist any nested image blocks out as native `image-data`
+		// the tree, hoist any nested image blocks out as native `file`
 		// content parts, and forward the remaining metadata as a JSON-encoded
 		// text block so the model receives multimodal input rather than a
 		// JSON-stringified base64 blob.
@@ -333,8 +334,8 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -371,8 +372,8 @@ describe("formatMessagesForAiSdk", () => {
 					}),
 				},
 				{
-					type: "image-data",
-					data: "QkFTRTY0REFUQQ==",
+					type: "file",
+					data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 					mediaType: "image/jpeg",
 				},
 			],
@@ -383,7 +384,7 @@ describe("formatMessagesForAiSdk", () => {
 		// Regression: a `read_files` call with multiple image paths returns
 		// a single `ToolOperationResult[]` whose entries each carry one
 		// `{type:'image', data, mediaType}` block. All of them must end up
-		// as native `image-data` content parts attached to the tool-result.
+		// as native `file` content parts attached to the tool-result.
 		// Previously only the first was preserved (or all were lost on the
 		// SDK-direct path), causing the model to "see" the wrong image set.
 		const messages = formatMessagesForAiSdk(undefined, [
@@ -438,7 +439,7 @@ describe("formatMessagesForAiSdk", () => {
 			},
 		]);
 
-		// Both images must end up as image-data content parts on the
+		// Both images must end up as file content parts on the
 		// tool-result output, and no orphaned image messages may remain.
 		expect(messages).toEqual([
 			{
@@ -480,13 +481,13 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "SlBFR0RBVEE=",
+									type: "file",
+									data: { type: "data", data: "SlBFR0RBVEE=" },
 									mediaType: "image/jpeg",
 								},
 								{
-									type: "image-data",
-									data: "UE5HREFUQQ==",
+									type: "file",
+									data: { type: "data", data: "UE5HREFUQQ==" },
 									mediaType: "image/png",
 								},
 							],
@@ -583,8 +584,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -765,7 +766,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -782,7 +783,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -848,8 +849,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -871,8 +872,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -979,7 +980,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).toContain(
 			"[media omitted: invalid or exceeds size limit]",
 		);
-		expect(serialized).not.toContain('"type":"image-data"');
+		expect(serialized).not.toContain('"type":"file"');
 		expect(serialized).not.toContain("PHN2Zz4=");
 		expect(serialized).not.toContain(oversizedImage);
 	});
@@ -1230,5 +1231,181 @@ describe("formatMessagesForAiSdk - surrogate sanitization", () => {
 			text: string;
 		}>;
 		expect(content[0]?.text).toContain("file \uFFFD");
+	});
+});
+
+describe("formatMessagesForAiSdk - models without image support", () => {
+	const imageData = (byteLength: number, fill = 1) =>
+		Buffer.alloc(byteLength, fill).toString("base64");
+
+	it("substitutes user image parts with placeholder text", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "look at this" },
+						{ type: "image", image, mediaType: "image/png" },
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "look at this" },
+					{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("keeps user image parts when supportsImages is explicitly true", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/png" }],
+				},
+			],
+			{ supportsImages: true },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("substitutes image blocks inside tool-result content arrays", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_file",
+							output: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "image", data: image, mediaType: "image/jpeg" },
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+							],
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("substitutes nested images in structured tool results without hoisting", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_files",
+							output: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										{ type: "text", text: "Successfully read image" },
+										{ type: "image", data: image, mediaType: "image/jpeg" },
+									],
+									success: true,
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: {
+							type: "json",
+							value: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										"Successfully read image",
+										IMAGE_UNSUPPORTED_PLACEHOLDER,
+									],
+									success: true,
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		const serialized = JSON.stringify(messages);
+		expect(serialized).not.toContain(image);
+		expect(serialized).not.toContain('"type":"image-data"');
+	});
+
+	it("uses the unsupported placeholder for error tool-result media too", () => {
+		const image = imageData(16);
+		const output = toAiSdkToolResultOutput(
+			[
+				{ type: "text", text: "boom" },
+				{ type: "image", data: image, mediaType: "image/jpeg" },
+			],
+			true,
+			undefined,
+			{ supportsImages: false },
+		);
+
+		expect(output).toEqual({
+			type: "error-json",
+			value: ["boom", IMAGE_UNSUPPORTED_PLACEHOLDER],
+		});
 	});
 });

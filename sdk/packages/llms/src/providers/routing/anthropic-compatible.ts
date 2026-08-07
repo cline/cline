@@ -12,6 +12,7 @@ import {
 	isAnthropicCompatibleModel,
 	isQwenModel,
 	modelRouteMatches,
+	resolveClaudeThinkingEra,
 	resolveModelFamily,
 } from "../model-facts";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
@@ -331,59 +332,65 @@ export function resolveAnthropicReasoningRequestPolicy(
 
 	const controls = getModelReasoningControls(context.model.reasoningOptions);
 	if (controls) {
-		if (!controls.effort && !controls.budget && !controls.toggle) {
-			return { kind: "none" };
+		// Models that advertise an effort control are adaptive-era. Their API
+		// rejects the manual wire shape (thinking.type "enabled") even when a
+		// budget_tokens control is also advertised, so a numeric request
+		// budget must not force manual thinking; the budget is ignored in
+		// favor of adaptive.
+		if (controls.effort) {
+			return { kind: "anthropic-adaptive" };
 		}
-		if (
-			typeof request.reasoning?.budgetTokens === "number" &&
-			controls.budget
-		) {
-			return { kind: "anthropic-manual" };
-		}
-		return controls.effort
-			? { kind: "anthropic-adaptive" }
-			: controls.budget || controls.toggle
-				? { kind: "anthropic-manual" }
-				: { kind: "none" };
+		return controls.budget || controls.toggle
+			? { kind: "anthropic-manual" }
+			: { kind: "none" };
 	}
 
-	// Custom/unlisted Claude-compatible models use the older manual-thinking
-	// wire shape instead of guessing adaptive-thinking support from their id.
-	return { kind: "anthropic-manual" };
+	// No catalog reasoning metadata: fall back to the id-based era policy
+	// (see resolveClaudeThinkingEra). 4.6+/5.x Claude ids require adaptive;
+	// unknown Claude ids default to adaptive for forward compatibility,
+	// matching @ai-sdk/anthropic's capability defaults — except when the
+	// request carries an explicit numeric budget, which signals a custom
+	// endpoint that expects the manual shape. Legacy Claude families and
+	// non-Claude Anthropic-compatible ids keep manual, the safe shape for
+	// third-party endpoints.
+	const era = resolveClaudeThinkingEra(request.modelId);
+	const hasExplicitBudget = typeof request.reasoning?.budgetTokens === "number";
+	return era === "adaptive" || (era === "unknown-claude" && !hasExplicitBudget)
+		? { kind: "anthropic-adaptive" }
+		: { kind: "anthropic-manual" };
 }
 
 export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ) {
-	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
-	const wantsAnthropicThinking =
-		request.reasoning?.enabled === true ||
-		request.reasoning?.effort !== undefined ||
-		(typeof request.reasoning?.budgetTokens === "number" &&
-			request.reasoning.budgetTokens > 0);
+	const explicitBudget =
+		request.reasoning?.enabled === false
+			? undefined
+			: request.reasoning?.budgetTokens;
 
+	// Effort-only and enable/disable intent rides the portable top-level
+	// reasoning option, so only explicit-budget requests reach this wire
+	// shape. Adaptive-era models reject the manual shape (thinking.type
+	// "enabled") even for numeric budgets, so the request budget is ignored
+	// in favor of adaptive thinking there.
 	let thinking: Record<string, unknown> | undefined;
-	if (request.reasoning?.enabled === false && policy.kind !== "none") {
-		thinking = { type: "disabled" };
-	} else if (wantsAnthropicThinking) {
+	let effort: string | undefined;
+	if (typeof explicitBudget === "number") {
+		const policy = resolveAnthropicReasoningRequestPolicy(request, context);
 		if (policy.kind === "anthropic-adaptive") {
 			thinking = { type: "adaptive" };
+			effort = request.reasoning?.effort;
 		} else if (policy.kind === "anthropic-manual") {
 			const budgetTokens = resolveAnthropicManualBudget(request, context);
-			if (budgetTokens === undefined) {
-				throw new Error(
-					"Anthropic manual thinking requires a positive budget smaller than maxTokens.",
-				);
+			if (budgetTokens !== undefined) {
+				thinking = { type: "enabled", budgetTokens };
 			}
-			thinking = { type: "enabled", budgetTokens };
 		}
 	}
 
 	return {
-		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
-			? { effort: request.reasoning.effort }
-			: {}),
+		...(effort ? { effort } : {}),
 		...(thinking ? { thinking } : {}),
 		...(shouldApplyAnthropicCacheBucket(request, context)
 			? createEphemeralCacheControl()
@@ -477,13 +484,13 @@ export function buildAnthropicCompatibleReasoningOptions(
 	}
 
 	const budgetTokens = resolveAnthropicManualBudget(request, context);
+	if (request.reasoning?.enabled === false) {
+		return { enabled: false };
+	}
 	const reasoning: Record<string, unknown> = {};
 
 	if (request.reasoning?.enabled === true) {
 		reasoning.enabled = true;
-	}
-	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
-		reasoning.effort = request.reasoning.effort;
 	}
 	if (
 		policy.kind === "anthropic-manual" &&
@@ -538,18 +545,12 @@ export function buildGatewayReasoningOptions(
 			: policy.kind === "anthropic-manual"
 				? resolveAnthropicManualBudget(request, context)
 				: request.reasoning?.budgetTokens;
-	const requestedEffort = request.reasoning?.effort;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
 			: request.reasoning?.enabled === false
 				? { enabled: false }
-				: request.reasoning?.effort
-					? { enabled: true }
-					: {}),
-		...(requestedEffort && policy.kind !== "anthropic-manual"
-			? { effort: requestedEffort }
-			: {}),
+				: {}),
 	};
 
 	if (typeof budgetTokens === "number" && budgetTokens >= 0) {

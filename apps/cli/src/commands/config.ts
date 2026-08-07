@@ -5,6 +5,7 @@ import {
 	type BuiltinToolAvailabilityContext,
 	createUserInstructionConfigService,
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginTools,
@@ -270,7 +271,7 @@ async function runPluginsConfigCommand(
 					continue;
 				}
 				pluginsByPath.set(filePath, {
-					name: basename(filePath, extname(filePath)),
+					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
 				});
 			}

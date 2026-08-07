@@ -21,14 +21,8 @@ import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
 } from "../cline-account";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getUserMessageBackground,
-	palette,
-	type TerminalTheme,
-} from "../palette";
+import { getUserMessageBackground } from "../palette";
+import type { ResolvedTheme } from "../themes";
 import type { ChatEntry } from "../types";
 import { formatCompactionDividerLabel } from "../utils/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
@@ -218,7 +212,7 @@ function ToolCallView(props: {
 	toolName: string;
 	inputSummary: string;
 	rawInput?: unknown;
-	accent?: string;
+	accent: string;
 	defaultFg?: string;
 	streaming: boolean;
 	result?: {
@@ -227,14 +221,8 @@ function ToolCallView(props: {
 		error?: string;
 	};
 }) {
-	const {
-		toolName,
-		inputSummary,
-		streaming,
-		result,
-		accent = palette.act,
-		defaultFg,
-	} = props;
+	const { toolName, inputSummary, streaming, result, accent, defaultFg } =
+		props;
 	const failed = result?.error != null;
 	const warningFailure = isWarningToolError(result?.error);
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
@@ -279,7 +267,11 @@ function ToolCallView(props: {
 	);
 }
 
-function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
+function ClineCreditsClinePassErrorView(props: {
+	defaultFg?: string;
+	theme: ResolvedTheme;
+}) {
+	const linkColor = props.theme.accents.act;
 	const subscriptionUrl = getCliSubscriptionUrl();
 	return (
 		<box flexDirection="row">
@@ -301,7 +293,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				/>
 				<box flexDirection="row">
 					<text fg="gray">Purchase Credits: </text>
-					<text fg={palette.act} selectable>
+					<text fg={linkColor} selectable>
 						<a href={CLINE_CREDITS_DASHBOARD_URL}>
 							{CLINE_CREDITS_DASHBOARD_URL}
 						</a>
@@ -309,7 +301,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">Purchase ClinePass: </text>
-					<text fg={palette.act} selectable>
+					<text fg={linkColor} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
@@ -324,18 +316,26 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 	);
 }
 
-function ClineCreditsErrorView(props: { defaultFg?: string }) {
-	return <ClineCreditsClinePassErrorView defaultFg={props.defaultFg} />;
+function ClineCreditsErrorView(props: {
+	defaultFg?: string;
+	theme: ResolvedTheme;
+}) {
+	return (
+		<ClineCreditsClinePassErrorView
+			defaultFg={props.defaultFg}
+			theme={props.theme}
+		/>
+	);
 }
 
 function ClinePassSubscriptionErrorView(props: {
 	defaultFg?: string;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const subscriptionUrl = getCliSubscriptionUrl();
 	const [planFeatures, setPlanFeatures] = useState<string[]>([]);
-	const planAccent = getModeAccent("plan", props.terminalTheme);
+	const planAccent = props.theme.accents.plan;
 
 	useEffect(() => {
 		if (!props.loadIndividualSubscriptionPlans) {
@@ -387,13 +387,13 @@ function ClinePassSubscriptionErrorView(props: {
 				)}
 				<box flexDirection="row">
 					<text fg="gray">Subscribe: </text>
-					<text fg={palette.act} selectable>
+					<text fg={props.theme.accents.act} selectable>
 						<a href={subscriptionUrl}>Open subscription page</a>
 					</text>
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">URL: </text>
-					<text fg={palette.act} selectable>
+					<text fg={props.theme.accents.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
@@ -404,9 +404,9 @@ function ClinePassSubscriptionErrorView(props: {
 
 function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	defaultFg?: string;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
-	const planAccent = getModeAccent("plan", props.terminalTheme);
+	const planAccent = props.theme.accents.plan;
 
 	return (
 		<box flexDirection="row">
@@ -464,21 +464,22 @@ function CompactionDividerRow(props: {
 function ClinePassLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
 	const detail = getClinePassLimitDetailMessage(props.message) ?? props.message;
+	const accent = props.theme.accents.act;
 
 	return (
 		<box flexDirection="row">
-			<text fg={palette.act} content="* " />
+			<text fg={accent} content="* " />
 			<box
 				flexDirection="column"
 				border
 				borderStyle="rounded"
-				borderColor={palette.act}
+				borderColor={accent}
 				paddingX={1}
 			>
-				<text fg="red">ClinePass limit reached</text>
+				<text fg={props.theme.accents.error}>ClinePass limit reached</text>
 				<text fg={props.defaultFg} selectable content={detail} />
 				<text
 					fg={props.defaultFg}
@@ -491,7 +492,7 @@ function ClinePassLimitErrorView(props: {
 					<code
 						content="--provider cline"
 						filetype="bash"
-						syntaxStyle={getSyntaxStyle(props.terminalTheme)}
+						syntaxStyle={getSyntaxStyle(props.theme)}
 						selectable
 					/>
 					<text fg={props.defaultFg} selectable content="." />
@@ -504,20 +505,24 @@ function ClinePassLimitErrorView(props: {
 function ClineFreeModelLimitErrorView(props: {
 	message: string;
 	defaultFg?: string;
+	theme: ResolvedTheme;
 }) {
 	const resetTime = extractClineFreeModelLimitResetTime(props.message);
+	const accent = props.theme.accents.act;
 
 	return (
 		<box flexDirection="row">
-			<text fg={palette.act} content="* " />
+			<text fg={accent} content="* " />
 			<box
 				flexDirection="column"
 				border
 				borderStyle="rounded"
-				borderColor={palette.act}
+				borderColor={accent}
 				paddingX={1}
 			>
-				<text fg="red">Daily free model limit reached</text>
+				<text fg={props.theme.accents.error}>
+					Daily free model limit reached
+				</text>
 				<text
 					fg={props.defaultFg}
 					selectable
@@ -538,18 +543,22 @@ function ClineFreeModelLimitErrorView(props: {
 	);
 }
 
-function ClineFreePromotionEndedErrorView(props: { defaultFg?: string }) {
+function ClineFreePromotionEndedErrorView(props: {
+	defaultFg?: string;
+	theme: ResolvedTheme;
+}) {
+	const accent = props.theme.accents.act;
 	return (
 		<box flexDirection="row">
-			<text fg={palette.act} content="* " />
+			<text fg={accent} content="* " />
 			<box
 				flexDirection="column"
 				border
 				borderStyle="rounded"
-				borderColor={palette.act}
+				borderColor={accent}
 				paddingX={1}
 			>
-				<text fg="red">Free model promotion ended</text>
+				<text fg={props.theme.accents.error}>Free model promotion ended</text>
 				<text
 					fg={props.defaultFg}
 					selectable
@@ -572,12 +581,12 @@ export function ChatEntryView(props: {
 	/** Mode the entry was produced in (resolved with the current-mode fallback). */
 	mode?: SyntaxAccentMode;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
-	terminalTheme: TerminalTheme;
+	theme: ResolvedTheme;
 }) {
-	const { entry, accent = palette.act, mode = "act", terminalTheme } = props;
-	const terminalBg = useTerminalBackground();
-	const defaultFg = getDefaultForeground(terminalBg);
-	const userMsgBg = getUserMessageBackground(terminalBg);
+	const { entry, mode = "act", theme } = props;
+	const accent = props.accent ?? theme.accents.act;
+	const defaultFg = theme.defaultForeground;
+	const userMsgBg = getUserMessageBackground(theme.background);
 
 	switch (entry.kind) {
 		case "user":
@@ -633,7 +642,7 @@ export function ChatEntryView(props: {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
+							syntaxStyle={getSyntaxStyle(theme, mode)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>
@@ -660,13 +669,13 @@ export function ChatEntryView(props: {
 
 		case "error":
 			if (isClineAccountCreditsErrorMessage(entry.text)) {
-				return <ClineCreditsErrorView defaultFg={defaultFg} />;
+				return <ClineCreditsErrorView defaultFg={defaultFg} theme={theme} />;
 			}
 			if (isClineOrgIndividualInferenceSubscriptionErrorMessage(entry.text)) {
 				return (
 					<ClineOrgIndividualInferenceSubscriptionErrorView
 						defaultFg={defaultFg}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}
@@ -677,7 +686,7 @@ export function ChatEntryView(props: {
 						loadIndividualSubscriptionPlans={
 							props.loadIndividualSubscriptionPlans
 						}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}
@@ -686,7 +695,7 @@ export function ChatEntryView(props: {
 					<ClinePassLimitErrorView
 						message={entry.text}
 						defaultFg={defaultFg}
-						terminalTheme={terminalTheme}
+						theme={theme}
 					/>
 				);
 			}
@@ -695,16 +704,26 @@ export function ChatEntryView(props: {
 					<ClineFreeModelLimitErrorView
 						defaultFg={defaultFg}
 						message={entry.text}
+						theme={theme}
 					/>
 				);
 			}
 			if (isClineFreePromotionEndedErrorMessage(entry.text)) {
-				return <ClineFreePromotionEndedErrorView defaultFg={defaultFg} />;
+				return (
+					<ClineFreePromotionEndedErrorView
+						defaultFg={defaultFg}
+						theme={theme}
+					/>
+				);
 			}
 			return (
 				<box flexDirection="row">
-					<text fg="red" content="* " />
-					<text fg="red" selectable content={`Error: ${entry.text}`} />
+					<text fg={theme.accents.error} content="* " />
+					<text
+						fg={theme.accents.error}
+						selectable
+						content={`Error: ${entry.text}`}
+					/>
 				</box>
 			);
 

@@ -9,6 +9,7 @@ import * as path from "node:path"
 import {
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
+	ensureChatWorkspace,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
 	resolveDefaultMcpSettingsPath,
@@ -104,7 +105,7 @@ import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
-import { resolveWorkspaceRootPath } from "./workspace-root"
+import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
 /**
  * Log a stub warning and return undefined.
@@ -242,6 +243,11 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
+	// Synchronous snapshot of getWorkspaceRoot()'s latest result, for the message
+	// translator (which runs synchronously and relativizes the tool paths shown in
+	// the chat view). Warmed in the constructor and refreshed on every call.
+	private lastKnownWorkspaceRoot?: string
+
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
 	}
@@ -292,7 +298,20 @@ export class Controller {
 			undefined,
 			() => this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+			() => this.lastKnownWorkspaceRoot,
+			// Model backing the active turn — lets error reshaping recognize
+			// retired cline-free/ models (the error payload itself never names one).
+			// The task shim is preferred over session-start metadata: a mid-task
+			// model-only switch updates the running session's model in place
+			// (updateActiveSessionModel) and refreshes the shim, but never touches
+			// startConfig/manifest, which would otherwise report the stale model.
+			// The shim starts as "unknown" (filtered out by getTaskModelId), so
+			// fresh sessions still resolve through their start metadata.
+			() => this.getTaskModelId() ?? this.getSessionModelId(),
 		)
+		// Warm the synchronous workspace-root snapshot used for display-path
+		// relativization (getWorkspaceRoot never rejects — it falls back internally).
+		void this.getWorkspaceRoot()
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
@@ -304,10 +323,6 @@ export class Controller {
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
-			onSwitchToActMode: () => {
-				this.mode.queueSwitchToActMode()
-			},
-			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
@@ -336,6 +351,7 @@ export class Controller {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
@@ -678,15 +694,6 @@ export class Controller {
 	}
 
 	private handleSessionBecameIdle(): void {
-		if (this.mode?.hasPendingModeChange()) {
-			// The mode rebuild reads the latest provider and tool configuration, so
-			// it supersedes any passive rebuild that was queued for the old mode.
-			this.sessionRebuilds.cancel("provider")
-			this.mode.applyPendingModeChange().catch((error) => {
-				Logger.error("[SdkController] Failed to apply deferred mode change:", error)
-			})
-			return
-		}
 		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
@@ -862,9 +869,11 @@ export class Controller {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
 			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
-			const workflowRecords = service
-				.listRecords("workflow")
-				.map((record) => ({ name: record.item.name, filePath: record.filePath }))
+			const workflowRecords = service.listRecords("workflow").map((record) => ({
+				id: record.id,
+				name: record.item.name,
+				filePath: record.filePath,
+			}))
 			const disabledWorkflowNames = buildDisabledWorkflowNames({
 				records: workflowRecords,
 				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
@@ -941,19 +950,48 @@ export class Controller {
 	 *
 	 * In VSCode this resolves to `vscode.workspace.workspaceFolders[0]` via
 	 * `HostProvider.workspace.getWorkspacePaths()`. If no workspace folder is
-	 * open, it falls back to Desktop.
+	 * open, it falls back to the SDK's shared chat workspace (see
+	 * getNoWorkspaceFallback).
 	 * This avoids using the VS Code extension host's `process.cwd()` (often `/`),
 	 * which produces invalid SDK workspace metadata with an empty hint.
 	 */
 	private async getWorkspaceRoot(): Promise<string> {
-		const noWorkspaceFallback = getDesktopDir()
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			return resolveWorkspaceRootPath(paths, noWorkspaceFallback)
+			const workspaceRoot = paths?.find((workspacePath) => workspacePath.trim().length > 0)
+			if (workspaceRoot) {
+				this.lastKnownWorkspaceRoot = workspaceRoot
+				return workspaceRoot
+			}
 		} catch (error) {
-			Logger.warn("[SdkController] Failed to get workspace paths, falling back to Desktop:", error)
+			Logger.warn("[SdkController] Failed to get workspace paths, using the no-workspace fallback:", error)
 		}
-		return noWorkspaceFallback
+		this.lastKnownWorkspaceRoot = await this.getNoWorkspaceFallback()
+		return this.lastKnownWorkspaceRoot
+	}
+
+	private noWorkspaceFallbackPromise?: Promise<string>
+
+	/**
+	 * Directory used when no workspace folder is open: the SDK's shared chat
+	 * workspace (`~/.cline/data/workspaces/chat`, seeded with an AGENTS.md
+	 * etiquette file), matching how the desktop app and CLI host sessions
+	 * started without a project. Desktop is only a last resort when the chat
+	 * workspace cannot be created. Memoized so repeated no-workspace calls
+	 * don't re-touch the filesystem.
+	 */
+	private getNoWorkspaceFallback(): Promise<string> {
+		this.noWorkspaceFallbackPromise ??= (async () => {
+			try {
+				return await ensureChatWorkspace()
+			} catch (error) {
+				Logger.warn("[SdkController] Failed to prepare the chat workspace, falling back to Desktop:", error)
+				// Don't memoize the degraded result; retry the chat workspace next time.
+				this.noWorkspaceFallbackPromise = undefined
+				return getDesktopDir()
+			}
+		})()
+		return this.noWorkspaceFallbackPromise
 	}
 
 	private async getRemoteConfigWorkspacePath(): Promise<string | undefined> {
@@ -2091,7 +2129,17 @@ export class Controller {
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			const validPaths = (paths ?? []).filter((workspacePath) => workspacePath.trim().length > 0)
+			// When no workspace folder is open, fall back to the active session's
+			// working directory (if known) or the shared chat workspace, the same
+			// root getWorkspaceRoot() gives sessions. The legacy Controller always
+			// seeded its manager with a fallback root (setupWorkspaceManager →
+			// getCwd(getDesktopDir())), so @-mention file search kept working in
+			// an empty window; returning undefined here instead made searchFiles
+			// emit task.mention_failed (workspace_unavailable) with zero results.
+			const validPaths = resolveWorkspaceManagerPaths(
+				paths,
+				this.lastKnownWorkspaceRoot ?? (await this.getNoWorkspaceFallback()),
+			)
 			if (validPaths.length === 0) {
 				return undefined
 			}

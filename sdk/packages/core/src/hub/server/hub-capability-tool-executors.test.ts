@@ -233,6 +233,14 @@ describe("hub client runtime capabilities", () => {
 						instructions: "Ship it carefully.",
 						kind: "workflow",
 					},
+					// Older clients serve raw configured names; the proxy must
+					// still match them against normalized typed tokens.
+					{
+						id: "workflow-ship-it",
+						name: "Ship It",
+						instructions: "Ship it with style.",
+						kind: "workflow",
+					},
 				],
 			},
 		}));
@@ -253,6 +261,12 @@ describe("hub client runtime capabilities", () => {
 
 		expect(service?.resolveRuntimeSlashCommand("/ship now")).toBe(
 			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/SHIP now")).toBe(
+			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/ship-it now")).toBe(
+			"Ship it with style. now",
 		);
 		expect(request).toHaveBeenCalledWith(
 			"session-1",

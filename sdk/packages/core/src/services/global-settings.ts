@@ -52,6 +52,7 @@ export const GlobalSettingsSchema = z
 		compactionEnabled: z.boolean().optional().catch(undefined),
 		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
 		toolAutoApprove: z.boolean().optional().catch(undefined),
+		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -64,6 +65,7 @@ export const GlobalSettingsSchema = z
 			compactionEnabled?: boolean;
 			planActMode?: GlobalPlanActMode;
 			toolAutoApprove?: boolean;
+			tuiTheme?: string;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
@@ -81,6 +83,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.toolAutoApprove !== undefined) {
 			normalized.toolAutoApprove = settings.toolAutoApprove;
+		}
+		if (settings.tuiTheme?.trim()) {
+			normalized.tuiTheme = settings.tuiTheme.trim();
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
@@ -264,6 +269,18 @@ export function setPlanActModeGlobally(planActMode: GlobalPlanActMode): void {
 
 export function readToolAutoApproveGlobally(): boolean | undefined {
 	return readGlobalSettings().toolAutoApprove;
+}
+
+/**
+ * Returns the persisted TUI theme id, or undefined when the user never chose
+ * one (callers apply their own default, typically terminal auto-detection).
+ */
+export function readTuiThemeGlobally(): string | undefined {
+	return readGlobalSettings().tuiTheme;
+}
+
+export function setTuiThemeGlobally(tuiTheme: string): void {
+	writeGlobalSettings({ ...readGlobalSettings(), tuiTheme });
 }
 
 export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {

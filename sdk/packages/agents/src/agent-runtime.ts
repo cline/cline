@@ -459,6 +459,13 @@ export class AgentRuntime {
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
 		lastErrorClass: undefined as ProviderErrorClass | undefined,
+		/**
+		 * Whether the model layer already recorded `sdk.error` telemetry for
+		 * `lastError` (from `errorReported` on the stream's `finish` event).
+		 * Custom `AgentModel` implementations that do not record their own
+		 * telemetry leave this false, so their failures still get reported.
+		 */
+		lastErrorReported: false,
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
@@ -538,6 +545,7 @@ export class AgentRuntime {
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
+		this.state.lastErrorReported = false;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
 			...this.config,
@@ -651,6 +659,7 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
+		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 
@@ -805,9 +814,15 @@ export class AgentRuntime {
 					: normalized.message === this.state.lastError
 						? this.state.lastErrorClass
 						: undefined;
+			// Same guard: the model layer's telemetry only covers this failure
+			// if the run failed on that exact recorded error.
+			const errorAlreadyReported =
+				normalized.message === this.state.lastError &&
+				this.state.lastErrorReported;
 			this.state.status = status;
 			this.state.lastError = normalized.message;
 			this.state.lastErrorClass = errorClass;
+			this.state.lastErrorReported = errorAlreadyReported;
 			const lastAssistantMessage = this.findLastAssistantMessage();
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
@@ -1127,6 +1142,28 @@ export class AgentRuntime {
 					}
 					break;
 				}
+				case "file": {
+					// Model-generated file output. Preserved into the assistant
+					// message so a file-only turn is not treated as empty:
+					// images become image parts (the shape providers accept on
+					// resend); other media becomes a file part carrying the
+					// base64 payload.
+					sequence.push({
+						type: "part",
+						part: event.mediaType.startsWith("image/")
+							? {
+									type: "image",
+									image: event.data,
+									mediaType: event.mediaType,
+								}
+							: {
+									type: "file",
+									path: `model-generated-file-${sequence.length + 1}`,
+									content: event.data,
+								},
+					});
+					break;
+				}
 				case "usage": {
 					await this.updateUsage(event.usage);
 					break;
@@ -1142,6 +1179,7 @@ export class AgentRuntime {
 						// stays eligible for overflow recovery.
 						this.state.lastErrorClass =
 							event.errorClass ?? classifyProviderError(event.error);
+						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;
 				}
@@ -1797,14 +1835,27 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				captureSdkError(this.config.telemetry, {
-					component: "agents",
-					operation: "agent.run",
-					error: event.error,
-					severity: "error",
-					handled: false,
-					context: metadata as TelemetryProperties,
-				});
+				// Failures the model layer already recorded at its own error
+				// boundary (`provider.stream`, carried across the stream's
+				// string-flattening boundary as `finish.errorReported`) must not
+				// be re-reported here — that exactly doubled `sdk.error` volume.
+				// Everything else still reports: loop-originated failures, and
+				// failures from model implementations that do not record their
+				// own telemetry.
+				if (!this.state.lastErrorReported) {
+					captureSdkError(this.config.telemetry, {
+						component: "agents",
+						operation: "agent.run",
+						error: event.error,
+						severity: "error",
+						handled: false,
+						context: {
+							...(metadata as TelemetryProperties),
+							providerId: this.getTelemetryProviderId(),
+							modelId: this.getTelemetryModelId(),
+						},
+					});
+				}
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);

@@ -14,9 +14,11 @@ const importCheck = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentAskQuestion,
 	AgentApprovalCard,
 	AgentAurora,
 	AgentHeroHeading,
+	AgentPromptQueue,
 	AgentQuickActions,
 	SearchCombobox,
 	SessionStatus,
@@ -26,6 +28,7 @@ import { Conversation, Message } from "@cline/ui/components/agent-chat";
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/palette.css",
 	"@cline/ui/theme/scoped-tokens.css",
 ]) {
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
@@ -37,8 +40,10 @@ const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 if (
 	!AgentApprovalCard ||
+	!AgentAskQuestion ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
+	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
 	!SessionStatus ||
@@ -127,6 +132,8 @@ async function verifyTailwindContract(
 		"max-h-44",
 		"not-last:border-b",
 		"focus-visible:outline-3",
+		"min-h-8",
+		"resize-none",
 	]) {
 		expectCandidate(css, candidate);
 	}
