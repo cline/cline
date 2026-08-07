@@ -222,6 +222,108 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("keeps dedicated audio models for providers with a speech endpoint", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"openai-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			google: {
+				id: "google",
+				name: "Google",
+				models: {
+					"google-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			"google-vertex": {
+				id: "google-vertex",
+				name: "Google Vertex",
+				models: {
+					"vertex-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"gateway-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).toHaveProperty("openai-speech");
+		expect(providerModels.gemini).toHaveProperty("google-speech");
+		expect(providerModels.vertex).toHaveProperty("vertex-speech");
+		expect(providerModels["vercel-ai-gateway"]).toHaveProperty(
+			"gateway-speech",
+		);
+	});
+
+	it("omits unsupported dedicated audio models but keeps mixed audio models", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			"extra-router": {
+				id: "extra-router",
+				name: "Extra Router",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"dedicated-audio": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"tool-flagged-dedicated-audio": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"mixed-audio": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "audio"],
+						},
+					},
+				},
+			},
+			mistral: {
+				id: "mistral",
+				name: "Mistral",
+				models: {
+					"voxtral-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"dedicated-audio",
+		);
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"tool-flagged-dedicated-audio",
+		);
+		expect(providerModels["extra-router"]).toMatchObject({
+			"mixed-audio": {
+				modalities: { input: ["text"], output: ["text", "audio"] },
+			},
+		});
+		expect(providerModels.mistral).toBeUndefined();
+	});
+
 	it("only admits dedicated image models for provider families with an image model factory", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			"extra-router": {
@@ -862,6 +964,29 @@ describe("models-dev-catalog", () => {
 				"openai/gpt-5.3-codex"
 			]?.contextWindow,
 		).toBe(400_000);
+	});
+
+	it("ships only endpoint-supported dedicated audio models", () => {
+		expect(
+			getGeneratedModelsForProvider("vercel-ai-gateway")["fish-audio/s2.1-pro"]
+				?.modalities,
+		).toEqual({ input: ["text"], output: ["audio"] });
+		expect(
+			getGeneratedModelsForProvider("gemini")["gemini-3.1-flash-tts-preview"]
+				?.modalities,
+		).toEqual({ input: ["text"], output: ["audio"] });
+		expect(
+			getGeneratedModelsForProvider("openrouter")["openai/gpt-audio"]
+				?.modalities,
+		).toEqual({ input: ["text", "audio"], output: ["text", "audio"] });
+		expect(
+			getGeneratedModelsForProvider("mistral")["voxtral-mini-tts-latest"],
+		).toBeUndefined();
+		expect(
+			getGeneratedModelsForProvider("digitalocean")[
+				"canopylabs/orpheus-v1-english"
+			],
+		).toBeUndefined();
 	});
 
 	it("includes video input for direct MiniMax M3 catalog entries", () => {

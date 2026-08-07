@@ -223,6 +223,29 @@ bytes out of persisted provider history:
    or restored from a checkpoint, generated videos are staged and atomically
    cloned into the new session before that session is exposed to the webview.
 
+### Generated Audio Flow
+
+Audio capability follows the same dedicated-versus-mixed routing boundary as
+image and video. A dedicated text-to-speech model uses the AI SDK
+`generateSpeech` API through a provider speech-model factory and forwards the
+session abort signal. A model whose output includes both `text` and `audio`
+remains on `streamText`, retaining runtime tools and completion policy; audio
+file parts from that stream are classified into structured audio events.
+
+1. `@cline/llms` converts the AI SDK `GeneratedAudioFile` into an audio event
+   containing validated media metadata and base64 bytes. Providers without a
+   speech-model surface fail explicitly instead of sending an audio-only model
+   to a language-model endpoint.
+2. `@cline/agents` assembles audio events into assistant message parts, and
+   persistent `@cline/core` hosts atomically materialize those bytes beneath
+   the session artifact directory.
+3. Provider-history formatting and context compaction keep only the audio MIME
+   type marker. Host-local artifact paths never leave the persistence boundary.
+4. Desktop serves generated audio from the same session-scoped artifact route
+   as video. Forks and checkpoint restores atomically clone only recognized
+   generated audio/video extensions into the replacement session, rolling the
+   replacement back if copying fails.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat

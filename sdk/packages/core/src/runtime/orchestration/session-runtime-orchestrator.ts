@@ -39,6 +39,7 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isDedicatedAudioGenerationModel,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
 	isLikelyAuthError,
@@ -848,6 +849,7 @@ export class SessionRuntime {
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
 		const dedicatedMediaGeneration =
+			isDedicatedAudioGenerationModel(modelInfo ?? {}) ||
 			isDedicatedImageGenerationModel(modelInfo ?? {}) ||
 			isDedicatedVideoGenerationModel(modelInfo ?? {});
 		const tools = dedicatedMediaGeneration

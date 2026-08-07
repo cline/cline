@@ -572,6 +572,13 @@ function toApiStreamChunk(
 				data: event.data,
 				mediaType: event.mediaType,
 			};
+		case "audio":
+			return {
+				type: "audio",
+				id,
+				data: event.data,
+				mediaType: event.mediaType,
+			};
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {

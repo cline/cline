@@ -842,6 +842,7 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageAudio,
 	ChatMessageImage,
 	ChatMessageVideo,
 	ChatSessionConfig,
@@ -850,6 +851,7 @@ export type {
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageAudioSchema,
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,

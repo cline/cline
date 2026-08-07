@@ -51,6 +51,14 @@ export interface VideoContent {
 	mediaType: string;
 }
 
+/** Artifact-backed generated audio. */
+export interface AudioContent {
+	type: "audio";
+	/** Absolute path within the owning session's artifact directory. */
+	path: string;
+	mediaType: string;
+}
+
 /**
  * Tool use content block (assistant's tool call)
  */
@@ -118,6 +126,7 @@ export type ContentBlock =
 	| TextContent
 	| ImageContent
 	| VideoContent
+	| AudioContent
 	| ToolUseContent
 	| ToolResultContent
 	| ThinkingContent

@@ -1,6 +1,15 @@
 "use client";
 
-import { AgentApprovalCard, AgentAskQuestion } from "@cline/ui";
+import {
+	AgentApprovalCard,
+	AgentAskQuestion,
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -64,6 +73,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
+	ChatMessageAudio,
 	ChatMessageImage,
 	ChatMessageVideo,
 	ChatSessionStatus,
@@ -146,7 +156,8 @@ function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
 		hasMessageReasoning(message) &&
 		!message.content.trim() &&
 		!message.images?.length &&
-		!message.videos?.length
+		!message.videos?.length &&
+		!message.audios?.length
 	);
 }
 
@@ -327,6 +338,76 @@ function MessageVideos({
 					sessionId={sessionId}
 					video={video}
 				/>
+			))}
+		</div>
+	);
+}
+
+function GeneratedAudio({
+	sessionId,
+	audio,
+}: {
+	sessionId: string;
+	audio: ChatMessageAudio;
+}) {
+	const [source, setSource] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void resolveDesktopBackendHttpEndpoint().then((endpoint) => {
+			if (cancelled) return;
+			setSource(
+				`${endpoint}/api/session-artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(audio.artifactName)}`,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [audio.artifactName, sessionId]);
+
+	return source ? (
+		<AudioPlayer className="w-full max-w-md text-foreground">
+			<AudioPlayerElement
+				aria-label="Generated audio"
+				muted={false}
+				onPlay={(event) => {
+					event.currentTarget.muted = false;
+					if (event.currentTarget.volume === 0) {
+						event.currentTarget.volume = 1;
+					}
+				}}
+				preload="metadata"
+				src={source}
+			/>
+			<AudioPlayerControlBar className="w-full">
+				<AudioPlayerPlayButton aria-label="Play or pause generated audio" />
+				<AudioPlayerTimeRange />
+				<AudioPlayerTimeDisplay
+					aria-label="Generated audio time remaining"
+					noToggle
+					remaining
+				/>
+			</AudioPlayerControlBar>
+		</AudioPlayer>
+	) : (
+		<div className="flex h-10 w-72 items-center justify-center rounded-lg border border-border text-sm text-muted-foreground">
+			<Loader2 className="mr-2 size-4 animate-spin" />
+			Loading audio…
+		</div>
+	);
+}
+
+function MessageAudios({
+	sessionId,
+	audios,
+}: {
+	sessionId: string;
+	audios: ChatMessageAudio[];
+}) {
+	return (
+		<div className="grid max-w-2xl gap-2">
+			{audios.map((audio) => (
+				<GeneratedAudio audio={audio} key={audio.id} sessionId={sessionId} />
 			))}
 		</div>
 	);
@@ -1403,6 +1484,13 @@ const MessageBubble = memo(function MessageBubble({
 						onExpandVideo={onExpandVideo}
 						sessionId={message.sessionId}
 						videos={message.videos}
+					/>
+				) : null}
+
+				{message.audios?.length && message.sessionId ? (
+					<MessageAudios
+						audios={message.audios}
+						sessionId={message.sessionId}
 					/>
 				) : null}
 

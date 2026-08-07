@@ -220,6 +220,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.video",
 				payload,
 			};
+		case "assistant.audio":
+			return {
+				sessionId,
+				eventType: "runtime.chat.audio",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,

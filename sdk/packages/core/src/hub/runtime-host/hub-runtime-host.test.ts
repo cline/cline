@@ -1054,6 +1054,86 @@ describe("HubRuntimeHost", () => {
 		expect(events).toHaveLength(1);
 	});
 
+	it("maps safe audio artifact references without accepting host paths", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "assistant.audio",
+			eventId: "evt-audio",
+			timestamp: Date.now(),
+			sessionId: "sess-1",
+			payload: {
+				audio: {
+					artifactName: "audio result.mp3",
+					mediaType: "audio/mpeg",
+				},
+			},
+		});
+
+		expect(events).toEqual([
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						type: "content_end",
+						contentType: "audio",
+						audio: {
+							path: "audio result.mp3",
+							mediaType: "audio/mpeg",
+						},
+					},
+				},
+			},
+		]);
+
+		for (const audio of [
+			{
+				path: "/private/host/sessions/sess-1/artifacts/audio.mp3",
+				mediaType: "audio/mpeg",
+			},
+			{ artifactName: "../audio.mp3", mediaType: "audio/mpeg" },
+		]) {
+			onEvent?.({
+				version: "v1",
+				event: "assistant.audio",
+				eventId: "evt-invalid-audio",
+				timestamp: Date.now(),
+				sessionId: "sess-1",
+				payload: { audio },
+			});
+		}
+		expect(events).toHaveLength(1);
+	});
+
 	it("maps hub usage updates back to agent usage events with identity", async () => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {

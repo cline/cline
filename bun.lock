@@ -738,6 +738,9 @@
     "sdk/packages/ui": {
       "name": "@cline/ui",
       "version": "0.2.0-next.2",
+      "dependencies": {
+        "media-chrome": "^4.18.1",
+      },
       "devDependencies": {
         "@fontsource-variable/schibsted-grotesk": "^5.2.8",
         "@fontsource/azeret-mono": "^5.2.9",

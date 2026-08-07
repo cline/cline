@@ -113,7 +113,7 @@ describe("sidecar HTTP origin checks", () => {
 	});
 });
 
-describe("session video artifacts", () => {
+describe("session media artifacts", () => {
 	it("serves a generated video only from the session artifact directory", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-video-artifact-"));
 		const dbDir = mkdtempSync(join(tmpdir(), "desktop-video-db-"));
@@ -138,6 +138,27 @@ describe("session video artifacts", () => {
 		expect(response?.status).toBe(200);
 		expect(response?.headers.get("content-type")).toBe("video/mp4");
 		await expect(response?.text()).resolves.toBe("video-bytes");
+	});
+
+	it("serves generated audio with its audio content type", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-audio-artifact-"));
+		temporaryDirectories.push(sessionsDir);
+		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+		const artifactsDir = join(sessionsDir, "session-1", "artifacts");
+		mkdirSync(artifactsDir, { recursive: true });
+		writeFileSync(join(artifactsDir, "audio-result.mp3"), "audio-bytes");
+
+		const response = await createHandler()(
+			new Request(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/audio-result.mp3",
+				{ headers: { origin: "tauri://localhost" } },
+			),
+			createTestServer(),
+		);
+
+		expect(response?.status).toBe(200);
+		expect(response?.headers.get("content-type")).toBe("audio/mpeg");
+		await expect(response?.text()).resolves.toBe("audio-bytes");
 	});
 
 	it("rejects untrusted origins for session artifacts", async () => {

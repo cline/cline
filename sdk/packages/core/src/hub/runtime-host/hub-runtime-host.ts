@@ -1789,6 +1789,27 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.audio": {
+				const audio = readHubArtifactReference(event.payload, "audio");
+				if (!audio) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "audio",
+							audio: {
+								path: audio.artifactName,
+								mediaType: audio.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",

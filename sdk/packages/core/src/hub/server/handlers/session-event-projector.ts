@@ -257,6 +257,16 @@ async function projectAgentEvent(
 					}
 				}
 				break;
+			case "audio":
+				if (agentEvent.audio) {
+					const audio = toHubArtifactReference(agentEvent.audio);
+					if (audio) {
+						ctx.publish(
+							ctx.buildEvent("assistant.audio", { audio }, sessionId),
+						);
+					}
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

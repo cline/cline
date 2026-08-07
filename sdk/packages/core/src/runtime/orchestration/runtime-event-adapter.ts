@@ -53,6 +53,7 @@
  */
 
 import type {
+	AgentAudioPart,
 	AgentEvent,
 	AgentFinishReason,
 	AgentImagePart,
@@ -131,6 +132,17 @@ function extractVideoParts(
 		.filter(
 			(part): part is AgentVideoPart & { path: string } =>
 				part.type === "video" && typeof part.path === "string",
+		)
+		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
+}
+
+function extractAudioParts(
+	message: AgentMessage,
+): Array<{ path: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentAudioPart & { path: string } =>
+				part.type === "audio" && typeof part.path === "string",
 		)
 		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
 }
@@ -331,6 +343,13 @@ export class RuntimeEventAdapter {
 				type: "content_end",
 				contentType: "video",
 				video,
+			});
+		}
+		for (const audio of extractAudioParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "audio",
+				audio,
 			});
 		}
 		return out;

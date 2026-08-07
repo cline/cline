@@ -1554,6 +1554,41 @@ describe("HubServerTransport boundaries", () => {
 		expect(JSON.stringify(events[0])).not.toContain(hostPath);
 	});
 
+	it("projects generated audio by artifact name without exposing host paths", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+		const hostPath =
+			"/private/host/.cline/data/sessions/session-1/artifacts/audio-result.mp3";
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "audio",
+					audio: { path: hostPath, mediaType: "audio/mpeg" },
+				},
+			},
+		});
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			event: "assistant.audio",
+			sessionId: "session-1",
+			payload: {
+				audio: {
+					artifactName: "audio-result.mp3",
+					mediaType: "audio/mpeg",
+				},
+			},
+		});
+		expect(events[0]?.payload?.audio).not.toHaveProperty("path");
+		expect(JSON.stringify(events[0])).not.toContain(hostPath);
+	});
+
 	it("projects live usage events with aggregate usage and agent identity", async () => {
 		const usage = {
 			inputTokens: 10,

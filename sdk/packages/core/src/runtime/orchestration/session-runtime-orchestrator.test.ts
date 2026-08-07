@@ -1015,6 +1015,77 @@ describe("SessionRuntime.run", () => {
 		});
 	});
 
+	it("disables tools and completion-tool policy for dedicated audio models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "dedicated-audio";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text"],
+							output: ["audio"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate speech");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion policy for mixed text-and-audio models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "mixed-text-audio";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text"],
+							output: ["text", "audio"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy,
+			}),
+			deps,
+		);
+
+		await session.run("Use a tool and return narrated text");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
+	});
+
 	it("appends the user turn into the conversation store", async () => {
 		const { deps } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

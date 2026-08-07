@@ -182,6 +182,7 @@ export {
 	validateImageMedia,
 } from "./llms/media";
 export type {
+	AudioContent,
 	ContentBlock,
 	FileContent,
 	ImageContent,
@@ -199,6 +200,8 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	isAudioGenerationModel,
+	isDedicatedAudioGenerationModel,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
 	isImageGenerationModel,

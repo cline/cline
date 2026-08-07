@@ -826,6 +826,36 @@ describe("formatMessagesForAiSdk", () => {
 		expect(JSON.stringify(messages)).not.toContain(artifactPath);
 	});
 
+	it("does not disclose generated audio artifact paths to providers", () => {
+		const artifactPath =
+			"/Users/example/.cline/data/sessions/session-1/artifacts/private-audio.mp3";
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "audio",
+						path: artifactPath,
+						mediaType: "audio/mpeg",
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "[Generated audio artifact: audio/mpeg]",
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(artifactPath);
+	});
+
 	it("moves generated assistant images onto string user messages", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [

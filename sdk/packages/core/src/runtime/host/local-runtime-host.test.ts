@@ -195,6 +195,75 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
+	it("normalizes supported audio MIME parameters and rejects unsupported audio", async () => {
+		const sessionId = "session-generated-audio-mime";
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		let capturedConfig: AgentConfig | undefined;
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-generated-audio-mime"),
+			getConversationId: vi.fn().mockReturnValue("conv-generated-audio-mime"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(sessionsDir),
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+			} as never,
+			createAgent: (config) => {
+				capturedConfig = config;
+				return agent as never;
+			},
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+				}),
+			);
+
+			const storeGeneratedArtifact = capturedConfig?.storeGeneratedArtifact;
+			expect(storeGeneratedArtifact).toBeTypeOf("function");
+			if (!storeGeneratedArtifact) {
+				throw new Error("storeGeneratedArtifact was not configured");
+			}
+
+			const stored = await storeGeneratedArtifact({
+				kind: "audio",
+				data: Buffer.from("wav-bytes").toString("base64"),
+				mediaType: "audio/wav; codecs=1",
+			});
+			expect(stored.path).toMatch(/\.wav$/);
+			expect(readFileSync(stored.path, "utf8")).toBe("wav-bytes");
+
+			await expect(
+				storeGeneratedArtifact({
+					kind: "audio",
+					data: Buffer.from("raw-pcm").toString("base64"),
+					mediaType: "audio/L16;rate=24000",
+				}),
+			).rejects.toThrow(
+				"Unsupported generated audio media type: audio/L16;rate=24000",
+			);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it.each([
 		{ source: "generated", requestedSessionId: undefined },
 		{ source: "requested", requestedSessionId: "session-explicit" },

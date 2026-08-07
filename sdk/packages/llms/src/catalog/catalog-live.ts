@@ -97,8 +97,22 @@ const DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
 	"vercel-ai-gateway",
 ]);
 
+// Dedicated speech models require a provider factory that exposes AI SDK's
+// SpeechModel interface. OpenAI-compatible providers without that endpoint can
+// still expose mixed text/audio language models through normal streaming.
+const DEDICATED_AUDIO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
+	"gemini",
+	"openai-native",
+	"vercel-ai-gateway",
+	"vertex",
+]);
+
 export function supportsDedicatedVideoEndpoint(providerId: string): boolean {
 	return DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS.has(providerId);
+}
+
+export function supportsDedicatedAudioEndpoint(providerId: string): boolean {
+	return DEDICATED_AUDIO_ENDPOINT_PROVIDER_IDS.has(providerId);
 }
 
 function parseReleaseDate(value: string | undefined): number {
@@ -252,7 +266,11 @@ function toModalities(
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (!output.includes("image") && !output.includes("video")) {
+	if (
+		!output.includes("image") &&
+		!output.includes("video") &&
+		!output.includes("audio")
+	) {
 		return undefined;
 	}
 	return { input, output };
@@ -262,7 +280,8 @@ function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("text") === true &&
 		(model.modalities.output?.includes("image") === true ||
-			model.modalities.output?.includes("video") === true)
+			model.modalities.output?.includes("video") === true ||
+			model.modalities.output?.includes("audio") === true)
 	);
 }
 
@@ -276,6 +295,13 @@ function isDedicatedImageModel(model: ModelsDevModel): boolean {
 function isDedicatedVideoModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.output?.includes("video") === true &&
+		model.modalities.output.includes("text") !== true
+	);
+}
+
+function isDedicatedAudioModel(model: ModelsDevModel): boolean {
+	return (
+		model.modalities?.output?.includes("audio") === true &&
 		model.modalities.output.includes("text") !== true
 	);
 }
@@ -309,6 +335,15 @@ function hasSupportedDedicatedVideoEndpoint(
 ): boolean {
 	return (
 		!isDedicatedVideoModel(model) || supportsDedicatedVideoEndpoint(providerId)
+	);
+}
+
+function hasSupportedDedicatedAudioEndpoint(
+	providerId: string,
+	model: ModelsDevModel,
+): boolean {
+	return (
+		!isDedicatedAudioModel(model) || supportsDedicatedAudioEndpoint(providerId)
 	);
 }
 
@@ -386,6 +421,7 @@ export function normalizeModelsDevProviderModels(
 					!providerSupportsDedicatedImageModels(source)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
 				!hasSupportedDedicatedVideoEndpoint(targetProviderId, model) ||
+				!hasSupportedDedicatedAudioEndpoint(targetProviderId, model) ||
 				isDeprecatedModel(model)
 			) {
 				continue;

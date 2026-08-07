@@ -76,6 +76,7 @@ export type AgentContentType =
 	| "reasoning"
 	| "image"
 	| "video"
+	| "audio"
 	| "tool";
 
 export interface AgentEventMetadata {
@@ -131,6 +132,11 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	};
 	/** Generated video persisted by the session host. */
 	video?: {
+		path: string;
+		mediaType: string;
+	};
+	/** Generated audio persisted by the session host. */
+	audio?: {
 		path: string;
 		mediaType: string;
 	};
@@ -770,7 +776,7 @@ export interface AgentConfig {
 	userFileContentLoader?: (path: string) => Promise<string>;
 	/** Host-owned storage for large generated artifacts. */
 	storeGeneratedArtifact?: (artifact: {
-		kind: "video";
+		kind: "video" | "audio";
 		data: string;
 		mediaType: string;
 	}) => Promise<{ path: string }>;

@@ -17,6 +17,7 @@ export type ApiStreamChunk =
 	| ApiStreamTextChunk
 	| ApiStreamImageChunk
 	| ApiStreamVideoChunk
+	| ApiStreamAudioChunk
 	| ApiStreamReasoningChunk
 	| ApiStreamUsageChunk
 	| ApiStreamToolCallsChunk
@@ -51,6 +52,14 @@ export interface ApiStreamImageChunk {
 export interface ApiStreamVideoChunk {
 	type: "video";
 	/** Base64-encoded video bytes, without a data URL prefix. */
+	data: string;
+	mediaType: string;
+	id: string;
+}
+
+export interface ApiStreamAudioChunk {
+	type: "audio";
+	/** Base64-encoded audio bytes, without a data URL prefix. */
 	data: string;
 	mediaType: string;
 	id: string;
