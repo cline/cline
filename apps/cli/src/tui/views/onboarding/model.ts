@@ -1,3 +1,5 @@
+import type { ChatModelModalities, ModelModality } from "@cline/shared";
+import { isChatProviderModel } from "../../../utils/chat-models";
 import { isOpenAICodexCliProvider } from "../../../utils/codex-cli";
 import { isOAuthProvider } from "../../../utils/provider-auth";
 
@@ -151,11 +153,14 @@ export interface ProviderModelItem {
 	id: string;
 	name?: string;
 	supportsReasoning?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export interface KnownModelInfo {
 	name?: string;
 	capabilities?: string[];
+	modalities?: ChatModelModalities;
 }
 
 export function toProviderEntry(provider: ProviderCatalogItem): ProviderEntry {
@@ -185,6 +190,12 @@ export function toModelEntriesFromKnownModels(
 ): ModelEntry[] {
 	if (!knownModels) return [];
 	return Object.entries(knownModels)
+		.filter(([, info]) =>
+			isChatProviderModel({
+				inputModalities: info.modalities?.input,
+				outputModalities: info.modalities?.output,
+			}),
+		)
 		.map(([id, info]) => ({
 			id,
 			name: info.name || id,
