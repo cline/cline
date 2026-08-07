@@ -48,18 +48,31 @@ describe("extractFullOutputText", () => {
 		expect(extractFullOutputText(raw)).toBe("# Memory\n\nline one\nline two");
 	});
 
-	it("keeps placeholders for non-text blocks in mixed MCP content", () => {
+	it("keeps identifying placeholders for non-text blocks in mixed MCP content", () => {
 		const raw = {
 			content: [
 				{ type: "text", text: "before" },
 				{ type: "image", data: "...", mimeType: "image/png" },
-				{ type: "resource", resource: { uri: "file:///a.md" } },
+				{ type: "resource", resource: { uri: "file:///a.md", blob: "..." } },
+				{ type: "resource_link", uri: "file:///b.md", name: "b.md" },
 				{ type: "text", text: "after" },
 			],
 		};
 		expect(extractFullOutputText(raw)).toBe(
-			"before\n[image]\n[resource]\nafter",
+			"before\n[image: image/png]\n[resource: file:///a.md]\n[resource_link: file:///b.md]\nafter",
 		);
+	});
+
+	it("extracts embedded resource text from MCP content", () => {
+		const raw = {
+			content: [
+				{
+					type: "resource",
+					resource: { uri: "file:///memory.md", text: "resource body\nline 2" },
+				},
+			],
+		};
+		expect(extractFullOutputText(raw)).toBe("resource body\nline 2");
 	});
 
 	it("falls back to pretty JSON for objects without text content", () => {
