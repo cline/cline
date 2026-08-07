@@ -42,7 +42,12 @@ export interface SdkSessionLifecycleOptions {
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
-	onSendStart?: (sessionId: string, origin: SdkSendOrigin) => void
+	/**
+	 * sendId is a monotonically increasing token minted per outbound send, so
+	 * consumers can order a send's start against later settles: a turn-settled
+	 * callback whose sendId predates the latest user submission is stale.
+	 */
+	onSendStart?: (sessionId: string, origin: SdkSendOrigin, sendId: number) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 	/**
@@ -63,7 +68,7 @@ export interface SdkSessionLifecycleOptions {
 	 * AgentResult. Drives post-turn automation such as the /goal verification
 	 * loop. Runs after onSendComplete so state bookkeeping is finished first.
 	 */
-	onTurnSettled?: (sessionId: string, result: AgentResult | undefined, origin: SdkSendOrigin) => void
+	onTurnSettled?: (sessionId: string, result: AgentResult | undefined, origin: SdkSendOrigin, sendId: number) => void
 	/**
 	 * Called when a non-queued send ends without settling (aborted, rejected,
 	 * or superseded by a session replacement). The /goal guard closes its
@@ -86,6 +91,8 @@ export class SdkSessionLifecycle {
 	private sharedHost: SdkSessionHost | undefined
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
 	private sharedHostUnsubscribe: (() => void) | undefined
+	/** Monotonic token per outbound send; see onSendStart/onTurnSettled. */
+	private sendSeq = 0
 	/**
 	 * Stops still in flight, keyed by sessionId. Mode/MCP rebuilds and
 	 * follow-up resumes reuse the sessionId of the session they replace, and
@@ -415,7 +422,8 @@ export class SdkSessionLifecycle {
 		// stripModeNotices.
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
-		this.options.onSendStart?.(sessionId, origin)
+		const sendId = ++this.sendSeq
+		this.options.onSendStart?.(sessionId, origin, sendId)
 		sdkHost
 			.send({
 				sessionId,
@@ -436,7 +444,7 @@ export class SdkSessionLifecycle {
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				this.setRunning(false)
 				await this.options.onSendComplete(sessionId)
-				this.options.onTurnSettled?.(sessionId, result, origin)
+				this.options.onTurnSettled?.(sessionId, result, origin, sendId)
 			})
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {

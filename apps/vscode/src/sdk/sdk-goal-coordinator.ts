@@ -48,6 +48,12 @@ export class SdkGoalCoordinator {
 	private verificationRounds = 0
 	/** Completion timestamp already reported through onGoalCompleted. */
 	private lastReportedCompletionAt: string | undefined
+	/**
+	 * sendId of the newest user submission (see SdkSessionLifecycle's
+	 * onSendStart). Settles whose sendId predates it are stale and must not
+	 * open a verification window.
+	 */
+	private lastUserSendId = 0
 
 	constructor(private readonly options: SdkGoalCoordinatorOptions) {}
 
@@ -81,8 +87,9 @@ export class SdkGoalCoordinator {
 	 * sequence (e.g. an aborted verification turn) so mark_goal_complete
 	 * refuses during it, and reset the per-submission round budget.
 	 */
-	handleSendStart(origin: SdkSendOrigin): void {
+	handleSendStart(origin: SdkSendOrigin, sendId: number): void {
 		if (origin === "user") {
+			this.lastUserSendId = sendId
 			this.verificationRounds = 0
 			this.guard.resetVerification()
 		}
@@ -93,9 +100,17 @@ export class SdkGoalCoordinator {
 	 * active and the turn finished "completed", follows up with a hidden
 	 * verification turn (up to the round cap per user submission).
 	 */
-	handleTurnSettled(sessionId: string, result: AgentResult | undefined, _origin: SdkSendOrigin): void {
+	handleTurnSettled(sessionId: string, result: AgentResult | undefined, _origin: SdkSendOrigin, sendId: number): void {
 		this.reportNewCompletion()
 		if (result?.finishReason !== "completed") {
+			this.guard.resetVerification()
+			return
+		}
+		if (sendId < this.lastUserSendId) {
+			// Stale settle: the user already started a newer ordinary turn
+			// (e.g. queued it while this send was in flight). Opening a
+			// verification window now would authorize mark_goal_complete
+			// during that ordinary turn without a verification prompt.
 			this.guard.resetVerification()
 			return
 		}

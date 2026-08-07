@@ -411,12 +411,12 @@ export class Controller {
 				}
 				return this._terminalManager
 			},
-			onSendStart: (_sessionId, origin) => {
+			onSendStart: (_sessionId, origin, sendId) => {
 				this.beginProviderFailureTelemetryTurn()
-				this.goal.handleSendStart(origin)
+				this.goal.handleSendStart(origin, sendId)
 			},
-			onTurnSettled: (sessionId, result, origin) => {
-				this.goal.handleTurnSettled(sessionId, result, origin)
+			onTurnSettled: (sessionId, result, origin, sendId) => {
+				this.goal.handleTurnSettled(sessionId, result, origin, sendId)
 			},
 			onTurnAbandoned: () => {
 				this.goal.handleTurnAbandoned()
