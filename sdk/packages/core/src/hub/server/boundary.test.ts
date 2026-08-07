@@ -1519,6 +1519,41 @@ describe("HubServerTransport boundaries", () => {
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
 	});
 
+	it("projects generated videos by artifact name without exposing host paths", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+		const hostPath =
+			"/private/host/.cline/data/sessions/session-1/artifacts/video-result.mp4";
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "video",
+					video: { path: hostPath, mediaType: "video/mp4" },
+				},
+			},
+		});
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			event: "assistant.video",
+			sessionId: "session-1",
+			payload: {
+				video: {
+					artifactName: "video-result.mp4",
+					mediaType: "video/mp4",
+				},
+			},
+		});
+		expect(events[0]?.payload?.video).not.toHaveProperty("path");
+		expect(JSON.stringify(events[0])).not.toContain(hostPath);
+	});
+
 	it("projects live usage events with aggregate usage and agent identity", async () => {
 		const usage = {
 			inputTokens: 10,

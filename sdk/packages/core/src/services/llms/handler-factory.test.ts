@@ -3,8 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const generatedModelsByProvider: Record<string, Record<string, unknown>> = {};
+	const curatedCollectionsByProvider: Record<
+		string,
+		{ models: Record<string, unknown> }
+	> = {};
 	return {
 		createAgentModel,
+		generatedModelsByProvider,
+		curatedCollectionsByProvider,
 		createGateway: vi.fn(() => ({ createAgentModel })),
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
@@ -15,10 +22,13 @@ const gatewayMock = vi.hoisted(() => {
 
 vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+	MODEL_COLLECTIONS_BY_PROVIDER_ID: gatewayMock.curatedCollectionsByProvider,
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
+	resolveProviderModelCatalogKeys: (id: string) => [id],
+	getGeneratedModelsForProvider: (id: string) =>
+		gatewayMock.generatedModelsByProvider[id] ?? {},
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -31,6 +41,151 @@ describe("createAgentModelFromConfig", () => {
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
 		gatewayMock.createHandlerAsync.mockReset();
+		for (const providerId of Object.keys(
+			gatewayMock.generatedModelsByProvider,
+		)) {
+			delete gatewayMock.generatedModelsByProvider[providerId];
+		}
+		for (const providerId of Object.keys(
+			gatewayMock.curatedCollectionsByProvider,
+		)) {
+			delete gatewayMock.curatedCollectionsByProvider[providerId];
+		}
+	});
+
+	it("uses generated catalog metadata when the host does not pass knownModels", async () => {
+		gatewayMock.generatedModelsByProvider.gemini = {
+			"veo-test": {
+				id: "veo-test",
+				name: "Veo Test",
+				modalities: { input: ["text"], output: ["video"] },
+				capabilities: [],
+			},
+		};
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "gemini",
+				modelId: "veo-test",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						models: [
+							expect.objectContaining({
+								id: "veo-test",
+								modalities: { input: ["text"], output: ["video"] },
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it("preserves curated models and only supplements missing generated media models", async () => {
+		gatewayMock.curatedCollectionsByProvider["openai-codex"] = {
+			models: {
+				"gpt-5.5": {
+					id: "gpt-5.5",
+					name: "Curated GPT-5.5",
+					maxInputTokens: 258_400,
+				},
+				"curated-video-model": {
+					id: "curated-video-model",
+					name: "Curated Video Model",
+					maxInputTokens: 8_192,
+					modalities: { input: ["text"], output: ["video"] },
+				},
+			},
+		};
+		gatewayMock.generatedModelsByProvider["openai-codex"] = {
+			"gpt-5.5": {
+				id: "gpt-5.5",
+				name: "Unfiltered GPT-5.5",
+				maxInputTokens: 400_000,
+			},
+			"unsupported-chat-model": {
+				id: "unsupported-chat-model",
+				modalities: { input: ["text"], output: ["text"] },
+			},
+			"curated-video-model": {
+				id: "curated-video-model",
+				name: "Generated Video Model",
+				maxInputTokens: 128_000,
+				modalities: { input: ["text"], output: ["video"] },
+			},
+			"generated-image-model": {
+				id: "generated-image-model",
+				modalities: { input: ["text"], output: ["image"] },
+			},
+			"generated-video-model": {
+				id: "generated-video-model",
+				modalities: { input: ["text"], output: ["video"] },
+			},
+			"mixed-video-model": {
+				id: "mixed-video-model",
+				modalities: { input: ["text"], output: ["text", "video"] },
+			},
+			"generated-audio-model": {
+				id: "generated-audio-model",
+				modalities: { input: ["text"], output: ["audio"] },
+			},
+		};
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+
+		const models = resolveKnownModelsFromConfig({
+			providerId: "openai-codex",
+			modelId: "gpt-5.5",
+			systemPrompt: "",
+			tools: [],
+		});
+
+		expect(models?.["gpt-5.5"]).toMatchObject({
+			name: "Curated GPT-5.5",
+			maxInputTokens: 258_400,
+		});
+		expect(models?.["curated-video-model"]).toMatchObject({
+			name: "Curated Video Model",
+			maxInputTokens: 8_192,
+		});
+		expect(models).not.toHaveProperty("unsupported-chat-model");
+		expect(models).not.toHaveProperty("generated-audio-model");
+		expect(models).toEqual(
+			expect.objectContaining({
+				"generated-image-model": expect.any(Object),
+				"generated-video-model": expect.any(Object),
+				"mixed-video-model": expect.any(Object),
+			}),
+		);
+	});
+
+	it("does not inherit Ollama Cloud chat models without host-known models", async () => {
+		gatewayMock.curatedCollectionsByProvider.ollama = { models: {} };
+		gatewayMock.generatedModelsByProvider.ollama = {
+			"cloud-chat-model": {
+				id: "cloud-chat-model",
+				modalities: { input: ["text"], output: ["text"] },
+			},
+		};
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+
+		expect(
+			resolveKnownModelsFromConfig({
+				providerId: "ollama",
+				modelId: "local-model",
+				systemPrompt: "",
+				tools: [],
+			}),
+		).toBeUndefined();
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {

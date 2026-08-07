@@ -214,6 +214,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.image",
 				payload,
 			};
+		case "assistant.video":
+			return {
+				sessionId,
+				eventType: "runtime.chat.video",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,

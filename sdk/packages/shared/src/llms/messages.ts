@@ -43,6 +43,14 @@ export interface ImageContent {
 	mediaType: string;
 }
 
+/** Artifact-backed generated video. */
+export interface VideoContent {
+	type: "video";
+	/** Absolute path within the owning session's artifact directory. */
+	path: string;
+	mediaType: string;
+}
+
 /**
  * Tool use content block (assistant's tool call)
  */
@@ -109,6 +117,7 @@ export interface RedactedThinkingContent {
 export type ContentBlock =
 	| TextContent
 	| ImageContent
+	| VideoContent
 	| ToolUseContent
 	| ToolResultContent
 	| ThinkingContent

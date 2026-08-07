@@ -62,6 +62,7 @@ import type {
 	AgentTextPart,
 	AgentToolResultPart,
 	AgentUsage,
+	AgentVideoPart,
 	LegacyAgentUsage,
 } from "@cline/shared";
 
@@ -121,6 +122,17 @@ function extractImageParts(
 			data: part.image,
 			mediaType: part.mediaType ?? "image/png",
 		}));
+}
+
+function extractVideoParts(
+	message: AgentMessage,
+): Array<{ path: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentVideoPart & { path: string } =>
+				part.type === "video" && typeof part.path === "string",
+		)
+		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
 }
 
 function extractToolResultPart(
@@ -312,6 +324,13 @@ export class RuntimeEventAdapter {
 				type: "content_end",
 				contentType: "image",
 				image,
+			});
+		}
+		for (const video of extractVideoParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "video",
+				video,
 			});
 		}
 		return out;

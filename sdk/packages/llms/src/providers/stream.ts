@@ -16,6 +16,7 @@ export type ApiStream = AsyncGenerator<ApiStreamChunk> & { id?: string };
 export type ApiStreamChunk =
 	| ApiStreamTextChunk
 	| ApiStreamImageChunk
+	| ApiStreamVideoChunk
 	| ApiStreamReasoningChunk
 	| ApiStreamUsageChunk
 	| ApiStreamToolCallsChunk
@@ -44,6 +45,14 @@ export interface ApiStreamImageChunk {
 	/** Image MIME type */
 	mediaType: string;
 	/** Response ID associated with this chunk */
+	id: string;
+}
+
+export interface ApiStreamVideoChunk {
+	type: "video";
+	/** Base64-encoded video bytes, without a data URL prefix. */
+	data: string;
+	mediaType: string;
 	id: string;
 }
 

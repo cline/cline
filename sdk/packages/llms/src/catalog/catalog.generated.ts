@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1786086702413,
+  version: 1786086998901,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -33322,6 +33322,38 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "gemini-omni-flash-preview": {
+      "id": "gemini-omni-flash-preview",
+      "name": "Gemini Omni Flash Preview",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 1.5,
+        "output": 17.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-30",
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "gemini-3-pro-image": {
       "id": "gemini-3-pro-image",
       "name": "Nano Banana Pro",
@@ -33710,6 +33742,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
+    "veo-3.1-lite-generate-preview": {
+      "id": "veo-3.1-lite-generate-preview",
+      "name": "Veo 3.1 lite",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-31",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "gemini-3.1-flash-live-preview": {
       "id": "gemini-3.1-flash-live-preview",
       "name": "Gemini 3.1 Flash Live Preview",
@@ -33918,6 +33977,62 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text",
           "image"
+        ]
+      }
+    },
+    "veo-3.1-fast-generate-preview": {
+      "id": "veo-3.1-fast-generate-preview",
+      "name": "Veo 3.1 fast",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "veo-3.1-generate-preview": {
+      "id": "veo-3.1-generate-preview",
+      "name": "Veo 3.1",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -97964,61 +98079,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-10-15",
       "family": "claude-haiku"
     },
-    "google/veo-3.1": {
-      "id": "google/veo-3.1",
-      "name": "Veo-3.1",
-      "contextWindow": 480,
-      "maxInputTokens": 480,
-      "maxTokens": 0,
-      "capabilities": [
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-15",
-      "family": "veo"
-    },
-    "google/veo-3.1-fast": {
-      "id": "google/veo-3.1-fast",
-      "name": "Veo-3.1-Fast",
-      "contextWindow": 480,
-      "maxInputTokens": 480,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-15",
-      "family": "veo"
-    },
-    "google/veo-3-fast": {
-      "id": "google/veo-3-fast",
-      "name": "Veo-3-Fast",
-      "contextWindow": 480,
-      "maxInputTokens": 480,
-      "maxTokens": 0,
-      "capabilities": [
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-13",
-      "family": "veo"
-    },
     "google/gemini-3-flash": {
       "id": "google/gemini-3-flash",
       "name": "Gemini-3-Flash",
@@ -98070,44 +98130,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-06",
       "family": "gpt-pro"
-    },
-    "openai/sora-2": {
-      "id": "openai/sora-2",
-      "name": "Sora-2",
-      "contextWindow": 0,
-      "maxInputTokens": 0,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-06",
-      "family": "sora"
-    },
-    "openai/sora-2-pro": {
-      "id": "openai/sora-2-pro",
-      "name": "Sora-2-Pro",
-      "contextWindow": 0,
-      "maxInputTokens": 0,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-06",
-      "family": "sora"
     },
     "novita/glm-4.6": {
       "id": "novita/glm-4.6",
@@ -98780,24 +98802,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-05-21",
       "family": "claude-sonnet"
     },
-    "google/veo-3": {
-      "id": "google/veo-3",
-      "name": "Veo-3",
-      "contextWindow": 480,
-      "maxInputTokens": 480,
-      "maxTokens": 0,
-      "capabilities": [
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-05-21",
-      "family": "veo"
-    },
     "cerebras/llama-3.1-8b-cs": {
       "id": "cerebras/llama-3.1-8b-cs",
       "name": "Llama-3.1-8B-CS",
@@ -98814,25 +98818,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-05-13"
-    },
-    "runwayml/runway-gen-4-turbo": {
-      "id": "runwayml/runway-gen-4-turbo",
-      "name": "Runway-Gen-4-Turbo",
-      "contextWindow": 256,
-      "maxInputTokens": 256,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-05-09",
-      "family": "runway"
     },
     "google/gemini-2.5-flash": {
       "id": "google/gemini-2.5-flash",
@@ -99180,25 +99165,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "lumalabs/ray2": {
-      "id": "lumalabs/ray2",
-      "name": "Ray2",
-      "contextWindow": 5000,
-      "maxInputTokens": 5000,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-02-20",
-      "family": "ray"
-    },
     "anthropic/claude-sonnet-3.7": {
       "id": "anthropic/claude-sonnet-3.7",
       "name": "Claude-Sonnet-3.7",
@@ -99398,24 +99364,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "google/veo-2": {
-      "id": "google/veo-2",
-      "name": "Veo-2",
-      "contextWindow": 480,
-      "maxInputTokens": 480,
-      "maxTokens": 0,
-      "capabilities": [
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-12-02",
-      "family": "veo"
-    },
     "openai/gpt-4o-aug": {
       "id": "openai/gpt-4o-aug",
       "name": "GPT-4o-Aug",
@@ -99505,25 +99453,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "image"
         ]
       }
-    },
-    "runwayml/runway": {
-      "id": "runwayml/runway",
-      "name": "Runway",
-      "contextWindow": 256,
-      "maxInputTokens": 256,
-      "maxTokens": 0,
-      "capabilities": [
-        "images",
-        "tools"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-10-11",
-      "family": "runway"
     },
     "anthropic/claude-haiku-3.5": {
       "id": "anthropic/claude-haiku-3.5",
@@ -113158,6 +113087,30 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vercel-ai-gateway": {
+    "bytedance/seedance-2.5": {
+      "id": "bytedance/seedance-2.5",
+      "name": "Seedance 2.5",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-07",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "inclusionai/ling-3.0-flash": {
       "id": "inclusionai/ling-3.0-flash",
       "name": "Ling 3.0 Flash",
@@ -113247,6 +113200,30 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-05",
       "family": "muse"
     },
+    "bfl/flux-3-video": {
+      "id": "bfl/flux-3-video",
+      "name": "Flux 3",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-04",
+      "family": "flux",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "alibaba/qwen3.8-max": {
       "id": "alibaba/qwen3.8-max",
       "name": "Qwen 3.8 Max",
@@ -113283,6 +113260,33 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-02",
       "family": "qwen"
+    },
+    "minimax/minimax-h3": {
+      "id": "minimax/minimax-h3",
+      "name": "MiniMax H3",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-30",
+      "family": "minimax",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "thinkingmachines/inkling-small": {
       "id": "thinkingmachines/inkling-small",
@@ -114017,6 +114021,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-23",
       "family": "glm"
     },
+    "xai/grok-imagine-video-1.5": {
+      "id": "xai/grok-imagine-video-1.5",
+      "name": "Grok Imagine Video 1.5",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-22",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "sakana/fugu-ultra": {
       "id": "sakana/fugu-ultra",
       "name": "Fugu Ultra",
@@ -114211,6 +114241,32 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-05-31",
       "family": "minimax-m3"
+    },
+    "xai/grok-imagine-video-1.5-preview": {
+      "id": "xai/grok-imagine-video-1.5-preview",
+      "name": "Grok Imagine Video 1.5 Preview",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-30",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "anthropic/claude-opus-4.8": {
       "id": "anthropic/claude-opus-4.8",
@@ -115048,6 +115104,114 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "bytedance/seedance-2.0": {
+      "id": "bytedance/seedance-2.0",
+      "name": "Seedance 2.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-14",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "bytedance/seedance-2.0-fast": {
+      "id": "bytedance/seedance-2.0-fast",
+      "name": "Seedance 2.0 Fast",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-14",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.7-r2v": {
+      "id": "alibaba/wan-v2.7-r2v",
+      "name": "Wan v2.7 Reference-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-07",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.7-t2v": {
+      "id": "alibaba/wan-v2.7-t2v",
+      "name": "Wan v2.7 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-07",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "zai/glm-5.1": {
       "id": "zai/glm-5.1",
       "name": "GLM 5.1",
@@ -115154,6 +115318,30 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
+    },
+    "google/veo-3.1-lite-generate-001": {
+      "id": "google/veo-3.1-lite-generate-001",
+      "name": "Veo 3.1 Lite Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-02",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "arcee-ai/trinity-large-thinking": {
       "id": "arcee-ai/trinity-large-thinking",
@@ -115597,6 +115785,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt"
     },
+    "klingai/kling-v3.0-motion-control": {
+      "id": "klingai/kling-v3.0-motion-control",
+      "name": "Kling v3.0 Motion Control",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-04",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/gpt-5.3-chat": {
       "id": "openai/gpt-5.3-chat",
       "name": "GPT-5.3 Chat",
@@ -116018,6 +116232,58 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-05",
       "family": "claude-opus"
     },
+    "klingai/kling-v3.0-i2v": {
+      "id": "klingai/kling-v3.0-i2v",
+      "name": "Kling v3.0 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-05",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v3.0-t2v": {
+      "id": "klingai/kling-v3.0-t2v",
+      "name": "Kling v3.0 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-05",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/gpt-5.3-codex": {
       "id": "openai/gpt-5.3-codex",
       "name": "GPT 5.3 Codex",
@@ -116109,6 +116375,32 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text",
           "image"
+        ]
+      }
+    },
+    "xai/grok-imagine-video": {
+      "id": "xai/grok-imagine-video",
+      "name": "Grok Imagine",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-01-28",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -116341,6 +116633,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-22",
       "family": "glm"
     },
+    "klingai/kling-v2.6-motion-control": {
+      "id": "klingai/kling-v2.6-motion-control",
+      "name": "Kling v2.6 Motion Control",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-18",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/gpt-5.2-codex": {
       "id": "openai/gpt-5.2-codex",
       "name": "GPT-5.2-Codex",
@@ -116410,6 +116728,136 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-17",
       "family": "gemini-flash"
     },
+    "alibaba/wan-v2.6-i2v": {
+      "id": "alibaba/wan-v2.6-i2v",
+      "name": "Wan v2.6 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-i2v-flash": {
+      "id": "alibaba/wan-v2.6-i2v-flash",
+      "name": "Wan v2.6 Image-to-Video Flash",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-r2v": {
+      "id": "alibaba/wan-v2.6-r2v",
+      "name": "Wan v2.6 Reference-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-r2v-flash": {
+      "id": "alibaba/wan-v2.6-r2v-flash",
+      "name": "Wan v2.6 Reference-to-Video Flash",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-t2v": {
+      "id": "alibaba/wan-v2.6-t2v",
+      "name": "Wan v2.6 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "bfl/flux-2-max": {
       "id": "bfl/flux-2-max",
       "name": "FLUX.2 [max]",
@@ -116433,6 +116881,32 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "bytedance/seedance-v1.5-pro": {
+      "id": "bytedance/seedance-v1.5-pro",
+      "name": "Seedance v1.5 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -116593,6 +117067,58 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "klingai/kling-v2.6-i2v": {
+      "id": "klingai/kling-v2.6-i2v",
+      "name": "Kling v2.6 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-03",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v2.6-t2v": {
+      "id": "klingai/kling-v2.6-t2v",
+      "name": "Kling v2.6 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-03",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -117018,6 +117544,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-10-27",
       "family": "minimax"
     },
+    "bytedance/seedance-v1.0-pro-fast": {
+      "id": "bytedance/seedance-v1.0-pro-fast",
+      "name": "Seedance v1.0 Pro Fast",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-24",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
       "name": "Claude Haiku 4.5",
@@ -117049,6 +117601,58 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-15",
       "family": "claude-haiku"
+    },
+    "google/veo-3.1-fast-generate-001": {
+      "id": "google/veo-3.1-fast-generate-001",
+      "name": "Veo 3.1 Fast Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "google/veo-3.1-generate-001": {
+      "id": "google/veo-3.1-generate-001",
+      "name": "Veo 3.1",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "openai/gpt-5-pro": {
       "id": "openai/gpt-5-pro",
@@ -117219,6 +117823,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-09-29",
       "family": "claude-sonnet"
     },
+    "alibaba/wan-v2.5-t2v-preview": {
+      "id": "alibaba/wan-v2.5-t2v-preview",
+      "name": "Wan v2.5 Text-to-Video Preview",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-24",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "alibaba/qwen3-235b-a22b-thinking": {
       "id": "alibaba/qwen3-235b-a22b-thinking",
       "name": "Qwen3 235B A22B Thinking 2507",
@@ -117316,6 +117946,58 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-09-23",
       "family": "qwen"
+    },
+    "klingai/kling-v2.5-turbo-i2v": {
+      "id": "klingai/kling-v2.5-turbo-i2v",
+      "name": "Kling v2.5 Turbo Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-23",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v2.5-turbo-t2v": {
+      "id": "klingai/kling-v2.5-turbo-t2v",
+      "name": "Kling v2.5 Turbo Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-23",
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "deepseek/deepseek-v3.1-terminus": {
       "id": "deepseek/deepseek-v3.1-terminus",
@@ -117841,6 +118523,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-07-31",
       "family": "qwen"
     },
+    "google/veo-3.0-fast-generate-001": {
+      "id": "google/veo-3.0-fast-generate-001",
+      "name": "Veo 3.0 Fast Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-07-31",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "zai/glm-4.5": {
       "id": "zai/glm-4.5",
       "name": "GLM 4.5",
@@ -118108,6 +118816,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-06-17",
       "family": "gemini-pro"
     },
+    "bytedance/seedance-v1.0-pro": {
+      "id": "bytedance/seedance-v1.0-pro",
+      "name": "Seedance v1.0 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-06-11",
+      "family": "seed",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
       "name": "o3 Pro",
@@ -118314,6 +119048,32 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "google/veo-3.0-generate-001": {
+      "id": "google/veo-3.0-generate-001",
+      "name": "Veo 3.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-05-20",
+      "family": "veo",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
