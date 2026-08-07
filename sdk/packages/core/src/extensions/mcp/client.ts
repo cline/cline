@@ -43,10 +43,13 @@ type JsonRpcMessage = {
 };
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-// Initialize budget when no timeout is configured. A configured `timeout`
-// raises it, which lets slow-starting servers (e.g. uvx downloading on first
-// run) get through initialize.
-const MCP_CONNECT_PROBE_TIMEOUT_MS = 1_500;
+// Initialize budget when no timeout is configured. Stdio servers routinely
+// need several seconds to become ready (JVM-based servers like Oracle SQLcl,
+// uvx downloading a package on first run), so the default matches the ~30s
+// startup budget other MCP clients allow. A configured `timeout` overrides
+// it in either direction. Dead commands still fail fast through the spawn
+// error/exit path; only an alive-but-silent server waits out this budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -178,14 +181,14 @@ class StdioMcpClient implements McpServerClient {
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
-		// Keep the fast probe default unless the user opted into patience:
-		// an unconfigured server must not stall startup longer than it did
-		// before per-server timeouts existed.
+		// Initialize gets its own default budget so slow-starting servers
+		// connect out of the box; an explicit `timeout` overrides it in
+		// either direction.
 		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
 			registration.timeoutSeconds,
 		)
 			? this.requestTimeoutMs
-			: MCP_CONNECT_PROBE_TIMEOUT_MS;
+			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
