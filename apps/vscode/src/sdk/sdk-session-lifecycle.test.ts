@@ -597,6 +597,38 @@ describe("SdkSessionLifecycle", () => {
 		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "and the tests?" }))
 	})
 
+	it("stamps a pending MCP tools notice onto the outbound prompt", async () => {
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		let pending: string | null = "MCP tools were updated and are available now."
+		const consumeMcpToolsNotice = vi.fn((sessionId: string) => {
+			if (sessionId !== "session-123") {
+				return null
+			}
+			const notice = pending
+			pending = null
+			return notice
+		})
+		const lifecycle = makeLifecycle({ consumeMcpToolsNotice })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "list my BodySpec scans")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "<mcp_tools_notice>MCP tools were updated and are available now.</mcp_tools_notice>\nlist my BodySpec scans",
+			}),
+		)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "again")
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
+		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "again" }))
+	})
+
 	it("sends prompts unchanged when no mode-switch notice is pending", async () => {
 		const send = vi.fn().mockResolvedValue(undefined)
 		const sdkHost = makeSdkHost({ send })
