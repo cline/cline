@@ -8,6 +8,7 @@ import {
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
+	getCoreBuiltinToolCatalog,
 	projectSessionCompactionState,
 	readGlobalSettings,
 	type SessionCompactionState,
@@ -134,11 +135,15 @@ async function expandRuntimeSlashCommand(
 	}
 }
 
+type TeamPromptAvailability = {
+	/** Session mode as stored in config; anything but plan/yolo counts as act. */
+	mode?: unknown;
+	disabledTools?: ReadonlySet<string>;
+};
+
 export function rewriteDesktopTeamPrompt(
 	prompt: string,
-	disabledTools: ReadonlySet<string> = new Set(
-		readGlobalSettings().disabledTools ?? [],
-	),
+	availability: TeamPromptAvailability = {},
 ): string {
 	const match = /^\/team\b([\s\S]*)$/i.exec(prompt.trim());
 	if (!match) return prompt;
@@ -148,10 +153,26 @@ export function rewriteDesktopTeamPrompt(
 			"Usage: /team <task description>. Starts a team of agents for the given task.",
 		);
 	}
+	const disabledTools =
+		availability.disabledTools ??
+		new Set(readGlobalSettings().disabledTools ?? []);
 	if (disabledTools.has("teams")) {
 		throw new Error(
 			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
 		);
+	}
+	// The runtime resolves tool availability from the mode's preset, so a
+	// preset without team tools must reject /team here rather than send the
+	// model an instruction it cannot act on.
+	const mode =
+		availability.mode === "plan" || availability.mode === "yolo"
+			? availability.mode
+			: "act";
+	const teamsAvailable = getCoreBuiltinToolCatalog({ mode }).some(
+		(entry) => entry.id === "teams" && entry.defaultEnabled,
+	);
+	if (!teamsAvailable) {
+		throw new Error(`Agent teams are not available in ${mode} mode.`);
 	}
 	return formatUserCommandBlock(
 		`spawn a team of agents for the following task: ${task}`,
@@ -163,9 +184,11 @@ async function resolveDesktopRuntimePrompt(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
 		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		{ mode },
 	);
 }
 
@@ -888,6 +911,7 @@ async function handleSend(
 		ctx,
 		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
 		prompt,
+		request.config?.mode ?? session?.config?.mode,
 	);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
@@ -1443,13 +1467,14 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
+	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
 	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
-		readWorkspacePath(ctx.liveSessions.get(sessionId)?.config) ??
-			ctx.workspaceRoot,
+		readWorkspacePath(sessionConfig) ?? ctx.workspaceRoot,
 		prompt,
+		sessionConfig?.mode,
 	);
 	const result = await manager.pendingPrompts.update({
 		sessionId,

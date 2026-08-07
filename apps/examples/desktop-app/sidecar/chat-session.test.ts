@@ -25,15 +25,41 @@ import type { SidecarContext } from "./types";
 
 describe("rewriteDesktopTeamPrompt", () => {
 	it("rewrites /team for the core runtime", () => {
-		expect(rewriteDesktopTeamPrompt("/team inspect the app", new Set())).toBe(
+		expect(
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+			}),
+		).toBe(
 			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		);
 	});
 
 	it("rejects /team when the Teams tool is disabled", () => {
 		expect(() =>
-			rewriteDesktopTeamPrompt("/team inspect the app", new Set(["teams"])),
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(["teams"]),
+			}),
 		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team when the mode's tool preset has no team tools", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				mode: "yolo",
+				disabledTools: new Set(),
+			}),
+		).toThrow("Agent teams are not available in yolo mode");
+	});
+
+	it("accepts /team in act and plan modes", () => {
+		for (const mode of ["act", "plan", undefined]) {
+			expect(
+				rewriteDesktopTeamPrompt("/team inspect the app", {
+					mode,
+					disabledTools: new Set(),
+				}),
+			).toContain('<user_command slash="team">');
+		}
 	});
 });
 
