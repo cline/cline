@@ -208,6 +208,9 @@ function createSettingsEntry(input: {
 	return {
 		transport,
 		...(input.disabled ? { disabled: true } : {}),
+		...(input.registration.timeoutSeconds === undefined
+			? {}
+			: { timeout: input.registration.timeoutSeconds }),
 		...existingOauth,
 		metadata: {
 			...(input.registration.metadata ?? {}),
