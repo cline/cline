@@ -6,7 +6,7 @@ import {
 	isGoalVerificationPrompt,
 	MAX_GOAL_VERIFICATION_ROUNDS,
 	sendTurnWithGoalVerification,
-} from "./goal";
+} from "./goal-guard";
 
 const toolContext = {
 	agentId: "agent",

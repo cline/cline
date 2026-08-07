@@ -342,7 +342,17 @@ export class SdkModeCoordinator {
 				// Without a typed message the canned prompt drives the continuation; it
 				// is intentionally not echoed as user_feedback, so no synthetic bubble
 				// shows in chat. Attachments still ride along with the canned prompt.
-				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt, userImages, userFiles)
+				// A typed message is a real user submission for /goal round budgeting;
+				// the canned continuation is system-driven and must not reset it.
+				this.options.sessions.fireAndForgetSend(
+					sdkHost,
+					startResult.sessionId,
+					prompt,
+					userImages,
+					userFiles,
+					undefined,
+					userPrompt ? "user" : "system",
+				)
 				continuationSent = true
 			}
 			// The early pre-rebuild post already showed the new mode, but state can

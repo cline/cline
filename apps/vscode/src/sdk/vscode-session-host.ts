@@ -30,7 +30,13 @@ import {
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import {
+	type AgentTool,
+	type AgentToolContext,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolPolicy,
+} from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -83,6 +89,12 @@ export interface VscodeSessionHostOptions {
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/**
+	 * Host-lifetime custom tools appended to every session's extraTools (e.g.
+	 * the /goal guard's mark_goal_complete). Registered on each start, so
+	 * mode/provider/MCP session rebuilds never drop them.
+	 */
+	extraTools?: AgentTool[]
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -152,7 +164,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 						config: {
 							...inputWithRemoteConfig.config,
 							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+							extraTools: [
+								...(inputWithRemoteConfig.config.extraTools ?? []),
+								...extraTools,
+								...(options.extraTools ?? []),
+							],
 						},
 					}
 				},

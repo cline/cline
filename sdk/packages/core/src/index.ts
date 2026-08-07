@@ -517,9 +517,9 @@ export {
 	RESTART_COUNTER_RESET_MS,
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
-	setActiveConnectorSupervisor,
 	STOP_SIGKILL_TIMEOUT_MS,
 	STOP_SIGTERM_TIMEOUT_MS,
+	setActiveConnectorSupervisor,
 } from "./services/connectors/connector-supervisor";
 export {
 	FeatureFlagsService,
@@ -776,6 +776,18 @@ export {
 	readSessionCheckpointHistory,
 	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
+export {
+	type CompletedGoalRecord,
+	createInteractiveGoalGuard,
+	formatGoalTaskPrompt,
+	formatGoalVerificationPrompt,
+	GOAL_COMMAND_USAGE,
+	type InteractiveGoalGuard,
+	type InteractiveGoalRecord,
+	isGoalVerificationPrompt,
+	MAX_GOAL_VERIFICATION_ROUNDS,
+	sendTurnWithGoalVerification,
+} from "./session/goal-guard";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
