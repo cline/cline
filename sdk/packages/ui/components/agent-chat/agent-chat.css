@@ -119,10 +119,10 @@
 
 	.cline-chat-message[data-role="error"] > .cline-chat-message-content {
 		padding: 0.75rem;
-		border: 1px solid color-mix(in oklab, var(--destructive) 40%, transparent);
+		border: 1px solid var(--error-border);
 		border-radius: var(--radius);
-		background: color-mix(in oklab, var(--destructive) 10%, transparent);
-		color: var(--destructive);
+		background: var(--error-surface);
+		color: var(--error-text);
 	}
 
 	.cline-chat-message[data-role="system"] > .cline-chat-message-content,
@@ -246,11 +246,15 @@
 	}
 
 	.cline-chat-tool-trigger {
+		color: var(--success-text);
+	}
+
+	.cline-chat-tool-trigger[data-status="running"] {
 		color: var(--primary);
 	}
 
 	.cline-chat-tool-trigger[data-status="error"] {
-		color: var(--destructive);
+		color: var(--error-text);
 	}
 
 	.cline-chat-tool-trigger[data-status="pending"] {
@@ -258,11 +262,15 @@
 	}
 
 	button.cline-chat-tool-trigger:hover {
+		color: color-mix(in oklab, var(--success-text) 80%, transparent);
+	}
+
+	button.cline-chat-tool-trigger[data-status="running"]:hover {
 		color: color-mix(in oklab, var(--primary) 80%, transparent);
 	}
 
 	button.cline-chat-tool-trigger[data-status="error"]:hover {
-		color: color-mix(in oklab, var(--destructive) 80%, transparent);
+		color: color-mix(in oklab, var(--error-text) 80%, transparent);
 	}
 
 	.cline-chat-tool-icon {
@@ -283,11 +291,11 @@
 	}
 
 	.cline-chat-tool-diff [data-diff="additions"] {
-		color: var(--chart-2);
+		color: var(--success-text);
 	}
 
 	.cline-chat-tool-diff [data-diff="deletions"] {
-		color: var(--destructive);
+		color: var(--error-text);
 	}
 
 	.cline-chat-tool-progress {
