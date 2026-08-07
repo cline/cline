@@ -69,6 +69,12 @@ export interface McpServerOAuthState {
 	redirectUrl?: string;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
+	authorizationRequired?: boolean;
+}
+
+export interface McpServerOAuthClientConfig {
+	clientId: string;
+	clientSecret?: string;
 }
 
 export interface McpServerRegistration {
@@ -85,6 +91,7 @@ export interface McpServerRegistration {
 	 */
 	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
+	oauthClient?: McpServerOAuthClientConfig;
 	oauth?: McpServerOAuthState;
 }
 
@@ -117,6 +124,7 @@ export interface McpServerOAuthStatus {
 	serverName: string;
 	oauthSupported: boolean;
 	oauthConfigured: boolean;
+	authorizationRequired: boolean;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
 }
