@@ -65,7 +65,9 @@ import {
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
+	readProviderCatalogSnapshot,
 	subscribeToProviderCatalogInvalidation,
+	writeProviderCatalogSnapshot,
 } from "@/lib/provider-model-catalog";
 import {
 	buildSessionAgentActivity,
@@ -485,12 +487,9 @@ export default function Home() {
 
 // "+ new chat" remounts ChatThreadPane with a fresh thread id, and the pane
 // blocks on the provider catalog (a large fetch) before rendering anything.
-// Seed remounts from the last successful load so only the first-ever mount
-// shows the boot spinner; the effect still refreshes in the background.
-let providerCatalogSnapshot: {
-	credentials: Record<string, { apiKey: string }>;
-	contextWindows: Record<string, Record<string, number>>;
-} | null = null;
+// Seed remounts from the last successful load (kept in the catalog module,
+// where credential changes invalidate it) so only the first-ever mount shows
+// the boot spinner; the effect still refreshes in the background.
 let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
@@ -586,13 +585,13 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState("no-git");
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
-	>(() => providerCatalogSnapshot?.credentials ?? {});
+	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>(
-			() => providerCatalogSnapshot?.contextWindows ?? {},
+			() => readProviderCatalogSnapshot()?.contextWindows ?? {},
 		);
 	const [providersLoaded, setProvidersLoaded] = useState(
-		() => providerCatalogSnapshot !== null,
+		() => readProviderCatalogSnapshot() !== null,
 	);
 	// null = unknown (catalog unavailable): never nag in that case.
 	const [hasConnectedProvider, setHasConnectedProvider] = useState<
@@ -681,10 +680,10 @@ function ChatThreadPane({
 				}
 				nextContextWindows[id] = contextWindows;
 			}
-			providerCatalogSnapshot = {
+			writeProviderCatalogSnapshot({
 				credentials: next,
 				contextWindows: nextContextWindows,
-			};
+			});
 			setProviderCredentials(next);
 			setProviderModelContextWindows(nextContextWindows);
 			setHasConnectedProvider(anyConnected);

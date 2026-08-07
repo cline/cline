@@ -1806,9 +1806,7 @@ export function useChatSession() {
 				// rendered as an assistant bubble (canonical rehydration would
 				// silently wipe it, leaving the user with a blank chat).
 				const isErrorResult = result?.finishReason === "error";
-				const assistantText = isErrorResult
-					? ""
-					: (result?.text ?? "").trim();
+				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
