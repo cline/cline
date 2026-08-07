@@ -66,6 +66,16 @@ describe("SdkMessageCoordinator", () => {
 		expect(JSON.parse(finalized[2].text ?? "{}")).toEqual({ cancelReason: "user_cancelled" })
 	})
 
+	it("preserves a specific cancellation reason for mode changes", () => {
+		const coordinator = new SdkMessageCoordinator({ getTask: () => undefined })
+		const finalized = coordinator.finalizeMessagesForSave(
+			[{ ts: 1, type: "say", say: "api_req_started", text: JSON.stringify({}), partial: true }],
+			"mode_changed",
+		)
+
+		expect(JSON.parse(finalized[0].text ?? "{}")).toEqual({ cancelReason: "mode_changed" })
+	})
+
 	it("stamps seq and epoch from the shared minter on append", () => {
 		const minter = new MessageIdMinter()
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())

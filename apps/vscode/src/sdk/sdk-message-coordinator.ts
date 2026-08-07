@@ -110,7 +110,10 @@ export class SdkMessageCoordinator {
 	 * - Strips `partial` flags so the UI doesn't show a streaming/cancel state
 	 * - Updates the last `api_req_started` with a cancel reason if it has no cost
 	 */
-	finalizeMessagesForSave(messages: ClineMessage[]): ClineMessage[] {
+	finalizeMessagesForSave(
+		messages: ClineMessage[],
+		cancelReason: ClineApiReqInfo["cancelReason"] = "user_cancelled",
+	): ClineMessage[] {
 		return messages.map((msg, index) => {
 			const updated = { ...msg }
 
@@ -124,7 +127,7 @@ export class SdkMessageCoordinator {
 					if (info.cost === undefined && info.cancelReason === undefined) {
 						const isLast = !messages.slice(index + 1).some((m) => m.type === "say" && m.say === "api_req_started")
 						if (isLast) {
-							info.cancelReason = "user_cancelled"
+							info.cancelReason = cancelReason
 							updated.text = JSON.stringify(info)
 						}
 					}

@@ -645,7 +645,10 @@ describe("SdkModeCoordinator", () => {
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
-		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
+		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(
+			task.messageStateHandler.getClineMessages(),
+			"mode_changed",
+		)
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 		// The finalized messages ride on the state post, so a post must land
 		// after the append or the webview keeps showing the aborted partial.
