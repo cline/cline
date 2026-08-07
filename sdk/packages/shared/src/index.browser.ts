@@ -173,6 +173,7 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatModelModalities,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -187,6 +188,7 @@ export {
 	ModelPricingSchema,
 	type ModelStatus,
 	ModelStatusSchema,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 } from "./llms/model-info";
