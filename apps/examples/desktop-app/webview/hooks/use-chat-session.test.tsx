@@ -1213,6 +1213,78 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).toContain("Settings");
 	});
 
+	it("never attributes an earlier turn's core error to a later detail-less failure", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// Turn A logs an error-level entry but ultimately completes (e.g. an
+		// internal retry succeeded). Its remembered error must die with it.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Unauthorized: invalid API key",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		// Turn B's start and log events were lost across a transport
+		// interruption (websocket events are not replayed); only its
+		// detail-less failure arrives. It must not resurrect turn A's error.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain(
+			"The run failed before a response was produced.",
+		);
+		expect(errorMessage?.content).not.toContain("Unauthorized");
+	});
+
 	it("keeps the failure message when post-send hydration replaces the transcript", async () => {
 		// Real race: the runtime queues the first prompt of a fresh session, the
 		// turn fails fast (chat_done error appends the failure bubble), and only

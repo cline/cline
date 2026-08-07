@@ -1273,6 +1273,12 @@ export function useChatSession() {
 				if (doneReason === "error") {
 					appendTurnFailureMessage(listeningSessionId, doneText);
 				}
+				// The remembered core error belongs to the turn that just ended.
+				// Turn-start events also clear it, but they can be lost across a
+				// transport interruption (websocket events are not replayed), so
+				// clearing on turn end too keeps a stale error from ever being
+				// attributed to a later turn's detail-less failure.
+				delete lastCoreErrorBySessionRef.current[listeningSessionId];
 				const nextStatus: ChatSessionStatus =
 					doneReason === "aborted"
 						? "cancelled"
@@ -2151,6 +2157,7 @@ export function useChatSession() {
 		sessionStartPromiseRef.current = null;
 		outstandingOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
+		lastCoreErrorBySessionRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
@@ -2210,6 +2217,7 @@ export function useChatSession() {
 			) => {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
+				lastCoreErrorBySessionRef.current = {};
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
