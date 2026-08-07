@@ -145,13 +145,17 @@ function generatedArtifactExtension(
 	kind: "video" | "audio",
 	mediaType: string,
 ): string {
-	switch (mediaType.toLowerCase()) {
+	const normalizedMediaType = mediaType.split(";", 1)[0]?.trim().toLowerCase();
+	switch (normalizedMediaType) {
 		case "video/webm":
 			return "webm";
 		case "video/quicktime":
 			return "mov";
 		case "video/mpeg":
 			return "mpeg";
+		case "audio/mpeg":
+		case "audio/mp3":
+			return "mp3";
 		case "audio/wav":
 		case "audio/wave":
 		case "audio/x-wav":
@@ -170,7 +174,10 @@ function generatedArtifactExtension(
 		case "audio/opus":
 			return "ogg";
 		default:
-			return kind === "audio" ? "mp3" : "mp4";
+			if (kind === "audio") {
+				throw new Error(`Unsupported generated audio media type: ${mediaType}`);
+			}
+			return "mp4";
 	}
 }
 
