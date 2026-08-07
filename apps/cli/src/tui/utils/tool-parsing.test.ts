@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildReadFilesKeys, parseReadFilesInput } from "./tool-parsing";
+import {
+	buildReadFilesKeys,
+	extractFullOutputText,
+	parseReadFilesInput,
+} from "./tool-parsing";
 
 describe("buildReadFilesKeys", () => {
 	it("produces unique keys when the same path is read twice", () => {
@@ -30,5 +34,22 @@ describe("buildReadFilesKeys", () => {
 
 	it("returns no keys for an empty list", () => {
 		expect(buildReadFilesKeys([])).toEqual([]);
+	});
+});
+
+describe("extractFullOutputText", () => {
+	it("extracts text with real newlines from the MCP CallToolResult shape", () => {
+		const raw = {
+			content: [
+				{ type: "text", text: "# Memory\n\nline one" },
+				{ type: "text", text: "line two" },
+			],
+		};
+		expect(extractFullOutputText(raw)).toBe("# Memory\n\nline one\nline two");
+	});
+
+	it("falls back to pretty JSON for objects without text content", () => {
+		const raw = { structuredContent: { ok: true } };
+		expect(extractFullOutputText(raw)).toBe(JSON.stringify(raw, null, 2));
 	});
 });

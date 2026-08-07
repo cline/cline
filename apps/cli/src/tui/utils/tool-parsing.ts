@@ -213,6 +213,21 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 	}
 
 	if (typeof raw === "object") {
+		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
+		// text so multi-line results keep real newlines instead of being
+		// JSON-escaped into one giant line that floods the terminal (#13038).
+		const content = (raw as { content?: unknown }).content;
+		if (Array.isArray(content)) {
+			const parts = content
+				.filter(
+					(part): part is { text: string } =>
+						isRecord(part) &&
+						part.type === "text" &&
+						typeof part.text === "string",
+				)
+				.map((part) => part.text);
+			if (parts.length > 0) return parts.join("\n");
+		}
 		try {
 			return JSON.stringify(raw, null, 2);
 		} catch {
