@@ -924,6 +924,95 @@ describe("sdk-gateway", () => {
 		]);
 	});
 
+	it("streams generated video files for mixed text-and-video models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Here is the video" },
+				{
+					type: "file",
+					file: { mediaType: "video/webm", base64: "dmlkZW8=" },
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalled();
+		expect(generateVideoSpy).not.toHaveBeenCalled();
+		expect(events).toContainEqual({
+			type: "video",
+			data: "dmlkZW8=",
+			mediaType: "video/webm",
+		});
+	});
+
+	it("preserves text-only responses from mixed text-and-video models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "No video was generated" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "text-delta",
+			text: "No video was generated",
+		});
+		expect(events.at(-1)).toMatchObject({ type: "finish" });
+		expect(events.at(-1)).not.toMatchObject({ reason: "error" });
+	});
+
 	it("passes the first generated image into a follow-up image edit", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/png", base64: "ZWRpdGVk" }],

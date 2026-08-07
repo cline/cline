@@ -796,6 +796,36 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("does not disclose generated video artifact paths to providers", () => {
+		const artifactPath =
+			"/Users/example/.cline/data/sessions/session-1/artifacts/private-video.mp4";
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "video",
+						path: artifactPath,
+						mediaType: "video/mp4",
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "[Generated video artifact: video/mp4]",
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(artifactPath);
+	});
+
 	it("moves generated assistant images onto string user messages", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [

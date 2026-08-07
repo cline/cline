@@ -24,6 +24,7 @@ function createTelemetryHandler(capture = vi.fn()) {
 }
 
 const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+const originalDbDataDir = process.env.CLINE_DB_DATA_DIR;
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -31,6 +32,11 @@ afterEach(() => {
 		delete process.env.CLINE_SESSION_DATA_DIR;
 	} else {
 		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
+	}
+	if (originalDbDataDir === undefined) {
+		delete process.env.CLINE_DB_DATA_DIR;
+	} else {
+		process.env.CLINE_DB_DATA_DIR = originalDbDataDir;
 	}
 	for (const directory of temporaryDirectories.splice(0)) {
 		rmSync(directory, { recursive: true, force: true });
@@ -110,11 +116,16 @@ describe("sidecar HTTP origin checks", () => {
 describe("session video artifacts", () => {
 	it("serves a generated video only from the session artifact directory", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-video-artifact-"));
-		temporaryDirectories.push(sessionsDir);
+		const dbDir = mkdtempSync(join(tmpdir(), "desktop-video-db-"));
+		temporaryDirectories.push(sessionsDir, dbDir);
 		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+		process.env.CLINE_DB_DATA_DIR = dbDir;
 		const artifactsDir = join(sessionsDir, "session-1", "artifacts");
+		const dbArtifactsDir = join(dbDir, "session-1", "artifacts");
 		mkdirSync(artifactsDir, { recursive: true });
+		mkdirSync(dbArtifactsDir, { recursive: true });
 		writeFileSync(join(artifactsDir, "video-result.mp4"), "video-bytes");
+		writeFileSync(join(dbArtifactsDir, "video-result.mp4"), "database-bytes");
 
 		const response = await createHandler()(
 			new Request(

@@ -707,7 +707,7 @@ export function formatMessagesForAiSdk(
 				case "video":
 					messageParts.push({
 						type: "text",
-						text: `[Generated video artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
+						text: `[Generated video artifact: ${sanitizeSurrogates(part.mediaType)}]`,
 					});
 					break;
 				case "file":
