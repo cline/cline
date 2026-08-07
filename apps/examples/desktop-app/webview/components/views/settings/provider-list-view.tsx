@@ -4,6 +4,7 @@ import {
 	ArrowLeft,
 	ChevronRight,
 	Copy,
+	ExternalLink,
 	Eye,
 	EyeOff,
 	FileIcon,
@@ -22,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { openExternalUrl } from "@/lib/desktop-client";
+import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import type {
 	Provider,
 	ProviderConfigField,
@@ -313,6 +316,7 @@ export function ProviderDetailContent({
 
 	const configFields = provider.configFields ?? [];
 	const apiKeyValue = fieldValueToString(localConfigValues.apiKey);
+	const providerKeyUrl = getProviderApiKeyUrl(provider);
 	const modelList = provider.modelList ?? [];
 	const modelSearch =
 		modelSearchState?.providerId === provider.id ? modelSearchState.value : "";
@@ -470,6 +474,17 @@ export function ProviderDetailContent({
 												<p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
 													{field.description}
 												</p>
+											) : null}
+											{field.path === "apiKey" && providerKeyUrl ? (
+												<button
+													className="mt-1 inline-flex items-center gap-1 text-sm text-primary underline-offset-2 transition-colors hover:underline"
+													onClick={() => void openExternalUrl(providerKeyUrl)}
+													type="button"
+												>
+													{provider.docLabel ||
+														`Get a ${provider.name} API key`}
+													<ExternalLink className="size-3.5" />
+												</button>
 											) : null}
 										</header>
 										{field.type === "boolean" ? (

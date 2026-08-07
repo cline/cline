@@ -2,6 +2,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+	listMcpServerOAuthStatuses,
+	McpOAuthClientChangedError,
+	updateMcpServerOAuthStateAsync,
+	updateMcpSettingsFile,
+} from "./config-loader";
 import { createMcpOAuthProviderContext } from "./oauth";
 
 describe("mcp oauth", () => {
@@ -16,7 +22,10 @@ describe("mcp oauth", () => {
 		tempRoots.length = 0;
 	});
 
-	async function createSettingsFile(): Promise<string> {
+	async function createSettingsFile(oauthClient?: {
+		clientId: string;
+		clientSecret?: string;
+	}): Promise<string> {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-oauth-"));
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
@@ -30,6 +39,7 @@ describe("mcp oauth", () => {
 								type: "streamableHttp",
 								url: "https://mcp.linear.app/mcp",
 							},
+							oauthClient,
 						},
 					},
 				},
@@ -75,5 +85,223 @@ describe("mcp oauth", () => {
 		});
 
 		await expect(readFile(settingsPath, "utf8")).resolves.toBe(before);
+	});
+
+	it("exposes when a server requires interactive authorization", async () => {
+		const settingsPath = await createSettingsFile();
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+
+		await context.markAuthorizationRequired("OAuth authorization required");
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			oauthConfigured: false,
+			authorizationRequired: true,
+			lastError: "OAuth authorization required",
+		});
+
+		await context.resetInteractiveState();
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			authorizationRequired: true,
+			lastError: undefined,
+		});
+
+		await context.clearError();
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			authorizationRequired: false,
+			lastError: undefined,
+		});
+	});
+
+	it("does not reuse tokens after the configured OAuth client changes", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			clientSecret: "secret-a",
+		});
+		const first = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-a",
+				client_secret: "secret-a",
+			},
+		});
+		await first.provider.saveTokens({
+			access_token: "old-access-token",
+			refresh_token: "old-refresh-token",
+			token_type: "bearer",
+		});
+		expect((await first.provider.tokens())?.access_token).toBe(
+			"old-access-token",
+		);
+
+		const changedId = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-b",
+				client_secret: "secret-a",
+			},
+		});
+		expect(await changedId.provider.tokens()).toBeUndefined();
+
+		const changedSecret = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-a",
+				client_secret: "secret-b",
+			},
+		});
+		expect(await changedSecret.provider.tokens()).toBeUndefined();
+	});
+
+	it("merges updates with the latest OAuth state read under the settings lock", async () => {
+		const settingsPath = await createSettingsFile();
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+
+		await updateMcpServerOAuthStateAsync(
+			"linear",
+			(current) => ({
+				...current,
+				authorizationRequired: true,
+			}),
+			{ filePath: settingsPath },
+		);
+		await context.markError("authorization failed");
+
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			authorizationRequired: true,
+			lastError: "authorization failed",
+		});
+	});
+
+	it("rejects tokens from a callback after the configured client changes", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			clientSecret: "secret-a",
+		});
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: {
+				client_id: "client-a",
+				client_secret: "secret-a",
+			},
+		});
+		await context.resetInteractiveState();
+
+		await updateMcpSettingsFile(settingsPath, (settings) => {
+			const servers = settings.mcpServers as Record<string, unknown>;
+			const linear = servers.linear as Record<string, unknown>;
+			linear.oauthClient = {
+				clientId: "client-b",
+				clientSecret: "secret-b",
+			};
+			delete linear.oauth;
+		});
+
+		await expect(
+			context.provider.saveTokens({
+				access_token: "stale-access-token",
+				refresh_token: "stale-refresh-token",
+				token_type: "bearer",
+			}),
+		).rejects.toBeInstanceOf(McpOAuthClientChangedError);
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
+		expect(written.mcpServers.linear.oauthClient).toEqual({
+			clientId: "client-b",
+			clientSecret: "secret-b",
+		});
+		expect(written.mcpServers.linear.oauth).toBeUndefined();
+	});
+
+	it("does not let a stale dynamic registration replace a newer client", async () => {
+		const settingsPath = await createSettingsFile();
+		const stale = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+		const current = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1457/mcp/oauth/callback",
+		});
+		if (
+			!stale.provider.saveClientInformation ||
+			!current.provider.saveClientInformation
+		) {
+			throw new Error(
+				"Expected OAuth providers to persist client information.",
+			);
+		}
+
+		await current.provider.saveClientInformation({ client_id: "client-b" });
+		await expect(
+			stale.provider.saveClientInformation({ client_id: "client-a" }),
+		).rejects.toBeInstanceOf(McpOAuthClientChangedError);
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
+		expect(written.mcpServers.linear.oauth.clientInformation).toEqual({
+			client_id: "client-b",
+		});
+	});
+
+	it("reuses tokens persisted before client binding was introduced", async () => {
+		const settingsPath = await createSettingsFile();
+		const settings = JSON.parse(await readFile(settingsPath, "utf8"));
+		settings.mcpServers.linear.oauth = {
+			clientInformation: {
+				client_id: "dynamically-registered-client",
+				client_secret: "registered-secret",
+			},
+			tokens: {
+				access_token: "legacy-access-token",
+				refresh_token: "legacy-refresh-token",
+				token_type: "bearer",
+			},
+		};
+		await writeFile(settingsPath, JSON.stringify(settings), "utf8");
+
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+		});
+
+		expect((await context.provider.tokens())?.access_token).toBe(
+			"legacy-access-token",
+		);
+
+		if (!context.provider.saveClientInformation) {
+			throw new Error(
+				"Expected OAuth provider to expose saveClientInformation.",
+			);
+		}
+		await context.provider.saveClientInformation({
+			client_id: "replacement-client",
+			client_secret: "replacement-secret",
+		});
+		expect(await context.provider.tokens()).toBeUndefined();
 	});
 });
