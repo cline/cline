@@ -331,6 +331,11 @@ describe("built-in provider metadata", () => {
 			},
 		});
 	});
+
+	it("keeps Chutes unrouted families on standard reasoning fallbacks", async () => {
+		const provider = await getProvider("chutes");
+		expect(provider.metadata?.routing?.reasoning).toBeUndefined();
+	});
 });
 
 describe("regional API line base URLs", () => {
