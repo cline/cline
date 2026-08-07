@@ -748,8 +748,14 @@ export function captureHookDiscovery(
  *   (see `extensions/context/agentic-compaction.ts`).
  * - `custom`  — user-supplied `compaction.compact()` callback on
  *   `CoreSessionConfig`.
+ * - `truncation` — deterministic drop-oldest overflow recovery
+ *   (see `extensions/context/overflow-truncation.ts`).
  */
-export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
+export type TelemetryCompactionStrategy =
+	| "basic"
+	| "agentic"
+	| "custom"
+	| "truncation";
 
 /**
  * Trigger mode for a compaction attempt.

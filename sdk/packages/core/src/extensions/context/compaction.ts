@@ -29,6 +29,10 @@ import {
 	DEFAULT_TARGET_RATIO,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
+import {
+	OVERFLOW_RECOVERY_WINDOW_RATIO,
+	runOverflowTruncation,
+} from "./overflow-truncation";
 
 export interface ContextPipelinePrepareTurnInput {
 	agentId: string;
@@ -363,6 +367,21 @@ export function createContextCompactionPrepareTurn(
 				messageTriggerTokens,
 				manualTargetRatio: options.manualTargetRatio,
 			});
+			if (effectiveMode === "overflow_recovery") {
+				// The provider proved the request does not fit, which also
+				// proves the estimate undercounted. Aim well below the window
+				// so the single retry survives even a badly wrong estimate.
+				messageTargetTokens = Math.max(
+					1,
+					Math.min(
+						messageTargetTokens,
+						translateRequestBudgetToMessages(
+							maxInputTokens * OVERFLOW_RECOVERY_WINDOW_RATIO,
+							requestOverheadTokens,
+						),
+					),
+				);
+			}
 			requestTargetTokens = requestOverheadTokens + messageTargetTokens;
 		}
 
@@ -430,21 +449,25 @@ export function createContextCompactionPrepareTurn(
 			estimateMessageTokens,
 			logger: config.logger,
 		};
-		let executedStrategy = telemetryStrategy;
+		let executedStrategy: TelemetryCompactionStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;
 		if (effectiveMode === "overflow_recovery") {
 			// The provider already rejected the request, so recovery must end
 			// deterministically: the agentic strategy's own summarizer call could
 			// overflow the same window (its input budgeting trusts the same
-			// estimator that just undercounted). A custom compactor gets first
-			// shot — it sees mode "overflow_recovery" and owns its transcript
-			// invariants — but its result is held to the same bar basic
-			// compaction aims for: strictly smaller than the input (the runtime
-			// refuses to retry with a request that is not smaller) AND within
-			// the recovery token target. A marginal shrink would spend the
-			// run's single retry on a request that still cannot fit. On throw,
-			// decline, or an insufficient result, basic compaction runs so
-			// recovery never depends on another successful LLM request.
+			// estimator that just undercounted), and basic compaction preserves
+			// typed prompts unconditionally, so neither can promise a smaller
+			// request. A custom compactor gets first shot — it sees mode
+			// "overflow_recovery" and owns its transcript invariants — but its
+			// result is held to the recovery bar: strictly smaller than the
+			// input (the runtime refuses to retry with a request that is not
+			// smaller) AND within the recovery token target. A marginal shrink
+			// would spend the run's single retry on a request that still cannot
+			// fit. On throw, decline, or an insufficient result, the oldest
+			// messages are simply dropped (and oversized text truncated) in
+			// favor of a short notice — see runOverflowTruncation — so recovery
+			// never depends on another successful LLM request or on the token
+			// estimate being right.
 			if (userCompaction?.compact) {
 				try {
 					result = await userCompaction.compact(compactionContext);
@@ -453,7 +476,7 @@ export function createContextCompactionPrepareTurn(
 						throw error;
 					}
 					config.logger?.log(
-						"Custom compaction failed during overflow recovery; falling back to basic compaction",
+						"Custom compaction failed during overflow recovery; falling back to overflow truncation",
 						{
 							severity: "warn",
 							...describeCompactionError(error),
@@ -480,7 +503,7 @@ export function createContextCompactionPrepareTurn(
 						customMessageTokens <= messageTargetTokens;
 					if (!acceptable) {
 						config.logger?.log(
-							"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to basic compaction",
+							"Custom compaction did not produce an acceptable overflow-recovery transcript; falling back to overflow truncation",
 							{
 								severity: "warn",
 								customMessageCount: result.messages.length,
@@ -493,8 +516,12 @@ export function createContextCompactionPrepareTurn(
 				}
 			}
 			if (!result?.messages) {
-				executedStrategy = "basic";
-				result = await BUILTIN_COMPACTION_STRATEGIES.basic(builtinOptions);
+				executedStrategy = "truncation";
+				result = runOverflowTruncation({
+					context: compactionContext,
+					estimateMessageTokens,
+					logger: config.logger,
+				});
 			}
 		} else if (userCompaction?.compact) {
 			result = await userCompaction.compact(compactionContext);

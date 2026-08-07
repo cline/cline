@@ -2220,7 +2220,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		assertBasicCompactionResult(result);
 	});
 
-	it("forces a basic compaction on overflow recovery, bypassing the estimate gate", async () => {
+	it("forces a deterministic drop-oldest truncation on overflow recovery, bypassing the estimate gate", async () => {
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
 			providerId: "anthropic",
@@ -2275,6 +2275,69 @@ describe("createContextCompactionPrepareTurn", () => {
 			}),
 		);
 		assertBasicCompactionResult(result);
+		// The dropped context is replaced with an explanatory notice.
+		expect(JSON.stringify(result?.messages[0])).toContain(
+			"exceeded the model's context window",
+		);
+	});
+
+	it("recovers a transcript whose oldest message alone exceeds the window", async () => {
+		// The wedged shape from cline/cline#12996: an earlier compaction left
+		// one merged over-window mega-message at the front, the user typed a
+		// new prompt, and the provider rejected the request. Recovery must
+		// drop the mega-message and keep the live prompt — basic compaction
+		// could never do this because typed prompts were untrimmable.
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "agentic" },
+			logger: undefined,
+		});
+
+		const megaMessage: MessageWithMetadata = {
+			role: "user",
+			content: [{ type: "text", text: "M".repeat(600_000) }],
+			metadata: {
+				kind: "compaction",
+				reason: "manual_compaction",
+				displayRole: "system",
+			},
+		};
+		const messages: MessageWithMetadata[] = [
+			megaMessage,
+			{ role: "user", content: [{ type: "text", text: "fix the login bug" }] },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		const serialized = JSON.stringify(result?.messages);
+		// Strictly smaller than the rejected request (runtime retry gate).
+		expect(serialized.length).toBeLessThan(JSON.stringify(messages).length);
+		expect(serialized).not.toContain("MMMMMMMM");
+		expect(serialized).toContain("fix the login bug");
+		expect(serialized).toContain("exceeded the model's context window");
 	});
 
 	it("skips overflow-recovery compaction when there is nothing to remove", async () => {
