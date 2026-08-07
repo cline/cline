@@ -28,6 +28,8 @@ import {
 const streamTextSpy = vi.fn();
 const generateImageSpy = vi.fn();
 const generateVideoSpy = vi.fn();
+const videoDownloadSpy = vi.fn();
+const createDownloadSpy = vi.fn(() => videoDownloadSpy);
 const vercelGatewayFactorySpy = vi.fn();
 const vercelGatewayImageSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -89,6 +91,7 @@ function createFetchMock() {
 }
 
 vi.mock("ai", () => ({
+	createDownload: (input: unknown) => createDownloadSpy(input),
 	jsonSchema: (schema: unknown, options: unknown) => ({
 		jsonSchema: schema,
 		...(options && typeof options === "object" ? options : {}),
@@ -290,6 +293,8 @@ describe("sdk-gateway", () => {
 		streamTextSpy.mockReset();
 		generateImageSpy.mockReset();
 		generateVideoSpy.mockReset();
+		videoDownloadSpy.mockReset();
+		createDownloadSpy.mockClear();
 		vercelGatewayFactorySpy.mockReset();
 		vercelGatewayImageSpy.mockReset();
 		vercelGatewayVideoSpy.mockReset();
@@ -913,10 +918,14 @@ describe("sdk-gateway", () => {
 		expect(vercelGatewayVideoSpy).toHaveBeenCalledWith("google/veo-test");
 		expect(generateVideoSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
+				download: videoDownloadSpy,
 				model: expect.objectContaining({ modelId: "google/veo-test" }),
 				prompt: "Hello",
 			}),
 		);
+		expect(createDownloadSpy).toHaveBeenCalledWith({
+			maxBytes: 100 * 1024 * 1024,
+		});
 		expect(streamTextSpy).not.toHaveBeenCalled();
 		expect(events).toEqual([
 			{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
