@@ -153,6 +153,18 @@ export class SdkGoalCoordinator {
 	}
 
 	/**
+	 * Called when a non-queued send ends without settling (aborted, rejected,
+	 * or superseded by a session replacement). Closes the verification
+	 * authorization window so an interrupted verification turn cannot leave
+	 * mark_goal_complete armed for a later ordinary work turn, and still
+	 * surfaces a completion the tool recorded before the interruption.
+	 */
+	handleTurnAbandoned(): void {
+		this.reportNewCompletion()
+		this.guard.resetVerification()
+	}
+
+	/**
 	 * Surfaces a completion recorded since the last settle. The tool executes
 	 * mid-turn inside the SDK runtime, so the turn-settled callback is the
 	 * first host-side hook that can observe it.

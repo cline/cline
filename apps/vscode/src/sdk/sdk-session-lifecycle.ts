@@ -64,6 +64,14 @@ export interface SdkSessionLifecycleOptions {
 	 * loop. Runs after onSendComplete so state bookkeeping is finished first.
 	 */
 	onTurnSettled?: (sessionId: string, result: AgentResult | undefined, origin: SdkSendOrigin) => void
+	/**
+	 * Called when a non-queued send ends without settling (aborted, rejected,
+	 * or superseded by a session replacement). The /goal guard closes its
+	 * verification-authorization window here: a verification turn that never
+	 * settled must not leave mark_goal_complete armed for a later ordinary
+	 * work turn.
+	 */
+	onTurnAbandoned?: (sessionId: string, origin: SdkSendOrigin) => void
 }
 
 /**
@@ -422,6 +430,7 @@ export class SdkSessionLifecycle {
 					return
 				}
 				if (isSuperseded("completion")) {
+					this.options.onTurnAbandoned?.(sessionId, origin)
 					return
 				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
@@ -432,14 +441,17 @@ export class SdkSessionLifecycle {
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {
 					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					this.options.onTurnAbandoned?.(sessionId, origin)
 					return
 				}
 				if (isSuperseded("failure")) {
+					this.options.onTurnAbandoned?.(sessionId, origin)
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.setRunning(false)
 				await this.options.onSendError(error, sessionId)
+				this.options.onTurnAbandoned?.(sessionId, origin)
 			})
 	}
 }

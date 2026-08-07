@@ -61,7 +61,15 @@ export async function runInteractiveChatCommand(input: {
 		}
 		if (!input.config.enableAgentTeams) {
 			await enableTeamsForPrompt(input.config);
-			await input.sessionRuntime.restartEmpty();
+			// Enabling teams restarts with an empty transcript — a new
+			// conversation. Like the reset path below, the goal is dropped
+			// even when the restart fails, because the old conversation may
+			// already be gone by then.
+			try {
+				await input.sessionRuntime.restartEmpty();
+			} finally {
+				await input.goal?.clear();
+			}
 		}
 		prompt = rewrittenTeamPrompt.prompt;
 	}

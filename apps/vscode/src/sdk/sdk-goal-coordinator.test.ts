@@ -161,6 +161,36 @@ describe("SdkGoalCoordinator", () => {
 		expect(onGoalCompleted).toHaveBeenCalledTimes(1)
 	})
 
+	it("closes verification authorization when a turn is abandoned", async () => {
+		const { coordinator } = makeCoordinator()
+		coordinator.setGoal("fix tests")
+		coordinator.handleSendStart("user")
+		coordinator.handleTurnSettled("session-1", completed, "user")
+		expect(coordinator.formatStatus()).toContain("awaiting verification")
+
+		// The verification send rejected or was aborted before settling.
+		coordinator.handleTurnAbandoned()
+
+		expect(coordinator.formatStatus()).not.toContain("awaiting verification")
+		const result = (await coordinator.markGoalCompleteTool.execute?.({}, toolContext as never)) as Record<string, unknown>
+		expect(result).toMatchObject({ completed: false })
+		expect(coordinator.hasActiveGoal()).toBe(true)
+	})
+
+	it("still reports a completion recorded before the turn was abandoned", async () => {
+		const { coordinator, onGoalCompleted } = makeCoordinator()
+		coordinator.setGoal("fix tests")
+		coordinator.handleSendStart("user")
+		coordinator.handleTurnSettled("session-1", completed, "user")
+		await coordinator.markGoalCompleteTool.execute?.({ summary: "done" }, toolContext as never)
+
+		// e.g. the user aborted the verification turn right after the tool call.
+		coordinator.handleTurnAbandoned()
+
+		expect(onGoalCompleted).toHaveBeenCalledTimes(1)
+		expect(onGoalCompleted).toHaveBeenCalledWith(expect.objectContaining({ goal: "fix tests", summary: "done" }))
+	})
+
 	it("rolls the round back when the verification send is skipped", () => {
 		const { coordinator, sendVerificationTurn } = makeCoordinator(false)
 		coordinator.setGoal("fix tests")

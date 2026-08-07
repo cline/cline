@@ -103,6 +103,70 @@ describe("runInteractiveChatCommand", () => {
 		expect(runtime.restartEmpty).toHaveBeenCalledOnce();
 	});
 
+	it("drops the goal when enabling teams restarts the session", async () => {
+		// The teams-enable restart discards the current conversation, so a
+		// goal set in it must not survive to verify against the team run.
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		const order: string[] = [];
+		runtime.restartEmpty = vi.fn(async () => {
+			order.push("restart");
+		});
+		const clear = vi.fn(() => {
+			order.push("clear");
+			return "Goal cleared.";
+		});
+
+		const result = await runInteractiveChatCommand({
+			prompt: "/team inspect the TUI",
+			enabled: true,
+			config,
+			host: chatCommandHost,
+			chatCommandState: makeState(config),
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: () => {},
+			sessionRuntime: runtime,
+			stop: () => {},
+			goal: {
+				set: () => ({ reply: "" }),
+				status: () => "status",
+				clear,
+			},
+		});
+
+		expect(result.handled).toBe(false);
+		expect(order).toEqual(["restart", "clear"]);
+	});
+
+	it("drops the goal even when the teams-enable restart fails", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		runtime.restartEmpty = vi.fn(async () => {
+			throw new Error("restart failed");
+		});
+		const clear = vi.fn(() => "Goal cleared.");
+
+		await expect(
+			runInteractiveChatCommand({
+				prompt: "/team inspect the TUI",
+				enabled: true,
+				config,
+				host: chatCommandHost,
+				chatCommandState: makeState(config),
+				autoApproveAllRef: { current: false },
+				setInteractiveAutoApprove: () => {},
+				sessionRuntime: runtime,
+				stop: () => {},
+				goal: {
+					set: () => ({ reply: "" }),
+					status: () => "status",
+					clear,
+				},
+			}),
+		).rejects.toThrow("restart failed");
+		expect(clear).toHaveBeenCalledTimes(1);
+	});
+
 	it("resets slash new without eagerly restarting the runtime", async () => {
 		const config = makeConfig();
 		const runtime = makeRuntime();

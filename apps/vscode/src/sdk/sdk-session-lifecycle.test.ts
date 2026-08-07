@@ -228,6 +228,65 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("notifies turn abandonment when a send rejects", async () => {
+		// A goal-verification turn that fails must close the guard's
+		// authorization window, so the abandonment hook has to fire on the
+		// error path with the send's origin.
+		const onTurnAbandoned = vi.fn()
+		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(new Error("boom")) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnAbandoned })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		lifecycle.fireAndForgetSend(
+			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+			sdkHost as any,
+			"session-123",
+			"verify",
+			undefined,
+			undefined,
+			undefined,
+			"goal-verification",
+		)
+
+		await vi.waitFor(() => expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "goal-verification"))
+	})
+
+	it("notifies turn abandonment when a send is aborted", async () => {
+		const onTurnAbandoned = vi.fn()
+		const onSendError = vi.fn()
+		const abortError = new Error("The operation was aborted")
+		abortError.name = "AbortError"
+		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(abortError) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnAbandoned, onSendError })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+
+		await vi.waitFor(() => expect(onTurnAbandoned).toHaveBeenCalledWith("session-123", "user"))
+		expect(onSendError).not.toHaveBeenCalled()
+	})
+
+	it("does not notify turn abandonment when a send settles", async () => {
+		const onTurnAbandoned = vi.fn()
+		const onTurnSettled = vi.fn()
+		const sdkHost = makeSdkHost({ send: vi.fn().mockResolvedValue(undefined) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnAbandoned, onTurnSettled })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+
+		await vi.waitFor(() => expect(onTurnSettled).toHaveBeenCalled())
+		expect(onTurnAbandoned).not.toHaveBeenCalled()
+	})
+
 	it("skips completion bookkeeping when the session was replaced before the send settled", async () => {
 		const onSendComplete = vi.fn()
 		let resolveSend: () => void = () => {}
