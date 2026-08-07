@@ -1239,6 +1239,80 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.turnComplete).toBe(true)
 	})
 
+	it("appends region-switch guidance when Vertex rejects a model on the global endpoint", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toContain("model not available in region: global")
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+		expect(result.messages[1].text).toContain("us-east5")
+	})
+
+	it("appends the same guidance for Google's Publisher Model not-found body on the global location", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const message =
+			"Publisher Model `projects/test-project/locations/global/publishers/anthropic/models/claude-fable-5` was not found or your project does not have access to it."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toContain(message)
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+	})
+
+	it("leaves region errors from other providers untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "bedrock")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("model not available in region: global")
+	})
+
+	it("leaves unrelated Vertex errors untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Quota exceeded for metric: generate_requests" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("Quota exceeded for metric: generate_requests")
+	})
+
 	it("treats recoverable errors as in-run notices: no messages, no turn end, no error phase", () => {
 		// The MistakeTracker emits a recoverable error event for every recorded
 		// mistake (e.g. a plan-mode guard-blocked command as the turn's only

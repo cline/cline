@@ -2,7 +2,7 @@ import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { fromProtobufProviderModelOverrides, type ProviderModelOverrides, useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -181,20 +181,11 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 		writeProviderConfig({ region: value, gcp: { region: value } }, "region")
 	}
 
-	// Catalog and selection come from the SDK via gRPC. Vertex carries a
-	// per-model `supportsGlobalEndpoint` flag (populated host-side from
-	// the allowlist in
-	// `apps/vscode/src/sdk/model-catalog/vertex-global-endpoint.ts`).
-	// When the user selects `vertexRegion === "global"` the picker is
-	// filtered to only models known to work with that endpoint so the
-	// runtime cannot produce a `model not available in region: global`
-	// error from a user-pickable combination.
-	const modelsToUse = useMemo(() => {
-		if (vertexRegion !== "global") {
-			return allVertexModels
-		}
-		return Object.fromEntries(Object.entries(allVertexModels).filter(([, info]) => info.supportsGlobalEndpoint === true))
-	}, [allVertexModels, vertexRegion])
+	// Catalog and selection come from the SDK via gRPC. The picker shows the
+	// full catalog for every region, including "global": endpoint support
+	// changes faster than any host-maintained allowlist, and an unsupported
+	// pick fails loudly at request time with guidance (see
+	// describeVertexGlobalRegionError in src/sdk/message-translator.ts).
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 
 	const adaptiveThinkingDefaultEffort =
@@ -279,7 +270,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						error={error}
 						isLoading={isLoading}
 						isStale={isStale}
-						models={modelsToUse}
+						models={allVertexModels}
 						onSelect={handleModelSelect}
 						selectedModel={selectedModel}
 					/>

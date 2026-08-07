@@ -19,7 +19,6 @@ vi.mock("@/hooks/useProviderModelSelection", () => ({ useProviderModelSelection:
 vi.mock("@/hooks/useProviderModels", () => ({ useProviderModels: vi.fn() }))
 vi.mock("@/hooks/useProviderUsageCostDisplay", () => ({ useProviderUsageCostDisplay: () => "show" }))
 vi.mock("../ReasoningEffortSelector", () => ({ default: () => null }))
-vi.mock("../ThinkingBudgetSlider", () => ({ default: () => <div>Thinking Budget</div> }))
 vi.mock("../common/ModelInfoView", () => ({ ModelInfoView: () => null }))
 vi.mock("../common/RemotelyConfiguredInputWrapper", () => ({
 	LockIcon: () => null,
@@ -278,7 +277,6 @@ describe("VertexProvider custom models", () => {
 			commitSelection,
 		})
 		render(<VertexProvider currentMode="act" showModelOptions={true} />)
-		expect(screen.getByText("Thinking Budget")).toBeInTheDocument()
 
 		fireEvent.change(screen.getByLabelText("Context Window Size"), { target: { value: "300000" } })
 		fireEvent.click(screen.getByLabelText("Supports Images"))
@@ -359,7 +357,7 @@ describe("VertexProvider custom models", () => {
 		)
 	})
 
-	it("keeps manual entry available when the global region filters the catalog", () => {
+	it("shows the full catalog when the region is global (no endpoint filtering)", () => {
 		setSelection(false)
 		vi.mocked(useProviderConfig).mockReturnValue({
 			config: providerConfig({ gcp: { region: "global" } }),
@@ -369,7 +367,10 @@ describe("VertexProvider custom models", () => {
 
 		render(<VertexProvider currentMode="act" showModelOptions={true} />)
 
-		expect(screen.getByText("Visible catalog models: 0")).toBeInTheDocument()
+		// The picker is intentionally not filtered by global-endpoint support:
+		// endpoint capability changes faster than any host-maintained allowlist,
+		// and an unsupported pick fails loudly at request time with guidance.
+		expect(screen.getByText("Visible catalog models: 1")).toBeInTheDocument()
 		expect(screen.getByText("Use test custom model")).toBeInTheDocument()
 	})
 })

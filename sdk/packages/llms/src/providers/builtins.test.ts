@@ -165,12 +165,30 @@ describe("vertex builtin models", () => {
 		});
 
 		expect(models["claude-sonnet-5@default"]).toBeDefined();
-		await expect(getProvider("vertex")).resolves.toMatchObject({
-			defaultModelId: "claude-sonnet-5@default",
-		});
+		// The default comes from the generated (models.dev-derived) provider
+		// spec and rotates as the upstream catalog changes — assert it resolves
+		// to a model in the list rather than pinning a specific id.
+		const provider = await getProvider("vertex");
+		expect(provider.defaultModelId).toBeTruthy();
+		expect(models[provider.defaultModelId ?? ""]).toBeDefined();
 		expect(
 			(await getModelsForProvider("gemini"))["claude-fable-5"],
 		).toBeUndefined();
+	});
+
+	it("drops Anthropic's universal pricing from the Vertex Fable 5 record", async () => {
+		// Vertex bills region-dependently and its US/EU multi-region rates
+		// exceed Anthropic's list price; the overlay must not present a
+		// misleading universal price. No pricing beats wrong pricing.
+		const anthropicFable = (await getModelsForProvider("anthropic"))["claude-fable-5"];
+		expect(anthropicFable?.pricing).toBeDefined();
+
+		const vertexFable = (await getModelsForProvider("vertex"))["claude-fable-5"];
+		expect(vertexFable).toBeDefined();
+		expect(vertexFable.pricing).toBeUndefined();
+		// Non-pricing metadata still carries over.
+		expect(vertexFable.capabilities).toEqual(anthropicFable.capabilities);
+		expect(vertexFable.reasoningOptions).toEqual(anthropicFable.reasoningOptions);
 	});
 });
 
