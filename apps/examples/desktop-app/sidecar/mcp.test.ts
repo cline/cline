@@ -12,6 +12,7 @@ import type { JsonRecord, SidecarContext } from "./types";
 function createContext(workspaceRoot: string): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		goalGuards: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
