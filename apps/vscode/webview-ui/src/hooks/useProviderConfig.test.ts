@@ -173,4 +173,104 @@ describe("useProviderConfig", () => {
 		).rejects.toThrow("selection providerId openrouter does not match hook providerId deepseek")
 		expect(ModelsServiceClient.commitModelSelection).not.toHaveBeenCalled()
 	})
+
+	it("drops a stale read response that resolves after a newer write was issued", async () => {
+		// Repro: settings mounts (slow read in flight), the user immediately
+		// edits a field (write issued). The stale pre-write read must not
+		// apply — it would roll the UI back while the write is pending.
+		let resolveRead: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockReturnValue(
+			new Promise<ProviderConfigResponse>((resolve) => {
+				resolveRead = resolve
+			}),
+		)
+		let resolveWrite: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.writeProviderConfig).mockReturnValue(
+			new Promise<ProviderConfigResponse>((resolve) => {
+				resolveWrite = resolve
+			}),
+		)
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+
+		let writePromise: Promise<unknown> = Promise.resolve()
+		act(() => {
+			writePromise = result.current.write({ baseUrl: "https://new.example/v1" })
+		})
+
+		// The stale mount read resolves while the write is in flight.
+		await act(async () => {
+			resolveRead(config("deepseek", "https://old.example/v1"))
+		})
+		expect(result.current.config).toBeUndefined()
+
+		await act(async () => {
+			resolveWrite(config("deepseek", "https://new.example/v1"))
+			await writePromise
+		})
+		expect(result.current.config?.baseUrl).toBe("https://new.example/v1")
+	})
+
+	it("re-reads after a failed write so config converges instead of staying stale", async () => {
+		// Writes can fail host-side (e.g. base URL rejected by schema
+		// validation while a partial URL is typed). The failed write is the
+		// latest request, so no response will ever apply for it — the hook
+		// must re-read or config could remain stale (or undefined) forever.
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("deepseek", "https://saved.example/v1"))
+		vi.mocked(ModelsServiceClient.writeProviderConfig).mockRejectedValue(new Error("invalid url"))
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.config?.baseUrl).toBe("https://saved.example/v1"))
+
+		await act(async () => {
+			await expect(result.current.write({ baseUrl: "h" })).rejects.toThrow("invalid url")
+		})
+
+		await waitFor(() => expect(ModelsServiceClient.readProviderConfig).toHaveBeenCalledTimes(2))
+		expect(result.current.config?.baseUrl).toBe("https://saved.example/v1")
+	})
+
+	it("skips the failure recovery read when a newer write is already in flight", async () => {
+		// If an older write fails while a newer write is pending, a recovery
+		// read would take over the latest request seq, discard the newer
+		// write's response, and could pin a pre-write snapshot host-side.
+		// The newer write's own response (or failure recovery) supersedes.
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("deepseek", "https://saved.example/v1"))
+		let rejectFirstWrite: (error: unknown) => void = () => {}
+		let resolveSecondWrite: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.writeProviderConfig)
+			.mockReturnValueOnce(
+				new Promise<ProviderConfigResponse>((_, reject) => {
+					rejectFirstWrite = reject
+				}),
+			)
+			.mockReturnValueOnce(
+				new Promise<ProviderConfigResponse>((resolve) => {
+					resolveSecondWrite = resolve
+				}),
+			)
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.config).toBeDefined())
+
+		let firstWrite: Promise<unknown> = Promise.resolve()
+		let secondWrite: Promise<unknown> = Promise.resolve()
+		act(() => {
+			firstWrite = result.current.write({ baseUrl: "h" })
+			secondWrite = result.current.write({ baseUrl: "https://new.example/v1" })
+		})
+
+		await act(async () => {
+			rejectFirstWrite(new Error("invalid url"))
+			await expect(firstWrite).rejects.toThrow("invalid url")
+		})
+		// No recovery read: the mount read must remain the only one.
+		expect(ModelsServiceClient.readProviderConfig).toHaveBeenCalledTimes(1)
+
+		await act(async () => {
+			resolveSecondWrite(config("deepseek", "https://new.example/v1"))
+			await secondWrite
+		})
+		expect(result.current.config?.baseUrl).toBe("https://new.example/v1")
+	})
 })

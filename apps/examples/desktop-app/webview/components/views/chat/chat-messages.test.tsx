@@ -425,12 +425,12 @@ describe("ChatMessages tool disclosures", () => {
 		expect(userActions?.classList.contains("absolute")).toBe(true);
 		expect(userActions?.classList.contains("right-0")).toBe(true);
 		expect(userActions?.classList.contains("top-full")).toBe(true);
-		expect(userActions?.classList.contains("-translate-y-2")).toBe(true);
+		expect(userActions?.classList.contains("-translate-y-1")).toBe(true);
 		expect(assistantMessage?.classList.contains("relative")).toBe(true);
 		expect(assistantActions?.classList.contains("absolute")).toBe(true);
 		expect(assistantActions?.classList.contains("left-0")).toBe(true);
 		expect(assistantActions?.classList.contains("top-full")).toBe(true);
-		expect(assistantActions?.classList.contains("-translate-y-2")).toBe(true);
+		expect(assistantActions?.classList.contains("-translate-y-1")).toBe(true);
 		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
 		const userAction = userActions?.querySelector(".cline-chat-message-action");
 		expect(userAction?.classList.contains("min-w-0")).toBe(true);
@@ -662,6 +662,41 @@ describe("ChatMessages tool disclosures", () => {
 
 		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
 		expect(messageList?.classList.contains("overflow-x-hidden")).toBe(false);
+	});
+});
+
+describe("ChatMessages follow-up questions", () => {
+	it("forwards answers from the shared question panel", async () => {
+		const onAnswerAskQuestion = vi.fn();
+		await renderMessages(
+			[
+				{
+					content: "Help me choose",
+					createdAt: 1,
+					id: "user-1",
+					role: "user",
+					sessionId: "session-1",
+				},
+			],
+			{
+				onAnswerAskQuestion,
+				pendingAskQuestions: [
+					{
+						createdAt: "2026-07-31T00:00:00.000Z",
+						options: ["Continue", "Stop"],
+						question: "Continue this task?",
+						requestId: "request-1",
+					},
+				],
+			},
+		);
+
+		const answer = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Continue",
+		);
+		await act(async () => answer?.click());
+
+		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
 });
 

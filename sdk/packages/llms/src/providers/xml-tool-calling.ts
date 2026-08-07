@@ -19,7 +19,7 @@
 // Everything above the model (gateway, runtime, hosts) keeps speaking the
 // native tool contract; the only signal is `toolCallingMode` on the request.
 
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { morphXmlToolMiddleware } from "@ai-sdk-tool/parser";
 import type { GatewayToolCallingMode } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
@@ -36,7 +36,7 @@ export function applyToolCallingMode<Model>(
 		return model;
 	}
 	return wrapLanguageModel({
-		model: model as LanguageModelV3,
+		model: model as LanguageModelV4,
 		middleware: morphXmlToolMiddleware,
 	}) as Model;
 }

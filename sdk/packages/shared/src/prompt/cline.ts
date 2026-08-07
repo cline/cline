@@ -26,10 +26,12 @@ User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribut
  * Plan-mode behavioral contract, appended when the session mode is "plan".
  * run_commands intentionally stays available in plan mode -- it is essential
  * for read-only investigation -- so the contract must spell out that it is
- * inspection-only there; the mitigation for plan-mode mutations is prompting
- * plus mode-switch notices, not tool removal.
+ * inspection-only there. Prompting is the first line of defense; the
+ * plan-mode command-guard hook (registered by the core runtime builder for
+ * plan-mode sessions) is the hard backstop that rejects file-editing
+ * run_commands calls with a tool error before approval or execution.
  */
-export const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
+const PLAN_MODE_INSTRUCTIONS_BASE = `# Plan Mode
 
 You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
 
@@ -40,9 +42,21 @@ You are in Plan mode. Your role is to explore, analyze, and plan -- not to execu
 - Do NOT edit files, write code, run destructive commands, or make any changes
 - Do NOT implement anything -- focus on understanding and alignment first
 
-The run_commands tool remains available in plan mode strictly for read-only inspection -- listing files, searching (grep), reading configs, inspecting git history and diffs, checking tool versions, and the like. Never use it to change anything: no creating, modifying, or deleting files, no writing scripts that make changes, and no state-changing commands (installs, migrations, database or schema changes, container commands that mutate state, etc.). If the task requires a mutation, put it in the plan; it happens only after the user switches to act mode.
+The run_commands tool remains available in plan mode strictly for read-only inspection -- listing files, searching (grep), reading configs, inspecting git history and diffs, checking tool versions, and the like. Never use it to change anything: no creating, modifying, or deleting files, no writing scripts that make changes, and no state-changing commands (installs, migrations, database or schema changes, container commands that mutate state, etc.). File-editing commands (rm/mv/cp, in-place edits like sed -i, output redirection to files outside /tmp, git commands that change the working tree, package installs) are hard-blocked in plan mode: they are not executed and return a tool error instead, so do not attempt them. If the task requires a mutation, put it in the plan; it happens only after the user switches to act mode.`;
+
+export const PLAN_MODE_INSTRUCTIONS = `${PLAN_MODE_INSTRUCTIONS_BASE}
 
 Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`;
+
+/**
+ * Plan-mode contract for hosts that do NOT expose the switch_to_act_mode tool
+ * (the VS Code extension, matching the legacy extension's behavior). The model
+ * must direct the user to flip the Plan/Act toggle instead of calling a tool
+ * that does not exist in its toolset.
+ */
+export const PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH = `${PLAN_MODE_INSTRUCTIONS_BASE}
+
+Once you have presented your plan, end your turn and wait for the user's response. You do NOT have the ability to switch to act mode yourself -- the user must do it manually with the Plan/Act toggle once they are satisfied with the plan. If the task requires tools that are only available in act mode, ask the user to "toggle to Act mode" (use those words).`;
 
 export function processWorkspaceInfo(info: WorkspaceInfo): string {
 	return JSON.stringify(
@@ -105,6 +119,14 @@ export interface ClineSystemPromptOptions
 	overridePrompt?: string;
 	/** Provider ID — used to gate Cline-specific metadata injection */
 	providerId?: string;
+	/**
+	 * Whether the host exposes the switch_to_act_mode tool in plan mode.
+	 * Defaults to true (CLI behavior). Hosts that require the user to flip the
+	 * Plan/Act toggle themselves (the VS Code extension) set this to false so
+	 * the plan-mode contract directs the model to ask the user instead of
+	 * calling a tool that is not in its toolset.
+	 */
+	planModeSwitchTool?: boolean;
 }
 
 export function buildClineSystemPrompt(
@@ -119,6 +141,7 @@ export function buildClineSystemPrompt(
 		rules,
 		overridePrompt,
 		providerId,
+		planModeSwitchTool = true,
 	} = options;
 	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
 	const isCline = isClineProvider(providerId || "");
@@ -145,7 +168,11 @@ export function buildClineSystemPrompt(
 	const effectiveRules = [
 		rules,
 		MODE_TAG_INSTRUCTIONS,
-		mode === "plan" ? PLAN_MODE_INSTRUCTIONS : undefined,
+		mode === "plan"
+			? planModeSwitchTool
+				? PLAN_MODE_INSTRUCTIONS
+				: PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH
+			: undefined,
 	]
 		.filter(Boolean)
 		.join("\n\n");

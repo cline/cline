@@ -28,6 +28,10 @@ import {
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
 import {
+	CLINE_DASHBOARD_URL,
+	getProviderApiKeyUrl,
+} from "@/lib/provider-key-urls";
+import {
 	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
 } from "@/lib/provider-model-catalog";
@@ -155,6 +159,11 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 				</h1>
 				<p className="mt-2 text-[15px] text-muted-foreground">
 					Build software your way
+				</p>
+				<p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+					Cline is an AI coding agent. It reads your code, edits files, runs
+					commands, and works through tasks with you — in any project on your
+					machine.
 				</p>
 				<Button
 					className="mt-9 h-11 w-full rounded-full text-[15px]"
@@ -341,6 +350,9 @@ function ConnectStep({
 
 	const selectedProvider =
 		providers.find((provider) => provider.id === selectedProviderId) ?? null;
+	const selectedProviderKeyUrl = selectedProvider
+		? getProviderApiKeyUrl(selectedProvider)
+		: null;
 
 	const connectProvider = useCallback(async () => {
 		if (!selectedProvider || !apiKey.trim()) {
@@ -512,9 +524,14 @@ function ConnectStep({
 											{clineKeySaving ? "Connecting..." : "Connect"}
 										</Button>
 									</div>
-									<p className="text-xs text-muted-foreground">
-										Find your key in the Cline dashboard under Account.
-									</p>
+									<button
+										className="inline-flex items-center gap-1 self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+										onClick={() => void openExternalUrl(CLINE_DASHBOARD_URL)}
+										type="button"
+									>
+										Find your key in the Cline dashboard under Account
+										<ExternalLink className="size-3" />
+									</button>
 									{clineKeyError ? (
 										<p className="text-xs text-destructive" role="alert">
 											Failed to save API key: {clineKeyError}
@@ -598,15 +615,14 @@ function ConnectStep({
 								value={apiKey}
 							/>
 							<div className="flex flex-wrap items-center justify-between gap-2">
-								{selectedProvider?.docUrl ? (
+								{selectedProviderKeyUrl ? (
 									<button
 										className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-										onClick={() =>
-											void openExternalUrl(selectedProvider.docUrl ?? "")
-										}
+										onClick={() => void openExternalUrl(selectedProviderKeyUrl)}
 										type="button"
 									>
-										{selectedProvider.docLabel || "Get an API key"}
+										{selectedProvider?.docLabel ||
+											`Get ${selectedProvider ? `a ${selectedProvider.name}` : "an"} API key`}
 										<ExternalLink className="size-3.5" />
 									</button>
 								) : (

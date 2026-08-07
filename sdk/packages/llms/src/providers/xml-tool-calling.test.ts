@@ -1,21 +1,21 @@
 import type {
-	LanguageModelV3,
-	LanguageModelV3CallOptions,
+	LanguageModelV4,
+	LanguageModelV4CallOptions,
 } from "@ai-sdk/provider";
 import { describe, expect, it } from "vitest";
 import { applyToolCallingMode } from "./xml-tool-calling";
 
 function makeFakeModel(): {
-	model: LanguageModelV3;
-	captured: { current?: LanguageModelV3CallOptions };
+	model: LanguageModelV4;
+	captured: { current?: LanguageModelV4CallOptions };
 } {
-	const captured: { current?: LanguageModelV3CallOptions } = {};
+	const captured: { current?: LanguageModelV4CallOptions } = {};
 	const model = {
-		specificationVersion: "v3",
+		specificationVersion: "v4",
 		provider: "fake",
 		modelId: "fake-model",
 		supportedUrls: {},
-		async doGenerate(options: LanguageModelV3CallOptions) {
+		async doGenerate(options: LanguageModelV4CallOptions) {
 			captured.current = options;
 			return {
 				content: [],
@@ -24,7 +24,7 @@ function makeFakeModel(): {
 				warnings: [],
 			};
 		},
-		async doStream(options: LanguageModelV3CallOptions) {
+		async doStream(options: LanguageModelV4CallOptions) {
 			captured.current = options;
 			return {
 				stream: new ReadableStream({
@@ -40,7 +40,7 @@ function makeFakeModel(): {
 				}),
 			};
 		},
-	} as unknown as LanguageModelV3;
+	} as unknown as LanguageModelV4;
 	return { model, captured };
 }
 
@@ -61,7 +61,7 @@ const baseParams = {
 			},
 		},
 	],
-} as unknown as LanguageModelV3CallOptions;
+} as unknown as LanguageModelV4CallOptions;
 
 describe("applyToolCallingMode", () => {
 	it("returns the model unchanged for native mode and unset mode", () => {

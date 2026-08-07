@@ -11,7 +11,11 @@
  */
 
 import { z } from "zod";
-import type { AgentRuntimeHooks, AgentTool } from "../agent";
+import type {
+	AgentRuntimeHooks,
+	AgentTool,
+	ProviderErrorClass,
+} from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -197,6 +201,8 @@ export interface AgentErrorEvent extends AgentEventMetadata {
 	type: "error";
 	/** The error that occurred */
 	error: Error;
+	/** Classification of the provider error, when known. */
+	errorClass?: ProviderErrorClass;
 	/** Whether the error is recoverable */
 	recoverable: boolean;
 	/** Current iteration when error occurred */
@@ -594,6 +600,12 @@ export interface AgentPrepareTurnContext {
 		provider: string;
 		info?: ModelInfo;
 	};
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
