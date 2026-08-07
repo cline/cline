@@ -392,6 +392,19 @@ describe("format helpers", () => {
 		);
 	});
 
+	it("keeps valid empty-string args in structured command summaries", () => {
+		expect(
+			formatToolInput("run_commands", {
+				commands: [{ command: "grep", args: ["", "pattern", "file.txt"] }],
+			}),
+		).toBe("grep  pattern file.txt");
+		expect(
+			formatToolInput("run_commands", {
+				commands: [{ command: "git", args: [null, "status", undefined] }],
+			}),
+		).toBe("git status");
+	});
+
 	it("skips null entries in run_commands command arrays", () => {
 		expect(
 			formatToolInput("run_commands", { commands: [null, "echo hi"] }),

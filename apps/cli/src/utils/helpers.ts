@@ -98,8 +98,12 @@ export function formatStructuredCommand(cmd: unknown): string {
 	if (cmd && typeof cmd === "object" && "command" in cmd) {
 		const structured = cmd as { command?: unknown; args?: unknown };
 		const command = toDisplayString(structured.command);
+		// Drop only nullish entries: they carry no display value, while an
+		// empty string is a valid argv entry that must stay in the summary.
 		const args = Array.isArray(structured.args)
-			? structured.args.map(toDisplayString).filter(Boolean)
+			? structured.args
+					.filter((arg) => arg !== null && arg !== undefined)
+					.map(toDisplayString)
 			: [];
 		if (args.length === 0) {
 			return command;
