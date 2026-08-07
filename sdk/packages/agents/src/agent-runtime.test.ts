@@ -261,6 +261,162 @@ describe("AgentRuntime", () => {
 		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
 	});
 
+	it("retries a turn whose model stream stalled and completes on the retry", async () => {
+		const stallEvent: AgentModelEvent = {
+			type: "finish",
+			reason: "error",
+			error: "Model stream stalled: Chunk timeout of 120000ms exceeded",
+			errorClass: "stream_stalled",
+		};
+		const model = new ScriptedModel([
+			() => [{ type: "reasoning-delta", text: "The user wants" }, stallEvent],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		vi.useFakeTimers();
+		try {
+			const pending = runtime.run("Hi");
+			await vi.advanceTimersByTimeAsync(30_000);
+			const result = await pending;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+			// The stalled attempt's partial reasoning is not committed.
+			expect(
+				result.messages.some((message) =>
+					message.content.some(
+						(part) =>
+							part.type === "reasoning" && part.text.includes("The user wants"),
+					),
+				),
+			).toBe(false);
+			expect(statusNotices).toContainEqual(
+				expect.objectContaining({
+					message: expect.stringContaining("stream stalled — retrying"),
+					metadata: expect.objectContaining({
+						kind: "stream_stall_recovery",
+					}),
+				}),
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("fails the run after exhausting stall retries", async () => {
+		const stallStep = () =>
+			[
+				{
+					type: "finish",
+					reason: "error",
+					error:
+						"Model stream stalled: First chunk timeout of 180000ms exceeded",
+					errorClass: "stream_stalled",
+				} as AgentModelEvent,
+			] as const;
+		const model = new ScriptedModel([stallStep, stallStep, stallStep]);
+		const statusNotices: string[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push(event.message);
+			}
+		});
+
+		vi.useFakeTimers();
+		try {
+			const pending = runtime.run("Hi");
+			await vi.advanceTimersByTimeAsync(60_000);
+			const result = await pending;
+
+			// 1 initial attempt + MAX_STREAM_STALL_RETRIES retries.
+			expect(model.requests).toHaveLength(3);
+			expect(statusNotices).toHaveLength(2);
+			expect(result.status).toBe("failed");
+			expect(result.error?.message).toContain("Model stream stalled");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry a stalled turn that already produced a tool call", async () => {
+		// An errored stream that produced tool calls proceeds through the
+		// normal loop (executing the partial work) instead of being retried —
+		// a retry would discard the tool call the model already committed to.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					input: { text: "hi" },
+					inputText: '{"text":"hi"}',
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Model stream stalled: Chunk timeout of 120000ms exceeded",
+					errorClass: "stream_stalled",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const statusNotices: string[] = [];
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push(event.message);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(2);
+		expect(statusNotices).toHaveLength(0);
+	});
+
+	it("does not retry a stalled turn after the run was aborted", async () => {
+		let abortRuntime: (() => void) | undefined;
+		const model = new ScriptedModel([
+			() => {
+				abortRuntime?.();
+				return [
+					{
+						type: "finish",
+						reason: "error",
+						error: "Model stream stalled: Chunk timeout of 120000ms exceeded",
+						errorClass: "stream_stalled",
+					} as AgentModelEvent,
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+		abortRuntime = () => runtime.abort("user cancelled");
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("aborted");
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("does not treat an unrelated stream failure as an overflow", async () => {
 		const model = new ScriptedModel([
 			() => [

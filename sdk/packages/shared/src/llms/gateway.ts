@@ -187,6 +187,14 @@ export interface GatewayStreamRequest {
 		effort?: ReasoningEffort;
 		budgetTokens?: number;
 	};
+	/**
+	 * Caller override for the stream-stall watchdog (`AgentConfig.apiTimeoutMs`
+	 * reaches the gateway through this field). Bounds both the wait for the
+	 * first content chunk and the silence between chunks; when unset the
+	 * provider config's `timeoutMs`, vendor defaults, and finally the global
+	 * stall defaults apply. See `resolveStreamStallTimeouts` in `@cline/llms`.
+	 */
+	apiTimeoutMs?: number;
 	signal?: AbortSignal;
 }
 

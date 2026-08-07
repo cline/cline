@@ -934,7 +934,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "",
 		apiKeyEnv: ["LMSTUDIO_API_KEY"],
 		modelsProviderId: "lmstudio",
-		defaults: { baseUrl: "http://localhost:1234/v1" },
+		// Local inference goes silent for minutes during model load and
+		// prompt processing; widen the stream-stall watchdog accordingly
+		// (same allowance as the Ollama vendor default).
+		defaults: { baseUrl: "http://localhost:1234/v1", timeoutMs: 300_000 },
 		modelsSourceUrl: "http://localhost:1234/v1/models",
 	},
 	{
@@ -1159,8 +1162,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {
