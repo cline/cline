@@ -661,8 +661,21 @@ function ChatThreadPane({
 				}
 			})
 			.catch(() => undefined);
+		// The Settings → General cloud toggle broadcasts immediately so the
+		// composer reflects the change without a restart or account switch.
+		const unsubscribe = desktopClient.subscribe(
+			"feature_flags_changed",
+			(payload) => {
+				if (!cancelled) {
+					setCloudAgentsEnabled(
+						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
+					);
+				}
+			},
+		);
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, [accountUserId]);
 	const [providerCredentials, setProviderCredentials] = useState<

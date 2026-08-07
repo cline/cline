@@ -12,8 +12,8 @@ import {
 	buildClinePostHogClient,
 	PostHogFeatureFlagsProvider,
 } from "@cline/core/services/feature-flags/posthog";
-import { FeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { readDesktopSettings } from "./desktop-settings";
 
 // Separate from the CLI cache to avoid cross-process writes.
 const CACHE_FILE = "code-feature-flags.json";
@@ -90,7 +90,12 @@ export async function refreshDesktopFeatureFlags(
 	}
 }
 
-/** Env override first; otherwise the cached provider evaluation (default off). */
+/**
+ * Env override first; otherwise the user's explicit opt-in from Settings.
+ *
+ * Cloud sessions are in preview, so instead of a remote rollout flag the
+ * gate is a toggle the user flips in Settings → General (default off).
+ */
 export function isCloudAgentsEnabled(): boolean {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
 	if (override === "1" || override === "true") {
@@ -99,9 +104,7 @@ export function isCloudAgentsEnabled(): boolean {
 	if (override === "0" || override === "false") {
 		return false;
 	}
-	return getDesktopFeatureFlagsService().getBooleanFlagEnabled(
-		FeatureFlag.CODE_CLOUD_AGENTS,
-	);
+	return readDesktopSettings().cloudSessionsEnabled;
 }
 
 export async function disposeDesktopFeatureFlagsService(): Promise<void> {

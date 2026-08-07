@@ -533,12 +533,20 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
+	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
+		setCloudSessionsLoading(true);
+		setCloudSessionsError(null);
 		try {
 			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
 				"get_global_settings",
@@ -552,6 +560,18 @@ function GeneralSettingsContent() {
 		} finally {
 			setTelemetryLoading(false);
 			setAutoUpdateLoading(false);
+		}
+		try {
+			const desktopSettings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("get_desktop_settings");
+			setCloudSessionsEnabled(Boolean(desktopSettings.cloudSessionsEnabled));
+		} catch (error) {
+			setCloudSessionsError(
+				error instanceof Error ? error.message : String(error),
+			);
+		} finally {
+			setCloudSessionsLoading(false);
 		}
 	}, []);
 
@@ -599,6 +619,25 @@ function GeneralSettingsContent() {
 			setAutoUpdateError(message);
 		} finally {
 			setAutoUpdateSaving(false);
+		}
+	};
+
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudSessionsEnabled;
+		setCloudSessionsEnabled(nextValue);
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
+		try {
+			const settings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
+			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setCloudSessionsEnabled(previousValue);
+			setCloudSessionsError(message);
+		} finally {
+			setCloudSessionsSaving(false);
 		}
 	};
 
@@ -755,6 +794,34 @@ function GeneralSettingsContent() {
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+							Cloud sessions
+							<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+								Preview
+							</span>
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Run Cline on your GitHub repositories in secure cloud sandboxes.
+							Adds a Cloud option to the new-session composer. Requires a Cline
+							account with GitHub connected.
+						</p>
+						{cloudSessionsError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update cloud sessions setting: {cloudSessionsError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Cloud sessions"
+						checked={cloudSessionsEnabled}
+						disabled={cloudSessionsLoading || cloudSessionsSaving}
+						onCheckedChange={(checked) =>
+							void updateCloudSessionsEnabled(checked)
+						}
 					/>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">

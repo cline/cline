@@ -72,6 +72,10 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import {
+	readDesktopSettings,
+	setCloudSessionsEnabled,
+} from "./desktop-settings";
+import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
@@ -1577,6 +1581,21 @@ export async function handleCommand(
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
+	}
+	if (command === "get_desktop_settings") {
+		return readDesktopSettings();
+	}
+	if (command === "set_cloud_sessions_enabled") {
+		if (typeof args?.cloud_sessions_enabled !== "boolean") {
+			throw new Error("cloud_sessions_enabled must be a boolean");
+		}
+		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
+		// Every open webview (welcome composer included) must re-evaluate the
+		// gate immediately instead of waiting for the next sign-in refresh.
+		broadcastEvent(ctx, "feature_flags_changed", {
+			cloudAgents: isCloudAgentsEnabled(),
+		});
+		return settings;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────

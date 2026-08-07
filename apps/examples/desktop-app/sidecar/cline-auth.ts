@@ -1,7 +1,7 @@
 import {
+	captureAuthRefreshSoftFailure,
 	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
-	captureAuthRefreshSoftFailure,
 	resolveLocalClineAuthToken,
 } from "@cline/core";
 import type { SidecarContext } from "./types";
