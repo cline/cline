@@ -29,11 +29,14 @@ import {
 	resolvePendingApproval,
 } from "./handlers/approval-handlers";
 import {
+	CAPABILITY_RECONNECT_GRACE_MS,
 	cancelPendingCapabilityRequests,
 	handleCapabilityProgress,
 	handleCapabilityRequest,
 	handleCapabilityRespond,
+	isReconnectableCapability,
 	requestCapability as requestCapabilityHandler,
+	retainPendingCapabilityRequestsForReconnect,
 } from "./handlers/capability-handlers";
 import {
 	handleClientList,
@@ -44,10 +47,12 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	cancelContributionOwnerEviction,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
 	type PendingCapabilityRequest,
+	scheduleContributionOwnerEviction,
 } from "./handlers/context";
 import {
 	handleRunAbort,
@@ -57,6 +62,7 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
+	handleSessionClaimClientContributions,
 	handleSessionCompactionGet,
 	handleSessionCompactionUpdate,
 	handleSessionCreate,
@@ -299,6 +305,9 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		for (const state of this.sessionState.values()) {
+			cancelContributionOwnerEviction(state);
+		}
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -359,6 +368,8 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			case "session.attach":
 				return await handleSessionAttach(this.ctx, envelope);
+			case "session.claim_client_contributions":
+				return await handleSessionClaimClientContributions(this.ctx, envelope);
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
 			case "session.get":
@@ -564,12 +575,30 @@ export class HubServerTransport implements NativeHubTransport {
 				state.createdByClientId = undefined;
 			}
 			if (state.participants.size === 0) {
-				this.sessionState.delete(sessionId);
+				if (state.clientContributionOwners?.size) {
+					scheduleContributionOwnerEviction(
+						this.ctx,
+						sessionId,
+						CAPABILITY_RECONNECT_GRACE_MS,
+					);
+				} else {
+					this.sessionState.delete(sessionId);
+				}
 			}
 		}
+		retainPendingCapabilityRequestsForReconnect(
+			this.ctx,
+			(request) =>
+				request.targetClientId === clientId &&
+				isReconnectableCapability(request.capabilityName),
+			CAPABILITY_RECONNECT_GRACE_MS,
+			`Capability owner client ${clientId} did not reconnect before the grace period expired.`,
+		);
 		cancelPendingCapabilityRequests(
 			this.ctx,
-			(request) => request.targetClientId === clientId,
+			(request) =>
+				request.targetClientId === clientId &&
+				!isReconnectableCapability(request.capabilityName),
 			`Capability owner client ${clientId} disconnected before request was resolved.`,
 		);
 	}

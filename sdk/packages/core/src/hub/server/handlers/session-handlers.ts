@@ -25,9 +25,16 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
-import { cancelPendingCapabilityRequests } from "./capability-handlers";
+import {
+	CAPABILITY_RECONNECT_GRACE_MS,
+	cancelPendingCapabilityRequests,
+	claimPendingCapabilityRequests,
+	isReconnectableCapability,
+} from "./capability-handlers";
 import {
 	asPlainRecord,
+	cancelContributionOwnerEviction,
+	deleteSessionState,
 	ensureSessionParticipant,
 	ensureSessionState,
 	errorReply,
@@ -36,9 +43,45 @@ import {
 	okReply,
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
+	scheduleContributionOwnerEviction,
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+function createClaimableClientContributionRuntime(
+	ctx: HubTransportContext,
+	input: {
+		sessionId: string;
+		clientId: string;
+		contributions: ReturnType<typeof parseHubClientContributions>;
+		sessionConfig?: Partial<RuntimeSessionConfig>;
+	},
+) {
+	const owners = new Map(
+		input.contributions.map((item) => [item.capabilityName, input.clientId]),
+	);
+	const runtime = createHubClientContributionRuntime({
+		sessionId: input.sessionId,
+		targetClientId: input.clientId,
+		contributions: input.contributions,
+		sessionConfig: input.sessionConfig,
+		requestCapability: (
+			sessionId,
+			capabilityName,
+			payload,
+			_targetClientId,
+			onProgress,
+		) =>
+			ctx.requestCapability(
+				sessionId,
+				capabilityName,
+				payload,
+				owners.get(capabilityName) ?? input.clientId,
+				onProgress,
+			),
+	});
+	return { owners, runtime };
+}
 
 function readConnectionString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0
@@ -232,13 +275,13 @@ export async function handleSessionCreate(
 		sessionId,
 		configExtensionCount: configExtensions?.length ?? 0,
 	});
-	const clientContributionRuntime = createHubClientContributionRuntime({
+	const clientContribution = createClaimableClientContributionRuntime(ctx, {
 		sessionId,
-		targetClientId: clientId,
+		clientId,
 		contributions: clientContributions,
 		sessionConfig,
-		requestCapability: ctx.requestCapability,
 	});
+	const clientContributionRuntime = clientContribution.runtime;
 	logHubMessage("info", "session.create.start_session.begin", {
 		...baseLogContext,
 		sessionId,
@@ -356,9 +399,18 @@ export async function handleSessionCreate(
 		elapsedMs: Math.round(performance.now() - startedAt),
 		hasImmediateResult: !!started.result,
 	});
-	ensureSessionState(ctx, started.sessionId, clientId, "creator", {
-		interactive: metadata.interactive !== false,
-	});
+	const sessionState = ensureSessionState(
+		ctx,
+		started.sessionId,
+		clientId,
+		"creator",
+		{
+			interactive: metadata.interactive !== false,
+		},
+	);
+	if (clientContribution.owners.size > 0) {
+		sessionState.clientContributionOwners = clientContribution.owners;
+	}
 	logHubMessage("info", "session.create.read_records.begin", {
 		...baseLogContext,
 		sessionId: started.sessionId,
@@ -484,13 +536,13 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
-		const clientContributionRuntime = createHubClientContributionRuntime({
+		const clientContribution = createClaimableClientContributionRuntime(ctx, {
 			sessionId,
-			targetClientId: clientId,
+			clientId,
 			contributions: clientContributions,
 			sessionConfig,
-			requestCapability: ctx.requestCapability,
 		});
+		const clientContributionRuntime = clientContribution.runtime;
 		const service = new SessionVersioningService();
 		const result = await service.restoreCheckpoint({
 			sessionId: sourceSessionId,
@@ -635,9 +687,18 @@ export async function handleSessionRestore(
 				"Checkpoint restore did not start a session",
 			);
 		}
-		ensureSessionState(ctx, started.sessionId, clientId, "creator", {
-			interactive: metadata.interactive !== false,
-		});
+		const sessionState = ensureSessionState(
+			ctx,
+			started.sessionId,
+			clientId,
+			"creator",
+			{
+				interactive: metadata.interactive !== false,
+			},
+		);
+		if (clientContribution.owners.size > 0) {
+			sessionState.clientContributionOwners = clientContribution.owners;
+		}
 		const [session, snapshot] = await Promise.all([
 			readHubSessionRecord(ctx, started.sessionId),
 			readCoreSessionSnapshot(ctx, started.sessionId),
@@ -712,6 +773,103 @@ export async function handleSessionAttach(
 	return okReply(envelope, { session: attachedSession ?? session });
 }
 
+export async function handleSessionClaimClientContributions(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	const capabilityNames = Array.isArray(envelope.payload?.capabilityNames)
+		? [
+				...new Set(
+					envelope.payload.capabilityNames
+						.filter((name): name is string => typeof name === "string")
+						.map((name) => name.trim())
+						.filter(Boolean),
+				),
+			]
+		: [];
+	if (!sessionId || capabilityNames.length === 0) {
+		return errorReply(
+			envelope,
+			"invalid_contribution_claim",
+			"session.claim_client_contributions requires sessionId and capabilityNames",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "";
+	if (!clientId || !ctx.clients.has(clientId)) {
+		return errorReply(
+			envelope,
+			"client_not_found",
+			"Client is not registered with this hub.",
+		);
+	}
+	const existingState = ctx.sessionState.get(sessionId);
+	if (existingState) cancelContributionOwnerEviction(existingState);
+	const session = await readHubSessionRecord(ctx, sessionId).catch((error) => {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+		throw error;
+	});
+	if (!session) {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	if (!ctx.clients.has(clientId)) {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+		return errorReply(
+			envelope,
+			"client_not_found",
+			"Client disconnected before its contribution claim completed.",
+		);
+	}
+	const state = ensureSessionParticipant(
+		ctx,
+		sessionId,
+		clientId,
+		"participant",
+	);
+	const claimedCapabilityNames = capabilityNames.filter(
+		(capabilityName) =>
+			isReconnectableCapability(capabilityName) &&
+			state.clientContributionOwners?.has(capabilityName),
+	);
+	for (const capabilityName of claimedCapabilityNames) {
+		state.clientContributionOwners?.set(capabilityName, clientId);
+	}
+	const pendingRequests = claimPendingCapabilityRequests(
+		ctx,
+		sessionId,
+		new Set(claimedCapabilityNames),
+		clientId,
+	);
+	logHubMessage("info", "session.claim_client_contributions", {
+		sessionId,
+		clientId,
+		capabilityNames: claimedCapabilityNames,
+		pendingRequestCount: pendingRequests.length,
+	});
+	return okReply(envelope, {
+		sessionId,
+		capabilityNames: claimedCapabilityNames,
+		pendingRequests,
+	});
+}
+
 export async function handleSessionDetach(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -732,7 +890,15 @@ export async function handleSessionDetach(
 			state.createdByClientId = undefined;
 		}
 		if (state.participants.size === 0) {
-			ctx.sessionState.delete(sessionId);
+			if (state.clientContributionOwners?.size) {
+				scheduleContributionOwnerEviction(
+					ctx,
+					sessionId,
+					CAPABILITY_RECONNECT_GRACE_MS,
+				);
+			} else {
+				ctx.sessionState.delete(sessionId);
+			}
 		}
 	}
 	cancelPendingCapabilityRequests(
@@ -993,7 +1159,16 @@ export async function handleSessionDelete(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	ctx.sessionState.delete(sessionId);
+	const sessionAbsent =
+		deleted || !(await ctx.sessionHost.getSession(sessionId));
+	if (sessionAbsent) {
+		cancelPendingCapabilityRequests(
+			ctx,
+			(request) => request.sessionId === sessionId,
+			`Session ${sessionId} was deleted before capability request was resolved.`,
+		);
+		deleteSessionState(ctx, sessionId);
+	}
 	return okReply(envelope, { deleted });
 }
 
