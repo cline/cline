@@ -23,6 +23,7 @@ import {
 } from "@cline/shared";
 import {
 	type CallSettings,
+	createDownload,
 	generateImage,
 	experimental_generateVideo as generateVideo,
 	jsonSchema,
@@ -76,6 +77,7 @@ interface GatewayNormalizedUsage {
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
 const OPENAI_IMAGE_GENERATION_TOOL_NAME = "image_generation";
+const MAX_GENERATED_VIDEO_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 
 type ImageGenerationInput = string | Uint8Array | ArrayBuffer;
 type ImageGenerationPrompt =
@@ -1664,6 +1666,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						prompt,
 						abortSignal: request.signal,
 						providerOptions: composedProviderOptions as never,
+						download: createDownload({
+							maxBytes: MAX_GENERATED_VIDEO_DOWNLOAD_BYTES,
+						}),
 					});
 					let emittedVideos = 0;
 					for (const file of result.videos) {
