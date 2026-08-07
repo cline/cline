@@ -100,7 +100,7 @@ export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 					{" "}
 					<button
 						aria-label="Close diff view"
-						className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className="rounded-md p-1 text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 						onClick={onClose}
 						type="button"
 					>
@@ -198,7 +198,7 @@ function DiffFileSection({
 
 	return (
 		<div className="border-b border-border">
-			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-accent/50 transition-colors">
+			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-surface-hover-lighter transition-colors">
 				<button
 					className="flex min-w-0 shrink items-center gap-2 text-left"
 					onClick={onToggle}
@@ -216,7 +216,7 @@ function DiffFileSection({
 				<button
 					aria-label={`Copy file path for ${file.path}`}
 					className={cn(
-						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
+						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
 						copied ? "opacity-100 text-primary" : "opacity-0",
 					)}
 					onClick={() => void handleCopyPath()}
@@ -242,7 +242,7 @@ function DiffFileSection({
 					<DropdownMenuTrigger asChild>
 						<button
 							aria-label={`Open ${file.path} in editor`}
-							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-accent data-[state=open]:text-foreground"
+							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
 							disabled={opening}
 							title="Open in editor"
 							type="button"

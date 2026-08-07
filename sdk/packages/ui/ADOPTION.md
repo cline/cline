@@ -13,6 +13,7 @@ styles or adopting desktop product structure.
 
 The theme provides:
 
+- Cline-owned Slate, Violet, Ruby, Green, Amber, and Sky solid/alpha palettes
 - Light and dark semantic colors
 - Standard shadcn token names
 - Typography families, sizes, weights, line heights, and letter spacing
@@ -410,9 +411,21 @@ Product components should use semantic tokens:
 }
 ```
 
-Use the small `--brand-*` palette and `--primary-emphasis` for branded artwork
-or deliberate emphasis. Normal controls should prefer semantic tokens so they
-continue to work across light, dark, and future theme layers.
+Theme authors can tune the visual hierarchy without rewriting component
+semantics:
+
+```css
+:root,
+.dark {
+  --surface-1: var(--neutral-1);
+  --surface-2: var(--neutral-2);
+  --focus-ring: var(--accent-8);
+}
+```
+
+Use the small `--brand-*` palette only for branded artwork. Normal controls
+should prefer visual/status roles or shadcn semantic tokens so they continue to
+work across light, dark, and future theme layers.
 
 ## Product overrides
 
@@ -481,6 +494,8 @@ Until the package has a stable version, contract changes should:
 - Build every active consumer
 - Include light/dark visual evidence when values change
 - Avoid renaming standard shadcn/Tailwind variables
+- Keep Cline-owned palette values in `palette.css` and author UI through visual
+  or status roles
 - Keep `tokens.css` framework-neutral
 - Keep component props independent of product runtime schemas
 - Keep product-specific layout and orchestration out of the package
@@ -514,6 +529,7 @@ current product contracts should be compared before standardizing them.
 - [Agent-chat components](./components/agent-chat/index.tsx)
 - [Agent-chat styles](./components/agent-chat/agent-chat.css)
 - [Tokens](./theme/tokens.css)
+- [Palette](./theme/palette.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)
 - [Complete theme](./theme/index.css)

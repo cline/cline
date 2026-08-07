@@ -179,7 +179,7 @@ export function AgentHeader({
 						className={cn(
 							"min-w-0 truncate text-sm font-medium text-foreground",
 							canEditTitle &&
-								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
+								"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
 						)}
 						disabled={renamingTitle}
 						onClick={(event) => {
@@ -265,7 +265,7 @@ export function AgentHeader({
 					) : (
 						<Button
 							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
 							variant="ghost"
@@ -304,7 +304,7 @@ function SubagentSessionBadge({
 	return (
 		<Button
 			aria-label={hint}
-			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 			disabled={!onOpenParentSession}
 			id="subagent-session-badge"
 			onClick={() => void onOpenParentSession?.(parentSession.sessionId)}
@@ -529,7 +529,7 @@ function AgentRosterRow({
 	return (
 		<li>
 			<button
-				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/60"
+				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-hover"
 				onClick={onSelect}
 				title="Open this agent's session"
 				type="button"
