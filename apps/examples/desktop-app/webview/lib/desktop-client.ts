@@ -196,11 +196,11 @@ export function writeDesktopDebugLog(payload: unknown): void {
 		...(entry.metadata ?? {}),
 	};
 	if (entry.level === "error") {
-		console.error(prefix, details);
+		console.error("%s %o", prefix, details);
 	} else if (entry.level === "info") {
-		console.info(prefix, details);
+		console.info("%s %o", prefix, details);
 	} else {
-		console.debug(prefix, details);
+		console.debug("%s %o", prefix, details);
 	}
 }
 

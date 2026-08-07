@@ -320,12 +320,16 @@ describe("DesktopClient command deadlines", () => {
 });
 
 describe("writeDesktopDebugLog", () => {
-	it("prints valid sidecar diagnostics to the webview console", () => {
-		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+	it.each([
+		"debug",
+		"info",
+		"error",
+	] as const)("prints valid %s sidecar diagnostics with a static format string", (level) => {
+		const consoleSpy = vi.spyOn(console, level).mockImplementation(() => {});
 
 		writeDesktopDebugLog({
 			scope: "voice-input",
-			level: "debug",
+			level,
 			message: "Starting audio transcription",
 			timestamp: "2026-07-28T00:00:00.000Z",
 			metadata: {
@@ -335,7 +339,8 @@ describe("writeDesktopDebugLog", () => {
 			},
 		});
 
-		expect(debugSpy).toHaveBeenCalledWith(
+		expect(consoleSpy).toHaveBeenCalledWith(
+			"%s %o",
 			"[desktop:voice-input] Starting audio transcription",
 			expect.objectContaining({
 				providerId: "vercel-ai-gateway",

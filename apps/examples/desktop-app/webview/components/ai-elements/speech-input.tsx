@@ -60,6 +60,8 @@ export type SpeechInputProps = Omit<
 	onStartStreaming?: () => Promise<StreamingSpeechSession>;
 	onStreamingStart?: () => void;
 	onStreamingEnd?: () => void;
+	onActiveChange?: (active: boolean) => void;
+	onProcessingChange?: (processing: boolean) => void;
 	onError?: (error: unknown) => void;
 	lang?: string;
 	recordingMode?: "auto" | "media-recorder" | "streaming";
@@ -103,8 +105,10 @@ export function SpeechInput({
 	disabled,
 	lang = "en-US",
 	onAudioRecorded,
+	onActiveChange,
 	onClick,
 	onError,
+	onProcessingChange,
 	onStartStreaming,
 	onStreamingEnd,
 	onStreamingStart,
@@ -124,6 +128,8 @@ export function SpeechInput({
 	const streamingSessionRef = useRef<StreamingSpeechSession | null>(null);
 	const streamRef = useRef<MediaStream | null>(null);
 	const audioChunksRef = useRef<Blob[]>([]);
+	const mountedRef = useRef(true);
+	const operationIdRef = useRef(0);
 	const onAudioRecordedRef = useRef(onAudioRecorded);
 	const onErrorRef = useRef(onError);
 	const onStartStreamingRef = useRef(onStartStreaming);
@@ -137,6 +143,14 @@ export function SpeechInput({
 	onStreamingEndRef.current = onStreamingEnd;
 	onStreamingStartRef.current = onStreamingStart;
 	onTranscriptionChangeRef.current = onTranscriptionChange;
+
+	useEffect(() => {
+		onActiveChange?.(isListening || isProcessing);
+	}, [isListening, isProcessing, onActiveChange]);
+
+	useEffect(() => {
+		onProcessingChange?.(isProcessing);
+	}, [isProcessing, onProcessingChange]);
 
 	useEffect(() => {
 		if (mode !== "speech-recognition") return;
@@ -190,8 +204,11 @@ export function SpeechInput({
 		};
 	}, [lang, mode]);
 
-	useEffect(
-		() => () => {
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+			operationIdRef.current += 1;
 			streamingSessionRef.current?.cancel();
 			streamingSessionRef.current = null;
 			if (mediaRecorderRef.current?.state === "recording") {
@@ -200,29 +217,37 @@ export function SpeechInput({
 			for (const track of streamRef.current?.getTracks() ?? []) {
 				track.stop();
 			}
-		},
-		[],
-	);
+		};
+	}, []);
 
 	const startStreaming = useCallback(async () => {
 		if (!onStartStreamingRef.current) return;
-		onStreamingStartRef.current?.();
+		const operationId = ++operationIdRef.current;
 		setIsProcessing(true);
 		try {
+			onStreamingStartRef.current?.();
 			const session = await onStartStreamingRef.current();
+			if (!mountedRef.current || operationId !== operationIdRef.current) {
+				session.cancel();
+				return;
+			}
 			streamingSessionRef.current = session;
 			setIsListening(true);
 			setIsProcessing(false);
 			void session.done.then(
 				() => {
-					if (streamingSessionRef.current !== session) return;
+					if (!mountedRef.current || streamingSessionRef.current !== session) {
+						return;
+					}
 					streamingSessionRef.current = null;
 					setIsListening(false);
 					setIsProcessing(false);
 					onStreamingEndRef.current?.();
 				},
 				(error) => {
-					if (streamingSessionRef.current !== session) return;
+					if (!mountedRef.current || streamingSessionRef.current !== session) {
+						return;
+					}
 					streamingSessionRef.current = null;
 					setIsListening(false);
 					setIsProcessing(false);
@@ -231,6 +256,9 @@ export function SpeechInput({
 				},
 			);
 		} catch (error) {
+			if (!mountedRef.current || operationId !== operationIdRef.current) {
+				return;
+			}
 			setIsListening(false);
 			setIsProcessing(false);
 			onStreamingEndRef.current?.();
@@ -240,8 +268,14 @@ export function SpeechInput({
 
 	const startMediaRecorder = useCallback(async () => {
 		if (!onAudioRecordedRef.current) return;
+		const operationId = ++operationIdRef.current;
+		setIsProcessing(true);
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			if (!mountedRef.current || operationId !== operationIdRef.current) {
+				for (const track of stream.getTracks()) track.stop();
+				return;
+			}
 			const recorder = new MediaRecorder(stream);
 			streamRef.current = stream;
 			mediaRecorderRef.current = recorder;
@@ -251,37 +285,63 @@ export function SpeechInput({
 				if (event.data.size > 0) audioChunksRef.current.push(event.data);
 			});
 			recorder.addEventListener("error", (event) => {
+				if (!mountedRef.current || operationId !== operationIdRef.current) {
+					return;
+				}
 				setIsListening(false);
+				setIsProcessing(false);
+				operationIdRef.current += 1;
 				for (const track of stream.getTracks()) track.stop();
 				streamRef.current = null;
+				mediaRecorderRef.current = null;
 				onErrorRef.current?.(event);
 			});
 			recorder.addEventListener("stop", async () => {
-				setIsListening(false);
 				for (const track of stream.getTracks()) track.stop();
 				streamRef.current = null;
+				mediaRecorderRef.current = null;
+				if (!mountedRef.current || operationId !== operationIdRef.current) {
+					return;
+				}
+				setIsListening(false);
 				const audioBlob = new Blob(audioChunksRef.current, {
 					type: recorder.mimeType || "audio/webm",
 				});
-				if (audioBlob.size === 0 || !onAudioRecordedRef.current) return;
+				audioChunksRef.current = [];
+				if (audioBlob.size === 0 || !onAudioRecordedRef.current) {
+					setIsProcessing(false);
+					return;
+				}
 
 				setIsProcessing(true);
 				try {
 					const transcript = await onAudioRecordedRef.current(audioBlob);
+					if (!mountedRef.current || operationId !== operationIdRef.current) {
+						return;
+					}
 					if (transcript.trim()) {
 						onTranscriptionChangeRef.current?.(transcript);
 					}
 				} catch (error) {
-					onErrorRef.current?.(error);
+					if (mountedRef.current && operationId === operationIdRef.current) {
+						onErrorRef.current?.(error);
+					}
 				} finally {
-					setIsProcessing(false);
+					if (mountedRef.current && operationId === operationIdRef.current) {
+						setIsProcessing(false);
+					}
 				}
 			});
 
 			recorder.start();
 			setIsListening(true);
+			setIsProcessing(false);
 		} catch (error) {
+			if (!mountedRef.current || operationId !== operationIdRef.current) {
+				return;
+			}
 			setIsListening(false);
+			setIsProcessing(false);
 			onErrorRef.current?.(error);
 		}
 	}, []);
