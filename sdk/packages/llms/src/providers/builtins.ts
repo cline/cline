@@ -724,6 +724,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "crusoe",
+		name: "Crusoe",
+		description: "Managed inference on renewable-powered GPU infrastructure",
+		family: "openai-compatible",
+		defaultModelId: "zai/GLM-5.2",
+		apiKeyEnv: ["CRUSOE_API_KEY"],
+		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
