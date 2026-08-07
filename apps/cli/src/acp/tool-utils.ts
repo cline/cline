@@ -10,6 +10,7 @@ const TOOL_KIND_MAP: Record<string, ToolKind> = {
 	Edit: "edit",
 	Write: "edit",
 	editor: "edit",
+	apply_patch: "edit",
 	Delete: "delete",
 	Move: "move",
 	Bash: "execute",
