@@ -67,6 +67,7 @@ class FakeHubClient {
 	onFailedSend?: () => void;
 	commandHook?: (command: string) => void | Promise<void>;
 	invalidMessagesSnapshot = false;
+	listedModel?: string;
 	messages: unknown[] = [{ role: "user", content: "hi" }];
 	prompts: Array<Record<string, unknown>> = [
 		{
@@ -120,7 +121,15 @@ class FakeHubClient {
 				ok: true,
 				payload: {
 					sessions: this.hasExistingInner
-						? [{ sessionId: "inner-1", updatedAt: 20 }]
+						? [
+								{
+									sessionId: "inner-1",
+									updatedAt: 20,
+									...(this.listedModel
+										? { metadata: { model: this.listedModel } }
+										: {}),
+								},
+							]
 						: [],
 				},
 			};
@@ -997,6 +1006,126 @@ describe("CloudSessionManager", () => {
 			command: "session.attach",
 			sessionId: "inner-created",
 		});
+	});
+
+	it("updates the cloud model before sending and skips redundant updates", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const remote = {
+			...REMOTE_SESSION,
+			metadata: { ...REMOTE_SESSION.metadata },
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [remote] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		for (const prompt of ["First turn", "Second turn"]) {
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: "ses-outer",
+				prompt,
+				config: {
+					executionTarget: "cloud",
+					model: "anthropic/claude-opus-4-1",
+				},
+			});
+		}
+
+		const updateCommands = hub.commands.filter(
+			(command) => command.command === "session.update_connection",
+		);
+		expect(updateCommands).toEqual([
+			expect.objectContaining({
+				payload: {
+					sessionId: "inner-1",
+					updates: { modelId: "anthropic/claude-opus-4-1" },
+				},
+				sessionId: "inner-1",
+			}),
+		]);
+		expect(
+			hub.commands.findIndex(
+				(command) => command.command === "session.update_connection",
+			),
+		).toBeLessThan(
+			hub.commands.findIndex(
+				(command) => command.command === "session.send_input",
+			),
+		);
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
+			"anthropic/claude-opus-4-1",
+		);
+	});
+
+	it("keeps the confirmed model when the pod rejects an update", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const remote = {
+			...REMOTE_SESSION,
+			metadata: { ...REMOTE_SESSION.metadata },
+		};
+		hub.commandHook = (command) => {
+			if (command === "session.update_connection") {
+				throw new Error("unsupported command");
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [remote] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: "ses-outer",
+				prompt: "Use Opus",
+				config: {
+					executionTarget: "cloud",
+					model: "anthropic/claude-opus-4-1",
+				},
+			}),
+		).rejects.toThrow("unsupported command");
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
+			remote.metadata.modelId,
+		);
+		expect(
+			hub.commands.some((command) => command.command === "session.send_input"),
+		).toBe(false);
+	});
+
+	it("restores the current model from the pod when reopening", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.listedModel = "anthropic/claude-opus-4-1";
+		const remote = {
+			...REMOTE_SESSION,
+			metadata: { ...REMOTE_SESSION.metadata },
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [remote] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		const attached = await manager.attach("ses-outer");
+
+		expect(attached.model).toBe("anthropic/claude-opus-4-1");
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
+			"anthropic/claude-opus-4-1",
+		);
 	});
 
 	it("confirms recovery when the pod stored the prompt in its user_input wrapper", async () => {

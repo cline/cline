@@ -618,6 +618,14 @@ function updatedAt(record: JsonRecord): number {
 		: Date.parse(String(value ?? "")) || 0;
 }
 
+function sessionRowModelId(record: JsonRecord | undefined): string {
+	const metadata =
+		record?.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return String(metadata?.model ?? record?.model ?? "").trim();
+}
+
 function parseApprovalInput(value: unknown): unknown {
 	if (typeof value !== "string") {
 		return value;
@@ -1109,6 +1117,7 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		prompt: string,
 		delivery?: "queue" | "steer",
+		modelId?: string,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1132,6 +1141,7 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub session was not initialized");
 		}
 		await this.ensureAttached(connection);
+		await this.updateModel(connection, modelId);
 		if (!connection.transcriptKnown) {
 			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
 		}
@@ -1220,6 +1230,35 @@ export class CloudSessionManager {
 				live.status = "error";
 			}
 			throw error;
+		}
+	}
+
+	private async updateModel(
+		connection: CloudConnection,
+		requestedModelId?: string,
+	): Promise<void> {
+		const modelId = requestedModelId?.trim();
+		if (!modelId || connection.remote.metadata.modelId === modelId) {
+			return;
+		}
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await connection.client.command(
+			"session.update_connection",
+			{ sessionId: innerSessionId, updates: { modelId } },
+			innerSessionId,
+		);
+		this.applyModel(connection, modelId);
+	}
+
+	private applyModel(connection: CloudConnection, modelId: string): void {
+		connection.remote.metadata.modelId = modelId;
+		const live = this.ctx.liveSessions.get(connection.remote.id);
+		if (live) {
+			live.config.model = modelId;
+			live.config.modelId = modelId;
 		}
 	}
 
@@ -1750,6 +1789,8 @@ export class CloudSessionManager {
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
+					const modelId = sessionRowModelId(newest);
+					if (modelId) this.applyModel(connection, modelId);
 					await this.ensureAttached(connection);
 				}
 				if (this.disposed) {

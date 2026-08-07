@@ -1564,7 +1564,15 @@ export async function handleChatSessionCommand(
 				}
 				const live = ctx.liveSessions.get(sessionId);
 				const delivery = request.delivery ?? (live?.busy ? "queue" : undefined);
-				return await cloud.send(sessionId, prompt, delivery);
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				return await cloud.send(
+					sessionId,
+					prompt,
+					delivery,
+					modelId || undefined,
+				);
 			}
 			case "stop":
 			case "abort":
