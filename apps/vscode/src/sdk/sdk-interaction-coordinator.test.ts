@@ -1,10 +1,11 @@
 import type { AgentEvent } from "@cline/shared"
+import { buildUserRejectedToolReason } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +129,7 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
-		const expectedReason = `${DEFAULT_TOOL_APPROVAL_DENIAL_REASON} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
+		const expectedReason = `${buildUserRejectedToolReason("execute_command")} The user provided the following feedback:\n<feedback>\ntoo risky\n</feedback>`
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", expectedReason)
 		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
 			type: "say",
@@ -237,17 +238,14 @@ describe("SdkInteractionCoordinator", () => {
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
+		const expectedReason = buildUserRejectedToolReason("fetch_web_content")
 		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({
 			approved: false,
-			reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
+			reason: expectedReason,
 		})
 		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
-		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
-			"tool-call",
-			"fetch_web_content",
-			DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
-		)
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "fetch_web_content", expectedReason)
 	})
 
 	it("auto-approves without emitting UI when the live settings allow the tool", async () => {

@@ -241,7 +241,11 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	buildUserRejectedToolReason,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON_SUFFIX,
+} from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,

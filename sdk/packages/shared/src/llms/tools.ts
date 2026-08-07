@@ -84,6 +84,20 @@ export interface ToolApprovalResult {
 	reason?: string;
 }
 
+/**
+ * Shared tail of every user-rejection tool denial reason. Kept as one
+ * contiguous string so hosts can detect user rejections regardless of which
+ * tool name (if any) was interpolated at the front.
+ */
+export const USER_REJECTED_TOOL_REASON_SUFFIX =
+	"was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed.";
+
+/** Model-facing reason for a tool call the user rejected. */
+export function buildUserRejectedToolReason(toolName?: string): string {
+	const subject = toolName ? `The "${toolName}" tool call` : "This tool call";
+	return `${subject} ${USER_REJECTED_TOOL_REASON_SUFFIX}`;
+}
+
 export const ToolCallRecordSchema = z.object({
 	id: z.string(),
 	name: z.string(),
