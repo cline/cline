@@ -1,5 +1,6 @@
 "use client";
 
+import { supportsChatModalities } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -65,13 +66,20 @@ export function selectTranscriptionModel(
 		: null;
 }
 
+export function isChatModel(model: ProviderModel): boolean {
+	return supportsChatModalities({
+		input: model.inputModalities,
+		output: model.outputModalities,
+	});
+}
+
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).map((model) => model.id);
+	return (models ?? []).filter(isChatModel).map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? [])
-		.filter((model) => model.supportsReasoning)
+		.filter((model) => isChatModel(model) && model.supportsReasoning)
 		.map((model) => model.id);
 }
 
@@ -82,7 +90,10 @@ export function buildProviderModelCatalog(
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [
