@@ -1,4 +1,5 @@
 import {
+	buildMcpInstallTransport as buildCoreMcpInstallTransport,
 	type McpInstallOptions as CoreMcpInstallOptions,
 	installMcpServer,
 	type McpInstallResult,
@@ -28,39 +29,6 @@ export interface McpInstallDirectResult {
 	warnings: string[];
 }
 
-function normalizeTransportType(
-	value: string | undefined,
-): McpServerTransportConfig["type"] {
-	const normalized = (value ?? "stdio").trim();
-	if (normalized === "http" || normalized === "streamable-http") {
-		return "streamableHttp";
-	}
-	if (
-		normalized === "stdio" ||
-		normalized === "sse" ||
-		normalized === "streamableHttp"
-	) {
-		return normalized;
-	}
-	throw new Error(
-		`Unsupported MCP transport "${normalized}". Expected stdio, sse, http, streamable-http, or streamableHttp.`,
-	);
-}
-
-function assertValidUrl(url: string): void {
-	let parsed: URL;
-	try {
-		parsed = new URL(url);
-	} catch {
-		throw new Error(`Invalid MCP server URL: ${url}`);
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw new Error(
-			`Invalid MCP server URL: ${url} (only http and https are supported)`,
-		);
-	}
-}
-
 function quoteCommandArg(arg: string): string {
 	if (/^[^\s"'\\]+$/.test(arg)) {
 		return arg;
@@ -73,36 +41,20 @@ export function buildMcpInstallDefaults(options: {
 	targetArgs?: string[];
 	transport?: string;
 }): McpAddDefaults {
-	const name = options.name.trim();
-	if (!name) {
-		throw new Error("MCP server name is required");
-	}
-	const type = normalizeTransportType(options.transport);
-	const targetArgs = options.targetArgs ?? [];
-	if (type === "stdio") {
-		if (targetArgs.length === 0) {
-			throw new Error(
-				"Stdio MCP install requires a command after the server name, for example: cline mcp install fs -- npx -y @modelcontextprotocol/server-filesystem /tmp",
-			);
-		}
+	const { name, transport } = buildCoreMcpInstallTransport(options);
+	if (transport.type === "stdio") {
 		return {
 			name,
-			type,
-			command: targetArgs.map(quoteCommandArg).join(" "),
+			type: transport.type,
+			command: [transport.command, ...(transport.args ?? [])]
+				.map(quoteCommandArg)
+				.join(" "),
 		};
 	}
-
-	if (targetArgs.length !== 1) {
-		throw new Error(
-			"Remote MCP install requires exactly one URL argument after the server name.",
-		);
-	}
-	const url = targetArgs[0]?.trim() ?? "";
-	assertValidUrl(url);
 	return {
 		name,
-		type,
-		url,
+		type: transport.type,
+		url: transport.url,
 	};
 }
 

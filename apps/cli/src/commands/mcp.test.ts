@@ -56,6 +56,19 @@ describe("mcp install command", () => {
 		});
 	});
 
+	it("shows mcp-remote marketplace entries as native remote servers", () => {
+		expect(
+			buildMcpInstallDefaults({
+				name: "linear",
+				targetArgs: ["npx", "-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			}),
+		).toEqual({
+			name: "linear",
+			type: "streamableHttp",
+			url: "https://mcp.linear.app/mcp",
+		});
+	});
+
 	it("normalizes streamable-http transport", () => {
 		expect(
 			buildMcpInstallDefaults({
