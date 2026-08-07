@@ -169,7 +169,7 @@ export function serializeMessage(message: MessageWithMetadata): string {
 				break;
 			case "video":
 				lines.push(
-					`[${message.role === "user" ? "User" : "Bot"} generated video]: ${block.mediaType} (${block.path})`,
+					`[${message.role === "user" ? "User" : "Bot"} generated video]: ${block.mediaType}`,
 				);
 				break;
 		}
