@@ -39,7 +39,7 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
-	isImageGenerationModel,
+	isDedicatedImageGenerationModel,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -846,8 +846,12 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const imageGeneration = isImageGenerationModel(modelInfo ?? {});
-		const tools = imageGeneration ? [] : Array.from(mergedToolsByName.values());
+		const dedicatedImageGeneration = isDedicatedImageGenerationModel(
+			modelInfo ?? {},
+		);
+		const tools = dedicatedImageGeneration
+			? []
+			: Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -875,7 +879,7 @@ export class SessionRuntime {
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
-			completionPolicy: imageGeneration ? null : undefined,
+			completionPolicy: dedicatedImageGeneration ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);

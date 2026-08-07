@@ -64,7 +64,7 @@ describe("OpenRouter image transport", () => {
 							name: "Gemini Image Test",
 							modalities: {
 								input: ["text", "image"],
-								output: ["text", "image"],
+								output: ["image"],
 							},
 						},
 					],
