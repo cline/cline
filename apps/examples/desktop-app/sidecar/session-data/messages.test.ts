@@ -147,6 +147,49 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
+	it("projects generated audio artifact blocks", async () => {
+		const sessionId = `audio-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "assistant-audio",
+							role: "assistant",
+							content: [
+								{
+									type: "audio",
+									mediaType: "audio/mpeg",
+									path: "/tmp/session/artifacts/audio-result.mp3",
+								},
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "assistant",
+				content: "",
+				audios: [
+					{
+						id: "assistant-audio_audio_0",
+						mediaType: "audio/mpeg",
+						artifactName: "audio-result.mp3",
+					},
+				],
+			}),
+		]);
+	});
+
 	it("preserves absolute user run counts when older messages are omitted", async () => {
 		const sessionId = `run-count-projection-${Date.now()}`;
 		const liveSessions = new Map([

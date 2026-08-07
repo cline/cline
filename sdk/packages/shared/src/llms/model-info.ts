@@ -120,6 +120,22 @@ export function isDedicatedVideoGenerationModel(
 	return isVideoGenerationModel(model) && output?.includes("text") !== true;
 }
 
+export function isAudioGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	return (
+		model.modalities?.input.includes("text") === true &&
+		model.modalities.output.includes("audio")
+	);
+}
+
+export function isDedicatedAudioGenerationModel(
+	model: Pick<ModelInfo, "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return isAudioGenerationModel(model) && output?.includes("text") !== true;
+}
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),

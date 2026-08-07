@@ -59,6 +59,11 @@ export type AiSdkFormatterPart =
 			mediaType: string;
 	  }
 	| {
+			type: "audio";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
 			type: "tool-call";
 			toolCallId: string;
 			toolName: string;
@@ -708,6 +713,12 @@ export function formatMessagesForAiSdk(
 					messageParts.push({
 						type: "text",
 						text: `[Generated video artifact: ${sanitizeSurrogates(part.mediaType)}]`,
+					});
+					break;
+				case "audio":
+					messageParts.push({
+						type: "text",
+						text: `[Generated audio artifact: ${sanitizeSurrogates(part.path ?? "stored by host")}]`,
 					});
 					break;
 				case "file":

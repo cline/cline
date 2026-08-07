@@ -252,7 +252,11 @@ function toModalities(
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (!output.includes("image") && !output.includes("video")) {
+	if (
+		!output.includes("image") &&
+		!output.includes("video") &&
+		!output.includes("audio")
+	) {
 		return undefined;
 	}
 	return { input, output };
@@ -262,7 +266,8 @@ function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("text") === true &&
 		(model.modalities.output?.includes("image") === true ||
-			model.modalities.output?.includes("video") === true)
+			model.modalities.output?.includes("video") === true ||
+			model.modalities.output?.includes("audio") === true)
 	);
 }
 

@@ -33,6 +33,7 @@ import type {
 } from "@/hooks/chat-session/types";
 import {
 	type ChatMessage,
+	ChatMessageAudioSchema,
 	ChatMessageImageSchema,
 	ChatMessageVideoSchema,
 	type ChatSessionConfig,
@@ -70,6 +71,7 @@ const RELEVANT_STREAMS = new Set([
 	"chat_reasoning",
 	"chat_image",
 	"chat_video",
+	"chat_audio",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -1157,6 +1159,57 @@ export function useChatSession() {
 							role: "assistant",
 							content: "",
 							videos: [video.data],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				return;
+			}
+
+			if (payload.stream === "chat_audio") {
+				let parsed: { mediaType?: string; artifactName?: string };
+				try {
+					parsed = JSON.parse(payload.chunk) as typeof parsed;
+				} catch {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				const audio = ChatMessageAudioSchema.safeParse({
+					id: `${assistantId}_audio_${parsed.artifactName ?? "artifact"}`,
+					mediaType: parsed.mediaType,
+					artifactName: parsed.artifactName,
+				});
+				if (!audio.success) return;
+
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((previous) => {
+					const updated = updateMessageById(
+						previous,
+						assistantId,
+						(message) => {
+							const audios = message.audios ?? [];
+							if (
+								audios.some(
+									(existing) =>
+										existing.artifactName === audio.data.artifactName,
+								)
+							) {
+								return message;
+							}
+							return { ...message, audios: [...audios, audio.data] };
+						},
+					);
+					if (updated !== previous) return updated;
+					return sliceMessages([
+						...previous,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							audios: [audio.data],
 							createdAt: chunkCreatedAt(payload),
 						},
 					]);

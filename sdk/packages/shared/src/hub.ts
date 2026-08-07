@@ -536,6 +536,7 @@ export type HubEventName =
 	| "assistant.delta"
 	| "assistant.image"
 	| "assistant.video"
+	| "assistant.audio"
 	| "assistant.finished"
 	| "session.notice"
 	| "reasoning.delta"

@@ -248,6 +248,18 @@ function handleAgentEvent(
 				);
 				break;
 			}
+			if (event.contentType === "audio" && event.audio) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_audio",
+					JSON.stringify({
+						mediaType: event.audio.mediaType,
+						artifactName: basename(event.audio.path),
+					}),
+				);
+				break;
+			}
 			if (event.contentType === "tool") {
 				emitChunk(
 					ctx,
@@ -719,6 +731,10 @@ export function handleHubLiveEvent(
 		}
 		case "assistant.video": {
 			// Video events follow the same canonical HubRuntimeHost projection path.
+			return;
+		}
+		case "assistant.audio": {
+			// Audio events follow the same canonical HubRuntimeHost projection path.
 			return;
 		}
 		case "reasoning.delta": {

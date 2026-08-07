@@ -839,6 +839,35 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("emits generated audio files from multimodal model streams", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "file",
+					file: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "audio-model",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "audio",
+			data: "YXVkaW8=",
+			mediaType: "audio/mpeg",
+		});
+	});
+
 	it("uses generateImage for dedicated text-to-image models", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/webp", base64: "aGVsbG8=" }],

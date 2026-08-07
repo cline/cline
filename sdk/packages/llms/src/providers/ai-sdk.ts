@@ -252,6 +252,22 @@ function extractGeneratedVideo(
 	return { data: record.base64, mediaType: record.mediaType };
 }
 
+function extractGeneratedAudio(
+	file: unknown,
+): { data: string; mediaType: string } | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith("audio/") ||
+		typeof record.base64 !== "string" ||
+		!record.base64
+	) {
+		return undefined;
+	}
+	return { data: record.base64, mediaType: record.mediaType };
+}
+
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
 	_context: GatewayProviderContext,
@@ -1216,6 +1232,11 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
+					const audio = extractGeneratedAudio(part.file);
+					if (audio) {
+						yield { type: "audio", ...audio };
+						continue;
+					}
 					const video = extractGeneratedVideo(part.file);
 					if (video) {
 						yield { type: "video", ...video };
