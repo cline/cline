@@ -41,7 +41,7 @@ import { useTheme } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
-	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAws,
 	resolveProviderConfigAzure,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
@@ -597,7 +597,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		// the provider's own auth response is the authoritative error and is
 		// surfaced when the model picker / first turn runs.
 		const apiKey = byoValues.apiKey?.trim();
-		const awsProfile = byoValues.awsProfile?.trim();
 		const hasAzureFields = byoFields.azureApiVersion;
 		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
 		const hasSapFields =
@@ -612,13 +611,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			apiKey: byoFields.apiKey ? apiKey : undefined,
 			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
 			azure: hasAzureFields ? resolveProviderConfigAzure(byoValues) : undefined,
-			aws: hasAwsFields
-				? {
-						region: resolveProviderConfigAwsRegion(byoValues),
-						authentication: apiKey ? "api-key" : "profile",
-						profile: apiKey ? undefined : awsProfile || undefined,
-					}
-				: undefined,
+			aws: hasAwsFields ? resolveProviderConfigAws(byoValues) : undefined,
 			sap: hasSapFields ? resolveProviderConfigSap(byoValues) : undefined,
 		});
 		// Emit a single `user.provider_configured` event mirroring the
