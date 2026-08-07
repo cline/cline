@@ -225,6 +225,24 @@ describe("models-dev-catalog", () => {
 		).toEqual({});
 	});
 
+	it("drops free entries with a bare id but keeps bare ClinePass ids (cline/cline#12510)", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				// ClinePass ids are legitimately bare, scoped to the fixed
+				// "cline-pass" modelType.
+				clinePass: [{ id: "glm-5.2", name: "GLM 5.2" }],
+				// Free entries are meant to be full `modelType/model` ids; a bare
+				// slug here means the endpoint sent something malformed, which
+				// the gateway would reject with "invalid model format".
+				free: [{ id: "gemini-3.6-flash", name: "gemini-3.6-flash" }],
+			},
+			{},
+		);
+
+		expect(result["cline-pass"]?.["glm-5.2"]).toBeDefined();
+		expect(result.cline).toBeUndefined();
+	});
+
 	it("includes Cline free models alongside ClinePass models", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
