@@ -1009,7 +1009,7 @@ describe("SessionRuntime.run", () => {
 		await session.run("Use a tool if needed, then generate a video");
 
 		expect(configs).toHaveLength(1);
-		expect(configs[0]?.tools.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
 		expect(configs[0]?.completionPolicy).toEqual({
 			requireCompletionTool: true,
 		});
