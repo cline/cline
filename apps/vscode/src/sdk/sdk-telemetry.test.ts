@@ -1,16 +1,17 @@
 import type { ConfiguredTelemetryHandle, ITelemetryService } from "@cline/core"
 import type { Mock } from "vitest"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { resetTelemetryPolicyForTests } from "@/services/telemetry/telemetry-policy"
 import { Setting } from "@/shared/proto/index.host"
 
-const coreTelemetryMocks = vi.hoisted(() => ({
-	createConfig: vi.fn((config: Record<string, unknown>) => config),
-	createHandle: vi.fn(),
+const otelClientMocks = vi.hoisted(() => ({
+	clients: [] as unknown[],
+	flush: vi.fn(async () => {}),
 }))
 
-vi.mock("@cline/core", () => ({
-	createClineTelemetryServiceConfig: coreTelemetryMocks.createConfig,
-	createConfiguredTelemetryHandle: coreTelemetryMocks.createHandle,
+vi.mock("@/services/telemetry/otel-clients", () => ({
+	getSharedOtelClients: () => otelClientMocks.clients,
+	flushSharedOtelClients: otelClientMocks.flush,
 }))
 
 const telemetryState = vi.hoisted(() => ({
@@ -59,8 +60,39 @@ vi.mock("@/hosts/host-provider", () => ({
 
 import { createVscodeSdkTelemetryHandle, VscodeTelemetryPolicyService } from "./sdk-telemetry"
 
-describe("VscodeTelemetryPolicyService", () => {
+interface EmittedRecord {
+	body: string
+	attributes: Record<string, unknown>
+}
+
+function createFakeSharedClient(overrides: { id?: string; bypassUserSettings?: boolean } = {}) {
+	const emitted: EmittedRecord[] = []
+	const client = {
+		meterProvider: null,
+		loggerProvider: {
+			getLogger: () => ({
+				emit: (record: EmittedRecord) => {
+					emitted.push(record)
+				},
+			}),
+			forceFlush: vi.fn(async () => {}),
+			shutdown: vi.fn(async () => {}),
+		},
+	}
+	return {
+		emitted,
+		shared: {
+			id: overrides.id ?? "build-time",
+			client,
+			config: { enabled: true, logsExporter: "otlp", otlpProtocol: "http/json", otlpEndpoint: "https://collector.example" },
+			bypassUserSettings: overrides.bypassUserSettings ?? false,
+		},
+	}
+}
+
+describe("createVscodeSdkTelemetryHandle (shared-stack construction)", () => {
 	beforeEach(() => {
+		resetTelemetryPolicyForTests()
 		telemetryState.clineTelemetrySetting = "unset"
 		telemetryState.hostSetting = Setting.ENABLED
 		telemetryState.hostVersion = {
@@ -72,8 +104,8 @@ describe("VscodeTelemetryPolicyService", () => {
 		telemetryState.hostVersionGate = undefined
 		telemetryState.subscribeCallback = undefined
 		telemetryState.unsubscribe.mockReset()
-		coreTelemetryMocks.createConfig.mockClear()
-		coreTelemetryMocks.createHandle.mockReset()
+		otelClientMocks.clients = []
+		otelClientMocks.flush.mockClear()
 		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "")
 	})
 
@@ -81,73 +113,153 @@ describe("VscodeTelemetryPolicyService", () => {
 		vi.unstubAllEnvs()
 	})
 
-	it("constructs the handle with unknown host identity fallbacks", () => {
-		// The policy service overrides these from getHostVersion before any event is
-		// emitted; "unknown" must survive a failed lookup instead of a VSCode mislabel.
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+	it("exports events through the shared clients with resolved host identity metadata", async () => {
+		const { emitted, shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
 
-		createVscodeSdkTelemetryHandle()
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
 
-		expect(coreTelemetryMocks.createConfig).toHaveBeenCalledWith(
-			expect.objectContaining({
-				metadata: expect.objectContaining({
-					cline_type: "unknown",
-					platform: "unknown",
-					platform_version: "unknown",
-				}),
-			}),
-		)
+		handle.telemetry.capture({ event: "session.started", properties: { sessionId: "s1" } })
+
+		const event = emitted.find((record) => record.body === "session.started")
+		expect(event).toBeDefined()
+		expect(event?.attributes).toMatchObject({
+			sessionId: "s1",
+			cline_type: "VSCode Extension",
+			platform: "VS Code",
+			platform_version: "1.103.0",
+		})
 	})
 
-	it("defers the provider_created event so it carries resolved host identity", () => {
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+	it("keeps the unknown host identity fallbacks when the host version lookup fails", async () => {
+		// "unknown" must survive a failed lookup instead of a VSCode mislabel.
+		telemetryState.hostVersionError = new Error("host bridge unavailable")
+		const { emitted, shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
 
-		createVscodeSdkTelemetryHandle()
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
 
-		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				deferProviderCreatedEvent: true,
-			}),
-		)
+		handle.telemetry.capture({ event: "session.started" })
+
+		const event = emitted.find((record) => record.body === "session.started")
+		expect(event?.attributes).toMatchObject({
+			cline_type: "unknown",
+			platform: "unknown",
+			platform_version: "unknown",
+		})
 	})
 
-	it("adds rollout metadata as SDK common properties", () => {
+	it("emits provider_created once, after the host identity metadata is applied", async () => {
+		const { emitted, shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
+
+		createVscodeSdkTelemetryHandle()
+		await settlePromises()
+
+		const providerCreated = emitted.filter((record) => record.body === "telemetry.provider_created")
+		expect(providerCreated).toHaveLength(1)
+		expect(providerCreated[0].attributes).toMatchObject({
+			provider: "opentelemetry",
+			enabled: true,
+			cline_type: "VSCode Extension",
+			_required: true,
+		})
+	})
+
+	it("omits provider_created when no shared clients are configured", async () => {
+		otelClientMocks.clients = []
+
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
+
+		// Zero destinations: the handle reports disabled and nothing throws.
+		expect(handle.telemetry.isEnabled()).toBe(false)
+	})
+
+	it("adds rollout metadata as SDK common properties", async () => {
 		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "next")
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+		const { emitted, shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
 
-		createVscodeSdkTelemetryHandle()
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
+		handle.telemetry.capture({ event: "session.started" })
 
-		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				commonProperties: {
-					extension_variant: "next",
-				},
-			}),
-		)
+		const event = emitted.find((record) => record.body === "session.started")
+		expect(event?.attributes).toMatchObject({ extension_variant: "next" })
 	})
 
-	it("omits SDK rollout common properties from ordinary builds", () => {
-		coreTelemetryMocks.createHandle.mockReturnValue(createHandle())
+	it("gates each destination by its own bypass flag when the user opts out", async () => {
+		telemetryState.clineTelemetrySetting = "disabled"
+		const prod = createFakeSharedClient({ id: "build-time", bypassUserSettings: false })
+		const runtime = createFakeSharedClient({ id: "runtime-env", bypassUserSettings: true })
+		otelClientMocks.clients = [prod.shared, runtime.shared]
 
-		createVscodeSdkTelemetryHandle()
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
 
-		expect(coreTelemetryMocks.createHandle).toHaveBeenCalledWith(
-			expect.objectContaining({
-				commonProperties: {},
-			}),
-		)
+		handle.telemetry.capture({ event: "task.created" })
+
+		expect(prod.emitted.filter((record) => record.body === "task.created")).toHaveLength(0)
+		expect(runtime.emitted.filter((record) => record.body === "task.created")).toHaveLength(1)
 	})
 
-	it("drops ordinary events until the async host telemetry setting resolves", () => {
+	it("flushes the shared clients instead of shutting them down on dispose", async () => {
+		const { shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
+
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
+		await handle.dispose()
+
+		expect(otelClientMocks.flush).toHaveBeenCalled()
+		expect(shared.client.loggerProvider.shutdown).not.toHaveBeenCalled()
+	})
+})
+
+describe("VscodeTelemetryPolicyService", () => {
+	beforeEach(() => {
+		resetTelemetryPolicyForTests()
+		telemetryState.clineTelemetrySetting = "unset"
+		telemetryState.hostSetting = Setting.ENABLED
+		telemetryState.hostVersion = {
+			platform: "VS Code",
+			version: "1.103.0",
+			clineType: "VSCode Extension",
+		}
+		telemetryState.hostVersionError = undefined
+		telemetryState.hostVersionGate = undefined
+		telemetryState.subscribeCallback = undefined
+		telemetryState.unsubscribe.mockReset()
+		otelClientMocks.clients = []
+		otelClientMocks.flush.mockClear()
+		vi.stubEnv("CLINE_ROLLOUT_VARIANT", "")
+	})
+
+	afterEach(() => {
+		vi.unstubAllEnvs()
+	})
+
+	it("drops every event until the host identity metadata resolves", () => {
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 
 		service.capture({ event: "session.started" })
+		service.captureRequired("user.opt_out")
+		service.recordCounter("cline.turns.total", 1)
 
 		expect(handle.telemetry.capture).not.toHaveBeenCalled()
+		expect(handle.telemetry.captureRequired).not.toHaveBeenCalled()
+		expect(handle.telemetry.recordCounter).not.toHaveBeenCalled()
 	})
 
-	it("allows ordinary events when host telemetry is enabled and Cline telemetry is not disabled", async () => {
+	it("forwards ordinary events once metadata is ready; destinations gate on the shared policy", async () => {
+		// Even with the user opted out, ordinary events reach the handle so a
+		// bypass-enabled destination (runtime env collector) can still export
+		// them — exactly like the classic pipeline's providers.
+		telemetryState.clineTelemetrySetting = "disabled"
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
@@ -157,58 +269,64 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "session.started", properties: { sessionId: "s1" } })
 	})
 
-	it("drops ordinary events when Cline telemetry is disabled but allows required events while host telemetry is enabled", async () => {
+	it("reports isEnabled false when the user opted out even though events are forwarded", async () => {
 		telemetryState.clineTelemetrySetting = "disabled"
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
-		service.capture({ event: "task.created" })
+		expect(service.isEnabled()).toBe(false)
+	})
+
+	it("allows required events while host telemetry is enabled and the user opted out", async () => {
+		telemetryState.clineTelemetrySetting = "disabled"
+		const handle = createHandle()
+		const service = new VscodeTelemetryPolicyService(handle)
+		await settlePromises()
+
 		service.captureRequired("user.opt_out", { explicit: true })
 
-		expect(handle.telemetry.capture).not.toHaveBeenCalled()
 		expect(handle.telemetry.captureRequired).toHaveBeenCalledWith("user.opt_out", { explicit: true })
 	})
 
-	it("drops ordinary and required events when host telemetry is disabled", async () => {
+	it("drops required events when host telemetry is disabled", async () => {
 		telemetryState.hostSetting = Setting.DISABLED
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
-		service.capture({ event: "task.created" })
 		service.captureRequired("user.opt_out")
 
-		expect(handle.telemetry.capture).not.toHaveBeenCalled()
 		expect(handle.telemetry.captureRequired).not.toHaveBeenCalled()
 	})
 
-	it("uses host telemetry subscription updates for later events", async () => {
+	it("uses host telemetry subscription updates for later required events", async () => {
 		telemetryState.hostSetting = Setting.DISABLED
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
-		service.capture({ event: "task.created" })
+		service.captureRequired("user.opt_out")
 		telemetryState.subscribeCallback?.({ isEnabled: Setting.ENABLED })
-		// Subscription updates apply asynchronously, after host metadata resolution.
 		await settlePromises()
-		service.capture({ event: "task.created" })
+		service.captureRequired("user.opt_out")
 
-		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
+		expect(handle.telemetry.captureRequired).toHaveBeenCalledTimes(1)
 	})
 
-	it("gates metrics with the same ordinary/required policy", async () => {
-		telemetryState.clineTelemetrySetting = "disabled"
+	it("gates metrics with the required policy and forwards ordinary metrics once ready", async () => {
+		telemetryState.hostSetting = Setting.DISABLED
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
+		// Ordinary metrics are forwarded (destination adapters gate them);
+		// required metrics still need the host setting.
 		service.recordCounter("ordinary", 1)
 		service.recordCounter("required", 1, undefined, undefined, true)
 
 		expect(handle.telemetry.recordCounter).toHaveBeenCalledTimes(1)
-		expect(handle.telemetry.recordCounter).toHaveBeenCalledWith("required", 1, undefined, undefined, true)
+		expect(handle.telemetry.recordCounter).toHaveBeenCalledWith("ordinary", 1, undefined, undefined, false)
 	})
 
 	it("applies the full host identity metadata before enabling events", async () => {
@@ -279,8 +397,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "task.created" })
 	})
 
-	it("holds subscription-driven gate opens until the host identity is applied", async () => {
-		telemetryState.hostSetting = Setting.DISABLED
+	it("holds events until the host identity is applied even when the host setting is already enabled", async () => {
 		let releaseHostVersion!: () => void
 		telemetryState.hostVersionGate = new Promise((resolve) => {
 			releaseHostVersion = resolve
@@ -289,8 +406,6 @@ describe("VscodeTelemetryPolicyService", () => {
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
-		telemetryState.subscribeCallback?.({ isEnabled: Setting.ENABLED })
-		await settlePromises()
 		service.capture({ event: "task.created" })
 		expect(handle.telemetry.capture).not.toHaveBeenCalled()
 		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
@@ -324,7 +439,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
 	})
 
-	it("always forwards metadata mutators and cleans up on dispose", async () => {
+	it("always forwards metadata mutators and disposes the handle", async () => {
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 
@@ -332,7 +447,6 @@ describe("VscodeTelemetryPolicyService", () => {
 		await service.dispose()
 
 		expect(handle.telemetry.updateCommonProperties).toHaveBeenCalledWith({ member_id: "member-1" })
-		expect(telemetryState.unsubscribe).toHaveBeenCalled()
 		expect(handle.dispose).toHaveBeenCalled()
 	})
 })

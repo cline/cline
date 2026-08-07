@@ -276,6 +276,263 @@ export function createConfiguredTelemetryHandle(): ConfiguredTelemetryHandle {
 	}
 }
 
+export function createClineTelemetryServiceMetadata(overrides: Partial<TelemetryMetadata> = {}): TelemetryMetadata {
+	// Mirrors @cline/shared createClineTelemetryServiceMetadata defaults.
+	return {
+		extension_version: "unknown",
+		cline_type: "unknown",
+		platform: "terminal",
+		platform_version: process?.version || "unknown",
+		os_type: process?.platform || "unknown",
+		os_version: process?.platform === "win32" ? (process?.env?.OS ?? "unknown") : "unknown",
+		...overrides,
+	}
+}
+
+export function resolveCoreDistinctId(distinctId?: string): string {
+	// The real implementation falls back to a persisted machine id; tests only
+	// need the pass-through behavior for an explicitly provided id.
+	return distinctId ?? "stub-core-distinct-id"
+}
+
+export interface ITelemetryAdapter {
+	readonly name: string
+	emit(event: string, properties?: TelemetryProperties): void
+	emitRequired(event: string, properties?: TelemetryProperties): void
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required?: boolean,
+	): void
+	isEnabled(): boolean
+	setDistinctId(distinctId?: string): void
+	setCommonProperties(properties: TelemetryProperties): void
+	updateCommonProperties(properties: TelemetryProperties): void
+	flush(): Promise<void>
+	dispose(): Promise<void>
+}
+
+export interface OpenTelemetryAdapterOptions {
+	readonly metadata: TelemetryMetadata
+	readonly meterProvider?: { getMeter(name: string): unknown; forceFlush?(): Promise<void>; shutdown?(): Promise<void> } | null
+	readonly loggerProvider?: {
+		getLogger(name: string): { emit(record: Record<string, unknown>): void }
+		forceFlush?(): Promise<void>
+		shutdown?(): Promise<void>
+	} | null
+	readonly name?: string
+	readonly enabled?: boolean | (() => boolean)
+	readonly distinctId?: string
+	readonly commonProperties?: TelemetryProperties
+	readonly ownsProviders?: boolean
+}
+
+/**
+ * Behavior-faithful stub of @cline/core's OpenTelemetryAdapter: same enabled
+ * gating (`emit` gated, `emitRequired` not) and the same attribute merge order,
+ * minus metric instruments and property flattening.
+ */
+export class OpenTelemetryAdapter implements ITelemetryAdapter {
+	readonly name: string
+	private readonly metadata: TelemetryMetadata
+	private readonly logger: { emit(record: Record<string, unknown>): void } | null
+	private readonly enabled: boolean | (() => boolean)
+	private readonly ownsProviders: boolean
+	private readonly meterProvider?: OpenTelemetryAdapterOptions["meterProvider"]
+	private readonly loggerProvider?: OpenTelemetryAdapterOptions["loggerProvider"]
+	private distinctId?: string
+	private commonProperties: TelemetryProperties
+
+	constructor(options: OpenTelemetryAdapterOptions) {
+		this.name = options.name ?? "OpenTelemetryAdapter"
+		this.metadata = { ...options.metadata }
+		this.meterProvider = options.meterProvider
+		this.loggerProvider = options.loggerProvider
+		this.logger = options.loggerProvider?.getLogger("cline") ?? null
+		this.enabled = options.enabled ?? true
+		this.ownsProviders = options.ownsProviders ?? true
+		this.distinctId = options.distinctId
+		this.commonProperties = { ...(options.commonProperties ?? {}) }
+	}
+
+	isEnabled(): boolean {
+		return typeof this.enabled === "function" ? this.enabled() : this.enabled
+	}
+
+	emit(event: string, properties?: TelemetryProperties): void {
+		if (!this.isEnabled()) {
+			return
+		}
+		this.emitLog(event, properties, false)
+	}
+
+	emitRequired(event: string, properties?: TelemetryProperties): void {
+		this.emitLog(event, properties, true)
+	}
+
+	recordCounter(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string, _required = false) {}
+	recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string, _required = false) {}
+	recordGauge(
+		_name: string,
+		_value: number | null,
+		_attributes?: TelemetryProperties,
+		_description?: string,
+		_required = false,
+	) {}
+
+	setDistinctId(distinctId?: string): void {
+		this.distinctId = distinctId
+	}
+
+	setCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = { ...properties }
+	}
+
+	updateCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = { ...this.commonProperties, ...properties }
+	}
+
+	async flush(): Promise<void> {
+		await Promise.all([this.meterProvider?.forceFlush?.(), this.loggerProvider?.forceFlush?.()])
+	}
+
+	async dispose(): Promise<void> {
+		if (!this.ownsProviders) {
+			return
+		}
+		await Promise.all([this.meterProvider?.shutdown?.(), this.loggerProvider?.shutdown?.()])
+	}
+
+	private emitLog(event: string, properties: TelemetryProperties | undefined, required: boolean): void {
+		if (!this.logger) {
+			return
+		}
+		this.logger.emit({
+			severityText: "INFO",
+			body: event,
+			attributes: {
+				...this.commonProperties,
+				...this.metadata,
+				...properties,
+				...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+				...(required ? { _required: true } : {}),
+			},
+		})
+	}
+}
+
+export interface TelemetryServiceOptions {
+	adapters?: ITelemetryAdapter[]
+	metadata?: Partial<TelemetryMetadata>
+	distinctId?: string
+	deviceId?: string
+	commonProperties?: TelemetryProperties
+}
+
+/** Behavior-faithful stub of @cline/core's TelemetryService (adapter fan-out + attribute merging). */
+export class TelemetryService implements ITelemetryService {
+	private adapters: ITelemetryAdapter[]
+	private metadata: Partial<TelemetryMetadata>
+	private distinctId?: string
+	private readonly deviceId: string
+	private commonProperties: TelemetryProperties
+
+	constructor(options: TelemetryServiceOptions = {}) {
+		this.adapters = [...(options.adapters ?? [])]
+		this.metadata = { ...(options.metadata ?? {}) }
+		this.distinctId = options.distinctId
+		this.deviceId = options.deviceId ?? "stub-core-device-id"
+		this.commonProperties = { ...(options.commonProperties ?? {}) }
+	}
+
+	setDistinctId(distinctId?: string): void {
+		this.distinctId = distinctId
+	}
+
+	setMetadata(metadata: Partial<TelemetryMetadata>): void {
+		this.metadata = { ...metadata }
+	}
+
+	updateMetadata(metadata: Partial<TelemetryMetadata>): void {
+		this.metadata = { ...this.metadata, ...metadata }
+	}
+
+	setCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = { ...properties }
+	}
+
+	updateCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = { ...this.commonProperties, ...properties }
+	}
+
+	isEnabled(): boolean {
+		return this.adapters.some((adapter) => adapter.isEnabled())
+	}
+
+	capture(input: { event: string; properties?: TelemetryProperties }): void {
+		const properties = this.buildAttributes(input.properties)
+		for (const adapter of this.adapters) {
+			adapter.emit(input.event, properties)
+		}
+	}
+
+	captureRequired(event: string, properties?: TelemetryProperties): void {
+		const merged = this.buildAttributes(properties)
+		for (const adapter of this.adapters) {
+			adapter.emitRequired(event, merged)
+		}
+	}
+
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required = false): void {
+		const merged = this.buildAttributes(attributes)
+		for (const adapter of this.adapters) {
+			adapter.recordCounter(name, value, merged, description, required)
+		}
+	}
+
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required = false): void {
+		const merged = this.buildAttributes(attributes)
+		for (const adapter of this.adapters) {
+			adapter.recordHistogram(name, value, merged, description, required)
+		}
+	}
+
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		const merged = this.buildAttributes(attributes)
+		for (const adapter of this.adapters) {
+			adapter.recordGauge(name, value, merged, description, required)
+		}
+	}
+
+	async flush(): Promise<void> {
+		await Promise.all(this.adapters.map((adapter) => adapter.flush()))
+	}
+
+	async dispose(): Promise<void> {
+		await Promise.all(this.adapters.map((adapter) => adapter.dispose()))
+	}
+
+	private buildAttributes(properties?: TelemetryProperties): TelemetryProperties {
+		return {
+			...this.commonProperties,
+			...properties,
+			...this.metadata,
+			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+			device_id: this.deviceId,
+		}
+	}
+}
+
 interface ProviderSettingsState {
 	providers: Record<string, Record<string, unknown>>
 	lastUsedProvider?: string
