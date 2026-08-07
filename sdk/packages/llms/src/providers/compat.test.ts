@@ -427,11 +427,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerOptions: expect.objectContaining({
-					openrouter: expect.objectContaining({
-						reasoning: { effort: "high" },
-					}),
-				}),
+				reasoning: "xhigh",
 			}),
 		);
 	});

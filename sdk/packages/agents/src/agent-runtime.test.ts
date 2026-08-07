@@ -2419,7 +2419,11 @@ describe("AgentRuntime sdk.error reporting", () => {
 				},
 			],
 		]);
-		const runtime = new AgentRuntime({ model, telemetry });
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			messageModelInfo: { id: "claude-fable-5", provider: "anthropic" },
+		});
 
 		const result = await runtime.run("Hi");
 
@@ -2431,6 +2435,11 @@ describe("AgentRuntime sdk.error reporting", () => {
 			operation: "agent.run",
 			handled: false,
 			error_message: "backend unavailable",
+			// Model attribution must survive into the event so the warehouse
+			// can answer "which models are hitting this" (dbt coalesces
+			// providerId/modelId into inference_provider/inference_model).
+			providerId: "anthropic",
+			modelId: "claude-fable-5",
 		});
 	});
 

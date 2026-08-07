@@ -58,6 +58,22 @@ describe("MCP install service", () => {
 		});
 	});
 
+	it("installs mcp-remote marketplace entries as native HTTP servers", () => {
+		expect(
+			buildMcpInstallTransport({
+				name: "linear",
+				targetArgs: ["npx", "-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			}),
+		).toEqual({
+			name: "linear",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
+			},
+			warnings: [],
+		});
+	});
+
 	it("installs remote MCP servers with headers into the settings file", () => {
 		const settingsPath = join(root, "cline_mcp_settings.json");
 		const result = installMcpServer({

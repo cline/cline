@@ -216,6 +216,20 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					finalizeDanglingCompactionEntry("cancelled");
 					break;
 				case "error":
+					// Recoverable errors are in-run notices (the MistakeTracker
+					// emits one for every recorded mistake, e.g. a plan-mode
+					// guard-blocked command) — the run continues, so the footer
+					// must keep reflecting the active turn instead of flipping
+					// to idle mid-run. Surface them only in verbose mode.
+					if (event.recoverable) {
+						if (verbose) {
+							appendEntry({
+								kind: "error",
+								text: formatCliErrorMessage(event.error, { modelId }),
+							});
+						}
+						break;
+					}
 					setIsRunning(false);
 					setIsStreaming(false);
 					closeInlineStream();
@@ -223,12 +237,10 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					finalizeDanglingCompactionEntry("failed");
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
-					if (!event.recoverable || verbose) {
-						appendEntry({
-							kind: "error",
-							text: formatCliErrorMessage(event.error, { modelId }),
-						});
-					}
+					appendEntry({
+						kind: "error",
+						text: formatCliErrorMessage(event.error, { modelId }),
+					});
 					break;
 				case "notice":
 					if (event.displayRole === "status") {
