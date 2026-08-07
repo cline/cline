@@ -78,8 +78,9 @@
  *
  * 1. Verify proxy env vars: `echo $http_proxy $https_proxy`
  * 2. Check certificates: `echo $NODE_EXTRA_CA_CERTS` (should point to PEM file)
- * 3. View logs: Check ~/.cline/cline-core-service.log for network-related
- *    failures.
+ * 3. View logs: check for network-related failures in ~/.cline/data/logs/cline.log
+ *    (CLI, override with CLINE_LOG_PATH) or, in JetBrains, the per-project
+ *    ~/.cline/logs/cline-core-<project>-<hash>.log.
  * 4. Test connection: Use `curl -x host:port` etc. to isolate proxy
  *    configuration versus client issues.
  *
