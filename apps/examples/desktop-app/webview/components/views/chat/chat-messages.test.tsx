@@ -219,6 +219,86 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
 	});
 
+	it("summarizes spawned teammates and expands their agent IDs", async () => {
+		await renderMessages(
+			["reviewer", "tester", "writer"].map(
+				(agentId, index): ChatMessage => ({
+					id: `spawn-${agentId}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "team_spawn_teammate",
+						input: { agentId, rolePrompt: "Help the team" },
+						result: { agentId, status: "spawned" },
+					}),
+					createdAt: index + 1,
+				}),
+			),
+		);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Spawned 3 teammates"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("reviewer");
+		expect(container.textContent).toContain("tester");
+		expect(container.textContent).toContain("writer");
+	});
+
+	it("summarizes assigned team tasks with mode, agent, and status", async () => {
+		await renderMessages(
+			["reviewer", "tester"].map(
+				(agentId, index): ChatMessage => ({
+					id: `run-${agentId}`,
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "team_run_task",
+						input: { agentId, runMode: "async", task: "Investigate" },
+						result: { agentId, mode: "async", status: "queued" },
+					}),
+					createdAt: index + 1,
+				}),
+			),
+		);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Assigned 2 team tasks"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("async reviewer queued");
+		expect(container.textContent).toContain("async tester queued");
+	});
+
+	it("summarizes awaited teammate reports with their statuses", async () => {
+		await renderMessages([
+			{
+				id: "await-runs",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "team_await_runs",
+					input: {},
+					result: [
+						{ id: "run-1", agentId: "reviewer", status: "completed" },
+						{ id: "run-2", agentId: "tester", status: "failed" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Waited for teammates"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("reviewer completed");
+		expect(container.textContent).toContain("tester failed");
+	});
+
 	it("preserves interleaved tool activity order", async () => {
 		const read = (
 			id: string,
