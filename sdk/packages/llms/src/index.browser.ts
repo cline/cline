@@ -13,6 +13,7 @@ export {
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
+	getModelsForProviderSync,
 	getProvider,
 	getProviderCollection,
 	getProviderCollectionSync,

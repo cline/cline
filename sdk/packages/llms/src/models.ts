@@ -24,6 +24,7 @@ export type {
 export {
 	getAllProviders,
 	getModelsForProvider,
+	getModelsForProviderSync,
 	getProvider,
 	getProviderCollection,
 	getProviderCollectionSync,

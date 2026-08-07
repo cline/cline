@@ -1,8 +1,8 @@
 import {
 	createGateway,
 	createHandlerAsync,
+	getModelsForProviderSync,
 	hasRegisteredHandler,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
 } from "@cline/llms";
 import type {
@@ -94,7 +94,7 @@ export function resolveKnownModelsFromConfig(
 	const knownModels = pc?.knownModels
 		? pc.knownModels
 		: (config.knownModels ??
-			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
+			getModelsForProviderSync(config.providerId) ??
 			undefined);
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries

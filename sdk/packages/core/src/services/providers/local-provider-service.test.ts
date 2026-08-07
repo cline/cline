@@ -4,6 +4,7 @@ import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveKnownModelsFromConfig } from "../llms/handler-factory";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
@@ -58,6 +59,54 @@ afterEach(() => {
 });
 
 describe("models registry parsing", () => {
+	it("resolves incomplete-provider model metadata through the synchronous config path", () => {
+		registerCustomProvider("openai-compatible", {
+			models: {
+				"custom-model": {
+					contextWindow: 1_048_576,
+					maxInputTokens: 1_000_000,
+					inputPrice: 1.25,
+					outputPrice: 3.5,
+				},
+			},
+		});
+
+		const knownModels = resolveKnownModelsFromConfig({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			systemPrompt: "",
+			tools: [],
+		});
+
+		expect(knownModels?.["custom-model"]).toMatchObject({
+			contextWindow: 1_048_576,
+			maxInputTokens: 1_000_000,
+			pricing: {
+				input: 1.25,
+				output: 3.5,
+			},
+		});
+
+		const explicitKnownModels = resolveKnownModelsFromConfig({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			systemPrompt: "",
+			tools: [],
+			providerConfig: {
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				knownModels: {
+					"custom-model": {
+						id: "custom-model",
+						contextWindow: 4096,
+					},
+				},
+			},
+		});
+
+		expect(explicitKnownModels?.["custom-model"]?.contextWindow).toBe(4096);
+	});
+
 	it("accepts model entries that use the record key as the model id", async () => {
 		const parsed = parseModelsFile({
 			version: 1,
@@ -110,6 +159,19 @@ describe("models registry parsing", () => {
 					cacheWrite: 1.5,
 				},
 				temperature: 0.2,
+			},
+		});
+		expect(
+			resolveKnownModelsFromConfig({
+				providerId: "schema-provider",
+				modelId: "alpha",
+				systemPrompt: "",
+				tools: [],
+			})?.alpha,
+		).toMatchObject({
+			pricing: {
+				input: 1.25,
+				output: 3.5,
 			},
 		});
 	});
