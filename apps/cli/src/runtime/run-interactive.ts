@@ -680,6 +680,13 @@ export async function runInteractive(
 				}
 				if (result.finishReason !== "completed") {
 					if (result.finishReason === "aborted" || isAbortInProgress()) {
+						// An "aborted" finish without a user abort request means
+						// the run stopped on its own (e.g. loop detector or
+						// consecutive-mistake safety stop). Surface that instead
+						// of ending the turn silently.
+						if (!isAbortInProgress()) {
+							onCommandOutput?.("Task stopped before completion.");
+						}
 						const usage = zeroCliUsageCost(
 							await sessionRuntime.getAccumulatedUsage(result.usage),
 							zeroTurnCost,

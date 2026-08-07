@@ -2854,6 +2854,109 @@ describe("LocalRuntimeHost", () => {
 		).toEqual([]);
 	});
 
+	it("drains queued prompts after a turn that self-aborts (loop detector / mistake limit)", async () => {
+		const sessionId = "sess-self-abort-drains-prompts";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let finishRun: (() => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve) => {
+				// The run resolves with finishReason "aborted" without
+				// manager.abort() ever being called — this is how an internal
+				// safety stop (loop detector / mistake limit) ends a run.
+				finishRun = () => {
+					activeRun = false;
+					resolve(createResult({ finishReason: "aborted" }));
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "drained result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued prompt",
+			delivery: "queue",
+		});
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
+				prompt: prompt.prompt,
+				delivery: prompt.delivery,
+			})),
+		).toEqual([{ prompt: "queued prompt", delivery: "queue" }]);
+
+		finishRun?.();
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">queued prompt</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
 		const sessionId = "sess-abort-then-next-turn";
 		const manifest = createManifest(sessionId);

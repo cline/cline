@@ -991,12 +991,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			} else {
 				await this.completeInteractiveTurn(session, result.finishReason);
 			}
-			if (
-				result.finishReason === "error" ||
-				result.finishReason === "aborted"
-			) {
-				return result;
-			}
+			// Drain even when the turn finished with "aborted" or "error":
+			// internal stops (loop detector / mistake limit) would otherwise
+			// strand user-queued prompts forever. User-initiated aborts are
+			// safe — abortSession() already cleared the queue — and drain()
+			// stops after one failed send, so an erroring provider cannot
+			// spin the queue.
 			queueMicrotask(() => {
 				void this.pendingPromptsController.drain(input.sessionId);
 			});
