@@ -582,7 +582,9 @@ function ChatThreadPane({
 	const [dismissedHistorySessionId, setDismissedHistorySessionId] = useState<
 		string | null
 	>(null);
-	const [gitBranch, setGitBranch] = useState("no-git");
+	// Branch name, "no-git" once the folder is confirmed to not be a git
+	// repository, or null while branch discovery is pending.
+	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
@@ -758,7 +760,9 @@ function ChatThreadPane({
 
 	const invalidateGitBranch = useCallback(() => {
 		gitBranchRequestGateRef.current.invalidate();
-		setGitBranch("no-git");
+		// Back to pending: the next workspace hasn't been classified yet, so
+		// don't report it as a confirmed non-repo in the meantime.
+		setGitBranch(null);
 	}, []);
 
 	const listGitBranches = useCallback(async (): Promise<{
