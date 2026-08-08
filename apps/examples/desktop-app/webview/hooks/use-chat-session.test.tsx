@@ -1635,6 +1635,150 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("keeps a queued prompt's attachments retryable after its text is edited in the queue", async () => {
+		let resolveFirstSend:
+			| ((value: Record<string, unknown>) => void)
+			| undefined;
+		const firstSendReply = new Promise<Record<string, unknown>>((resolve) => {
+			resolveFirstSend = resolve;
+		});
+		const directSendRequests: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								prompt?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "pending_prompts") {
+						return {
+							ok: true,
+							promptsInQueue: [
+								{
+									id: "queued-b",
+									prompt: "Original queued prompt",
+									steer: false,
+									attachmentCount: 1,
+								},
+							],
+						};
+					}
+					if (request?.action === "update_pending_prompt") {
+						return {
+							ok: true,
+							promptsInQueue: [
+								{
+									id: "queued-b",
+									prompt: request.prompt,
+									steer: false,
+									attachmentCount: 1,
+								},
+							],
+						};
+					}
+					if (request?.action === "send") {
+						if (request.delivery === "queue") {
+							return {
+								ok: true,
+								queued: true,
+								promptsInQueue: [
+									{
+										id: "queued-b",
+										prompt: "Original queued prompt",
+										steer: false,
+										attachmentCount: 1,
+									},
+								],
+							};
+						}
+						directSendRequests.push(request as Record<string, unknown>);
+						if (directSendRequests.length === 1) {
+							return await firstSendReply;
+						}
+						return {
+							ok: true,
+							result: { text: "All done.", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		// Turn A runs while a prompt with an attachment waits in the queue.
+		const queuedFile = makeTextFile("QUEUED", "queued.txt");
+		await act(async () => {
+			const turnA = current.sendPrompt("First prompt");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			await current.sendPrompt("Original queued prompt", [queuedFile]);
+			resolveFirstSend?.({
+				ok: true,
+				result: { text: "First done.", finishReason: "completed" },
+			});
+			await turnA;
+		});
+
+		// The user edits the queued prompt's text before it runs.
+		await act(async () => {
+			await current.updatePromptInQueue("queued-b", "Edited queued prompt");
+		});
+
+		// The runtime starts the edited prompt and it fails.
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-b",
+					prompt: "Edited queued prompt",
+					attachmentCount: 1,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error", text: "Rate limited." }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+
+		await act(async () => {
+			await current.retryFailedTurn();
+		});
+
+		// The retry re-sends the edited text together with the original file.
+		expect(directSendRequests).toHaveLength(2);
+		const retryRequest = directSendRequests[1] as {
+			prompt?: string;
+			attachments?: { userFiles?: Array<{ name?: string; content?: string }> };
+		};
+		expect(retryRequest.prompt).toBe("Edited queued prompt");
+		expect(retryRequest.attachments?.userFiles).toEqual([
+			{ name: "queued.txt", content: "QUEUED" },
+		]);
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

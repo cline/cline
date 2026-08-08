@@ -2372,6 +2372,9 @@ export function useChatSession() {
 			if (!activeSessionId || !promptId.trim()) {
 				return;
 			}
+			const previousEntry = promptsInQueueRef.current.find(
+				(item) => item.id === promptId,
+			);
 			const payload = await postSession({
 				action: "update_pending_prompt",
 				sessionId: activeSessionId,
@@ -2381,6 +2384,32 @@ export function useChatSession() {
 			setPromptsInQueue(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
+			// Re-key the submission's retained payload to the edited text so the
+			// eventual queued start still pairs with it and a failed-turn retry
+			// keeps the original attachments. Queue entries carry either the raw
+			// prompt (server snapshots) or the display label (optimistic
+			// entries), so match against both.
+			const previousPrompt = previousEntry?.prompt;
+			if (typeof previousPrompt === "string") {
+				const retainedIndex = pendingQueuedTurnPayloadsRef.current.findIndex(
+					(entry) =>
+						entry.label === previousPrompt || entry.prompt === previousPrompt,
+				);
+				const retained = pendingQueuedTurnPayloadsRef.current[retainedIndex];
+				if (retained) {
+					const nextPrompt = prompt.trim();
+					const next = [...pendingQueuedTurnPayloadsRef.current];
+					next[retainedIndex] = {
+						label: buildUserPromptDisplayLabel(
+							nextPrompt,
+							retained.attachedFiles,
+						),
+						prompt: nextPrompt,
+						attachedFiles: retained.attachedFiles,
+					};
+					pendingQueuedTurnPayloadsRef.current = next;
+				}
+			}
 		},
 		[postSession],
 	);
@@ -2399,13 +2428,16 @@ export function useChatSession() {
 			setPromptsInQueue(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
-			// Drop the removed submission's retained payload (oldest label match
-			// first, mirroring queue order) so it can never be paired with a
-			// later turn that reuses the same label.
+			// Drop the removed submission's retained payload (oldest match first,
+			// mirroring queue order) so it can never be paired with a later turn
+			// that reuses the same label. The removed entry carries either the
+			// raw prompt or the display label, so match against both.
 			const removedPromptLabel = payload.prompt?.prompt;
 			if (typeof removedPromptLabel === "string") {
 				const staleIndex = pendingQueuedTurnPayloadsRef.current.findIndex(
-					(entry) => entry.label === removedPromptLabel,
+					(entry) =>
+						entry.label === removedPromptLabel ||
+						entry.prompt === removedPromptLabel,
 				);
 				if (staleIndex >= 0) {
 					pendingQueuedTurnPayloadsRef.current = [
