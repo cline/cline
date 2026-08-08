@@ -46,6 +46,7 @@ import {
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { TextDeltaToolCallParser } from "./text-delta-tool-call-parser";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
@@ -282,6 +283,73 @@ class ControlledStopError extends Error {
 		super(reason ?? "Run stopped by runtime control");
 		this.name = "ControlledStopError";
 		this.reason = reason;
+	}
+}
+
+type AssistantTextPart = { type: "text"; text: string };
+type SequenceItem = (
+	| { type: "tool"; key: string }
+	| { type: "part"; part: AgentMessagePart }
+)[];
+
+/**
+ * Append `text` to the trailing assistant text part in `sequence`, or
+ * push a new text part if the tail is not a text part. The `accumulate`
+ * callback runs with the appended text so the caller can update its own
+ * running total.
+ */
+function appendAssistantTextPart(
+	text: string,
+	sequence: SequenceItem,
+	accumulate: (text: string) => void,
+): void {
+	accumulate(text);
+	const last = sequence.at(-1);
+	if (last?.type === "part" && last.part.type === "text") {
+		(last.part as AssistantTextPart).text += text;
+		return;
+	}
+	sequence.push({
+		type: "part",
+		part: { type: "text", text },
+	});
+}
+
+/**
+ * Register a tool-call recovered from inline-XML markup. Mirrors the
+ * native tool-call-delta behavior: create-or-update the PendingToolAssembly
+ * keyed by `piece.toolCallId`, push a sequence entry if new. The runtime
+ * keeps the assembly as a `tool` sequence entry until the post-stream
+ * drain converts it into a content part.
+ */
+function registerRecoveredToolAssembly(
+	piece: {
+		kind: "tool-call";
+		toolCallId: string;
+		toolName: string;
+		input: Record<string, unknown>;
+	},
+	toolAssemblies: Map<string, PendingToolAssembly>,
+	sequence: SequenceItem,
+): void {
+	const key = piece.toolCallId;
+	let assembly = toolAssemblies.get(key);
+	if (!assembly) {
+		assembly = {
+			toolCallId: piece.toolCallId,
+			toolName: piece.toolName,
+			inputText: "",
+			inputValue: piece.input,
+		};
+		toolAssemblies.set(key, assembly);
+		sequence.push({ type: "tool", key });
+		return;
+	}
+	if (piece.toolName) {
+		assembly.toolName = piece.toolName;
+	}
+	if (piece.input && Object.keys(piece.input).length > 0) {
+		assembly.inputValue = piece.input;
 	}
 }
 
@@ -1051,28 +1119,41 @@ export class AgentRuntime {
 		let finishReason: AgentModelFinishReason = "stop";
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
+		// Inline-XML recovery is enabled only when the model explicitly opts in.
+		// Once any native tool-call-delta is observed in the current stream, we
+		// suppress the parser for the remainder of the stream — otherwise the
+		// parser and the native branch would emit two separate PendingToolAssembly
+		// entries for the same logical tool call (parser keys on createUID,
+		// native keys on event.toolCallId), both of which would execute.
+		const inlineXmlEnabled =
+			this.config.model.supportsInlineXmlToolCalls === true;
+		let toolCallParser: TextDeltaToolCallParser | undefined = inlineXmlEnabled
+			? new TextDeltaToolCallParser(() => createUID("tool"))
+			: undefined;
 
 		for await (const event of stream) {
 			this.throwIfAborted();
 			switch (event.type) {
 				case "text-delta": {
-					accumulatedText += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "text") {
-						last.part.text += event.text;
-					} else {
-						sequence.push({
-							type: "part",
-							part: { type: "text", text: event.text },
-						});
+					const parsed = toolCallParser
+						? toolCallParser.consume(event.text)
+						: [{ kind: "text" as const, text: event.text }];
+					for (const piece of parsed) {
+						if (piece.kind === "text") {
+							appendAssistantTextPart(piece.text, sequence, (text) => {
+								accumulatedText += text;
+							});
+							await this.emit({
+								type: "assistant-text-delta",
+								snapshot: this.snapshot(),
+								iteration: this.state.iteration,
+								text: piece.text,
+								accumulatedText,
+							});
+						} else {
+							registerRecoveredToolAssembly(piece, toolAssemblies, sequence);
+						}
 					}
-					await this.emit({
-						type: "assistant-text-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText,
-					});
 					break;
 				}
 				case "reasoning-delta": {
@@ -1105,6 +1186,32 @@ export class AgentRuntime {
 					break;
 				}
 				case "tool-call-delta": {
+					// Native tool-call path: suppress the inline-XML parser for the
+					// remainder of this stream. The parser is dropped (not just
+					// disabled) so any buffered partial markup — e.g. `<inv` that
+					// the parser was holding — is released as ordinary text below
+					// rather than stranded in the buffer. The parser is local to
+					// this stream iteration; on the next iteration it is built
+					// fresh from the model's capability flag.
+					if (toolCallParser) {
+						const released = toolCallParser.flush();
+						toolCallParser = undefined;
+						for (const piece of released) {
+							// parser.flush() only emits kind:"text" events; narrow
+							// explicitly so the helper signature is satisfied.
+							if (piece.kind !== "text") continue;
+							appendAssistantTextPart(piece.text, sequence, (text) => {
+								accumulatedText += text;
+							});
+							await this.emit({
+								type: "assistant-text-delta",
+								snapshot: this.snapshot(),
+								iteration: this.state.iteration,
+								text: piece.text,
+								accumulatedText,
+							});
+						}
+					}
 					const key =
 						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
 					if (event.index == null && event.toolCallId == null) {
@@ -1183,6 +1290,29 @@ export class AgentRuntime {
 					}
 					break;
 				}
+			}
+		}
+
+		// Flush any remaining buffered text in the XML tool-call parser.
+		// Inlined XML blocks that never produced a complete
+		// <invoke>...</invoke> become ordinary text here.
+		if (toolCallParser) {
+			const released = toolCallParser.flush();
+			toolCallParser = undefined;
+			for (const piece of released) {
+				// parser.flush() only emits kind:"text" events; narrow
+				// explicitly so the helper signature is satisfied.
+				if (piece.kind !== "text") continue;
+				appendAssistantTextPart(piece.text, sequence, (text) => {
+					accumulatedText += text;
+				});
+				await this.emit({
+					type: "assistant-text-delta",
+					snapshot: this.snapshot(),
+					iteration: this.state.iteration,
+					text: piece.text,
+					accumulatedText,
+				});
 			}
 		}
 

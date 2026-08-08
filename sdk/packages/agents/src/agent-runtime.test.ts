@@ -26,6 +26,7 @@ beforeEach(() => {
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
+	public readonly supportsInlineXmlToolCalls: boolean;
 
 	constructor(
 		private readonly steps: Array<
@@ -33,7 +34,10 @@ class ScriptedModel implements AgentModel {
 				request: AgentModelRequest,
 			) => Iterable<AgentModelEvent> | AsyncIterable<AgentModelEvent>
 		>,
-	) {}
+		supportsInlineXmlToolCalls = false,
+	) {
+		this.supportsInlineXmlToolCalls = supportsInlineXmlToolCalls;
+	}
 
 	async stream(
 		request: AgentModelRequest,
@@ -2371,6 +2375,309 @@ describe("AgentRuntime", () => {
 			outputTokens: 40,
 			totalCost: 1.0,
 		});
+	});
+
+	it("recovers a tool call from inline XML markup emitted in text-delta chunks (cline#9848)", async () => {
+		// Models fronted by transports that do not relay native tool_use
+		// blocks (e.g. some OpenAI-compatible gateways) emit tool
+		// invocations as inline XML in the assistant text. The runtime
+		// must parse those into proper tool-call events and execute them.
+		const model = new ScriptedModel(
+			[
+				() => [
+					{ type: "text-delta", text: "Let me echo that. " },
+					{ type: "text-delta", text: '<invoke name="echo">' },
+					{ type: "text-delta", text: '<parameter name="text">hi</parameter>' },
+					{ type: "text-delta", text: "</invoke>" },
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			],
+			true,
+		);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const toolMessage = result.messages.find((m) => m.role === "tool");
+		expect(toolMessage).toBeDefined();
+		const toolResult = toolMessage?.content.find(
+			(c) => c.type === "tool-result",
+		);
+		expect(toolResult).toMatchObject({
+			type: "tool-result",
+			toolName: "echo",
+		});
+		// The recovered tool call should not leak the XML markup into the
+		// final assistant transcript as plain text.
+		const assistantMessages = result.messages.filter(
+			(m) => m.role === "assistant",
+		);
+		const assistantText = assistantMessages
+			.flatMap((m) => m.content)
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(assistantText).not.toContain("<invoke");
+		expect(assistantText).not.toContain("</invoke>");
+	});
+
+	it("treats malformed XML in text-delta chunks as plain text", async () => {
+		// A <invoke> tag with no `name="..."` attribute must not be turned
+		// into a tool call. The runtime should pass the markup through to
+		// the assistant message as text.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Oops " },
+				{ type: "text-delta", text: "<invoke>missing name</invoke>" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.content.some((c) => c.type === "tool-call")).toBe(false);
+		const text = assistant?.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain("<invoke>");
+	});
+
+	it("preserves complete inline XML as text when recovery is disabled", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "text-delta",
+					text: '<invoke name="echo"><parameter name="text">hi</parameter></invoke>',
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.messages.some((message) => message.role === "tool")).toBe(
+			false,
+		);
+		const text = result.messages
+			.filter((message) => message.role === "assistant")
+			.flatMap((message) => message.content)
+			.filter((content) => content.type === "text")
+			.map((content) => (content as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain('<invoke name="echo">');
+	});
+
+	it("emits assistant-text-delta for text released by the tool-call parser flush", async () => {
+		// Regression: when the model stream ends mid-markup (last delta ends
+		// with '<inv'), the parser flushes the held-back tail as text. The
+		// flush path must fire assistant-text-delta so subscribers that
+		// accumulate text from those events see the full transcript —
+		// without it, the final characters appear in the message but were
+		// silently skipped during the stream.
+		const model = new ScriptedModel(
+			[
+				() => [
+					{ type: "text-delta", text: "Hello " },
+					{ type: "text-delta", text: "world" },
+					{ type: "text-delta", text: "<inv" },
+					{ type: "finish", reason: "stop" },
+				],
+			],
+			true,
+		);
+		const runtime = new AgentRuntime({ model });
+
+		const textDeltas: Array<{
+			text: string;
+			accumulatedText: string;
+		}> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "assistant-text-delta") {
+				textDeltas.push({
+					text: event.text,
+					accumulatedText: event.accumulatedText,
+				});
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		// One delta per inline text piece plus one for the flushed tail.
+		expect(textDeltas.map((d) => d.text)).toEqual(["Hello ", "world", "<inv"]);
+		// Each accumulatedText includes the current piece plus everything
+		// that came before it — including the flushed tail.
+		expect(textDeltas.map((d) => d.accumulatedText)).toEqual([
+			"Hello ",
+			"Hello world",
+			"Hello world<inv",
+		]);
+	});
+
+	it("P0: fails closed when the model's capability is undefined (no parser)", async () => {
+		// f08: the capability must default to off and never auto-derive from
+		// request data. An adapter that omits the field entirely must not get
+		// the parser enabled.
+		const model = new (class implements AgentModel {
+			// intentionally no `supportsInlineXmlToolCalls` field
+			async *stream(): AsyncIterable<AgentModelEvent> {
+				yield {
+					type: "text-delta",
+					text: '<invoke name="echo"><parameter name="text">hi</parameter></invoke>',
+				};
+				yield { type: "finish", reason: "stop" };
+			}
+		})();
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.messages.some((m) => m.role === "tool")).toBe(false);
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		const text = assistant?.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain('<invoke name="echo">');
+	});
+
+	it("P1: native tool-call-delta disables inline-XML parser for the rest of the stream", async () => {
+		// f13: when the model emits a native tool-call-delta, the parser must
+		// be dropped for the remainder of the stream — otherwise a buffered
+		// partial `<inv` markup in the parser's buffer would be released as
+		// text after the native call, and a subsequent `<invoke>...</invoke>`
+		// from inline XML would create a duplicate assembly keyed differently
+		// than the native call.
+		const model = new ScriptedModel(
+			[
+				() => [
+					{ type: "text-delta", text: "Here " },
+					{
+						type: "tool-call-delta",
+						toolCallId: "c-native",
+						toolName: "echo",
+						input: { text: "native" },
+					},
+					{
+						type: "text-delta",
+						text: ' and <invoke name="echo"><parameter name="text">recovered</parameter></invoke>',
+					},
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			],
+			true,
+		);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.lastError).toBeUndefined();
+		// Exactly one tool call: the native one. The inline-XML recovery must
+		// not have produced a duplicate assembly after the native delta.
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		const toolCalls =
+			assistant?.content.filter((c) => c.type === "tool-call") ?? [];
+		expect(toolCalls).toHaveLength(1);
+		const text = assistant?.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain('<invoke name="echo">');
+	});
+
+	it("P1: native tool-call-delta releases any buffered partial markup as text", async () => {
+		// f13: the parser held `<inv` in its buffer when the native delta
+		// arrived. After dropping the parser, the held `<inv` must surface
+		// as an `assistant-text-delta` so subscribers see the full transcript.
+		const model = new ScriptedModel(
+			[
+				() => [
+					{ type: "text-delta", text: "Before <inv" },
+					{
+						type: "tool-call-delta",
+						toolCallId: "c-native",
+						toolName: "echo",
+						input: { text: "native" },
+					},
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			],
+			true,
+		);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const textDeltas: string[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "assistant-text-delta") {
+				textDeltas.push(event.text);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.lastError).toBeUndefined();
+		// The full transcript (including the flushed tail of `<inv`) must
+		// reach the subscriber.
+		expect(textDeltas.join("")).toContain("<inv");
+	});
+
+	it("P0: split-delta path is disabled when capability is false (no recovery)", async () => {
+		// f11: when the adapter sets `supportsInlineXmlToolCalls` to false
+		// explicitly, the parser is never instantiated and inline-XML
+		// markup in the text stream is treated as plain prose — the runtime
+		// must not execute any tool call derived from it.
+		const model = new ScriptedModel(
+			[
+				() => [
+					// split-delta feed: complete `<invoke>` is split across two
+					// text-delta events. With the parser disabled, the runtime
+					// never reconciles the markup into a tool call.
+					{
+						type: "text-delta",
+						text: '<invoke name="echo"><parameter name="text">split</parameter></invoke>',
+					},
+					{ type: "finish", reason: "stop" },
+				],
+			],
+			false,
+		);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.messages.some((m) => m.role === "tool")).toBe(false);
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		const text = assistant?.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain('<invoke name="echo">');
 	});
 });
 
