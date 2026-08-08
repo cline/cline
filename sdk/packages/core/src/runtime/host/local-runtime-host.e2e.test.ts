@@ -14,10 +14,12 @@ import type { AgentResult } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deriveTitleFromPrompt } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import type { SessionSource, SessionStatus } from "../../types/common";
+import { listSessionHistory } from "./history";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { splitCoreSessionConfig } from "./runtime-host";
 
@@ -185,8 +187,10 @@ class LocalFileSessionService {
 		}
 	}
 
-	// Mirrors the real persistence service contract: an update lands in both
-	// the session row and the on-disk manifest.
+	// Mirrors the real persistence-service contract: updates land in both the
+	// session row and the on-disk manifest, an explicit title wins, an
+	// existing title is preserved, and an untitled row is titled from the
+	// prompt exactly like the create path.
 	updateSession(input: {
 		sessionId: string;
 		prompt?: string | null;
@@ -198,16 +202,19 @@ class LocalFileSessionService {
 		if (input.prompt !== undefined) {
 			row.prompt = input.prompt ?? null;
 		}
-		const metadata = { ...(row.metadata ?? {}) } as Record<string, unknown>;
-		if (input.metadata !== undefined) {
-			Object.assign(metadata, input.metadata ?? {});
-		}
-		if (input.title !== undefined) {
-			if (input.title) {
-				metadata.title = input.title;
-			} else {
-				delete metadata.title;
-			}
+		const existingTitle =
+			typeof row.metadata?.title === "string" ? row.metadata.title : undefined;
+		const metadata = {
+			...((input.metadata !== undefined ? input.metadata : row.metadata) ?? {}),
+		} as Record<string, unknown>;
+		const nextTitle =
+			input.title !== undefined
+				? (input.title ?? undefined)
+				: (existingTitle ?? deriveTitleFromPrompt(input.prompt));
+		if (nextTitle) {
+			metadata.title = nextTitle;
+		} else {
+			delete metadata.title;
 		}
 		row.metadata = Object.keys(metadata).length > 0 ? metadata : null;
 		const manifest = this.readSessionManifest(input.sessionId);
@@ -794,12 +801,18 @@ describe("LocalRuntimeHost e2e", () => {
 			thirdHost.readSessionMessages(recovered.sessionId),
 		).resolves.toHaveLength(3);
 
-		// Materializing at start means there is no first prompt to title the
-		// row with, so the seeded transcript supplies an interim title and the
-		// session never shows up untitled in history.
+		// Materializing at start means the row exists before any prompt, so it
+		// is promptless and untitled at the raw level (before eager
+		// persistence it did not exist at all yet); history hydration infers a
+		// display title from the inherited transcript.
 		const recoveredRow = await thirdHost.getSession(recovered.sessionId);
-		expect(recoveredRow?.metadata?.title).toBe("explain the auth flow");
+		expect(recoveredRow?.metadata?.title ?? undefined).toBeUndefined();
 		expect(recoveredRow?.prompt ?? undefined).toBeUndefined();
+		const hydrated = await listSessionHistory(thirdHost);
+		expect(
+			hydrated.find((row) => row.sessionId === recovered.sessionId)?.metadata
+				?.title,
+		).toBe("explain the auth flow");
 
 		// The first prompt after the seed retitles the row — pre-eager-
 		// persistence parity, where a fork was named after what the user did

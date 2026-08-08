@@ -28,7 +28,6 @@ import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
-	deriveTitleFromPrompt,
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
@@ -101,7 +100,7 @@ import {
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
-import { inferTitleFromMessages, manifestToSessionRecord } from "./history";
+import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
 import {
 	type SessionBackend,
@@ -874,25 +873,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// conversation. Brand-new empty sessions stay lazy.
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			try {
-				// A seeded session has no start prompt, so materializing it here
-				// would otherwise leave the history row with no prompt and no
-				// title. Seed an interim title from the transcript the session
-				// inherits — the same inference `listSessionHistory` hydration
-				// applies — so the row is identifiable even if no turn ever
-				// runs. The first user prompt after the seed then retitles the
-				// row, preserving the pre-eager-persistence fork behavior where
-				// the fork is named after what the user did with it.
-				active.sessionMetadata = this.withSeededTitle(
-					active.sessionMetadata,
-					initialMessages,
-				);
-				if (!active.pendingPrompt) {
-					active.retitleOnFirstPrompt = true;
-					active.seededTitle =
-						typeof active.sessionMetadata?.title === "string"
-							? active.sessionMetadata.title
-							: undefined;
-				}
 				await this.ensureSessionPersisted(active);
 				await this.invoke<void>(
 					"persistSessionMessages",
@@ -1634,7 +1614,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
-		await this.applyFirstPromptToSeededSession(session, prompt);
+		// A seeded session (fork, checkpoint restore, missing-session
+		// recovery) materializes at start, before any prompt exists, so its
+		// row is created promptless. Backfill it with the first user prompt,
+		// which restores the behavior rows had when materialization happened
+		// here: the persistence service derives the title from this prompt
+		// when the session is untitled, and leaves any user-set title alone.
+		if (!session.pendingPrompt) {
+			session.pendingPrompt = prompt;
+			try {
+				await this.invokeOptionalValue("updateSession", {
+					sessionId: session.sessionId,
+					prompt,
+				});
+			} catch (error) {
+				session.config.logger?.log?.(
+					"Failed to backfill seeded session prompt",
+					{ severity: "warn", sessionId: session.sessionId, error },
+				);
+			}
+		}
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
@@ -1972,80 +1971,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Session lifecycle ───────────────────────────────────────────────
-
-	private withSeededTitle(
-		metadata: Record<string, unknown> | undefined,
-		initialMessages: LlmsProviders.Message[],
-	): Record<string, unknown> | undefined {
-		if (typeof metadata?.title === "string" && metadata.title.trim()) {
-			return metadata;
-		}
-		const title = inferTitleFromMessages(initialMessages);
-		if (!title) return metadata;
-		return { ...(metadata ?? {}), title };
-	}
-
-	/**
-	 * Backfills a seeded session's history row with its first user prompt.
-	 * Eager materialization created the row before any prompt existed, so
-	 * without this the fork/recovery would keep its interim seeded title
-	 * forever instead of adopting the first thing the user actually asked it
-	 * — the behavior rows had when materialization happened on the first
-	 * turn. A title the user renamed since materialization is left alone;
-	 * the prompt column is backfilled either way.
-	 */
-	private async applyFirstPromptToSeededSession(
-		session: ActiveSession,
-		prompt: string,
-	): Promise<void> {
-		if (!session.retitleOnFirstPrompt) return;
-		session.retitleOnFirstPrompt = false;
-		if (session.pendingPrompt || !session.artifacts) return;
-		session.pendingPrompt = prompt;
-		try {
-			const currentMetadata =
-				(await this.getRow(session.sessionId))?.metadata ??
-				session.artifacts?.manifest.metadata;
-			const currentTitle =
-				typeof currentMetadata?.title === "string"
-					? currentMetadata.title
-					: undefined;
-			const renamed =
-				currentTitle !== undefined && currentTitle !== session.seededTitle;
-			const derivedTitle = deriveTitleFromPrompt(prompt);
-			const nextTitle = renamed ? undefined : derivedTitle;
-			await this.invokeOptionalValue("updateSession", {
-				sessionId: session.sessionId,
-				prompt,
-				...(nextTitle ? { title: nextTitle } : {}),
-			});
-			// Keep the resident copies in sync: the end-of-turn usage merge
-			// (persistSessionMetadata) falls back to the in-memory manifest
-			// when the backend cannot re-read it, and a stale copy would
-			// clobber the title straight back to the seeded one.
-			const residentManifest = session.artifacts?.manifest;
-			if (residentManifest) {
-				residentManifest.prompt = prompt;
-				if (nextTitle) {
-					residentManifest.metadata = {
-						...(residentManifest.metadata ?? {}),
-						title: nextTitle,
-					};
-				}
-			}
-			if (nextTitle) {
-				session.sessionMetadata = {
-					...(session.sessionMetadata ?? {}),
-					title: nextTitle,
-				};
-			}
-		} catch (error) {
-			session.config.logger?.log?.(
-				"Failed to backfill seeded session prompt title",
-				{ severity: "warn", sessionId: session.sessionId, error },
-			);
-		}
-	}
 
 	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
 		if (session.artifacts) return;

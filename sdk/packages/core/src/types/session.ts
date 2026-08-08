@@ -56,16 +56,6 @@ export type ActiveSession = {
 	 * fallback.
 	 */
 	submitAndExitObserved: boolean;
-	/**
-	 * Set when a seeded session (fork, checkpoint restore, missing-session
-	 * recovery) materialized at start without a start prompt. The history row
-	 * carries an interim title inferred from the inherited transcript
-	 * (`seededTitle`); the first user prompt after the seed retitles the row —
-	 * the pre-eager-persistence behavior — unless the interim title was
-	 * renamed in the meantime.
-	 */
-	retitleOnFirstPrompt?: boolean;
-	seededTitle?: string;
 };
 
 export type PendingPrompt = {
