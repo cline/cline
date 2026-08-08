@@ -1164,6 +1164,27 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.filter((message) => message.role === "error"),
 		).toHaveLength(1);
+
+		// A later failure with a different reason is new feedback, not a
+		// duplicate — the trailing error from the previous failure must not
+		// swallow it.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Rate limit exceeded.",
+				}),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(2);
+		expect(errorMessages.at(-1)?.content).toBe("Rate limit exceeded.");
 	});
 
 	it("keeps provider error feedback when a direct send fails before streaming", async () => {

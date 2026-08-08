@@ -41,6 +41,23 @@ export async function serializeAttachments(
 	return { userImages, userFiles };
 }
 
+// The transcript stores non-image attachments as a display label appended to
+// the prompt text. Kept as the single source of truth so consumers that need
+// to match a transcript user message back to its send payload (e.g. the
+// failed-turn Retry action) compute the exact same label.
+export function buildUserPromptDisplayLabel(
+	prompt: string,
+	attachedFiles: readonly File[],
+): string {
+	const trimmed = prompt.trim();
+	const attachedFileCount = attachedFiles.filter(
+		(file) => !file.type.startsWith("image/"),
+	).length;
+	return attachedFileCount > 0
+		? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
+		: trimmed;
+}
+
 export function toChatMessageImages(
 	userImages: string[],
 	idPrefix: string,

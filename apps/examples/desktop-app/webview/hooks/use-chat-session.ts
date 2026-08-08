@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+	buildUserPromptDisplayLabel,
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
@@ -1107,16 +1108,25 @@ export function useChatSession() {
 				// failed run's text. Any streamed output already lives in the
 				// transcript, so appending the error bubble after it is correct.
 				if (doneReason === "error") {
+					const failureText = doneText || TURN_FAILED_FALLBACK_TEXT;
 					setMessages((prev) => {
-						if (prev.at(-1)?.role === "error") {
+						const last = prev.at(-1);
+						// Dedupe by content, not just by trailing role: a repeated
+						// completion event for the same failure must not stack, but a
+						// new failure with different error text must not be swallowed
+						// by an older trailing error. A textless completion also never
+						// overrides specific trailing feedback with the generic
+						// fallback.
+						if (
+							last?.role === "error" &&
+							(last.content === failureText ||
+								failureText === TURN_FAILED_FALLBACK_TEXT)
+						) {
 							return prev;
 						}
 						return sliceMessages([
 							...prev,
-							makeErrorChatMessage(
-								listeningSessionId,
-								doneText || TURN_FAILED_FALLBACK_TEXT,
-							),
+							makeErrorChatMessage(listeningSessionId, failureText),
 						]);
 					});
 				}
@@ -1434,13 +1444,7 @@ export function useChatSession() {
 				(attachments) => ({ ok: true as const, attachments }),
 				(error: unknown) => ({ ok: false as const, error }),
 			);
-			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
-			).length;
-			const userLabel =
-				attachedFileCount > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-					: trimmed;
+			const userLabel = buildUserPromptDisplayLabel(trimmed, attachedFiles);
 			const shouldQueue =
 				Boolean(activeSessionId) &&
 				(hasEarlierPromptSubmission ||

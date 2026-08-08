@@ -33,8 +33,9 @@ import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { formatChatMessageContent } from "@/components/views/chat/message-content";
 import {
-	type RetryTurnPayload,
+	recordSentTurn,
 	resolveRetryTurnPayload,
+	type SentTurnRecord,
 } from "@/components/views/chat/retry-failed-turn";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
@@ -45,6 +46,7 @@ import {
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { buildUserPromptDisplayLabel } from "@/hooks/chat-session/attachments";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -509,10 +511,12 @@ function ChatThreadPane({
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
-	// Exact payload of the most recent send, kept so a failed turn can be
-	// retried without dropping attachments — the transcript only stores a
-	// display label like "[attached 2 files]", not the files themselves.
-	const lastSentTurnRef = useRef<RetryTurnPayload | null>(null);
+	// Exact payloads of recent sends, kept so a failed turn can be retried
+	// without dropping attachments — the transcript only stores a display
+	// label like "[attached 2 files]", not the files themselves. A bounded
+	// list (not just the newest send) so a prompt queued behind a running
+	// turn cannot displace the payload of the turn that ends up failing.
+	const sentTurnsRef = useRef<SentTurnRecord[]>([]);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
 	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
@@ -851,7 +855,7 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		lastSentTurnRef.current = null;
+		sentTurnsRef.current = [];
 		setPromptInput("");
 		setPendingAttachments([]);
 		setManualTitle("");
@@ -866,7 +870,7 @@ function ChatThreadPane({
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		lastSentTurnRef.current = null;
+		sentTurnsRef.current = [];
 		setPromptInput(initialPromptDraft ?? "");
 		if (initialPromptDraft !== undefined) {
 			onInitialPromptDraftConsumed?.(threadId);
@@ -896,17 +900,21 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			lastSentTurnRef.current = { prompt: trimmed, attachments: toSend };
+			sentTurnsRef.current = recordSentTurn(sentTurnsRef.current, {
+				displayLabel: buildUserPromptDisplayLabel(trimmed, toSend),
+				prompt: trimmed,
+				attachments: toSend,
+			});
 			await sendPrompt(trimmed, toSend);
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
 
 	// Failed turns are retried in the same session by re-sending the failed
-	// prompt — no fork, no draft round-trip through the composer. The last-send
-	// ref carries the exact prompt text and original attachments; the
-	// transcript-derived text below is only a fallback for failures that
-	// predate any send from this pane (it cannot recover attachments).
+	// prompt — no fork, no draft round-trip through the composer. The
+	// transcript's last user message identifies the failed turn; its original
+	// payload (exact prompt text plus attachments) is recovered from the
+	// retained send records.
 	const lastUserPrompt = useMemo(() => {
 		const lastUserMessage = [...messages]
 			.reverse()
@@ -923,7 +931,7 @@ function ChatThreadPane({
 		}
 		return async () => {
 			const payload = resolveRetryTurnPayload(
-				lastSentTurnRef.current,
+				sentTurnsRef.current,
 				lastUserPrompt,
 			);
 			if (!payload) {
