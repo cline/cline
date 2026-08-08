@@ -377,13 +377,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
 		// Default web_search executor backed by the Cline account API. The
-		// token is resolved lazily per search so refreshed credentials are
-		// picked up; the session's own key is the fallback (for the cline
-		// provider that key is the account token). Hosts may still override
-		// the executor via input.toolExecutors.
+		// token follows the same precedence as inference requests: the active
+		// session's own key first (for the cline provider that key is the
+		// account token), then persisted cline credentials (resolved lazily
+		// per search so refreshed credentials are picked up), then the
+		// CLINE_API_KEY environment variable. Hosts may still override the
+		// executor via input.toolExecutors.
 		const sessionToolExecutors: Partial<ToolExecutors> = {
 			webSearch: createClineWebSearchExecutor({
 				getAuthToken: async () => {
+					const sessionKey =
+						config.providerId === "cline" ? config.apiKey?.trim() : undefined;
+					if (sessionKey) {
+						return sessionKey;
+					}
 					try {
 						const manager = new ProviderSettingsManager();
 						const persisted = getPersistedProviderApiKey(
@@ -394,11 +401,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							return persisted;
 						}
 					} catch {
-						// Fall back to the session/env key below.
+						// Fall back to the environment key below.
 					}
-					const sessionKey =
-						config.providerId === "cline" ? config.apiKey?.trim() : undefined;
-					return sessionKey || process.env.CLINE_API_KEY?.trim() || undefined;
+					return process.env.CLINE_API_KEY?.trim() || undefined;
 				},
 			}),
 			...toolExecutors,

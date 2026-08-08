@@ -144,6 +144,33 @@ describe("createClineWebSearchExecutor", () => {
 		).rejects.toThrow("Web search returned invalid JSON");
 	});
 
+	it("propagates run cancellation instead of reporting a timeout", async () => {
+		const abortController = new AbortController();
+		const executor = createClineWebSearchExecutor({
+			getAuthToken: () => "token-abc",
+			apiBaseUrl: "https://api.cline.test",
+			timeoutMs: 5000,
+			fetchImpl: ((_url: string, init: RequestInit) =>
+				new Promise((_resolve, reject) => {
+					init.signal?.addEventListener("abort", () => {
+						const error = new Error("This operation was aborted");
+						error.name = "AbortError";
+						reject(error);
+					});
+					// Simulate the user cancelling the run while the request is
+					// in flight.
+					setTimeout(() => abortController.abort(), 5);
+				})) as unknown as typeof fetch,
+		});
+
+		await expect(
+			executor(
+				{ query: "anything" },
+				createContext({ signal: abortController.signal }),
+			),
+		).rejects.toMatchObject({ name: "AbortError" });
+	});
+
 	it("converts an aborted request into a timeout error", async () => {
 		const executor = createClineWebSearchExecutor({
 			getAuthToken: () => "token-abc",

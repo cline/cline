@@ -63,6 +63,14 @@ function extractApiErrorMessage(bodyText: string): string | undefined {
 	return undefined;
 }
 
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 0x2f /* '/' */) {
+		end--;
+	}
+	return value.slice(0, end);
+}
+
 function normalizeDomains(domains: string[] | undefined): string[] | undefined {
 	const normalized = domains
 		?.map((domain) => domain.trim())
@@ -107,9 +115,9 @@ export function createClineWebSearchExecutor(
 			);
 		}
 
-		const apiBaseUrl = (
-			options.apiBaseUrl ?? getClineEnvironmentConfig().apiBaseUrl
-		).replace(/\/+$/, "");
+		const apiBaseUrl = trimTrailingSlashes(
+			options.apiBaseUrl ?? getClineEnvironmentConfig().apiBaseUrl,
+		);
 
 		const requestBody: {
 			query: string;
@@ -126,7 +134,11 @@ export function createClineWebSearchExecutor(
 		}
 
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), timeoutMs);
+		let timedOut = false;
+		const timeout = setTimeout(() => {
+			timedOut = true;
+			controller.abort();
+		}, timeoutMs);
 		let contextAbortHandler: (() => void) | undefined;
 		if (context.signal) {
 			contextAbortHandler = () => controller.abort();
@@ -172,6 +184,12 @@ export function createClineWebSearchExecutor(
 			return formatWebSearchResults(results);
 		} catch (error) {
 			if (error instanceof Error && error.name === "AbortError") {
+				// Rethrow cancellation (e.g. the user aborting the run) untouched
+				// so the runtime sees its cancellation signal; only aborts caused
+				// by our own timer become timeout errors.
+				if (context.signal?.aborted || !timedOut) {
+					throw error;
+				}
 				throw new Error(`Web search timed out after ${timeoutMs}ms`);
 			}
 			throw error;
