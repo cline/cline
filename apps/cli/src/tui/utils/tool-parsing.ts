@@ -185,6 +185,12 @@ export function parseSpawnAgentInput(
 	return { task: input.task };
 }
 
+// Base64 payloads are one giant line; chunk to MIME width so GenericOutput's
+// line-based collapse stays compact and expand shows the full data.
+function chunkBase64(data: string): string {
+	return data.match(/.{1,76}/g)?.join("\n") ?? data;
+}
+
 export function extractFullOutputText(raw: unknown): string | undefined {
 	if (raw === null || raw === undefined) return undefined;
 	if (typeof raw === "string") return raw;
@@ -216,8 +222,8 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
 		// text so multi-line results keep real newlines instead of being
 		// JSON-escaped into one giant line that floods the terminal (#13038).
-		// Non-text blocks keep their identifying metadata (resource text/URIs,
-		// mime types) so mixed results are not silently truncated.
+		// Non-text blocks keep their identifying metadata plus their base64
+		// payloads so mixed results are not silently truncated.
 		const content = (raw as { content?: unknown }).content;
 		if (Array.isArray(content)) {
 			const parts = content
@@ -230,6 +236,13 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 						if (typeof part.resource.text === "string") {
 							return part.resource.text;
 						}
+						if (typeof part.resource.blob === "string" && part.resource.blob) {
+							const label =
+								typeof part.resource.uri === "string"
+									? `[resource: ${part.resource.uri}]`
+									: "[resource]";
+							return `${label}\n${chunkBase64(part.resource.blob)}`;
+						}
 						if (typeof part.resource.uri === "string") {
 							return `[resource: ${part.resource.uri}]`;
 						}
@@ -241,6 +254,9 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 						(part.type === "image" || part.type === "audio") &&
 						typeof part.mimeType === "string"
 					) {
+						if (typeof part.data === "string" && part.data) {
+							return `[${part.type}: ${part.mimeType}]\n${chunkBase64(part.data)}`;
+						}
 						return `[${part.type}: ${part.mimeType}]`;
 					}
 					return typeof part.type === "string" ? `[${part.type}]` : "";
