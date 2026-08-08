@@ -47,6 +47,54 @@ describe("mergeToolDiffs path canonicalization", () => {
 		expect(merged[0]?.hunks).toHaveLength(2);
 	});
 
+	it("collapses parent segments so escaped spellings merge with the absolute path", () => {
+		const merged = mergeToolDiffs(
+			[
+				editorCreateEvent("../shared/config.txt", "x"),
+				editorReplaceEvent("/tmp/shared/config.txt", "+2: y"),
+			],
+			"/tmp/qa-ws",
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]).toMatchObject({
+			path: "/tmp/shared/config.txt",
+			additions: 2,
+			deletions: 0,
+		});
+	});
+
+	it("collapses redundant segments inside the workspace", () => {
+		const merged = mergeToolDiffs(
+			[
+				editorCreateEvent("sub/../journal.txt", "one"),
+				editorReplaceEvent("/tmp/qa-ws/./journal.txt", "+2: two"),
+			],
+			"/tmp/qa-ws",
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]).toMatchObject({
+			path: "journal.txt",
+			additions: 2,
+			deletions: 0,
+		});
+	});
+
+	it("keeps canonicalizing when the cwd is the filesystem root", () => {
+		const merged = mergeToolDiffs(
+			[
+				editorCreateEvent("notes.txt", "one"),
+				editorReplaceEvent("/notes.txt", "+2: two"),
+			],
+			"/",
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]).toMatchObject({
+			path: "notes.txt",
+			additions: 2,
+			deletions: 0,
+		});
+	});
+
 	it("keeps files outside the cwd on their resolved path", () => {
 		const merged = mergeToolDiffs(
 			[editorCreateEvent("/etc/other/config.txt", "x")],

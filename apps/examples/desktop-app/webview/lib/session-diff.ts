@@ -459,30 +459,76 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 }
 
 /**
+ * Collapses "." and ".." segments and rebuilds the path with the given
+ * separator. The webview has no `node:path`, so this is a string-level
+ * equivalent; both separator styles are treated as separators, matching
+ * `resolveWorkspaceFilePath`. ".." segments that would climb above an
+ * absolute root are dropped; on relative paths leading ".." is kept.
+ */
+function collapsePathSegments(path: string, separator: string): string {
+	const rootMatch = path.match(/^(?:\\\\|[A-Za-z]:[\\/]|[\\/])/);
+	const rawRoot = rootMatch?.[0] ?? "";
+	const root =
+		rawRoot === ""
+			? ""
+			: rawRoot === "\\\\"
+				? "\\\\"
+				: /^[A-Za-z]:/.test(rawRoot)
+					? rawRoot.slice(0, 2) + separator
+					: separator;
+	const segments: string[] = [];
+	for (const segment of path.slice(rawRoot.length).split(/[\\/]+/)) {
+		if (!segment || segment === ".") {
+			continue;
+		}
+		if (segment === "..") {
+			if (segments.length > 0 && segments[segments.length - 1] !== "..") {
+				segments.pop();
+			} else if (!root) {
+				segments.push("..");
+			}
+			continue;
+		}
+		segments.push(segment);
+	}
+	return root + segments.join(separator);
+}
+
+/**
  * Tool calls address the same file inconsistently across a session — one
  * edit uses "journal.txt", a later one "/tmp/workspace/journal.txt". Keying
  * diffs by the raw string would list that file twice with split counts, so
- * paths are canonicalized against the session cwd first. Files inside the
- * cwd display as workspace-relative paths; everything else displays as the
- * resolved path.
+ * paths are canonicalized against the session cwd first: resolved against
+ * the cwd with "." and ".." segments collapsed, so "../shared/file.txt"
+ * and its absolute spelling share one key, and a filesystem-root cwd such
+ * as "/" still canonicalizes. Files inside the cwd display as
+ * workspace-relative paths; everything else displays as the resolved path.
  */
 function canonicalizeDiffPath(
 	path: string,
 	cwd?: string,
 ): { key: string; display: string } {
 	const trimmed = path.trim().replace(/^\.\//, "");
-	const base = (cwd ?? "").trim().replace(/[\\/]+$/, "");
+	const baseRaw = (cwd ?? "").trim();
+	if (!baseRaw) {
+		return { key: trimmed, display: trimmed };
+	}
+	const separator =
+		baseRaw.includes("\\") && !baseRaw.includes("/") ? "\\" : "/";
+	const base = collapsePathSegments(baseRaw, separator);
 	if (!base) {
 		return { key: trimmed, display: trimmed };
 	}
-	const resolved = resolveWorkspaceFilePath(trimmed, base);
+	const resolved = collapsePathSegments(
+		resolveWorkspaceFilePath(trimmed, base),
+		separator,
+	);
+	const basePrefix = base.endsWith(separator) ? base : base + separator;
 	const withinBase =
-		resolved.length > base.length + 1 &&
-		resolved.startsWith(base) &&
-		(resolved[base.length] === "/" || resolved[base.length] === "\\");
+		resolved.length > basePrefix.length && resolved.startsWith(basePrefix);
 	return {
 		key: resolved,
-		display: withinBase ? resolved.slice(base.length + 1) : resolved,
+		display: withinBase ? resolved.slice(basePrefix.length) : resolved,
 	};
 }
 
