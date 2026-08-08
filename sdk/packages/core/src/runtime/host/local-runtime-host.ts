@@ -1025,10 +1025,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			} else {
 				await this.completeInteractiveTurn(session, result.finishReason);
 			}
-			// Drain after "aborted" finishes too: internal stops (loop
-			// detector / mistake limit) would otherwise strand user-queued
-			// prompts forever, and user-initiated aborts already cleared the
-			// queue in abortSession(). "error" finishes deliberately do NOT
+			// Drain after "aborted" finishes too: both internal stops (loop
+			// detector / mistake limit) and user-initiated aborts keep the
+			// queue intact, so without a drain here the user-queued prompts
+			// would be stranded forever. "error" finishes deliberately do NOT
 			// drain — auto-running queued prompts into a failing provider
 			// would consume them; they stay queued and drain on the next
 			// enqueue/update or successful turn.
@@ -1076,8 +1076,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.aborted",
 			properties: { sessionId },
 		});
+		// Aborting a user-initiated turn leaves pendingPrompts untouched:
+		// clearing here would silently destroy prompts the user already typed
+		// and queued — they drain once the abort completes. Aborting a
+		// queue-initiated turn (drainingPendingPrompts) is the opposite
+		// gesture: the user is cancelling the queued work itself, so drop the
+		// remainder — otherwise every Escape would consume one queued prompt
+		// and start a fresh provider call, and the session could never be
+		// brought to a full stop.
 		session.aborting = true;
-		this.pendingPromptsController.clearAborted(session);
+		if (session.drainingPendingPrompts) {
+			this.pendingPromptsController.discardQueue(session);
+		}
 		session.agent.abort(reason);
 	}
 
@@ -1614,6 +1624,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
+		// A seeded session (fork, checkpoint restore, missing-session
+		// recovery) materializes at start, before any prompt exists, so its
+		// row is created promptless. Backfill it with the first user prompt,
+		// which restores the behavior rows had when materialization happened
+		// here: the persistence service derives the title from this prompt
+		// when the session is untitled, and leaves any user-set title alone.
+		if (!session.pendingPrompt) {
+			session.pendingPrompt = prompt;
+			try {
+				await this.invokeOptionalValue("updateSession", {
+					sessionId: session.sessionId,
+					prompt,
+				});
+			} catch (error) {
+				session.config.logger?.log?.(
+					"Failed to backfill seeded session prompt",
+					{ severity: "warn", sessionId: session.sessionId, error },
+				);
+			}
+		}
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
@@ -1725,6 +1755,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			usage,
 		});
 		await this.completeInteractiveTurn(session, "aborted");
+		// The abort is fully settled (aborting flag reset above), so prompts
+		// the user queued behind the stopped turn can run now. This mirrors
+		// the drain in runTurn() for turns that resolve with an "aborted"
+		// finish; this path handles turns that end by throwing instead.
+		queueMicrotask(() => {
+			void this.pendingPromptsController.drain(session.sessionId);
+		});
 		return {
 			text: "",
 			usage,
