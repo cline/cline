@@ -82,6 +82,7 @@ const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
 	"workflows",
 	"rules",
+	"plugins",
 	"tools",
 	"mcp",
 ]);
@@ -144,7 +145,7 @@ function parseSettingsToggleInput(payload: unknown): CoreSettingsToggleInput {
 		!SETTINGS_TYPES.has(type as CoreSettingsType)
 	) {
 		throw new Error(
-			"settings.toggle payload 'type' must be one of: skills, workflows, rules, tools, mcp.",
+			"settings.toggle payload 'type' must be one of: skills, workflows, rules, plugins, tools, mcp.",
 		);
 	}
 	return {
@@ -174,6 +175,7 @@ export class HubServerTransport implements NativeHubTransport {
 		string,
 		string
 	>();
+	private readonly activeRpcTurnCountBySession = new Map<string, number>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly settings: CoreSettingsService;
@@ -199,6 +201,7 @@ export class HubServerTransport implements NativeHubTransport {
 			pendingCapabilityRequests: this.pendingCapabilityRequests,
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
+			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
 			telemetry: options.telemetry,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),

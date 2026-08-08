@@ -146,8 +146,14 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
-			useExtensionState()
+		const {
+			backgroundEditEnabled,
+			mcpServers,
+			vscodeTerminalExecutionMode,
+			clineMessages,
+			showFeatureTips,
+			enableCheckpointsSetting,
+		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -923,17 +929,23 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
-					case "completion_result":
-						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+					case "completion_result": {
+						// Strip the legacy HAS_CHANGES sentinel that pre-SDK versions
+						// persisted on completion message text.
+						const hasLegacyChangesFlag = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const text = hasLegacyChangesFlag
+							? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length)
+							: message.text
 
 						return (
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
 								quoteButtonState={quoteButtonState}
+								showViewChanges={isLast && message.partial !== true && enableCheckpointsSetting}
 								text={text || ""}
 							/>
 						)
+					}
 					case "plan_completion_result":
 						// Turn-final plan-mode response inferred at turn end (SDK path)
 						return <PlanCompletionOutputRow text={message.text || ""} />

@@ -116,6 +116,7 @@ export function WelcomeScreen({
 	active,
 	body,
 	composer,
+	notice,
 	onStartChat,
 	quickActions,
 	gitBranch,
@@ -125,6 +126,8 @@ export function WelcomeScreen({
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
+	/** Rendered above the composer on the welcome state (e.g. setup notice). */
+	notice?: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: AgentQuickAction[];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
@@ -174,7 +177,7 @@ export function WelcomeScreen({
 					)}
 				>
 					{active ? (
-						<>
+						<div className="cline-view-enter">
 							<AgentHeroHeading />
 
 							<div className="mt-11 flex min-w-0 items-center">
@@ -190,15 +193,21 @@ export function WelcomeScreen({
 									workspaces={workspaces}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 
 					<div
-						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						className={
+							active
+								? "hidden"
+								: "cline-view-enter h-full min-h-0 overflow-hidden"
+						}
 						key="conversation-body"
 					>
 						{body}
 					</div>
+
+					{active && notice ? notice : null}
 
 					<div
 						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
@@ -210,7 +219,7 @@ export function WelcomeScreen({
 					{active ? (
 						<AgentQuickActions
 							actions={actions}
-							className="mt-11"
+							className="cline-view-enter mt-11"
 							onSelect={(action) => onStartChat(action.value)}
 						/>
 					) : null}

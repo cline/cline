@@ -17,10 +17,51 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
+
+describe("rewriteDesktopTeamPrompt", () => {
+	it("rewrites /team for the core runtime", () => {
+		expect(
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+			}),
+		).toBe(
+			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		);
+	});
+
+	it("rejects /team when the Teams tool is disabled", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(["teams"]),
+			}),
+		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team when the mode's tool preset has no team tools", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				mode: "yolo",
+				disabledTools: new Set(),
+			}),
+		).toThrow("Agent teams are not available in yolo mode");
+	});
+
+	it("accepts /team in act and plan modes", () => {
+		for (const mode of ["act", "plan", undefined]) {
+			expect(
+				rewriteDesktopTeamPrompt("/team inspect the app", {
+					mode,
+					disabledTools: new Set(),
+				}),
+			).toContain('<user_command slash="team">');
+		}
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -141,6 +182,8 @@ describe("pathless session starts", () => {
 		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
 			expect(input.config).not.toHaveProperty("cwd");
 			expect(input.config).not.toHaveProperty("workspaceRoot");
+			expect(input.config).not.toHaveProperty("enableSpawnAgent");
+			expect(input.config).not.toHaveProperty("enableAgentTeams");
 			return {
 				sessionId: "session-pathless",
 				manifest: {
@@ -163,6 +206,10 @@ describe("pathless session starts", () => {
 				provider: "cline",
 				model: "anthropic/claude-sonnet-4.6",
 				enableTools: true,
+				// Legacy desktop capability flags must not override the SDK's
+				// current tool preset or global tool customizations.
+				enableSpawn: false,
+				enableTeams: false,
 			},
 		})) as {
 			sessionId: string;
@@ -1417,6 +1464,25 @@ Follow the desktop send skill instructions.`,
 			sessionId,
 			promptId: "queued-1",
 			prompt: "Follow the desktop send skill instructions. later please",
+		});
+	});
+
+	it("rewrites a team command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-team",
+			prompt: "/team inspect the app",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-team",
+			prompt:
+				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
 	});
 
