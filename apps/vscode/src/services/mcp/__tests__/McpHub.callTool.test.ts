@@ -441,6 +441,20 @@ describe("McpHub.callTool", () => {
 
 			client.request.calledOnce.should.be.true()
 		})
+
+		it("should reject any tool name when the catalog is loaded but empty", async () => {
+			const { hub } = createMcpHub({ tools: [] })
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "any_tool", undefined, "ulid-v04")
+			} catch (error: any) {
+				threw = true
+				error.message.should.containEql('Tool "any_tool" does not exist on server "test-server"')
+				error.message.should.containEql("The server has no tools available.")
+			}
+			threw.should.be.true()
+		})
 	})
 
 	// ── Response handling ───────────────────────────────────────────────

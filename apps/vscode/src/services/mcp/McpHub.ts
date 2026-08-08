@@ -1698,12 +1698,16 @@ export class McpHub {
 
 		// Validate the tool name against the connected server's catalog so
 		// the model receives a corrective error listing the real tool names
-		// instead of a bare server-side rejection.
-		if (connection.server.tools && connection.server.tools.length > 0) {
+		// instead of a bare server-side rejection. Only skip validation when
+		// the catalog has genuinely not been loaded yet (undefined), not
+		// when it was loaded but is empty.
+		if (connection.server.tools !== undefined) {
 			const knownToolNames = connection.server.tools.map((t) => t.name)
 			if (!knownToolNames.includes(toolName)) {
 				throw new Error(
-					`Tool "${toolName}" does not exist on server "${serverName}". Available tools: ${knownToolNames.join(", ")}`,
+					knownToolNames.length > 0
+						? `Tool "${toolName}" does not exist on server "${serverName}". Available tools: ${knownToolNames.join(", ")}`
+						: `Tool "${toolName}" does not exist on server "${serverName}". The server has no tools available.`,
 				)
 			}
 		}
