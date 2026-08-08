@@ -1990,6 +1990,21 @@ export function useChatSession() {
 					);
 					if (cloudOptimistic) {
 						cloudOptimistic.sessionId = activeSessionId;
+						// Re-key the bubble itself too: a cloud create returns a
+						// server-assigned id, and the snapshot merge drops
+						// other-session messages before consulting the optimistic
+						// map. Without this, the first prompt's bubble loses its
+						// retention semantics (a failed first send would vanish
+						// from the next rehydration).
+						if (activeSessionId && activeSessionId !== plannedSessionId) {
+							const rekeyedSessionId = activeSessionId;
+							setMessages((prev) =>
+								updateMessageById(prev, optimisticUserMessageId, (message) => ({
+									...message,
+									sessionId: rekeyedSessionId,
+								})),
+							);
+						}
 					}
 				}
 				const serializedAttachmentsResult = await serializedAttachmentsTask;

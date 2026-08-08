@@ -96,6 +96,95 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(merged.map((item) => item.id)).toEqual(["older", "pending-prompt"]);
 	});
 
+	it("keeps a pending bubble when the snapshot has not reflected it yet", () => {
+		// Baseline and snapshot agree (count 1 for this content), so the
+		// reflected-prompt budget is zero and the pending optimistic bubble
+		// must survive the merge; consuming it would make an in-flight
+		// duplicate prompt vanish from the transcript.
+		const optimisticStates = new Map([
+			["pending-dup", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[message("saved-1", "user", "same prompt", 1)],
+			[
+				message("saved-1", "user", "same prompt", 1),
+				message("pending-dup", "user", "same prompt", 2),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map([["same prompt", 1]]),
+				optimisticStates,
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["saved-1", "pending-dup"]);
+		expect(optimisticStates.has("pending-dup")).toBe(true);
+	});
+
+	it("consumes exactly one pending bubble per newly reflected copy", () => {
+		// Two pending bubbles, but the snapshot only grew by one copy since
+		// the previous baseline: exactly one bubble is consumed, the other
+		// stays visible.
+		const optimisticStates = new Map([
+			["pending-a", { sessionId: "ses-cloud", state: "pending" as const }],
+			["pending-b", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				message("saved-1", "user", "same prompt", 1),
+				message("saved-2", "user", "same prompt", 3),
+			],
+			[
+				message("saved-1", "user", "same prompt", 1),
+				message("pending-a", "user", "same prompt", 2),
+				message("pending-b", "user", "same prompt", 4),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map([["same prompt", 1]]),
+				optimisticStates,
+			},
+		);
+
+		expect(
+			merged.filter((item) => item.content === "same prompt"),
+		).toHaveLength(3);
+		expect(optimisticStates.size).toBe(1);
+	});
+
+	it("keeps error bubbles when dropping unmatched live messages", () => {
+		const merged = mergeCloudSnapshotWithLive(
+			[message("saved", "assistant", "the answer", 1)],
+			[
+				{
+					id: "stale-assistant",
+					sessionId: "ses-cloud",
+					role: "assistant" as const,
+					content: "unrelated partial",
+					createdAt: 2,
+				},
+				{
+					id: "error-bubble",
+					sessionId: "ses-cloud",
+					role: "error" as const,
+					content: "The send failed",
+					createdAt: 3,
+				},
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates: new Map(),
+				preserveUnmatchedLive: false,
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["saved", "error-bubble"]);
+	});
+
 	it("drops an earlier partial assistant message included by the snapshot", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("saved", "assistant", "the complete answer", 2)],
@@ -369,6 +458,81 @@ describe("useChatSession", () => {
 
 		expect(current.status).toBe("running");
 		expect(current.error).toBeNull();
+	});
+
+	it("retains the first cloud prompt's bubble across a lagging rehydration snapshot", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						// A cloud create returns a server-assigned id, never the
+						// client-planned one.
+						return {
+							sessionId: "ses-cloud",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "On it", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			}));
+		});
+		// The send itself creates the session, so the optimistic bubble is
+		// born under the client-planned id and must be re-keyed to ses-cloud.
+		await act(async () => current.sendPrompt("build the feature"));
+
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(rehydratedHandler).toBeDefined();
+
+		// A rehydration snapshot that lags the just-sent prompt (assistant
+		// reply only) must not erase the prompt bubble.
+		await act(async () => {
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "assistant-1",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "On it",
+						createdAt: Date.now(),
+					},
+				],
+			});
+			await Promise.resolve();
+		});
+
+		expect(
+			current.messages
+				.filter((message) => message.role === "user")
+				.map((message) => message.content),
+		).toContain("build the feature");
 	});
 
 	it("hydrates output missed during a passive cloud reconnect", async () => {
