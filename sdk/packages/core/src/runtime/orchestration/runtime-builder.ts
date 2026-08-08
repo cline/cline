@@ -394,11 +394,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							return persisted;
 						}
 					} catch {
-						// Fall back to the session key below.
+						// Fall back to the session/env key below.
 					}
-					return config.providerId === "cline"
-						? config.apiKey || undefined
-						: undefined;
+					const sessionKey =
+						config.providerId === "cline" ? config.apiKey?.trim() : undefined;
+					return sessionKey || process.env.CLINE_API_KEY?.trim() || undefined;
 				},
 			}),
 			...toolExecutors,

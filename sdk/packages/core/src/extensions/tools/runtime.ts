@@ -77,7 +77,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 	{
 		id: "web_search",
 		description:
-			"Search the web and return result titles and URLs via the Cline account API. Off by default; requires the Cline provider.",
+			"Search the web and return result titles and URLs via the Cline account API. Requires the Cline provider.",
 		headlessToolNames: ["web_search"],
 	},
 	{
