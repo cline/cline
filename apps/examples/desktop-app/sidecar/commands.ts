@@ -1,16 +1,11 @@
 import { execFile, spawn } from "node:child_process";
-import {
-	existsSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-} from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
+	CoreSettingsSnapshot,
 	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
@@ -19,31 +14,29 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
+	captureAuthRefreshSoftFailure,
 	createUserInstructionConfigService,
-	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
-	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
-	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	parseMcpServerRegistration,
+	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
-	resolvePluginConfigSearchPaths,
+	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
-	setDisabledPlugin,
-	setDisabledTools,
+	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
-	toggleDisabledTool,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
@@ -56,6 +49,7 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
+import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -72,6 +66,17 @@ import {
 	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
+import {
+	ensureMcpSettingsFile,
+	readMcpServersResponse,
+	shouldProbeMcpServerAfterUpsert,
+} from "./mcp";
+import {
+	cancelMcpOAuthAuthorizationForReason,
+	McpOAuthAuthorizationCancelledError,
+	runCancellableMcpOAuthAuthorization,
+	shouldRestoreEnabledStateAfterOAuthCancellation,
+} from "./mcp-oauth";
 import {
 	cancelProviderOAuthLogin,
 	runCancellableProviderOAuthLogin,
@@ -162,82 +167,21 @@ function readProviderSettingsUpdate(
 		: {};
 }
 
-// ---------------------------------------------------------------------------
-// MCP settings helpers
-// ---------------------------------------------------------------------------
-
-function readMcpServersResponse(): JsonRecord {
-	const settingsPath = resolveMcpSettingsPath();
-	if (!existsSync(settingsPath)) {
-		return { settingsPath, hasSettingsFile: false, servers: [] };
-	}
-	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
-	const servers = parsed.mcpServers as JsonRecord | undefined;
-	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
-		const record = body as JsonRecord;
-		const transport =
-			record.transport && typeof record.transport === "object"
-				? (record.transport as JsonRecord)
-				: undefined;
-		const rawTransportType =
-			transport?.type ?? record.transportType ?? record.type;
-		const transportType = String(
-			rawTransportType ??
-				(typeof transport?.url === "string" || typeof record.url === "string"
-					? "sse"
-					: "stdio"),
-		).trim();
-		return {
-			name,
-			transportType,
-			disabled: record.disabled === true,
-			command:
-				typeof transport?.command === "string"
-					? transport.command
-					: typeof record.command === "string"
-						? record.command
-						: undefined,
-			args: Array.isArray(transport?.args)
-				? transport.args
-				: Array.isArray(record.args)
-					? record.args
-					: undefined,
-			cwd:
-				typeof transport?.cwd === "string"
-					? transport.cwd
-					: typeof record.cwd === "string"
-						? record.cwd
-						: undefined,
-			env:
-				transport?.env && typeof transport.env === "object"
-					? transport.env
-					: record.env && typeof record.env === "object"
-						? record.env
-						: undefined,
-			url:
-				typeof transport?.url === "string"
-					? transport.url
-					: typeof record.url === "string"
-						? record.url
-						: undefined,
-			headers:
-				transport?.headers && typeof transport.headers === "object"
-					? transport.headers
-					: record.headers && typeof record.headers === "object"
-						? record.headers
-						: undefined,
-			metadata: record.metadata,
-		};
-	});
-	return { settingsPath, hasSettingsFile: true, servers: entries };
-}
-
 /**
  * Transport type + URL a server record actually points at, tolerating both
  * the nested `transport` shape and legacy flat fields (mirrors
  * readMcpServersResponse).
  */
-function mcpTransportIdentity(record: JsonRecord): string {
+function mcpTransportIdentity(name: string, record: JsonRecord): string {
+	try {
+		const resolved = parseMcpServerRegistration(name, record).transport;
+		return resolved.type === "stdio"
+			? "stdio\u0000"
+			: `${resolved.type}\u0000${resolved.url}`;
+	} catch {
+		// Preserve a best-effort identity for malformed entries so the editor can
+		// still repair them without requiring the entire settings file to parse.
+	}
 	const transport =
 		record.transport && typeof record.transport === "object"
 			? (record.transport as JsonRecord)
@@ -255,20 +199,6 @@ function mcpTransportIdentity(record: JsonRecord): string {
 	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
 	const normalizedType = type === "http" ? "streamableHttp" : type;
 	return `${normalizedType}\u0000${url}`;
-}
-
-function writeMcpServersMap(servers: JsonRecord): void {
-	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
-		settings.mcpServers = servers;
-	});
-}
-
-function ensureMcpSettingsFile(): string {
-	const path = resolveMcpSettingsPath();
-	if (!existsSync(path)) {
-		writeMcpServersMap({});
-	}
-	return path;
 }
 
 function removePathIfExists(
@@ -293,8 +223,10 @@ function removePathIfExists(
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
 async function resolveFreshClineAuthToken(
+	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): Promise<string | undefined> {
+	let refreshError: Error | undefined;
 	try {
 		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
 		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
@@ -303,11 +235,28 @@ async function resolveFreshClineAuthToken(
 		if (resolution?.apiKey) {
 			return resolution.apiKey;
 		}
-	} catch {
-		// Fall back to the persisted token; the account request surfaces the
-		// auth failure to the caller.
+	} catch (error) {
+		// Fall back to the persisted token; when one exists the account request
+		// surfaces the auth failure to the caller.
+		refreshError = error instanceof Error ? error : new Error(String(error));
 	}
-	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
+	const persisted = resolveLocalClineAuthToken(
+		manager.getProviderSettings("cline"),
+	);
+	// Never-signed-in resolves to undefined without a refresh attempt and is
+	// silent. A refresh failure with no persisted fallback means credentials
+	// existed but yielded nothing — that is the signal a real auth regression
+	// would show up as, so report exactly one event for it.
+	if (!persisted && refreshError) {
+		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
+			error: refreshError,
+		});
+		captureAuthRefreshSoftFailure(ctx.telemetry, "cline", {
+			errorName: refreshError.name,
+			errorCode: "desktop_refresh_failed_no_fallback_token",
+		});
+	}
+	return persisted;
 }
 
 function mergePersistedSessionRecord(
@@ -731,9 +680,51 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
 }
 
+async function listHubSettings(
+	ctx: SidecarContext,
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.list", {
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.list",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
+async function toggleHubSetting(
+	ctx: SidecarContext,
+	input: {
+		type: "plugins" | "tools";
+		path?: string;
+		name?: string;
+		enabled?: boolean;
+	},
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.toggle", {
+		...input,
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.toggle",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
 async function listUserInstructionConfigs(
-	workspaceRoot: string,
+	ctx: SidecarContext,
+	settingsSnapshot?: CoreSettingsSnapshot,
 ): Promise<JsonRecord> {
+	const workspaceRoot = ctx.workspaceRoot;
+	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -804,40 +795,6 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const loadPlugins = (): Array<{
-		name: string;
-		path: string;
-		enabled: boolean;
-	}> => {
-		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
-		const pluginsByPath = new Map<
-			string,
-			{ name: string; path: string; enabled: boolean }
-		>();
-		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
-			(d) => existsSync(d),
-		);
-		for (const directory of directories) {
-			try {
-				for (const filePath of discoverPluginModulePaths(directory)) {
-					if (pluginsByPath.has(filePath)) {
-						continue;
-					}
-					pluginsByPath.set(filePath, {
-						name: getPluginDisplayName(filePath, directory),
-						path: filePath,
-						enabled: !disabledPlugins.has(filePath),
-					});
-				}
-			} catch {
-				// best-effort
-			}
-		}
-		return [...pluginsByPath.values()].sort((a, b) =>
-			a.name.localeCompare(b.name),
-		);
-	};
-
 	try {
 		await userInstructionService.start();
 	} catch (error) {
@@ -858,10 +815,6 @@ async function listUserInstructionConfigs(
 	} finally {
 		userInstructionService.stop();
 	}
-	const pluginTools = await listPluginTools({
-		workspacePath: workspaceRoot,
-		cwd: workspaceRoot,
-	});
 
 	const globalSettings = readGlobalSettings();
 	const disabledTools = new Set(globalSettings.disabledTools ?? []);
@@ -872,7 +825,12 @@ async function listUserInstructionConfigs(
 	if (!disabledTools.has("web_search")) {
 		enabledTools.add("web_search");
 	}
+	// Pin spawn/teams availability so this listing matches the hub's
+	// (apps/cline-hub/src/server/user-instructions.ts) even if the preset
+	// defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
 		enabledToolIds: enabledTools,
 	});
@@ -884,7 +842,12 @@ async function listUserInstructionConfigs(
 		skills,
 		runtimeCommands,
 		agents: loadAgents(),
-		plugins: loadPlugins(),
+		plugins: hubSettings.plugins.map((plugin) => ({
+			name: plugin.name,
+			path: plugin.path,
+			enabled: plugin.enabled !== false,
+			contributions: plugin.contributions,
+		})),
 		tools: [
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
@@ -896,11 +859,11 @@ async function listUserInstructionConfigs(
 				source: "builtin",
 				headlessToolNames: tool.headlessToolNames,
 			})),
-			...pluginTools.map((tool) => ({
-				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
+			...hubSettings.tools.map((tool) => ({
+				id: tool.id,
 				name: tool.name,
 				description: tool.description,
-				enabled: tool.enabled,
+				enabled: tool.enabled !== false,
 				source: tool.source,
 				path: tool.path,
 				pluginName: tool.pluginName,
@@ -1469,11 +1432,19 @@ export async function handleCommand(
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
 		const manager = new ProviderSettingsManager();
+		// Signed out is an expected state, not a command failure: resolve the
+		// token up front and return a typed result the webview can act on
+		// instead of letting the account service throw a generic error that
+		// would be captured as error telemetry and shown raw to the user.
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
 		const settings = manager.getProviderSettings("cline");
 		const accountService = new ClineAccountService({
 			apiBaseUrl:
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveFreshClineAuthToken(manager),
+			getAuthToken: async () => authToken,
 		});
 		return await executeClineAccountAction(
 			args as ClineAccountActionRequest,
@@ -1613,22 +1584,78 @@ export async function handleCommand(
 	if (command === "list_mcp_servers") {
 		return readMcpServersResponse();
 	}
-	if (command === "set_mcp_server_disabled") {
-		const path = ensureMcpSettingsFile();
-		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-				{}) as JsonRecord;
-			const name = String(args?.name ?? "").trim();
-			const current = servers[name];
-			if (!current || typeof current !== "object") {
-				throw new Error(`unknown MCP server: ${name}`);
-			}
-			servers[name] = {
-				...(current as JsonRecord),
-				disabled: Boolean(args?.disabled),
-			};
-			settings.mcpServers = servers;
+	if (command === "authorize_mcp_server_oauth") {
+		const name = String(args?.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		const settingsPath = resolveMcpSettingsPath();
+		const registration = resolveMcpServerRegistration(name, {
+			filePath: settingsPath,
 		});
+		if (!registration) {
+			throw new Error(`unknown MCP server: ${name}`);
+		}
+		const wasDisabled = registration.disabled === true;
+		setMcpServerDisabled({ filePath: settingsPath, name, disabled: true });
+		try {
+			await runCancellableMcpOAuthAuthorization(
+				{
+					serverName: name,
+					filePath: settingsPath,
+					openUrl: openUrlInDefaultBrowser,
+				},
+				options?.connection,
+			);
+		} catch (error) {
+			if (!(error instanceof McpOAuthAuthorizationCancelledError)) {
+				throw error;
+			}
+			if (
+				shouldRestoreEnabledStateAfterOAuthCancellation(
+					wasDisabled,
+					error.reason,
+				)
+			) {
+				setMcpServerDisabled({
+					filePath: settingsPath,
+					name,
+					disabled: false,
+				});
+			}
+			return readMcpServersResponse();
+		}
+		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
+		return readMcpServersResponse();
+	}
+	if (command === "cancel_mcp_server_oauth") {
+		const name = String(args?.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		cancelMcpOAuthAuthorizationForReason(name, "user");
+		return readMcpServersResponse();
+	}
+	if (command === "set_mcp_server_disabled") {
+		const name = String(args?.name ?? "").trim();
+		const disabled = Boolean(args?.disabled);
+		const path = ensureMcpSettingsFile();
+		if (disabled) {
+			cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
+			setMcpServerDisabled({ filePath: path, name, disabled: true });
+			return readMcpServersResponse();
+		}
+		const registration = resolveMcpServerRegistration(name, { filePath: path });
+		if (!registration) {
+			throw new Error(`unknown MCP server: ${name}`);
+		}
+		if (registration.transport.type !== "stdio") {
+			setMcpServerDisabled({ filePath: path, name, disabled: true });
+			const probe = await probeMcpServerConnection({
+				serverName: name,
+				filePath: path,
+			});
+			if (!probe.connected) {
+				return readMcpServersResponse();
+			}
+		}
+		setMcpServerDisabled({ filePath: path, name, disabled: false });
 		return readMcpServersResponse();
 	}
 	if (command === "upsert_mcp_server") {
@@ -1644,6 +1671,8 @@ export async function handleCommand(
 		const transportType = String(
 			input.transportType ?? input.transport_type ?? "",
 		).trim();
+		const requestedDisabled = Boolean(input.disabled);
+		const isRemote = transportType !== "stdio";
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -1654,7 +1683,7 @@ export async function handleCommand(
 							cwd: input.cwd,
 							env: input.env,
 						},
-						disabled: Boolean(input.disabled),
+						disabled: requestedDisabled,
 						metadata: input.metadata,
 					}
 				: {
@@ -1663,40 +1692,78 @@ export async function handleCommand(
 							url: input.url,
 							headers: input.headers,
 						},
-						disabled: Boolean(input.disabled),
+						disabled: requestedDisabled,
 						metadata: input.metadata,
 					};
 		const path = ensureMcpSettingsFile();
-		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
-				{}) as JsonRecord;
-			// Preserve machine-managed fields the editor dialog doesn't expose:
-			// oauth tokens for remote servers and plugin-ownership metadata.
-			const sourceName =
-				previousName && servers[previousName] ? previousName : name;
-			const existing = servers[sourceName];
-			const upserted = { ...next };
-			if (existing && typeof existing === "object") {
-				const record = existing as JsonRecord;
-				if (upserted.metadata === undefined && record.metadata !== undefined) {
-					upserted.metadata = record.metadata;
+		const { shouldProbeAfterSave } = updateMcpSettingsFileSync(
+			path,
+			(settings) => {
+				const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+					{}) as JsonRecord;
+				// Preserve machine-managed fields the editor dialog doesn't expose:
+				// oauth tokens for remote servers and plugin-ownership metadata.
+				const existingName =
+					previousName && servers[previousName] ? previousName : name;
+				const existing = servers[existingName];
+				let existingTransportIdentity: string | undefined;
+				let existingWasEnabled = false;
+				if (existing && typeof existing === "object") {
+					const record = existing as JsonRecord;
+					existingTransportIdentity = mcpTransportIdentity(
+						existingName,
+						record,
+					);
+					existingWasEnabled = record.disabled !== true;
 				}
-				// OAuth tokens were issued for a specific endpoint; carrying them
-				// onto an edited transport or URL would send the old server's
-				// credentials to a different endpoint.
-				if (
-					record.oauth !== undefined &&
-					mcpTransportIdentity(record) === mcpTransportIdentity(upserted)
-				) {
-					upserted.oauth = record.oauth;
+				const nextTransportIdentity = mcpTransportIdentity(name, next);
+				const transportIdentityUnchanged =
+					existingTransportIdentity === nextTransportIdentity;
+				const shouldProbe = shouldProbeMcpServerAfterUpsert({
+					isRemote,
+					requestedDisabled,
+					existingWasEnabled,
+					transportIdentityUnchanged,
+				});
+				const upserted: JsonRecord = {
+					...next,
+					disabled: requestedDisabled || shouldProbe,
+				};
+				if (existing && typeof existing === "object") {
+					const record = existing as JsonRecord;
+					if (
+						upserted.metadata === undefined &&
+						record.metadata !== undefined
+					) {
+						upserted.metadata = record.metadata;
+					}
+					// OAuth tokens were issued for a specific endpoint; carrying them
+					// onto an edited transport or URL would send the old server's
+					// credentials to a different endpoint.
+					if (record.oauth !== undefined && transportIdentityUnchanged) {
+						upserted.oauth = record.oauth;
+					}
+					if (record.oauthClient !== undefined && transportIdentityUnchanged) {
+						upserted.oauthClient = record.oauthClient;
+					}
 				}
+				if (previousName && previousName !== name) {
+					delete servers[previousName];
+				}
+				servers[name] = upserted;
+				settings.mcpServers = servers;
+				return { shouldProbeAfterSave: shouldProbe };
+			},
+		);
+		if (shouldProbeAfterSave) {
+			const probe = await probeMcpServerConnection({
+				serverName: name,
+				filePath: path,
+			});
+			if (probe.connected) {
+				setMcpServerDisabled({ filePath: path, name, disabled: false });
 			}
-			if (previousName && previousName !== name) {
-				delete servers[previousName];
-			}
-			servers[name] = upserted;
-			settings.mcpServers = servers;
-		});
+		}
 		return readMcpServersResponse();
 	}
 	if (command === "delete_mcp_server") {
@@ -1759,12 +1826,12 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
-			await listUserInstructionConfigs(ctx.workspaceRoot),
+			await listUserInstructionConfigs(ctx),
 		);
 	}
 	if (command === "install_marketplace_entry") {
@@ -1786,8 +1853,11 @@ export async function handleCommand(
 		if (!toolName) {
 			throw new Error("tool name is required");
 		}
-		toggleDisabledTool(toolName);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "tools",
+			name: toolName,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_tool_disabled") {
 		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
@@ -1797,16 +1867,27 @@ export async function handleCommand(
 		if (toolNames.length === 0) {
 			throw new Error("tool name is required");
 		}
-		setDisabledTools(toolNames, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		let snapshot: CoreSettingsSnapshot | undefined;
+		for (const name of toolNames) {
+			snapshot = await toggleHubSetting(ctx, {
+				type: "tools",
+				name,
+				enabled: args?.disabled !== true,
+			});
+		}
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
 		if (!pluginPath) {
 			throw new Error("plugin path is required");
 		}
-		setDisabledPlugin(pluginPath, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "plugins",
+			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────

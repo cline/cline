@@ -292,8 +292,10 @@ export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 	createMcpTools,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	type DefaultMcpServerClientFactoryOptions,
 	getMcpServerOAuthState,
+	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
 	type LoadMcpSettingsOptions,
@@ -302,8 +304,10 @@ export {
 	type McpConnectionStatus,
 	type McpManager,
 	type McpManagerOptions,
+	McpOAuthClientChangedError,
 	type McpServerClient,
 	type McpServerClientFactory,
+	type McpServerOAuthClientConfig,
 	type McpServerOAuthState,
 	type McpServerOAuthStatus,
 	type McpServerRegistration,
@@ -323,12 +327,18 @@ export {
 	type McpToolDescriptor,
 	type McpToolNameTransform,
 	type McpToolProvider,
+	type ProbeMcpServerConnectionOptions,
+	type ProbeMcpServerConnectionResult,
+	parseMcpServerRegistration,
+	probeMcpServerConnection,
 	type RegisterMcpServersFromSettingsOptions,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	type SetMcpServerDisabledOptions,
 	setMcpServerDisabled,
+	type UpdateMcpServerOAuthStateOptions,
 	updateMcpServerOAuthState,
 	updateMcpServerOAuthStateAsync,
 	updateMcpSettingsFile,
@@ -587,11 +597,14 @@ export {
 export type {
 	McpInstallOptions,
 	McpInstallResult,
+	McpUninstallOptions,
+	McpUninstallResult,
 } from "./services/mcp-install";
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
 	parseMcpInstallArgs,
+	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
 	ParsedPluginSource,
@@ -619,6 +632,7 @@ export {
 } from "./services/plugin-mcp-settings";
 export type {
 	ListPluginToolsResult,
+	PluginContributionSummary,
 	PluginToolSummary,
 } from "./services/plugin-tools";
 export {
@@ -697,6 +711,7 @@ export {
 	captureAgentUnexpectedReasoningTokens,
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	captureCompactionExecuted,
@@ -751,6 +766,7 @@ export type {
 } from "./services/workspace";
 export {
 	enrichPromptWithMentions,
+	ensureChatWorkspace,
 	getFileIndex,
 	prewarmFileIndex,
 } from "./services/workspace";
@@ -818,11 +834,15 @@ export {
 	resolveMessageDisplayRole,
 } from "./session/user-run-messages";
 export type {
+	CorePluginContributions,
+	CorePluginSettingsSnapshot,
+	CorePluginSettingsSource,
 	CoreSettingsItem,
 	CoreSettingsItemKind,
 	CoreSettingsItemSource,
 	CoreSettingsListInput,
 	CoreSettingsMutationResult,
+	CoreSettingsServiceOptions,
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 	CoreSettingsType,

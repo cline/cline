@@ -5,7 +5,6 @@
 
 .cline-ui-search-combobox__trigger {
 	font-family: inherit;
-	font-size: inherit;
 	font-style: inherit;
 	font-variant: inherit;
 	letter-spacing: inherit;
@@ -20,5 +19,9 @@
 }
 
 .cline-ui-search-combobox__option {
-	font: inherit;
+	font-family: inherit;
+	font-style: inherit;
+	font-variant: inherit;
+	font-weight: inherit;
+	line-height: inherit;
 }

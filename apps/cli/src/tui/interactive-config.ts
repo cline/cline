@@ -9,6 +9,7 @@ import {
 } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	discoverPluginModulePaths,
 	getPluginDisplayName,
 	hasMcpSettingsFile,
@@ -183,7 +184,7 @@ export function getMcpDescription(registration: McpServerRegistration): string {
 	const timeoutDescription =
 		registration.transport.type === "stdio" &&
 		!isMcpTimeoutConfigured(registration.timeoutSeconds)
-			? `request timeout ${timeoutSeconds}s, initialize probe 1.5s`
+			? `request timeout ${timeoutSeconds}s, initialize timeout ${DEFAULT_MCP_CONNECT_TIMEOUT_MS / 1000}s`
 			: `timeout ${timeoutSeconds}s`;
 	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, ${timeoutDescription}`;
 }

@@ -82,6 +82,7 @@ const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
 	"workflows",
 	"rules",
+	"plugins",
 	"tools",
 	"mcp",
 ]);
@@ -144,7 +145,7 @@ function parseSettingsToggleInput(payload: unknown): CoreSettingsToggleInput {
 		!SETTINGS_TYPES.has(type as CoreSettingsType)
 	) {
 		throw new Error(
-			"settings.toggle payload 'type' must be one of: skills, workflows, rules, tools, mcp.",
+			"settings.toggle payload 'type' must be one of: skills, workflows, rules, plugins, tools, mcp.",
 		);
 	}
 	return {
