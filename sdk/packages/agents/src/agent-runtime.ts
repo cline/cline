@@ -970,6 +970,7 @@ export class AgentRuntime {
 				description: tool.description,
 				inputSchema: tool.inputSchema,
 			})),
+			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {
 				metadata: modelRequestMetadata,

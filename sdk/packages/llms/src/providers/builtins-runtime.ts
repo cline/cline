@@ -19,6 +19,10 @@ async function loadFamilyFactory(
 
 	const promise = (async () => {
 		switch (family) {
+			case "cline": {
+				const module = await import("./ai-sdk");
+				return module.createClineProvider;
+			}
 			case "openai": {
 				const module = await import("./ai-sdk");
 				return module.createOpenAIProvider;

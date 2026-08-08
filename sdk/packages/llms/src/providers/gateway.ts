@@ -155,6 +155,7 @@ class GatewayModelAdapter implements AgentModel {
 			systemPrompt: request.systemPrompt,
 			messages: request.messages,
 			tools: this.defaults?.tools ?? request.tools,
+			modelTools: this.defaults?.modelTools ?? request.modelTools,
 			temperature:
 				(request.options?.temperature as number | undefined) ??
 				this.defaults?.temperature,

@@ -40,6 +40,10 @@ const anthropicSpy = vi.fn((modelId: string) => ({
 	family: "anthropic",
 }));
 const googleSpy = vi.fn((modelId: string) => ({ modelId, family: "google" }));
+const nativeWebSearchSpy = vi.fn((options?: unknown) => ({
+	type: "provider-tool",
+	options,
+}));
 const codexExecFactorySpy = vi.fn();
 const codexExecSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -78,6 +82,7 @@ vi.mock("ai", () => ({
 vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
 		responses: (modelId: string) => openaiResponsesSpy(modelId),
+		tools: { webSearch: (options?: unknown) => nativeWebSearchSpy(options) },
 	}),
 }));
 
@@ -89,11 +94,21 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 }));
 
 vi.mock("@ai-sdk/anthropic", () => ({
-	createAnthropic: () => (modelId: string) => anthropicSpy(modelId),
+	createAnthropic: () =>
+		Object.assign((modelId: string) => anthropicSpy(modelId), {
+			tools: {
+				webSearch_20250305: (options?: unknown) => nativeWebSearchSpy(options),
+			},
+		}),
 }));
 
 vi.mock("@ai-sdk/google", () => ({
-	createGoogleGenerativeAI: () => (modelId: string) => googleSpy(modelId),
+	createGoogleGenerativeAI: () =>
+		Object.assign((modelId: string) => googleSpy(modelId), {
+			tools: {
+				googleSearch: (options?: unknown) => nativeWebSearchSpy(options),
+			},
+		}),
 }));
 
 vi.mock("ai-sdk-provider-codex-cli", () => ({
@@ -237,6 +252,7 @@ describe("sdk-gateway", () => {
 		openaiResponsesSpy.mockReset();
 		anthropicSpy.mockReset();
 		googleSpy.mockReset();
+		nativeWebSearchSpy.mockReset();
 		codexExecFactorySpy.mockReset();
 		codexExecSpy.mockReset();
 		googleSpy.mockImplementation((modelId: string) => ({
@@ -439,6 +455,42 @@ describe("sdk-gateway", () => {
 				providerId: "custom-provider",
 				modelId: "large-output",
 				messages: baseMessages,
+			}),
+		);
+	});
+
+	it("translates portable web_search intent into a native provider tool", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+				modelTools: [
+					{
+						name: "web_search",
+						maxUses: 3,
+						allowedDomains: ["cline.bot"],
+					},
+				],
+			}),
+		);
+
+		expect(nativeWebSearchSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxUses: 3,
+				allowedDomains: ["cline.bot"],
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: expect.objectContaining({
+					web_search: expect.objectContaining({ type: "provider-tool" }),
+				}),
 			}),
 		);
 	});

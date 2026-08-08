@@ -23,7 +23,11 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
-import type { BuiltinSpec, ProviderApiLine } from "./builtin-types";
+import type {
+	BuiltinSpec,
+	ProviderApiLine,
+	ProviderFamily,
+} from "./builtin-types";
 import {
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
@@ -570,8 +574,9 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 }
 
 function createClineLikeSpec(
-	input: Pick<BuiltinSpec, "id" | "name" | "defaultModelId"> &
-		Partial<
+	input: Pick<BuiltinSpec, "id" | "name" | "defaultModelId"> & {
+		family?: ProviderFamily;
+	} & Partial<
 			Pick<
 				BuiltinSpec,
 				| "description"
@@ -587,7 +592,7 @@ function createClineLikeSpec(
 		id: input.id,
 		name: input.name,
 		description: input.description ?? "Cline API endpoint",
-		family: "openai-compatible",
+		family: input.family ?? "openai-compatible",
 		popular: input.popular,
 		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
 		modelsProviderId: input.modelsProviderId,
@@ -640,6 +645,7 @@ async function handleClineResponseError(
 
 const cline = createClineLikeSpec({
 	id: "cline",
+	family: "cline",
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
@@ -655,6 +661,7 @@ const cline = createClineLikeSpec({
 
 const clinePass = createClineLikeSpec({
 	id: CLINE_PASS_PROVIDER_ID,
+	family: "cline",
 	name: "ClinePass",
 	popular: 2,
 	description: "Cline API endpoint with ClinePass models",
@@ -1186,8 +1193,9 @@ export function resolveProviderApiLineBaseUrl(
 	if (!isProviderApiLine(apiLine)) {
 		return undefined;
 	}
-	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(normalizeProviderId(providerId))
-		?.[apiLine];
+	return API_LINE_BASE_URLS_BY_PROVIDER_ID.get(
+		normalizeProviderId(providerId),
+	)?.[apiLine];
 }
 
 function getModels(spec: BuiltinSpec): Record<string, ModelInfo> {
