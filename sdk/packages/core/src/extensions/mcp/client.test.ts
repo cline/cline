@@ -130,6 +130,38 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Answers initialize over newline framing but ignores SIGTERM and keeps an
+// event-loop handle alive, so only an escalated SIGKILL can terminate it.
+const SIGTERM_IGNORING_SERVER_SCRIPT = `
+process.on("SIGTERM", () => {});
+setInterval(() => {}, 1000);
+if (process.env.FAKE_MCP_PID_FILE) {
+	require("node:fs").writeFileSync(process.env.FAKE_MCP_PID_FILE, String(process.pid));
+}
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+	buffer += chunk.toString("utf8");
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || !msg.method || msg.method.startsWith("notifications/")) continue;
+		const result = msg.method === "initialize"
+			? { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "stubborn", version: "0.0.0" } }
+			: {};
+		process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+});
+process.stdin.on("end", () => {});
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
@@ -143,6 +175,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(tempRoot, "newline-rejecting-server.js"),
 		NEWLINE_REJECTING_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "sigterm-ignoring-server.js"),
+		SIGTERM_IGNORING_SERVER_SCRIPT,
 		"utf8",
 	);
 });
@@ -579,5 +616,46 @@ describe("stdio MCP connection probe", () => {
 		});
 		expect(typeof result.error).toBe("string");
 		expect(result.error?.length).toBeGreaterThan(0);
+	}, 30_000);
+
+	it("does not leak the probed process when its command ignores SIGTERM", async () => {
+		const pidFile = join(tempRoot, `stubborn-${Date.now()}.pid`);
+		const settingsPath = join(tempRoot, "stdio-probe-stubborn-settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					stubborn: {
+						transport: {
+							type: "stdio",
+							command:
+								process.platform === "win32"
+									? `"${process.execPath}"`
+									: process.execPath,
+							args: [join(tempRoot, "sigterm-ignoring-server.js")],
+							env: { FAKE_MCP_PID_FILE: pidFile },
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await probeMcpServerConnection({
+			serverName: "stubborn",
+			filePath: settingsPath,
+		});
+		expect(result).toMatchObject({ serverName: "stubborn", connected: true });
+
+		const pid = Number(readFileSync(pidFile, "utf8"));
+		expect(Number.isInteger(pid) && pid > 0).toBe(true);
+		// The probe's shutdown escalates to SIGKILL, so the server process must
+		// be gone shortly after the probe resolves (0 only tests existence).
+		await vi.waitFor(
+			() => {
+				expect(() => process.kill(pid, 0)).toThrow();
+			},
+			{ timeout: 10_000, interval: 100 },
+		);
 	}, 30_000);
 });
