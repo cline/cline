@@ -1616,6 +1616,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
+		// A seeded session (fork, checkpoint restore, missing-session
+		// recovery) materializes at start, before any prompt exists, so its
+		// row is created promptless. Backfill it with the first user prompt,
+		// which restores the behavior rows had when materialization happened
+		// here: the persistence service derives the title from this prompt
+		// when the session is untitled, and leaves any user-set title alone.
+		if (!session.pendingPrompt) {
+			session.pendingPrompt = prompt;
+			try {
+				await this.invokeOptionalValue("updateSession", {
+					sessionId: session.sessionId,
+					prompt,
+				});
+			} catch (error) {
+				session.config.logger?.log?.(
+					"Failed to backfill seeded session prompt",
+					{ severity: "warn", sessionId: session.sessionId, error },
+				);
+			}
+		}
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
