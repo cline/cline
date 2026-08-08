@@ -221,9 +221,8 @@ class StdioMcpClient implements McpServerClient {
 			);
 		} catch (newlineError) {
 			await this.disconnect().catch(() => {});
-			// If we're being torn down, don't burn a second connect budget on
-			// the framed fallback — surface the failure immediately so the
-			// manager's operation lock is released promptly.
+			// If we're being torn down, don't spend a second connect budget on
+			// the framed fallback — fail now so the manager lock is released.
 			if (this.disposed) {
 				throw newlineError;
 			}

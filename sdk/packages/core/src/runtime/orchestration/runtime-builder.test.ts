@@ -639,8 +639,8 @@ process.stdin.on("data", (chunk) => {
 		const previousStartupBudget = process.env.CLINE_MCP_STARTUP_BUDGET_MS;
 
 		// A server that stays alive but never responds to `initialize`. With no
-		// configured timeout it would otherwise hold the connect open for the
-		// full default connect budget (doubled across framing attempts).
+		// configured timeout the default connect budget applies, so only the
+		// startup budget keeps this from stalling session creation.
 		writeFileSync(
 			serverPath,
 			`process.stdin.resume();
@@ -652,13 +652,7 @@ setInterval(() => {}, 1 << 30);`,
 			JSON.stringify(
 				{
 					mcpServers: {
-						hangs: {
-							command: process.execPath,
-							args: [serverPath],
-							// Intentionally no `timeout`, so the default connect
-							// budget applies — this is the scenario that used to
-							// stall session creation past the hub timeout.
-						},
+						hangs: { command: process.execPath, args: [serverPath] },
 					},
 				},
 				null,
@@ -677,13 +671,12 @@ setInterval(() => {}, 1 << 30);`,
 			});
 			const elapsedMs = Date.now() - startedAt;
 
-			// The build must return promptly (well under the default connect
-			// budget) rather than waiting out the hung server.
+			// Session build must return promptly rather than waiting out the
+			// hung server's connect budget.
 			expect(elapsedMs).toBeLessThan(10_000);
-			const mcpTools = runtime.tools.filter((t) =>
-				t.name.startsWith("hangs__"),
+			expect(runtime.tools.filter((t) => t.name.startsWith("hangs__"))).toEqual(
+				[],
 			);
-			expect(mcpTools).toEqual([]);
 			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;

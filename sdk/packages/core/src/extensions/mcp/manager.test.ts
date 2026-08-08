@@ -129,9 +129,9 @@ describe("InMemoryMcpManager", () => {
 
 	it("disposes promptly even while a client is hung in connect()", async () => {
 		// Model a stdio server stuck in `initialize`: connect() only settles
-		// once close() is called (mirroring how disconnect() rejects the
-		// pending request). Without close() being invoked outside the operation
-		// lock, dispose() would block behind the in-flight connect.
+		// once close() is called (as disconnect() rejecting the pending request
+		// does for the real client). Without close() being invoked outside the
+		// operation lock, dispose() would block behind the in-flight connect.
 		let disposed = false;
 		let releaseConnect: (() => void) | undefined;
 		let signalConnectStarted: (() => void) | undefined;
@@ -143,9 +143,6 @@ describe("InMemoryMcpManager", () => {
 				() =>
 					new Promise<void>((_resolve, reject) => {
 						signalConnectStarted?.();
-						// Mirror StdioMcpClient: a connect that starts after
-						// disposal fails immediately; one already in flight is
-						// unblocked by close().
 						if (disposed) {
 							reject(new Error("disposed"));
 							return;
@@ -167,8 +164,6 @@ describe("InMemoryMcpManager", () => {
 			transport: { type: "stdio", command: "node" },
 		});
 
-		// Kick off a connect that never resolves on its own and wait until it is
-		// actually in flight (client created, lock held), then dispose.
 		const pendingConnect = manager.connectServer("hangs").catch(() => {});
 		await connectStarted;
 		await manager.dispose();

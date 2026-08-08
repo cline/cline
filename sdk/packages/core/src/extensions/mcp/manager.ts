@@ -179,12 +179,11 @@ export class InMemoryMcpManager implements McpManager {
 	}
 
 	async dispose(): Promise<void> {
-		// Break any in-flight connects up front, outside the per-server locks.
-		// A server hung in `initialize` holds its operation lock for the full
-		// connect budget; close() disposes the client so that connect aborts and
-		// releases the lock, letting the locked unregister below complete
+		// Close clients up front, outside the per-server locks. A server hung in
+		// `initialize` holds its operation lock for the full connect budget;
+		// close() aborts that connect so the locked unregister below completes
 		// promptly instead of stalling disposal. Clients without close() are
-		// disconnected the usual way by unregisterServer below.
+		// disconnected the usual way by unregisterServer.
 		await Promise.allSettled(
 			[...this.servers.values()].map((state) => state.client?.close?.()),
 		);
