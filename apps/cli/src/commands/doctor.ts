@@ -245,7 +245,8 @@ function listStaleHubPids(currentHubPids: number[]): number[] {
 	const current = new Set(currentHubPids.filter((pid) => pid > 0));
 	const patterns = [
 		"/sdk/packages/core/src/hub/daemon/entry.ts",
-		"/sdk/packages/core/dist/hub/daemon/entry.js",
+		// Matches monorepo and installed @cline/core dist daemons.
+		"/dist/hub/daemon/entry.js",
 		"--cline-hub-daemon",
 	];
 	const records = new Map<number, ProcessRecord>();

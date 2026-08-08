@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -33,7 +33,6 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
-
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
@@ -165,7 +164,19 @@ async function retireLegacySharedHub(owner: HubOwnerContext): Promise<void> {
 
 function resolveDaemonEntryPath(): string {
 	const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
-	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
+	const siblingEntryPath = fileURLToPath(
+		new URL(`./entry.${extension}`, import.meta.url),
+	);
+	// Compiled Bun binaries ("/$bunfs/" virtual paths, handled by the caller)
+	// and on-disk source/dist layouts keep the entry module next to this one.
+	if (siblingEntryPath.startsWith("/$bunfs/") || existsSync(siblingEntryPath)) {
+		return siblingEntryPath;
+	}
+	// When a host app bundles @cline/core into a single output file (e.g. the
+	// kanban CLI), no sibling entry exists on disk and spawning it would die
+	// with MODULE_NOT_FOUND (#12153). Resolve the installed package export
+	// instead.
+	return fileURLToPath(import.meta.resolve("@cline/core/hub/daemon-entry"));
 }
 
 function resolveLaunchCommand(
