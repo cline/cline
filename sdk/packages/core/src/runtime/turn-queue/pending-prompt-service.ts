@@ -197,11 +197,6 @@ export class PendingPromptService {
 		state.pendingPrompts.unshift(entry);
 		return snapshotPrompts(state);
 	}
-
-	clear(state: PendingPromptQueueState): SessionPendingPrompt[] {
-		state.pendingPrompts.length = 0;
-		return [];
-	}
 }
 
 export class PendingPromptsController {
@@ -260,12 +255,6 @@ export class PendingPromptsController {
 		this.emitPrompts(session);
 		this.emitSubmitted(session, steer);
 		return steer;
-	}
-
-	clearAborted(session: ActiveSession): void {
-		if (session.pendingPrompts.length === 0) return;
-		this.service.clear(session);
-		this.emitPrompts(session);
 	}
 
 	emitPrompts(session: ActiveSession): void {
