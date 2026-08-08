@@ -62,6 +62,49 @@ describe("builtin tool catalog", () => {
 		);
 	});
 
+	it("keeps web_search disabled by default", () => {
+		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
+		const entry = catalog.find((item) => item.id === "web_search");
+		expect(entry).toBeDefined();
+		expect(entry?.defaultEnabled).toBe(false);
+		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).not.toContain(
+			"web_search",
+		);
+	});
+
+	it("enables web_search only via the enabledToolIds opt-in", () => {
+		const optedIn = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledToolIds: new Set(["web_search"]),
+		});
+		expect(
+			optedIn.find((item) => item.id === "web_search")?.defaultEnabled,
+		).toBe(true);
+
+		const optedInButDisabled = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledToolIds: new Set(["web_search"]),
+			disabledToolIds: new Set(["web_search"]),
+		});
+		expect(
+			optedInButDisabled.find((item) => item.id === "web_search")
+				?.defaultEnabled,
+		).toBe(false);
+	});
+
+	it("does not enable other tools through enabledToolIds", () => {
+		const catalog = getCoreBuiltinToolCatalog({
+			mode: "yolo",
+			enabledToolIds: new Set(["teams", "search_codebase"]),
+		});
+		expect(catalog.find((item) => item.id === "teams")?.defaultEnabled).toBe(
+			false,
+		);
+		expect(
+			catalog.find((item) => item.id === "search_codebase")?.defaultEnabled,
+		).toBe(false);
+	});
+
 	it("resolves default selected ids from the catalog", () => {
 		const selected = resolveCoreSelectedToolIds({
 			enabled: true,

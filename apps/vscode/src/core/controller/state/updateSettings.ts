@@ -1,4 +1,4 @@
-import { setCompactionStrategyGlobally } from "@cline/core"
+import { isToolEnabledGlobally, setCompactionStrategyGlobally, setDisabledTools } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -264,6 +264,27 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.showFeatureTips !== undefined) {
 			controller.stateManager.setGlobalState("showFeatureTips", request.showFeatureTips)
+		}
+
+		// Update web search setting. The toggle lives in the SDK's shared global
+		// settings (enabledTools allowlist), so it stays in sync with the CLI
+		// and desktop app. An active session is passively rebuilt so the tool
+		// (un)registers without waiting for the next task.
+		if (request.webSearchEnabled !== undefined) {
+			const wasEnabled = isToolEnabledGlobally("web_search")
+			const isEnabled = !!request.webSearchEnabled
+			setDisabledTools(["web_search"], !isEnabled)
+			if (wasEnabled !== isEnabled) {
+				if (controller.task) {
+					telemetryService.captureFeatureToggle(
+						controller.task.ulid,
+						"web_search",
+						isEnabled,
+						controller.task.api.getModel().id,
+					)
+				}
+				controller.handleBuiltinToolAvailabilityChanged()
+			}
 		}
 
 		// Post updated state to webview

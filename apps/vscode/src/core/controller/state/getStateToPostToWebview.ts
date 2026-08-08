@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { readCompactionStrategyGlobally } from "@cline/core"
+import { isToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
@@ -177,6 +177,7 @@ export async function getStateToPostToWebview(controller: {
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
+		webSearchEnabled: isToolEnabledGlobally("web_search"),
 		banners,
 		welcomeBanners,
 		openAiCodexIsAuthenticated,

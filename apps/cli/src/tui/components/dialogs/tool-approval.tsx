@@ -90,6 +90,19 @@ export function formatApprovalParams(
 				</text>
 			));
 		}
+		case "web_search": {
+			if (rawInput && typeof rawInput === "object" && "query" in rawInput) {
+				const query = String((rawInput as { query: unknown }).query);
+				if (!query) break;
+				return (
+					<text fg="gray" selectable>
+						{"  "}
+						{query}
+					</text>
+				);
+			}
+			break;
+		}
 		case "spawn_agent": {
 			const info = parseSpawnAgentInput(rawInput);
 			if (!info) break;

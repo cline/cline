@@ -816,7 +816,15 @@ async function listUserInstructionConfigs(
 		userInstructionService.stop();
 	}
 
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const globalSettings = readGlobalSettings();
+	const disabledTools = new Set(globalSettings.disabledTools ?? []);
+	const enabledTools = new Set(globalSettings.enabledTools ?? []);
+	// Desktop product default: web_search is on unless the user explicitly
+	// opted out. Mirrors webSearchEnabledByDefault in the session config
+	// (chat-session.ts) so the Tools settings switch reflects reality.
+	if (!disabledTools.has("web_search")) {
+		enabledTools.add("web_search");
+	}
 	// Pin spawn/teams availability so this listing matches the hub's
 	// (apps/cline-hub/src/server/user-instructions.ts) even if the preset
 	// defaults change.
@@ -824,6 +832,7 @@ async function listUserInstructionConfigs(
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
+		enabledToolIds: enabledTools,
 	});
 
 	return {

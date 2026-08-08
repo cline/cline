@@ -2122,6 +2122,17 @@ export class Controller {
 		return this._terminalManager
 	}
 
+	/**
+	 * Called when the availability of a built-in SDK tool changes (e.g. the
+	 * web_search opt-in toggle). Session tool lists are baked at build time,
+	 * so reuse the MCP coordinator's silent restart to rebuild the active
+	 * session; core's runtime builder re-reads the shared global settings.
+	 * With no active session, the next task picks up the change naturally.
+	 */
+	handleBuiltinToolAvailabilityChanged(): void {
+		this.mcpTools.handleToolListChanged()
+	}
+
 	// ---- Workspace (kept from classic) ----
 
 	private _workspaceManager?: WorkspaceRootManager

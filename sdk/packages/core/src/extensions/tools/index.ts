@@ -25,13 +25,16 @@ export {
 	createSkillsTool,
 	createSubmitAndExitTool,
 	createWebFetchTool,
+	createWebSearchTool,
 } from "./definitions";
 // Built-in Executors
 export {
 	type ApplyPatchExecutorOptions,
+	type ClineWebSearchExecutorOptions,
 	CommandExitError,
 	computePatchChanges,
 	createApplyPatchExecutor,
+	createClineWebSearchExecutor,
 	createDefaultExecutors,
 	createDefaultShellExecutor,
 	createEditorExecutor,
@@ -73,6 +76,7 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isWebSearchSupportedProvider,
 	resolveCoreSelectedToolIds,
 	type ToolCatalogEntry,
 } from "./runtime";
@@ -102,6 +106,8 @@ export {
 	SubmitInputSchema,
 	type WebFetchRequest,
 	WebFetchRequestSchema,
+	type WebSearchInput,
+	WebSearchInputSchema,
 } from "./schemas";
 export { TEAM_TOOL_NAMES } from "./team/team-tools";
 // Types
@@ -122,6 +128,7 @@ export type {
 	ToolOperationResult,
 	VerifySubmitExecutor,
 	WebFetchExecutor,
+	WebSearchExecutor,
 } from "./types";
 
 // =============================================================================

@@ -172,6 +172,13 @@ function formatToolParams(
 			if (!info?.urls.length) return fallback;
 			return info.urls.join(", ");
 		}
+		case "web_search": {
+			if (rawInput && typeof rawInput === "object" && "query" in rawInput) {
+				const query = String((rawInput as { query: unknown }).query);
+				return query.length > 120 ? `${query.slice(0, 120)}...` : query;
+			}
+			return fallback;
+		}
 		case "spawn_agent": {
 			const info = parseSpawnAgentInput(rawInput);
 			if (!info) return fallback;

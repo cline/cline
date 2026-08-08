@@ -189,6 +189,38 @@ export const FetchWebContentInputSchema = z.object({
 });
 
 /**
+ * Schema for web_search tool input
+ */
+export const WebSearchInputSchema = z
+	.object({
+		query: z
+			.string()
+			.min(2)
+			.describe(
+				"The search query to use. Use precise terms and include dates when recency matters.",
+			),
+		allowed_domains: z
+			.array(z.string())
+			.optional()
+			.describe(
+				"Optional domains to restrict results to, such as github.com. Cannot be combined with blocked_domains.",
+			),
+		blocked_domains: z
+			.array(z.string())
+			.optional()
+			.describe(
+				"Optional domains to exclude from results. Cannot be combined with allowed_domains.",
+			),
+	})
+	.refine(
+		(input) =>
+			!(input.allowed_domains?.length && input.blocked_domains?.length),
+		{
+			message: "Cannot specify both allowed_domains and blocked_domains",
+		},
+	);
+
+/**
  * Schema for editor tool input
  */
 export const EditFileInputSchema = z
@@ -324,6 +356,11 @@ export type WebFetchRequest = z.infer<typeof WebFetchRequestSchema>;
  * Input for the fetch_web_content tool
  */
 export type FetchWebContentInput = z.infer<typeof FetchWebContentInputSchema>;
+
+/**
+ * Input for the web_search tool
+ */
+export type WebSearchInput = z.infer<typeof WebSearchInputSchema>;
 
 /**
  * Input for the editor tool
