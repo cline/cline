@@ -155,6 +155,76 @@ describe("ConnectorBase background launch", () => {
 		);
 	});
 
+	it("keeps a state file that another instance has claimed", async () => {
+		// Two connectors share one state path. If the exiting one deletes a record
+		// naming the other, the survivor keeps serving but vanishes from doctor and
+		// can no longer be stopped by name.
+		const connector = new TestConnector();
+		const removeStateFile = vi.spyOn(
+			connector as unknown as { removeStateFile: (path: string) => void },
+			"removeStateFile",
+		);
+
+		const removed = (
+			connector as unknown as {
+				removeStateFileIfOwnedBy: (
+					statePath: string,
+					pid: number,
+					readState: (path: string) => { pid: number } | undefined,
+					getPid: (state: { pid: number }) => number,
+				) => boolean;
+			}
+		).removeStateFileIfOwnedBy(
+			"/tmp/test-connector.json",
+			111,
+			() => ({ pid: 222 }),
+			(state) => state.pid,
+		);
+
+		expect(removed).toBe(false);
+		expect(removeStateFile).not.toHaveBeenCalled();
+	});
+
+	it("removes its own state file on the way out", async () => {
+		const connector = new TestConnector();
+		const removeStateFile = vi.spyOn(
+			connector as unknown as { removeStateFile: (path: string) => void },
+			"removeStateFile",
+		);
+
+		const helper = (
+			connector as unknown as {
+				removeStateFileIfOwnedBy: (
+					statePath: string,
+					pid: number,
+					readState: (path: string) => { pid: number } | undefined,
+					getPid: (state: { pid: number }) => number,
+				) => boolean;
+			}
+		).removeStateFileIfOwnedBy;
+
+		expect(
+			helper.call(
+				connector,
+				"/tmp/test-connector.json",
+				111,
+				() => ({ pid: 111 }),
+				(state: { pid: number }) => state.pid,
+			),
+		).toBe(true);
+		// An already-absent record is nothing to protect.
+		expect(
+			helper.call(
+				connector,
+				"/tmp/test-connector.json",
+				111,
+				() => undefined,
+				(state: { pid: number }) => state.pid,
+			),
+		).toBe(true);
+		expect(removeStateFile).toHaveBeenCalledTimes(2);
+	});
+
 	it("returns a distinct result when a connector is already running", async () => {
 		await expect(
 			new TestConnector().runBackground(io, {

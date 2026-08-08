@@ -1305,7 +1305,14 @@ class SlackConnector extends ConnectorBase<
 		await bot.shutdown();
 		userInstructionService.stop();
 		client.close();
-		this.removeStateFile(statePath);
+		// Only when this process still owns the record: a replacement connector may
+		// have claimed the same state path while this one was running.
+		this.removeStateFileIfOwnedBy(
+			statePath,
+			process.pid,
+			(path) => this.readConnectorState(path),
+			(state) => state.pid,
+		);
 		return 0;
 	}
 }

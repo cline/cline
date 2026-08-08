@@ -317,6 +317,38 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("escalates to SIGKILL when a hub ignores the retirement signal", async () => {
+		// The CLI installs its own SIGTERM handling, so a daemon can ignore both the
+		// graceful shutdown request and the signal. Giving up there leaks it: the
+		// discovery record is cleared and a replacement binds the port, so every
+		// nightly auto-update would strand the previous build.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			// Still answering after SIGTERM: the hub never retires.
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
 	it("reuses a protocol-compatible healthy hub from a different build", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {

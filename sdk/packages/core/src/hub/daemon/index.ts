@@ -124,7 +124,22 @@ async function retireDiscoveredHub(
 			// Best-effort cleanup only. A compatible hub may still start on a fallback port.
 		}
 	}
-	const retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	let retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	// Escalate rather than give up. The CLI installs its own SIGTERM handling, so
+	// a daemon can ignore both the graceful shutdown request and the signal and
+	// keep running. Giving up is not harmless: the discovery record is cleared
+	// below and a replacement binds the port, so the unretired daemon lingers with
+	// its heap and its sessions and nothing will ever reclaim it. A nightly
+	// auto-update retires the previous build through this path, which is how a
+	// long-lived host accumulates one orphaned hub per night.
+	if (!retired && record.pid) {
+		try {
+			process.kill(record.pid, "SIGKILL");
+		} catch {
+			// Already gone, or not ours to signal.
+		}
+		retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	}
 	await clearHubDiscovery(discoveryPath).catch(() => undefined);
 	return retired;
 }
