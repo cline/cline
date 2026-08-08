@@ -1076,10 +1076,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.aborted",
 			properties: { sessionId },
 		});
-		// Deliberately leave pendingPrompts untouched: aborting only stops the
-		// in-flight turn. Clearing here would silently destroy prompts the user
-		// already typed and queued — they drain once the abort completes.
+		// Aborting a user-initiated turn leaves pendingPrompts untouched:
+		// clearing here would silently destroy prompts the user already typed
+		// and queued — they drain once the abort completes. Aborting a
+		// queue-initiated turn (drainingPendingPrompts) is the opposite
+		// gesture: the user is cancelling the queued work itself, so drop the
+		// remainder — otherwise every Escape would consume one queued prompt
+		// and start a fresh provider call, and the session could never be
+		// brought to a full stop.
 		session.aborting = true;
+		if (session.drainingPendingPrompts) {
+			this.pendingPromptsController.discardQueue(session);
+		}
 		session.agent.abort(reason);
 	}
 
