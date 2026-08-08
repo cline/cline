@@ -501,8 +501,10 @@ function collapsePathSegments(path: string, separator: string): string {
  * paths are canonicalized against the session cwd first: resolved against
  * the cwd with "." and ".." segments collapsed, so "../shared/file.txt"
  * and its absolute spelling share one key, and a filesystem-root cwd such
- * as "/" still canonicalizes. Files inside the cwd display as
- * workspace-relative paths; everything else displays as the resolved path.
+ * as "/" still canonicalizes. Windows sessions (drive-letter or UNC cwd)
+ * compare case-insensitively, matching `normalizeWorkspacePath`. Files
+ * inside the cwd display as workspace-relative paths; everything else
+ * displays as the resolved path, both in the first spelling seen.
  */
 function canonicalizeDiffPath(
 	path: string,
@@ -523,11 +525,15 @@ function canonicalizeDiffPath(
 		resolveWorkspaceFilePath(trimmed, base),
 		separator,
 	);
+	const caseInsensitive = /^[A-Za-z]:/.test(base) || base.startsWith("\\\\");
+	const comparable = (value: string) =>
+		caseInsensitive ? value.toLowerCase() : value;
 	const basePrefix = base.endsWith(separator) ? base : base + separator;
 	const withinBase =
-		resolved.length > basePrefix.length && resolved.startsWith(basePrefix);
+		resolved.length > basePrefix.length &&
+		comparable(resolved).startsWith(comparable(basePrefix));
 	return {
-		key: resolved,
+		key: comparable(resolved),
 		display: withinBase ? resolved.slice(basePrefix.length) : resolved,
 	};
 }

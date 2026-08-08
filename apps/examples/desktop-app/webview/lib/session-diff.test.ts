@@ -95,6 +95,22 @@ describe("mergeToolDiffs path canonicalization", () => {
 		});
 	});
 
+	it("merges Windows casing variants of the same file", () => {
+		const merged = mergeToolDiffs(
+			[
+				editorCreateEvent("Journal.txt", "one"),
+				editorReplaceEvent("c:\\users\\saoud\\journal.txt", "+2: two"),
+			],
+			"C:\\Users\\Saoud",
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]).toMatchObject({
+			path: "Journal.txt",
+			additions: 2,
+			deletions: 0,
+		});
+	});
+
 	it("keeps files outside the cwd on their resolved path", () => {
 		const merged = mergeToolDiffs(
 			[editorCreateEvent("/etc/other/config.txt", "x")],
