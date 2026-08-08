@@ -1247,26 +1247,38 @@ const ModelSelector = memo(function ModelSelector({
 		});
 	}, []);
 
-	useEffect(() => {
-		setLastSelection((prev) => {
-			if (!normalizedProvider || !model) {
-				return prev;
+	// The remembered selection (what new sessions default to) is only written
+	// from the explicit picker handlers below. Mirroring every provider/model
+	// prop change here would also capture passive changes — most notably
+	// opening an existing session, whose config drives these props — silently
+	// replacing the user's chosen default with whatever model that session
+	// happened to use.
+	const rememberSelection = useCallback(
+		(providerId: string, modelId: string | undefined) => {
+			const normalizedId = normalizeProviderId(providerId);
+			if (!normalizedId) {
+				return;
 			}
-			if (
-				prev.lastProvider === normalizedProvider &&
-				prev.lastModelByProvider[normalizedProvider] === model
-			) {
-				return prev;
-			}
-			return {
-				lastProvider: normalizedProvider,
-				lastModelByProvider: {
-					...prev.lastModelByProvider,
-					[normalizedProvider]: model,
-				},
-			};
-		});
-	}, [model, normalizedProvider]);
+			setLastSelection((prev) => {
+				if (
+					prev.lastProvider === normalizedId &&
+					(!modelId || prev.lastModelByProvider[normalizedId] === modelId)
+				) {
+					return prev;
+				}
+				return {
+					lastProvider: normalizedId,
+					lastModelByProvider: modelId
+						? {
+								...prev.lastModelByProvider,
+								[normalizedId]: modelId,
+							}
+						: prev.lastModelByProvider,
+				};
+			});
+		},
+		[],
+	);
 
 	useEffect(() => {
 		try {
@@ -1327,17 +1339,13 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
-			if (
-				rememberedModel &&
-				providerModelIds.includes(rememberedModel) &&
-				rememberedModel !== model
-			) {
-				onModelChange(rememberedModel);
-				return;
-			}
-			const firstModel = providerModelIds[0];
-			if (firstModel && firstModel !== model) {
-				onModelChange(firstModel);
+			const nextModel =
+				rememberedModel && providerModelIds.includes(rememberedModel)
+					? rememberedModel
+					: providerModelIds[0];
+			rememberSelection(value, nextModel);
+			if (nextModel && nextModel !== model) {
+				onModelChange(nextModel);
 			}
 		},
 		[
@@ -1345,8 +1353,16 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			rememberSelection,
 			visibleProviderModels,
 		],
+	);
+	const handleModelSelect = useCallback(
+		(value: string) => {
+			rememberSelection(resolvedProvider, value);
+			onModelChange(value);
+		},
+		[onModelChange, rememberSelection, resolvedProvider],
 	);
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
@@ -1372,7 +1388,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || modelsForProvider.length === 0}
 			emptyText="No models found."
 			onValueChange={(value) => {
-				onModelChange(value);
+				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
 			options={modelsForProvider.map((value) => ({ label: value, value }))}

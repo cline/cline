@@ -1,7 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
 import { memo, useEffect, useState } from "react"
-import { cn } from "@/lib/utils"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -14,12 +13,13 @@ interface CompletionOutputRowProps {
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
 	/**
-	 * Shows the "View Changes" action inside the card, which opens a
+	 * Allows the "View Changes" action inside the card, which opens a
 	 * multi-file diff of everything that changed between the latest checkpoint
 	 * (taken when the user's last message started the run) and the current
 	 * working tree. Only meaningful on the latest, finalized completion row.
-	 * The button renders faded and disabled until the host confirms there are
-	 * changes to show.
+	 * The button stays hidden until the host confirms there are changes to
+	 * show — no changes (or no checkpoint at all, e.g. a non-git workspace)
+	 * simply renders no button.
 	 */
 	showViewChanges?: boolean
 }
@@ -34,11 +34,18 @@ interface CompletionOutputRowProps {
 export const CompletionOutputRow = memo(
 	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
-		// undefined = still checking; the button stays faded + disabled until
-		// the host confirms the latest run actually changed files.
+		// undefined = still checking; the button stays hidden until the host
+		// confirms the latest run actually changed files. A count of 0 also
+		// covers "no checkpoint to compare against" (non-git workspace, no
+		// commits yet, or a comparison failure) — in all of those cases there
+		// is nothing to view, so no button is rendered.
 		const [hasChanges, setHasChanges] = useState<boolean | undefined>(undefined)
 
 		useEffect(() => {
+			// Reset on every re-check so a stale positive answer from a previous
+			// evaluation can't flash the button before the host confirms the new
+			// comparison.
+			setHasChanges(undefined)
 			if (!showViewChanges) {
 				return
 			}
@@ -72,25 +79,18 @@ export const CompletionOutputRow = memo(
 						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 					)}
 				</div>
-				{showViewChanges && (
+				{showViewChanges && hasChanges === true && (
 					<div className="px-2 pb-2">
 						<SuccessButton
-							className={cn("w-full transition-opacity duration-300", hasChanges ? "opacity-100" : "opacity-40")}
-							disabled={hasChanges !== true || viewChangesPending}
+							className="w-full"
+							disabled={viewChangesPending}
 							onClick={() => {
 								setViewChangesPending(true)
 								CheckpointsServiceClient.checkpointViewLatestChanges(EmptyRequest.create({}))
 									.catch((err) => console.error("Failed to view latest changes:", err))
 									.finally(() => setViewChangesPending(false))
 							}}
-							style={{ cursor: viewChangesPending ? "wait" : hasChanges ? "pointer" : "default" }}
-							title={
-								hasChanges === undefined
-									? "Checking for changes…"
-									: hasChanges
-										? undefined
-										: "No file changes since your last message"
-							}>
+							style={{ cursor: viewChangesPending ? "wait" : "pointer" }}>
 							<GitCompareIcon className="size-3 mr-1.5" />
 							View Changes
 						</SuccessButton>
