@@ -11,6 +11,37 @@ vi.mock("@/components/common/MarkdownBlock", () => ({
 	default: ({ markdown }: { markdown: string }) => <div>{markdown}</div>,
 }))
 
+const checkpointLatestChangesCount = vi.fn()
+
+vi.mock("@/services/grpc-client", () => ({
+	CheckpointsServiceClient: {
+		checkpointLatestChangesCount: (...args: unknown[]) => checkpointLatestChangesCount(...args),
+		checkpointViewLatestChanges: vi.fn(() => Promise.resolve({})),
+	},
+}))
+
+// Render VSCodeButton (used by SuccessButton) as a native button so it is
+// observable through testing-library roles.
+vi.mock("@vscode/webview-ui-toolkit/react", async (importOriginal) => {
+	const actual = await importOriginal<Record<string, unknown>>()
+	return {
+		...actual,
+		VSCodeButton: ({
+			children,
+			disabled,
+			onClick,
+		}: {
+			children?: React.ReactNode
+			disabled?: boolean
+			onClick?: () => void
+		}) => (
+			<button disabled={disabled} onClick={onClick} type="button">
+				{children}
+			</button>
+		),
+	}
+})
+
 const hiddenQuoteButton = { visible: false, top: 0, left: 0, selectedText: "" }
 
 describe("CompletionOutputRow", () => {
@@ -34,6 +65,66 @@ describe("CompletionOutputRow", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Copy response" }))
 
 		await waitFor(() => expect(writeText).toHaveBeenCalledWith("All done!"))
+	})
+})
+
+describe("CompletionOutputRow View Changes", () => {
+	beforeEach(() => {
+		checkpointLatestChangesCount.mockReset()
+	})
+
+	const renderWithViewChanges = () =>
+		render(
+			<CompletionOutputRow
+				handleQuoteClick={vi.fn()}
+				quoteButtonState={hiddenQuoteButton}
+				showViewChanges
+				text="All done!"
+			/>,
+		)
+
+	it("shows the button once the host confirms the latest run changed files", async () => {
+		checkpointLatestChangesCount.mockResolvedValue({ value: 2 })
+
+		renderWithViewChanges()
+
+		const button = await screen.findByRole("button", { name: /View Changes/ })
+		expect(button).not.toBeDisabled()
+	})
+
+	it("stays hidden while the count is still being checked", () => {
+		checkpointLatestChangesCount.mockReturnValue(new Promise(() => {}))
+
+		renderWithViewChanges()
+
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
+	})
+
+	it("stays hidden when nothing changed since the last message", async () => {
+		checkpointLatestChangesCount.mockResolvedValue({ value: 0 })
+
+		renderWithViewChanges()
+
+		await waitFor(() => expect(checkpointLatestChangesCount).toHaveBeenCalled())
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
+	})
+
+	it("stays hidden when the count request fails (e.g. no checkpoint to compare against)", async () => {
+		checkpointLatestChangesCount.mockRejectedValue(new Error("boom"))
+
+		renderWithViewChanges()
+
+		await waitFor(() => expect(checkpointLatestChangesCount).toHaveBeenCalled())
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
+	})
+
+	it("never renders the button when showViewChanges is not set", () => {
+		checkpointLatestChangesCount.mockResolvedValue({ value: 2 })
+
+		render(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+
+		expect(checkpointLatestChangesCount).not.toHaveBeenCalled()
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
 	})
 })
 
