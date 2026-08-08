@@ -95,6 +95,7 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
 // single event loop shared by every UI command and streaming chat session, so
@@ -906,80 +907,6 @@ async function listUserInstructionConfigs(
 // ---------------------------------------------------------------------------
 // Native OS commands
 // ---------------------------------------------------------------------------
-
-export const FOLDER_PICKER_UNAVAILABLE_MESSAGE =
-	"No system folder picker found (zenity or kdialog). Type or paste a folder path in the workspace selector instead.";
-
-function isCommandMissing(error: unknown): boolean {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		(error as { code?: unknown }).code === "ENOENT"
-	);
-}
-
-function normalizePickedDirectory(stdout: string): string | null {
-	const trimmed = stdout.trim();
-	if (!trimmed) return null;
-	// Dialogs occasionally return trailing separators (typed paths, GTK
-	// location bar); strip them so downstream normalization matches catalog
-	// entries.
-	const withoutTrailing = trimmed.replace(/(?<=.)[\\/]+$/, "");
-	return withoutTrailing || null;
-}
-
-// Async is load-bearing here: the native picker blocks until the user chooses
-// a folder, and a synchronous exec would freeze every other sidecar command
-// (chat streams, history, settings) for however long the dialog stays open.
-//
-// Contract: resolves to a path, resolves to null when the user cancels, and
-// throws when no picker backend is available so the UI can surface a manual
-// path-entry fallback instead of a silent no-op.
-async function pickWorkspaceDirectory(): Promise<string | null> {
-	const platform = process.platform;
-	if (platform === "darwin") {
-		try {
-			const { stdout } = await execFileAsync(
-				"osascript",
-				[
-					"-e",
-					'set theFolder to choose folder with prompt "Select workspace directory"',
-					"-e",
-					"return POSIX path of theFolder",
-				],
-				{ encoding: "utf8" },
-			);
-			return normalizePickedDirectory(stdout);
-		} catch {
-			// osascript ships with macOS; a failure here is a user cancel.
-			return null;
-		}
-	}
-	// Linux — try zenity, then kdialog. A missing binary falls through to the
-	// next candidate; a non-zero exit from a binary that exists means the user
-	// cancelled the dialog.
-	try {
-		const { stdout } = await execFileAsync(
-			"zenity",
-			["--file-selection", "--directory", "--title=Select workspace directory"],
-			{ encoding: "utf8" },
-		);
-		return normalizePickedDirectory(stdout);
-	} catch (error) {
-		if (!isCommandMissing(error)) return null;
-	}
-	try {
-		const { stdout } = await execFileAsync(
-			"kdialog",
-			["--getexistingdirectory", homedir()],
-			{ encoding: "utf8" },
-		);
-		return normalizePickedDirectory(stdout);
-	} catch (error) {
-		if (!isCommandMissing(error)) return null;
-	}
-	throw new Error(FOLDER_PICKER_UNAVAILABLE_MESSAGE);
-}
 
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
