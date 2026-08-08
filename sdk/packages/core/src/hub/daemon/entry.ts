@@ -74,6 +74,31 @@ function parseArgs(argv: string[]): {
 	return { cwd, host, port, pathname };
 }
 
+/**
+ * Abort-family rejections are expected daemon noise, not fatal faults: when a
+ * user cancels a turn, in-flight provider streams and fetches can reject on a
+ * floating promise after the run has already settled (DOMException
+ * "AbortError" from fetch/undici, Node ABORT_ERR, or the runtime's own
+ * AgentRuntimeAbortError). Exiting on those kills every resident session in
+ * the daemon — the next message from any connected client then lands on
+ * `session_not_found` and forces a rebuild from disk.
+ */
+export function isAbortRejection(reason: unknown): boolean {
+	if (reason instanceof AgentRuntimeAbortError) {
+		return true;
+	}
+	if (reason instanceof Error) {
+		if (reason.name === "AbortError") {
+			return true;
+		}
+		const code = (reason as { code?: unknown }).code;
+		if (code === "ABORT_ERR") {
+			return true;
+		}
+	}
+	return false;
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
@@ -168,9 +193,11 @@ async function main(): Promise<void> {
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
-		if (reason instanceof AgentRuntimeAbortError) {
+		if (isAbortRejection(reason)) {
+			const message =
+				reason instanceof Error ? reason.message : String(reason);
 			process.stderr.write(
-				`[hub-daemon] ignored agent runtime abort rejection: ${reason.message}\n`,
+				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);
 			return;
 		}
