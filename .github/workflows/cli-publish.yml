@@ -48,7 +48,7 @@ jobs:
       github.event.inputs.publish_target == 'main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -269,7 +269,7 @@ jobs:
           github.event.inputs.publish_target == 'nightly'
         )
       )
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
