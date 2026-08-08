@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { BackgroundEditNudge } from "./BackgroundEditNudge"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
@@ -355,6 +356,25 @@ export const ChatRowContent = memo(
 			return null
 		}, [message.ask, message.say, message.text])
 
+		// The ts of the first file-edit tool message in the task, used to anchor the
+		// one-time Background Edit hint right where the diff editor first took focus
+		const firstFileEditTs = useMemo(() => {
+			for (const msg of clineMessages) {
+				if (msg.ask === "tool" || msg.say === "tool") {
+					try {
+						const parsedTool = JSON.parse(msg.text || "{}") as ClineSayTool
+						if (parsedTool.tool === "editedExistingFile" || parsedTool.tool === "newFileCreated") {
+							return msg.ts
+						}
+					} catch {
+						// ignore malformed tool messages
+					}
+				}
+			}
+			return undefined
+		}, [clineMessages])
+		const isFirstFileEdit = firstFileEditTs !== undefined && message.ts === firstFileEditTs
+
 		const conditionalRulesInfo = useMemo(() => {
 			if (message.say !== "conditional_rules_applied" || !message.text) return null
 			try {
@@ -436,6 +456,7 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
+							{isFirstFileEdit && <BackgroundEditNudge />}
 						</div>
 					)
 				case "fileDeleted":
@@ -476,6 +497,7 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
+							{isFirstFileEdit && <BackgroundEditNudge />}
 						</div>
 					)
 				case "readFile":

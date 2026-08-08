@@ -239,6 +239,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
 		}
 
+		if (request.backgroundEditHintDismissed !== undefined) {
+			controller.stateManager.setGlobalState("backgroundEditHintDismissed", !!request.backgroundEditHintDismissed)
+		}
+
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}

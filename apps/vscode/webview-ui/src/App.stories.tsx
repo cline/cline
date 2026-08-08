@@ -257,6 +257,7 @@ const createMockState = (overrides: any = {}) => ({
 	openRouterModels: STORYBOOK_OPENROUTER_MODELS,
 	showAnnouncement: false,
 	backgroundEditEnabled: false,
+	backgroundEditHintDismissed: true,
 	...overrides,
 })
 
@@ -1185,5 +1186,47 @@ export const DiffEditMixedFormats: Story = {
 				story: "Shows a conversation using both search / replace and apply patch diff formats, demonstrating seamless backward compatibility and format detection.",
 			},
 		},
+	},
+}
+
+// Background Edit nudge - one-time hint under the first file edit of a task
+const createBackgroundEditNudgeMessages = () => [
+	createMessage(5, "say", "task", "Add input validation to the signup form"),
+	createMessage(4.7, "say", "text", "I'll add validation to the signup form. Let me update the component."),
+	createSayToolMessage(4.3, {
+		tool: "editedExistingFile",
+		path: "src/components/SignupForm.tsx",
+		content: "// Updated signup form with validation...",
+	}),
+	createMessage(4.0, "say", "text", "Now let me also update the validation helpers."),
+	createSayToolMessage(3.7, {
+		tool: "editedExistingFile",
+		path: "src/utils/validation.ts",
+		content: "// Validation helpers...",
+	}),
+]
+
+export const BackgroundEditNudge: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: createBackgroundEditNudgeMessages(),
+			backgroundEditEnabled: false,
+			backgroundEditHintDismissed: false,
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the one-time Background Edit hint that appears under the first file edit of a task (and only there) when Background Edit is off and the hint hasn't been dismissed. Enabling or dismissing it persists, so it never reappears.",
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement)
+		// The nudge should appear exactly once, anchored to the first edit
+		const title = canvas.getByText("Tired of the diff editor taking focus?")
+		await expect(title).toBeInTheDocument()
+		const enableButton = canvas.getByText("Enable Background Edit")
+		await expect(enableButton).toBeInTheDocument()
 	},
 }

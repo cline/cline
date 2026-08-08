@@ -136,6 +136,7 @@ export interface ExtensionState {
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	backgroundEditEnabled?: boolean
+	backgroundEditHintDismissed?: boolean
 	optOutOfRemoteConfig?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
