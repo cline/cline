@@ -121,6 +121,18 @@ describe("SdkTaskHistory", () => {
 		expect(result.ts).toBeGreaterThan(0)
 	})
 
+	it("keeps the original session date after metadata updates", () => {
+		const result = sessionHistoryRecordToHistoryItem(
+			makeSessionRecord("task-1", {
+				startedAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-07-28T00:00:00.000Z",
+				metadata: { isFavorited: true },
+			}),
+		)
+
+		expect(result.ts).toBe(Date.parse("2026-01-01T00:00:00.000Z"))
+	})
+
 	it("converts SDK persisted conversation messages to Cline messages", () => {
 		const result = sdkMessagesToClineMessages([
 			{ role: "user", content: "Build the feature" },
