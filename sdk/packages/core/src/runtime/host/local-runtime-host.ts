@@ -1025,10 +1025,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			} else {
 				await this.completeInteractiveTurn(session, result.finishReason);
 			}
-			// Drain after "aborted" finishes too: internal stops (loop
-			// detector / mistake limit) would otherwise strand user-queued
-			// prompts forever, and user-initiated aborts already cleared the
-			// queue in abortSession(). "error" finishes deliberately do NOT
+			// Drain after "aborted" finishes too: both internal stops (loop
+			// detector / mistake limit) and user-initiated aborts keep the
+			// queue intact, so without a drain here the user-queued prompts
+			// would be stranded forever. "error" finishes deliberately do NOT
 			// drain — auto-running queued prompts into a failing provider
 			// would consume them; they stay queued and drain on the next
 			// enqueue/update or successful turn.
@@ -1076,8 +1076,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.aborted",
 			properties: { sessionId },
 		});
+		// Deliberately leave pendingPrompts untouched: aborting only stops the
+		// in-flight turn. Clearing here would silently destroy prompts the user
+		// already typed and queued — they drain once the abort completes.
 		session.aborting = true;
-		this.pendingPromptsController.clearAborted(session);
 		session.agent.abort(reason);
 	}
 
@@ -1725,6 +1727,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			usage,
 		});
 		await this.completeInteractiveTurn(session, "aborted");
+		// The abort is fully settled (aborting flag reset above), so prompts
+		// the user queued behind the stopped turn can run now. This mirrors
+		// the drain in runTurn() for turns that resolve with an "aborted"
+		// finish; this path handles turns that end by throwing instead.
+		queueMicrotask(() => {
+			void this.pendingPromptsController.drain(session.sessionId);
+		});
 		return {
 			text: "",
 			usage,
