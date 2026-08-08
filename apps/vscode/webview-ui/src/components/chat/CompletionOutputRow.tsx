@@ -35,8 +35,12 @@ export const CompletionOutputRow = memo(
 	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
 		// undefined = still checking; the button stays faded + disabled until
-		// the host confirms the latest run actually changed files.
-		const [hasChanges, setHasChanges] = useState<boolean | undefined>(undefined)
+		// the host confirms the latest run actually changed files. The
+		// hasCheckpoint flag distinguishes "checkpoint exists but nothing
+		// changed" from "no checkpoint to compare against" (non-git workspace,
+		// no commits yet, or a comparison failure) so the tooltip can explain
+		// the right reason.
+		const [latestChanges, setLatestChanges] = useState<{ count: number; hasCheckpoint: boolean } | undefined>(undefined)
 
 		useEffect(() => {
 			if (!showViewChanges) {
@@ -44,21 +48,23 @@ export const CompletionOutputRow = memo(
 			}
 			let cancelled = false
 			CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
-				.then((count) => {
+				.then((result) => {
 					if (!cancelled) {
-						setHasChanges((count.value ?? 0) > 0)
+						setLatestChanges({ count: result.count ?? 0, hasCheckpoint: result.hasCheckpoint === true })
 					}
 				})
 				.catch((err) => {
 					console.error("Failed to check for latest changes:", err)
 					if (!cancelled) {
-						setHasChanges(false)
+						setLatestChanges({ count: 0, hasCheckpoint: false })
 					}
 				})
 			return () => {
 				cancelled = true
 			}
 		}, [showViewChanges])
+
+		const hasChanges = latestChanges === undefined ? undefined : latestChanges.count > 0
 
 		return (
 			<div className="rounded-sm border border-success/20 overflow-visible bg-success/10">
@@ -85,11 +91,13 @@ export const CompletionOutputRow = memo(
 							}}
 							style={{ cursor: viewChangesPending ? "wait" : hasChanges ? "pointer" : "default" }}
 							title={
-								hasChanges === undefined
+								latestChanges === undefined
 									? "Checking for changes…"
-									: hasChanges
+									: latestChanges.count > 0
 										? undefined
-										: "No file changes since your last message"
+										: latestChanges.hasCheckpoint
+											? "No file changes since your last message"
+											: "Checkpoints aren't available for this task (the workspace isn't a git repository with at least one commit)"
 							}>
 							<GitCompareIcon className="size-3 mr-1.5" />
 							View Changes

@@ -15,9 +15,10 @@ service CheckpointsService {
   // the current working tree.
   rpc checkpointViewLatestChanges(EmptyRequest) returns (Empty);
   // Returns how many files changed between the latest checkpoint and the
-  // current working tree (0 when no checkpoint exists). Used to enable the
-  // "View Changes" button only when there is something to show.
-  rpc checkpointLatestChangesCount(EmptyRequest) returns (Int64);
+  // current working tree, and whether a checkpoint exists to compare against
+  // at all. Used to enable the "View Changes" button only when there is
+  // something to show, with an accurate tooltip when there is not.
+  rpc checkpointLatestChangesCount(EmptyRequest) returns (CheckpointLatestChanges);
 }
 
 message CheckpointRestoreRequest {
@@ -25,4 +26,13 @@ message CheckpointRestoreRequest {
   int64 number = 2;
   string restore_type = 3;
   optional int64 offset = 4;
+}
+
+message CheckpointLatestChanges {
+  // Number of files changed between the latest checkpoint and the working
+  // tree. Always 0 when has_checkpoint is false.
+  int64 count = 1;
+  // False when there is no checkpoint to compare against: the workspace is
+  // not a git repository (or has no commits yet), or the comparison failed.
+  bool has_checkpoint = 2;
 }

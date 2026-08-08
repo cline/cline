@@ -1666,16 +1666,23 @@ export class Controller {
 	}
 
 	/**
-	 * Gates the "View Changes" button on the completion row: the number of
-	 * files changed since the latest checkpoint, or 0 when nothing can be
-	 * compared (no task, no checkpoint, comparison failure).
+	 * Gates the "View Changes" button on the completion row: how many files
+	 * changed since the latest checkpoint, and whether a checkpoint exists to
+	 * compare against at all. `hasCheckpoint` is false when the workspace is
+	 * not a git repository (or has no commits yet), when there is no task, or
+	 * when the comparison failed — the webview uses the distinction to show
+	 * an accurate tooltip instead of claiming "no file changes".
 	 */
-	async getLatestCheckpointChangesCount(): Promise<number> {
+	async getLatestCheckpointChangesCount(): Promise<{ count: number; hasCheckpoint: boolean }> {
 		try {
-			return (await this.computeLatestCheckpointChanges())?.length ?? 0
+			const diffs = await this.computeLatestCheckpointChanges()
+			if (diffs === undefined) {
+				return { count: 0, hasCheckpoint: false }
+			}
+			return { count: diffs.length, hasCheckpoint: true }
 		} catch (error) {
 			Logger.debug(`[SdkController] Failed to count latest checkpoint changes: ${error}`)
-			return 0
+			return { count: 0, hasCheckpoint: false }
 		}
 	}
 

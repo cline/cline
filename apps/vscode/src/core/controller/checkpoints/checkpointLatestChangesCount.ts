@@ -1,20 +1,28 @@
-import { EmptyRequest, Int64 } from "@shared/proto/cline/common"
+import { CheckpointLatestChanges } from "@shared/proto/cline/checkpoints"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from ".."
 
 /**
  * Returns how many files changed between the latest checkpoint and the
- * current working tree (0 when nothing can be compared). The webview uses
- * this to enable the "View Changes" button on the completion row only when
- * there is something to show.
+ * current working tree, and whether a checkpoint exists to compare against
+ * at all. The webview uses the count to enable the "View Changes" button on
+ * the completion row only when there is something to show, and uses
+ * hasCheckpoint to explain WHY the button is disabled: "no file changes" vs
+ * "checkpoints unavailable" (non-git workspace, no commits, or a comparison
+ * failure).
  */
-export async function checkpointLatestChangesCount(controller: Controller, _request: EmptyRequest): Promise<Int64> {
+export async function checkpointLatestChangesCount(
+	controller: Controller,
+	_request: EmptyRequest,
+): Promise<CheckpointLatestChanges> {
 	const sdkGetLatestCheckpointChangesCount = (
 		controller as Controller & {
-			getLatestCheckpointChangesCount?: () => Promise<number>
+			getLatestCheckpointChangesCount?: () => Promise<{ count: number; hasCheckpoint: boolean }>
 		}
 	).getLatestCheckpointChangesCount
 	if (sdkGetLatestCheckpointChangesCount) {
-		return Int64.create({ value: await sdkGetLatestCheckpointChangesCount.call(controller) })
+		const { count, hasCheckpoint } = await sdkGetLatestCheckpointChangesCount.call(controller)
+		return CheckpointLatestChanges.create({ count, hasCheckpoint })
 	}
-	return Int64.create({ value: 0 })
+	return CheckpointLatestChanges.create({ count: 0, hasCheckpoint: false })
 }
