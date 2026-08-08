@@ -25,6 +25,15 @@ vi.mock("@/lib/desktop-client", () => ({
 
 type ChatSessionHook = ReturnType<typeof useChatSession>;
 
+// jsdom's File lacks Blob#text(), which attachment serialization relies on.
+function makeTextFile(content: string, name: string): File {
+	const file = new File([content], name, { type: "text/plain" });
+	if (typeof file.text !== "function") {
+		Object.defineProperty(file, "text", { value: async () => content });
+	}
+	return file;
+}
+
 let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
@@ -1165,26 +1174,57 @@ describe("useChatSession", () => {
 			current.messages.filter((message) => message.role === "error"),
 		).toHaveLength(1);
 
-		// A later failure with a different reason is new feedback, not a
-		// duplicate — the trailing error from the previous failure must not
-		// swallow it.
+		// A repeated signal for the same turn carrying different text refreshes
+		// the turn's bubble in place rather than stacking or dropping it.
 		await act(async () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
 				stream: "chat_done",
 				chunk: JSON.stringify({
 					reason: "error",
-					text: "Rate limit exceeded.",
+					text: "Anthropic API key is invalid.",
 				}),
 				ts: Date.now(),
 				index: 4,
+			});
+		});
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(1);
+		expect(
+			current.messages.find((message) => message.role === "error")?.content,
+		).toBe("Anthropic API key is invalid.");
+
+		// A failure of the NEXT turn is new feedback and gets its own bubble —
+		// the previous turn's trailing error must not swallow it, even when the
+		// error text is identical.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-2",
+					prompt: "Second prompt",
+				}),
+				ts: Date.now(),
+				index: 5,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Anthropic API key is invalid.",
+				}),
+				ts: Date.now(),
+				index: 6,
 			});
 		});
 		const errorMessages = current.messages.filter(
 			(message) => message.role === "error",
 		);
 		expect(errorMessages).toHaveLength(2);
-		expect(errorMessages.at(-1)?.content).toBe("Rate limit exceeded.");
+		expect(errorMessages.at(-1)?.content).toBe("Anthropic API key is invalid.");
 	});
 
 	it("keeps provider error feedback when a direct send fails before streaming", async () => {
@@ -1441,6 +1481,158 @@ describe("useChatSession", () => {
 		const lastMessage = current.messages.at(-1);
 		expect(lastMessage?.role).toBe("error");
 		expect(lastMessage?.content).toBe("Rate limit exceeded.");
+	});
+
+	it("retries a failed turn with its original prompt text and attachments", async () => {
+		const sendRequests: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						sendRequests.push(request as Record<string, unknown>);
+						// First attempt fails; the retry succeeds.
+						return sendRequests.length === 1
+							? {
+									ok: true,
+									result: { text: "invalid x-api-key", finishReason: "error" },
+								}
+							: {
+									ok: true,
+									result: { text: "All done.", finishReason: "completed" },
+								};
+					}
+				}
+				return [];
+			},
+		);
+
+		const doc = makeTextFile("notes", "notes.txt");
+		await act(async () => {
+			await current.sendPrompt("Describe these files", [doc]);
+		});
+		expect(current.status).toBe("failed");
+		// The user bubble shows the display label, which retry must not resend.
+		expect(
+			current.messages.find((message) => message.role === "user")?.content,
+		).toContain("[attached 1 file]");
+
+		await act(async () => {
+			await current.retryFailedTurn(
+				"Describe these files\n\n[attached 1 file]",
+			);
+		});
+
+		expect(sendRequests).toHaveLength(2);
+		const retryRequest = sendRequests[1] as {
+			prompt?: string;
+			attachments?: { userFiles?: Array<{ name?: string; content?: string }> };
+		};
+		expect(retryRequest.prompt).toBe("Describe these files");
+		expect(retryRequest.attachments?.userFiles).toEqual([
+			{ name: "notes.txt", content: "notes" },
+		]);
+		expect(current.status).toBe("completed");
+	});
+
+	it("retries the failed turn's own payload, not a prompt with the same label queued behind it", async () => {
+		let resolveFirstSend:
+			| ((value: Record<string, unknown>) => void)
+			| undefined;
+		const firstSendReply = new Promise<Record<string, unknown>>((resolve) => {
+			resolveFirstSend = resolve;
+		});
+		const directSendRequests: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						if (request.delivery === "queue") {
+							return {
+								ok: true,
+								queued: true,
+								promptsInQueue: [
+									{
+										id: "queued-b",
+										prompt: "Same prompt\n\n[attached 1 file]",
+										steer: false,
+									},
+								],
+							};
+						}
+						directSendRequests.push(request as Record<string, unknown>);
+						if (directSendRequests.length === 1) {
+							return await firstSendReply;
+						}
+						return {
+							ok: true,
+							result: { text: "All done.", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		// Turn A runs with fileA; turn B — same prompt text and an identical
+		// "[attached 1 file]" label but a different file — is queued behind it.
+		const fileA = makeTextFile("AAA", "a.txt");
+		const fileB = makeTextFile("BBB", "b.txt");
+		await act(async () => {
+			const turnA = current.sendPrompt("Same prompt", [fileA]);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			await current.sendPrompt("Same prompt", [fileB]);
+			resolveFirstSend?.({
+				ok: true,
+				result: { text: "stream disconnected", finishReason: "error" },
+			});
+			await turnA;
+		});
+		expect(current.status).toBe("failed");
+
+		await act(async () => {
+			await current.retryFailedTurn();
+		});
+
+		// The retry must carry turn A's file, not the newer queued payload.
+		expect(directSendRequests).toHaveLength(2);
+		const retryRequest = directSendRequests[1] as {
+			prompt?: string;
+			attachments?: { userFiles?: Array<{ name?: string; content?: string }> };
+		};
+		expect(retryRequest.prompt).toBe("Same prompt");
+		expect(retryRequest.attachments?.userFiles).toEqual([
+			{ name: "a.txt", content: "AAA" },
+		]);
 	});
 
 	it("shares one cold start and queues a second prompt behind it", async () => {

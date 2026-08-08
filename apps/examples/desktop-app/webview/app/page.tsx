@@ -32,11 +32,6 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { formatChatMessageContent } from "@/components/views/chat/message-content";
-import {
-	recordSentTurn,
-	resolveRetryTurnPayload,
-	type SentTurnRecord,
-} from "@/components/views/chat/retry-failed-turn";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
@@ -46,7 +41,6 @@ import {
 } from "@/components/views/settings/settings-view";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { buildUserPromptDisplayLabel } from "@/hooks/chat-session/attachments";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -456,6 +450,7 @@ function ChatThreadPane({
 		setConfig,
 		setWorkspacePath,
 		sendPrompt,
+		retryFailedTurn,
 		steerPromptInQueue,
 		updatePromptInQueue,
 		removePromptInQueue,
@@ -511,12 +506,6 @@ function ChatThreadPane({
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
-	// Exact payloads of recent sends, kept so a failed turn can be retried
-	// without dropping attachments — the transcript only stores a display
-	// label like "[attached 2 files]", not the files themselves. A bounded
-	// list (not just the newest send) so a prompt queued behind a running
-	// turn cannot displace the payload of the turn that ends up failing.
-	const sentTurnsRef = useRef<SentTurnRecord[]>([]);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
 	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
@@ -855,7 +844,6 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		sentTurnsRef.current = [];
 		setPromptInput("");
 		setPendingAttachments([]);
 		setManualTitle("");
@@ -870,7 +858,6 @@ function ChatThreadPane({
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		sentTurnsRef.current = [];
 		setPromptInput(initialPromptDraft ?? "");
 		if (initialPromptDraft !== undefined) {
 			onInitialPromptDraftConsumed?.(threadId);
@@ -900,21 +887,16 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			sentTurnsRef.current = recordSentTurn(sentTurnsRef.current, {
-				displayLabel: buildUserPromptDisplayLabel(trimmed, toSend),
-				prompt: trimmed,
-				attachments: toSend,
-			});
 			await sendPrompt(trimmed, toSend);
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
 
 	// Failed turns are retried in the same session by re-sending the failed
-	// prompt — no fork, no draft round-trip through the composer. The
-	// transcript's last user message identifies the failed turn; its original
-	// payload (exact prompt text plus attachments) is recovered from the
-	// retained send records.
+	// turn's original payload — no fork, no draft round-trip through the
+	// composer. The session hook tracks that payload by turn lifecycle; the
+	// transcript-derived text below is only its fallback (and the gate for
+	// showing the Retry button at all).
 	const lastUserPrompt = useMemo(() => {
 		const lastUserMessage = [...messages]
 			.reverse()
@@ -930,16 +912,9 @@ function ChatThreadPane({
 			return null;
 		}
 		return async () => {
-			const payload = resolveRetryTurnPayload(
-				sentTurnsRef.current,
-				lastUserPrompt,
-			);
-			if (!payload) {
-				return;
-			}
-			await sendPrompt(payload.prompt, payload.attachments);
+			await retryFailedTurn(lastUserPrompt);
 		};
-	}, [lastUserPrompt, sendPrompt]);
+	}, [lastUserPrompt, retryFailedTurn]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
