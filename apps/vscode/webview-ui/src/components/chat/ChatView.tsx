@@ -188,7 +188,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						const div = document.createElement("div")
 						div.appendChild(clonedSelection)
 						const selectedHtml = div.innerHTML
-						textToCopy = await convertHtmlToMarkdown(selectedHtml)
+						try {
+							textToCopy = await convertHtmlToMarkdown(selectedHtml)
+						} catch (error) {
+							// If the conversion pipeline can't handle the selected HTML,
+							// fall back to plain text rather than failing the copy.
+							console.error("Error converting HTML to Markdown:", error)
+							textToCopy = selection.toString()
+						}
 					}
 
 					if (textToCopy !== null) {
