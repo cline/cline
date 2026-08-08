@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { githubOAuthDefineArgs } from "./github-oauth-define-args";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -43,13 +44,14 @@ const buildSidecar = async (
 	outfile = sidecarOutfile(targetTriple),
 	entrypoint = "./sidecar/index.ts",
 	minify = false,
+	additionalDefineArgs: string[] = [],
 ): Promise<string> => {
 	const bunTarget = resolveBunCompileTarget(targetTriple);
 	// Telemetry config must be inlined into the compiled binary: a packaged
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
 	// without this the sidecar silently ships with telemetry disabled.
 	// Verify with `<binary> --telemetry-selfcheck` after building.
-	const defines = telemetryDefineArgs();
+	const defines = [...telemetryDefineArgs(), ...additionalDefineArgs];
 	const optimizationArgs = minify ? ["--minify"] : [];
 	// A compiled Bun executable otherwise reads .env and bunfig.toml from its
 	// launch directory before our entrypoint runs. Remote helpers are launched
@@ -90,8 +92,21 @@ const buildRemoteHelpers = async (): Promise<void> => {
 // but expects sidecars (externalBin) to already be fat binaries named
 // `<name>-universal-apple-darwin`, so build both slices and merge them here.
 const buildUniversalMacSidecar = async (): Promise<void> => {
-	const arm64 = await buildSidecar("aarch64-apple-darwin");
-	const x64 = await buildSidecar("x86_64-apple-darwin");
+	const githubOAuthDefines = githubOAuthDefineArgs();
+	const arm64 = await buildSidecar(
+		"aarch64-apple-darwin",
+		sidecarOutfile("aarch64-apple-darwin"),
+		"./sidecar/index.ts",
+		false,
+		githubOAuthDefines,
+	);
+	const x64 = await buildSidecar(
+		"x86_64-apple-darwin",
+		sidecarOutfile("x86_64-apple-darwin"),
+		"./sidecar/index.ts",
+		false,
+		githubOAuthDefines,
+	);
 	const outfile = sidecarOutfile("universal-apple-darwin");
 	await $`lipo -create -output ${outfile} ${arm64} ${x64}`;
 	await $`chmod +x ${outfile}`;
@@ -104,7 +119,13 @@ const main = async () => {
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacSidecar();
 	} else {
-		await buildSidecar(targetTriple);
+		await buildSidecar(
+			targetTriple,
+			sidecarOutfile(targetTriple),
+			"./sidecar/index.ts",
+			false,
+			githubOAuthDefineArgs(),
+		);
 	}
 	await buildRemoteHelpers();
 };

@@ -4,7 +4,7 @@
 	"version": "0.0.9",
 	"identifier": "bot.cline.app",
 	"build": {
-		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
+		"beforeDevCommand": "bun run build:sidecar:bin && bun run build:ui && bun run dev:web:ui",
 		"devUrl": "http://localhost:3125",
 		"beforeBuildCommand": "bun run build",
 		"frontendDist": "../webview/out"

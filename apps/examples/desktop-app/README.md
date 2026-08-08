@@ -6,7 +6,8 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 From `apps/examples/desktop-app/`:
 
-- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
+- `bun run dev:web` - browser development: Next.js UI (`http://localhost:3125`) plus a dedicated sidecar (`ws://127.0.0.1:3127/transport`)
+- `bun run dev:web:ui` - Next.js UI only
 - `bun run dev:sidecar` - sidecar backend only
 - `bun run dev` - Tauri desktop dev
 - `bun run build` - build web assets
@@ -15,6 +16,31 @@ From `apps/examples/desktop-app/`:
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+Browser development uses sidecar port `3127` so it can run alongside an
+installed desktop app, which normally owns port `3126`. Override the browser
+development port with `CLINE_SIDECAR_PORT` when needed. A simultaneous Tauri
+development run still conflicts on the shared Next.js port `3125`; use the
+already-running dev server instead of starting `dev:web` again.
+
+## GitHub MCP OAuth
+
+The GitHub marketplace server uses the desktop host's GitHub OAuth app. Copy
+`apps/.env.example` to `apps/.env`, configure the OAuth app callback URL as
+`http://127.0.0.1:8085/mcp/oauth/callback`, and set:
+
+```ini
+GITHUB_OAUTH_APP_ID="..."
+GITHUB_OAUTH_APP_SECRETS="..."
+GITHUB_OAUTH_CALLBACK_PORT="8085"
+```
+
+`dev:sidecar` reads `apps/.env`. Compiled desktop sidecars inline values that
+are present at build time because apps launched from Finder or the Dock do not
+inherit the build shell's environment. The values are never sent to the
+webview. When GitHub is authorized, the sidecar persists the OAuth client
+binding with that server's token state in the local MCP settings file so the
+core runtime can refresh the token.
 
 ## Login Shell PATH Resolution
 

@@ -151,7 +151,7 @@ Supported commands:
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession` |
 | `list_mcp_servers` | Direct file I/O |
-| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
+| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser; the official GitHub endpoint uses the desktop OAuth app and fixed `127.0.0.1:8085` callback |
 | `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
@@ -170,7 +170,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
-bun run dev           # Both concurrently
+bun run dev:web       # Browser dev: sidecar on 3127 + Next.js on 3125
+bun run dev:web:ui    # Start only Next.js on port 3125
+bun run dev:sidecar   # Start only the default sidecar on port 3126
+bun run dev           # Tauri dev; the native shell manages its own sidecar
 ```

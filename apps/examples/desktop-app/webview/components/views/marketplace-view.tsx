@@ -64,6 +64,7 @@ type MarketplaceInstallStatusResult = {
 type InstalledStatusState = "loading" | "ready";
 
 const INSTALL_TIMEOUT_MS = 300_000;
+const EMPTY_EXCLUDED_ENTRY_KEYS: readonly string[] = [];
 const CODE_FONT_STYLE: CSSProperties = {
 	fontFamily:
 		'"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
@@ -614,11 +615,15 @@ function MarketplaceSection({
 
 export function MarketplaceView({
 	chrome = "page",
+	excludedEntryKeys = EMPTY_EXCLUDED_ENTRY_KEYS,
+	featuredContent,
 	installedItems,
 	onInstalledItemsChanged,
 	primitive,
 }: {
 	chrome?: "page" | "embedded";
+	excludedEntryKeys?: readonly string[];
+	featuredContent?: ReactNode;
 	installedItems?: MarketplaceLocalInstalledItem[];
 	onInstalledItemsChanged?: () => void | Promise<void>;
 	primitive: MarketplacePrimitiveType;
@@ -714,13 +719,21 @@ export function MarketplaceView({
 		() => new Map(catalog?.tags.map((tag) => [tag.id, tag.label]) ?? []),
 		[catalog?.tags],
 	);
+	const excludedEntryKeySet = useMemo(
+		() => new Set(excludedEntryKeys),
+		[excludedEntryKeys],
+	);
 
 	const primitiveEntries = useMemo(
 		() =>
-			(catalog?.entries.filter((entry) => entry.type === primitive) ?? []).sort(
-				compareFeaturedEntries,
-			),
-		[catalog?.entries, primitive],
+			(
+				catalog?.entries.filter(
+					(entry) =>
+						entry.type === primitive &&
+						!excludedEntryKeySet.has(entryKey(entry)),
+				) ?? []
+			).sort(compareFeaturedEntries),
+		[catalog?.entries, excludedEntryKeySet, primitive],
 	);
 
 	const queryFilteredEntries = useMemo(() => {
@@ -1082,6 +1095,8 @@ export function MarketplaceView({
 							</div>
 						</div>
 					</div>
+
+					{featuredContent}
 
 					<MarketplaceSection
 						actionStates={actionStates}

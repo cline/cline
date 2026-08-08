@@ -127,4 +127,58 @@ describe("desktop MCP settings", () => {
 			await rm(tempRoot, { recursive: true, force: true });
 		}
 	});
+
+	it("keeps the official GitHub server disabled when OAuth app config is missing", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-github-mcp-oauth-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		const previousGitHubEnv = {
+			GITHUB_OAUTH_APP_ID: process.env.GITHUB_OAUTH_APP_ID,
+			GITHUB_OAUTH_APP_SECRETS: process.env.GITHUB_OAUTH_APP_SECRETS,
+			GITHUB_OAUTH_CALLBACK_PORT: process.env.GITHUB_OAUTH_CALLBACK_PORT,
+		};
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		delete process.env.GITHUB_OAUTH_APP_ID;
+		delete process.env.GITHUB_OAUTH_APP_SECRETS;
+		delete process.env.GITHUB_OAUTH_CALLBACK_PORT;
+		try {
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						github: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://api.githubcopilot.com/mcp/",
+							},
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			await expect(
+				handleCommand(createContext(tempRoot), "authorize_mcp_server_oauth", {
+					name: "github",
+				}),
+			).rejects.toThrow("GITHUB_OAUTH_APP_ID");
+
+			const written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.github.disabled).toBe(true);
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			for (const [name, value] of Object.entries(previousGitHubEnv)) {
+				if (value === undefined) {
+					delete process.env[name];
+				} else {
+					process.env[name] = value;
+				}
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
 });

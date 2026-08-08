@@ -37,7 +37,8 @@ let resolvedEndpointCache: string | null = null;
  *    the full Tauri app shell.
  * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
  *    to `ws://127.0.0.1:3126/transport` — the sidecar's default port when
- *    running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
+ *    running the sidecar and UI-only development scripts separately. The
+ *    combined `bun run dev:web` command injects its dedicated endpoint.
  */
 export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
 	if (resolvedEndpointCache) return resolvedEndpointCache;

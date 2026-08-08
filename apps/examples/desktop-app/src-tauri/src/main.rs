@@ -368,6 +368,34 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
+fn resolve_desktop_backend_env_file_path(context: &AppContext) -> Option<PathBuf> {
+    let launch_cwd = PathBuf::from(&context.launch_cwd);
+    let candidates = [
+        PathBuf::from(&context.workspace_root)
+            .join("apps")
+            .join(".env"),
+        launch_cwd.join("apps").join(".env"),
+        launch_cwd.join("..").join("..").join(".env"),
+    ];
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+fn desktop_backend_script_command(context: &AppContext, script_path: &Path) -> Command {
+    let mut command = Command::new("bun");
+    // The source sidecar runs with the repository root as its working directory,
+    // but the desktop development environment lives in apps/.env. Bun only
+    // auto-loads dotenv files from the working directory, so pass the canonical
+    // desktop env file explicitly just as the dev:sidecar script does.
+    if let Some(env_file_path) = resolve_desktop_backend_env_file_path(context) {
+        command.arg(format!("--env-file={}", env_file_path.to_string_lossy()));
+    }
+    command
+        .arg("run")
+        .arg(script_path.to_string_lossy().to_string())
+        .current_dir(&context.workspace_root);
+    command
+}
+
 fn desktop_backend_binary_names() -> Vec<String> {
     let extension = if cfg!(windows) { ".exe" } else { "" };
     let bundled_name = format!("code-sidecar{extension}");
@@ -431,12 +459,7 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         command.current_dir(&context.workspace_root);
         command
     } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
-        let mut command = Command::new("bun");
-        command
-            .arg("run")
-            .arg(script_path.to_string_lossy().to_string())
-            .current_dir(&context.workspace_root);
-        command
+        desktop_backend_script_command(context, &script_path)
     } else {
         return Err(format!(
             "desktop backend sidecar not found. checked binary/script under workspace_root={} and launch_cwd={}",
@@ -950,6 +973,47 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn source_sidecar_command_loads_apps_env_file() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after the Unix epoch")
+            .as_nanos();
+        let temp_root = std::env::temp_dir().join(format!(
+            "cline-desktop-sidecar-env-{}-{unique}",
+            std::process::id()
+        ));
+        let apps_dir = temp_root.join("apps");
+        fs::create_dir_all(&apps_dir).expect("apps directory should be created");
+        let env_path = apps_dir.join(".env");
+        fs::write(&env_path, "GITHUB_OAUTH_APP_ID=test\n")
+            .expect("desktop env file should be written");
+
+        let context = AppContext {
+            launch_cwd: temp_root.to_string_lossy().to_string(),
+            workspace_root: temp_root.to_string_lossy().to_string(),
+        };
+        let script_path = temp_root.join("sidecar").join("index.ts");
+        let command = desktop_backend_script_command(&context, &script_path);
+        let args = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                format!("--env-file={}", env_path.to_string_lossy()),
+                "run".to_string(),
+                script_path.to_string_lossy().to_string(),
+            ]
+        );
+        assert_eq!(command.get_current_dir(), Some(temp_root.as_path()));
+
+        fs::remove_dir_all(&temp_root).expect("temporary directory should be removed");
+    }
 
     #[test]
     fn desktop_menu_actions_are_buffered_in_order_until_drained() {

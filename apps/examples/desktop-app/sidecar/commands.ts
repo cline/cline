@@ -75,6 +75,10 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import {
+	isOfficialGitHubMcpRegistration,
+	prepareGitHubMcpOAuthAuthorization,
+} from "./github-mcp-oauth";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -2166,13 +2170,35 @@ export async function handleCommand(
 		const name = String(args?.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
 		const settingsPath = resolveMcpSettingsPath();
-		const registration = resolveMcpServerRegistration(name, {
+		let registration = resolveMcpServerRegistration(name, {
 			filePath: settingsPath,
 		});
 		if (!registration) {
 			throw new Error(`unknown MCP server: ${name}`);
 		}
-		const wasDisabled = registration.disabled === true;
+		const isOfficialGitHub = isOfficialGitHubMcpRegistration(registration);
+		if (isOfficialGitHub) {
+			// A failed/misconfigured GitHub OAuth attempt must not leave the newly
+			// installed unauthenticated server enabled for agent sessions.
+			setMcpServerDisabled({
+				filePath: settingsPath,
+				name,
+				disabled: true,
+			});
+		}
+		const githubOAuthOverrides = prepareGitHubMcpOAuthAuthorization({
+			registration,
+			filePath: settingsPath,
+		});
+		if (githubOAuthOverrides) {
+			registration = resolveMcpServerRegistration(name, {
+				filePath: settingsPath,
+			});
+			if (!registration) {
+				throw new Error(`unknown MCP server: ${name}`);
+			}
+		}
+		const wasDisabled = isOfficialGitHub || registration.disabled === true;
 		setMcpServerDisabled({ filePath: settingsPath, name, disabled: true });
 		try {
 			await runCancellableMcpOAuthAuthorization(
@@ -2180,6 +2206,7 @@ export async function handleCommand(
 					serverName: name,
 					filePath: settingsPath,
 					openUrl: openUrlInDefaultBrowser,
+					...githubOAuthOverrides,
 				},
 				options?.connection,
 			);
