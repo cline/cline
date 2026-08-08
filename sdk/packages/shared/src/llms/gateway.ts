@@ -6,6 +6,7 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type { ModelTool } from "./model-tools";
 import type {
 	ModelReasoningOption,
 	ReasoningEffort,
@@ -171,6 +172,8 @@ export interface GatewayStreamRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools?: readonly AgentToolDefinition[];
+	/** Provider-executed tools requested independently of runtime tools. */
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	/**
@@ -212,6 +215,7 @@ export interface GatewayProviderRegistration {
 
 export interface GatewayModelHandleOptions {
 	tools?: readonly AgentToolDefinition[];
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	metadata?: Record<string, unknown>;

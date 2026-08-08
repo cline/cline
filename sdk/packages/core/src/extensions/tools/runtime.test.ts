@@ -71,4 +71,29 @@ describe("builtin tool catalog", () => {
 		expect(selected.has("spawn_agent")).toBe(true);
 		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).toContain("teams");
 	});
+
+	it("surfaces native web search only for supported model selections", () => {
+		const anthropic = getCoreBuiltinToolCatalog({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+		});
+		expect(
+			anthropic.find((entry) => entry.id === "web_search")?.defaultEnabled,
+		).toBe(false);
+
+		const enabled = getCoreBuiltinToolCatalog({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			enabledModelToolIds: new Set(["web_search"]),
+		});
+		expect(
+			enabled.find((entry) => entry.id === "web_search")?.defaultEnabled,
+		).toBe(true);
+
+		const unsupported = getCoreBuiltinToolCatalog({
+			providerId: "ollama",
+			modelId: "llama3",
+		});
+		expect(unsupported.some((entry) => entry.id === "web_search")).toBe(false);
+	});
 });
