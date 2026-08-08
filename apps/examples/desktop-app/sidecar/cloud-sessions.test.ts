@@ -532,6 +532,72 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
+	it("recovery never steals a session whose successful POST is still completing", async () => {
+		const now = new Date().toISOString();
+		let releaseSlowCreate!: () => void;
+		const slowCreateBlocked = new Promise<void>((resolve) => {
+			releaseSlowCreate = resolve;
+		});
+		let posts = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					posts += 1;
+					if (posts === 1) {
+						// The server has already provisioned ses-inflight (it shows
+						// up in the list below) but the response is still in flight.
+						await slowCreateBlocked;
+						return jsonResponse(
+							{
+								success: true,
+								data: { sessionId: "ses-inflight", sandboxUrl: "pod" },
+							},
+							201,
+						);
+					}
+					return jsonResponse(
+						{ success: false, error: "gateway timeout" },
+						500,
+					);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-inflight",
+							status: "provisioning",
+							sandboxUrl: "pod",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "anthropic/claude-sonnet-5" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const slow = api.create(input);
+		// Yield so the slow POST registers before the failing one starts.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const failing = api.create(input);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		releaseSlowCreate();
+
+		// The recovery waits for the earlier request's claim, so it cannot
+		// adopt ses-inflight; with no unclaimed candidate it surfaces its own
+		// failure instead of handing both composers the same sandbox.
+		await expect(slow).resolves.toMatchObject({ sessionId: "ses-inflight" });
+		await expect(failing).rejects.toThrow();
+	});
+
 	it("never adopts a session that a successful concurrent create already owns", async () => {
 		const now = new Date().toISOString();
 		let posts = 0;

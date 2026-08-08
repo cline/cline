@@ -184,6 +184,16 @@ export class CloudSessionApi {
 	// overlapping requests could both adopt the same record and orphan the
 	// other sandbox.
 	private readonly claimedSessionIds = new Set<string>();
+	// Orders concurrent identical creates: a session becomes visible in the
+	// list the moment the server starts provisioning it — long before the
+	// successful POST returns — so recovery must wait for earlier peers to
+	// record their claims before adopting a listed session. Later peers wait
+	// on earlier ones only, so waits can never cycle.
+	private createSequence = 0;
+	private readonly inFlightCreates = new Map<
+		string,
+		Map<number, Promise<void>>
+	>();
 
 	constructor(private readonly options: CloudSessionApiOptions) {
 		this.apiBaseUrl = trimTrailingSlash(options.apiBaseUrl);
@@ -401,6 +411,21 @@ export class CloudSessionApi {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		const requestedAt = Date.now();
+		const claimKey = [
+			input.repoUrl,
+			input.modelId,
+			input.branch?.trim() ?? "",
+			input.organizationId?.trim() ?? "",
+		].join("\u0000");
+		const sequence = ++this.createSequence;
+		let settleClaimDecision!: () => void;
+		const claimDecision = new Promise<void>((resolve) => {
+			settleClaimDecision = resolve;
+		});
+		const peers =
+			this.inFlightCreates.get(claimKey) ?? new Map<number, Promise<void>>();
+		peers.set(sequence, claimDecision);
+		this.inFlightCreates.set(claimKey, peers);
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -434,6 +459,14 @@ export class CloudSessionApi {
 				controller.signal.aborted ||
 				(error instanceof CloudSessionError && error.code === "request_failed");
 			if (mayStillBeProvisioning) {
+				// Let every earlier identical request record its claim first;
+				// otherwise this recovery could adopt a session whose POST is
+				// still completing and hand two composers the same sandbox.
+				await Promise.allSettled(
+					[...peers.entries()]
+						.filter(([peerSequence]) => peerSequence < sequence)
+						.map(([, decision]) => decision),
+				);
 				const requestedBranch = input.branch?.trim();
 				// The blocking create can run for ~10 minutes; the token captured
 				// at its start may have expired since. Prefer a fresh token for
@@ -475,6 +508,11 @@ export class CloudSessionApi {
 			throw error;
 		} finally {
 			clearTimeout(timeout);
+			settleClaimDecision();
+			peers.delete(sequence);
+			if (peers.size === 0) {
+				this.inFlightCreates.delete(claimKey);
+			}
 		}
 	}
 
